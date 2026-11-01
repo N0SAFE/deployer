@@ -130,6 +130,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Do: claim-token flow in setup + API; enrol passkey on claim; one-shot token consumed atomically.
   - Done when: a fresh install can only be claimed with the token; no default credentials exist.
   - Status: todo · Verified-in-code: no · Source: ideas-security-resilience.md#3 (12), auth.md#4 (3)
+  - Status (2026-11-01): **done** (server config; the WebAuthn e2e stays with AUTH-041). `usePasskey` now takes `rpID` and `origin`, and the factory derives them with `passkeyCoordinates`: RP ID = `AUTH_BASE_DOMAIN` without its leading dot, origin = `APP_URL` (or a comma-separated `PASSKEY_ORIGIN`); `PASSKEY_RPID` pins the RP ID. Both keys are now in `apiEnvSchema` and passed through `createBetterAuth` — previously they were in compose and read by nothing, and `GITHUB_CLIENT_ID`/`SECRET` were not passed at all, which is why the provider never activated. `passkey-coordinates.spec.ts` (4) and two `auth.spec.ts` cases assert the derivation and the override.
   - Design-impact (2026-10-26): the claim token becomes the `SetupClaim` principal (`AUTH-059`): one-time, atomic consume, bound to passkey enrolment (AAL3 after enrolment), replacing default-admin bootstrap; no default credentials anywhere.
 
 ### Second factor, passkeys, API keys, device flow
@@ -139,7 +140,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Done when: user enrols, signs out, signs in with TOTP and with a backup code; e2e test AUTH-047.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (TOTP), auth.md#3 (8), auth.md#4 (8)
 
-- [ ] `AUTH-018` **Fix passkey rpID/origin** · FIX · P1 · M · Deps: none
+- [x] `AUTH-018` **Fix passkey rpID/origin** · FIX · P1 · M · Deps: none
   - Why/Problem: `usePasskey({rpName})` only; `PASSKEY_RPID/PASSKEY_ORIGIN` appear only in compose and are read by no code; plugin default rpID is `api.<domain>` while the browser origin is `web.<domain>`, so WebAuthn validation fails.
   - Do: set `rpID` to parent domain (`AUTH_BASE_DOMAIN` without leading dot), `origin` to web origin(s); read the `PASSKEY_*` env.
   - Done when: enrol + sign-in with a passkey works across `web.`/`api.`; test AUTH-047.

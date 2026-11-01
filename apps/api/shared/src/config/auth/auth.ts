@@ -1,4 +1,8 @@
 import { betterAuthFactory } from "@deployer/auth/server";
+
+/** A string env value, or nothing: the schema's optional keys widen to a union through `EnvService`. */
+const optionalString = (value: unknown): string | undefined =>
+    typeof value === "string" && value.length > 0 ? value : undefined;
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { EnvService } from "../env/env.module";
 
@@ -15,5 +19,11 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
         NEXT_PUBLIC_APP_URL: envService.get('NEXT_PUBLIC_APP_URL'),
         APP_URL: envService.get('APP_URL'),
         AUTH_BASE_DOMAIN: envService.get('AUTH_BASE_DOMAIN'),
+        // Without these the factory cannot pin the WebAuthn relying party (it would use the API hostname, which the
+        // browser rejects) and the GitHub provider would never activate.
+        PASSKEY_RPID: optionalString(envService.get('PASSKEY_RPID')),
+        PASSKEY_ORIGIN: optionalString(envService.get('PASSKEY_ORIGIN')),
+        GITHUB_CLIENT_ID: optionalString(envService.get('GITHUB_CLIENT_ID')),
+        GITHUB_CLIENT_SECRET: optionalString(envService.get('GITHUB_CLIENT_SECRET')),
     }: envService);
 };

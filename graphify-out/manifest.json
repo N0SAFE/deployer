@@ -1390,8 +1390,8 @@
     "semantic_hash": "13b0ce62458217ff488d3ac82072fa9f"
   },
   "apps/web/src/middlewares/WithAuth.ts": {
-    "mtime": 1793107637.529926,
-    "ast_hash": "9994d7d8664103d5d534a875f7796aac",
+    "mtime": 1793574731.639694,
+    "ast_hash": "a42303b7a08d48aa922bfa0e80218d4c",
     "semantic_hash": ""
   },
   "apps/web/src/middlewares/WithEnv.ts": {
@@ -1415,9 +1415,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/middlewares/__tests__/WithAuth.test.ts": {
-    "mtime": 1779878623.87328,
-    "ast_hash": "91b114dc23a928aa9573d686d77fb271",
-    "semantic_hash": "91b114dc23a928aa9573d686d77fb271"
+    "mtime": 1793574746.2621078,
+    "ast_hash": "8ac43af895fc938c60deb11a0cfa121b",
+    "semantic_hash": ""
   },
   "apps/web/src/middlewares/__tests__/WithEnv.test.ts": {
     "mtime": 1779878623.8742802,
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793574553.2496376,
-    "ast_hash": "45cd309b6be56de07fc24a690e72d9b9",
+    "mtime": 1793574783.5814877,
+    "ast_hash": "48865a3df5e865c94cc62e1cb6a64d82",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -13495,8 +13495,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/auth-security.md": {
-    "mtime": 1793574553.2057588,
-    "ast_hash": "6667a49573916ab4f7bea3d8040ab7fc",
+    "mtime": 1793574783.546041,
+    "ast_hash": "2844633e3a866ab4a7f11e3bf17e3f5e",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/cluster.md": {

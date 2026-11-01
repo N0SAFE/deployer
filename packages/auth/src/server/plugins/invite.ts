@@ -68,7 +68,8 @@ export interface Invite {
   email?: string;
   expiresAt: Date;
   role: string;
-  usedAt?: Date;
+  /** Null in the database until the invite is spent; `undefined` before it is read back. */
+  usedAt?: Date | null;
   invitedUserId: string;
 };
 

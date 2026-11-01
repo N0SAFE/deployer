@@ -50,8 +50,8 @@ function contextOf(adapter: Record<string, unknown>, body: Record<string, unknow
 		context: {
 			session: { user: { id: "admin-1" } },
 			adapter,
-			password: { hash: vi.fn(async (password: string) => `hashed:${password}`) },
-			internalAdapter: { findUserById: vi.fn(async () => ({ id: "admin-1", role: "admin" })) },
+			password: { hash: vi.fn((password: string) => Promise.resolve(`hashed:${password}`)) },
+			internalAdapter: { findUserById: vi.fn(() => Promise.resolve({ id: "admin-1", role: "admin" })) },
 		},
 		body,
 		query,
@@ -65,10 +65,10 @@ describe("/invite/list filters", () => {
 
 	it("treats a null usedAt as pending, not as used", async () => {
 		const adapter = {
-			findMany: vi.fn(async () => [
+			findMany: vi.fn(() => Promise.resolve([
 				invite({ id: "a", token: "pending", usedAt: null }),
 				invite({ id: "b", token: "used", usedAt: new Date("2026-10-31T12:00:00.000Z") }),
-			]),
+			])),
 		};
 
 		const result = (await list()(contextOf(adapter, {}, { status: "pending" }))) as { payload: { invitations: { id: string }[] } };
@@ -78,10 +78,10 @@ describe("/invite/list filters", () => {
 
 	it("returns only the used rows for status=used", async () => {
 		const adapter = {
-			findMany: vi.fn(async () => [
+			findMany: vi.fn(() => Promise.resolve([
 				invite({ id: "a", token: "pending", usedAt: null }),
 				invite({ id: "b", token: "used", usedAt: new Date("2026-10-31T12:00:00.000Z") }),
-			]),
+			])),
 		};
 
 		const result = (await list()(contextOf(adapter, {}, { status: "used" }))) as { payload: { invitations: { id: string }[] } };
@@ -95,14 +95,19 @@ describe("/invite/validate single use", () => {
 
 	it("claims the invite before writing anything, and rotates its token", async () => {
 		const adapter = {
-			findOne: vi.fn(async (args: { model: string; where: { value: string }[] }) => {
-				if (args.model === "account") return null;
-				return args.where[0]?.value === "invite-token"
-					? invite()
-					: invite({ token: "invite-token.spent.spent-token-random", usedAt: new Date("2026-11-01T00:00:00.000Z") });
+			findOne: vi.fn((args: { model: string; where: { value: string }[] }) => {
+				if (args.model === "account") return Promise.resolve(null);
+				return Promise.resolve(
+					args.where[0]?.value === "invite-token"
+						? invite()
+						: invite({
+								token: "invite-token.spent.spent-token-random",
+								usedAt: new Date("2026-11-01T00:00:00.000Z"),
+							}),
+				);
 			}),
-			update: vi.fn(async (_args: { update: { token: string; usedAt: Date } }) => null),
-			create: vi.fn(async () => null),
+			update: vi.fn((_args: { update: { token: string; usedAt: Date } }) => Promise.resolve(null)),
+			create: vi.fn(() => Promise.resolve(null)),
 		};
 
 		await validate()(contextOf(adapter, { token: "invite-token", password: "correct-horse", name: "New" }));
@@ -115,11 +120,11 @@ describe("/invite/validate single use", () => {
 	it("refuses when another caller already consumed the invite", async () => {
 		const adapter = {
 			// The row exists under the original token, but the spent-token read-back finds nothing: this caller lost.
-			findOne: vi.fn(async (args: { model: string; where: { value: string }[] }) =>
-				args.model === "platformInvite" && args.where[0]?.value === "invite-token" ? invite() : null,
+			findOne: vi.fn((args: { model: string; where: { value: string }[] }) =>
+				Promise.resolve(args.model === "platformInvite" && args.where[0]?.value === "invite-token" ? invite() : null),
 			),
-			update: vi.fn(async () => null),
-			create: vi.fn(async () => null),
+			update: vi.fn(() => Promise.resolve(null)),
+			create: vi.fn(() => Promise.resolve(null)),
 		};
 
 		await expect(
@@ -130,9 +135,9 @@ describe("/invite/validate single use", () => {
 
 	it("refuses an expired invite without claiming it", async () => {
 		const adapter = {
-			findOne: vi.fn(async () => invite({ expiresAt: new Date("2026-10-01T00:00:00.000Z") })),
-			update: vi.fn(async () => null),
-			create: vi.fn(async () => null),
+			findOne: vi.fn(() => Promise.resolve(invite({ expiresAt: new Date("2026-10-01T00:00:00.000Z") }))),
+			update: vi.fn(() => Promise.resolve(null)),
+			create: vi.fn(() => Promise.resolve(null)),
 		};
 
 		await expect(

@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+# Skip during rebase/merge/cherry-pick: blocking --continue on a full check is hostile.
+GIT_DIR=$(git rev-parse --git-dir)
+if [ -d "$GIT_DIR/rebase-merge" ] || [ -d "$GIT_DIR/rebase-apply" ] || [ -f "$GIT_DIR/MERGE_HEAD" ]; then
+    echo "⏭  pre-commit: skipped (rebase/merge in progress)"
+    exit 0
+fi
+
+echo "🔎 pre-commit: lint + type-check + test for packages changed vs HEAD"
+bun --bun x turbo run lint type-check test --continue --output-logs=errors-only --filter='[HEAD]'

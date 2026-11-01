@@ -21,7 +21,7 @@ describe("platformRoleRank", () => {
 		[undefined, -1],
 		["root", -1],
 	])("ranks %s as %i", (role, rank) => {
-		expect(platformRoleRank(role as string | null | undefined)).toBe(rank);
+		expect(platformRoleRank(role)).toBe(rank);
 	});
 });
 

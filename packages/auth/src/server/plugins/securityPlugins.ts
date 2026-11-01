@@ -27,7 +27,15 @@ import { passkey } from "@better-auth/passkey";
 export interface UsePasskeyOptions {
     /** Relying-party display name shown by the OS during enrolment. */
     rpName?: string;
-    /** Restrict enrolment to specific origins. Defaults to inferring from the request. */
+    /**
+     * The WebAuthn relying-party ID: the registrable domain the credential is bound to, WITHOUT a leading dot.
+     *
+     * It must be a suffix of the page's origin and it must be the PARENT domain, because the ceremony runs on the web
+     * origin while this API answers it on `api.<domain>` — leaving it to the default makes the plugin use the API's own
+     * hostname, and the browser then rejects every credential as "wrong RP".
+     */
+    rpID?: string;
+    /** The origin(s) the ceremony may come from — the web app, not the API. Defaults to inferring from the request. */
     origin?: string | string[];
 }
 
@@ -53,8 +61,39 @@ export interface UsePasskeyOptions {
 export function usePasskey(options: UsePasskeyOptions = {}) {
     return passkey({
         rpName: options.rpName ?? 'Deployer',
+        ...(options.rpID ? { rpID: options.rpID } : {}),
         ...(options.origin ? { origin: options.origin } : {}),
     });
+}
+
+/**
+ * The relying-party coordinates for one deployment.
+ *
+ * `rpID` is the parent domain (`example.com` for `web.example.com`); `origin` is where the browser actually is (the web
+ * app, one or more of them). Both come from `AUTH_BASE_DOMAIN`/the app URL unless the operator pins them with
+ * `PASSKEY_RPID`/`PASSKEY_ORIGIN` (comma-separated), which is what a deployment behind a different public hostname
+ * needs.
+ */
+export function passkeyCoordinates(input: {
+    readonly authBaseDomain?: string;
+    readonly appUrl?: string;
+    readonly rpIdOverride?: string;
+    readonly originOverride?: string;
+}): { rpID?: string; origin?: string[] } {
+    const fromDomain = input.authBaseDomain?.replace(/^\./u, '').trim();
+    const rpID = input.rpIdOverride?.trim() || (fromDomain ? fromDomain : undefined);
+
+    const pinned = (input.originOverride ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0);
+    const inferred = input.appUrl?.trim();
+    const origin = pinned.length > 0 ? pinned : inferred ? [inferred] : [];
+
+    return {
+        ...(rpID ? { rpID } : {}),
+        ...(origin.length > 0 ? { origin } : {}),
+    };
 }
 
 export type PasskeyPlugin = ReturnType<typeof usePasskey>;

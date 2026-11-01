@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { multiSession } from 'better-auth/plugins';
+import { usePasskey } from './plugins';
 import { betterAuthFactory } from './auth';
 import { loginAsPlugin, masterTokenPlugin } from './plugins';
 
@@ -327,6 +328,36 @@ describe('betterAuthFactory', () => {
       betterAuthFactory(mockDb, mockEnv);
 
       expect(vi.mocked(multiSession)).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives the passkey plugin the parent domain and the web origin, not the API hostname', () => {
+      vi.mocked(usePasskey).mockClear();
+
+      betterAuthFactory(mockDb, {
+        ...mockEnv,
+        AUTH_BASE_DOMAIN: '.example.com',
+        APP_URL: 'https://web.example.com',
+      });
+
+      expect(vi.mocked(usePasskey)).toHaveBeenCalledWith(
+        expect.objectContaining({ rpID: 'example.com', origin: ['https://web.example.com'] }),
+      );
+    });
+
+    it('lets PASSKEY_RPID / PASSKEY_ORIGIN override the derived coordinates', () => {
+      vi.mocked(usePasskey).mockClear();
+
+      betterAuthFactory(mockDb, {
+        ...mockEnv,
+        AUTH_BASE_DOMAIN: '.example.com',
+        APP_URL: 'https://web.example.com',
+        PASSKEY_RPID: 'deploy.internal',
+        PASSKEY_ORIGIN: 'https://console.internal',
+      });
+
+      expect(vi.mocked(usePasskey)).toHaveBeenCalledWith(
+        expect.objectContaining({ rpID: 'deploy.internal', origin: ['https://console.internal'] }),
+      );
     });
   });
 

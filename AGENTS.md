@@ -57,6 +57,12 @@ This file defines how AI coding agents must operate in this repository. It exist
   - `fix(webRouting): Resolve route gen race`
 - Keep commits focused and logically grouped.
 
+### Git Hooks (`.husky/`, activated via `core.hooksPath`)
+
+- `pre-commit` — `turbo run lint type-check test --filter='[HEAD]'` on packages touched by staged changes. Skipped during rebase/merge. Bypass with `git commit --no-verify` only for WIP commits that never get pushed.
+- `pre-push` — `bun --bun run check -- --affected` (full compile → lint → test → type-check gate).
+- Enable once per clone: `git config core.hooksPath .husky` (the tracked root `.gitconfig` already sets it for clones that include it).
+
 ## Safety and Boundaries
 
 - Do not remove or rename workspace packages without an explicit instruction and confirmation flag when using tools like `delete-target`.

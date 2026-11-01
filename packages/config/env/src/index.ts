@@ -188,6 +188,13 @@ export const apiEnvSchema = zod
         AUTH_SECRET: zod.string().optional(),
         BETTER_AUTH_SECRET: zod.string().optional(),
         AUTH_BASE_DOMAIN: zod.string().optional(),
+        // WebAuthn relying-party coordinates. The RP ID must be the PARENT domain (the page runs on the web origin,
+        // the API answers on `api.<domain>`); pin both when the public hostnames do not follow AUTH_BASE_DOMAIN.
+        PASSKEY_RPID: zod.string().optional(),
+        PASSKEY_ORIGIN: zod.string().optional(),
+        // GitHub sign-in. The factory only registers the provider when both are present.
+        GITHUB_CLIENT_ID: zod.string().optional(),
+        GITHUB_CLIENT_SECRET: zod.string().optional(),
         DEV_AUTH_KEY: zod.string().optional(),
         DEFAULT_ADMIN_EMAIL: zod.email().optional(),
         DEFAULT_ADMIN_PASSWORD: zod.string().optional(),

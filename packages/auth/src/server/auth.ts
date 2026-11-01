@@ -17,6 +17,7 @@ import {
     useTwoFactor,
 } from "./plugins";
 import { buildTrustedOrigins } from "./origins";
+import { passkeyCoordinates } from "./plugins/securityPlugins";
 
 /** The environment the factory reads. One named shape, shared by every helper. */
 export interface AuthFactoryEnv {
@@ -32,6 +33,10 @@ export interface AuthFactoryEnv {
     AUTH_BASE_DOMAIN?: string;
     GITHUB_CLIENT_ID?: string;
     GITHUB_CLIENT_SECRET?: string;
+    /** Pins the WebAuthn relying-party ID; defaults to `AUTH_BASE_DOMAIN` without its leading dot. */
+    PASSKEY_RPID?: string;
+    /** Pins the WebAuthn origin(s), comma-separated; defaults to `APP_URL`. */
+    PASSKEY_ORIGIN?: string;
 }
 
 /** Request-derived values the factory computes and the config builder consumes. */
@@ -99,6 +104,10 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         BASE_URL,
         GITHUB_CLIENT_ID,
         GITHUB_CLIENT_SECRET,
+        APP_URL,
+        NEXT_PUBLIC_APP_URL,
+        PASSKEY_RPID,
+        PASSKEY_ORIGIN,
     } = env;
 
     // ── DEV-ONLY AUTH DOORS ARE NOT EVEN REGISTERED IN PRODUCTION ───────────
@@ -277,7 +286,21 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // WebAuthn/passkeys. Doubles as the proof-of-physical-presence
             // factor that Agent Auth requires for mutating capabilities, so an
             // AI agent cannot deploy without a real user gesture.
-            usePasskey({ rpName: "Deployer" }),
+            //
+            // The RP ID must be the PARENT domain, not the API's hostname: the browser runs the ceremony on the web
+            // origin (`web.<domain>`) while this API answers it on `api.<domain>`, and a credential registered against
+            // the wrong RP is rejected by the browser with no way to recover it. `PASSKEY_RPID`/`PASSKEY_ORIGIN` pin
+            // them for a deployment whose public hostnames do not follow `AUTH_BASE_DOMAIN`.
+            usePasskey({
+                rpName: "Deployer",
+                ...passkeyCoordinates({
+                    // `cookieDomain` IS `AUTH_BASE_DOMAIN` (with its leading dot), computed by the factory.
+                    authBaseDomain: cookieDomain,
+                    appUrl: APP_URL ?? NEXT_PUBLIC_APP_URL,
+                    rpIdOverride: PASSKEY_RPID,
+                    originOverride: PASSKEY_ORIGIN,
+                }),
+            }),
             // TOTP + backup codes. `issuer` is required: it is what an
             // authenticator app displays to distinguish this platform's codes
             // from any other.

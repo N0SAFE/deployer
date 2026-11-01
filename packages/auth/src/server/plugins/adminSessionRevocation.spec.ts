@@ -17,9 +17,9 @@ function contextOf(options: {
 	readonly deleteSessions?: (...args: unknown[]) => Promise<unknown>;
 	readonly deleteMany?: (args: unknown) => Promise<unknown>;
 }) {
-	const listSessions = vi.fn(async () => options.sessions ?? []);
-	const deleteSessions = vi.fn(options.deleteSessions ?? (async () => undefined));
-	const deleteMany = vi.fn(options.deleteMany ?? (async () => ({ count: 0 })));
+	const listSessions = vi.fn(() => Promise.resolve(options.sessions ?? []));
+	const deleteSessions = vi.fn(options.deleteSessions ?? (() => Promise.resolve(undefined)));
+	const deleteMany = vi.fn(options.deleteMany ?? (() => Promise.resolve({ count: 0 })));
 
 	return {
 		ctx: {
@@ -81,12 +81,8 @@ describe("adminSessionRevocationPlugin", () => {
 	it("keeps a successful ban successful when the revocation itself fails", async () => {
 		const { ctx } = contextOf({
 			sessions: [{ token: "a" }],
-			deleteSessions: async () => {
-				throw new Error("database is gone");
-			},
-			deleteMany: async () => {
-				throw new Error("database is gone");
-			},
+			deleteSessions: () => Promise.reject(new Error("database is gone")),
+			deleteMany: () => Promise.reject(new Error("database is gone")),
 		});
 
 		await expect(afterHook().handler(ctx)).resolves.toBeUndefined();
