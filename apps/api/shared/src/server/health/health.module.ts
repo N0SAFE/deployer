@@ -94,7 +94,7 @@ export class HealthModule {
 	 * that does not import `DatabaseModule` still gets a registry, and the check reports "no pool bound" instead of
 	 * failing at boot.
 	 */
-	static forRoot(options: { indicators: IndicatorSet }): DynamicModule {
+	static forRoot(options: { indicators: IndicatorSet }) {
 		const names = INDICATORS[options.indicators];
 		const pool = { token: GLOBAL_DATABASE_POOL, optional: true as const };
 
@@ -138,7 +138,19 @@ export class HealthModule {
 				controllers: [HealthStreamController],
 				exports: [HealthRegistry],
 			},
-			{},
+			// The claims are what the importer's Effect context is derived from: an empty declaration would make a
+			// module that imports `forRoot(...)` contribute nothing, silently, while Nest still resolves it at runtime.
+			{
+				provides: [
+					MemoryHealthIndicator,
+					DiskHealthIndicator,
+					RedisHealthIndicator,
+					DatabaseHealthIndicator,
+					MigrationsHealthIndicator,
+					HealthRegistry,
+				],
+				exports: [HealthRegistry],
+			},
 		);
 	}
 }

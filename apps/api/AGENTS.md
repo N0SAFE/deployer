@@ -185,6 +185,15 @@ check() {
   closures over one collaborator; it runs `make` on every call, so keep such a service stateless and put state
   shared by calls in a value created once next to `live` (see `EdgeDnsService`). A spec instantiates the class:
   `provideTo(new Service.live(), (e) => e.pipe(Effect.provideService(Tag, fake)))`.
+- **A `forRoot` that declares its module must declare its services — twice.** `declareModule(metadata, claims)` carries
+  the generics in phantom symbol properties (`ExportsOf`, `EffectContextOf`, `UnmetRequirementsOf`), so two things erase
+  them: writing `: DynamicModule` on `forRoot` drops the intersection (`ReturnType` becomes a bare `DynamicModule`), and
+  an empty claims object (`{}`, or only `{ global: true }`) declares no provider and no export. Either one makes the
+  import contribute `never` to the importer's context and to the requirement gate — silently, because
+  `ImportedServices`/`ImportedUnmet` map an unannotated module to `never` instead of erroring. `provides` lists the
+  module's `Context.Service` tags (plain classes and symbol tokens cannot be claimed), `exports` what its importers may
+  yield, and the return type is left inferred (`declareModule` produces `DeclaredModule<…>`). `HealthModule.forRoot` is
+  the reference.
 - Something that needs real construction stays an ordinary Nest provider, still under its Effect tag:
   a pool-bound database handle (`{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] }`),
   an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a registration the

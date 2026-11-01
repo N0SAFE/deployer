@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793566739.3254082,
-    "ast_hash": "d7e53ba48463ef6366401790c155010c",
+    "mtime": 1793568632.1325295,
+    "ast_hash": "3fd841eb4b16b82d0ebf4bddc25ce9d8",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -14944,11 +14944,6 @@
     "ast_hash": "f087822c3c5148f3d02b5046152fb60c",
     "semantic_hash": ""
   },
-  "apps/api/services/project/src/core/ports/project-access.port.ts": {
-    "mtime": 1793107637.3796248,
-    "ast_hash": "275b01c7cadca9a7d2b52c40ba21738a",
-    "semantic_hash": ""
-  },
   "apps/api/services/project/src/core/ports/project-domain-repository.port.ts": {
     "mtime": 1793107637.3796248,
     "ast_hash": "c8df0012ccd4707f1d3a42b07375a06e",
@@ -15015,18 +15010,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/domain/domain.module.ts": {
-    "mtime": 1793267958.5362804,
-    "ast_hash": "bcab15372b25727ce68b5dc05c717a9f",
+    "mtime": 1793567870.4847362,
+    "ast_hash": "8b0ab8907135ad77bee7cdd723984168",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/domain/services/domain-project.service.ts": {
-    "mtime": 1793267685.5046575,
-    "ast_hash": "149ed4e63606eba1c0d76248bbce36dc",
+    "mtime": 1793567870.4839554,
+    "ast_hash": "6740c49a1348dc1a81a06f4e54aa2ed2",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/domain/services/domain-service.service.ts": {
-    "mtime": 1793267685.5040457,
-    "ast_hash": "b86e27771cf30895e5a3e85f53766a77",
+    "mtime": 1793567870.4843626,
+    "ast_hash": "7cdf44787d0ef5289e4f34940b7ed1f7",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/network/dns-provider.gateway.ts": {
@@ -15155,8 +15150,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/service.module.ts": {
-    "mtime": 1793555113.1369777,
-    "ast_hash": "e6849b8c650cfb0a250916e233245251",
+    "mtime": 1793567870.4853673,
+    "ast_hash": "63f04977d80daea1011a49584a5f17aa",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/services/preview-topology.resolver.ts": {
@@ -15200,13 +15195,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/services/service.service.spec.ts": {
-    "mtime": 1793267741.5581927,
-    "ast_hash": "44488c07bcb8f675c621674e5133dd20",
+    "mtime": 1793568090.6989617,
+    "ast_hash": "1f8d11b829525e354f6384bb4498ba67",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/services/service.service.ts": {
-    "mtime": 1793267685.5011885,
-    "ast_hash": "bb6975940dc68b4b8272f0524622b151",
+    "mtime": 1793568157.9762433,
+    "ast_hash": "3d421cda83dd3a08177a1eb610d3080f",
     "semantic_hash": ""
   },
   "apps/api/services/project/tsconfig.json": {
@@ -15420,13 +15415,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/deployment.service.spec.ts": {
-    "mtime": 1793563563.9798439,
-    "ast_hash": "f40bac52b16f1816f4d481b7f3522664",
+    "mtime": 1793568234.7775006,
+    "ast_hash": "fa9c933d1719341dedc12eb178ca1a8e",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/deployment.service.ts": {
-    "mtime": 1793290393.8548505,
-    "ast_hash": "16d40321ec2c31d49bac81f2e2b625af",
+    "mtime": 1793568414.1513188,
+    "ast_hash": "922eb642d58ad0f7bbd956d951d869ff",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/preview-cleanup-policy.service.spec.ts": {
@@ -16770,18 +16765,18 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/project/project-core.module.ts": {
-    "mtime": 1793458358.2218382,
-    "ast_hash": "fd8a0f4f455afd225534f139112e11ca",
+    "mtime": 1793567994.3869436,
+    "ast_hash": "8c0d15ffb01f2241eb43ac2b85ee7c58",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/project/repositories/project-access.repository.ts": {
-    "mtime": 1793107637.449696,
-    "ast_hash": "61f1287f47bfc0da79b3d276ddce0572",
+    "mtime": 1793567828.115196,
+    "ast_hash": "df875aa2ae7972ed095109f0266f501e",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/project/services/project-access.service.ts": {
-    "mtime": 1793107637.449696,
-    "ast_hash": "6c2edb17f2c41ff3ef1a5a2518879cf2",
+    "mtime": 1793567856.6185534,
+    "ast_hash": "d76a1782232194a449aabd824ccc926e",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/reachability/core-reachability.module.ts": {
@@ -22012,6 +22007,11 @@
   "docs/audit-2026-10-25/nest-vs-effect-services.md": {
     "mtime": 1793566731.3694894,
     "ast_hash": "098220c90669462393dae397e3cc712a",
+    "semantic_hash": ""
+  },
+  "apps/api/shared/src/core/modules/project/services/project-access.service.spec.ts": {
+    "mtime": 1793568593.2712913,
+    "ast_hash": "197e878d60e2cbffb584fd6dafb87760",
     "semantic_hash": ""
   }
 }
