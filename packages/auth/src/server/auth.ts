@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { multiSession, openAPI } from "better-auth/plugins";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
+    adminHierarchyPlugin,
     masterTokenPlugin,
     loginAsPlugin,
     pushNotificationsPlugin,
@@ -212,6 +213,12 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         },
         plugins: [
             useAdmin(),
+            // The hierarchy half of administration. The admin plugin checks a
+            // capability (`user:set-role`), which says the caller may administer
+            // users — not that it may act on THIS account or grant THIS role.
+            // Without this hook an `admin` could mint `superAdmin`, ban the
+            // superAdmin above it, or demote a peer.
+            adminHierarchyPlugin(),
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the

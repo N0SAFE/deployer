@@ -1,20 +1,7 @@
+import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator } from "@deployer/auth/authz";
 import { ForbiddenError, ValidationError } from "@deployer/errors";
 
 import type { Actor, User, UserPatch } from "./user.types";
-
-/** Roles that may administer OTHER users. */
-const ADMIN_ROLES: ReadonlySet<string> = new Set(["admin", "superAdmin"]);
-
-/** The one role that may grant itself. */
-const ROOT_ROLE = "superAdmin";
-
-/** Platform roles, lowest first. A role outside the list ranks below all of them. */
-const ROLE_RANK: Readonly<Record<string, number>> = {
-  viewer: 0,
-  operator: 1,
-  admin: 2,
-  superAdmin: 3,
-};
 
 /** The fields a user may change on THEMSELVES. */
 const SELF_SERVICE_FIELDS: ReadonlySet<keyof UserPatch> = new Set(["name", "email"]);
@@ -70,7 +57,7 @@ export const userRules = {
   },
 
   assertCanAdminister(actor: Actor): void {
-    if (!ADMIN_ROLES.has(actor.role)) {
+    if (!isPlatformAdministrator(actor.role)) {
       throw new ForbiddenError("this operation requires platform administration");
     }
   },
@@ -88,10 +75,10 @@ export const userRules = {
 
   assertRoleIsAssignable(actor: Actor, role: User["role"]): void {
     if (role === undefined) return;
-    userRules.assertCanAdminister(actor);
-    if (role === ROOT_ROLE && actor.role !== ROOT_ROLE) {
-      throw new ForbiddenError(`only a ${ROOT_ROLE} may grant the ${ROOT_ROLE} role`);
-    }
+    // The same rule Better Auth's admin endpoints enforce, so the two paths cannot disagree: an administrator hands out
+    // only roles strictly below its own, and only the root role grants the root role.
+    const refusal = refuseRoleGrant({ actorRole: actor.role, grantedRole: role });
+    if (refusal !== null) throw new ForbiddenError(refusal.message);
   },
 
   /**
@@ -100,13 +87,8 @@ export const userRules = {
    * another admin or a superAdmin. Pair with `assertCanAdminister` — this rule is about rank only.
    */
   assertOutranks(actor: Actor, targetRole: User["role"]): void {
-    if (actor.role === ROOT_ROLE) return;
-    const actorRank = ROLE_RANK[actor.role] ?? -1;
-    const targetRank = ROLE_RANK[targetRole ?? ""] ?? -1;
-    if (targetRank < actorRank) return;
-    throw new ForbiddenError(
-      `a ${actor.role} may not act on an account whose role is ${targetRole ?? "unset"}`
-    );
+    const refusal = refuseAdminAction({ actorRole: actor.role, targetRole: targetRole ?? null });
+    if (refusal !== null) throw new ForbiddenError(refusal.message);
   },
 
   toSelfServicePatch(patch: UserPatch, current: User): UserPatch {

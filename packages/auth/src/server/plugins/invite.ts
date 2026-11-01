@@ -47,6 +47,15 @@ export interface InvitePluginOptions<TRoles extends string = string> {
   canCreateInvite?: (user: UserWithRole) => boolean;
 
   /**
+   * Optional cap on the role an invite may carry.
+   *
+   * `roleSchema` says which roles EXIST; this says which ones the INVITER may hand out. Without it, any session that
+   * passes `canCreateInvite` can invite a `superAdmin` — the escalation this option exists to close. Return `false`
+   * to refuse; the endpoint answers 403.
+   */
+  canInviteRole?: (user: UserWithRole, role: TRoles) => boolean;
+
+  /**
    * Optional function for getting the current date (useful for testing)
    * @default () => new Date()
    */
@@ -150,6 +159,18 @@ export const invitePlugin = <TRoles extends string>(
             if (!canCreateInvite) {
               throw ctx.error("BAD_REQUEST", {
                 message: ERROR_CODES.INSUFFICIENT_PERMISSIONS.message,
+              });
+            }
+          }
+
+          // The role cap, before anything is written: an inviter may only hand out a role it could grant directly
+          // (`refuseRoleGrant` in the hierarchy), so inviting is never a way around the admin hierarchy.
+          if (options.canInviteRole !== undefined) {
+            // @ts-expect-error UserWithRole type assertion
+            const mayInviteRole = options.canInviteRole(user, ctx.body.role);
+            if (!mayInviteRole) {
+              throw ctx.error("FORBIDDEN", {
+                message: `You may not invite a user with the ${String(ctx.body.role)} role`,
               });
             }
           }

@@ -1535,8 +1535,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1793455167.9576857,
-    "ast_hash": "ab7a22bbd2d10e41afc92c3ad2f23bf8",
+    "mtime": 1793569208.002727,
+    "ast_hash": "8789bb61b52bab0e1d2fec6257e787dd",
     "semantic_hash": ""
   },
   "packages/contracts/common/package.json": {
@@ -8525,8 +8525,8 @@
     "semantic_hash": ""
   },
   "apps/setup/src/modules/wizard/wizard-orpc.module.ts": {
-    "mtime": 1793561957.5409586,
-    "ast_hash": "24498f6d9e490e999bbc4b6ab829ad18",
+    "mtime": 1793569093.6459353,
+    "ast_hash": "76b3403bb08cd7f8d36ed99485ab3c39",
     "semantic_hash": ""
   },
   "apps/web/src/app/auth/_utils/dev-only.test.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793568632.1325295,
-    "ast_hash": "3fd841eb4b16b82d0ebf4bddc25ce9d8",
+    "mtime": 1793569541.978266,
+    "ast_hash": "07c1c17f99febf12e4904ee8de203640",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -17450,8 +17450,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/preflight/preflight.module.ts": {
-    "mtime": 1793561855.9238024,
-    "ast_hash": "40f56f09a5c02df96e7c90bd95f757c8",
+    "mtime": 1793569093.6452935,
+    "ast_hash": "1dd336bbd8b75fa7ecc7dbe68974ee91",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/preflight/preflight.service.ts": {
@@ -17470,8 +17470,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/service-client.ts": {
-    "mtime": 1793561928.1462214,
-    "ast_hash": "6180af4b64eb96af7b1537f571eeb042",
+    "mtime": 1793569093.6457021,
+    "ast_hash": "7af1ea0f6c073cfae35d0f51cedb5c62",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/service-health.ts": {
@@ -17485,8 +17485,8 @@
     "semantic_hash": ""
   },
   "apps/api/AGENTS.md": {
-    "mtime": 1793568836.9821465,
-    "ast_hash": "369dadad8b74add308b67724976919d1",
+    "mtime": 1793569541.9769838,
+    "ast_hash": "14844d1e3b124919691cf4f9c5ed79e0",
     "semantic_hash": ""
   },
   "apps/api/ARCHITECTURE.md": {
@@ -19325,8 +19325,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/lifecycle/lifecycle.module.ts": {
-    "mtime": 1793327093.7053034,
-    "ast_hash": "c8a96b14489db52b8313551482a26168",
+    "mtime": 1793569093.6438384,
+    "ast_hash": "995c5dad9fbed445485e5da7f98adb6b",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/system-metrics/system-metrics.module.ts": {
@@ -19405,8 +19405,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/supervision/supervisors.module.ts": {
-    "mtime": 1793458343.5872743,
-    "ast_hash": "00927ab81fa7d59f45ca0e7d5fe1eec9",
+    "mtime": 1793569093.6446843,
+    "ast_hash": "2c4661a5dfd724330838b5f321d72eb8",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/supervision/supervisor-registration.ts": {
@@ -21680,8 +21680,8 @@
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-transport.module.ts": {
-    "mtime": 1793562829.008001,
-    "ast_hash": "124d83f5aba84ccdf1597f696a64b4b8",
+    "mtime": 1793569093.646289,
+    "ast_hash": "422e0aff3669ddaf9f152c3663dcf67b",
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-transport.options.ts": {
@@ -22012,6 +22012,11 @@
   "apps/api/shared/src/core/modules/project/services/project-access.service.spec.ts": {
     "mtime": 1793568593.2712913,
     "ast_hash": "197e878d60e2cbffb584fd6dafb87760",
+    "semantic_hash": ""
+  },
+  "scripts/check-module-claims.ts": {
+    "mtime": 1793569523.8014195,
+    "ast_hash": "9ef43c2d40e0afca7afd0443d92d5016",
     "semantic_hash": ""
   }
 }

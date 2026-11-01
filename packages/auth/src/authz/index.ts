@@ -21,6 +21,15 @@ export {
 } from "./catalog";
 export { can, conditionFailure, decide } from "./evaluate";
 export {
+	PLATFORM_ROLE_ORDER,
+	isPlatformAdministrator,
+	platformRoleRank,
+	refuseAdminAction,
+	refuseRoleGrant,
+	type HierarchyRefusal,
+	type PlatformRoleName,
+} from "./hierarchy";
+export {
 	AuthzDenied,
 	PLATFORM_SCOPE,
 	type AccessDeclaration,

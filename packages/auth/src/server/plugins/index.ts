@@ -18,6 +18,7 @@ import { invitePlugin, type InvitePluginOptions } from "./invite";
 // Re-export existing plugins
 // ============================================================================
 
+export * from './adminHierarchy'
 export * from './loginAs'
 export * from './masterTokenAuth'
 export * from './invite'
@@ -52,6 +53,8 @@ export * from './securityPlugins'
  * })
  * ```
  */
+import { isPlatformAdministrator, refuseRoleGrant } from '../../authz/hierarchy'
+
 export function useAdmin() {
   return admin({
     ac: platformAc,
@@ -133,8 +136,19 @@ type ConfiguredRoleNames = typeof platformSchemas.roleNames extends { _output: i
  * })
  * ```
  */
+/**
+ * Whether `actorRole` may invite someone who would hold `invitedRole`.
+ *
+ * Administrators only, and never a role at or above the inviter's own: an invitation is a grant, so it obeys the same
+ * hierarchy as `admin/set-role` — otherwise inviting is the way around it.
+ */
+export function mayInvite(actorRole: string | null | undefined, invitedRole: string): boolean {
+  if (!isPlatformAdministrator(actorRole)) return false
+  return refuseRoleGrant({ actorRole, grantedRole: invitedRole }) === null
+}
+
 export function useInvite(
-  options?: Omit<InvitePluginOptions<ConfiguredRoleNames>, "roleSchema">
+  options?: Omit<InvitePluginOptions<ConfiguredRoleNames>, "roleSchema" | "canCreateInvite" | "canInviteRole">
 ) {
   return invitePlugin({
     inviteDurationDays: 7,
@@ -142,6 +156,15 @@ export function useInvite(
     // Type assertion is safe here - platformSchemas.roleNames will always be compatible
     // with the RoleSchemaType that invitePlugin expects
     roleSchema: platformSchemas.roleNames,
+
+    // ── WHO MAY INVITE, AND WHAT THEY MAY HAND OUT ────────────────────────
+    // Both hooks used to be dropped, so `canCreateInvite` stayed undefined and
+    // ANY session could mint an invite — including one for `superAdmin`, with the
+    // token returned in the response. The hierarchy that governs the admin
+    // endpoints governs invitations now: administrators only, and never a role at
+    // or above the inviter's own.
+    canCreateInvite: (user) => isPlatformAdministrator((user as { role?: string | null }).role),
+    canInviteRole: (user, role) => mayInvite((user as { role?: string | null }).role, role),
   });
 }
 

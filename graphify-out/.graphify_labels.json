@@ -3271,5 +3271,11 @@
   "3269": "32. Testing Utilities — `createMeshTestHarness()`",
   "3270": "3. Resource & Service Definitions",
   "3271": "7. Live Subscriptions — `.listen().execute()`",
-  "3272": "8. Reactive Subqueries — `.whereFrom()`"
+  "3272": "8. Reactive Subqueries — `.whereFrom()`",
+  "3273": "TraefikEventService",
+  "3274": "ParamsBuilder",
+  "3275": "build",
+  "3276": "TraefikVariableResolverService",
+  "3277": "TraefikMiddlewareLibraryService",
+  "3278": "docker:build"
 }

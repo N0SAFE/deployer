@@ -231,13 +231,26 @@ describe("UserService", () => {
 			expect(repo.update).not.toHaveBeenCalled();
 		});
 
-		it("lets an admin change a role, but not to superAdmin", async () => {
-			await run(service.update(admin, "user-1", { role: "admin" }, {}));
-			expect(repo.update).toHaveBeenCalledWith("user-1", { role: "admin" });
+		it("lets an admin change a role, but never to its own rank or above", async () => {
+			await run(service.update(admin, "user-1", { role: "viewer" }, {}));
+			expect(repo.update).toHaveBeenCalledWith("user-1", { role: "viewer" });
 
+			// `>=` is refused, not just `>`: an admin minting another admin is the same escalation as minting a
+			// superAdmin one step later, and the hierarchy rule is shared with Better Auth's admin endpoints.
+			await expect(
+				failureOf(service.update(admin, "user-1", { role: "admin" }, {})),
+			).resolves.toBeInstanceOf(UserForbidden);
 			await expect(
 				failureOf(service.update(admin, "user-1", { role: "superAdmin" }, {})),
 			).resolves.toBeInstanceOf(UserForbidden);
+		});
+
+		it("lets a superAdmin grant any role, including its own", async () => {
+			await run(service.update(root, "user-1", { role: "admin" }, {}));
+			expect(repo.update).toHaveBeenCalledWith("user-1", { role: "admin" });
+
+			expect(repo.update).toHaveBeenCalledTimes(1);
+			await run(service.update(root, "user-2", { role: "superAdmin" }, {}));
 		});
 
 		it("conflicts on an email another account holds, checking it excluding this user", async () => {
