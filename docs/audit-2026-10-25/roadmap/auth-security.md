@@ -1110,6 +1110,12 @@ Counts: AUTH 73 (AUTH-001..040 + AUTH-041..049 tests + AUTH-050 + AUTH-051..073 
 
 > Decisions pass: 2026-10-26 — 18 decisions resolved, 0 items unblocked
 
+## Implementation plan
+
+`SEC-048..064`, `SEC-080..083`, `SEC-092/093` and `AUTH-052/054` are planned phase by phase in
+[`../PERMISSIONS-ROADMAP.md`](../PERMISSIONS-ROADMAP.md) (items `AUTHZ-*`), with the model comparison in
+[`../permissions/model-research.md`](../permissions/model-research.md). Tick both when one lands.
+
 ## Verification 2026-11-01 (code, not the audit)
 
 | Item | Verdict | Evidence |
