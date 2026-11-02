@@ -103,7 +103,7 @@ export type AdminPluginWrapperOptions<
  *
  * Extends BasePluginWrapper to provide:
  * - Admin-level operations with automatic header injection
- * - Permission checking via Better Auth's `auth.api.userHasPermission()`
+ * - Permission checking via `authz.rolesConfig` (Better Auth only resolves the session)
  * - User management (create, update, delete, ban)
  * - Role management
  *

@@ -38,8 +38,6 @@ vi.mock('better-auth/plugins', () => ({
 // Mock plugins - all server plugins are now exported from ./plugins
 vi.mock('./plugins', () => ({
   useAdmin: vi.fn(() => ({ id: 'admin' })),
-  adminHierarchyPlugin: vi.fn(() => ({ id: 'adminHierarchy' })),
-  adminSessionRevocationPlugin: vi.fn(() => ({ id: 'adminSessionRevocation' })),
   useApiKey: vi.fn(() => ({ id: 'api-key' })),
   useInvite: vi.fn(() => ({ id: 'invite' })),
   usePasskey: vi.fn(() => ({ id: 'passkey' })),
