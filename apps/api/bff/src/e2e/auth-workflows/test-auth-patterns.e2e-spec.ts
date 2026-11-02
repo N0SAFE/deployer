@@ -13,8 +13,8 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     http = context.http;
   });
 
-  it("GET /test/public allows anonymous access", async () => {
-    const response = await http.get("/test/public").expect(200);
+  it("GET /test/orpc/public allows anonymous access", async () => {
+    const response = await http.get("/test/orpc/public").expect(200);
 
     const payload = response.body as {
       message: string;
@@ -25,13 +25,13 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     expect(payload.approach.includes("AllowAnonymous")).toBe(true);
   });
 
-  it("GET /test/authenticated rejects anonymous access", async () => {
-    await http.get("/test/authenticated").expect(401);
+  it("GET /test/orpc/authenticated rejects anonymous access", async () => {
+    await http.get("/test/orpc/authenticated").expect(401);
   });
 
-  it("GET /test/optional-auth keeps a stable anonymous context shape", async () => {
+  it("GET /test/orpc/optional-auth keeps a stable anonymous context shape", async () => {
     const response = await http
-      .get("/test/optional-auth")
+      .get("/test/orpc/optional-auth")
       .expect(200);
 
     const payload = response.body as {
@@ -45,16 +45,16 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     expect(payload.userId).toBeNull();
   });
 
-  it("GET /test/admin/role rejects invalid bearer token", async () => {
+  it("GET /test/orpc/admin/role rejects invalid bearer token", async () => {
     await http
-      .get("/test/admin/role")
+      .get("/test/orpc/admin/role")
       .set("Authorization", "Bearer e2e-invalid-token")
       .expect(401);
   });
 
-  it("GET /test/admin/permission rejects anonymous access", async () => {
+  it("GET /test/orpc/admin/permission rejects anonymous access", async () => {
     await http
-      .get("/test/admin/permission")
+      .get("/test/orpc/admin/permission")
       .expect(401);
   });
 
