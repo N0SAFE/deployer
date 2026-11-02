@@ -140,7 +140,7 @@ class AnalyticsQueries {
 
 		return rows.map((row) => ({
 			deploymentId: row.deploymentId,
-			status: String(row.status),
+			status: row.status,
 			createdAt: toDate(row.startedAt ?? row.completedAt ?? new Date(0)),
 		}));
 	}
@@ -470,7 +470,7 @@ function toDeployment(row: {
 	return {
 		id: row.id,
 		serviceId: row.serviceId,
-		status: String(row.status),
+		status: row.status,
 		createdAt: toDate(row.createdAt),
 		deployCompletedAt: row.deployCompletedAt == null ? null : toDate(row.deployCompletedAt),
 		errorMessage: row.errorMessage,

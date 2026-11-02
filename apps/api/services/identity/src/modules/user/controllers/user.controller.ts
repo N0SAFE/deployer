@@ -30,15 +30,15 @@ export class UserController {
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
 
-                const limit = input.query?.limit ?? 20
-                const offset = input.query?.offset ?? 0
+                const limit = input.query.limit
+                const offset = input.query.offset
 
                 const page = yield* serve(context)(users.list({
                         limit,
                         offset,
-                        sortField: readSortField(input.query?.sortBy),
-                        sortDirection: input.query?.sortDirection ?? 'desc',
-                        filter: readFilter(input.query?.filter),
+                        sortField: readSortField(input.query.sortBy),
+                        sortDirection: input.query.sortDirection ?? 'desc',
+                        filter: readFilter(input.query.filter),
                     }))
 
                 return {

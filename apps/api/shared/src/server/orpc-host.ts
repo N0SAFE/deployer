@@ -21,6 +21,7 @@ import { AuthCoreService } from "../core/modules/auth/services/auth-core.service
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { DynamicModule, ExecutionContext } from "@nestjs/common";
+import type { Context } from "effect";
 import type { DefaultInitialContext, Router } from "@orpc/server";
 
 /**
@@ -55,9 +56,22 @@ import type { DefaultInitialContext, Router } from "@orpc/server";
 /** DI tokens an app may contribute to the per-request oRPC context. */
 type ExtraTokens = readonly (abstract new (...args: never[]) => unknown)[];
 
+/**
+ * The value a token provides.
+ *
+ * An Effect `Context.Service` class is BOTH the Nest token and a service key: Nest is handed the class, but what it
+ * injects is the service SHAPE (`EffectHost` provides `EffectHostShape` — `yield* EffectHost` yields the shape, not the
+ * class). `InstanceType` was the wrong reading: the class's instance type carries the tag metadata, not the shape, so
+ * every `host.someMethod()` in a resolver was `any`.
+ */
+type ProvidedBy<T> = T extends Context.Service.Any ? Context.Service.Shape<T> : InstanceType<T & ExtraToken>;
+
+/** A plain Nest class token. */
+type ExtraToken = abstract new (...args: never[]) => unknown;
+
 /** The injected instances, in the same order as `inject`. */
 type ExtraInstances<D extends ExtraTokens> = {
-	[K in keyof D]: InstanceType<D[K]>;
+	[K in keyof D]: ProvidedBy<D[K]>;
 };
 
 type ExtraContext<D extends ExtraTokens> = {

@@ -58,6 +58,7 @@
         "@nestjs/testing": "catalog:api:nest",
         "@types/express": "catalog:api:nest",
         "@types/node": "catalog:build",
+        "@types/web-push": "^3.6.4",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
         "unplugin-swc": "^1.5.9",

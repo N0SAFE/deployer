@@ -164,7 +164,7 @@ function makePushService(
             const userId = yield* actingUserId
 
             const existing = yield* subscriptions.findByEndpoint(endpoint)
-            if (existing === null || existing.userId !== userId) {
+            if (existing?.userId !== userId) {
                 return yield* new PushSubscriptionNotFound({ endpoint })
             }
 

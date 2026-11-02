@@ -78,7 +78,7 @@ function makePermissionRepository(
                           .from(roleRules)
                           .where(inArray(roleRules.roleName, roleNames))
 
-                      return rows.flatMap((r) => r.resourceRules ?? [])
+                      return rows.flatMap((r) => r.resourceRules)
                   }),
 
         upsertRoleRules: (roleName, rules) =>
