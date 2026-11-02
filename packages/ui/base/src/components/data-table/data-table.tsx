@@ -1,7 +1,7 @@
 "use client";
 
 // ** import types
-import type { ColumnDef, ColumnResizeMode, Row, ExpandedState, TableOptions } from "@tanstack/react-table";
+import type { CellContext, ColumnDef, Row, ExpandedState, TableOptions } from "@tanstack/react-table";
 
 
 /** Column definition extended with meta and accessorKey for header rendering. */
@@ -89,8 +89,33 @@ interface DataFetchResult<TData> {
   };
 }
 
+/** `accessorKey` is optional on the union member; the return type keeps it honest for callers. */
+function accessorKeyOf(column: ColumnDefWithMeta): string | undefined {
+  return column.accessorKey;
+}
+
+/** The direction of the active sort, or `null` when nothing is sorted. */
+function directionOf(sort: { direction: "asc" | "desc" } | null): "asc" | "desc" | null {
+  return sort?.direction ?? null;
+}
+
+/** The column id, or the empty string when a definition names neither an id nor an accessor. */
+function idOf(column: ColumnDefWithMeta): string {
+  return column.id ?? '';
+}
+
+/**
+ * A stable string form for an unknown cell value, used only as the last resort of the generic comparator: the value is
+ * not known to be a string or a number, and `String(value)` on an object would compare `"[object Object]"`.
+ */
+function comparable(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  return '';
+}
+
 // Types for table handlers
-type PaginationUpdater<TData> = (prev: { pageIndex: number; pageSize: number }) => { pageIndex: number; pageSize: number };
+type PaginationUpdater = (prev: { pageIndex: number; pageSize: number }) => { pageIndex: number; pageSize: number };
 type SortingUpdater = (prev: { id: string; desc: boolean }[]) => { id: string; desc: boolean }[];
 type ColumnOrderUpdater = (prev: string[]) => string[];
 type RowSelectionUpdater = (prev: Record<string, boolean>) => Record<string, boolean>;
@@ -116,7 +141,9 @@ export interface SubRowsConfig<TData> {
   // Field name for accessing subrows in data (default: 'subRows')
   subRowsField?: string;
 
-  // For custom-columns mode: different columns for subrows
+  // For custom-columns mode: different columns for subrows. A subrow is NOT a TData:
+  // the caller declares its own row type, which this component never learns.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subRowColumns?: ColumnDef<any>[];
   showSubRowHeaders?: boolean;
 
@@ -136,7 +163,7 @@ export interface SubRowsConfig<TData> {
   indentSize?: number;
 
   // Default expanded state
-  defaultExpanded?: boolean | ExpandedState;
+  defaultExpanded?: ExpandedState;
 }
 
 // Removed SubRowTable component - it was causing browser hangs due to multiple table instances
@@ -149,6 +176,7 @@ interface DataTableProps<TData extends ExportableData, TValue> {
   getColumns: (handleRowDeselection: ((rowId: string) => void) | null | undefined) => ColumnDef<TData, TValue>[];
 
   // Subrow column definitions generator (for custom-columns mode)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see `subRowColumns`.
   getSubRowColumns?: (handleRowDeselection: ((rowId: string) => void) | null | undefined) => ColumnDef<any>[];
 
   // Data fetching function
@@ -217,7 +245,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   const tableConfig = useTableConfig(config);
 
   // Table ID for localStorage storage - generate a default if not provided
-  const tableId = tableConfig.columnResizingTableId || 'data-table-default';
+  const tableId = tableConfig.columnResizingTableId ?? 'data-table-default';
 
   // Use our custom hook for column resizing
   const { columnSizing, setColumnSizing, resetColumnSizing } = useTableColumnResize(
@@ -233,8 +261,8 @@ export function DataTable<TData extends ExportableData, TValue>({
   const [pageSize, setPageSize] = useConditionalUrlState("pageSize", 10);
   const [search, setSearch] = useConditionalUrlState("search", "");
   const [dateRange, setDateRange] = useConditionalUrlState<{ from_date: string; to_date: string }>("dateRange", { from_date: "", to_date: "" });
-  const [sortBy, setSortBy] = useConditionalUrlState("sortBy", tableConfig.defaultSortBy || "id");
-  const [sortOrder, setSortOrder] = useConditionalUrlState<"asc" | "desc">("sortOrder", tableConfig.defaultSortOrder || "desc");
+  const [sortBy, setSortBy] = useConditionalUrlState("sortBy", tableConfig.defaultSortBy ?? "id");
+  const [sortOrder, setSortOrder] = useConditionalUrlState<"asc" | "desc">("sortOrder", tableConfig.defaultSortOrder ?? "desc");
   const [columnVisibility, setColumnVisibility] = useConditionalUrlState<Record<string, boolean>>("columnVisibility", {});
   const [columnFilters, setColumnFilters] = useConditionalUrlState<{ id: string; value: unknown }[]>("columnFilters", []);
 
@@ -257,11 +285,8 @@ export function DataTable<TData extends ExportableData, TValue>({
 
   // Expanded state for subrows
   const [expanded, setExpanded] = useState<ExpandedState>(() => {
-    const defaultVal = subRowsConfig?.defaultExpanded;
-    if (typeof defaultVal === 'boolean') {
-      return defaultVal ? true : {};
-    }
-    return defaultVal ?? {};
+    // `ExpandedState` is `true | Record<string, boolean>`: the boolean branch IS `true`.
+    return subRowsConfig?.defaultExpanded ?? {};
   });
 
   // Subrow sorting state - tracks sorting per parent row
@@ -285,7 +310,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   const getSortedSubrows = useCallback((parentId: string, subrows: TData[]) => {
     const sortConfig = subrowSorting[parentId];
     
-    if (!sortConfig || !subrows || subrows.length === 0) {
+    if (sortConfig === undefined || subrows.length === 0) {
       return subrows;
     }
     
@@ -299,13 +324,13 @@ export function DataTable<TData extends ExportableData, TValue>({
       if (bValue == null) return -1;
       
       // Compare values
-      let comparison = 0;
+      let comparison: number;
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         comparison = aValue.localeCompare(bValue);
       } else if (typeof aValue === 'number' && typeof bValue === 'number') {
         comparison = aValue - bValue;
       } else {
-        comparison = String(aValue).localeCompare(String(bValue));
+        comparison = comparable(aValue).localeCompare(comparable(bValue));
       }
       
       return sortConfig.direction === 'asc' ? comparison : -comparison;
@@ -317,7 +342,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   // Get current data items - memoize to avoid recalculations
   // Apply subrow sorting if enabled
   const dataItems = useMemo(() => {
-    const items = data?.data || [];
+    const items = data?.data ?? [];
     
     // If subrows are not enabled or no sorting applied, return as-is
     if (!subRowsConfig?.enabled || Object.keys(subrowSorting).length === 0) {
@@ -327,7 +352,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // Apply sorting to subrows for each parent
     return items.map(item => {
       const itemId = String(item[idField]);
-      const subRows = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
+      const subRows = (item as Record<string, unknown>)[subRowsConfig.subRowsField ?? 'subRows'];
       
       // If no subrows or no sorting for this parent, return as-is
       if (!Array.isArray(subRows) || !subrowSorting[itemId]) {
@@ -335,12 +360,12 @@ export function DataTable<TData extends ExportableData, TValue>({
       }
       
       // Sort the subrows
-      const sortedSubrows = getSortedSubrows(itemId, subRows);
+      const sortedSubrows = getSortedSubrows(itemId, subRows as TData[]);
       
       // Return new item with sorted subrows
       return {
         ...item,
-        [subRowsConfig.subRowsField || 'subRows']: sortedSubrows
+        [subRowsConfig.subRowsField ?? 'subRows']: sortedSubrows
       };
     });
   }, [data?.data, subRowsConfig, subrowSorting, idField, getSortedSubrows]);
@@ -364,7 +389,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // With getRowId, rowId is already the actual item ID (not an index)
     setSelectedItemIds(prev => {
       const next = { ...prev };
-      delete next[rowId];
+      Reflect.deleteProperty(next, rowId);
       return next;
     });
 
@@ -415,7 +440,7 @@ export function DataTable<TData extends ExportableData, TValue>({
           const itemId = String(item[idField]);
           parentIdsMap.set(itemId, true);
 
-          const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
+          const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField ?? 'subRows'];
           if (Array.isArray(subRowsData)) {
             subRowsData.forEach((subRow: TData) => {
               const subRowId = String(subRow[idField]);
@@ -554,7 +579,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       }
 
       // Check subrows
-      const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
+      const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField ?? 'subRows'];
       if (Array.isArray(subRowsData)) {
         subRowsData.forEach((subRow: TData) => {
           const subRowId = String(subRow[idField]);
@@ -653,7 +678,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // Find subrow items from current page
     const subrowsInCurrentPage: TData[] = [];
     dataItems.forEach((item) => {
-      const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
+      const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField ?? 'subRows'];
       if (Array.isArray(subRowsData)) {
         subRowsData.forEach((subRow: TData) => {
           if (selectedSubrowIds.has(String(subRow[idField]))) {
@@ -701,7 +726,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       // Extract only the selected subrows from fetched parent orders
       const fetchedSubrows: TData[] = [];
       fetchedParentOrders.forEach((item: TData) => {
-        const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
+        const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField ?? 'subRows'];
         if (Array.isArray(subRowsData)) {
           subRowsData.forEach((subRow: TData) => {
             if (selectedSubrowIds.has(String(subRow[idField]))) {
@@ -754,7 +779,7 @@ export function DataTable<TData extends ExportableData, TValue>({
         }
       };
 
-      fetchData();
+      void fetchData();
     }
   }, [page, pageSize, search, dateRange, sortBy, sortOrder, fetchDataFn]);
 
@@ -846,7 +871,7 @@ export function DataTable<TData extends ExportableData, TValue>({
         Promise.all([
           setSortBy(columnId),
           setSortOrder(direction)
-        ]).catch(err => {
+        ]).catch((err: unknown) => {
           console.error("Failed to update URL sorting params:", err);
         });
       }
@@ -865,7 +890,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   );
 
   const handlePaginationChange = useCallback(
-    (updaterOrValue: PaginationUpdater<TData> | { pageIndex: number; pageSize: number }) => {
+    (updaterOrValue: PaginationUpdater | { pageIndex: number; pageSize: number }) => {
       // Extract the new pagination state
       const newPagination = typeof updaterOrValue === 'function'
         ? updaterOrValue({ pageIndex: page - 1, pageSize })
@@ -880,16 +905,16 @@ export function DataTable<TData extends ExportableData, TValue>({
         window.history.replaceState({}, '', url.toString());
         
         // Then update our state
-        setPageSize(newPagination.pageSize);
-        setPage(1);
+        void setPageSize(newPagination.pageSize);
+        void setPage(1);
         return;
       }
       
       // Only update page if it's changed - this handles normal page navigation
       if ((newPagination.pageIndex + 1) !== page) {
-        const setPagePromise = setPage(newPagination.pageIndex + 1);
-        if (setPagePromise && typeof setPagePromise.catch === 'function') {
-          setPagePromise.catch(err => {
+        const setPageResult: unknown = setPage(newPagination.pageIndex + 1);
+        if (setPageResult instanceof Promise) {
+          void setPageResult.catch((err: unknown) => {
             console.error("Failed to update page param:", err);
           });
         }
@@ -930,7 +955,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     try {
       const savedOrder = localStorage.getItem('data-table-column-order');
       if (savedOrder) {
-        const parsedOrder = JSON.parse(savedOrder);
+        const parsedOrder: unknown = JSON.parse(savedOrder);
         // Validate array of strings
         if (Array.isArray(parsedOrder) && parsedOrder.every(item => typeof item === 'string')) {
           setColumnOrder(parsedOrder);
@@ -962,7 +987,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     columnResizeMode: 'onChange',
     onColumnSizingChange: handleColumnSizingChange,
     onColumnOrderChange: handleColumnOrderChange,
-    pageCount: data?.pagination.total_pages || 0,
+    pageCount: data?.pagination.total_pages ?? 0,
     enableRowSelection: tableConfig.enableRowSelection,
     enableColumnResizing: tableConfig.enableColumnResizing,
     // SUBROW SELECTION: Disable automatic cascading
@@ -991,7 +1016,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       onExpandedChange: setExpanded,
       getExpandedRowModel: getExpandedRowModel(),
       getSubRows: (row: TData) => {
-        const subRows = (row as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
+        const subRows = (row as Record<string, unknown>)[subRowsConfig.subRowsField ?? 'subRows'];
         // Only return if it's a valid array with items
         return Array.isArray(subRows) && subRows.length > 0 ? subRows : undefined;
       },
@@ -1028,6 +1053,9 @@ export function DataTable<TData extends ExportableData, TValue>({
   ]);
 
   // Set up the table with memoized configuration
+  // `react-hooks/incompatible-library`: TanStack Table does not follow the React Compiler's rules (its hooks mutate an
+  // internal store by design). The library is the supported entry point, so the rule is silenced here, where the call is.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable<TData>(tableOptions);
 
   // Row click handler with conflict prevention
@@ -1056,12 +1084,12 @@ export function DataTable<TData extends ExportableData, TValue>({
   // Add an effect to validate page number when page size changes
   useEffect(() => {
     // This effect ensures page is valid after page size changes
-    const totalPages = data?.pagination.total_pages || 0;
+    const totalPages = data?.pagination.total_pages ?? 0;
 
     if (totalPages > 0 && page > totalPages) {
-      setPage(1);
+      void setPage(1);
     }
-  }, [data?.pagination?.total_pages, page, setPage]);
+  }, [data?.pagination.total_pages, page, setPage]);
 
   // Reset to page 1 when column filters change (not on every render)
   const prevColumnFiltersRef = useRef<typeof columnFilters>(columnFilters);
@@ -1069,7 +1097,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // Check if columnFilters actually changed (not just page navigation)
     const filtersChanged = JSON.stringify(prevColumnFiltersRef.current) !== JSON.stringify(columnFilters);
     if (filtersChanged && page !== 1) {
-      setPage(1);
+      void setPage(1);
     }
     prevColumnFiltersRef.current = columnFilters;
   }, [columnFilters, page, setPage]);
@@ -1176,8 +1204,8 @@ export function DataTable<TData extends ExportableData, TValue>({
           table={table}
           search={search}
           dateRange={dateRange}
-          setSearch={setSearch}
-          setDateRange={setDateRange}
+          setSearch={(value) => { void setSearch(value); }}
+          setDateRange={(value) => { void setDateRange(value); }}
           totalSelectedItems={totalSelectedItems}
           deleteSelection={clearAllSelections}
           getSelectedItems={getSelectedItems}
@@ -1257,12 +1285,12 @@ export function DataTable<TData extends ExportableData, TValue>({
           <TableBody>
             {isLoading ? (
               // Loading state
-              Array.from({ length: pageSize }).map((_, i) => (
+              Array.from({ length: pageSize }).map((_, _i) => (
                 <TableRow
                   key={`loading-row-${crypto.randomUUID()}`}
                   tabIndex={-1}
                 >
-                  {Array.from({ length: columns.length }).map((_, j, array) => (
+                  {Array.from({ length: columns.length }).map((_, _j) => (
                     <TableCell
                       key={`skeleton-cell-${crypto.randomUUID()}`}
                       className="px-4 py-2 truncate max-w-0 text-left"
@@ -1273,11 +1301,11 @@ export function DataTable<TData extends ExportableData, TValue>({
                   ))}
                 </TableRow>
               ))
-            ) : table.getRowModel().rows?.length ? (
+            ) : table.getRowModel().rows.length ? (
               // Data rows
               table.getRowModel().rows.map((row, rowIndex) => {
                 const isSubRow = row.depth > 0;
-                const indentSize = subRowsConfig?.indentSize || 24;
+                const indentSize = subRowsConfig?.indentSize ?? 24;
 
                 // For custom-component mode with subrows
                 if (subRowsConfig?.enabled && subRowsConfig.mode === 'custom-component' && isSubRow) {
@@ -1336,15 +1364,15 @@ export function DataTable<TData extends ExportableData, TValue>({
                             } else if (column.id === 'actions') {
                               headerText = 'Actions';
                             } else if ((column as ColumnDefWithMeta).meta?.title) {
-                              headerText = (column as ColumnDefWithMeta).meta!.title!;
+                              headerText = (column as ColumnDefWithMeta).meta?.title ?? '';
                             }
                             
                             // Check if this column is sortable (has accessorKey)
-                            const accessorKey = (column as ColumnDefWithMeta).accessorKey;
+                            const accessorKey = accessorKeyOf(column as ColumnDefWithMeta);
                             const isSortable = !!accessorKey && column.id !== 'select' && column.id !== 'actions' && column.id !== 'expand';
-                            const columnId = accessorKey || column.id || '';
+                            const columnId = accessorKey ?? idOf(column as ColumnDefWithMeta);
                             const isSorted = currentSort?.columnId === columnId;
-                            const sortDirection = isSorted ? currentSort?.direction ?? null : null;
+                            const sortDirection = isSorted ? directionOf(currentSort) : null;
                             
                             return (
                               <TableCell
@@ -1354,7 +1382,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                                   isSortable && "cursor-pointer hover:bg-muted transition-colors select-none"
                                 )}
                                 style={{
-                                  width: column.size || 'auto',
+                                  width: column.size ?? 'auto',
                                 }}
                                 onClick={isSortable ? () => { handleSubrowHeaderClick(parentId, columnId); } : undefined}
                               >
@@ -1399,18 +1427,20 @@ export function DataTable<TData extends ExportableData, TValue>({
                                 key={`subrow-cell-${row.id}-${String(colIndex)}`}
                                 className="px-4 py-2 truncate max-w-0 text-left"
                                 style={{
-                                  width: column.size || 'auto',
+                                  width: column.size ?? 'auto',
                                 }}
                               >
                                 {/* Render cell content */}
                                 {column.cell && typeof column.cell === 'function'
-                                  ? column.cell({ 
+                                  // Same synthesized context as above (nested subrows).
+                                  ? column.cell({
                                       getValue: () => value,
+                                      renderValue: () => value,
                                       row,
                                       column,
-                                      cell: { getValue: () => value } as any,
-                                      table
-                                    } as any)
+                                      cell: { getValue: () => value },
+                                      table,
+                                    } as unknown as CellContext<TData, unknown>)
                                   : value}
                               </TableCell>
                             );
@@ -1439,18 +1469,22 @@ export function DataTable<TData extends ExportableData, TValue>({
                             key={`subrow-cell-${row.id}-${String(colIndex)}`}
                             className="px-4 py-2 truncate max-w-0 text-left"
                             style={{
-                              width: column.size || 'auto',
+                              width: column.size ?? 'auto',
                             }}
                           >
                             {/* Render cell content */}
                             {column.cell && typeof column.cell === 'function'
-                              ? column.cell({ 
+                              // The subrow has no real `Cell` (it is synthesized from a row that the
+                              // table never built), so the context is completed here rather than in
+                              // the table. `getValue` is the member every template actually reads.
+                              ? column.cell({
                                   getValue: () => value,
+                                  renderValue: () => value,
                                   row,
                                   column,
-                                  cell: { getValue: () => value } as any,
-                                  table
-                                } as any)
+                                  cell: { getValue: () => value },
+                                  table,
+                                } as unknown as CellContext<TData, unknown>)
                               : value}
                           </TableCell>
                         );
@@ -1506,7 +1540,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                         id={`cell-${String(rowIndex)}-${String(cellIndex)}`}
                         data-cell-index={cellIndex}
                         style={{
-                          paddingLeft: isSubRow && cellIndex === 0 ? `${indentSize + 16}px` : undefined
+                          paddingLeft: isSubRow && cellIndex === 0 ? `${String(indentSize + 16)}px` : undefined
                         }}
                       >
                         {flexRender(
@@ -1536,9 +1570,9 @@ export function DataTable<TData extends ExportableData, TValue>({
       {tableConfig.enablePagination && (
         <DataTablePagination
           table={table}
-          totalItems={data?.pagination.total_items || 0}
+          totalItems={data?.pagination.total_items ?? 0}
           totalSelectedItems={totalSelectedItems}
-          pageSizeOptions={pageSizeOptions || [10, 20, 30, 40, 50]}
+          pageSizeOptions={pageSizeOptions ?? [10, 20, 30, 40, 50]}
           size={tableConfig.size}
         />
       )}
