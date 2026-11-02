@@ -30,6 +30,14 @@ import type Docker from "dockerode";
  * The Docker engine, grouped by what it manages. Every operation is an Effect failing with a typed
  * `DockerError`; nothing here knows what a deployment is beyond the `deployer.deployment_id` label.
  */
+/** The daemon facts this platform reads from `GET /info`. Dockerode types the whole reply `any`. */
+export interface DockerEngineInfo {
+	readonly ID?: string;
+	readonly ServerVersion?: string;
+	readonly NodeID?: string;
+	readonly [field: string]: unknown;
+}
+
 export type DockerEngineShape = {
 	readonly containers: ContainersShape;
 	readonly images: ImagesShape;
@@ -41,7 +49,7 @@ export type DockerEngineShape = {
 	readonly events: EventsShape;
 	readonly build: BuildShape;
 	/** The daemon's `GET /info`. */
-	readonly info: () => Effect.Effect<Awaited<ReturnType<Docker["info"]>>, DockerError>;
+	readonly info: () => Effect.Effect<DockerEngineInfo, DockerError>;
 	/** True when the engine answers a ping. */
 	readonly ping: () => Effect.Effect<boolean>;
 	readonly swarmCluster: SwarmClusterShape;

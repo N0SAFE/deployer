@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { Logger } from "@nestjs/common";
 import { Context, Effect } from "effect";
 
@@ -22,23 +20,11 @@ import {
     
 } from "@deployer/contracts-entities";
 import { serviceOver, type Over } from "@deployer/effect-core";
-import { BadRequestError } from "@deployer/errors";
 import type {
     DockerContainerGroupedListInput,
-    DockerContainerGroupedListItem,
     DockerContainerGroupedListResult,
     DockerContainerListInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type {
-    DockerImageListInput,
-} from "@deployer/runtime-contracts/modules/docker/images/list";
-import type {
-    DockerNetworkListInput,
-} from "@deployer/runtime-contracts/modules/docker/networks/list";
-import type {
-    DockerVolumeListInput,
-} from "@deployer/runtime-contracts/modules/docker/volumes/list";
-import { isRecord } from "@deployer/type-guards"
 
 import { DockerRepository } from "../../../repositories/facade/docker.repository";
 
@@ -47,7 +33,7 @@ import { applyContainerFilters, buildDaemonScopedContainerFingerprint, computeSh
 
 import type { DockerContainerResolutionOptions, DockerGroupedDaemonDiagnostics, DockerListResult } from "./mesh-universe-types";
 import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
-import type { DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, DockerContainerListRequestPayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/node-mesh-types";
+import type { DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, DockerContainerListRequestPayload, DockerContainerListResponsePayload, DockerContainerListResult } from "../mesh/node-mesh-types";
 
 
 

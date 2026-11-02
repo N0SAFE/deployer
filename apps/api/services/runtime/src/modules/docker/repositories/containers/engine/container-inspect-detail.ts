@@ -15,6 +15,27 @@ import type { Effect } from "effect";
 
 export type ContainerInspect = Effect.Success<ReturnType<ContainersShape["inspect"]>>;
 
+/**
+ * Dockerode's types say these fields are present; an incomplete reply — an older daemon, or a fixture — still omits
+ * them, and this mapping's job is to answer with the defaults rather than throw.
+ */
+const recordOrEmpty = <T>(value: Record<string, T> | undefined): Record<string, T> => value ?? {};
+const arrayOr = <T>(value: readonly T[] | undefined): readonly T[] => value ?? [];
+const textOr = (value: string | undefined, fallback: string): string =>
+  value === undefined || value.length === 0 ? fallback : value;
+const nullIfEmpty = (value: string | undefined): string | null =>
+  value === undefined || value.length === 0 ? null : value;
+
+/** The subset of a dockerode network attachment this mapping reads. Dockerode types `Networks` loosely. */
+type NetworkAttachment = {
+  readonly NetworkID?: string;
+  readonly IPAddress?: string;
+  readonly GlobalIPv6Address?: string;
+  readonly Gateway?: string;
+  readonly MacAddress?: string;
+  readonly Aliases?: string[] | null;
+};
+
 /** Image references worth asking the engine about when the container's own description carries no layers. */
 export function layerFallbackCandidates(inspect: ContainerInspect): string[] {
   return [inspect.Image, inspect.Config.Image]
@@ -28,7 +49,7 @@ export function buildContainerInspectDetail(
   layerIds: readonly string[],
   generatedAt: string,
 ) {
-  const labels = inspect.Config?.Labels ?? {};
+  const labels = recordOrEmpty(inspect.Config.Labels);
   const envEntries = toStringArray(inspect.Config.Env);
   const healthcheckTest = toStringArray(inspect.Config.Healthcheck?.Test);
   const healthcheckCommand =
@@ -36,23 +57,26 @@ export function buildContainerInspectDetail(
       ? healthcheckTest.slice(1).join(" ")
       : (healthcheckTest[0] ?? null);
 
-  const networkConfig = Object.entries(inspect.NetworkSettings.Networks ?? {}).map(
-    ([networkName, networkAttachment]) => ({
-      networkId: networkAttachment.NetworkID || networkName,
+  const networkConfig = Object.entries(recordOrEmpty(inspect.NetworkSettings.Networks)).map(
+    ([networkName, networkAttachment]: [string, NetworkAttachment]) => ({
+      networkId: networkAttachment.NetworkID ?? networkName,
       name: networkName,
       driver: "custom" as const,
       scope: "global" as const,
-      ipv4: networkAttachment.IPAddress || null,
-      ipv6: networkAttachment.GlobalIPv6Address || null,
-      gateway: networkAttachment.Gateway || null,
-      macAddress: networkAttachment.MacAddress || null,
+      ipv4: networkAttachment.IPAddress ?? null,
+      ipv6: networkAttachment.GlobalIPv6Address ?? null,
+      gateway: networkAttachment.Gateway ?? null,
+      macAddress: networkAttachment.MacAddress ?? null,
       aliases: toStringArray(networkAttachment.Aliases),
       dnsServers: toStringArray(inspect.HostConfig.Dns),
       dnsSearch: toStringArray(inspect.HostConfig.DnsSearch),
       dnsOptions: toStringArray(inspect.HostConfig.DnsOptions),
-      extraHosts: toStringArray(inspect.HostConfig?.ExtraHosts),
+      extraHosts: toStringArray(inspect.HostConfig.ExtraHosts),
     }),
   );
+
+  // `Object.entries(Ports)` can still hand a null binding list (an incomplete reply, or a fixture).
+  const bindingsOf = (value: readonly unknown[] | null | undefined): readonly unknown[] => value ?? [];
 
   const portMappings = Object.entries(inspect.NetworkSettings.Ports).flatMap(
     ([containerPortWithProtocol, hostBindings]) => {
@@ -64,7 +88,7 @@ export function buildContainerInspectDetail(
         return [];
       }
 
-      if (!hostBindings || hostBindings.length === 0) {
+      if (bindingsOf(hostBindings).length === 0) {
         return [
           {
             containerPort,
@@ -95,17 +119,17 @@ export function buildContainerInspectDetail(
     },
   );
 
-  const mounts = inspect.Mounts.map((mount) => ({
+  const mounts = arrayOr(inspect.Mounts).map((mount) => ({
     type:
       mount.Type === "bind" || mount.Type === "volume" || mount.Type === "tmpfs" || mount.Type === "npipe"
         ? mount.Type
         : "bind",
-    mountName: mount.Name || null,
-    source: mount.Source || "",
-    target: mount.Destination || "",
+    mountName: mount.Name ?? null,
+    source: textOr(mount.Source, ""),
+    target: textOr(mount.Destination, ""),
     readOnly: !mount.RW,
-    propagation: mount.Propagation || null,
-    mode: mount.Mode || null,
+    propagation: nullIfEmpty(mount.Propagation),
+    mode: nullIfEmpty(mount.Mode),
     sizeBytes: null,
   }));
 
@@ -124,11 +148,11 @@ export function buildContainerInspectDetail(
   });
 
   const runtimeConfig = {
-    user: inspect.Config.User || null,
-    workingDir: inspect.Config.WorkingDir || null,
+    user: nullIfEmpty(inspect.Config.User),
+    workingDir: nullIfEmpty(inspect.Config.WorkingDir),
     entrypoint: toStringArray(inspect.Config.Entrypoint),
     command: toStringArray(inspect.Config.Cmd),
-    restartPolicy: inspect.HostConfig.RestartPolicy?.Name || "no",
+    restartPolicy: inspect.HostConfig.RestartPolicy?.Name ?? "no",
     restartMaxRetries:
       typeof inspect.HostConfig.RestartPolicy?.MaximumRetryCount === "number"
       && inspect.HostConfig.RestartPolicy.MaximumRetryCount > 0
@@ -137,9 +161,9 @@ export function buildContainerInspectDetail(
     privileged: Boolean(inspect.HostConfig.Privileged),
     readOnlyRootFs: Boolean(inspect.HostConfig.ReadonlyRootfs),
     oomKillDisable: Boolean(inspect.HostConfig.OomKillDisable),
-    ipcMode: inspect.HostConfig.IpcMode || null,
-    pidMode: inspect.HostConfig.PidMode || null,
-    networkMode: inspect.HostConfig.NetworkMode || null,
+    ipcMode: inspect.HostConfig.IpcMode ?? null,
+    pidMode: inspect.HostConfig.PidMode ?? null,
+    networkMode: inspect.HostConfig.NetworkMode ?? null,
     cgroupnsMode:
       isRecord(inspect.HostConfig) && inspect.HostConfig.CgroupnsMode &&
       typeof Reflect.get(inspect.HostConfig, "CgroupnsMode") === "string"
@@ -152,12 +176,13 @@ export function buildContainerInspectDetail(
     healthcheckRetries: inspect.Config.Healthcheck?.Retries ?? null,
   };
 
+  const composeRestart = inspect.HostConfig.RestartPolicy?.Name;
   const composeServiceName = labels["com.docker.compose.service"]
-    || labels["com.docker.swarm.service.name"]
-    || null;
+    ?? labels["com.docker.swarm.service.name"]
+    ?? null;
   const composeProjectName = labels["com.docker.compose.project"]
-    || labels["com.docker.stack.namespace"]
-    || null;
+    ?? labels["com.docker.stack.namespace"]
+    ?? null;
   const composeConfigPath = labels["com.docker.compose.project.config_files"] ?? null;
   const composeDependsOnRaw = labels["com.docker.compose.depends_on"] ?? "";
   const composeDependsOn = composeDependsOnRaw
@@ -195,17 +220,17 @@ export function buildContainerInspectDetail(
           typeof inspect.HostConfig.CpuShares === "number" && inspect.HostConfig.CpuShares > 0
             ? inspect.HostConfig.CpuShares
             : null,
-        restart: inspect.HostConfig.RestartPolicy?.Name || null,
+        restart: inspect.HostConfig.RestartPolicy?.Name,
         profiles: labels["com.docker.compose.project.working_dir"] ? ["default"] : [],
-        ports: Object.keys(inspect.Config.ExposedPorts ?? {}),
-        volumes: Object.keys(inspect.Config.Volumes ?? {}),
+        ports: Object.keys(recordOrEmpty(inspect.Config.ExposedPorts)),
+        volumes: Object.keys(recordOrEmpty(inspect.Config.Volumes)),
         labels,
         rawYaml: [
           "services:",
           `  ${composeServiceName ?? "service"}:`,
-          `    image: ${inspect.Config.Image ?? "unknown"}`,
-          `    restart: ${inspect.HostConfig.RestartPolicy?.Name ?? "no"}`,
-          ...Object.keys(inspect.Config.ExposedPorts ?? {}).map((port) => `    # exposed: ${port}`),
+          `    image: ${textOr(inspect.Config.Image, "unknown")}`,
+          `    restart: ${composeRestart ?? "no"}`,
+          ...Object.keys(recordOrEmpty(inspect.Config.ExposedPorts)).map((port) => `    # exposed: ${port}`),
         ].join("\n"),
       }
     : null;

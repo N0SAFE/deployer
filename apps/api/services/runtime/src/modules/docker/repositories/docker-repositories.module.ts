@@ -1,4 +1,3 @@
-import { DockerEngine } from "@deployer/docker";
 import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";

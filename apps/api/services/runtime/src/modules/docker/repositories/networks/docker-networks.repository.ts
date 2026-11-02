@@ -36,22 +36,30 @@ export class DockerNetworksRepository extends Context.Service<DockerNetworksRepo
 	};
 }
 
+/** Dockerode's types say these are present; an incomplete reply (or a fixture) can still omit them. */
+const textOr = (value: string | undefined, fallback: string): string =>
+	value === undefined || value === "" ? fallback : value;
+
+const recordOrEmpty = <T>(value: Record<string, T> | undefined): Record<string, T> => value ?? {};
+
+const boolOr = (value: boolean | undefined, fallback: boolean): boolean => value ?? fallback;
+
 const listDockerNetworks = (engine: DockerEngineShape): Effect.Effect<DockerNetwork[], DockerError> =>
 	Effect.suspend(() => engine.networks.list()).pipe(
 			Effect.map((networks) =>
 				networks.map((network) => {
 					const ipam = (network.IPAM?.Config ?? [])[0] ?? {};
 					return dockerNetworkSchema.parse({
-						id: String(network.Id ?? ""),
-						name: String(network.Name ?? "unknown-network"),
-						driver: normalizeNetworkDriver(String(network.Driver ?? "custom")),
-						scope: normalizeNetworkScope(String(network.Scope ?? "global")),
-						internal: Boolean(network.Internal),
-						attachable: network.Attachable == null ? true : Boolean(network.Attachable),
+						id: textOr(network.Id, ""),
+						name: textOr(network.Name, "unknown-network"),
+						driver: normalizeNetworkDriver(textOr(network.Driver, "custom")),
+						scope: normalizeNetworkScope(textOr(network.Scope, "global")),
+						internal: boolOr(network.Internal, false),
+						attachable: boolOr(network.Attachable, true),
 						subnet: typeof ipam.Subnet === "string" ? ipam.Subnet : null,
 						gateway: typeof ipam.Gateway === "string" ? ipam.Gateway : null,
-						containerIds: Object.keys(network.Containers ?? {}),
-						labels: network.Labels ?? {},
+						containerIds: Object.keys(recordOrEmpty(network.Containers)),
+						labels: recordOrEmpty(network.Labels),
 						createdAt: typeof network.Created === "string" ? new Date(network.Created).toISOString() : new Date().toISOString(),
 						updatedAt: new Date().toISOString(),
 					});

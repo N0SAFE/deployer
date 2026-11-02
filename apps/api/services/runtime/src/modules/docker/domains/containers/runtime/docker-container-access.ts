@@ -122,13 +122,13 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
   "runtime/DockerContainerAccess",
 ) {
   static readonly live = class DockerContainerAccessImpl implements DockerContainerAccessShape {
-    streamLogs = (input) =>
+    streamLogs = (input: DockerContainerLogsStreamQueryInput) =>
       Effect.gen(function* () {
         const ops = yield* DockerContainerOps;
         const mesh = yield* ContainerAccessMeshPort;
         const collect = yield* ops.logsCollector(input.containerId);
         return streamLogs(collect, input).pipe(
-          catchError((error) =>
+          catchError((error: unknown) =>
             isContainerNotFoundLikeError(error)
               ? streamMeshLogs(
                   async () =>
@@ -141,28 +141,28 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
         );
       })
 
-    listLogs = (input) =>
+    listLogs = (input: DockerContainerLogsStreamQueryInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.logsSnapshot(input), async (mesh) =>
           (await firstResponse(mesh.listContainerLogsSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
       )
 
-    listProcesses = (input) =>
+    listProcesses = (input: DockerContainerProcessesQueryInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.processes(input), async (mesh) =>
           (await firstResponse(mesh.listContainerProcessesSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
       )
 
-    streamProcesses = (input) =>
+    streamProcesses = (input: DockerContainerProcessesStreamQueryInput) =>
       Effect.gen(function* () {
         const ops = yield* DockerContainerOps;
         const mesh = yield* ContainerAccessMeshPort;
         const context = yield* Effect.context<DockerEngine | DockerContainerOps>();
         const local = () => Effect.runPromise(ops.processes({ containerId: input.containerId }).pipe(Effect.provideContext(context)));
         return pollSnapshot(local, input.refreshIntervalMs).pipe(
-          catchError((error) =>
+          catchError((error: unknown) =>
             isContainerNotFoundLikeError(error)
               ? streamMeshSnapshots<Snapshot>(async () => {
                   const snapshot = (
@@ -177,13 +177,13 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
         );
       })
 
-    streamProcessLogs = (input) =>
+    streamProcessLogs = (input: DockerContainerProcessLogsStreamQueryInput) =>
       Effect.gen(function* () {
         const ops = yield* DockerContainerOps;
         const mesh = yield* ContainerAccessMeshPort;
         const collect = yield* ops.logsCollector(input.containerId);
         return streamProcessLogs(collect, input).pipe(
-          catchError((error) =>
+          catchError((error: unknown) =>
             isContainerNotFoundLikeError(error)
               ? streamMeshLogs(
                   async () =>
@@ -196,49 +196,49 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
         );
       })
 
-    listFiles = (input) =>
+    listFiles = (input: DockerContainerFilesQueryInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.listFiles(input), async (mesh) =>
           (await firstResponse(mesh.listContainerFilesSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
       )
 
-    readFile = (input) =>
+    readFile = (input: DockerContainerReadFileQueryInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.readFile(input), async (mesh) =>
           (await firstResponse(mesh.readContainerFileSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
       )
 
-    writeFile = (input) =>
+    writeFile = (input: DockerContainerWriteFileBodyInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.writeFile(input), async (mesh) =>
           (await firstResponse(mesh.writeContainerFileAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
       )
 
-    deletePath = (input) =>
+    deletePath = (input: DockerContainerDeletePathBodyInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.deletePath(input), async (mesh) =>
           (await firstResponse(mesh.deleteContainerPathAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
       )
 
-    renamePath = (input) =>
+    renamePath = (input: DockerContainerRenamePathBodyInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.renamePath(input), async (mesh) =>
           (await firstResponse(mesh.renameContainerPathAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
       )
 
-    createDirectory = (input) =>
+    createDirectory = (input: DockerContainerCreateDirectoryBodyInput) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.createDirectory(input), async (mesh) =>
           (await firstResponse(mesh.createContainerDirectoryAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
       )
 
-    openTerminal = (input) =>
+    openTerminal = (input: DockerContainerTerminalOpenBodyInput) =>
       Effect.flatMap(DockerTerminalSessions, (sessions) =>
         Effect.flatMap(ContainerAccessMeshPort, (ports) =>
           withMeshFallback(
@@ -249,7 +249,7 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
         ),
       )
 
-    streamTerminal = (input) =>
+    streamTerminal = (input: DockerContainerTerminalStreamQueryInput) =>
       Effect.gen(function* () {
         const sessions = yield* DockerTerminalSessions;
         const mesh = yield* ContainerAccessMeshPort;
@@ -261,7 +261,7 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
             type: event.type,
             data: event.data,
           })),
-          catchError((error) =>
+          catchError((error: unknown) =>
             isTerminalSessionNotFoundError(error)
               ? streamMeshTerminalEvents(
                   async (afterSequence) =>
@@ -285,14 +285,14 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
         );
       })
 
-    sendTerminalInput = (input) =>
+    sendTerminalInput = (input: DockerContainerTerminalInputBodyInput) =>
       Effect.flatMap(DockerTerminalSessions, (sessions) =>
         terminalFallback(sessions.sendInput(input), async (mesh) =>
           (await firstResponse(mesh.sendContainerTerminalInputAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
       )
 
-    closeTerminal = (input) =>
+    closeTerminal = (input: DockerContainerTerminalCloseBodyInput) =>
       Effect.flatMap(DockerTerminalSessions, (sessions) =>
         terminalFallback(
           sessions.close(input),

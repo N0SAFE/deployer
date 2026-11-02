@@ -38,7 +38,7 @@ export class DockerImageScansStore extends Context.Service<DockerImageScansStore
   "runtime/DockerImageScansStore",
 ) {
   static readonly live = class DockerImageScansStoreImpl implements DockerImageScansStoreShape {
-    findLatest = (identifiers) =>
+    findLatest = (identifiers: readonly string[]) =>
       identifiers.length === 0
         ? Effect.succeed(null)
         : Effect.flatMap(RuntimeDb, (database) =>
@@ -57,7 +57,7 @@ export class DockerImageScansStore extends Context.Service<DockerImageScansStore
             }),
           ).pipe(tolerateMissingScanTable(null))
 
-    lastUpdated = (identifier, generation) =>
+    lastUpdated = (identifier: string, generation: number) =>
       Effect.flatMap(RuntimeDb, (database) =>
         database.use(async (db) => {
           const rows = await db
@@ -74,7 +74,7 @@ export class DockerImageScansStore extends Context.Service<DockerImageScansStore
         }),
       ).pipe(tolerateMissingScanTable(null))
 
-    save = (input) =>
+    save = (input: SaveScanInput) =>
       Effect.flatMap(RuntimeDb, (database) =>
         database.use(async (db) => {
           const now = new Date();

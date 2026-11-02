@@ -81,9 +81,9 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
   "runtime/DockerContainerOps",
 ) {
   static readonly live = class DockerContainerOpsImpl implements DockerContainerOpsShape {
-    logsCollector = (containerId) => Effect.map(DockerEngine, (engine) => collectLogs(engine, containerId))
+    logsCollector = (containerId: string) => Effect.map(DockerEngine, (engine) => collectLogs(engine, containerId))
 
-    logsSnapshot = (input) =>
+    logsSnapshot = (input: DockerContainerLogsStreamQueryInput) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const raw = yield* engine.logs.read(input.containerId, {
@@ -98,7 +98,7 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         return { generatedAt, entries: parseContainerLogEntries(raw, input.containerId, generatedAt) };
       })
 
-    processes = (input) =>
+    processes = (input: DockerContainerProcessesQueryInput) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const generatedAt = new Date().toISOString();
@@ -106,7 +106,7 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         return { generatedAt, data: parseContainerProcesses(top, generatedAt) };
       })
 
-    processLogsSnapshot = (input) =>
+    processLogsSnapshot = (input: DockerContainerProcessLogsStreamQueryInput) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const raw = yield* engine.logs.read(input.containerId, {
@@ -124,14 +124,14 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         return { generatedAt, entries: matched.length > 0 ? matched : entries };
       })
 
-    listFiles = (input) =>
+    listFiles = (input: DockerContainerFilesQueryInput) =>
       Effect.gen(function* () {
         const containerPath = normalizeContainerPath(input.path ?? "/");
         const { output } = yield* runShell(input.containerId, `ls -la ${escapeShellArg(containerPath)}`);
         return buildFileListing(input.containerId, containerPath, output, new Date().toISOString());
       })
 
-    readFile = (input) =>
+    readFile = (input: DockerContainerReadFileQueryInput) =>
       Effect.gen(function* () {
         const containerPath = normalizeContainerPath(input.path);
         const maxBytes = input.maxBytes ?? 1_000_000;
@@ -145,7 +145,7 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         };
       })
 
-    writeFile = (input) =>
+    writeFile = (input: DockerContainerWriteFileBodyInput) =>
       Effect.gen(function* () {
         const containerPath = normalizeContainerPath(input.path);
         const encoded = Buffer.from(input.content, "utf8").toString("base64");
@@ -157,10 +157,10 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         return ack();
       })
 
-    deletePath = (input) =>
+    deletePath = (input: DockerContainerDeletePathBodyInput) =>
       Effect.as(runShell(input.containerId, `rm -rf ${escapeShellArg(normalizeContainerPath(input.path))}`), ack())
 
-    renamePath = (input) =>
+    renamePath = (input: DockerContainerRenamePathBodyInput) =>
       Effect.as(
         runShell(
           input.containerId,
@@ -169,7 +169,7 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         ack(),
       )
 
-    createDirectory = (input) =>
+    createDirectory = (input: DockerContainerCreateDirectoryBodyInput) =>
       Effect.as(runShell(input.containerId, `mkdir -p ${escapeShellArg(normalizeContainerPath(input.path))}`), ack())
   };
 }

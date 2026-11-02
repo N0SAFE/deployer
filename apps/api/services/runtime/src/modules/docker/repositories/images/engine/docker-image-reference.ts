@@ -6,7 +6,7 @@ import { normalizeImageRegistrySegment, normalizeImageRepositoryPath } from "./d
  * How an image is referred to: ids, digests and the candidate references used to find it in the engine. Pure.
  */
 
-export function toStringArray(value: string | string[] | undefined | null): string[] {
+export function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
   }

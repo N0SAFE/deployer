@@ -56,29 +56,25 @@ const volumeStoragePolicyConfigSchema = z
     })
     .loose();
 
-const localDeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema
-    .extend({
-        type: z.literal("local"),
-    })
-    .merge(localStoragePolicyConfigSchema);
+const localDeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema.extend({
+    ...localStoragePolicyConfigSchema.shape,
+    type: z.literal("local"),
+});
 
-const s3DeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema
-    .extend({
-        type: z.literal("s3"),
-    })
-    .merge(s3StoragePolicyConfigSchema);
+const s3DeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema.extend({
+    ...s3StoragePolicyConfigSchema.shape,
+    type: z.literal("s3"),
+});
 
-const nfsDeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema
-    .extend({
-        type: z.literal("nfs"),
-    })
-    .merge(nfsStoragePolicyConfigSchema);
+const nfsDeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema.extend({
+    ...nfsStoragePolicyConfigSchema.shape,
+    type: z.literal("nfs"),
+});
 
-const volumeDeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema
-    .extend({
-        type: z.literal("volume"),
-    })
-    .merge(volumeStoragePolicyConfigSchema);
+const volumeDeploymentStoragePolicySchema = deploymentStoragePolicyBaseSchema.extend({
+    ...volumeStoragePolicyConfigSchema.shape,
+    type: z.literal("volume"),
+});
 
 export const deploymentStoragePolicyLooseSchema = z.discriminatedUnion("type", [
     localDeploymentStoragePolicySchema,
@@ -87,15 +83,13 @@ export const deploymentStoragePolicyLooseSchema = z.discriminatedUnion("type", [
     volumeDeploymentStoragePolicySchema,
 ]);
 
-const deploymentStoragePolicyWithoutTypeSchema = z
-    .object({
-        type: z.undefined().optional(),
-    })
-    .merge(deploymentStoragePolicyBaseSchema)
-    .merge(localStoragePolicyConfigSchema)
-    .merge(s3StoragePolicyConfigSchema)
-    .merge(nfsStoragePolicyConfigSchema)
-    .merge(volumeStoragePolicyConfigSchema);
+const deploymentStoragePolicyWithoutTypeSchema = deploymentStoragePolicyBaseSchema.extend({
+    ...localStoragePolicyConfigSchema.shape,
+    ...s3StoragePolicyConfigSchema.shape,
+    ...nfsStoragePolicyConfigSchema.shape,
+    ...volumeStoragePolicyConfigSchema.shape,
+    type: z.undefined().optional(),
+});
 
 export const deploymentStoragePolicySchema = z.union([
     deploymentStoragePolicyLooseSchema,

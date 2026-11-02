@@ -1,10 +1,8 @@
 
 import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
-import { and } from "drizzle-orm";
 import { Effect } from "effect";
-import z from "zod/v4"
 
-import { dockerodeContainerListSchema, dockerodeImageInspectSchema, type DockerodeContainerList, type DockerodeImageInspect } from "@deployer/contracts-entities";
+import type { DockerodeContainerList, DockerodeImageInspect } from "@deployer/contracts-entities";
 import {
   
   
@@ -30,24 +28,15 @@ import {
 } from "@deployer/contracts-entities";
 import { DockerEngine, DockerHost, ScannerPool, type DockerEngineShape, type DockerHostShape, type ScannerPoolShape } from "@deployer/docker";
 import { CONTAINER_LINK_RESOLVER } from "@deployer/docker";
-import type { ContainersShape } from "@deployer/docker";
 import type { IContainerLinkResolver } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { projects } from "@deployer/nest-schema/global/project/deployment";
-import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
-import { dockerImageSecurityScanHistory } from "@deployer/nest-schema/global/runtime/docker-security-scan";
 import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
 import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
 import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
-import type {
-  DockerRuntimeActivityDetailQueryInput,
-  DockerRuntimeActivityListInput,
-} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
 import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
 import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
-import { isRecord } from "@deployer/type-guards"
 
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
@@ -61,7 +50,6 @@ import {
   DockerContainersRepository,
   type DockerContainersRepositoryShape,
 } from "../containers/engine/docker-containers.repository";
-import { assembleContainerLinks } from "../containers/links/container-link-assembly";
 import {
   DockerContainerLinksLookup,
   type DockerContainerLinksLookupShape,
