@@ -7,7 +7,6 @@ import { toast } from 'sonner'
 import { z } from 'zod/v4'
 
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@deployer/ui/components/shadcn/dialog'
@@ -30,11 +29,23 @@ import { formatDate, shortId } from '../_utils/helpers'
 
 
 
+/**
+ * The provider fields this page reads. The service's `providerConfig` is an
+ * opaque record, so it is parsed once here instead of stringified field by field.
+ */
+const providerConfigSchema = z
+  .object({
+    sourceUrl: z.string().optional(),
+    repositoryUrl: z.string().optional(),
+    branch: z.string().optional(),
+  })
+  .catchall(z.unknown())
+
 const triggerSchema = z.object({
   serviceId: z.string().min(1, 'Select a service'),
-  // Environments are first-class primitives (free-form names) — any env the
-  // project defines can be a deploy target.
-  environment: z.string().min(1, 'Select an environment'),
+  // The deployment API accepts these four targets; the form offers the project's
+  // own environment names, so an unknown one is rejected here rather than at the API.
+  environment: z.enum(['development', 'preview', 'production', 'staging']),
 })
 
 export default function ProjectDeploymentsPage() {
@@ -69,16 +80,16 @@ export default function ProjectDeploymentsPage() {
 
   // ── Filter state ────────────────────────────────────────────────
   const filteredDeployments = useMemo(() => {
-    if (!deployments || deployments.length === 0) return []
+    if (deployments.length === 0) return []
     let result = deployments
-    if (filters.status && filters.status !== 'all') {
-      result = result.filter((d: any) => (d.status ?? d.state ?? '').toLowerCase() === filters.status)
+    if (filters.status !== 'all') {
+      result = result.filter((d) => d.status.toLowerCase() === filters.status)
     }
     if (filters.environment && filters.environment !== 'all') {
-      result = result.filter((d: any) => (d.environment ?? '').toLowerCase() === filters.environment)
+      result = result.filter((d) => d.environment.toLowerCase() === filters.environment)
     }
     if (serviceFilter && serviceFilter !== 'all') {
-      result = result.filter((d: any) => (d.serviceId ?? d.service_id) === serviceFilter)
+      result = result.filter((d) => d.serviceId === serviceFilter)
     }
     return result
   }, [deployments, filters, serviceFilter])
@@ -86,9 +97,9 @@ export default function ProjectDeploymentsPage() {
   // Distinct environments present in this project's deployments
   const availableEnvironments = useMemo(() => {
     const set = new Set<string>()
-    for (const d of deployments ?? []) {
-      const env = (d as any).environment
-      if (env) set.add(String(env))
+    for (const d of deployments) {
+      const env = d.environment
+      set.add(env)
     }
     return Array.from(set).sort()
   }, [deployments])
@@ -101,22 +112,25 @@ export default function ProjectDeploymentsPage() {
     onSubmit: async ({ value }) => {
       const parsed = triggerSchema.safeParse(value)
       if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? 'Invalid input'); return }
-      const svc = localServices.find((s: any) => s.id === parsed.data.serviceId) as Record<string, unknown> | undefined
+      const svc = localServices.find((s) => s.id === parsed.data.serviceId)
       if (!svc) { toast.error('Selected service not found'); return }
-      const providerId = String(svc.providerId ?? svc.provider_type ?? '')
-      const source = providerId === 'github' ? {
-        sourceType: 'github' as const,
-        repositoryUrl: String((svc.providerConfig ?? svc.provider_config) ? ((svc.providerConfig ?? svc.provider_config) as Record<string, unknown>).sourceUrl ?? ((svc.providerConfig ?? svc.provider_config) as Record<string, unknown>).repositoryUrl ?? '' : ''),
-        branch: String((svc.providerConfig ?? svc.provider_config) ? ((svc.providerConfig ?? svc.provider_config) as Record<string, unknown>).branch ?? 'main' : ''),
-      } : undefined
+      const providerConfig = providerConfigSchema.parse(svc.providerConfig ?? {})
+      // `source` is REQUIRED and discriminated by provider: a deployment always
+      // names where it builds from. Anything that is not a known git provider
+      // carries the service's provider config as the custom payload.
+      const repositoryUrl = providerConfig.sourceUrl ?? providerConfig.repositoryUrl ?? ''
+      const branch = providerConfig.branch ?? 'main'
+      const source = svc.providerId === 'github'
+        ? { sourceType: 'github' as const, repositoryUrl, branch }
+        : svc.providerId === 'gitlab'
+          ? { sourceType: 'gitlab' as const, repositoryUrl, branch }
+          : { sourceType: 'custom' as const, customData: providerConfig }
       try {
         await triggerDeployment.mutateAsync({
-          body: {
-            serviceId: parsed.data.serviceId,
-            environment: parsed.data.environment,
-            ...(source ? { source } : {}),
-          },
-        } as any)
+          serviceId: parsed.data.serviceId,
+          environment: parsed.data.environment,
+          source,
+        })
         toast.success('Deployment triggered')
         setTriggerOpen(false)
         triggerForm.reset()
@@ -140,10 +154,41 @@ export default function ProjectDeploymentsPage() {
   const [rollbackOpen, setRollbackOpen] = useState(false)
   const [rollbackId, setRollbackId] = useState<string | null>(null)
 
+  /**
+   * The deployment to restore when rolling back `rollbackId`: the most recent
+   * SUCCESSFUL deployment of the same service that came before it. The API needs
+   * an explicit target (`targetDeploymentId`), so the page resolves it instead of
+   * sending the row's own id and letting the service refuse with a 409.
+   */
+  const rollbackTarget = useMemo(() => {
+    if (rollbackId === null) return null
+    const current = deployments.find((deployment) => deployment.id === rollbackId)
+    if (current === undefined) return null
+    const currentAt = new Date(current.createdAt).getTime()
+    return (
+      deployments
+        .filter(
+          (deployment) =>
+            deployment.id !== current.id &&
+            deployment.serviceId === current.serviceId &&
+            deployment.status === 'success' &&
+            new Date(deployment.createdAt).getTime() < currentAt,
+        )
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null
+    )
+  }, [deployments, rollbackId])
+
   const handleRollback = async () => {
     if (!rollbackId) return
+    if (rollbackTarget === null) {
+      toast.error('No successful deployment to roll back to')
+      return
+    }
     try {
-      await rollbackDeployment.mutateAsync({ params: { id: rollbackId } } as any)
+      await rollbackDeployment.mutateAsync({
+        params: { id: rollbackId },
+        body: { targetDeploymentId: rollbackTarget.id },
+      })
       toast.success('Rollback initiated'); setRollbackOpen(false); setRollbackId(null)
     } catch (err) { toast.error('Failed to rollback', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
   }
@@ -209,7 +254,7 @@ export default function ProjectDeploymentsPage() {
                       <Select value={field.state.value} onValueChange={(v) => { field.handleChange(v); }}>
                         <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
                         <SelectContent>
-                          {localServices.map((s: any) => (<SelectItem key={s.id} value={s.id}>{s.name ?? s.id}</SelectItem>))}
+                          {localServices.map((s) => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -241,7 +286,7 @@ export default function ProjectDeploymentsPage() {
                 <Button variant="outline" onClick={() => { setTriggerOpen(false); }}>Cancel</Button>
                 <triggerForm.Subscribe selector={(s) => s.isSubmitting}>
                   {(isSubmitting) => (
-                    <Button onClick={triggerForm.handleSubmit} disabled={isSubmitting || triggerDeployment.isPending}>
+                    <Button onClick={() => { void triggerForm.handleSubmit(); }} disabled={isSubmitting || triggerDeployment.isPending}>
                       {triggerDeployment.isPending ? 'Triggering...' : 'Deploy'}
                     </Button>
                   )}
@@ -268,7 +313,7 @@ export default function ProjectDeploymentsPage() {
             </div>
             <div className="grid gap-1.5">
               <Label className="text-[11px] text-muted-foreground">Environment</Label>
-              <Select value={filters.environment ?? 'all'} onValueChange={(v) => { setFilters({ environment: v }); }}>
+              <Select value={filters.environment} onValueChange={(v) => { setFilters({ environment: v }); }}>
                 <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All environments</SelectItem>
@@ -284,13 +329,13 @@ export default function ProjectDeploymentsPage() {
                 <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All services</SelectItem>
-                  {localServices.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name ?? s.id}</SelectItem>
+                  {localServices.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {(filters.status !== 'all' || (filters.environment ?? 'all') !== 'all' || serviceFilter !== 'all') && (
+            {(filters.status !== 'all' || filters.environment !== 'all' || serviceFilter !== 'all') && (
               <Button size="sm" variant="ghost" className="mt-4 h-8" onClick={() => { setFilters({ status: 'all', environment: 'all' }); setServiceFilter('all') }}>
                 Clear filters
               </Button>
@@ -330,25 +375,25 @@ export default function ProjectDeploymentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDeployments.map((dep: any, index: number) => {
-                  const status = (dep.status ?? dep.state ?? '').toLowerCase()
+                {filteredDeployments.map((dep) => {
+                  const status = dep.status.toLowerCase()
                   // Read the id once and reuse it: the row already needed it for
                   // the ID cell, and the action labels below need it too.
                   const displayId = shortId(dep.id)
                   return (
-                    <TableRow key={dep.id ?? index}>
+                    <TableRow key={dep.id}>
                       <TableCell className="font-mono text-xs">{displayId}</TableCell>
                       <TableCell><StatusBadge status={status} className="text-[11px]" /></TableCell>
-                      <TableCell>{dep.environment ?? '-'}</TableCell>
-                      <TableCell>{dep.serviceName ?? dep.service_id ?? dep.serviceId ?? '-'}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{formatDate(dep.createdAt ?? dep.created_at)}</TableCell>
+                      <TableCell>{dep.environment}</TableCell>
+                      <TableCell>{dep.serviceId}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{formatDate(dep.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           {/* Link to the service logs for this deployment */}
-                          {dep.serviceId || dep.service_id ? (
+                          {dep.serviceId ? (
                             <AuthDashboardProjectsProjectIdServicesServiceIdLogs.Link
                               projectId={projectId}
-                              serviceId={dep.serviceId ?? dep.service_id}
+                              serviceId={dep.serviceId}
                             >
                               <Button variant="ghost" size="icon" className="size-7" title="View service logs" aria-label="View service logs">
                                 <ScrollText className="size-3.5" />
@@ -384,7 +429,7 @@ export default function ProjectDeploymentsPage() {
           <DialogHeader><DialogTitle>Cancel Deployment</DialogTitle><DialogDescription>This will stop the running deployment <strong className="font-mono">{shortId(cancelId ?? '')}</strong>.</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCancelOpen(false); }}>Close</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={cancelDeployment.isPending}>{cancelDeployment.isPending ? 'Cancelling...' : 'Cancel Deployment'}</Button>
+            <Button variant="destructive" onClick={() => { void handleCancel(); }} disabled={cancelDeployment.isPending}>{cancelDeployment.isPending ? 'Cancelling...' : 'Cancel Deployment'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -395,7 +440,7 @@ export default function ProjectDeploymentsPage() {
           <DialogHeader><DialogTitle>Rollback Deployment</DialogTitle><DialogDescription>Revert deployment <strong className="font-mono">{shortId(rollbackId ?? '')}</strong> to the previous version.</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setRollbackOpen(false); }}>Close</Button>
-            <Button onClick={handleRollback} disabled={rollbackDeployment.isPending}>{rollbackDeployment.isPending ? 'Rolling back...' : 'Rollback'}</Button>
+            <Button onClick={() => { void handleRollback(); }} disabled={rollbackDeployment.isPending}>{rollbackDeployment.isPending ? 'Rolling back...' : 'Rollback'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -406,7 +451,7 @@ export default function ProjectDeploymentsPage() {
           <DialogHeader><DialogTitle>Delete Deployment</DialogTitle><DialogDescription>This permanently removes the deployment record <strong className="font-mono">{shortId(deleteId ?? '')}</strong>.</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDeleteOpen(false); }}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteDeployment.isPending}>{deleteDeployment.isPending ? 'Deleting...' : 'Delete'}</Button>
+            <Button variant="destructive" onClick={() => { void handleDelete(); }} disabled={deleteDeployment.isPending}>{deleteDeployment.isPending ? 'Deleting...' : 'Delete'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

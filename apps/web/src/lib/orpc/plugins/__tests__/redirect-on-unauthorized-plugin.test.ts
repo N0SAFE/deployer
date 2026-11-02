@@ -23,7 +23,7 @@ const mockUnstableRethrow = vi.fn((error: unknown) => {
         (error.digest.startsWith('NEXT_REDIRECT') ||
             error.digest.startsWith('NEXT_NOT_FOUND'))
     ) {
-        throw error
+        throw error as unknown as Error
     }
 })
 const mockHeaders = vi.fn()
@@ -92,9 +92,7 @@ const makeOptions = (
     // plugin under test only reads `context` and `next`.
     path: [],
     input: undefined,
-    next: async () => {
-        throw unauthorizedError()
-    },
+    next: () => Promise.reject(unauthorizedError()),
     context: {},
     ...overrides,
 })
@@ -125,7 +123,7 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: async () => { throw error } }))).rejects.toBe(error)
+        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
 
         expect(mockHeaders).toHaveBeenCalled()
         expect(mockRedirect).toHaveBeenCalledWith(
@@ -145,7 +143,7 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: async () => { throw error } }))).rejects.toBe(error)
+        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
 
         expect(mockRedirect).toHaveBeenCalledWith('/auth/signin', 'replace')
         expect(mockAuthSignin).toHaveBeenCalledWith({}, { redirectTo: undefined })
@@ -159,7 +157,7 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: async () => { throw error } }))).rejects.toBe(error)
+        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
 
         expect(mockRedirect).toHaveBeenCalledWith('/auth/signin', 'replace')
     })
@@ -172,7 +170,7 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: async () => { throw error } }))).rejects.toBe(error)
+        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
 
         expect(mockClientRedirect).toHaveBeenCalledWith(
             '/auth/signin?redirectTo=%2Fdashboard%3Ftab%3D2',
@@ -191,7 +189,7 @@ describe('RedirectOnUnauthorizedPlugin', () => {
             interceptor(
                 makeOptions({
                     context: { noRedirectOnUnauthorized: true },
-                    next: async () => { throw error },
+                    next: () => Promise.reject(error),
                 }),
             ),
         ).rejects.toBe(error)
@@ -207,7 +205,7 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const abortError = new DOMException('The operation was aborted.', 'AbortError')
 
         await expect(
-            interceptor(makeOptions({ next: async () => { throw abortError } })),
+            interceptor(makeOptions({ next: () => Promise.reject(abortError) })),
         ).rejects.toBe(abortError)
 
         expect(mockRedirect).not.toHaveBeenCalled()

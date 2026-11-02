@@ -1,8 +1,9 @@
 import withBundleAnalyzer from "@next/bundle-analyzer";
-import { withRedact } from "@tanstack/redact/next";
+// DISABLED — see the note above `let exp` at the bottom of this file.
+// import { withRedact } from "@tanstack/redact/next";
 import type { NextConfig } from "next";
 import { envSchema } from "./env";
-import { execSync } from "node:child_process";
+import { $ } from "bun";
 import { readFileSync } from "fs";
 import path from "node:path";
 
@@ -69,24 +70,25 @@ function resolveAllowedDevOrigins(): string[] | undefined {
 
 const workspaceTranspilePackages = getWorkspaceTranspilePackages();
 
+const turbopackRoot = path.join(__dirname, "../..");
+
 /**
- * `bunfig.toml` sets `install.globalStore = true`: every package is reachable
- * only through a symlink into bun's global store (`bun pm cache`), i.e. a real
- * path OUTSIDE this monorepo. Turbopack resolves modules by real path and
- * refuses anything outside `turbopack.root`, which turned into ~1200
- * "Module not found" errors for zod, lucide-react, @orpc/* … once a reinstall
- * materialized store links. Declaring the store as an additional root keeps
- * the build working with the store ON (no env override, no Docker-only rule).
+ * `bunfig.toml` sets `install.globalStore = true`, so a package is reachable
+ * only through a symlink into bun's global store (`bun pm cache`), whose real
+ * path is OUTSIDE this monorepo. Turbopack resolves modules by real path and
+ * refuses anything outside `turbopack.root`, so without declaring the store the
+ * build fails with ~1200 "Module not found" (zod, lucide-react, @orpc/* …).
  *
- * Config loads as CJS here, so no top-level `await`/`$\`bun pm cache\``; a
- * failed or empty lookup just leaves the roots undefined (`ignoreIfMissing`
- * also covers installs where the store is off, e.g. Docker).
+ * `experimental.turbopackAdditionalRoots` (Next 16.4+) is the supported way to
+ * let Turbopack cross those symlinks; `ignoreIfMissing` keeps installs that use
+ * no store (Docker sets `BUN_INSTALL_GLOBAL_STORE=0`) and failed lookups
+ * harmless.
  */
-function getBunStoreRoots():
-  | Record<string, { path: string; ignoreIfMissing: boolean }>
-  | undefined {
+async function getBunStoreRoots(): Promise<
+  Record<string, { path: string; ignoreIfMissing: boolean }> | undefined
+> {
   try {
-    const cacheDir = execSync("bun pm cache", { encoding: "utf8" }).trim();
+    const cacheDir = (await $`bun pm cache`.text()).trim();
     if (!cacheDir) return undefined;
     return {
       bunStore: { path: path.join(cacheDir, "links"), ignoreIfMissing: true },
@@ -135,7 +137,6 @@ const noCheck = process.env.CHECK_ON_BUILD !== "true";
 
 const nextConfig: NextConfig = {
   experimental: {
-    turbopackAdditionalRoots: getBunStoreRoots(),
     serverComponentsHmrCache: true,
     turbopackRustReactCompiler: true,
     // Turbopack filesystem cache — persists compilation work under `.next`
@@ -204,7 +205,7 @@ const nextConfig: NextConfig = {
   // Turbopack errors with "could not find next/package.json" in Docker
   // (project dir: /app/apps/web/src/app, but `next` is hoisted at /app/node_modules).
   turbopack: {
-    root: path.join(__dirname, "../.."),  
+    root: turbopackRoot,
     // Workaround for Turbopack bug #93144: @xyflow/react has
     // `sideEffects: ["*.css"]` which causes Turbopack to auto-include the
     // package's CSS files. These go through the webpack-loader fallback
@@ -422,25 +423,35 @@ const nextConfig: NextConfig = {
     : {}),
 };
 
-// Enable MDX and Fumadocs source generation
+// TanStack Redact (`withRedact`) intent: swap React's BROWSER runtime for
+// Redact's synchronous one while Next keeps React on the server (SSR, Server
+// Components, Flight, actions). Application code keeps importing
+// `react`/`react-dom`; the adapter rewrote the resolved browser entries.
 //
-// `withRedact` swaps React's BROWSER runtime for TanStack Redact's synchronous
-// one. Next keeps React on the server: it owns SSR, Server Components, Flight
-// and actions; Redact only renders and hydrates in the browser. Keep importing
-// from `react`/`react-dom` everywhere — the adapter rewrites the resolved React
-// entry files per bundle, so no application code changes.
-//
-// It must stay the INNERMOST wrapper: it spreads the config it is given
-// (`turbopack.rules`, `webpack`) and then appends its own rules, so wrapping it
-// the other way would drop those.
-//
-// Version gate: the adapter only accepts stable Next 15.5 and 16.0–16.4 and
-// throws on anything else. That is why the `next` catalog is an EXACT pin — a
-// caret would let `bun install` resolve 16.5 and break config loading.
-let exp: NextConfig = withRedact(nextConfig);
+// It is DISABLED because that adapter rewrites React's entries with browser-only
+// Turbopack *loader* rules (`@tanstack/redact/next`), and Turbopack refuses
+// loader output for a module living in an `experimental.turbopackAdditionalRoots`
+// root — which is where bun's `globalStore` puts React (see `getBunStoreRoots`):
+//   Resource path ".../node_modules/react/index.js" needs to be on project
+//   filesystem "apps/web"
+// Aliases are not a workaround: Turbopack applies its built-in React aliases
+// after user aliases, which is why Redact uses loaders at all. Verified against
+// @tanstack/redact 0.2.3 and 0.2.4 on Next 16.4.4. Re-enable the import above
+// and this line once TanStack ships a store/additional-root-safe integration.
+let exp: NextConfig = nextConfig;
 
 if (process.env.ANALYZE === "true") {
   exp = withBundleAnalyzer()(exp);
 }
 
-export default exp;
+// Next awaits an async config export (`normalizeConfig`), which is what lets
+// the bun-store lookup use `$` under the bun runtime without a top-level await
+// in a file Next loads as CJS. The pin (`next: 16.4.4` exact) matters here too:
+// `turbopackAdditionalRoots` only exists from 16.4.
+export default async (): Promise<NextConfig> => ({
+  ...exp,
+  experimental: {
+    ...exp.experimental,
+    turbopackAdditionalRoots: await getBunStoreRoots(),
+  },
+});

@@ -107,7 +107,7 @@ export default function ProjectDependenciesPage() {
   }, [mode, expectedDependencies, realDependencies, filteredServices])
 
   if (isLoading) return <PageSkeleton blocks={1} withStrip={false} label="Loading dependencies" />
-  if (error) return <InlineError title="Could not load dependencies" error={error} onRetry={refetch} />
+  if (error) return <InlineError title="Could not load dependencies" error={error} onRetry={() => { void refetch(); }} />
 
   return (
     <Card>

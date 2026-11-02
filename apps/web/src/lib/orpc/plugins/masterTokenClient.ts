@@ -39,12 +39,12 @@ export class MasterTokenPlugin<T extends ClientContext> implements StandardLinkP
         async (options) => {
       // Only in development — matches the server plugin's own gating.
       if (process.env.NODE_ENV !== 'development') {
-        return options.next?.(options)
+        return options.next(options)
       }
 
       // Only proceed if the auth client carries the devtools plugin.
       if (!hasMasterTokenPlugin(authClient)) {
-        return options.next?.(options)
+        return options.next(options)
       }
 
       // Single source of truth for the token, shared with the devtools panel.
@@ -52,7 +52,7 @@ export class MasterTokenPlugin<T extends ClientContext> implements StandardLinkP
       // disabled or un-minted devtools session leaves requests untouched.
       const token = readDevtoolsApiKey()
       if (!token) {
-        return options.next?.(options)
+        return options.next(options)
       }
 
       // `request.headers` is a plain object on the ORPC link (see
@@ -62,7 +62,7 @@ export class MasterTokenPlugin<T extends ClientContext> implements StandardLinkP
         Authorization: `Bearer ${token}`,
       }
 
-      return options.next?.(options)
+      return options.next(options)
         },
       ],
     }

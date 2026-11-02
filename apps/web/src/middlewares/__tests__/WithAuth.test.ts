@@ -143,7 +143,7 @@ describe("WithAuth middleware", () => {
   it("verifies a cold cookie cache against the API instead of trusting the cookie alone", async () => {
     mockGetSessionCookie.mockReturnValue("session-token");
     mockGetCookieCache.mockResolvedValue(null);
-    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ user: { role: "viewer" } }) }));
+    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ user: { role: "viewer" } }) }));
     vi.stubGlobal("fetch", fetchMock);
 
     const { default: withAuth } = await import("../WithAuth");
@@ -165,7 +165,7 @@ describe("WithAuth middleware", () => {
   it("sends the request to sign-in when the API refuses the cold session", async () => {
     mockGetSessionCookie.mockReturnValue("session-token");
     mockGetCookieCache.mockResolvedValue(null);
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => null })));
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve(null) })));
 
     const { default: withAuth } = await import("../WithAuth");
     const next = vi.fn().mockReturnValue(NextResponse.next());

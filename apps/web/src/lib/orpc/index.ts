@@ -1,6 +1,5 @@
 import { createORPCClient } from "@orpc/client";
 import { RequestCompressionLinkPlugin } from "@orpc/client/plugins";
-import { StandardLinkPlugin } from "@orpc/client/standard";
 import { RouterContractClient } from "@orpc/contract";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 
@@ -82,7 +81,7 @@ export function createORPCClientWithCookies(): ORPCClient {
             process.env.NEXT_PUBLIC_API_URL ?? "",
             "NEXT_PUBLIC_API_URL",
           ),
-    fetch(url, init, options, path) {
+    fetch(url, init, options) {
       return fetch(url, {
         ...init,
         credentials: "include",

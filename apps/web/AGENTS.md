@@ -41,31 +41,63 @@ Testing and checks:
 - Use shared UI from `@repo/ui` where possible.
 - Client API access should use generated ORPC hooks.
 
-## Browser Runtime — TanStack Redact
+## Browser Runtime — TanStack Redact (disabled in `apps/web`)
 
-`next.config.ts` wraps the config with `withRedact` from `@tanstack/redact/next`.
-Redact replaces **React's browser runtime** with a smaller synchronous one; Next
-keeps React for SSR, Server Components, Flight and actions. Application code is
-unchanged: keep importing from `react`, `react-dom` and Next, and **never** set
-`jsxImportSource` to Redact in a Next app (the server still needs React's JSX
-runtime).
+`next.config.ts` had the config wrapped with `withRedact` from
+`@tanstack/redact/next`. Redact replaces **React's browser runtime** with a
+smaller synchronous one; Next keeps React for SSR, Server Components, Flight and
+actions. Application code stays unchanged: keep importing from `react`,
+`react-dom` and Next, and **never** set `jsxImportSource` to Redact in a Next app
+(the server still needs React's JSX runtime).
+
+**It is currently disabled** (the import and the `withRedact(...)` call are
+commented out in `next.config.ts`): the adapter rewrites React's browser entries
+with browser-only Turbopack *loader* rules, and Turbopack refuses loader output
+for a module that lives in an `experimental.turbopackAdditionalRoots` root —
+which is where bun's `globalStore` puts React, and that root is required for the
+build to resolve the store at all:
+
+```
+Resource path "…/node_modules/react/index.js" needs to be on project filesystem "apps/web"
+```
+
+Aliases are not an alternative: Turbopack applies its built-in React aliases
+*after* user aliases, which is why Redact uses loaders. Verified with
+`@tanstack/redact` 0.2.3 and 0.2.4 on Next 16.4.4. Re-enable both lines once
+TanStack ships an integration that works across additional roots. `apps/doc`,
+which does not cross an additional root, still runs `withRedact`.
 
 Rules that break silently if ignored:
 
 - `withRedact` must be the **innermost** wrapper — it spreads the config it is
   given (`turbopack.rules`, `webpack`) and appends its own rules, so wrapping it
-  outside `withBundleAnalyzer`/`withMDX` would drop them.
+  outside `withBundleAnalyzer` would drop them.
 - The adapter supports stable **Next 15.5 and 16.0 through 16.4 only** and throws
   at config load outside that. The `next` catalog in the root `package.json` is
-  therefore an **exact pin** (`16.4.3`), not a caret. Bump Next only to a version
+  therefore an **exact pin** (`16.4.4`), not a caret. Bump Next only to a version
   the adapter lists, and bump `@tanstack/redact` with it.
 - Custom Turbopack/Webpack transforms of React's *own* entry files conflict with
   the integration; its loader rules target the resolved `react`/`react-dom`
   entries.
 
+## bun global store + Turbopack
+
+`bunfig.toml` keeps `install.globalStore = true`, so packages are only reachable
+through symlinks into `bun pm cache`, outside `turbopack.root`. `next.config.ts`
+therefore declares `experimental.turbopackAdditionalRoots` (Next 16.4+), read
+from `bun pm cache`. Two consequences:
+
+- Loaders/rules do not run for modules inside that additional root (Redact, see
+  above, and PostCSS — which is why `packages/ui/base` has no `postcss.config.js`
+  and Turbopack handles Tailwind v4 natively).
+- CSS `@import` of a package that only exports its stylesheet under the `style`
+  condition (`tw-animate-css`) cannot resolve. Fixed at install time by the bun
+  patch `patches/tw-animate-css@1.4.0.patch`, which adds a `default` condition to
+  that package's `exports`; the `@import` in `@repo/ui` stays bare.
+
 ## Turbopack Filesystem Cache
 
-`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (pinned to `16.4.3`, where both are default-on — set explicitly so a re-pin cannot silently drop the build cache). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
+`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (pinned to `16.4.4`, where both are default-on — set explicitly so a re-pin cannot silently drop the build cache). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
 
 Compose mounts a named volume (`web_next_cache_dev` / `web_next_cache_prod`) over the `cache/` directory only, so the dist-dir lock at `.next/dev/lock` stays on the container layer. See `.docs/guides/DOCKER-BUILD-STRATEGIES.md`.
 

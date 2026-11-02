@@ -17,7 +17,7 @@ describe('WithHeaders Middleware', () => {
     it('stamps x-pathname on the response and forwards URL headers to server components', async () => {
         const { withHeaders } = await import('../WithHeaders')
 
-        const inner = vi.fn(async () => NextResponse.next())
+        const inner = vi.fn(() => Promise.resolve(NextResponse.next()))
         const middleware = withHeaders(inner)
 
         const request = createMockRequest('http://localhost:3003/dashboard?tab=2')
@@ -43,7 +43,7 @@ describe('WithHeaders Middleware', () => {
     it('preserves pass-through responses without a query string', async () => {
         const { withHeaders } = await import('../WithHeaders')
 
-        const inner = vi.fn(async () => NextResponse.next())
+        const inner = vi.fn(() => Promise.resolve(NextResponse.next()))
         const middleware = withHeaders(inner)
 
         const request = createMockRequest('http://localhost:3003/settings')
@@ -58,8 +58,8 @@ describe('WithHeaders Middleware', () => {
     it('keeps redirect responses untouched (no request-header forwarding)', async () => {
         const { withHeaders } = await import('../WithHeaders')
 
-        const inner = vi.fn(async () =>
-            NextResponse.redirect('http://localhost:3003/auth/signin?redirectTo=%2Fdashboard'),
+        const inner = vi.fn(() =>
+            Promise.resolve(NextResponse.redirect('http://localhost:3003/auth/signin?redirectTo=%2Fdashboard')),
         )
         const middleware = withHeaders(inner)
 
@@ -83,7 +83,7 @@ describe('WithHeaders Middleware', () => {
 
         const innerRes = NextResponse.next()
         innerRes.headers.set('x-custom-from-inner', 'yes')
-        const inner = vi.fn(async () => innerRes)
+        const inner = vi.fn(() => Promise.resolve(innerRes))
         const middleware = withHeaders(inner)
 
         const request = createMockRequest('http://localhost:3003/settings')

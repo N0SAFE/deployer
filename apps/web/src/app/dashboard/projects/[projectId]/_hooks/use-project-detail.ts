@@ -11,6 +11,17 @@ import { serviceEndpoints } from '@/domains/service/endpoints'
 import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
 import { useServiceList } from '@/domains/service/hooks'
 
+import type { DependencyEdgeLike } from '../_utils/dependency-topology'
+
+/** A sub-service, as the graph renders it: identity, kind, its parent, and the live status if any. */
+interface SubServiceGraphNode {
+  id: string
+  name: string
+  type: string
+  parentId: string | null
+  status?: string
+}
+
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -41,14 +52,27 @@ export function useProjectDetail() {
   // Dependencies per service (N+1 — known issue, needs batch endpoint).
   // `enabled` guards prevent `:id` template placeholders reaching the API
   // when a service row is briefly malformed/undefined (e.g. during HMR).
-  const dependencyQueries = useQueries({
-    queries: localServices.map((service: any) => {
-      const serviceId = String(service.id ?? '')
+  //
+  // The flattening lives in `combine` rather than a `useMemo` over the result
+  // array: `useQueries` returns a NEW array each render, so a memo keyed on it
+  // recomputed every time (and the graph re-derived on every keystroke).
+  const { dependencies, subServiceNodes } = useQueries({
+    queries: localServices.map((service) => {
+      const serviceId = service.id
       return serviceEndpoints.dependencies.list.queryOptions({
         input: { params: { id: serviceId } },
         enabled: UUID_RE.test(serviceId),
       })
     }),
+    combine: (results) => {
+      const deps: DependencyEdgeLike[] = []
+      const nodes: SubServiceGraphNode[] = []
+      for (const result of results) {
+        deps.push(...(result.data?.dependencies ?? []))
+        collectSubServiceNodes(result.data?.subServices, deps, nodes, null)
+      }
+      return { dependencies: deps, subServiceNodes: nodes }
+    },
   })
 
   // Deployments
@@ -73,20 +97,6 @@ export function useProjectDetail() {
    *  - every sub-service's edges (recursively), and
    *  - the sub-service nodes themselves (so those edges have visible ends).
    */
-  const { dependencies, subServiceNodes } = useMemo(() => {
-    const deps: any[] = []
-    const nodes: { id: string; name: string; type: string; parentId: string | null; status?: string }[] = []
-    for (const q of dependencyQueries) {
-      const data = q.data as {
-        dependencies?: unknown[]
-        subServices?: unknown[]
-      } | undefined
-      deps.push(...(data?.dependencies ?? []))
-      collectSubServiceNodes(data?.subServices, deps, nodes, null)
-    }
-    return { dependencies: deps, subServiceNodes: nodes }
-  }, [dependencyQueries])
-
   // The page's inline error retry has to retry the reads that actually failed.
   // `refetchProject` is what carries `error`, but services feed every graph on
   // the page, so a retry that skipped them would show a stale, half-empty view.
@@ -115,7 +125,7 @@ interface SubDepsNodeShape {
   serviceType?: string
   status?: string
   state?: string
-  dependencies?: unknown[]
+  dependencies?: readonly DependencyEdgeLike[]
   children?: SubDepsNodeShape[]
 }
 
@@ -125,13 +135,13 @@ interface SubDepsNodeShape {
  * graph can render them as nested/grouped nodes.
  */
 function collectSubServiceNodes(
-  subServices: unknown[] | undefined,
-  deps: unknown[],
-  nodes: { id: string; name: string; type: string; parentId: string | null; status?: string }[],
+  subServices: readonly SubDepsNodeShape[] | undefined,
+  deps: DependencyEdgeLike[],
+  nodes: SubServiceGraphNode[],
   parentServiceId: string | null,
 ): void {
   for (const raw of subServices ?? []) {
-    const node = raw as SubDepsNodeShape
+    const node = raw
     if (!node.serviceId) continue
     deps.push(...(node.dependencies ?? []))
     nodes.push({
