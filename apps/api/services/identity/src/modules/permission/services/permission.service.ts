@@ -10,15 +10,16 @@ import {
     type ColumnResolver,
     type FilterableScalar,
 } from '@deployer/auth/permissions'
-import { serviceOver, type Over } from "@deployer/effect-core"
-
+import { serviceOver } from "@deployer/effect-core"
 
 import { DatabasePort } from '@identity/core/database/database.port'
 
+
+
 import {
     PermissionDenied,
+    PermissionRepositoryFailure,
     type PermissionFailure,
-    type PermissionRepositoryFailure,
 } from '../permission.failures'
 import {
     PermissionRepository,
@@ -113,31 +114,33 @@ function makePermissionService(
         const engine = new PermissionEngine({
             // No org layer — the mesh is the single tenant. Rules are keyed by the
             // user's platform role at eval time (see EngineContext).
+            // The engine's loader is Promise-based, so the repository Effect is run outside the context it would
+            // need: the assertion states the requirement the engine cannot carry. A failed load is NOT swallowed —
+            // an empty rule list means "deny everything", so hiding a database outage behind it turned an outage into
+            // a permission policy, and the reason string said "No rules configured" instead of "the query failed".
             loadRoleRules: (role) =>
-                // The engine's loader is Promise-based, so the repository Effect is run outside the
-                // context it would need: the assertion states the requirement the engine cannot carry,
-                // and a failed load keeps yielding no rules rather than failing the check.
                 Effect.runPromise(
                     roleRules.getRoleRules([role]) as Effect.Effect<
                         ResourceRule[],
                         PermissionRepositoryFailure
                     >
-                ).catch(() => []),
+                ),
         })
 
-        // An engine denial is a refusal; any other throw is a bug in the engine, not a refusal.
+        // An engine denial is a refusal, a repository failure is a dependency failure, and anything else is a bug in
+        // the engine — thrown from here it becomes a defect, not a permission answer.
         return Effect.tryPromise({
             try: () => run(engine),
-            catch: (cause) => cause,
-        }).pipe(
-            Effect.catch((cause) =>
-                cause instanceof ForbiddenError
-                    ? Effect.fail(
-                          new PermissionDenied({ reason: cause.message })
-                      )
-                    : Effect.die(cause)
-            )
-        )
+            catch: (cause: unknown): PermissionFailure => {
+                if (cause instanceof ForbiddenError) {
+                    return new PermissionDenied({ reason: cause.message })
+                }
+                if (cause instanceof PermissionRepositoryFailure) {
+                    return cause
+                }
+                throw cause
+            },
+        })
     }
 
     return {

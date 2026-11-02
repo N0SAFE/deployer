@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ForbiddenError, type ResourceRule } from '@deployer/auth/permissions'
 
+import { PermissionRepositoryFailure } from '../permission.failures'
 import { PermissionRepository } from '../repositories/permission.repository'
 
 import {
@@ -102,6 +103,20 @@ describe('PermissionService (Effect)', () => {
             expect(out.decision).toBe('DENY')
         })
 
+        it('fails loudly when the rules cannot be loaded, instead of denying as if none were configured', async () => {
+            // The loader used to `.catch(() => [])`: a database outage became "No rules configured", i.e. an
+            // infrastructure failure dressed as a permission policy. It must surface as a dependency failure.
+            const failure = new PermissionRepositoryFailure({ cause: new Error('connection refused') })
+            const repo = {
+                ...fakeRepository(),
+                getRoleRules: vi.fn(() => Effect.fail(failure)),
+            } satisfies PermissionRepositoryShape
+
+            await expect(run(service.check(ctx, 'project', 'read'), repo)).rejects.toMatchObject({
+                _tag: 'PermissionRepositoryFailure',
+            })
+        })
+
         it('forwards the resource id and record to the engine', async () => {
             const out = await run(
                 service.check(ctx, 'project', 'read', 'proj-1', record),
@@ -123,13 +138,13 @@ describe('PermissionService (Effect)', () => {
             const error = await run(
                 service.assert(ctx, 'project', 'delete'),
                 fakeRepository()
-            ).catch((e) => e)
+            ).catch((e: unknown) => e)
 
             expect(error).toMatchObject({
                 _tag: 'PermissionDenied',
                 kind: 'forbidden',
             })
-            expect(error.publicMessage()).toEqual(expect.any(String))
+            expect((error as { publicMessage: () => string }).publicMessage()).toEqual(expect.any(String))
         })
     })
 
@@ -204,11 +219,11 @@ describe('PermissionService (Effect)', () => {
             )
 
             const error = await run(service.listRoleRules(), repo).catch(
-                (e) => e
+                (cause: unknown) => cause
             )
 
             expect(error).toMatchObject({ _tag: 'PermissionRepositoryFailure' })
-            expect(error.cause).toBeInstanceOf(Error)
+            expect((error as { cause?: unknown }).cause).toBeInstanceOf(Error)
         })
     })
 

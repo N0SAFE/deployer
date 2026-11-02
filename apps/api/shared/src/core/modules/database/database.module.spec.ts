@@ -8,7 +8,11 @@ import { DatabaseModule } from './database.module';
 import { GlobalDatabaseService } from './global/global-database.service';
 
 // Mock heavy sub-modules that trigger env validation and real DB connections
-vi.mock('./global/global-database.module', () => ({
+vi.mock('./global/global-database.module', async () => {
+  // A `vi.mock` factory is hoisted above the imports, so every value it uses is imported inside it.
+  const { GLOBAL_DATABASE_CONNECTION } = await import("./database-connection");
+  const { GlobalDatabaseService } = await import("./global/global-database.service");
+  return {
   GlobalDatabaseModule: {
     global: true,
     module: class {},
@@ -19,7 +23,8 @@ vi.mock('./global/global-database.module', () => ({
     ],
     exports: ['GLOBAL_DATABASE_POOL', GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION],
   },
-}));
+  };
+});
 // The real module opens the SQLite file; a stand-in provides the same tokens without touching disk.
 vi.mock("./local/local-database.module", async () => {
   const { LocalDatabase } = await import("@deployer/node-state");
