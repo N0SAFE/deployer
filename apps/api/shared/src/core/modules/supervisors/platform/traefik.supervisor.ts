@@ -9,8 +9,8 @@ import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-cli
 import {
 	makeTraefikSupervisor,
 	PLATFORM_INGRESS_SUPERVISOR_ID,
-	traefikProcessInfoSchema,
-	traefikSupervisorPayloadSchema,
+	
+	
 	type TraefikSupervisor,
 } from "@deployer/platform-supervisors";
 

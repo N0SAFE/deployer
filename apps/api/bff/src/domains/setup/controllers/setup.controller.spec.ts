@@ -1,10 +1,10 @@
 import { Test } from "@nestjs/testing";
 import { ORPCError } from "@orpc/server";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { NodeConfigRepository } from "@deployer/node-state"
 
-import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.service";
+import {  EgressService } from "@/core/modules/egress/egress.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 

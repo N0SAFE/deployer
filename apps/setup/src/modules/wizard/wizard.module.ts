@@ -1,7 +1,7 @@
 import { RenderModule } from "@nestjs-ssr/react";
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { NodeConfigRepository } from "@deployer/node-state"
 
 import { NodeStateModule } from "@/config/database/node-state.module";
 import { EnvModule } from "@/config/env/env.module";

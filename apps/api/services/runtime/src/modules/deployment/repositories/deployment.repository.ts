@@ -21,7 +21,7 @@ import type {
 } from "@deployer/runtime-contracts/modules/deployment/stream";
 import { GlobalDatabaseService, type GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import { runtimeDbOver } from "../../../core/database/runtime-db";
 import { RuntimeConflict } from "../../../core/runtime.errors";

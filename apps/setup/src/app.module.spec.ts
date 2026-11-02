@@ -1,5 +1,5 @@
 import { Test } from "@nestjs/testing";
-import { describe, expect, it, vi } from "vitest";
+import { describe,  it, vi } from "vitest";
 
 // The SSR module resolves a client bundle on disk (its RenderService reads
 // `dist/client/index.html`) and throws when the app has not been built:

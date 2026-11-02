@@ -1,6 +1,6 @@
 import { Context } from 'effect'
 
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { DockerEngine } from "@deployer/docker";
 import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
 import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from '@deployer/shared/config/env/env.module'

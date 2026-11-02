@@ -48,11 +48,11 @@ import { preprocessSearch } from "@deployer/ui/components/data-table/utils/searc
 import { useTableConfig } from "@deployer/ui/components/data-table/utils/table-config";
 import type { TableConfig } from "@deployer/ui/components/data-table/utils/table-config";
 import {
-  createSortingHandler,
+  
   createColumnFiltersHandler,
   createColumnVisibilityHandler,
-  createPaginationHandler,
-  createColumnSizingHandler,
+  
+  
   createSortingState
 } from "@deployer/ui/components/data-table/utils/table-state-handlers";
 import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";

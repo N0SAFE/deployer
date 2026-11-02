@@ -1,15 +1,15 @@
-import { Controller, Injectable, Logger, Module } from "@nestjs/common";
+import {  Injectable } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 
 import {
-	bffAccountOverviewContract,
-	bffAnalyticsOverviewContract,
-	bffDashboardOverviewContract,
-	bffFleetOverviewContract,
-	bffListProjectOverviewsContract,
-	bffProjectDetailContract,
-	bffServiceDetailContract,
+	
+	
+	
+	
+	
+	
+	
 } from "@deployer/bff-contracts";
 import { analyticsContract } from "@deployer/identity-contracts";
 
@@ -18,7 +18,7 @@ import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { ServiceClientRegistry } from "../../../clients/service-registry";
 import { ServiceNotFoundError } from "../../shared/errors/service-not-found.error";
 import { OverviewComposerService } from "../../shared/services/overview-composer.service";
-import { ScreenReadService, type Section, optional } from "../../shared/services/screen-read.service";
+import { ScreenReadService } from "../../shared/services/screen-read.service";
 
 /**
  * Reads a service's own contract, so the BFF never re-implements a query it can call.

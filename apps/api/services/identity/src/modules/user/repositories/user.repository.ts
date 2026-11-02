@@ -1,7 +1,7 @@
 import { asc, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from "@deployer/effect-core"
+import { serviceOver } from "@deployer/effect-core"
 import { apikey, session, user } from '@deployer/nest-schema/global/identity/auth'
 
 import {

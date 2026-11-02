@@ -14,7 +14,7 @@ import {
 
 
 import {
-  cacheStrategySchema,
+  
   githubDeploymentStrategySchema,
   previewDeploymentStatusSchema,
 } from '@deployer/contracts-common';

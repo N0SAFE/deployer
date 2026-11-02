@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { NodeConfigRepository } from "@deployer/node-state"
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 
 import { createBetterAuth } from '@/config/auth/auth';

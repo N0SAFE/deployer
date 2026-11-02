@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
-import { NextFetchEvent, NextProxy, NextRequest, NextResponse } from "next/server";
+import { NextFetchEvent, NextProxy, NextRequest } from "next/server";
 
 import type { Session } from "@deployer/auth";
 import { isPlatformAdministrator } from "@deployer/auth/authz";

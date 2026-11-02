@@ -4,10 +4,10 @@ import { Effect } from "effect";
 import type { DockerEngineShape } from "@deployer/docker";
 import {
 	makeManagedWebSupervisor,
-	managedWebProcessInfoSchema,
-	managedWebSupervisorPayloadSchema,
+	
+	
 	PLATFORM_MANAGED_WEB_SUPERVISOR_ID,
-	type ManagedWebSupervisor,
+	
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";

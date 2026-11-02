@@ -4,7 +4,7 @@ import type { DeploymentObservabilityContext } from "@deployer/contracts-entitie
 import { runtimeRunnerOptionsSchema } from "@deployer/contracts-entities";
 import { DomainRoutingService, type RouteSyncResult } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
 import { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
 import type {

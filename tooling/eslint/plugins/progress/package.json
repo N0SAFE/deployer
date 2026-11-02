@@ -24,7 +24,6 @@
         "type-check": "bun check --no-script"
     },
     "dependencies": {
-        "nanospinner": "^1.2.2",
         "picocolors": "^1.1.1"
     },
     "devDependencies": {

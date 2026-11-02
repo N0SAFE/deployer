@@ -1,6 +1,6 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod'
 
-import { projectCollaborators, projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { projectCollaborators } from "@deployer/nest-schema/global/project/deployment";
 import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 
 export const deploymentSelectSchema = createSelectSchema(deployments)

@@ -1,6 +1,6 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { EnvModule, EnvService } from "../../../config/env/env.module";
+import { EnvModule } from "../../../config/env/env.module";
 import { LocalDatabaseModule } from "../database/local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { AppLifecycleModule } from "../lifecycle";

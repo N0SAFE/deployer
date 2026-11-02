@@ -5,10 +5,10 @@ import { splitManagedEnv } from "@deployer/env";
 import type { LocalDb } from "@deployer/node-state";
 import {
 	LOCAL_DB_SUPERVISOR_ID,
-	localDbProcessInfoSchema,
-	localDbSupervisorPayloadSchema,
+	
+	
 	makeLocalDbSupervisor,
-	type LocalDbSupervisor,
+	
 	type LocalSqlite,
 } from "@deployer/platform-supervisors";
 

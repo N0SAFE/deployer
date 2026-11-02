@@ -1,5 +1,5 @@
 import { and, asc, desc, eq } from "drizzle-orm";
-import { Context, Effect } from "effect";
+import { Context } from "effect";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
 import {

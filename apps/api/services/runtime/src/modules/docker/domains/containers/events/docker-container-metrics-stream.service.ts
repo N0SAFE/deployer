@@ -13,12 +13,12 @@ import { AppLogger } from "@deployer/logger";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import {
   isRuntimeEventFilterNode,
   matchesIdentifier,
-  type RuntimeEventFilterNode,
+  
 } from "../../../common/runtime/runtime-event-filter";
 
 import {

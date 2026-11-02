@@ -1,7 +1,7 @@
 import { Context, Effect } from 'effect'
 import { generateVAPIDKeys } from 'web-push'
 
-import { CurrentActor, type Ambient, serviceOver, type Over } from '@deployer/effect-core'
+import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'

@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { defaultIngressLanes, type IngressLanes } from '@deployer/contracts-entities/entities/ingress/index';
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { NodeConfigRepository } from "@deployer/node-state"
 
 import { EdgeProviderRegistry } from '../../edge/edge-provider.registry';
 import { TEST_TUNNEL_ID, testEdgeRegistry, type TestTunnelEdgeProvider } from '../../edge/testing/edge-registry.fixture';

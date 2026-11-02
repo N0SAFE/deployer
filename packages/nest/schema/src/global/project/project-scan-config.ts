@@ -1,4 +1,4 @@
-import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, jsonb, pgTable,  timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { projects } from "@deployer/nest-schema/global/project/deployment";
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import * as z from 'zod/v4';
 
 import { contractBuilder } from '@deployer/events';

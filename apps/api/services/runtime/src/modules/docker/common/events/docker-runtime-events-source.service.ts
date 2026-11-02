@@ -3,44 +3,44 @@ import { Cause, Effect, Fiber, Stream } from "effect";
 import {
   Observable,
   defer,
-  finalize,
-  filter,
-  from,
-  fromEventPattern,
-  map,
-  merge,
-  mergeMap,
+  
+  
+  
+  
+  
+  
+  
   retry,
   share,
-  take,
-  takeUntil,
+  
+  
   timer,
 } from "rxjs";
 
 import {
-  dockerBuilderRuntimeEventSchema,
-  dockerConfigRuntimeEventSchema,
-  dockerContainerRuntimeEventSchema,
-  dockerDaemonRuntimeEventSchema,
-  dockerImageRuntimeEventSchema,
-  dockerNetworkRuntimeEventSchema,
-  dockerNodeRuntimeEventSchema,
-  dockerSecretRuntimeEventSchema,
-  dockerServiceRuntimeEventSchema,
-  dockerTaskRuntimeEventSchema,
-  dockerUnknownRuntimeEventSchema,
-  dockerVolumeRuntimeEventSchema,
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import { isRuntimeEventFilterNode } from "../runtime/runtime-event-filter";
 
-import { buildGetEventsOptions, buildStreamPoolKey, mapDockerEvent, formatError, extractFastPathFilters, type DockerKnownSource, type StreamQuery } from "./docker-event-mapping";
+import { buildGetEventsOptions, buildStreamPoolKey, mapDockerEvent, formatError, extractFastPathFilters,  type StreamQuery } from "./docker-event-mapping";
 
 export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";

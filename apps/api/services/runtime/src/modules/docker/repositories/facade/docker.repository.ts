@@ -1,41 +1,41 @@
 
 import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and } from "drizzle-orm";
 import { Effect } from "effect";
 import z from "zod/v4"
 
 import { dockerodeContainerListSchema, dockerodeImageInspectSchema, type DockerodeContainerList, type DockerodeImageInspect } from "@deployer/contracts-entities";
 import {
-  dockerContainerLinkedDeploymentSchema,
-  dockerContainerLinkedProjectSchema,
-  dockerContainerLinkedServiceSchema,
-  dockerContainerWithLinksSchema,
-  dockerContainerInspectDetailSchema,
-  dockerImageInspectDetailSchema,
-  dockerRuntimeActivityEntitySchema,
+  
+  
+  
+  
+  
+  
+  
   dockerRuntimeCatalogSchema,
-  dockerRuntimeEventSchema,
-  dockerStackSchema,
+  
+  
   type DockerContainer,
-  type DockerContainerLinkPath,
-  type DockerContainerWithLinks,
-  type DockerContainerInspectDetail,
-  type DockerImageLayerEfficiency,
-  type DockerImageScannerResult,
+  
+  
+  
+  
+  
   type DockerImageInspectDetail,
   type DockerRuntimeCatalog,
-  type DockerRuntimeActivityEntity,
+  
   type DockerRuntimeEvent,
-  type DockerStack,
+  
 } from "@deployer/contracts-entities";
 import { DockerEngine, DockerHost, ScannerPool, type DockerEngineShape, type DockerHostShape, type ScannerPoolShape } from "@deployer/docker";
 import { CONTAINER_LINK_RESOLVER } from "@deployer/docker";
 import type { ContainersShape } from "@deployer/docker";
 import type { IContainerLinkResolver } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { projects } from "@deployer/nest-schema/global/project/deployment";
 import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
-import { dockerImageSecurityScanHistory, dockerImageSecurityScans } from "@deployer/nest-schema/global/runtime/docker-security-scan";
+import { dockerImageSecurityScanHistory } from "@deployer/nest-schema/global/runtime/docker-security-scan";
 import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
 import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
@@ -52,16 +52,16 @@ import { isRecord } from "@deployer/type-guards"
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
 import {
-  detectWatchModeFromLabels,
-  extractRootFsLayers,
-  toHealthcheckSeconds,
+  
+  
+  
 } from "../containers/engine/container-inspect-reading";
 import {
   ContainerNotFound,
   DockerContainersRepository,
   type DockerContainersRepositoryShape,
 } from "../containers/engine/docker-containers.repository";
-import { assembleContainerLinks, inclusionOf, withoutLinks } from "../containers/links/container-link-assembly";
+import { assembleContainerLinks } from "../containers/links/container-link-assembly";
 import {
   DockerContainerLinksLookup,
   type DockerContainerLinksLookupShape,
@@ -70,15 +70,15 @@ import { groupContainersIntoStacks, stackNameOf } from "../containers/stacks/sta
 import {
   parseRegistryAndRepository,
   resolvePrimaryImageTag,
-  buildFallbackImageRepository,
+  
   normalizeImageDigest,
 } from "../images/engine/docker-image-identity";
 import {
   toStringArray,
   normalizeImageIdentifier,
   buildCanonicalImageIdentifier,
-  buildImageInspectCandidates,
-  buildImageInspectCandidatesFromImageList,
+  
+  
 } from "../images/engine/docker-image-reference";
 import {
   DockerImagesRepository,
@@ -115,7 +115,7 @@ import {
 } from "../runtime/docker-runtime-activities.store";
 import {
   buildRuntimeActivityRecord,
-  toRuntimeActivityEntity,
+  
 } from "../runtime/runtime-activity-mapping";
 import {
   getFilterEntry,

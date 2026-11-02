@@ -5,10 +5,10 @@ import type { DockerEngineShape } from "@deployer/docker";
 import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
 import {
 	makeSwarmAppWiring,
-	swarmAppWiringPayloadSchema,
-	swarmAppWiringProcessInfoSchema,
+	
+	
 	SWARM_APP_WIRING_SUPERVISOR_ID,
-	type SwarmAppWiring,
+	
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";

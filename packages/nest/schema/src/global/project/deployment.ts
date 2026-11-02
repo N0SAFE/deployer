@@ -3,15 +3,15 @@ import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type A
 
 import { PROJECT_ROLES } from "@deployer/auth";
 import {
-    deploymentEnvironmentSchema,
-    deploymentPhaseSchema,
-    deploymentStatusSchema,
-    logLevelSchema,
-    rollbackStatusSchema,
+    
+    
+    
+    
+    
     serviceProviderTypeSchema,
     serviceRunnerTypeSchema,
     serviceTypeSchema,
-    sourceTypeSchema,
+    
 } from "@deployer/contracts-common";
 import type { NetworkDnsRecordType } from "@deployer/contracts-entities";
 import { user } from "@deployer/nest-schema/global/identity/auth";

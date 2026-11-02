@@ -5,7 +5,7 @@
  */
 import type { DockerEngineShape } from "@deployer/docker";
 
-import { ReplaySubject, from } from "rxjs";
+import { ReplaySubject } from "rxjs";
 
 import type { ExecShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";

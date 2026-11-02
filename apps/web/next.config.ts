@@ -2,6 +2,7 @@ import withBundleAnalyzer from "@next/bundle-analyzer";
 import { withRedact } from "@tanstack/redact/next";
 import type { NextConfig } from "next";
 import { envSchema } from "./env";
+import { execSync } from "node:child_process";
 import { readFileSync } from "fs";
 import path from "node:path";
 
@@ -68,6 +69,33 @@ function resolveAllowedDevOrigins(): string[] | undefined {
 
 const workspaceTranspilePackages = getWorkspaceTranspilePackages();
 
+/**
+ * `bunfig.toml` sets `install.globalStore = true`: every package is reachable
+ * only through a symlink into bun's global store (`bun pm cache`), i.e. a real
+ * path OUTSIDE this monorepo. Turbopack resolves modules by real path and
+ * refuses anything outside `turbopack.root`, which turned into ~1200
+ * "Module not found" errors for zod, lucide-react, @orpc/* … once a reinstall
+ * materialized store links. Declaring the store as an additional root keeps
+ * the build working with the store ON (no env override, no Docker-only rule).
+ *
+ * Config loads as CJS here, so no top-level `await`/`$\`bun pm cache\``; a
+ * failed or empty lookup just leaves the roots undefined (`ignoreIfMissing`
+ * also covers installs where the store is off, e.g. Docker).
+ */
+function getBunStoreRoots():
+  | Record<string, { path: string; ignoreIfMissing: boolean }>
+  | undefined {
+  try {
+    const cacheDir = execSync("bun pm cache", { encoding: "utf8" }).trim();
+    if (!cacheDir) return undefined;
+    return {
+      bunStore: { path: path.join(cacheDir, "links"), ignoreIfMissing: true },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 console.log(workspaceTranspilePackages)
 
 // Check if we're running in a lint context or other non-build contexts
@@ -107,6 +135,7 @@ const noCheck = process.env.CHECK_ON_BUILD !== "true";
 
 const nextConfig: NextConfig = {
   experimental: {
+    turbopackAdditionalRoots: getBunStoreRoots(),
     serverComponentsHmrCache: true,
     turbopackRustReactCompiler: true,
     // Turbopack filesystem cache — persists compilation work under `.next`

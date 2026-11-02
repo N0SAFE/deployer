@@ -20,7 +20,7 @@ import type {
 import { execInContainer } from "./container-exec";
 import {
   TERMINAL_SESSION_RETAIN_MS,
-  buildInteractiveShellCommand,
+  
   emitTerminalEvent,
   escapeShellArg,
   formatError,

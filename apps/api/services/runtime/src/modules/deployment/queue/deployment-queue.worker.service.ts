@@ -41,7 +41,7 @@ import { EnvService } from "@deployer/shared/config/env/env.module";
 
 import {
     DeploymentArtifactBuilderService,
-    type DeploymentBuilderKind,
+    
 } from "../builders/deployment-artifact-builder.service";
 
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";

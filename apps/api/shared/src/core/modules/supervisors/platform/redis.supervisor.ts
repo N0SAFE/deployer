@@ -6,8 +6,8 @@ import { splitManagedEnv } from "@deployer/env";
 import {
 	makeRedisSupervisor,
 	PLATFORM_REDIS_SUPERVISOR_ID,
-	redisProcessInfoSchema,
-	redisSupervisorPayloadSchema,
+	
+	
 	type RedisSupervisor,
 } from "@deployer/platform-supervisors";
 

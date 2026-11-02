@@ -27,7 +27,7 @@ import { Roles } from "@deployer/auth/permissions";
 import { provisionUserAccount } from "@deployer/auth/server";
 import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
 import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
-import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
+import { platformNetworkName } from "@deployer/docker";
 import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
 import { resolveDockerHostIp } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
@@ -51,7 +51,7 @@ import {
     listMigrationNames,
     redactUrl,
     runStep,
-    slugify,
+    
     type EmitEvent,
 } from "../utils/setup-runner.utils";
 

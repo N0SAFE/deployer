@@ -2,7 +2,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
 import type { ResourceRule } from '@deployer/auth/permissions'
-import { serviceOver, type Over } from "@deployer/effect-core"
+import { serviceOver } from "@deployer/effect-core"
 import { roleRules } from '@deployer/nest-schema/global/identity/permissions'
 
 import {

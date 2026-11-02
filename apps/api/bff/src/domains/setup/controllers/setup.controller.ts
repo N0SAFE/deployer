@@ -7,12 +7,12 @@ import { Pool } from "pg";
 import { setupContract } from "@deployer/bff-contracts";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { domainErrorOptions, standardErrorOptions } from "@deployer/orpc-utils";
+import { domainErrorOptions } from "@deployer/orpc-utils";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
 import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
-import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.service";
+import {  EgressService } from "@/core/modules/egress/egress.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 

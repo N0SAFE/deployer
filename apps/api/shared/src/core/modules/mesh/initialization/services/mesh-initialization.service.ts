@@ -6,11 +6,11 @@ import { OpenAPILink } from "@orpc/openapi/fetch";
 
 import { signMeshToken } from "@deployer/auth/mesh";
 import {
-    meshJoinGrantConsumeResultSchema,
-    meshJoinGrantIssueResultSchema,
-    type MeshSwarmJoinGrant,
-    type MeshJoinGrantConsumeInput,
-    type MeshNetworkCluster,
+    
+    
+    
+    
+    
 } from "@deployer/contracts-entities";
 import { meshContract, type MeshContract } from "@deployer/fleet-contracts";
 

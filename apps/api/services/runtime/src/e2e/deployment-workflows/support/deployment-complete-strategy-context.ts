@@ -5,7 +5,7 @@ import { services } from "@deployer/nest-schema/global/project/deployment";
 import { projects } from "@deployer/nest-schema/global/project/deployment";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
-import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
+import {  type SharedApiRuntimeContext } from "@/e2e/runtime";
 
 /**
  * Fixtures for the deployment workflow suite.

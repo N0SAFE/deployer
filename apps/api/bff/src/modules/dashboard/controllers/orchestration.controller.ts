@@ -1,4 +1,4 @@
-import { Controller, Injectable, Logger, Module } from "@nestjs/common";
+import { Controller,  Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 

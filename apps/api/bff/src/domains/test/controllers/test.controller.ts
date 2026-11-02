@@ -54,7 +54,7 @@
  */
 
 import { Controller, Get, Logger, Param, UseGuards } from "@nestjs/common";
-import { ApiOperation, ApiResponse, ApiTags, ApiParam, ApiBearerAuth } from "@nestjs/swagger";
+import { ApiOperation, ApiResponse, ApiTags,  ApiBearerAuth } from "@nestjs/swagger";
 import { oc } from "@orpc/contract";
 import { Implement } from "@orpc/nest";
 import { openapi } from "@orpc/openapi";

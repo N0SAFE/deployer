@@ -17,7 +17,7 @@ import { AuthUtils, AuthUtilsEmpty } from "../orpc/auth-utils";
 import {
 	createOrpcMiddlewareProxy,
 	type MiddlewareCheck,
-	type ValueOrResolver,
+	
 	type PermissionObject,
 	type OrpcMiddlewareProxy,
 	type OrpcMiddlewareOptionsContext,

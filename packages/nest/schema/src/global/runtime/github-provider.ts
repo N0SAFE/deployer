@@ -3,20 +3,20 @@ import {
   pgTable,
   text,
   timestamp,
-  boolean,
-  integer,
+  
+  
   uuid,
   jsonb,
-  pgEnum,
+  
   index,
-  uniqueIndex,
+  
 } from 'drizzle-orm/pg-core';
 
 
 import {
-  cacheStrategySchema,
-  githubDeploymentStrategySchema,
-  previewDeploymentStatusSchema,
+  
+  
+  
 } from '@deployer/contracts-common';
 import { cacheStrategyEnum } from "@deployer/nest-schema/global/platform/github-provider";
 import { projects } from "@deployer/nest-schema/global/project/deployment";

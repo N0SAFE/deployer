@@ -1,4 +1,4 @@
-import { Module, Injectable, type DynamicModule } from "@nestjs/common";
+import { Module, Injectable } from "@nestjs/common";
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 

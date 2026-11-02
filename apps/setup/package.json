@@ -66,6 +66,7 @@
     "@deployer/vite-assets": "*",
     "@tanstack/react-form": "catalog:tanstack",
     "@tanstack/react-query": "catalog:tanstack",
+    "@tanstack/redact": "catalog:tanstack",
     "express": "catalog:api:nest",
     "lucide-react": "catalog:ui",
     "react": "^19.2.8",

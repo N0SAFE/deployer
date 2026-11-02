@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import { coreDomainEventEnvelopeSchema } from "@deployer/contracts-entities";
 import { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import { DeploymentRepository } from "../repositories/deployment.repository";
 

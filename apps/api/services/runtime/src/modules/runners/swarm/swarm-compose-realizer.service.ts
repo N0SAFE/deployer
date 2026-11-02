@@ -43,7 +43,7 @@ import { composeModelSchema, composeServiceModelSchema } from "@deployer/contrac
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { AppError, BadRequestError } from "@deployer/errors";
+import { AppError } from "@deployer/errors";
 
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 

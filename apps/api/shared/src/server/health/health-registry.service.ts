@@ -8,7 +8,7 @@ import {
 	map,
 	scan,
 	shareReplay,
-	startWith,
+	
 } from "rxjs";
 
 import { indicatorFor } from "./indicators/indicator-result";

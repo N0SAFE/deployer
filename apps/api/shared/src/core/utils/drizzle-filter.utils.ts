@@ -34,7 +34,7 @@
 import { and, or, asc, desc, count, eq, ne, like, ilike, gt, gte, lt, lte, type AnyColumn, type SQL, type InferSelectModel } from "drizzle-orm";
 
 import { AppError } from "@deployer/errors";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import type { GlobalDatabase as Database } from "../modules/database/services/global-database.service";
 import type { PgTable } from "drizzle-orm/pg-core";

@@ -1,6 +1,6 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
-import { ClusterNodeRepository, type ClusterNodeRepositoryShape } from "@deployer/node-state"
+import { ClusterNodeInventoryRepository } from "@deployer/node-state"
+import { ClusterNodeRepository } from "@deployer/node-state"
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
 import { SwarmCluster, SwarmFleet, SwarmParticipation } from "@deployer/swarm"

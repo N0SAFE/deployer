@@ -14,10 +14,18 @@ plus the constraints measured while implementing it.
 
 **Q**: Which Next apps get the Redact browser runtime?
 
-**A**: Both — `apps/web` and `apps/doc`. Redact replaces React only in the
-browser; Next keeps React for SSR, Server Components, Flight and action
-transport, so the integration is a config wrapper per app. `apps/api`,
-`apps/api-services` and `apps/setup` are NestJS and are untouched.
+**A**: All three React-rendering apps.
+
+- `apps/web`, `apps/doc` (Next): `withRedact` in `next.config.ts`. Redact
+  replaces React only in the browser; Next keeps React for SSR, Server
+  Components, Flight and action transport.
+- `apps/setup` (Vite + `@nestjs-ssr/react`): `redact()` in `vite.config.ts`
+  after `react()`. The plugin aliases both the client and the SSR environment,
+  and deps that render React are already in `ssr.noExternal`, so their React
+  imports are rewritten too.
+
+`apps/api` and `apps/api-services` are NestJS-only and untouched. `packages/ui`
+is a library: its consumers choose the runtime.
 
 ---
 

@@ -6,7 +6,7 @@ import {
     deploymentStoragePolicySchema,
     type DeploymentStoragePolicy,
 } from "./storage-policy.schema";
-import { deploymentStorageTypeSchema, type DeploymentStorageType } from "./storage-provider.interface";
+import { deploymentStorageTypeSchema } from "./storage-provider.interface";
 
 
 

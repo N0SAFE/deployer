@@ -5,10 +5,10 @@ import {
     Subject,
     filter,
     from,
-    merge,
+    
     mergeMap,
     share,
-    timer,
+    
 } from "rxjs";
 import { map } from "rxjs/operators";
 

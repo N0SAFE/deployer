@@ -18,7 +18,7 @@
 
 import { Test, type TestingModule } from '@nestjs/testing';
 import { Effect } from "effect";
-import { firstValueFrom, Observable } from 'rxjs';
+import {  Observable } from 'rxjs';
 import {
   describe,
   it,
@@ -30,7 +30,7 @@ import {
 } from 'vitest';
 
 import { AppLifecycle } from "@deployer/lifecycle";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { NodeConfigRepository } from "@deployer/node-state"
 
 import { EnvService } from "../../../../../config/env/env.module";
 import { MeshInitializationService } from '../../../mesh/initialization/services/mesh-initialization.service';

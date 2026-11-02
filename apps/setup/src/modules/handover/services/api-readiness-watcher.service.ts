@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Observable, timer, from, of, catchError, map, switchMap, takeWhile, take, last } from "rxjs";
+import { Observable, timer, from, of, catchError, map, switchMap, takeWhile,  last } from "rxjs";
 
 import { WizardUpstreamService } from "@/modules/wizard/wizard-upstream.service";
 

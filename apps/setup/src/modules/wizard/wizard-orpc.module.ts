@@ -1,4 +1,4 @@
-import { Logger, Module, type DynamicModule } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 import { HttpException } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import { ORPCModule, type ORPCModuleConfig } from "@orpc/nest";

@@ -19,7 +19,7 @@ import type {
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 
 import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "@/modules/project/domain/project.errors";
-import { attempt, rule } from "@/modules/project/project-effects";
+import {  rule } from "@/modules/project/project-effects";
 
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";

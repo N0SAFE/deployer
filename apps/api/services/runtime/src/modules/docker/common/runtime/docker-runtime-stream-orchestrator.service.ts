@@ -18,7 +18,7 @@ import type {
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 import { DockerContainerMetricsStreamService } from "../../domains/containers/events/docker-container-metrics-stream.service";
 import { DockerContainerResolution } from "../../domains/containers/orchestration/docker-container-resolution";
@@ -27,42 +27,42 @@ import { DockerRuntimeEventsStreamService } from "../events/docker-runtime-event
 
 
 import {
-    areValuesEqual,
-    collectFieldFilterValues,
-    compareObjectKeys,
-    compareValues,
+    
+    
+    
+    
     extractFastPathFilters,
     filterRuntimeEvents,
-    getRuntimeEventFieldValue,
+    
     isNotFoundError,
-    isRuntimeEventFieldFilter,
+    
     isRuntimeEventFilterNode,
-    matchesBetween,
-    matchesContainerIdFilter,
-    matchesFieldFilter,
+    
+    
+    
     matchesIdentifier,
     matchesImageIdentifier,
-    matchesRegex,
-    matchesRuntimeEventFilter,
-    matchesStringPattern,
-    parseSources,
-    parseStringArray,
-    parseTimestamp,
-    resolveContainerId,
-    resolveImageId,
-    resolveNodeId,
+    
+    
+    
+    
+    
+    
+    
+    
+    
     resolveRefreshInterval,
-    resolveServiceId,
-    toComparableString,
-    toFilterNodeArray,
+    
+    
+    
     toRecord,
-    toTimestamp,
-    toUnknownArray,
+    
+    
     type DockerKnownSource,
     type InspectTrigger,
-    type RuntimeEventFilterNode,
+    
     type RuntimeFastPathFilters,
-    type RuntimeStreamQuery,
+    
 } from "./runtime-event-filter";
 
 

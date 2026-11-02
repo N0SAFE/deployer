@@ -5,9 +5,9 @@ import { build } from '@deployer/pkg-build/config'
  *
  * A single-entry ESM plugin: ESLint loads it directly, so the output is flat
  * (`dist/index.mjs` — flat ESM keeps the `.mjs` extension) and the `exports` map
- * points at exactly that. `nanospinner` and `picocolors` stay external — they
- * are the plugin's declared dependencies, resolved from the consumer's install
- * like any other package.
+ * points at exactly that. `picocolors` stays external — it is the plugin's
+ * declared dependency, resolved from the consumer's install like any other
+ * package.
  */
 export default build({
     root: 'src',

@@ -8,7 +8,7 @@ import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from
 import {
     PreviewTtlCleanupService,
     startPreviewTtlCleanup,
-    type PreviewTtlCleanupServiceShape,
+    
 } from "./preview-ttl-cleanup.service";
 
 const expired = (id: string) => ({ id, serviceId: `svc-${id}`, previewName: `pr-${id}`, fullDomain: `pr-${id}.example.com` });

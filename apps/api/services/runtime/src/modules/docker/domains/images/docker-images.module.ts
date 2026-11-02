@@ -1,5 +1,5 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+import { EnvModule } from "@deployer/shared/config/env/env.module";
 
 import { DockerCommonModule } from "../../common/docker-common.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";

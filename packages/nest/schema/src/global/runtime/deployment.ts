@@ -8,10 +8,10 @@ import {
     deploymentStatusSchema,
     logLevelSchema,
     rollbackStatusSchema,
-    serviceProviderTypeSchema,
-    serviceRunnerTypeSchema,
-    serviceTypeSchema,
-    sourceTypeSchema,
+    
+    
+    
+    
 } from "@deployer/contracts-common";
 import type { NetworkDnsRecordType } from "@deployer/contracts-entities";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";

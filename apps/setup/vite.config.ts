@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { redact } from '@tanstack/redact/vite';
 import { resolve } from 'path';
 
 /**
@@ -73,6 +74,12 @@ export default defineConfig(({ isSsrBuild }) => ({
     // `className` in the wizard renders as unstyled markup.
     tailwindcss(),
     react({}),
+    // Redact replaces React with its smaller synchronous runtime in BOTH the
+    // client and the SSR bundle. Keep importing `react`/`react-dom` everywhere;
+    // the plugin rewrites the resolved entries. It must come after the React
+    // plugin (documented order) and needs the deps in `ssr.noExternal` above so
+    // their React imports are rewritten too.
+    redact(),
   ],
   resolve: {
     alias: {
