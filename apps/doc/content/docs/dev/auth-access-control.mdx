@@ -10,19 +10,16 @@ order: 9
 
 Auth entity operations must go through `AuthService.api` (or typed plugin utilities built on top of it), not direct table mutation.
 
-## Guard and decorator model
+## The oRPC gate is the only gate
 
-Default flow:
+There is no Nest guard and no auth decorator. Every endpoint is an oRPC procedure, and it declares its own access:
 
-1. `AuthGuard` resolves session and user.
-2. `RoleGuard` enforces role/permission metadata.
-3. ORPC/Nest handler receives user context via decorators.
+1. `requireAuth()` resolves the session and puts the user on `context.auth`.
+2. `.access({ permission, scope })` is the authorization decision (typed by the authz catalog).
+3. The handler reads `context.auth`; `publicAccess()` is the explicit opt-out.
 
-Use decorators to make intent explicit:
-
-- Public/optional access: `@Public()`, `@Optional()`
-- Identity extraction: `@Session()`, `@AuthenticatedUser()`, `@UserRoles()`
-- Authorization: `@RequireRole(...)`, `@RequireAllRoles(...)`, `@RequirePermissions(...)`
+A Nest controller that is not an oRPC procedure is unguarded by construction — mount authorization on the procedure,
+not on the transport.
 
 ## Role + permission strategy
 

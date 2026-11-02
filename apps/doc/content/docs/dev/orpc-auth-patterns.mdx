@@ -139,11 +139,8 @@ the wizard runs before any account exists.
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { setupContract } from '@deployer/bff-contracts';
-import { AllowAnonymous } from '@/core/modules/auth/decorators/decorators';
 
-// `@AllowAnonymous()` is REQUIRED at the Nest layer: the global AuthGuard runs
-// BEFORE ORPC middleware, so `.use(publicAccess())` alone would still 401.
-@AllowAnonymous()
+// No Nest guard runs: `.use(publicAccess())` is the whole opt-out.
 @Controller()
 export class SetupController {
   @Implement(setupContract.getState)
