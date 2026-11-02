@@ -1,26 +1,31 @@
-import { CurrentActor, type Ambient, serviceOver, type Over } from '@deployer/effect-core'
 import { Context, Effect } from 'effect'
-import { DatabasePort } from '@identity/core/database/database.port'
 
+import { CurrentActor, type Ambient, serviceOver, type Over } from '@deployer/effect-core'
+
+import { DatabasePort } from '@identity/core/database/database.port'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+
 import {
     EmailTaken,
     UserNotFound,
     type UserDomainFailure,
 } from '../domain/user.errors'
 import { userRules } from '../domain/user.rules'
-import type { NewUser, User, UserPatch } from '../domain/user.types'
 import {
     UserRepository,
     type UserRepositoryShape,
 } from '../repositories/user.repository'
+
+import { rule } from './user.service.utils'
+
+import type { UserQuery } from './user.service.types'
+import type { NewUser, User, UserPatch } from '../domain/user.types'
 import type {
     UserFilter,
     UserPage,
 } from '../repositories/user.repository.types'
 import type { UserRepositoryFailure } from '../user.failures'
-import type { UserQuery } from './user.service.types'
-import { rule } from './user.service.utils'
+
 
 /** What a user use case can fail with: its own refusals, or the database. */
 export type UserFailure = UserDomainFailure | UserRepositoryFailure

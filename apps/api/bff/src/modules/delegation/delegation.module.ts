@@ -18,6 +18,7 @@
 
 
 import { createModuleContext } from "@deployer/nest-effect";
+
 import { AnalyticsDelegationController } from "./generated/analytics.delegation";
 import { ClusterDelegationController } from "./generated/cluster.delegation";
 import { DeploymentDelegationController } from "./generated/deployment.delegation";
@@ -28,8 +29,8 @@ import { MeshDelegationController } from "./generated/mesh.delegation";
 import { NodesDelegationController } from "./generated/nodes.delegation";
 import { PlatformDelegationController } from "./generated/platform.delegation";
 import { ProjectDelegationController } from "./generated/project.delegation";
-import { ProviderSchemaDelegationController } from "./generated/providerSchema.delegation";
 import { ProvidersDelegationController } from "./generated/providers.delegation";
+import { ProviderSchemaDelegationController } from "./generated/providerSchema.delegation";
 import { PushDelegationController } from "./generated/push.delegation";
 import { ReachabilityDelegationController } from "./generated/reachability.delegation";
 import { ServiceDelegationController } from "./generated/service.delegation";

@@ -1,11 +1,14 @@
 'use client'
 
+import { ChevronDown, ChevronRight, Globe, Boxes, GitBranch, Cpu, MemoryStick, KeyRound, Box, Lock, RotateCw } from 'lucide-react'
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@deployer/ui/components/shadcn/collapsible'
-import { ChevronDown, ChevronRight, Globe, Boxes, GitBranch, Cpu, MemoryStick, KeyRound, Box, Lock, RotateCw } from 'lucide-react'
+
 import { describeTls } from './review-helpers'
+
+import type { ReactNode } from 'react'
 
 export interface SubServiceSummary {
   name: string

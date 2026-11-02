@@ -1,4 +1,5 @@
-import type { RefObject } from 'react'
+import { Download, Eye, FilePenLine, FolderOpen, FolderPlus, HardDrive, Pencil, Plus, Shield, Terminal, Trash2, Upload } from 'lucide-react'
+
 import type { DockerFileEntry } from '@deployer/contracts-entities'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -6,8 +7,10 @@ import {
   ContextMenuLabel,
   ContextMenuSeparator,
 } from '@deployer/ui/components/shadcn/context-menu'
-import { Download, Eye, FilePenLine, FolderOpen, FolderPlus, HardDrive, Pencil, Plus, Shield, Terminal, Trash2, Upload } from 'lucide-react'
+
 import { DockerFileBrowser } from '../../docker-file-browser'
+
+import type { RefObject } from 'react'
 
 interface VolumeMountItem {
   label: string

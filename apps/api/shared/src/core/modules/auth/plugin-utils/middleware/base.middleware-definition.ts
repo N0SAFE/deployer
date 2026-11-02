@@ -9,13 +9,13 @@
  * @template TAuth - Auth instance type with required API methods
  */
 
-import type { Auth as BetterAuthInstance } from 'better-auth';
 import type {
   BasePluginWrapper,
   AnyPermissionBuilder,
   InferStatementFromBuilder,
   InferRolesFromBuilder,
 } from '@deployer/auth/permissions/plugins';
+
 import {
   BaseMiddlewareCheck,
   createAuthError,
@@ -23,6 +23,8 @@ import {
   type MiddlewareContext,
   type MiddlewareErrorCode,
 } from './middleware-check';
+
+import type { Auth as BetterAuthInstance } from 'better-auth';
 
 // ============================================================================
 // Type Constraints

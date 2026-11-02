@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ServiceDagService } from "./service-dag.service";
+
 import { FleetFailureContainmentService } from "./fleet-failure-containment.service";
+import { ServiceDagService } from "./service-dag.service";
+
 import type { FailureDomain } from "./fleet-failure-containment.service";
 
 describe("FleetFailureContainmentService", () => {

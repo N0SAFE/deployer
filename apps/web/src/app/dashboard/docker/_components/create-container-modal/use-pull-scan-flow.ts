@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { dockerImageInspectDetailSchema } from '@deployer/contracts-entities'
+
+import { useDockerImageEventsStream, useDockerImageInspect, useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
+import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
+
 import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 import { mergeByKey } from '../../_utils/scan-events'
-import { dockerImageInspectDetailSchema } from '@deployer/contracts-entities'
-import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import { useDockerImageEventsStream, useDockerImageInspect, useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
+
 import {
   buildPullLayers, buildPullTimelineRows, buildScanSourceStreams, buildScanStageSummaryRows, buildScannerPullRows, buildStageBadge, nowIso,
   type PullRuntimeEventRow, type PullStatus, type PulledLayer, type ScanFindingRow, type ScanSourceLogRow, type ScanSourceStreamRow,
   type ScanStatus, type ScanTimelineEventRow, type Stage,
 } from './pull-scan.model'
+
 import type { useImageCatalog } from './use-image-catalog'
 
 const ZERO_VULNS = { critical: 0, high: 0, medium: 0, low: 0 }

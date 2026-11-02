@@ -1,7 +1,9 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
-import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
+
 import { EnvModule } from "@/config/env/env.module";
+import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
+import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
+
 import { SetupController } from "./controllers/setup.controller";
 import { PostSetupDestinationService } from "./services/post-setup-destination.service";
 import { PostSetupVerificationService } from "./services/post-setup-verification.service";

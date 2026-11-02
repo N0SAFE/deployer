@@ -1,12 +1,15 @@
 import { Cause, Effect, Exit } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AnalyticsReportNotFound } from "../domain/analytics.errors";
 
 
 import { provideTo } from "@deployer/effect-core";
+
 import { DatabasePort } from "@identity/core/database/database.port";
+
+import { AnalyticsReportNotFound } from "../domain/analytics.errors";
 import { AnalyticsRepository } from "../repositories/analytics.repository";
+
 import { AnalyticsService } from "./analytics.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */

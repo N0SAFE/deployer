@@ -1,8 +1,9 @@
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { makeDockerEngine } from "./docker-engine";
 import { DockerConflict, DockerInvalid, DockerNotFound } from "../errors/errors";
+
+import { makeDockerEngine } from "./docker-engine";
 
 /** Run an Effect and reject with the ORIGINAL failure, so assertions read the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

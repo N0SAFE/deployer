@@ -8,8 +8,8 @@
 
 import { Context, Effect } from "effect";
 
-import { type DoorPlan, doorContainerSpec, planDoors } from "./door-config";
 import { type ContainerSummary, DockerEngine, type DockerEngineShape } from "./docker-engine";
+import { type DoorPlan, doorContainerSpec, planDoors } from "./door-config";
 import {
 	DOOR_HASH_LABEL,
 	DOOR_LABEL,

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { PostSetupDestinationService } from "./post-setup-destination.service";
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+
+import { PostSetupDestinationService } from "./post-setup-destination.service";
 
 /**
  * The destination the wizard's final click uses.

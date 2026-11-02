@@ -1,16 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { EMPTY, Observable, combineLatest, defer, firstValueFrom, from, merge } from "rxjs";
 import { filter as rxFilter, map, mergeMap, startWith, tap as rxTap, toArray } from "rxjs/operators";
-import type { CoreEventStreamListInput } from "@deployer/fleet-contracts";
+
 import type {
     CoreEventStreamDefinition,
     CoreSyncedEventEnvelope,
 } from "@deployer/contracts-entities";
-import type { BaseEventService } from "../base/index";
 import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
+import type { CoreEventStreamListInput } from "@deployer/fleet-contracts";
+
 import { AbstractDomainEventStreamService, CoreEventStreamPoolService } from "../base/index";
 import { CoreEventStreamRepository } from "../repositories/core-event-stream.repository";
+
+import type { BaseEventService } from "../base/index";
 
 export type CoreEventAdapterEvent = {
     eventName: string;

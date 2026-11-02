@@ -1,13 +1,17 @@
 'use client'
 
 import { Download, Loader2 } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
+
 import { DockerImagePullProgressPanel } from '../docker-image-pull-progress-panel'
 import { DockerScanStackPanel } from '../docker-scan-stack-panel'
+
 import { titleCaseStage, toClock } from './pull-scan.model'
+
 import type { ImageSuggestion } from './use-image-catalog'
 import type { PullScanFlow } from './use-pull-scan-flow'
 

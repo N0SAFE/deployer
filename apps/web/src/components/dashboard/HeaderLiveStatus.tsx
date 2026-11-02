@@ -1,7 +1,9 @@
 'use client'
 
-import { useClusterSnapshot } from '@/domains/cluster/hooks'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@deployer/ui/components/shadcn/tooltip'
+
+import { useClusterSnapshot } from '@/domains/cluster/hooks'
+
 import { StatusDot, type StatusTone } from './status'
 
 interface LiveStatusCopy {

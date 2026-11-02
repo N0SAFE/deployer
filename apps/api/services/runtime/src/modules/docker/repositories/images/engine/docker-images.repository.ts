@@ -1,3 +1,5 @@
+import { Context, Data, Effect } from "effect";
+
 import {
 	dockerImageSchema,
 	dockerodeImageInspectSchema,
@@ -6,7 +8,6 @@ import {
 } from "@deployer/contracts-entities";
 import type { DockerEngineShape, DockerError } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
-import { Context, Data, Effect } from "effect";
 
 import {
 	buildFallbackImageRepository,

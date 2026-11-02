@@ -1,8 +1,10 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import { PageHeader } from '@/components/dashboard'
+
 import { DockerNodeBadge } from './docker-node-context'
+
+import type { ReactNode } from 'react'
 
 /** Standard header for every Node engine page: eyebrow, title, description, node indicator. */
 export function DockerPageHeader({ title, description, actions }: { title: string; description: ReactNode; actions?: ReactNode }) {

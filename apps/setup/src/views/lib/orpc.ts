@@ -12,9 +12,12 @@
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { appContract, type AppContract } from "./app-contract";
+
 import { createObservableQueryUtils, type ObservableQueryUtils, ObservableLinkPlugin } from "@deployer/orpc-utils";
 import { fetchWithTimeout } from "@deployer/orpc-utils/client/fetch-with-timeout";
+
+import { appContract, type AppContract } from "./app-contract";
+
 import type { ContractRouterClient } from "@orpc/contract";
 
 export type ViewsORPCClient = ContractRouterClient<AppContract>;

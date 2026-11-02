@@ -6,6 +6,8 @@
  * one owner of the run volume's socket and of the `deployer-mesh` interface.
  */
 import { Logger } from "@nestjs/common";
+import { Effect } from "effect";
+
 import type { DockerEngineShape } from "@deployer/docker";
 import { isNodeAgentSwarmMode } from "@deployer/node-agent-container";
 import {
@@ -14,10 +16,10 @@ import {
 	nodeAgentSwarmServiceName,
 	type NodeAgentSwarmSupervisor,
 } from "@deployer/platform-supervisors";
-import { Effect } from "effect";
+
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { NODE_AGENT_SWARM_SUPERVISOR_ID };
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as z from 'zod';
-import { BaseEventService } from './base/index';
+
 import { contractBuilder } from '@deployer/events';
+
+import { BaseEventService } from './base/index';
 
 const testContracts = {
   changed: contractBuilder()

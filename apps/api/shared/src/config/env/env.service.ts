@@ -1,7 +1,8 @@
 import { ConfigService } from "@nestjs/config";
+
 import { runSyncUnwrapped } from "@deployer/effect-core";
-import { makeEnvironment, type EnvironmentShape } from "@deployer/environment";
 import { apiEnvSchema, type ApiEnv } from "@deployer/env";
+import { makeEnvironment, type EnvironmentShape } from "@deployer/environment";
 
 /**
  * The API's environment, as the `@deployer/environment` Effect service bound to the API's contract.
@@ -12,6 +13,9 @@ import { apiEnvSchema, type ApiEnv } from "@deployer/env";
  * shape's members, so every injection site is typed by `ApiEnv` without repeating the parameter.
  * Nest provides the shape under this token directly (`apiEnvironmentProvider`), there is no wrapper.
  */
+// The tag and its shape are one name on purpose (Nest provides the shape under this token); the empty class is
+// the token, and the interface is the merged type. `eslint-disable` names why the merge is intended.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export abstract class EnvService {}
 export interface EnvService extends EnvironmentShape<ApiEnv> {}
 

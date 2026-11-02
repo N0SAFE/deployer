@@ -1,12 +1,16 @@
 'use client'
 
 import { Cloud, Globe, Network, RefreshCw, Settings2, Trash2 } from 'lucide-react'
+
 import { Button, buttonVariants } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent } from '@deployer/ui/components/shadcn/card'
+
 import { cn } from '@/lib/utils'
 import { AuthDashboardAdminProvidersDnsCloudflareProviderId } from '@/routes'
-import { deriveDnsAppStatus } from '../../../_lib/provider-status'
+
 import { IntegrationStatusBadge } from '../../../_components/status-line'
+import { deriveDnsAppStatus } from '../../../_lib/provider-status'
+
 import type { CloudflareAccount } from './types'
 
 /** Result of the last manual "Test connection" for an account, kept until the next one. */

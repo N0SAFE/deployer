@@ -1,4 +1,5 @@
 import { ERROR_MESSAGE, refetchSpy, type Scenario } from '../scenario'
+
 import { daysAgo, minutesAgo, type FixtureMap } from './types'
 
 const adminUser = (over: Record<string, unknown> = {}) => ({

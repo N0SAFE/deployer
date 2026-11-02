@@ -15,14 +15,16 @@
  */
 
 import { createGlobalModule } from "@deployer/nest-effect";
-import { CoreDockerModule } from "../docker/docker.module";
+
 import { EnvModule } from "../../../config/env/env.module";
+import { CoreDockerModule } from "../docker/docker.module";
+
+import { AppInstanceService } from "./services/app-instance.service";
 import { EnvHostnameService, HostnameService } from "./services/hostname.service";
 import { IngressLanesService } from "./services/ingress-lanes.service";
-import { AppInstanceService } from "./services/app-instance.service";
 import { PlatformConfigService } from "./services/platform-config.service";
-import { PlatformWebTargetService } from "./services/platform-web-target.service";
 import { PlatformRoutesSource } from "./services/platform-routes-source.service";
+import { PlatformWebTargetService } from "./services/platform-web-target.service";
 
 export const CorePlatformIngressModule = createGlobalModule({
 	imports: [CoreDockerModule, EnvModule],

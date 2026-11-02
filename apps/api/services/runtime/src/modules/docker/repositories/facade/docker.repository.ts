@@ -36,13 +36,37 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 import { dockerImageSecurityScanHistory, dockerImageSecurityScans } from "@deployer/nest-schema/global/runtime/docker-security-scan";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
-
-import { isRecord } from "@deployer/type-guards"
-import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
 import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
+import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
+import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
+import type {
+  DockerRuntimeActivityDetailQueryInput,
+  DockerRuntimeActivityListInput,
+} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
+import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
+import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
+import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { isRecord } from "@deployer/type-guards"
 
+import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
+import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
+import {
+  detectWatchModeFromLabels,
+  extractRootFsLayers,
+  toHealthcheckSeconds,
+} from "../containers/engine/container-inspect-reading";
+import {
+  ContainerNotFound,
+  DockerContainersRepository,
+  type DockerContainersRepositoryShape,
+} from "../containers/engine/docker-containers.repository";
+import { assembleContainerLinks, inclusionOf, withoutLinks } from "../containers/links/container-link-assembly";
+import {
+  DockerContainerLinksLookup,
+  type DockerContainerLinksLookupShape,
+} from "../containers/links/docker-container-links-lookup.repository";
+import { groupContainersIntoStacks, stackNameOf } from "../containers/stacks/stack-grouping";
 import {
   parseRegistryAndRepository,
   resolvePrimaryImageTag,
@@ -68,7 +92,16 @@ import {
   identifyInspectedImage,
   scanTargetsOf,
 } from "../images/engine/image-inspect-detail";
+import {
+  DockerImageLifecycleRepository,
+  type DockerImageLifecycleRepositoryShape,
+} from "../images/lifecycle/docker-image-lifecycle.repository";
 import { DockerImageScannerService } from "../images/security/docker-image-scanner.service";
+import {
+  DockerImageScansStore,
+  type DockerImageScansStoreShape,
+} from "../images/security/docker-image-scans.store";
+import { computeScanHash, isScanOlderThan, shouldScanGeneration, toPersistedScan } from "../images/security/scan-storage";
 import {
   buildScanEvent,
 } from "../images/security/scanner-output";
@@ -77,29 +110,13 @@ import {
   type DockerNetworksRepositoryShape,
 } from "../networks/docker-networks.repository";
 import {
+  DockerRuntimeActivitiesStore,
+  type DockerRuntimeActivitiesStoreShape,
+} from "../runtime/docker-runtime-activities.store";
+import {
   buildRuntimeActivityRecord,
   toRuntimeActivityEntity,
 } from "../runtime/runtime-activity-mapping";
-import {
-  DockerVolumesRepository,
-  type DockerVolumesRepositoryShape,
-} from "../volumes/docker-volumes.repository";
-
-import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
-import {
-  DockerImageLifecycleRepository,
-  type DockerImageLifecycleRepositoryShape,
-} from "../images/lifecycle/docker-image-lifecycle.repository";
-import {
-  ContainerNotFound,
-  DockerContainersRepository,
-  type DockerContainersRepositoryShape,
-} from "../containers/engine/docker-containers.repository";
-import {
-  detectWatchModeFromLabels,
-  extractRootFsLayers,
-  toHealthcheckSeconds,
-} from "../containers/engine/container-inspect-reading";
 import {
   getFilterEntry,
   matchEq,
@@ -109,20 +126,11 @@ import {
   sortItems,
 } from "../shared/list-query";
 import {
-  DockerRuntimeActivitiesStore,
-  type DockerRuntimeActivitiesStoreShape,
-} from "../runtime/docker-runtime-activities.store";
-import { groupContainersIntoStacks, stackNameOf } from "../containers/stacks/stack-grouping";
-import { assembleContainerLinks, inclusionOf, withoutLinks } from "../containers/links/container-link-assembly";
-import {
-  DockerContainerLinksLookup,
-  type DockerContainerLinksLookupShape,
-} from "../containers/links/docker-container-links-lookup.repository";
-import {
-  DockerImageScansStore,
-  type DockerImageScansStoreShape,
-} from "../images/security/docker-image-scans.store";
-import { computeScanHash, isScanOlderThan, shouldScanGeneration, toPersistedScan } from "../images/security/scan-storage";
+  DockerVolumesRepository,
+  type DockerVolumesRepositoryShape,
+} from "../volumes/docker-volumes.repository";
+
+
 import type {
   ResolvedImageSecurityScan,
   DockerImageLifecycleUpsertResult,
@@ -131,14 +139,6 @@ import type {
 } from "../images/security/docker-image-scanner.types";
 
 
-import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
-import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
-import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
-import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
-import type {
-  DockerRuntimeActivityDetailQueryInput,
-  DockerRuntimeActivityListInput,
-} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
 
 
 

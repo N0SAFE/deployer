@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { buildProjectGlance, matchesProjectQuery, sortProjects } from '../project-overview'
 
 const p = (id: string, name: string, updatedAt = '2026-10-01T00:00:00Z') => ({ id, name, description: null, createdAt: '2026-09-01T00:00:00Z', updatedAt })

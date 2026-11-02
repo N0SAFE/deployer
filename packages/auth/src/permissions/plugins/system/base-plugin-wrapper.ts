@@ -10,9 +10,10 @@
  * @template TAuth - Auth instance type with required API methods
  */
 
-import type { Auth as BetterAuthInstance } from 'better-auth'
 import type { AnyPermissionBuilder, InferStatementFromBuilder } from "@deployer/auth/permissions/plugins/system/type-inference";
 import type { InferSessionFromAuth } from "@deployer/auth/types";
+
+import type { Auth as BetterAuthInstance } from 'better-auth'
 
 // Re-export for convenience
 export type { InferSessionFromAuth } from "@deployer/auth/types";

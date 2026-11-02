@@ -13,6 +13,7 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
+
 import type {
 	EdgeProviderDescriptor,
 	EdgeStatus,
@@ -21,13 +22,14 @@ import type {
 } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { EnvService } from "../../../../config/env/env.module";
-import type { EdgeConnectorSpec, EdgeContext, EdgeDnsRecord, EdgeProvider } from "../../edge/edge-provider";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
 import { LANE_ENTRYPOINTS } from "../../platform-ingress/services/lane-traefik-config";
 import { platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
-
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository";
+
 import { toNodeNetworkConfigData } from "./node-network-config.mapper";
+
+import type { EdgeConnectorSpec, EdgeContext, EdgeDnsRecord, EdgeProvider } from "../../edge/edge-provider";
 
 /**
  * Name of the stack's resources on a provider account. Stack-scoped, so a retry

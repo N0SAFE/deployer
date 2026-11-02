@@ -9,17 +9,20 @@
  * `BadGatewayException` carrying Cloudflare's reason (kept as thrown, see `attempt`).
  */
 import { serviceOver, type Over } from "@deployer/effect-core";
+
 import { BadGatewayException } from "@nestjs/common";
-import type { Cloudflare } from "cloudflare";
-import type { Client } from "cloudflare/resources/zero-trust/tunnels/cloudflared/connections";
-import type { ConfigurationUpdateParams } from "cloudflare/resources/zero-trust/tunnels/cloudflared/configurations";
 import { Context, Effect } from "effect";
 
 import { attempt } from "@/core/effects";
 import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
+
 import { CloudflareAppService, type CloudflareAppServiceShape } from "./cloudflare-app.service";
 import { CloudflareDnsProviderService, type CloudflareDnsProviderServiceShape } from "./cloudflare-dns-provider.service";
 import { toCloudflareErrorMessage, toTunnelConnectionShape, toTunnelShape, type TunnelConnectionShape, type TunnelShape } from "./cloudflare.helpers";
+
+import type { Cloudflare } from "cloudflare";
+import type { ConfigurationUpdateParams } from "cloudflare/resources/zero-trust/tunnels/cloudflared/configurations";
+import type { Client } from "cloudflare/resources/zero-trust/tunnels/cloudflared/connections";
 
 /**
  * Cloudflare's ingress rules, as the API defines them — deliberately NOT the
@@ -135,7 +138,7 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
         }).pipe(
             Effect.catch((err) =>
                 Effect.logWarning(`cloudflareListTunnels failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
-                    Effect.as({ tunnels: [] as TunnelShape[], error: toCloudflareErrorMessage(err) as string | null }),
+                    Effect.as({ tunnels: [] as TunnelShape[], error: toCloudflareErrorMessage(err) }),
                 ),
             ),
         );
@@ -146,11 +149,11 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
             const { client, accountId } = yield* clientFor(providerId);
             const tunnel = yield* attempt(() => client.zeroTrust.tunnels.cloudflared.get(tunnelId, { account_id: accountId }));
             const connections = yield* fetchConnections(client, accountId, tunnelId);
-            return { tunnel: toTunnelShape(tunnel, connections) as TunnelShape | null, error: null as string | null };
+            return { tunnel: toTunnelShape(tunnel, connections), error: null as string | null };
         }).pipe(
             Effect.catch((err) =>
                 Effect.logWarning(`cloudflareGetTunnel failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
-                    Effect.as({ tunnel: null as TunnelShape | null, error: toCloudflareErrorMessage(err) as string | null }),
+                    Effect.as({ tunnel: null as TunnelShape | null, error: toCloudflareErrorMessage(err) }),
                 ),
             ),
         );
@@ -363,7 +366,7 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
         }).pipe(
             Effect.catch((err) =>
                 Effect.logWarning(`cloudflareGetTunnelToken failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
-                    Effect.as({ token: null as string | null, error: toCloudflareErrorMessage(err) as string | null }),
+                    Effect.as({ token: null as string | null, error: toCloudflareErrorMessage(err) }),
                 ),
             ),
         );
@@ -387,7 +390,7 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
                 checkedAt: new Date().toISOString(),
                 connections: active,
                 error: null,
-            } satisfies Health as Health;
+            } satisfies Health;
         }).pipe(
             Effect.catch((err) =>
                 Effect.logWarning(`cloudflareGetTunnelHealth failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(

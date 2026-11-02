@@ -27,19 +27,23 @@
  */
 
 import { Logger } from '@nestjs/common'
-import { createGlobalModule } from "@deployer/nest-effect"
-import { Client, Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
+import { Client, Pool } from 'pg'
+
+import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env"
+import { createGlobalModule } from "@deployer/nest-effect"
 import * as globalSchema from '@deployer/nest-schema/global'
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
-import { GlobalDatabaseService } from './global-database.service'
-import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
-import { LocalDatabaseModule } from "../local/local-database.module"
-import { NodeStateModule } from '../../node-state/node-state.module'
-import { NodeConfigSnapshot } from '../../node-state/node-config.snapshot'
+
 import { EnvModule } from "../../../../config/env/env.module"
 import { EnvService } from "../../../../config/env/env.module"
-import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env"
+import { NodeConfigSnapshot } from '../../node-state/node-config.snapshot'
+import { NodeStateModule } from '../../node-state/node-state.module'
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
+import { LocalDatabaseModule } from "../local/local-database.module"
+
+import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
+import { GlobalDatabaseService } from './global-database.service'
+
 
 const logger = new Logger('GlobalDatabaseModule')
 

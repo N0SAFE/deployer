@@ -12,7 +12,7 @@
  */
 
 import { admin, type InferAdminRolesFromOption } from "better-auth/plugins";
-import type { Auth as BetterAuthInstance } from "better-auth";
+
 import type { MinimalAuth, WithAuthPlugins } from "@deployer/auth/permissions/plugins/system/auth-with-plugins";
 import {
     BasePluginWrapper,
@@ -28,6 +28,8 @@ import type {
     InferStatementFromBuilder,
     InferRoleNamesFromBuilder,
 } from "@deployer/auth/permissions/plugins/system/type-inference";
+
+import type { Auth as BetterAuthInstance } from "better-auth";
 
 // ============================================================================
 // Plugin Instance Types

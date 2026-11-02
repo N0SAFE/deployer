@@ -33,8 +33,6 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
 import z from "zod/v4";
 
-import { GLOBAL_DATABASE_CONNECTION } from "../../database/database-connection"
-import type { GlobalDatabase } from "../../database/global/global-database.service";
 import { routeVisibilitySchema, type RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
 import {
 	deployments,
@@ -43,6 +41,10 @@ import {
 	services,
 } from "@deployer/nest-schema/global";
 import { nodeNetworkConfig } from "@deployer/nest-schema/global";
+
+import { GLOBAL_DATABASE_CONNECTION } from "../../database/database-connection"
+
+import type { GlobalDatabase } from "../../database/global/global-database.service";
 
 /** Where a supervised route comes from — operator/web visibility + origin. */
 export const supervisedRouteSourceSchema = z.enum([

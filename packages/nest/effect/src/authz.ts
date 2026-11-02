@@ -40,7 +40,7 @@ import {
  * `defineMeta` keeps the value under one key and merges nothing, so a second `.meta(...)` (OpenAPI, docs) cannot clobber
  * it, and `accessOf` reads it back from the implemented procedure.
  */
-const [accessMeta, readAccessMeta] = defineMeta("authz", (value: AccessDeclaration) => value);
+const [accessMeta] = defineMeta("authz", (value: AccessDeclaration) => value);
 
 export const access = (declaration: AccessDeclaration) => accessMeta(declaration);
 
@@ -48,7 +48,7 @@ export const access = (declaration: AccessDeclaration) => accessMeta(declaration
 export function accessOf(procedure: unknown): AccessDeclaration | undefined {
 	if (procedure === null || typeof procedure !== "object") return undefined;
 	const meta = (procedure as { readonly "~orpc"?: { readonly meta?: Record<PropertyKey, unknown> } })["~orpc"]?.meta;
-	const declaration = meta?.["authz"];
+	const declaration = meta?.authz;
 	return declaration === null || typeof declaration !== "object" ? undefined : (declaration as AccessDeclaration);
 }
 

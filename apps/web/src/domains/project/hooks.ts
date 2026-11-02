@@ -8,9 +8,11 @@
 
 
 import { useQuery, useMutation } from '@tanstack/react-query'
+
+import { wrapWithInvalidations } from '../shared/helpers'
+
 import { projectEndpoints } from './endpoints'
 import { projectInvalidations } from './invalidations'
-import { wrapWithInvalidations } from '../shared/helpers'
 
 const enhancedProject = wrapWithInvalidations(projectEndpoints, projectInvalidations)
 

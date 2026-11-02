@@ -1,11 +1,13 @@
 'use client'
 
+import { File as FileIcon, FolderOpen, Maximize2, Minimize2, X } from 'lucide-react'
 import { Fragment, type ReactNode, useMemo, useState } from 'react'
+
 import type { DockerFileEntry } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@deployer/ui/components/shadcn/context-menu'
-import { File as FileIcon, FolderOpen, Maximize2, Minimize2, X } from 'lucide-react'
+
 import { DockerCopyButton } from './docker-copy-button'
 import { getFilesInDirectory, getPathBreadcrumb, getParentPath } from './docker-filesystem-utils'
 

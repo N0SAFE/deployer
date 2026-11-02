@@ -5,6 +5,7 @@ import { getTableName } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import * as globalSchema from "../global";
+
 import { SHARED_TABLES, TABLE_OWNERSHIP, mayRead, mayWrite, ownerOf } from "./table-ownership";
 
 /**

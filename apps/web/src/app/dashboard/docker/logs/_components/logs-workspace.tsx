@@ -1,13 +1,17 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { AuthDashboardDeployments, AuthDashboardDockerActivity, AuthDashboardDockerShell } from '@/routes'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+
+import { AuthDashboardDeployments, AuthDashboardDockerActivity, AuthDashboardDockerShell } from '@/routes'
+
 import { useDockerNode } from '../../_components/docker-node-context'
 import { useLogFollow } from '../_hooks/use-log-follow'
 import { useLogsLines, type LogsSource } from '../_hooks/use-logs-lines'
 import { formatLinesAsText, prepareLine, searchLines } from '../_lib/prepare-lines'
 import { CONTAINER_STREAM_LOG_LIMIT } from '../_models/logs.types'
+
 import { LogsDisconnectedBanner, LogsTargetLine } from './logs-banners'
 import { LogsToolbar, type ContainerOption } from './logs-toolbar'
 import { LogsViewer } from './logs-viewer'

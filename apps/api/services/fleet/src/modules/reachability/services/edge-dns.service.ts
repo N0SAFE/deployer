@@ -9,15 +9,17 @@
  * step, not an error.
  */
 
-import { bindServices, serviceOver, type Bound, type Over } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
 
-import type { DnsProviderAccountRef } from "@/modules/providers/dns/shared/dns-provider.interface";
+import { bindServices, serviceOver, type Bound, type Over } from "@deployer/effect-core";
+
 import {
 	DnsProviderRegistryService,
 	type DnsProviderRegistryServices,
 	type DnsProviderRegistryServiceShape,
 } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+import type { DnsProviderAccountRef } from "@/modules/providers/dns/shared/dns-provider.interface";
+
 import type { LaneDnsRecordPlan } from "./lane-dns-plan";
 
 export type LaneDnsResult = {

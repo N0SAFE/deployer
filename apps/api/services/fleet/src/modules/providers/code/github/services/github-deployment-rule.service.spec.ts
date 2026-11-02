@@ -1,8 +1,10 @@
-import { provideTo } from "@deployer/effect-core";
 import { Cause, Effect, Exit } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { provideTo } from "@deployer/effect-core";
+
 import { GithubDeploymentRules, type GithubDeploymentRulesShape } from "@/core/ports/github-deployment-rules.port";
+
 import { GithubDeploymentRuleService } from "./github-deployment-rule.service";
 
 const rule = (overrides: Record<string, unknown> = {}) => ({

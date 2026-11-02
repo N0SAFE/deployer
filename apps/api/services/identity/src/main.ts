@@ -6,19 +6,20 @@ import "@orpc/effect/extensions/effect";
 import "@deployer/shared/core/orpc/context";
 // Adds `effect/context` to `DefaultInitialContext` for `.effect()` handlers.
 
+import { apiServicePort } from "@deployer/env";
+import { analyticsContract, identityContract } from "@deployer/identity-contracts";
+import { joinServiceMeshOnNode } from "@deployer/mesh-service";
+import { assertRequirementsMet } from "@deployer/nest-effect";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
-import { apiServicePort } from "@deployer/env";
-
-import { analyticsContract, identityContract } from "@deployer/identity-contracts";
-import { assertRequirementsMet } from "@deployer/nest-effect";
-import { joinServiceMeshOnNode } from "@deployer/mesh-service";
-import type { Server } from "node:http";
 
 import { IdentityServiceModule } from "./app.module";
+
+import type { Server } from "node:http";
+
 
 /**
  * The identity service's process entry point.

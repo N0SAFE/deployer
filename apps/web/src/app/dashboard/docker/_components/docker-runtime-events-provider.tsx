@@ -1,7 +1,8 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import { DockerRuntimeEventsProvider } from '@/domains/docker/hooks'
+
+import type { ReactNode } from 'react'
 
 interface DockerRuntimeEventsProviderClientProps {
   children: ReactNode

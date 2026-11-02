@@ -3,6 +3,7 @@
 import {
   LayoutDashboard, Boxes, Layers3, Rocket, Network, Globe, Users, Settings2, type LucideIcon,
 } from 'lucide-react'
+
 import {
   AuthDashboardProjectsProjectId,
   AuthDashboardProjectsProjectIdServices,
@@ -13,6 +14,7 @@ import {
   AuthDashboardProjectsProjectIdTeam,
   AuthDashboardProjectsProjectIdDomains,
 } from '@/routes'
+
 import { ScopedSectionNav, type ScopedNavItem } from '../../_components/workload/ScopedSectionNav'
 
 type ProjectSection = 'overview' | 'services' | 'environments' | 'configuration' | 'dependencies' | 'deployments' | 'team' | 'domains'

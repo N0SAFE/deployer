@@ -7,7 +7,6 @@ import { ConfigService } from "@nestjs/config";
 import { HttpAdapterHost } from "@nestjs/core";
 import { Effect } from "effect";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
 import { EffectHost } from "@deployer/nest-effect";
 import {
@@ -17,6 +16,7 @@ import {
   type MeshRouter,
   type MeshTransportOptions,
 } from "@deployer/nest-mesh";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { MESH_CREDENTIAL_VERIFIER, type MeshCredentialVerifier } from "@deployer/shared/server";
 
 import {
@@ -107,7 +107,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
         path: MESH_WEBSOCKET_PATH,
         router: router as unknown as Router<Context>,
         verify: trusted,
-        onBytes: (bytes) => load.bytesMoved(bytes),
+        onBytes: (bytes) => { load.bytesMoved(bytes); },
         context: async (request: IncomingMessage) =>
           ({ request: { headers: request.headers }, "effect/context": await this.host.context(), nodeDoor }),
       });

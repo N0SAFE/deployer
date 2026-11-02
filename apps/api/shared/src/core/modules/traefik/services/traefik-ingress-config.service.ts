@@ -21,9 +21,12 @@
  */
 
 import { readFile } from "node:fs/promises";
+
 import { Injectable, Logger, Inject } from "@nestjs/common";
+
 import type { RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
@@ -39,7 +42,6 @@ import { PlatformConfigService } from "../../platform-ingress/services/platform-
 import { PLATFORM_WEB_INTERNAL_PORT } from "../../platform-ingress/services/platform-names";
 import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
 import { PlatformRoutesSource, type SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { resolveSelfContainerName } from "../../platform-ingress/services/platform-self-resolver";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
 import { TraefikRepository } from "../repositories/traefik.repository";

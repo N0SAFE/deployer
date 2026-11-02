@@ -1,28 +1,34 @@
-import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "../domain/project.errors";
-import { isRecord } from "@deployer/type-guards";
-import { environmentRulesSchema } from "@deployer/contracts-entities";
-import { environmentTriggerSchema } from "@deployer/contracts-common";
-import type { Observable } from "rxjs";
 import { Context, Effect } from "effect";
+
+import { environmentTriggerSchema } from "@deployer/contracts-common";
+import { environmentRulesSchema } from "@deployer/contracts-entities";
 import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import type {
 	ProjectStreamEvent,
 	ProjectStreamQueryInput,
 } from "@deployer/project-contracts/modules/project/stream";
-import { rule } from "../project-effects";
+import { isRecord } from "@deployer/type-guards";
+
+
 import type { DatabasePort } from "@project/core/database/database.port";
 import type { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { ProjectEventService } from "@project/modules/project/services/project-event.service";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
+import { ProjectEventService } from "@project/modules/project/services/project-event.service";
+
 import { projectRules } from "../domain/project.entity";
+import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "../domain/project.errors";
+import { rule } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
+
+import { assertProjectAccess, assertProjectAccessWithRole } from "./project-access";
+import { streamProjectEvents } from "./project-stream";
+
 import type {
 	EnvironmentCreateInput,
 	TemplateCreateInput,
 	TemplateUpdateInput,
 } from "../repositories/project.repository.types";
-import { assertProjectAccess, assertProjectAccessWithRole } from "./project-access";
-import { streamProjectEvents } from "./project-stream";
+import type { Observable } from "rxjs";
 
 // ---------------------------------------------------------------------------
 // Typed settings stored in project.settings JSONB
@@ -255,7 +261,7 @@ export class ProjectServiceImpl {
 			// A role patch is a grant, so it obeys the same guards as an invite.
 			const role = data.role === undefined
 				? undefined
-				: yield* rule(() => projectRules.assertCanGrant(actorRole, data.role as string));
+				: yield* rule(() => projectRules.assertCanGrant(actorRole, data.role!));
 
 			const updated = yield* projects.updateCollaborator(collaborator.id, {
 				role,

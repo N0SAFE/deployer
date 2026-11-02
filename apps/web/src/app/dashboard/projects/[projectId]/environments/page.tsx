@@ -1,13 +1,14 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { Plus, RefreshCw } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { PageSkeleton } from '@/components/dashboard'
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
 import {
   useCloneProjectEnvironment,
   useCreateProjectEnvironment,
@@ -21,13 +22,15 @@ import {
   useUpsertServiceEnvironmentLink,
 } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { ConfirmDialog } from '../../_components/ConfirmDialog'
-import { InlineError } from '../../_components/workload/WorkloadStates'
 import { EnvironmentFormDialog, type EnvironmentFormValues } from '../../_components/environments/EnvironmentFormDialog'
 import { EnvironmentsTable } from '../../_components/environments/EnvironmentsTable'
 import { ServiceEnvironmentMatrix } from '../../_components/environments/ServiceEnvironmentMatrix'
-import { VariableTemplatesCard } from '../../_components/environments/VariableTemplatesCard'
 import { envLinkKey, type ProjectEnvironment, type ServiceEnvLink } from '../../_components/environments/types'
+import { VariableTemplatesCard } from '../../_components/environments/VariableTemplatesCard'
+import { InlineError } from '../../_components/workload/WorkloadStates'
 
 type EnvDialog =
   | { kind: 'create' }

@@ -1,5 +1,6 @@
-import { signSystemActorClaim } from "@deployer/shared/core/modules/auth/system-actor/system-actor";
 import { beforeAll, describe, expect, it } from "vitest";
+
+import { signSystemActorClaim } from "@deployer/shared/core/modules/auth/system-actor/system-actor";
 
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 

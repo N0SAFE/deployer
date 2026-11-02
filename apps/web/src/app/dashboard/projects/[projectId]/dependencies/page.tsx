@@ -1,17 +1,19 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { TriangleAlert } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useMemo, useState } from 'react'
+
 import { ENV_NAMES } from '@deployer/contracts-common'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { PageSkeleton } from '@/components/dashboard'
 import { useDockerContainerList } from '@/domains/docker/hooks'
 import { AuthDashboardProjectsProjectIdServicesServiceId } from '@/routes'
-import { ServiceDependencyGraphPanel } from '../../_components/ServiceDependencyGraphPanel'
-import type { ServiceGraphNode } from '../../_components/dependency-graph/graph-types'
+
 import { DependencyFilters, ModeToggle, type DependencyMode, type StatusFilter } from '../../_components/dependencies/DependencyFilters'
+import { ServiceDependencyGraphPanel } from '../../_components/ServiceDependencyGraphPanel'
 import { InlineError } from '../../_components/workload/WorkloadStates'
 import { useProjectDetail } from '../_hooks/use-project-detail'
 import {
@@ -20,6 +22,8 @@ import {
   findCycleParticipants,
   summarizeContainers,
 } from '../_utils/dependency-topology'
+
+import type { ServiceGraphNode } from '../../_components/dependency-graph/graph-types'
 
 /**
  * Dependencies tab — two views of the service topology:

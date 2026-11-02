@@ -9,8 +9,9 @@
  * - Navigation timing
  */
 
-import { Suspense, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
+import { Suspense, useEffect, useRef } from 'react'
+
 import { AppLogger } from '@deployer/logger'
 
 // ============================================================================

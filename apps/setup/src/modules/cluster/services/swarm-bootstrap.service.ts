@@ -1,9 +1,11 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger, Inject } from "@nestjs/common";
+
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SwarmCluster, type SwarmClusterShape, SwarmParticipation, type SwarmParticipationShape } from "@deployer/swarm"
 
-import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 import { NodeAgentLauncherService } from "./node-agent-launcher.service";
+
+import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 
 /**
  * Founds or joins the swarm, then publishes the outcome.

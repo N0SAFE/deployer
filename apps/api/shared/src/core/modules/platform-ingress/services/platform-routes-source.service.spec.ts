@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import {
 	PlatformRoutesSource,
 	dedupeRoutes,
@@ -7,6 +8,7 @@ import {
 	routeNameFromHost,
 	type SupervisedRoute,
 } from "./platform-routes-source.service";
+
 import type { GlobalDatabase } from "../../database/global/global-database.service";
 
 /**

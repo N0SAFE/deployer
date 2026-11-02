@@ -1,16 +1,20 @@
 'use client'
 
-import { useMemo } from 'react'
 import { Globe } from 'lucide-react'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { useAddServiceDomain, useProjectDomains, useRemoveServiceDomain, useServiceDomains } from '@/domains/domain/hooks'
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { AddDomainEntryForm } from './service-domains/AddDomainEntryForm'
 import { DomainEntryRow } from './service-domains/DomainEntryRow'
-import type { ServiceDomainEntry } from './service-domains/domain-url'
 import { InlineError } from './workload/WorkloadStates'
+
+import type { ServiceDomainEntry } from './service-domains/domain-url'
 
 export type { ServiceDomainEntry }
 

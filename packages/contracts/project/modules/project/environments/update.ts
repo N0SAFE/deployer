@@ -1,6 +1,8 @@
 import z from "zod/v4";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+
 import { environmentKindSchema, environmentTriggerSchema, environmentRulesSchema } from "@deployer/contracts-entities";
+import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+
 import { projectEnvironmentOps } from "./shared";
 
 export const projectUpdateEnvironmentContract = projectEnvironmentOps

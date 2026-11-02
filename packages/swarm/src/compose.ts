@@ -2,11 +2,12 @@ import type { ClusterNodeRepositoryShape, NodeConfigRepositoryShape } from "@dep
 
 import { makeSwarmBootstrap } from "./bootstrap/swarm-bootstrap";
 import { makeSwarmCluster } from "./cluster/swarm-cluster";
-import type { SwarmElectionConfig, SwarmJoinConfig, SwarmParticipationDefaults } from "./config";
 import { makeSwarmLeadership, type ClusterMetricsProvider, type LeadershipEventSink } from "./election/swarm-leadership";
 import { makeSwarmFleet } from "./fleet/swarm-fleet";
 import { makeSwarmJoinGrant } from "./join/swarm-join-grant";
 import { makeSwarmParticipation } from "./participation/swarm-participation";
+
+import type { SwarmElectionConfig, SwarmJoinConfig, SwarmParticipationDefaults } from "./config";
 
 /** The engine the cluster services run on: whatever `makeSwarmCluster` takes. */
 type Engine = Parameters<typeof makeSwarmCluster>[0];

@@ -1,5 +1,6 @@
-import type { MeshSwarmJoinGrant, SwarmNodePolicy } from "@deployer/contracts-entities";
 import { Context, Effect, Layer } from "effect";
+
+import type { MeshSwarmJoinGrant, SwarmNodePolicy } from "@deployer/contracts-entities";
 
 import { SwarmCluster, type SwarmClusterShape } from "../cluster/swarm-cluster";
 import {
@@ -8,6 +9,7 @@ import {
 	type SwarmJoinConfig,
 	type SwarmParticipationDefaults,
 } from "../config";
+
 import { decideRole, quorumTarget } from "./join-decision";
 
 export type SwarmJoinGrantShape = {

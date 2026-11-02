@@ -1,10 +1,12 @@
-import type { DbError } from "@deployer/effect-infra";
-import { dockerImageSecurityLifecycle } from "@deployer/nest-schema/global/runtime/docker-security-scan";
 import { eq, inArray } from "drizzle-orm";
 import { Context, Effect } from "effect";
 
+import type { DbError } from "@deployer/effect-infra";
+import { dockerImageSecurityLifecycle } from "@deployer/nest-schema/global/runtime/docker-security-scan";
+
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../../core/database/runtime-db";
 import { tolerateMissingScanTable } from "../security/tolerate-missing-scan-table";
+
 import { planAliveLifecycle } from "./image-lifecycle-plan";
 
 /** What the database layer reads while it runs. */

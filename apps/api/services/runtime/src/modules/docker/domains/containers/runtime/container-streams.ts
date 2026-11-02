@@ -4,6 +4,7 @@
  * stream rules are tested with fake collectors and no engine.
  */
 import { Observable, from, interval, startWith, switchMap } from "rxjs";
+
 import type { DockerContainerLogEntry } from "@deployer/contracts-entities";
 
 import { logMatchesProcess } from "./container-runtime-helpers";

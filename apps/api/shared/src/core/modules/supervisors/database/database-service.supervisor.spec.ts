@@ -1,11 +1,14 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
 import type { DockerEngineShape } from "@deployer/docker";
 import { makeSupervisorOrchestrator } from "@deployer/supervision";
+
 import { harness, testBus } from "../supervisor-test-harness";
 
-import type { EnvService } from "../../../../config/env/env.module";
 import { DATABASE_SERVICE_SUPERVISOR_ID, makeDatabaseServiceRegistration } from "./database-service.supervisor";
+
+import type { EnvService } from "../../../../config/env/env.module";
 
 /**
  * The host's job is wiring and the registration decision: the `MANAGED_DATABASE_*` environment reaches

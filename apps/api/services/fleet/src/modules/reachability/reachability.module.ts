@@ -24,7 +24,9 @@ import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/se
 import { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
 import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
+
 import { ProvidersModule } from "@/modules/providers/providers.module";
+
 import { ReachabilityController } from "./controllers/reachability.controller";
 import {
     EdgeProvidersPort,

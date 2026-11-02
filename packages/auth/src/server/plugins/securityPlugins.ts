@@ -12,13 +12,13 @@
  * in the TanStack DevTools panels (`apps/web/src/components/devtools/plugins/`).
  */
 
+import { passkey } from "@better-auth/passkey";
 import { twoFactor } from "better-auth/plugins";
 import {
     deviceAuthorization,
     type TimeString,
 } from "better-auth/plugins";
 import { lastLoginMethod } from "better-auth/plugins";
-import { passkey } from "@better-auth/passkey";
 
 // ============================================================================
 // Passkey Plugin
@@ -81,7 +81,7 @@ export function passkeyCoordinates(input: {
     readonly originOverride?: string;
 }): { rpID?: string; origin?: string[] } {
     const fromDomain = input.authBaseDomain?.replace(/^\./u, '').trim();
-    const rpID = input.rpIdOverride?.trim() || (fromDomain ? fromDomain : undefined);
+    const rpID = input.rpIdOverride?.trim() ?? (fromDomain === undefined || fromDomain === '' ? undefined : fromDomain);
 
     const pinned = (input.originOverride ?? '')
         .split(',')

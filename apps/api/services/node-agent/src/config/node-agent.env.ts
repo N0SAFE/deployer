@@ -2,9 +2,9 @@ import { hostname } from "node:os";
 
 import z from "zod/v4";
 
-import { MESH_ADMIN_SOCKET_NAME, MESH_LOCAL_SOCKET_NAME, MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
-import { primaryLanAddress } from "@deployer/node-agent-container";
 import { apiServicePort } from "@deployer/env";
+import { primaryLanAddress } from "@deployer/node-agent-container";
+import { MESH_ADMIN_SOCKET_NAME, MESH_LOCAL_SOCKET_NAME, MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { declaredAddresses } from "../network/endpoint-discovery";
 import { DEFAULT_WIREGUARD_PORT } from "../network/overlay";

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { Effect, Exit } from "effect";
+import { describe, expect, it } from "vitest";
 
 import { ProjectAccessRepository, type ProjectAccessRepositoryShape } from "../repositories/project-access.repository";
+
 import { ProjectAccessService } from "./project-access.service";
 
 /** The service under test: the class IS the implementation, so a spec instantiates it. */

@@ -1,8 +1,9 @@
-import { ResourceNotFound } from "../domain/project.errors";
 import { Effect } from "effect";
+
+import { projectRules, type ProjectAccess, type ProjectRole } from "../domain/project.entity";
+import { ResourceNotFound } from "../domain/project.errors";
 import { rule } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
-import { projectRules, type ProjectAccess, type ProjectRole } from "../domain/project.entity";
 
 /**
  * Load a project and prove the caller may act on it at `access` level.

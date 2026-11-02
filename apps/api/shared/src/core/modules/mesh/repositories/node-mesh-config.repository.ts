@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
+
 import { nodeMeshConfig } from "@deployer/nest-schema/local";
+import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 
 export type NodeMeshConfigRow = typeof nodeMeshConfig.$inferSelect;
 

@@ -1,5 +1,6 @@
 import '@/test-support/mocks'
 import { describePageStates } from '@/test-support'
+
 import DashboardClusterPage from './page'
 
 describePageStates('Cluster', {

@@ -1,4 +1,5 @@
 import { checkSubdomainAvailabilitySchema, subdomainAvailabilityResponseSchema } from "../schemas";
+
 import { checkSubdomainAvailabilityOps } from "./shared";
 
 export const checkSubdomainAvailabilityContract = checkSubdomainAvailabilityOps

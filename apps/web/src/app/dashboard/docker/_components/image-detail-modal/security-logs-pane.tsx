@@ -1,12 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+
 import type { DockerImageSecurityScanEvent, DockerImageSecurityScanStage } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { LogsViewer, type LogsViewerLine } from '@/components/atomics/organisms/logs'
-import { SECURITY_SCAN_INITIAL_PAGE_INDEX, SECURITY_SCAN_LOG_PAGE_SIZE, toClock } from './scan-model'
-import type { ScanStreamStatus } from './use-image-scan-session'
+
 import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
+
+import { SECURITY_SCAN_INITIAL_PAGE_INDEX, SECURITY_SCAN_LOG_PAGE_SIZE, toClock } from './scan-model'
+
+import type { ScanStreamStatus } from './use-image-scan-session'
 
 type ToolFilter = 'all' | 'pipeline' | 'trivy' | 'grype' | 'dive'
 type StageFilter = 'all' | DockerImageSecurityScanStage

@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import z from "zod/v4";
 
 import { makeSupervisorEventBus } from "../events/event-bus";
-import { baseSupervisorProcessInfoSchema } from "../schemas/process-info";
 import { baseSupervisorPayloadSchema } from "../schemas/probe";
+import { baseSupervisorProcessInfoSchema } from "../schemas/process-info";
+
 import { withBackoff } from "./backoff";
 import { supervisorIdentifier } from "./identifier";
-import type { SupervisorSpec } from "./spec";
 import { makeSupervisor } from "./supervisor";
+
+import type { SupervisorSpec } from "./spec";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 	const exit = await Effect.runPromiseExit(effect);

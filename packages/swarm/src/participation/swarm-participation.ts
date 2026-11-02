@@ -1,3 +1,5 @@
+import { Context, Effect, Layer } from "effect";
+
 import {
 	swarmConfigViewSchema,
 	swarmParticipationInputSchema,
@@ -21,11 +23,11 @@ import {
 	type NodeConfigRepositoryShape,
 	type NodeStateConflict,
 } from "@deployer/node-state";
-import { Context, Effect, Layer } from "effect";
 
-import { SwarmParticipationDefaultsService, type SwarmParticipationDefaults } from "../config";
 import { SwarmCluster, type SwarmClusterShape } from "../cluster/swarm-cluster";
+import { SwarmParticipationDefaultsService, type SwarmParticipationDefaults } from "../config";
 import { SwarmInvalid, type SwarmTimeout, type SwarmUnavailable } from "../errors";
+
 import { POLICY_DOCUMENTS } from "./policy-documents";
 
 type Policy = SwarmParticipationConfig["policy"];

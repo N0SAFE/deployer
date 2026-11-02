@@ -9,9 +9,11 @@
  */
 
 import { OpenAPILink } from "@orpc/openapi/fetch";
-import type { AnyContractRouter } from "@orpc/contract";
-import type { ClientContext, NestedClient, Client } from "@orpc/client";
+
 import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
+
+import type { ClientContext, NestedClient, Client } from "@orpc/client";
+import type { AnyContractRouter } from "@orpc/contract";
 
 /**
  * Progress event for file uploads

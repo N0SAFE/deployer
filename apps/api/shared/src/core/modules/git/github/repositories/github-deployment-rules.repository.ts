@@ -15,11 +15,12 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { GlobalDatabaseService } from '../../../database/services/global-database.service';
-import { githubDeploymentRules } from "@deployer/nest-schema/global/fleet/github-provider";
 import { eq, and, desc } from 'drizzle-orm';
 
 import { AppError } from "@deployer/errors";
+import { githubDeploymentRules } from "@deployer/nest-schema/global/fleet/github-provider";
+
+import { GlobalDatabaseService } from '../../../database/services/global-database.service';
 // Type inference from schema
 type GithubDeploymentRule = typeof githubDeploymentRules.$inferSelect;
 type GithubDeploymentRuleInsert = typeof githubDeploymentRules.$inferInsert;

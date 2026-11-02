@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+
 import type { DockerContainer } from '@deployer/contracts-entities'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogFooter } from '@deployer/ui/components/shadcn/dialog'
+
 import { useContainerActions } from '../../_hooks/use-container-actions'
 import { useContainerFiles } from '../../_hooks/use-container-files'
 import { useContainerInspect } from '../../_hooks/use-container-inspect'
@@ -12,13 +14,14 @@ import { useContainerMetrics } from '../../_hooks/use-container-metrics'
 import { useContainerProcesses } from '../../_hooks/use-container-processes'
 import { useContainerSecurity } from '../../_hooks/use-container-security'
 import { useContainerTerminal } from '../../_hooks/use-container-terminal'
+import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 import { DockerConfirmDialog } from '../docker-confirm-dialog'
 import { DockerEngineError } from '../docker-engine-error'
 import { DockerDetailLoadingState } from '../docker-loading-states'
+
 import { ContainerFileDialogs } from './container-file-dialogs'
 import { ContainerModalHeader } from './container-modal-header'
 import { ContainerModalTabs } from './container-modal-tabs'
-import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 
 interface DockerContainerDetailModalContentProps {
   id: string

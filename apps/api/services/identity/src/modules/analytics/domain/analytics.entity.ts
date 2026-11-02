@@ -1,6 +1,7 @@
+import { analyticsDataSourceSchema } from "@deployer/identity-contracts/modules/analytics/schemas";
+
 import type { z } from "zod/v4";
 
-import { analyticsDataSourceSchema } from "@deployer/identity-contracts/modules/analytics/schemas";
 
 /** Where a metrics payload came from, as the contract declares it. */
 export type AnalyticsDataSource = z.infer<typeof analyticsDataSourceSchema>;

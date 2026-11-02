@@ -1,15 +1,17 @@
 import { NestFactory } from "@nestjs/core";
-import type { NestApplicationOptions } from "@nestjs/common";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
-import { createViteAssetsMiddleware } from "@deployer/vite-assets";
 
 import { assertRequirementsMet } from "@deployer/nest-effect";
+import { createViteAssetsMiddleware } from "@deployer/vite-assets";
+
 
 import { SetupAppModule } from "./app.module";
-import { setupEnvSchema } from "./config/env/env.schema";
 import { resolveApiBaseUrl } from "./config/api-address";
+import { setupEnvSchema } from "./config/env/env.schema";
 import { createSetupAuthProxy } from "./middleware/setup-auth-proxy";
+
+import type { NestApplicationOptions } from "@nestjs/common";
 
 /**
  * The ONE place the setup app's Nest configuration is decided.

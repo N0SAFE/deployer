@@ -1,4 +1,5 @@
 import { Context, Effect, Layer } from "effect";
+
 import {
 	ClusterNodeRepository,
 	type ClusterNodeRepositoryShape,
@@ -6,6 +7,7 @@ import {
 
 import { SwarmCluster, type SwarmClusterShape } from "../cluster/swarm-cluster";
 import { SwarmElectionConfigService, type SwarmElectionConfig } from "../config";
+
 import { isEligibleAsMaster, scoreCandidate, selectMasterWinner, type MasterCandidateMetrics } from "./master-scorer";
 import { isQuorumIntact, planQuorum } from "./quorum-planner";
 

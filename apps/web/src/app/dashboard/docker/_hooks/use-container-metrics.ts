@@ -1,14 +1,18 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useDockerContainerEventsStream } from '@/domains/docker/hooks'
+
 import type { DockerContainer } from '@deployer/contracts-entities'
+
+import { useDockerContainerEventsStream } from '@/domains/docker/hooks'
+
 import {
   buildBaseMetrics,
   buildMetricChartData,
   METRIC_HISTORY_LIMIT,
   summarizeMetrics,
 } from '../_utils/container-detail'
+
 import { STREAM_QUERY_BASE_OPTIONS } from './container-stream-options'
 import { useOnDepsChange } from './use-on-deps-change'
 

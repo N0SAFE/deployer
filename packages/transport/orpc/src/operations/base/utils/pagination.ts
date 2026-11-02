@@ -3,9 +3,9 @@
  * Pure Standard Schema implementation without Zod dependency
  */
 
+import { s } from "@deployer/orpc-utils/operations/base/schema";
 import type { AnySchema, ObjectSchema, SchemaWithConfig } from "@deployer/orpc-utils/operations/base/types";
 import { CONFIG_SYMBOL, withConfig } from "@deployer/orpc-utils/operations/base/types";
-import { s } from "@deployer/orpc-utils/operations/base/schema";
 import { isRecord } from "@deployer/type-guards"
 
 /**

@@ -1,11 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import { describe, expect, it, vi } from "vitest";
+
+import type { LocalDb } from "@deployer/node-state";
+import { makeSupervisorOrchestrator } from "@deployer/supervision";
+
+import { harness, testBus } from "../supervisor-test-harness";
 
 import { LOCAL_DB_SUPERVISOR_ID, makeLocalDbRegistration } from "./local-db.supervisor";
-import { makeSupervisorOrchestrator } from "@deployer/supervision";
-import { harness, testBus } from "../supervisor-test-harness";
-import type { LocalDb } from "@deployer/node-state";
+
 import type { EnvService } from "../../../../config/env/env.module";
 
 /** In-memory sqlite database wrapped by drizzle — no file I/O in tests. */

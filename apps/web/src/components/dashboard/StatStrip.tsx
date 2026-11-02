@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
 import { statusToneClasses, type StatusTone } from './status'
+
+import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 /**
  * StatStrip — the dense, single-row replacement for a 4-up KPI card grid.

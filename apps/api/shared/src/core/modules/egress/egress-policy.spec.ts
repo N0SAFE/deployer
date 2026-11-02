@@ -1,5 +1,6 @@
-import { EgressPolicy } from "@deployer/effect-infra";
 import { describe, expect, it } from "vitest";
+
+import { EgressPolicy } from "@deployer/effect-infra";
 
 import { resolveEgressPolicies } from "./egress-policy";
 

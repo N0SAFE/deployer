@@ -1,3 +1,6 @@
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Context, Effect } from 'effect'
+
 import {
     lazyPgDb,
     type DbShape,
@@ -9,8 +12,6 @@ import type {
     GlobalDatabase,
     GlobalDatabaseService,
 } from '@deployer/shared/core/modules/database/services/global-database.service'
-import { Context, Effect } from 'effect'
-import { drizzle } from 'drizzle-orm/node-postgres'
 
 /** The shared global database the runtime service reads and writes (a Nest provider). */
 export class RuntimeDatabasePort extends Context.Service<

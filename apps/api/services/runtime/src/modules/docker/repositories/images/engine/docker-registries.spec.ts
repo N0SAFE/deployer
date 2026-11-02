@@ -1,10 +1,11 @@
-import type { DockerImage } from "@deployer/contracts-entities";
 import { describe, expect, it } from "vitest";
+
+import type { DockerImage } from "@deployer/contracts-entities";
 
 import { deriveRegistries } from "./docker-registries";
 
 const image = (registry: string, repository: string, lastSeenAt: string): DockerImage =>
-	({ id: `${registry}/${repository}`, registry, repository, tag: "1", digest: null, sizeBytes: 1, createdAt: lastSeenAt, lastSeenAt, labels: {} }) as DockerImage;
+	({ id: `${registry}/${repository}`, registry, repository, tag: "1", digest: null, sizeBytes: 1, createdAt: lastSeenAt, lastSeenAt, labels: {} });
 
 describe("deriveRegistries", () => {
 	it("groups images by registry with their sorted repositories and latest sighting", () => {

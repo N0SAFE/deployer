@@ -1,8 +1,10 @@
-import type { EffectHostShape } from "@deployer/nest-effect";
 import { Logger } from "@nestjs/common";
 import { Effect, Schedule } from "effect";
 
+import type { EffectHostShape } from "@deployer/nest-effect";
+
 import { describeFailure, recover } from "@/core/effects";
+
 import { DNS_RECONCILE_INTERVAL_MS, IngressEdgeService } from "./ingress-edge.service";
 
 export const INGRESS_DNS_RECONCILER = Symbol("fleet:ingress-dns-reconciler");
@@ -24,7 +26,7 @@ export function startIngressDnsReconciler(host: EffectHostShape, intervalMs: num
 					const ingress = yield* IngressEdgeService;
 					yield* ingress.reconcileDns();
 				}),
-				(error) => Effect.sync(() => logger.warn(`DNS reconcile failed: ${describeFailure(error)}`)),
+				(error) => Effect.sync(() => { logger.warn(`DNS reconcile failed: ${describeFailure(error)}`); }),
 			),
 			Schedule.spaced(intervalMs),
 		),

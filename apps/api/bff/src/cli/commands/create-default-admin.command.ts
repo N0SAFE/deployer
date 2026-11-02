@@ -1,11 +1,14 @@
-import { Command, CommandRunner } from 'nest-commander';
 import { Injectable, Logger } from '@nestjs/common';
-import { EnvService } from "@/config/env/env.module";
-import { apiEnvSchema } from '@deployer/env';
+import { Command, CommandRunner } from 'nest-commander';
 import zod from 'zod/v4';
-import { CliAuthService } from '../services/cli-auth.service';
+
 import { runSyncUnwrapped } from "@deployer/effect-core";
+import { apiEnvSchema } from '@deployer/env';
 import type { EnvironmentShape } from "@deployer/environment";
+
+import { EnvService } from "@/config/env/env.module";
+
+import { CliAuthService } from '../services/cli-auth.service';
 
 // Extend the API schema with command-specific environment variables. Both
 // mirror the base schema's optionality — the boot path never requires them,

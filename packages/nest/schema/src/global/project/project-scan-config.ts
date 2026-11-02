@@ -1,4 +1,5 @@
 import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
 import { projects } from "@deployer/nest-schema/global/project/deployment";
 
 export const projectScanConfig = pgTable("project_scan_config", {

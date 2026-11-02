@@ -5,14 +5,14 @@ import { os } from "@orpc/server";
 import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { createMeshClient, grantFollowingLink, openWebSocketConnection, pooledLink, relayLink } from "@deployer/mesh-client";
 import { type MeshMembership, joinMesh } from "@deployer/mesh-service";
+import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { type BootedAgent, bootAgent, removeDataDir } from "./boot-agent";
 
-import type { ContractRouterClient } from "@orpc/contract";
 import type { ClientContext } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
 import type { AddressInfo } from "node:net";
 
 type NodeAgentClient = ContractRouterClient<typeof nodeAgentContract>;

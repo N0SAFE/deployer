@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { deriveDnsAppStatus, deriveStoredCredentialStatus, isEdgeAccount, summarizeAccounts } from './provider-status'
 
 const ok = { isActive: true, state: { status: 'ok' as const, accountId: 'abcdef1234567890', error: null } }

@@ -1,8 +1,11 @@
 import { Controller, Get, Inject, Optional, Res } from "@nestjs/common";
+
 import { createModuleContext } from "@deployer/nest-effect";
-import type { Response } from "express";
 
 import { AllowAnonymous } from "../core/modules/auth/decorators/decorators";
+
+import type { Response } from "express";
+
 
 /**
  * What a service reports as "ready".

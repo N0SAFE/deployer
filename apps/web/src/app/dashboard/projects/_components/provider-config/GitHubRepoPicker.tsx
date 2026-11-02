@@ -1,8 +1,11 @@
 'use client'
 
 import { ExternalLink } from 'lucide-react'
+
 import { Label } from '@deployer/ui/components/shadcn/label'
+
 import { AuthDashboardAdminProvidersCodeGithub } from '@/routes'
+
 import { SearchableSelect } from '../steps/searchable-select'
 
 /** GitHub repository info from the OAuth-powered list endpoint. */

@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { hostname } from "node:os";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { DEFAULT_AGENT_SOCKET } from "@deployer/mesh-client";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { type JoinServiceMeshOptions, joinServiceMesh } from "./join-service-mesh";
 import { peerInfoRouter } from "./peer-router";

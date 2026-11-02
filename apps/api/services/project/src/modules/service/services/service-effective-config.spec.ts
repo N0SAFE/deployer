@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
+
+import type { Service } from "@deployer/contracts-entities";
+
 import {
     DEFAULT_HEALTH_CHECK,
     emptyEffectiveConfig,
     foldServiceChain,
     mergeServiceConfig,
 } from "./service-effective-config";
-import type { Service } from "@deployer/contracts-entities";
 
 /** Build a minimal flat service DTO for testing config merging. */
 function makeService(overrides: Partial<Service> = {}): Service {

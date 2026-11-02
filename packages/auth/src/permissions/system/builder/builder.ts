@@ -1,10 +1,12 @@
-import type { Role } from "better-auth/plugins/access";
 import { createAccessControl } from "better-auth/plugins/access";
-import type { ZodType, infer as ZodInfer } from "zod/v4";
-import { BaseConfig } from "@deployer/auth/permissions/system/builder/shared/base-config";
-import { StatementsConfig } from "@deployer/auth/permissions/system/builder/statements/statements-config";
+
 import { RolesConfig } from "@deployer/auth/permissions/system/builder/roles/roles-config";
 import { createSchemas } from "@deployer/auth/permissions/system/builder/schemas";
+import { BaseConfig } from "@deployer/auth/permissions/system/builder/shared/base-config";
+import { StatementsConfig } from "@deployer/auth/permissions/system/builder/statements/statements-config";
+
+import type { Role } from "better-auth/plugins/access";
+import type { ZodType, infer as ZodInfer } from "zod/v4";
 
 /**
  * Helper type to check if a type is exactly Record<string, never> (empty record)

@@ -23,7 +23,7 @@ export class KeyHints extends Context.Service<KeyHints, KeyHintsShape>()("node-a
     private readonly capacity: number;
 
     constructor(
-      entries: Map<string, { replicaId: string; expiresAt: number }> = new Map(),
+      entries = new Map<string, { replicaId: string; expiresAt: number }>(),
       capacity: number = MAX_HINTS,
     ) {
       this.entries = entries;

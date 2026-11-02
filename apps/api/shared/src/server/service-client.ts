@@ -1,12 +1,15 @@
 import { Module, Injectable, type DynamicModule } from "@nestjs/common";
-import { declareModule } from "@deployer/nest-effect";
 import { createORPCClient } from "@orpc/client";
-import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
-import type { ContractRouterClient, RouterContract } from "@orpc/contract";
+
 
 import { apiServiceUrl, type ApiServiceName } from "@deployer/env";
+import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
+import { declareModule } from "@deployer/nest-effect";
+
 import { SYSTEM_ACTOR_HEADER } from "../core/modules/auth/system-actor/system-actor";
+
+import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
 /** The link to this node's agent, when it has one. Lazy: nothing connects until the first call. */
 const nodeAgent = nodeAgentLink();

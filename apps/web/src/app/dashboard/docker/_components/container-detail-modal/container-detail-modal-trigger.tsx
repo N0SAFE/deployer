@@ -1,7 +1,9 @@
 'use client'
 
 import { type ReactNode, useCallback, useState } from 'react'
+
 import { type DockerContainer } from '@deployer/contracts-entities'
+
 import { DockerContainerDetailModalContent } from './container-detail-modal-content'
 
 interface DockerContainerDetailModalTriggerProps {

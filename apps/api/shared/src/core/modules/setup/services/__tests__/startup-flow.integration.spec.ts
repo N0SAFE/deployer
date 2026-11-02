@@ -17,6 +17,8 @@
  */
 
 import { Test, type TestingModule } from '@nestjs/testing';
+import { Effect } from "effect";
+import { firstValueFrom, Observable } from 'rxjs';
 import {
   describe,
   it,
@@ -26,17 +28,18 @@ import {
   vi,
   type MockInstance,
 } from 'vitest';
-import { firstValueFrom, Observable } from 'rxjs';
+
+import { AppLifecycle } from "@deployer/lifecycle";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { EnvService } from "../../../../../config/env/env.module";
+import { MeshInitializationService } from '../../../mesh/initialization/services/mesh-initialization.service';
+import { ReachabilityService } from '../../../reachability/services/reachability.service';
 import { InitializationService } from '../initialization.service';
 import { LocalInitializationService } from '../local-initialization.service';
 import { RemoteInitializationService } from '../remote-initialization.service';
 import { SetupEventService } from '../setup-event.service';
-import { MeshInitializationService } from '../../../mesh/initialization/services/mesh-initialization.service';
-import { ReachabilityService } from '../../../reachability/services/reachability.service';
-import { EnvService } from "../../../../../config/env/env.module";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { Effect } from "effect";
-import { AppLifecycle } from "@deployer/lifecycle";
+
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
 

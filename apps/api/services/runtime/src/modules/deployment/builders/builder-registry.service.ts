@@ -1,7 +1,9 @@
-import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { OnModuleInit } from "@nestjs/common";
+
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+
 import type { BuilderStrategy } from "./base/builder-strategy.interface";
+import type { OnModuleInit } from "@nestjs/common";
 
 /**
  * Multi-provider token for builder strategies.

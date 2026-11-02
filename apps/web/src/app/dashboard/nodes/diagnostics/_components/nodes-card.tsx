@@ -1,11 +1,13 @@
 'use client'
 
 import { Network } from 'lucide-react'
+
+import type { NodeAgentNode } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { EmptyState } from '@/components/dashboard'
-import type { NodeAgentNode } from '@deployer/contracts-entities'
 
 /** The nodes of the swarm, as the agent of this node knows them. */
 export function NodesCard({ nodes, loading }: { nodes: readonly NodeAgentNode[]; loading: boolean }) {

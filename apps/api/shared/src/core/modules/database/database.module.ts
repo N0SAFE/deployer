@@ -12,13 +12,15 @@
  */
 
 import { createGlobalModule } from "@deployer/nest-effect"
+
 import { AppLifecycleModule } from '../lifecycle'
+
 import { GlobalDatabaseModule } from './global/global-database.module'
 import { LocalDatabaseModule } from "./local/local-database.module";
+import { BootstrapAdvisoryLockService } from './services/bootstrap-advisory-lock.service'
+import { DatabaseFailureTracker } from './services/database-failure-tracker.service'
 import { DatabaseProbeService } from './services/database-probe.service'
 import { DatabaseStartupGuard } from './services/database-startup-guard.service'
-import { DatabaseFailureTracker } from './services/database-failure-tracker.service'
-import { BootstrapAdvisoryLockService } from './services/bootstrap-advisory-lock.service'
 
 export const DatabaseModule = createGlobalModule({
     imports: [

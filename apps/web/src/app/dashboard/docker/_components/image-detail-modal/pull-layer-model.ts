@@ -1,6 +1,8 @@
 import type { DockerImageSecurityScanEvent } from '@deployer/contracts-entities'
-import type { DockerPullLayerRow } from '../docker-image-pull-progress-panel'
+
 import { SECURITY_SCAN_SCANNERS } from './scan-model'
+
+import type { DockerPullLayerRow } from '../docker-image-pull-progress-panel'
 
 /** Pure helpers that turn scanner pull log lines into per-layer progress rows. */
 

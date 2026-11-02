@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { TraefikConfigBuilder } from '../config-builder/builders';
+
 import { type ServiceContext, ContextUtils } from '../../context/types';
+import { TraefikConfigBuilder } from '../config-builder/builders';
 
 /**
  * Available variables for Traefik configuration templates

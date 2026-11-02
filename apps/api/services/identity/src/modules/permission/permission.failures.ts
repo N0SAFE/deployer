@@ -1,5 +1,6 @@
-import { domainError } from '@deployer/effect-core'
 import { Data } from 'effect'
+
+import { domainError } from '@deployer/effect-core'
 
 /** The engine denied the action. `reason` is the engine's sentence, written for the client. */
 export class PermissionDenied extends domainError(

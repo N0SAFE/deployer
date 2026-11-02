@@ -2,17 +2,21 @@
 
 import { Cable, CircleAlert, ListOrdered, Server, Users, Waypoints } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { EmptyState, PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
-import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
+import { AuthDashboardSettingsNode } from '@/routes'
+
 import { WithIngress } from '../_components/ingress-query-state'
 import { JoinPathsCard } from '../_components/join-paths-card'
 import { MeshMembersTable } from '../_components/mesh-members-table'
 import { Age, LinkPathLegend, Mono } from '../_components/network-copy'
 import { useCanManageNetwork } from '../_components/use-can-manage-network'
-import { AuthDashboardSettingsNode } from '@/routes'
+
 
 /**
  * Mesh — the WireGuard network every node (and operator machine) is a member of.

@@ -1,14 +1,17 @@
-import { DashboardSidebar, DashboardLoadingSkeleton, SearchTrigger, HeaderLiveStatus, CommandPalette, KeyboardShortcutsProvider } from '@/components/dashboard'
-import { NodeScopePicker } from '@/components/dashboard/node-scope-picker'
-import { PostSetupHints } from '@/components/setup/post-setup-hints'
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@deployer/ui/components/shadcn/sidebar'
-import { Separator } from '@deployer/ui/components/shadcn/separator'
-import { DashboardBreadcrumbs } from '@/components/dashboard/DashboardBreadcrumbs'
-import { createSessionLayout } from '@deployer/declarative-routing/layout-wrappers/server'
-import { SessionHydrationProvider } from '@/utils/providers/SessionHydrationProvider'
-import { NodeScopeProvider } from '@/domains/node/node-context'
-import { QueryErrorBoundary } from '@/components/error'
 import { Suspense } from 'react'
+
+import { createSessionLayout } from '@deployer/declarative-routing/layout-wrappers/server'
+import { Separator } from '@deployer/ui/components/shadcn/separator'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@deployer/ui/components/shadcn/sidebar'
+
+import { DashboardSidebar, DashboardLoadingSkeleton, SearchTrigger, HeaderLiveStatus, CommandPalette, KeyboardShortcutsProvider } from '@/components/dashboard'
+import { DashboardBreadcrumbs } from '@/components/dashboard/DashboardBreadcrumbs'
+import { NodeScopePicker } from '@/components/dashboard/node-scope-picker'
+import { QueryErrorBoundary } from '@/components/error'
+import { PostSetupHints } from '@/components/setup/post-setup-hints'
+import { NodeScopeProvider } from '@/domains/node/node-context'
+import { SessionHydrationProvider } from '@/utils/providers/SessionHydrationProvider'
+
 // Import to trigger server-side auth configuration (including layout auth)
 import '@/routes/configure-auth'
 

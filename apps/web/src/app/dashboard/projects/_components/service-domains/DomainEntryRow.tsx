@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
 import { ShieldCheck, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { ConfirmDialog } from '../ConfirmDialog'
+
 import { resolveFullUrl, sslLabel } from './domain-url'
 
 /** One domain binding of a service, with a confirmed remove. */

@@ -1,6 +1,7 @@
-import { Actor, CurrentActor } from "@deployer/effect-core";
 import { Cause, Effect, Exit } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { Actor, CurrentActor } from "@deployer/effect-core";
 
 import { DeploymentEventTriggerService } from "./deployment-event-trigger.service";
 import { SystemDeploymentsPort, TriggerRegistryPort } from "./deployment-trigger.ports";

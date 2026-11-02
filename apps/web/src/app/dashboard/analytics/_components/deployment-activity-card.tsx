@@ -1,11 +1,14 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@deployer/ui/components/shadcn/chart'
-import { CardBody, DataSourceBadge } from './card-states'
-import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { AuthDashboardProjects } from '@/routes'
+
+import { CardBody, DataSourceBadge } from './card-states'
 
 const config = {
 	deployments: { label: 'Deployments', color: 'var(--chart-1)' },

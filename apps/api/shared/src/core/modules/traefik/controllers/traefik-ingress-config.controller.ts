@@ -17,8 +17,9 @@ import {
 	requireIngressSecret,
 	TRAEFIK_CONFIG_PATH,
 } from "../../platform-ingress/services/ingress-provider-token";
-import type { LaneTraefikConfig } from "../../platform-ingress/services/lane-traefik-config";
 import { TraefikIngressConfigService } from "../services/traefik-ingress-config.service";
+
+import type { LaneTraefikConfig } from "../../platform-ingress/services/lane-traefik-config";
 
 @AllowAnonymous()
 @Controller()

@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
 
-import { HostCommands, WireguardCommandError, WireguardDriver, WireguardPaths } from "./wireguard.service";
 import { MESH_INTERFACE_MTU, parseWireguardDump, renderWireguardConfig } from "./wireguard";
+import { HostCommands, WireguardCommandError, WireguardDriver, WireguardPaths } from "./wireguard.service";
 
 type Call = readonly [string, readonly string[]];
 
@@ -80,9 +80,9 @@ describe("WireguardDriver.kernel", () => {
 		const parsed = await withPorts(WireguardDriver.kernel.dump(), present.run);
 
 		expect(parsed?.listenPort).toBe(51820);
-		expect(parsed?.peers["peerkey"]?.rxBytes).toBe(1024);
-		expect(parsed?.peers["peerkey"]?.latestHandshakeAt).toBe(1_700_000_000_000);
-		expect(parsed?.peers["silent"]?.endpoint).toBeNull();
+		expect(parsed?.peers.peerkey?.rxBytes).toBe(1024);
+		expect(parsed?.peers.peerkey?.latestHandshakeAt).toBe(1_700_000_000_000);
+		expect(parsed?.peers.silent?.endpoint).toBeNull();
 
 		const absent = scripted(() => ({ code: 1, stderr: "Unable to access interface" }));
 		expect(await withPorts(WireguardDriver.kernel.dump(), absent.run)).toBeNull();

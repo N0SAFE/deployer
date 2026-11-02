@@ -1,7 +1,8 @@
-import type { ReactElement } from 'react'
-import { render, type RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, type RenderResult } from '@testing-library/react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
+
+import type { ReactElement } from 'react'
 
 /**
  * Render a dashboard page the way the app does, minus the network: inside a

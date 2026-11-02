@@ -17,8 +17,11 @@
  */
 import { Injectable } from "@nestjs/common";
 import { Observable } from "rxjs";
-import { ReachabilityService } from "./reachability.service";
+
 import { PublicAccessPointEventService } from "../events/public-access-point-event.service";
+
+import { ReachabilityService } from "./reachability.service";
+
 import type { PublicAccessPointEvent } from "../events/public-access-point-event.contracts";
 
 @Injectable()

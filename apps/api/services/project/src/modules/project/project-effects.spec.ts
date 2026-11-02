@@ -1,18 +1,19 @@
-import { BadRequestError, ForbiddenError, ValidationError } from "@deployer/errors";
 import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Effect, Exit } from "effect";
-import { z } from "zod/v4";
 import { describe, expect, it } from "vitest";
+import { z } from "zod/v4";
 
-import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceMissing } from "./domain/project.errors";
-import { ProjectInfraFailure } from "./project.failures";
+import { BadRequestError, ForbiddenError, ValidationError } from "@deployer/errors";
 import {
 	DomainAlreadyExistsError,
 	ProjectDomainNotFoundError,
 	ServiceDomainMappingDeletionError,
 	SubdomainNotAllowedError,
 } from "@deployer/shared/core/modules/domain/errors/index";
+
+import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceMissing } from "./domain/project.errors";
 import { attempt, rule, toFailure } from "./project-effects";
+import { ProjectInfraFailure } from "./project.failures";
 
 const failure = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(Effect.flip(effect));
 

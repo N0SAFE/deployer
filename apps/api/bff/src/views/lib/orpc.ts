@@ -12,8 +12,11 @@
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { appContract, type AppContract } from "@/orpc/app-contract";
+
 import { createObservableQueryUtils, type ObservableQueryUtils, ObservableLinkPlugin } from "@deployer/orpc-utils";
+
+import { appContract, type AppContract } from "@/orpc/app-contract";
+
 import type { ContractRouterClient } from "@orpc/contract";
 
 export type ViewsORPCClient = ContractRouterClient<AppContract>;

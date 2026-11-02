@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { RoleConfigCollection } from '@deployer/auth/permissions/system/builder/roles/role-config-collection';
 import { RoleConfig } from '@deployer/auth/permissions/system/builder/roles/single-role-config';
 

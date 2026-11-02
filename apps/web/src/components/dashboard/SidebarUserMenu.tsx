@@ -1,10 +1,8 @@
 'use client'
 
 import { ChevronUp, LogOut, Shield, UserCircle } from 'lucide-react'
-import { AuthDashboardSettingsAccount } from '@/routes'
-import { useSession, signOut } from '@/lib/auth'
-import { revalidateAllAction } from '@/components/signout/revalidateAll.action'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@deployer/ui/components/shadcn/sidebar'
+
+import { Avatar, AvatarFallback, AvatarImage } from '@deployer/ui/components/shadcn/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +11,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@deployer/ui/components/shadcn/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@deployer/ui/components/shadcn/avatar'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@deployer/ui/components/shadcn/sidebar'
+
+import { revalidateAllAction } from '@/components/signout/revalidateAll.action'
+import { useSession, signOut } from '@/lib/auth'
+import { AuthDashboardSettingsAccount } from '@/routes'
+
 
 export function getInitials(name: string | undefined): string {
   if (!name) return ''

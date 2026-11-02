@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { parseAnsi } from './ansi'
 import { applyMatchRanges, findMatchRanges, highlightSegments } from './highlight'
 

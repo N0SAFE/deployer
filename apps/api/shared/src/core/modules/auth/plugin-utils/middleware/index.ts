@@ -163,8 +163,10 @@ import type {
   AdminPermissionsPlugin,
   InferRolesFromBuilder,
 } from '@deployer/auth/permissions/plugins';
-import type { AdminAuthConstraint } from './admin.middleware-definition';
+
 import { AdminMiddlewareDefinition } from './admin.middleware-definition';
+
+import type { AdminAuthConstraint } from './admin.middleware-definition';
 
 /**
  * Options for creating admin middleware definition.

@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
  * ago" and staleness keep ageing on a screen that is otherwise static.
  */
 export function useNow(intervalMs = 30_000): number {
-  // eslint-disable-next-line react-hooks/purity -- initial clock read, refreshed by the interval below
+   
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const id = window.setInterval(() => {

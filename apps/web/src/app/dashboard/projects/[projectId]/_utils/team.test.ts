@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { countOwners, isSoleOwner, memberState, memberSummary } from './team'
 
 describe('team helpers', () => {

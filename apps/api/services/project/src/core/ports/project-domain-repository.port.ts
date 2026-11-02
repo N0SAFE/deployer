@@ -1,5 +1,6 @@
-import type { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { Context } from "effect";
+
+import type { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 
 /** Effect view of the shared project-domain table. */
 export type ProjectDomainRepositoryShape = Pick<

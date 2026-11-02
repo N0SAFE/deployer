@@ -1,10 +1,11 @@
-import { Effect } from "effect";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import type { Database } from "bun:sqlite";
+import { Effect } from "effect";
+
 
 import { LocalDatabaseError } from "../errors";
+
 import {
 	appliedMigrationCount,
 	ensureMigrationStateTable,
@@ -13,6 +14,8 @@ import {
 	isMigrationApplied,
 	recordMigrationApplied,
 } from "./state-table";
+
+import type { Database } from "bun:sqlite";
 
 const migrationError = (reason: unknown) =>
 	new LocalDatabaseError({ operation: "migration", reason: reason instanceof Error ? reason.message : String(reason) });

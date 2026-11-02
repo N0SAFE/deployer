@@ -6,9 +6,9 @@ import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { describe, expect, it, vi } from "vitest";
 
-import { redirectTo } from "@deployer/node-agent-contracts";
 import { grantFollowingLink, relayLink } from "@deployer/mesh-client";
 import { effectContext } from "@deployer/nest-effect/testing";
+import { redirectTo } from "@deployer/node-agent-contracts";
 
 
 import { meshFixture, replicaRecord } from "../testing/mesh.fixtures";

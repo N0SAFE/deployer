@@ -1,19 +1,22 @@
 /// <reference types="@nestjs-ssr/react/global" />
 
-import React, { StrictMode } from 'react';
-import { hydrateRoot } from 'react-dom/client';
-import { QueryClientProvider } from '@tanstack/react-query';
-import type { RenderContext } from '@nestjs-ssr/react';
 import {
   PageContextProvider,
   NavigationProvider,
   buildComponentRegistry,
   resolveViewComponent,
 } from '@nestjs-ssr/react/client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import React, { StrictMode } from 'react';
+import { hydrateRoot } from 'react-dom/client';
+
+import type { RenderContext } from '@nestjs-ssr/react';
+
 
 // Shared Tailwind v4 theme (same as the web app): @deployer/ui globals.
 import './global.css';
 import { viewQueryClient } from './lib/query-client';
+
 import ThemeProvider from '@deployer/ui/components/theme-provider';
 
 const componentName = window.__COMPONENT_NAME__;

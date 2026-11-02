@@ -1,6 +1,8 @@
 import { Logger } from "@nestjs/common";
+import { Effect } from "effect";
+
 import type { DockerEngineShape } from "@deployer/docker";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import {
 	EDGE_CONNECTOR_SUPERVISOR_ID,
 	edgeConnectorProcessInfoSchema,
@@ -8,12 +10,11 @@ import {
 	makeEdgeConnectorSupervisor,
 	type EdgeConnectorSupervisor,
 } from "@deployer/platform-supervisors";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Effect } from "effect";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import { PublicEdgeService } from "../../reachability/services/public-edge.service";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { EDGE_CONNECTOR_SUPERVISOR_ID };
 

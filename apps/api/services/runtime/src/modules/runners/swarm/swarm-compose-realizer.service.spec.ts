@@ -1,7 +1,9 @@
-import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+
+import { DockerNotFound } from "@deployer/docker";
 import type { DockerEngineShape } from "@deployer/docker";
+
 import { SwarmComposeRealizerService } from "./swarm-compose-realizer.service";
 
 const FULL_COMPOSE = `

@@ -1,10 +1,13 @@
-import type { ComponentType, ReactNode } from 'react'
 import { Info } from 'lucide-react'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { buttonVariants } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { PageHeader } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
+
+import type { ComponentType, ReactNode } from 'react'
 
 interface RouteLike {
   (): string

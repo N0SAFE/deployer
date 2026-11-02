@@ -1,11 +1,12 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
+import { provideTo } from "@deployer/effect-core";
 
 import { DnsProviderRegistryService, type DnsProviderRegistryServiceShape } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import type { DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
 
-import { provideTo } from "@deployer/effect-core";
 import { EdgeDnsService } from "./edge-dns.service";
 import { isPubliclyResolvable, planLaneDnsRecords } from "./lane-dns-plan";
 

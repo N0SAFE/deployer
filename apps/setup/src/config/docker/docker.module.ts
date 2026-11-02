@@ -1,6 +1,7 @@
 import { Logger } from "@nestjs/common";
-import { createGlobalModule } from "@deployer/nest-effect";
+
 import { DockerEngine, DockerHost, makeDockerHost, type DockerHostShape } from "@deployer/docker";
+import { createGlobalModule } from "@deployer/nest-effect";
 
 import { EnvModule, EnvService } from "@/config/env/env.module";
 

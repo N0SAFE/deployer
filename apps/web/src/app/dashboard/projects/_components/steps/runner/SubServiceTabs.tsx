@@ -1,16 +1,19 @@
 'use client'
 
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
+import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
-import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@deployer/ui/components/shadcn/tabs'
+
 import { AutocompleteField } from '../autocomplete-field'
-import type { OrchestratorSubService } from '../runner-types'
-import { HEALTHCHECK_PRESETS, IMAGE_PRESETS } from './sub-service-defaults'
+
 import { KeyValueEditor, NumberField, TagsInput } from './primitives'
+import { HEALTHCHECK_PRESETS, IMAGE_PRESETS } from './sub-service-defaults'
+
+import type { OrchestratorSubService } from '../runner-types'
 
 /** Expanded sub-service editor — tabbed, one concern at a time. */
 export function SubServiceTabs({ svc, mainEnv, onPatch, onPatchNested }: {

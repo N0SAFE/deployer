@@ -1,5 +1,6 @@
-import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { Context, Effect, Layer } from "effect";
+
+import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 
 import { DockerEngine } from "../engine/docker-engine";
 import { DockerUnavailable, type DockerError } from "../errors/errors";

@@ -1,5 +1,6 @@
-import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
 import { Effect } from "effect";
+
+import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
 
 type HeadersLike =
 	| { get(name: string): string | null }

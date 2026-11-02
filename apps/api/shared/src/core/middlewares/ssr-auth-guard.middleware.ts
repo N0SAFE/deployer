@@ -1,7 +1,9 @@
 import { Injectable, Logger, type NestMiddleware } from "@nestjs/common";
-import type { NextFunction, Request, Response } from "express";
 
 import { AuthCoreService, normalizeHeaders } from "../modules/auth/services/auth-core.service";
+
+import type { NextFunction, Request, Response } from "express";
+
 
 /**
  * SsrAuthGuardMiddleware — server-side auth guard for the SSR pages served by

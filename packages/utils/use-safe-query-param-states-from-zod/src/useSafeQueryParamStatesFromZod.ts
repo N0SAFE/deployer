@@ -14,13 +14,15 @@
  */
 import { useQueryStates } from 'nuqs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { z } from 'zod'
+
 
 import { getZodObjectDefaults } from '@deployer/use-safe-query-param-states-from-zod/defaults'
 import { mergeWithDefaults } from '@deployer/use-safe-query-param-states-from-zod/merge'
 import { createParserForZodField } from '@deployer/use-safe-query-param-states-from-zod/parsers'
 import type { UnknownRecord, UseSafeQueryParamStatesOptions } from '@deployer/use-safe-query-param-states-from-zod/types'
 import { useDebouncedCallback } from '@deployer/use-safe-query-param-states-from-zod/useDebouncedCallback'
+
+import type { z } from 'zod'
 
 /**
  * Build a `nuqs` parser map from a Zod object schema. The result is

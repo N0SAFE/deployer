@@ -4,9 +4,11 @@
  * functions (and one RxJS operator chain), tested without an engine or a Nest container.
  */
 import { filter } from "rxjs/operators";
-import type { Observable } from "rxjs";
+
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { isRecord } from "@deployer/type-guards";
+
+import type { Observable } from "rxjs";
 
 export type DockerKnownSource = Exclude<DockerRuntimeEvent["source"], "unknown">;
 

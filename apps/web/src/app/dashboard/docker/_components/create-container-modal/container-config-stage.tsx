@@ -1,13 +1,15 @@
 'use client'
 
 import { DockerRuntimeStackOverview } from '../docker-runtime-stack-overview'
+
 import { completeKeyValues, completePorts, completeVolumes } from './container-form.model'
 import { SectionBasics } from './section-basics'
 import { SectionEnvLabelsNetworks, SectionPortsVolumes } from './section-mounts'
 import { SectionResources, SectionSecurity, SectionHealthcheck } from './section-resources-security'
 import { SectionAutoUpdate, SectionDevices, SectionDns, SectionGpu, SectionUlimits } from './section-runtime'
-import type { PullScanFlow } from './use-pull-scan-flow'
+
 import type { ContainerForm } from './use-container-form'
+import type { PullScanFlow } from './use-pull-scan-flow'
 
 /** The "Container" step: every runtime option, most common first, advanced ones collapsed. */
 export function ContainerConfigStage({ form, flow, networkOptions }: {

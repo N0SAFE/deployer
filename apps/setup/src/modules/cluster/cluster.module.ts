@@ -1,7 +1,10 @@
-import { Effect, Fiber } from "effect";
 import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
-import { createModuleContext } from "@deployer/nest-effect";
+import { Effect, Fiber } from "effect";
+
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { nodeDoorFromEnv } from "@deployer/mesh-client";
+import { createModuleContext } from "@deployer/nest-effect";
 import { ClusterNodeRepository, NodeConfigRepository, type ClusterNodeRepositoryShape, type NodeConfigRepositoryShape } from "@deployer/node-state";
 import {
   makeSwarmServices,
@@ -14,14 +17,13 @@ import {
   type SwarmServices,
   type SwarmServicesOptions,
 } from "@deployer/swarm";
-import { nodeDoorFromEnv } from "@deployer/mesh-client";
 
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { DockerModule } from "@/config/docker/docker.module";
 import { NodeStateModule } from "@/config/database/node-state.module";
+import { DockerModule } from "@/config/docker/docker.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
+
 import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
 import { NodeAgentLauncherService } from "./services/node-agent-launcher.service";
 import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";

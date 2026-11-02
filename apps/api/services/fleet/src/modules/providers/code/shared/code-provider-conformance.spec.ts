@@ -1,14 +1,17 @@
-import { provideTo } from "@deployer/effect-core";
 import { Cause, Effect, Exit } from "effect";
 import { describe, it, expect, vi } from 'vitest';
 
+import { provideTo } from "@deployer/effect-core";
+
 import { FleetInvalid } from "@/core/fleet.errors";
 import { Git, type GitShape } from "@/core/ports/git.port";
-import { UploadSourceProviderService, type UploadSourceProviderServiceShape } from '../upload/services/upload-source-provider.service';
-import { UploadBundleRegistryService, type UploadBundleRegistryServiceShape } from '../upload/services/upload-bundle-registry.service';
+
 import { CustomSourceProviderService, type CustomSourceProviderServiceShape } from '../custom/services/custom-source-provider.service';
 import { GithubSourceProviderService, type GithubSourceProviderServiceShape } from '../github/services/github-source-provider.service';
 import { GitlabSourceProviderService, type GitlabSourceProviderServiceShape } from '../gitlab/services/gitlab-source-provider.service';
+import { UploadBundleRegistryService, type UploadBundleRegistryServiceShape } from '../upload/services/upload-bundle-registry.service';
+import { UploadSourceProviderService, type UploadSourceProviderServiceShape } from '../upload/services/upload-source-provider.service';
+
 import { CodeProviderRegistryService } from './code-provider-registry.service';
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */

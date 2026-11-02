@@ -5,19 +5,20 @@ import "@orpc/effect/extensions/effect";
 // code resolves. The package name would load a second copy.
 import "@deployer/shared/core/orpc/context";
 
+import { apiServicePort } from "@deployer/env";
+import { joinServiceMeshOnNode } from "@deployer/mesh-service";
+import { assertRequirementsMet } from "@deployer/nest-effect";
+import { projectServiceContract } from "@deployer/project-contracts";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
-import { apiServicePort } from "@deployer/env";
-
-import { projectServiceContract } from "@deployer/project-contracts";
-import { assertRequirementsMet } from "@deployer/nest-effect";
-import { joinServiceMeshOnNode } from "@deployer/mesh-service";
-import type { Server } from "node:http";
 
 import { ProjectServiceModule } from "./app.module";
+
+import type { Server } from "node:http";
+
 
 /**
  * The project service's process entry point.

@@ -8,9 +8,11 @@
 
 
 import { useQuery, useMutation } from "@tanstack/react-query";
+
+import { wrapWithInvalidations } from "../shared/helpers";
+
 import { userEndpoints } from "./endpoints";
 import { userInvalidations } from "./invalidations";
-import { wrapWithInvalidations } from "../shared/helpers";
 
 // Wrap endpoints with automatic invalidation
 const enhancedUser = wrapWithInvalidations(userEndpoints, userInvalidations);

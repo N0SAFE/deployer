@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+
 import { AlertCircle, Spinner } from '../../../../src/components/atomics/atoms/Icon'
 
 describe('Icon Components', () => {

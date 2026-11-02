@@ -1,10 +1,11 @@
 import '@/test-support/mocks'
 import { describePageStates } from '@/test-support'
 import { NODE_A } from '@/test-support/fixtures/fleet'
-import DashboardNodesPage from './page'
+
+import DashboardNodeDetailPage from './[nodeId]/page'
 import NodesCapacityPage from './capacity/page'
 import NodesDiagnosticsPage from './diagnostics/page'
-import DashboardNodeDetailPage from './[nodeId]/page'
+import DashboardNodesPage from './page'
 
 describePageStates('Nodes list', {
 	page: () => <DashboardNodesPage />,

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+
 import { defaultIngressLanes, type PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { EdgeContext } from "./edge-provider";
 import { NO_PUBLIC_EDGE } from "./edge-provider.registry";
 import { TEST_TUNNEL_ID, testEdgeRegistry, TestTunnelEdgeProvider } from "./testing/edge-registry.fixture";
+
+import type { EdgeContext } from "./edge-provider";
 
 const direct = (options: PublicLane["options"] = {}, acknowledgedInboundPorts = true): PublicLane => ({
 	provider: "direct",

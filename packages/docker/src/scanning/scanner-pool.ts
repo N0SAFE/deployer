@@ -1,6 +1,7 @@
-import { Context, Effect, Fiber, Layer, Semaphore } from "effect";
 import * as fs from "node:fs";
 import * as path from "node:path";
+
+import { Context, Effect, Fiber, Layer, Semaphore } from "effect";
 
 import { DockerEngine, type DockerEngineShape } from "../engine/docker-engine";
 import { DockerInvalid } from "../errors/errors";

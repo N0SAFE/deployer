@@ -1,5 +1,7 @@
 import z from "zod/v4";
+
 import { addProjectDomainSchema, projectDomainWithVerificationSchema } from "../schemas";
+
 import { projectDomainOps } from "./shared";
 
 export const addProjectDomainOutput = z.object({

@@ -1,10 +1,12 @@
-import { Injectable, Logger, type OnApplicationBootstrap, Inject } from "@nestjs/common";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
+
+import { Injectable, Logger, type OnApplicationBootstrap, Inject } from "@nestjs/common";
+
 import { DEFAULT_DOCKER_SOCKET_PATH, DockerEngine, resolveDockerClient, type DockerEngineShape } from "@deployer/docker";
 import { DockerNotFound, platformNetworkName } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 import { EnvService } from "@/config/env/env.module";
 

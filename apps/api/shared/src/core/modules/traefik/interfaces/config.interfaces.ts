@@ -6,9 +6,9 @@
  * @module traefik/interfaces/config
  */
 
+import type { MiddlewaresConfig } from './middleware.interfaces';
 import type { RoutersConfig } from './router.interfaces';
 import type { ServicesConfig } from './service.interfaces';
-import type { MiddlewaresConfig } from './middleware.interfaces';
 import type { TLSConfig } from './tls.interfaces';
 
 // ============================================================================

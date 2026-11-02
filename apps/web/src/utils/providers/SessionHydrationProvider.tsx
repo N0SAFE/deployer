@@ -33,9 +33,11 @@
  */
 import 'server-only'
 
-import React from 'react'
 import { unstable_rethrow } from 'next/navigation'
+import React from 'react'
+
 import { SessionHydration } from '@deployer/auth/react/session/server'
+
 import { SESSION_QUERY_KEY } from '@/lib/auth'
 import type { Session } from '@/lib/auth'
 import { getSessionFromCookie, hasSessionCookie } from '@/lib/auth/cookie-session'

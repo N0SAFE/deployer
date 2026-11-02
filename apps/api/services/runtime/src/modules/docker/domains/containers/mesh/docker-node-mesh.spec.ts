@@ -77,7 +77,7 @@ describe("dockerNodeMesh", () => {
     });
 
     it("stops as soon as it has as many answers as it was told to want", async () => {
-      const { mesh } = agentWith({ replicas, nodes: { B: () => ({ detail: { id: "b" } }), C: () => new Promise((resolve) => { setTimeout(() => resolve({ detail: { id: "c" } }), 500); }) } });
+      const { mesh } = agentWith({ replicas, nodes: { B: () => ({ detail: { id: "b" } }), C: () => new Promise((resolve) => { setTimeout(() => { resolve({ detail: { id: "c" } }); }, 500); }) } });
 
       const started = Date.now();
       const result = await mesh.inspectImageAcrossInstances({ query: { imageId: "img" } }, { maxCollectedResponses: 1 });

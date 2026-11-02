@@ -1,10 +1,12 @@
+import { eq } from "drizzle-orm";
+import { Context, Effect, Layer } from "effect";
+
 import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
 import { clusterNodes, type ClusterNodesRow } from "@deployer/nest-schema/local";
-import { Context, Effect, Layer } from "effect";
-import { eq } from "drizzle-orm";
 
 import { isMissingTable, LocalDatabaseError } from "../database/errors";
 import { LocalDatabase, type LocalDatabaseShape } from "../database/local-database";
+
 import { toEngineNodeRow, type EngineNodeRow } from "./engine-node-row";
 
 export type ClusterNodeInventoryRepositoryShape = {

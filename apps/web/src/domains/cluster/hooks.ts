@@ -1,11 +1,14 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { clusterEndpoints } from "./endpoints";
-import { clusterInvalidations } from "./invalidations";
-import { wrapWithInvalidations } from "@/domains/shared/helpers";
+
 import type { SwarmConfigView } from "@deployer/contracts-entities";
 import type { SwarmParticipationInput } from "@deployer/contracts-entities";
+
+import { wrapWithInvalidations } from "@/domains/shared/helpers";
+
+import { clusterEndpoints } from "./endpoints";
+import { clusterInvalidations } from "./invalidations";
 
 const enhancedCluster = wrapWithInvalidations(clusterEndpoints, clusterInvalidations);
 

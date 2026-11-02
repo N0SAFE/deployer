@@ -1,16 +1,20 @@
-import type { Logger } from '@nestjs/common';
 import { HttpException } from '@nestjs/common'
+
 // oRPC v2 moved these from `@orpc/nest` to `@orpc/server`. `@orpc/nest` no
 // longer re-exports them, so the import must name the package that declares
 // them.
+import { ValidationError } from '@orpc/contract'
 import { onError, ORPCError } from '@orpc/server'
+import zod from 'zod/v4'
+
+import { AppError } from '@deployer/errors'
+
+import { MeshBaseDomainError } from '../../mesh/shared/domain/mesh-base-error'
+
+import type { InternalErrorInsightService } from '../../../middlewares/internal-error/internal-error-insight.service'
+import type { Logger } from '@nestjs/common';
 import type { ORPCErrorCode } from '@orpc/client'
 import type { Interceptor } from '@orpc/shared'
-import { ValidationError } from '@orpc/contract'
-import zod from 'zod/v4'
-import { AppError } from '@deployer/errors'
-import type { InternalErrorInsightService } from '../../../middlewares/internal-error/internal-error-insight.service'
-import { MeshBaseDomainError } from '../../mesh/shared/domain/mesh-base-error'
 
 /**
  * Maps NestJS HTTP status codes to ORPC error codes
@@ -184,6 +188,9 @@ function toOrpcErrorCode(code: string): ORPCErrorCode {
  * })
  * ```
  */
+// oRPC bounds `Interceptor`'s generics to its own context types, which `unknown` does not satisfy; the function is
+// generic over the caller's context by construction.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformNestJSErrorToOrpcError(): Interceptor<any, any> {
     return onError((error: unknown) => {
         transformHttpExceptionToORPCError(error)

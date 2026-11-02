@@ -1,5 +1,5 @@
-import type { DockerEntityListInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
-import type { DockerEntityInspectInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
+import { Context, Effect } from "effect"
+
 import {
   type DockerContainer,
   type DockerContainerEntity,
@@ -14,14 +14,18 @@ import {
   type DockerVolumeEntity,
 } from "@deployer/contracts-entities"
 import type { DockerContainerInspectDetail } from "@deployer/contracts-entities"
+import type { DockerEntityListInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
+import type { DockerEntityInspectInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
+
+import { CatalogLocalPort, CatalogMeshPort, DockerCatalog } from "../../../catalog/docker-catalog"
 import {
   ContainersLocalPort,
   ContainersMeshPort,
   DockerContainerResolution,
 } from "../../containers/orchestration/docker-container-resolution"
 import { DockerImages, DockerImageCatalogPort } from "../../images/orchestration/docker-images.service"
-import { CatalogLocalPort, CatalogMeshPort, DockerCatalog } from "../../../catalog/docker-catalog"
-import { Context, Effect } from "effect"
+
+import { DockerEntityCachePort } from "./docker-entity-cache.port"
 import {
   buildEventChunk,
   buildRemovedChunk,
@@ -29,7 +33,6 @@ import {
   isRemovalAction,
   wrapAsEntity,
 } from "./entity-stream-rules"
-import { DockerEntityCachePort } from "./docker-entity-cache.port"
 
 /** How long a cached entity list is served before it is fetched again. */
 const LIST_TTL_MS = 2_000

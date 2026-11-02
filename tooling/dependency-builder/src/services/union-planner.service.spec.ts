@@ -4,8 +4,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { WorkspaceScanner } from './workspace-scanner.service'
 import { UnionPlanner } from './union-planner.service'
+import { WorkspaceScanner } from './workspace-scanner.service'
 
 /**
  * The closure rule and its two non-obvious halves, encoded as a test.

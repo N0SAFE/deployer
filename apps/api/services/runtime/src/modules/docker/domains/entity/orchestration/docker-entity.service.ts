@@ -1,6 +1,6 @@
-import { serviceOver, type Over } from "@deployer/effect-core";
 import { Context } from "effect";
 
+import { serviceOver, type Over } from "@deployer/effect-core";
 import type {
   DockerEntityInspectInput,
   DockerEntityListInput,

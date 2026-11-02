@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { templateKindSchema, templateScopeSchema, templateVersionSchema } from "@deployer/contracts-entities";
+
 import {
     DEPLOYMENT_ENVIRONMENT_VALUES,
     DEPLOYMENT_PHASE_VALUES,
@@ -7,6 +7,7 @@ import {
     ROLLBACK_STATUS_VALUES,
     SOURCE_TYPE_VALUES,
 } from "@deployer/contracts-common";
+import { templateKindSchema, templateScopeSchema, templateVersionSchema } from "@deployer/contracts-entities";
 
 export const deploymentStatusSchema = z.enum(DEPLOYMENT_STATUS_VALUES);
 

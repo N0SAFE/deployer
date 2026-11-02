@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DeploymentQueueReconciliationService } from "./deployment-queue-reconciliation.service";
+
 import type { Deployment } from "@deployer/contracts-entities";
+
+import { DeploymentQueueReconciliationService } from "./deployment-queue-reconciliation.service";
 
 const buildingRow = (id: string, metadata?: Record<string, unknown>): Deployment =>
     (({

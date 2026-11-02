@@ -12,9 +12,9 @@
  * 3. Use the `useSession` hook from the configured client auth adapter.
  */
 
-import React, { Suspense } from 'react'
 import { useParams as useNextParams, useRouter } from 'next/navigation'
 import queryString from 'query-string'
+import React, { Suspense } from 'react'
 import { z } from 'zod'
 
 import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'

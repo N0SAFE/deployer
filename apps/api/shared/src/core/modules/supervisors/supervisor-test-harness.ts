@@ -1,6 +1,7 @@
+import { Effect } from "effect";
+
 import { runPromiseUnwrapped, runSyncUnwrapped } from "@deployer/effect-core";
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
-import { Effect } from "effect";
 
 import { SupervisorEventBus, type SupervisorRegistration } from "../supervision/index";
 

@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
 import { firstValueFrom, take } from "rxjs";
+import { describe, expect, it } from "vitest";
+
+import type { SetupStreamEvent } from "@deployer/contracts-entities";
+
+import type { EnvService } from "@/config/env/env.module";
 
 import { OrchestrationStreamService } from "./orchestration-stream.service";
-import type { EnvService } from "@/config/env/env.module";
-import type { SetupStreamEvent } from "@deployer/contracts-entities";
 
 /**
  * `OrchestrationStreamService` is the re-sync source for the setup stream.

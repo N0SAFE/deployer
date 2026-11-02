@@ -2,8 +2,9 @@ import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 
 import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 
-import type { PlatformHealth } from "../platform-health.schema";
 import { PlatformHealthService } from "../services/platform-health.service";
+
+import type { PlatformHealth } from "../platform-health.schema";
 
 /**
  * Front-facing health endpoint.

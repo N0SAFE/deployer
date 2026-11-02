@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
-import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities"
 
+import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities"
 import {
 	buildVerificationTasks,
 	isVerified,

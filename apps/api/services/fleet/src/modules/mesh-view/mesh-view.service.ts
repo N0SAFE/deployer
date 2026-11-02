@@ -1,5 +1,5 @@
 import { Observable } from "rxjs";
-import type { ClientContext, ClientLink } from "@orpc/client";
+
 import type {
   NodeAgentJoinTokenInput,
   NodeAgentJoinTokenResult,
@@ -9,6 +9,8 @@ import type {
   NodeAgentNodesResult,
   NodeAgentSnapshot,
 } from "@deployer/contracts-entities";
+
+import type { ClientContext, ClientLink } from "@orpc/client";
 
 const CALL = { context: {} } as const;
 
@@ -102,7 +104,7 @@ export class MeshViewService {
       const { service, replicaId, nodeId, load, keys } = replica;
       return { found: true, replica: { service, replicaId, nodeId, load, keys }, reason };
     } catch (error) {
-      if (typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === "NOT_FOUND") {
+      if (typeof error === "object" && error !== null && "code" in error && (error).code === "NOT_FOUND") {
         return { found: false, replica: null, reason: null };
       }
       throw error;

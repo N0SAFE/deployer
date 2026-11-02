@@ -3,6 +3,7 @@
  */
 
 import { defineInvalidations, type InvalidationConfig } from '../shared/helpers'
+
 import { serviceEndpointOperations } from './endpoints'
 
 function resolveServiceId(input: unknown): string | undefined {

@@ -1,7 +1,7 @@
 import "@orpc/effect/extensions/effect";
 
 import { call, os } from "@orpc/server";
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AccessDeclaration, Actor } from "@deployer/auth/authz";
@@ -34,14 +34,8 @@ const store: PermissionStore = {
 		platformRoleStore.capabilities(actor, { kind: "platform" }),
 };
 
-const readContract = os
-	.meta(access({ permission: "project:read" }));
-
 const execContract = os
 	.meta(access({ permission: "container:exec" }));
-
-const openContract = os
-	.meta(access({ public: true, reason: "liveness probe" }));
 
 afterEach(() => {
 	configureAuthz(null);
@@ -112,8 +106,9 @@ describe("authz gate", () => {
 	it("is the gate `procedure()` appends, on a real contract declaration", async () => {
 		configureAuthz({ store, mode: "enforce" });
 
-		await expect(
+		expect(
 			procedure(execContract).effect(function* () {
+				yield* Effect.void;
 				return { ok: true as const };
 			}),
 		).toBeDefined();
@@ -122,6 +117,7 @@ describe("authz gate", () => {
 		await expect(
 			call(
 				procedure(execContract).effect(function* () {
+					yield* Effect.void;
 					return { ok: true as const };
 				}),
 				undefined,
@@ -130,13 +126,14 @@ describe("authz gate", () => {
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 
-	it("is not installed at all when the host has not configured authz", async () => {
+	it("is not installed at all when the host has not configured authz", () => {
 		configureAuthz(null);
 
 		expect(authzConfigured()).toBeNull();
 		// `procedure()` builds normally; nothing wraps the handler, so an unconfigured host is byte-identical to before.
 		expect(
 			procedure(execContract).effect(function* () {
+				yield* Effect.void;
 				return { ok: true as const };
 			}),
 		).toBeDefined();

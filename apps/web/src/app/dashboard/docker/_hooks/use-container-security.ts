@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useDockerImageInspect, useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
+
 import {
   dockerImageInspectDetailSchema,
   type DockerContainer,
@@ -9,9 +9,14 @@ import {
   type DockerImageSecurityScanEvent,
   type DockerVulnerabilityEntry,
 } from '@deployer/contracts-entities'
-import { mergeScanEvents } from '../_utils/scan-events'
-import { useOnDepsChange } from './use-on-deps-change'
+
+import { useDockerImageInspect, useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
+
 import { layerStatusVariant, resolveLayerStatus, type LayerStatus } from '../_utils/container-detail'
+import { mergeScanEvents } from '../_utils/scan-events'
+
+import { useOnDepsChange } from './use-on-deps-change'
+
 
 const SECURITY_SCAN_EVENT_LIMIT = 800
 const MISSING_IMAGE_ID = '__missing-image-id__'

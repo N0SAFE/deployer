@@ -1,16 +1,25 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Copy, Pause, Play, Search, WrapText } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Toggle } from '@deployer/ui/components/shadcn/toggle'
+
 import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
+import { PageSkeleton } from '@/components/dashboard/Skeletons'
 import {
   useDockerContainerList,
   useDockerDeploymentList,
 } from '@/domains/docker/hooks'
 import { useMeshSseState } from '@/domains/mesh/hooks'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Input } from '@deployer/ui/components/shadcn/input'
+import { formatDateTime as formatDate } from '@/lib/format/date'
+
+import { InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
+
 import { ReplicaSidebar } from './_components/replica-sidebar'
 import {
   filterServiceActivity,
@@ -20,11 +29,9 @@ import {
   type DockerContainerLite,
   type ServiceLogLine,
 } from './_utils/service-activity'
-import { PageSkeleton } from '@/components/dashboard/Skeletons'
-import { InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
-import { Toggle } from '@deployer/ui/components/shadcn/toggle'
-import { Check, Copy, Pause, Play, Search, WrapText } from 'lucide-react'
-import { formatDateTime as formatDate } from '@/lib/format/date'
+
+
+
 
 const LIST_INPUT = {
   query: {

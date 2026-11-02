@@ -9,8 +9,10 @@
  * `@deployer/nest-schema/local` defines, so they ship with that package and this app imports the path.
  */
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
-import { createGlobalModule } from "@deployer/nest-effect";
 import { Cause, Effect, Exit, Scope } from "effect";
+
+import { createGlobalModule } from "@deployer/nest-effect";
+import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 import {
 	LocalDatabase,
 	migrateLocalDatabase,
@@ -18,7 +20,6 @@ import {
 	type LocalDatabaseOptions,
 	type LocalDatabaseShape,
 } from "@deployer/node-state";
-import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 
 import { EnvModule, EnvService } from "@/config/env/env.module";
 

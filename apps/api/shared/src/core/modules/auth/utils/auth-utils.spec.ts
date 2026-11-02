@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AuthUtils, AuthUtilsEmpty } from './auth-utils';
-import type { UserSession } from './auth-utils';
 import { ORPCError } from '@orpc/client';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+import { AuthUtils, AuthUtilsEmpty } from './auth-utils';
+
+import type { UserSession } from './auth-utils';
 
 describe('AuthUtils', () => {
   let mockAuth: any;

@@ -12,11 +12,12 @@
  */
 
 import { Injectable, Logger, type OnApplicationBootstrap, Inject } from "@nestjs/common";
+import { Effect } from "effect";
+
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { NODE_DOOR_SOCKET_ENV, NODE_ID_LABEL, nodeDoorFromEnv } from "@deployer/mesh-client";
 import { ensureNodeAgentContainer, isNodeAgentSwarmMode, makeNodeAgentEngine } from "@deployer/node-agent-container";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Effect } from "effect";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 import { EnvService } from "../../../config/env/env.module";

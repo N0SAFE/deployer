@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { deriveNodeHealth, formatAgo, summarizePulse, NODE_STALE_AFTER_MS } from '../mesh-pulse-model'
+
 import { buildBreadcrumbs, shortId } from '../breadcrumbs-model'
-import { pushRecent, toggleInList } from '../persisted-state'
 import { fuzzyMatch } from '../fuzzy'
+import { deriveNodeHealth, formatAgo, summarizePulse, NODE_STALE_AFTER_MS } from '../mesh-pulse-model'
+import { pushRecent, toggleInList } from '../persisted-state'
 
 const NOW = Date.parse('2026-10-09T12:00:00Z')
 const row = (over: Record<string, unknown> = {}) =>

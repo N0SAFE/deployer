@@ -1,32 +1,6 @@
 "use client";
 
-import React from "react";
-import Image from "next/image";
-import { Button } from "@deployer/ui/components/shadcn/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@deployer/ui/components/shadcn/card";
-import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@deployer/ui/components/shadcn/dialog";
-import { Badge } from "@deployer/ui/components/shadcn/badge";
-import { Separator } from "@deployer/ui/components/shadcn/separator";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@deployer/ui/components/shadcn/tabs";
+import { Session } from "better-auth";
 import {
   ArrowLeftRight,
   Trash2,
@@ -53,13 +27,38 @@ import {
   Timer,
   TrendingUp,
 } from "lucide-react";
-import { authClient, useSession } from "@/lib/auth";
+import Image from "next/image";
+import React from "react";
+
 import { logger } from "@deployer/logger";
 import { Spinner } from "@deployer/ui/components/atomics/atoms/Icon";
-import { Session } from "better-auth";
-import { PushNotificationSettings } from "@/components/push-notifications/PushNotificationSettings";
-import { usePushStats } from "@/domains/push/hooks";
-import { AccountsSection } from "./_components/accounts-section";
+import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@deployer/ui/components/shadcn/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@deployer/ui/components/shadcn/dialog";
+import { Separator } from "@deployer/ui/components/shadcn/separator";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@deployer/ui/components/shadcn/tabs";
+
+
 import {
   AgentConnectionsCard,
   ApiKeysCard,
@@ -67,6 +66,12 @@ import {
   PasskeysCard,
   SecurityPostureCard,
 } from "@/components/account/security-cards";
+import { PushNotificationSettings } from "@/components/push-notifications/PushNotificationSettings";
+import { usePushStats } from "@/domains/push/hooks";
+import { authClient, useSession } from "@/lib/auth";
+
+import { AccountsSection } from "./_components/accounts-section";
+
 
 const ProfilePage: React.FC = () => {
   const { data: session } = useSession();

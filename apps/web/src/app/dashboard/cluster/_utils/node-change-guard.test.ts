@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { confirmationFor, quorumInfo, type GuardNode } from './node-change-guard'
 
 const node = (id: string, over: Partial<GuardNode> = {}): GuardNode => ({

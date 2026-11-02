@@ -40,7 +40,6 @@ import {
     removeProjectDomainContract,
     verifyProjectDomainContract,
 } from "./project";
-
 import {
     checkSubdomainAvailabilityContract,
     listServiceDomainsContract,

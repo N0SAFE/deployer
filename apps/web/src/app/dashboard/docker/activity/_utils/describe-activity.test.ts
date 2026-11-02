@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { activityKind, describeActivity } from './describe-activity'
 import { mergeActivities } from './merge-activities'
 

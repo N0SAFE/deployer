@@ -3,11 +3,14 @@
 import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { StatusBadge } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
+
 import { DockerRelativeTime } from '../../_components/docker-relative-time'
-import { describeActivity } from '../_utils/describe-activity'
 import { resolveResourceName, resolveSwarmSummary, resolveSwarmTaskErrors } from '../_utils/activity-fields'
+import { describeActivity } from '../_utils/describe-activity'
+
 import { severityVariant } from './activity-severity'
 
 /**

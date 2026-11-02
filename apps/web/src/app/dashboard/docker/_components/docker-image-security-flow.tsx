@@ -1,8 +1,10 @@
 'use client'
 
-import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Download, Loader2, ScrollText, Shield } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { DockerFlowTabGroup, type DockerFlowTabItem } from './docker-flow-tab-group'
 
 export type DockerImageSecurityFlowStage = 'pulling' | 'logs' | 'results'

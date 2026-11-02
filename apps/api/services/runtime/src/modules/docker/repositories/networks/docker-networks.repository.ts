@@ -1,7 +1,8 @@
+import { Context, Effect } from "effect";
+
 import { dockerNetworkSchema, type DockerNetwork } from "@deployer/contracts-entities";
 import type { DockerError, DockerEngineShape } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
-import { Context, Effect } from "effect";
 
 const NETWORK_DRIVERS: readonly DockerNetwork["driver"][] = ["bridge", "overlay", "host", "macvlan", "ipvlan", "custom"];
 const NETWORK_SCOPES: readonly DockerNetwork["scope"][] = ["local", "swarm", "global"];

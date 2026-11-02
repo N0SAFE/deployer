@@ -1,9 +1,11 @@
-import { EgressRequestError } from "@deployer/shared/core/modules/egress/egress.service";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { provideTo } from "@deployer/effect-core";
+import { EgressRequestError } from "@deployer/shared/core/modules/egress/egress.service";
+
 import { EgressPort, PublicAccessPointPort, ReachabilityCorePort, TraefikRefresherPort } from "../reachability.ports";
+
 import { NodeReachabilityService } from "./node-reachability.service";
 
 describe("NodeReachabilityService outbound probes", () => {

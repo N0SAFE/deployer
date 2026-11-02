@@ -1,17 +1,18 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import { useForm, useStore } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Database, Sparkles, Lock, Server, HardDrive, Check } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+
+import { ConnectionStatus, type ConnectionState } from "@deployer/ui/components/setup/connection-status"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 import { Button } from "@deployer/ui/components/shadcn/button"
+import { Checkbox } from "@deployer/ui/components/shadcn/checkbox"
 import { Input } from "@deployer/ui/components/shadcn/input"
 import { Label } from "@deployer/ui/components/shadcn/label"
-import { Checkbox } from "@deployer/ui/components/shadcn/checkbox"
-import { ConnectionStatus, type ConnectionState } from "@deployer/ui/components/setup/connection-status"
 import { cn } from "@deployer/ui/lib/utils"
-import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 
-type Props = {
+interface Props {
   api: SetupWizardApi
   initial: { dbMode: "managed" | "existing"; dbUrl: string }
   /** The operator's dashboard choice, carried through this step. */
@@ -154,7 +155,7 @@ export function LocalDatabaseStep({ api, initial, initialManagedWeb, onBack, onC
         <Checkbox
           id="setup-use-existing"
           checked={useExisting}
-          onCheckedChange={(v) => setUseExisting(v === true)}
+          onCheckedChange={(v) => { setUseExisting(v === true); }}
           className="mt-0.5"
         />
         <div className="flex flex-col gap-0.5 flex-1 min-w-0">
@@ -195,7 +196,7 @@ export function LocalDatabaseStep({ api, initial, initialManagedWeb, onBack, onC
                   <Input
                     id="setup-db-url"
                     value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
+                    onChange={(e) => { field.handleChange(e.target.value); }}
                     placeholder="postgresql://user:pass@host:5432/db"
                     className="font-mono text-xs"
                   />
@@ -237,14 +238,14 @@ export function LocalDatabaseStep({ api, initial, initialManagedWeb, onBack, onC
             title="Include the dashboard"
             description="The platform spawns and supervises its own web app on this node."
             selected={managedWeb === "managed"}
-            onClick={() => setManagedWeb("managed")}
+            onClick={() => { setManagedWeb("managed"); }}
           />
           <DashboardOption
             icon={Server}
             title="API only"
             description="No dashboard on this node. Point your own frontend at the API."
             selected={managedWeb === "api-only"}
-            onClick={() => setManagedWeb("api-only")}
+            onClick={() => { setManagedWeb("api-only"); }}
           />
         </div>
       </div>
@@ -258,7 +259,7 @@ export function LocalDatabaseStep({ api, initial, initialManagedWeb, onBack, onC
           type="button"
           className="flex-1 gap-2"
           disabled={!canContinue || probeDb.isPending}
-          onClick={() => onContinue({ dbMode, dbUrl, managedWeb })}
+          onClick={() => { onContinue({ dbMode, dbUrl, managedWeb }); }}
         >
           Continue
           <ArrowRight className="h-4 w-4" />

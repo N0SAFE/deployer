@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database as BunSqliteDatabase } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { describe, it, expect } from "vitest";
+
 import * as localSchema from "@deployer/nest-schema/local";
 
 import { resetLocal } from "./local";

@@ -1,10 +1,13 @@
 import { Injectable } from "@nestjs/common";
+
+import { isRecord, isObjectLike } from "@deployer/type-guards"
+
+import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
+
 import type {
     DeploymentStoragePolicyResolver,
     ResolveDeploymentStoragePolicyInput,
 } from "../base/storage-policy-resolver.interface";
-import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
-import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 @Injectable()
 

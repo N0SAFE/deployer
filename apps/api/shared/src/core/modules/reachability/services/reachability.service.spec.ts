@@ -1,17 +1,20 @@
-import { Effect } from "effect";
-import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+
 import { defaultIngressLanes, type IngressLanes } from '@deployer/contracts-entities/entities/ingress/index';
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
-import { EgressRequestError, EgressService } from '../../egress/egress.service';
 import { EdgeProviderRegistry } from '../../edge/edge-provider.registry';
 import { TEST_TUNNEL_ID, testEdgeRegistry, type TestTunnelEdgeProvider } from '../../edge/testing/edge-registry.fixture';
+import { EgressRequestError, EgressService } from '../../egress/egress.service';
 import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service';
 import { NodeNetworkConfigRepository } from '../repositories/node-network-config.repository';
+
 import { PublicEdgeService } from './public-edge.service';
 import { ReachabilityService } from './reachability.service';
+
+import type { TestingModule } from '@nestjs/testing';
 
 const tunnelLane = { provider: TEST_TUNNEL_ID, domain: 'apps.example.com', acknowledgedInboundPorts: false, options: { account: 'acc-1' } };
 const directLane = (tls: boolean) => ({ provider: 'direct', domain: 'apps.example.com', acknowledgedInboundPorts: true, options: { tls } });

@@ -1,17 +1,19 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
-import type { MDXComponents } from 'mdx/types';
 import { createElement, isValidElement } from 'react';
-import type { ComponentProps, ReactNode } from 'react';
-import { DocMeta } from './components/docs/DocMeta';
+
 import { DocCallout } from './components/docs/DocCallout';
-import { DocChecklist } from './components/docs/DocChecklist';
-import { MermaidDiagram } from './components/docs/MermaidDiagram';
-import { DocChart } from './components/docs/DocChart';
 import { DocCard, DocCardGrid } from './components/docs/DocCardGrid';
+import { DocChart } from './components/docs/DocChart';
+import { DocChecklist } from './components/docs/DocChecklist';
+import { DocMeta } from './components/docs/DocMeta';
 import { DocStepFlow } from './components/docs/DocStepFlow';
+import { MermaidDiagram } from './components/docs/MermaidDiagram';
 import { MeshLifecycle } from './components/docs/mesh/MeshLifecycle';
 import { MeshRelayDecision } from './components/docs/mesh/MeshRelayDecision';
 import { MeshStories } from './components/docs/mesh/MeshStories';
+
+import type { MDXComponents } from 'mdx/types';
+import type { ComponentProps, ReactNode } from 'react';
 
 interface NodeProps {
   className?: string;

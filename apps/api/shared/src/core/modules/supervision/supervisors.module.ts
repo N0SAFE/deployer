@@ -1,7 +1,8 @@
 import { Global, Inject, Injectable, Module, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Effect } from "effect";
+
 import { declareModule } from "@deployer/nest-effect";
 import { makeSupervisorOrchestrator, SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
-import { Effect } from "effect";
 
 import { SupervisorEventBus } from "./supervisor-event.bus";
 

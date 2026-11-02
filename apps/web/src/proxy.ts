@@ -1,11 +1,12 @@
 // middleware.ts
 
 import { stackMiddlewares } from "./middlewares/utils/stackMiddlewares";
+import * as AuthMiddleware from "./middlewares/WithAuth";
+import * as EnvMiddleware from "./middlewares/WithEnv";
 import { withHeaders } from "./middlewares/WithHeaders";
 import * as HealthCheckMiddleware from "./middlewares/WithHealthCheck";
 import * as SetupMiddleware from "./middlewares/WithSetup";
-import * as AuthMiddleware from "./middlewares/WithAuth";
-import * as EnvMiddleware from "./middlewares/WithEnv";
+
 // import * as WithTiming from './middlewares/WithTiming'
 import type { Middleware } from "./middlewares/utils/types";
 

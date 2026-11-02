@@ -12,10 +12,11 @@ import {
 	type AnyColumn,
 	type SQL,
 } from "drizzle-orm";
+
 import { user } from "@deployer/nest-schema/global/identity/auth";
 
-import type { User } from "../domain/user.types";
 import type { OperatorFilter, UserFilter } from "./user.repository.types";
+import type { User } from "../domain/user.types";
 
 /** Sort field → column, so a sort key can never become raw SQL. */
 export const USER_SORT_COLUMNS = {

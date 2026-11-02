@@ -1,5 +1,6 @@
-import { pgTable, uuid, text, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { pgTable, uuid, text, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core";
+
 import { services } from "@deployer/nest-schema/global/project/deployment";
 // Health check results table
 export const healthChecks = pgTable(

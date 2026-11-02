@@ -12,17 +12,18 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { standardErrorOptions } from "@deployer/orpc-utils";
 
 import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { standardErrorOptions } from "@deployer/orpc-utils";
+import { rateLimit } from "@deployer/rate-limit";
 import { AllowAnonymous } from "@deployer/shared/core/modules/auth/decorators/decorators";
+import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { AuthCoreService } from "@deployer/shared/core/modules/auth/services/auth-core.service";
 import {
 	AppInstanceService,
 	STALE_AFTER_MS,
 } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
-import { rateLimit } from "@deployer/rate-limit";
+
 import { requireAppInstance } from "../orpc/middlewares";
 
 /** Registration rate limit: sliding window per source IP. */

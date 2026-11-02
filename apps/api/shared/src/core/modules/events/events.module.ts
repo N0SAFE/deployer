@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
+
 import { createGlobalModule } from '@deployer/nest-effect';
+
 import { DatabaseModule } from '../database/database.module';
+
 import { BaseEventService, CoreEventStreamPoolService } from './base/index';
+import { LocalEventOutboxDispatcherService } from './outbox/local-event-outbox-dispatcher.service';
+import { LocalEventOutboxRepository } from './outbox/local-event-outbox.repository';
 import { CoreEventLogRepository } from './repositories/core-event-log.repository';
 import { CoreEventStreamRepository } from './repositories/core-event-stream.repository';
 import { CoreEventSyncService } from './services/core-event-sync.service';
-import { LocalEventOutboxRepository } from './outbox/local-event-outbox.repository';
-import { LocalEventOutboxDispatcherService } from './outbox/local-event-outbox-dispatcher.service';
 
 /**
  * Binds `BaseEventService` to the log repository this module provides.

@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
 import { useForm } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Eye, EyeOff, User, Mail, Lock } from "lucide-react"
+import { useState } from "react"
+import { z } from "zod"
+
 import { Button } from "@deployer/ui/components/shadcn/button"
 import { Input } from "@deployer/ui/components/shadcn/input"
 import { Label } from "@deployer/ui/components/shadcn/label"
@@ -11,9 +13,8 @@ import { cn } from "@deployer/ui/lib/utils"
 // zod hoisting differs, and the subpath specifier resolved to a different
 // instance depending on the consumer — which made `z.object` undefined at
 // runtime in the web app's test run. The bare import is stable everywhere.
-import { z } from "zod"
 
-type Props = {
+interface Props {
   initial: { username: string; email: string; password: string }
   onBack: () => void
   onContinue: (data: { username: string; email: string; password: string }) => void
@@ -83,7 +84,7 @@ export function LocalAccountStep({ initial, onBack, onContinue }: Props) {
                 <Input
                   id="setup-username"
                   value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => { field.handleChange(e.target.value); }}
                   placeholder="admin"
                   required
                   autoComplete="username"
@@ -107,7 +108,7 @@ export function LocalAccountStep({ initial, onBack, onContinue }: Props) {
                   id="setup-email"
                   type="email"
                   value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => { field.handleChange(e.target.value); }}
                   placeholder="admin@example.com"
                   required
                   autoComplete="email"
@@ -131,7 +132,7 @@ export function LocalAccountStep({ initial, onBack, onContinue }: Props) {
                   id="setup-password"
                   type={showPassword ? "text" : "password"}
                   value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
+                  onChange={(e) => { field.handleChange(e.target.value); }}
                   placeholder="At least 8 characters"
                   required
                   autoComplete="new-password"
@@ -139,7 +140,7 @@ export function LocalAccountStep({ initial, onBack, onContinue }: Props) {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((v) => !v)}
+                  onClick={() => { setShowPassword((v) => !v); }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >

@@ -1,22 +1,25 @@
-import { createModuleContext } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
-import { DockerRepository } from "./facade/docker.repository";
-import { DockerContainerLinks } from "./containers/links/docker-container-links";
-import { DockerImageCatalogRepository } from "./images/catalog/docker-image-catalog.repository";
-import { DockerImageSecurityRepository } from "./images/security/docker-image-security.repository";
-import { DockerRuntimeActivities } from "./runtime/docker-runtime-activities";
-import { DockerNetworksRepository } from "./networks/docker-networks.repository";
-import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
-import { DockerImageLifecycleRepository } from "./images/lifecycle/docker-image-lifecycle.repository";
-import { DockerContainerLinksLookup } from "./containers/links/docker-container-links-lookup.repository";
-import { DockerContainersRepository } from "./containers/engine/docker-containers.repository";
-import { DockerRuntimeActivitiesStore } from "./runtime/docker-runtime-activities.store";
-import { DockerImageScansStore } from "./images/security/docker-image-scans.store";
-import { DockerImagesRepository } from "./images/engine/docker-images.repository";
-import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
+
 import { RuntimeDb } from "../../../core/database/runtime-db";
+import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
+
+import { DockerContainersRepository } from "./containers/engine/docker-containers.repository";
+import { DockerContainerLinks } from "./containers/links/docker-container-links";
+import { DockerContainerLinksLookup } from "./containers/links/docker-container-links-lookup.repository";
+import { DockerRepository } from "./facade/docker.repository";
+import { DockerImageCatalogRepository } from "./images/catalog/docker-image-catalog.repository";
+import { DockerImagesRepository } from "./images/engine/docker-images.repository";
+import { DockerImageLifecycleRepository } from "./images/lifecycle/docker-image-lifecycle.repository";
+import { DockerImageScansStore } from "./images/security/docker-image-scans.store";
+import { DockerImageSecurityRepository } from "./images/security/docker-image-security.repository";
+import { DockerNetworksRepository } from "./networks/docker-networks.repository";
+import { DockerRuntimeActivities } from "./runtime/docker-runtime-activities";
+import { DockerRuntimeActivitiesStore } from "./runtime/docker-runtime-activities.store";
+import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
+
 
 export class DockerRepositoriesModule extends createModuleContext({
   imports: [DatabaseModule, CoreDockerModule],

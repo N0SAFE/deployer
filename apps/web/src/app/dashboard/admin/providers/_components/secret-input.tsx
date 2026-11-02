@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { useState } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
 

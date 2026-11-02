@@ -1,3 +1,5 @@
+import { Context, Effect } from "effect";
+
 import {
     buildersCatalog,
     builderConfigValidators,
@@ -6,7 +8,6 @@ import {
     providerConfigValidators,
     providerSchemasCatalog,
 } from "@deployer/provider-schema";
-import { Context, Effect } from "effect";
 
 import { FleetNotFound } from "../../../core/fleet.errors";
 

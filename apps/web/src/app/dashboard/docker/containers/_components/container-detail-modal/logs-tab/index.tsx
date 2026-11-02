@@ -1,14 +1,20 @@
+import { Calendar } from 'lucide-react'
 import { type ChangeEvent, useMemo, useState } from 'react'
-import { LogsViewer } from '@/components/atomics/organisms/logs'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
-import { Calendar } from 'lucide-react'
+
+import { LogsViewer } from '@/components/atomics/organisms/logs'
+
+import { useOnDepsChange } from '../../../../_hooks/use-on-deps-change'
+
 import { formatInputDateTimeToIso, formatIsoToInputDateTime } from './_lib/log-date-time'
 import { sanitizeContainerLogMessage } from './_lib/log-message'
+
 import type { DockerContainerLogsTabProps } from './_models/logs-tab.types'
-import { useOnDepsChange } from '../../../../_hooks/use-on-deps-change'
+
 
 export function DockerContainerLogsTab({
   liveLogs,

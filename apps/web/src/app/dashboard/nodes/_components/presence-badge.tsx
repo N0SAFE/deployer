@@ -1,5 +1,7 @@
 import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { StatusBadge } from '@/components/dashboard'
+
 import type { NodePresence } from '../_utils/node-presence'
 
 const HINT: Record<NodePresence, string> = {

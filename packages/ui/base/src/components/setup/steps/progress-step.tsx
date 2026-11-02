@@ -1,14 +1,15 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
 import { Activity, CheckCircle2, Loader2, RefreshCw, WifiOff, XCircle } from "lucide-react"
+import { useCallback, useMemo, useState } from "react"
+
 import type { SetupStreamEvent } from "@deployer/contracts-entities"
-import { Button } from "@deployer/ui/components/shadcn/button"
-import { ProgressTasks, buildTasksFromEvents, isPipelineComplete } from "@deployer/ui/components/setup/progress-tasks"
 import { buildVerificationTasks } from "@deployer/ui/components/setup/platform-verification"
+import { ProgressTasks, buildTasksFromEvents, isPipelineComplete } from "@deployer/ui/components/setup/progress-tasks"
 import { markSetupComplete } from "@deployer/ui/components/setup/setup-storage"
-import { usePlatformVerification } from "@deployer/ui/components/setup/use-platform-verification"
 import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
+import { usePlatformVerification } from "@deployer/ui/components/setup/use-platform-verification"
+import { Button } from "@deployer/ui/components/shadcn/button"
 
 /**
  * Optional context about the configuration the user submitted. Any

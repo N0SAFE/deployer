@@ -4,16 +4,18 @@
  * Effect service holds as a singleton; the manager takes the engine the session is opened on.
  */
 import { randomUUID } from "node:crypto";
+
 import { NotFoundException } from "@nestjs/common";
 import { ReplaySubject } from "rxjs";
+
+import { dockerTerminalProfileSchema, type DockerTerminalProfile } from "@deployer/contracts-entities";
+import type { DockerEngineShape } from "@deployer/docker";
 import type {
   DockerContainerTerminalCloseBodyInput,
   DockerContainerTerminalInputBodyInput,
   DockerContainerTerminalOpenBodyInput,
   DockerContainerTerminalStreamQueryInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import { dockerTerminalProfileSchema, type DockerTerminalProfile } from "@deployer/contracts-entities";
-import type { DockerEngineShape } from "@deployer/docker";
 
 import { execInContainer } from "./container-exec";
 import {

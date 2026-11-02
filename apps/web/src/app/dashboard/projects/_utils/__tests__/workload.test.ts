@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import {
   deploymentDurationMs, findRollbackTarget, formatDuration, formatRelative, isInProgress, latestBy, summarizeDeployments,
 } from '../workload'

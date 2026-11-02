@@ -1,8 +1,10 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { WizardStateService } from "./wizard-state.service";
 import type { NodeConfigRow } from "@deployer/node-state";
+
+import { WizardStateService } from "./wizard-state.service";
+
 import type { NodeConfigReader } from "./node-config.port";
 
 /**

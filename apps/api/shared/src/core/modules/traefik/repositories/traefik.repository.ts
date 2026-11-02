@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { eq, and, desc, asc, isNotNull, inArray, or, isNull, gt, SQL } from "drizzle-orm";
-import { GlobalDatabaseService } from "../../database/services/global-database.service";
-import { traefikServiceConfigs, traefikDomainRoutes, traefikServiceTargets, traefikConfigFiles, traefikMiddlewares, traefikSSLCertificates, traefikMiddleware, traefikPlugins, traefikStaticFiles, traefikBackups, traefikStaticConfigs, traefikConfigs, type CreateTraefikSslCertificate, type CreateTraefikMiddleware, type CreateTraefikPlugin, type CreateTraefikStaticFile, type CreateTraefikBackup } from "@deployer/nest-schema/global/traefik/index";
+
 import { services, projects } from "@deployer/nest-schema/global/project/deployment";
+import { traefikServiceConfigs, traefikDomainRoutes, traefikServiceTargets, traefikConfigFiles, traefikMiddlewares, traefikSSLCertificates, traefikMiddleware, traefikPlugins, traefikStaticFiles, traefikBackups, traefikStaticConfigs, traefikConfigs, type CreateTraefikSslCertificate, type CreateTraefikMiddleware, type CreateTraefikPlugin, type CreateTraefikStaticFile, type CreateTraefikBackup } from "@deployer/nest-schema/global/traefik/index";
+
+import { GlobalDatabaseService } from "../../database/services/global-database.service";
 
 export type CreateServiceConfigInput = {
     serviceId: string;

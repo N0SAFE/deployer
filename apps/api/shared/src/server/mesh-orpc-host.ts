@@ -1,18 +1,21 @@
 import { Logger } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
+import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ORPCModule } from "@orpc/nest";
 import { ORPCError, type DefaultInitialContext } from "@orpc/server";
-import type { StandardHandlerInterceptor } from "@orpc/server/standard";
 import { RequestCompressionHandlerPlugin } from "@orpc/server/plugins";
-import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
+
 import { domainErrorInterceptor } from "@deployer/effect-orpc";
-import type { DynamicModule, ExecutionContext } from "@nestjs/common";
+
 
 import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import { logOrpcErrors, transformNestJSErrorToOrpcError } from "../core/modules/auth/orpc/index";
+
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { ORPCAuthContext } from "../core/modules/auth/orpc/types";
+import type { DynamicModule, ExecutionContext } from "@nestjs/common";
+import type { StandardHandlerInterceptor } from "@orpc/server/standard";
 
 /** The header a mesh peer (a service, or another agent) presents. */
 export const MESH_CREDENTIAL_HEADER = "x-mesh-credential";
@@ -53,7 +56,7 @@ function readCredential(headers: HeaderBag): string | undefined {
 /** Refuses every request that does not carry a valid mesh credential, before any handler runs. */
 export function meshCredentialInterceptor(verify: MeshCredentialVerifier): StandardHandlerInterceptor<DefaultInitialContext> {
 	return (options) => {
-		if (!verify(readCredential(options.request.headers as unknown as HeaderBag))) {
+		if (!verify(readCredential(options.request.headers))) {
 			throw new ORPCError("UNAUTHORIZED", { message: "A valid mesh credential is required" });
 		}
 		return options.next();
@@ -96,7 +99,7 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 					request,
 					auth: meshAuthContext,
 					...(extra ? await extra.resolve(executionContext, ...deps) : {}),
-				}) as unknown as DefaultInitialContext;
+				});
 
 			return {
 				interceptors: [

@@ -1,6 +1,7 @@
 import { parseAnsi, type AnsiSegment } from './ansi'
 import { findMatchRanges, applyMatchRanges, type HighlightedSegment, type MatchRange } from './highlight'
 import { formatLogTime } from './merge-lines'
+
 import type { LogLineProjection } from '../_models/logs.types'
 
 export interface PreparedLine {

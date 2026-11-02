@@ -1,8 +1,8 @@
 import { Effect, Fiber } from "effect";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { type ReplicaHeartbeatOptions, openWebSocketConnection, pooledLink, replicaHeartbeat } from "@deployer/mesh-client";
 import { type MeshCall, attachMeshWebSocket } from "@deployer/mesh-server";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import type { ClientContext, ClientLink } from "@orpc/client";
 import type { Context, Router } from "@orpc/server";

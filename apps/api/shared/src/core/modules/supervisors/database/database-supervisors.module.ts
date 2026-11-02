@@ -11,15 +11,16 @@
  * importing it alone never pull Docker/Env machinery.
  */
 
-import { createGlobalModule } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { createGlobalModule } from "@deployer/nest-effect";
 import type { LocalDb } from "@deployer/node-state";
 
-import { CoreDockerModule } from "../../docker/docker.module";
-import { LOCAL_DATABASE_CONNECTION } from "../../database/database-connection";
-import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
+import { LOCAL_DATABASE_CONNECTION } from "../../database/database-connection";
+import { CoreDockerModule } from "../../docker/docker.module";
 import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
+import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
+
 import { makeDatabaseServiceRegistration } from "./database-service.supervisor";
 import { makeGlobalDbRegistration } from "./global-db.supervisor";
 import { makeLocalDbRegistration } from "./local-db.supervisor";

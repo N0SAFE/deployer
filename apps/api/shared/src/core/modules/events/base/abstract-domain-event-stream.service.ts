@@ -1,11 +1,13 @@
-import type { Observable } from "rxjs";
 import { EMPTY, merge } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
-import type {
-  CoreEventStreamPoolService} from "./core-event-stream-pool.service";
+
 import {
   type ObservePooledStreamOptions,
 } from "./core-event-stream-pool.service";
+
+import type {
+  CoreEventStreamPoolService} from "./core-event-stream-pool.service";
+import type { Observable } from "rxjs";
 
 export const BASE_DOMAIN_STREAM_SERVICE_SYMBOL = Symbol.for("core.events.domain-stream-service");
 

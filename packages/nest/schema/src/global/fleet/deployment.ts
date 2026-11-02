@@ -1,9 +1,7 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { user } from "@deployer/nest-schema/global/identity/auth";
-import { environments } from "@deployer/nest-schema/global/project/environment";
-import { encryptedText } from "../../codecs/codec-registry";
-import { traefikConfigBuilder } from "../../codecs/codec-registry";
+import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
+
+import { PROJECT_ROLES } from "@deployer/auth";
 import {
     deploymentEnvironmentSchema,
     deploymentPhaseSchema,
@@ -16,11 +14,16 @@ import {
     sourceTypeSchema,
 } from "@deployer/contracts-common";
 import type { NetworkDnsRecordType } from "@deployer/contracts-entities";
-import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
-import { PROJECT_ROLES } from "@deployer/auth";
-import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
-import { environmentVariables } from "@deployer/nest-schema/global/project/environment";
+import { user } from "@deployer/nest-schema/global/identity/auth";
 import { webhooks } from "@deployer/nest-schema/global/project/deployment";
+import { environments } from "@deployer/nest-schema/global/project/environment";
+import { environmentVariables } from "@deployer/nest-schema/global/project/environment";
+import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
+import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
+
+import { encryptedText } from "../../codecs/codec-registry";
+import { traefikConfigBuilder } from "../../codecs/codec-registry";
+
 // Preview environments - temporary deployments with subdomains
 export const previewEnvironments = pgTable("preview_environments", {
     id: uuid("id").primaryKey().defaultRandom(),

@@ -26,7 +26,7 @@ const TEXT = 'var(--color-fd-foreground, currentColor)';
 const MUTED = 'var(--color-fd-muted-foreground, currentColor)';
 const BORDER = 'var(--color-fd-border, #8884)';
 
-type BoxProps = {
+interface BoxProps {
   x: number;
   y: number;
   width: number;
@@ -37,7 +37,7 @@ type BoxProps = {
   active?: boolean;
   faded?: boolean;
   children?: ReactNode;
-};
+}
 
 /** A rounded box tinted with a tone. */
 export function Box({ x, y, width, height, tone = 'gray', radius = 8, active = false, faded = false, children }: BoxProps) {
@@ -59,14 +59,14 @@ export function Box({ x, y, width, height, tone = 'gray', radius = 8, active = f
   );
 }
 
-type LabelProps = {
+interface LabelProps {
   x: number;
   y: number;
   anchor?: 'start' | 'middle' | 'end';
   /** `title` is the box's name; `small` is the secondary line. */
   size?: 'title' | 'small';
   children: ReactNode;
-};
+}
 
 export function Label({ x, y, anchor = 'start', size = 'small', children }: LabelProps) {
   return (
@@ -109,11 +109,11 @@ export function ArrowDefs({ id }: { id: string }) {
 
 export const ink = { text: TEXT, muted: MUTED, border: BORDER };
 
-type StepperProps = {
+interface StepperProps {
   count: number;
   index: number;
   onIndex: (next: number) => void;
-};
+}
 
 /** Previous / Next with the position. */
 export function Stepper({ count, index, onIndex }: StepperProps) {
@@ -146,11 +146,11 @@ export function buttonStyle(pressed: boolean, disabled = false): React.CSSProper
   };
 }
 
-type StepListProps = {
+interface StepListProps {
   titles: readonly string[];
   index: number;
   detail: string;
-};
+}
 
 /** The numbered list of steps (the current one bold, the past ones dimmed) and the explanation of the current one. */
 export function StepList({ titles, index, detail }: StepListProps) {

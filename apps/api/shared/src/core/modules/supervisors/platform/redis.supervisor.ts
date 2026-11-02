@@ -1,8 +1,8 @@
 import { Logger } from "@nestjs/common";
 import { Effect } from "effect";
-import { splitManagedEnv } from "@deployer/env";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+
 import type { DockerEngineShape } from "@deployer/docker";
+import { splitManagedEnv } from "@deployer/env";
 import {
 	makeRedisSupervisor,
 	PLATFORM_REDIS_SUPERVISOR_ID,
@@ -12,6 +12,7 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { PLATFORM_REDIS_SUPERVISOR_ID };
 

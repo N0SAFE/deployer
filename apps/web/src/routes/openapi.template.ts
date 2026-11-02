@@ -1,6 +1,7 @@
+import * as fs from 'fs'
+
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from '@asteasolutions/zod-to-openapi'
 import * as yaml from 'yaml'
-import * as fs from 'fs'
 
 // {{IMPORTS}}
 

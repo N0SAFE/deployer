@@ -1,6 +1,7 @@
 import { Logger } from "@nestjs/common";
+import { Effect } from "effect";
+
 import type { DockerEngineShape } from "@deployer/docker";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
 import {
 	makeSwarmAppWiring,
@@ -9,9 +10,9 @@ import {
 	SWARM_APP_WIRING_SUPERVISOR_ID,
 	type SwarmAppWiring,
 } from "@deployer/platform-supervisors";
-import { Effect } from "effect";
 
 import { EnvService } from "../../../../config/env/env.module";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { SWARM_APP_WIRING_SUPERVISOR_ID };
 

@@ -1,4 +1,7 @@
 import { Injectable } from "@nestjs/common";
+
+import { isRecord } from "@deployer/type-guards";
+
 import {
     domainEnvironmentVariablesSchema,
     type ConfigurationScope,
@@ -12,9 +15,9 @@ import {
     runtimeStoragePolicySchema,
     type ServiceRuntimeConfig,
 } from "../schemas/runtime-configuration.schema";
+
 import { ConfigurationDefinitionService } from "./configuration-definition.service";
 import { ConfigurationResolverService } from "./configuration-resolver.service";
-import { isRecord } from "@deployer/type-guards";
 
 const PROVIDER_TYPE_SET = new Set<ConfigurationProviderType>([
     "github",

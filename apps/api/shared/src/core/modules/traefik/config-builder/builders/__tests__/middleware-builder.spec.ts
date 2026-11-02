@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { MiddlewareBuilder } from '../middleware-builder';
 
 describe('MiddlewareBuilder', () => {

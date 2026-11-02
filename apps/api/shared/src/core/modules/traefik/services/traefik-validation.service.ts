@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { TraefikConfigBuilder } from '../config-builder/builders/traefik-config-builder';
+
 import { TraefikVariableResolverService, TRAEFIK_VARIABLES } from './traefik-variable-resolver.service';
 
 // Import types from centralized interfaces

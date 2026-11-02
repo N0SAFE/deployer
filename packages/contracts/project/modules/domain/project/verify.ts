@@ -1,6 +1,8 @@
 import z from "zod/v4";
-import { projectDomainOps } from "./shared";
+
 import { verifyDomainResponseSchema } from "../schemas";
+
+import { projectDomainOps } from "./shared";
 
 export const verifyProjectDomainInput = z.object({
     projectId: z.uuid(),

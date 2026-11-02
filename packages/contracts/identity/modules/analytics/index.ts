@@ -1,5 +1,6 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
+
 import {
     analyticsGetResourceMetricsContract,
     analyticsGetApplicationMetricsContract,
@@ -13,16 +14,6 @@ import {
     analyticsStreamRealTimeMetricsContract,
 } from "./metrics";
 import {
-    analyticsGetResourceUsageContract,
-    analyticsGetUserActivityContract,
-    analyticsGetActivitySummaryContract,
-    analyticsGetApiUsageContract,
-    analyticsGetDeploymentUsageContract,
-    analyticsGetStorageUsageContract,
-    analyticsStreamResourceUsageContract,
-    analyticsStreamDeploymentUsageContract,
-} from "./usage";
-import {
     analyticsGenerateReportContract,
     analyticsGetReportContract,
     analyticsListReportsContract,
@@ -34,6 +25,16 @@ import {
     analyticsUpdateReportConfigContract,
     analyticsDeleteReportConfigContract,
 } from "./reporting";
+import {
+    analyticsGetResourceUsageContract,
+    analyticsGetUserActivityContract,
+    analyticsGetActivitySummaryContract,
+    analyticsGetApiUsageContract,
+    analyticsGetDeploymentUsageContract,
+    analyticsGetStorageUsageContract,
+    analyticsStreamResourceUsageContract,
+    analyticsStreamDeploymentUsageContract,
+} from "./usage";
 
 export const analyticsContract = oc.meta(openapi({ tags: ["Analytics"], prefix: "/analytics" })).router({
     getResourceMetrics: analyticsGetResourceMetricsContract,

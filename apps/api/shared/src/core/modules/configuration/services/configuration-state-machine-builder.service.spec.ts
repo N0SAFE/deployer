@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { ConfigurationStateMachineBuilderService } from "./configuration-state-machine-builder.service";
 
 describe("ConfigurationStateMachineBuilderService", () => {

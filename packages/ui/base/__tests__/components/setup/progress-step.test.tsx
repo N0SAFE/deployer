@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
-import type { SetupPostSetupVerification, SetupStreamEvent } from "@deployer/contracts-entities"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { SetupPostSetupVerification, SetupStreamEvent } from "@deployer/contracts-entities"
 import { ProgressStep } from "@deployer/ui/components/setup/steps/progress-step"
 import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 

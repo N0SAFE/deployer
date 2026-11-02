@@ -1,10 +1,12 @@
 'use client'
 
 import { Siren } from 'lucide-react'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+
 import type { ReachabilityResult } from './domain-types'
 
 export function RemoveDomainDialog({

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { ContextFilterLogger } from "@deployer/logger";
 
 const FILTER_ENV = "TEST_CONTEXT_DEBUG_FILTER";
@@ -6,8 +7,8 @@ const FALLBACK_ENV = "TEST_CONTEXT_DEBUG_ENABLED";
 
 describe("ContextFilterLogger", () => {
   beforeEach(() => {
-    delete process.env[FILTER_ENV];
-    delete process.env[FALLBACK_ENV];
+    Reflect.deleteProperty(process.env, FILTER_ENV);
+    Reflect.deleteProperty(process.env, FALLBACK_ENV);
   });
 
   afterEach(() => {

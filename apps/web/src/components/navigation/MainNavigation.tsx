@@ -1,20 +1,24 @@
 'use client'
 
-import React, { Suspense } from 'react'
-import { usePathname } from 'next/navigation'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import {
-    Home,
-    AuthSignin,
-    AuthDashboard,
-} from '@/routes'
-import { useSession } from '@/lib/auth'
 import {
     Home as HomeIcon,
     Server,
     LayoutDashboard,
 } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import React, { Suspense } from 'react'
+
+import { Button } from '@deployer/ui/components/shadcn/button'
+
+import { useSession } from '@/lib/auth'
+import {
+    Home,
+    AuthSignin,
+    AuthDashboard,
+} from '@/routes'
+
 import SignOutButton from '../signout/signoutButton'
+
 import { validateEnvPath } from '#/env'
 
 /**

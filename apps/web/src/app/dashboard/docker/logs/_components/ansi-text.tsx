@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react'
 import type { HighlightedSegment } from '../_lib/highlight'
+import type { CSSProperties } from 'react'
 
 function styleFor(segment: HighlightedSegment): CSSProperties {
   const { style } = segment

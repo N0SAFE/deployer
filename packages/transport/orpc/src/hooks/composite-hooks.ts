@@ -9,9 +9,11 @@
  */
 
 import * as React from 'react';
-import type { QueryClient } from '@tanstack/react-query';
-import type { RouterHooks } from '@deployer/orpc-utils/hooks/generate-hooks';
+
 import { getOptionalHook, type MutationResult, type QueryResult } from '@deployer/orpc-utils/hooks/composite/shared';
+import type { RouterHooks } from '@deployer/orpc-utils/hooks/generate-hooks';
+
+import type { QueryClient } from '@tanstack/react-query';
 
 /**
  * Configuration for composite hooks

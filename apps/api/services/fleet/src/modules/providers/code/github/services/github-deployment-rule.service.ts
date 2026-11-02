@@ -1,5 +1,7 @@
-import { serviceOver, type Over } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
+
+import { serviceOver, type Over } from "@deployer/effect-core";
+
 import { attempt } from "@/core/effects";
 import { GithubDeploymentRules, type GithubDeploymentRulesShape } from "@/core/ports/github-deployment-rules.port";
 

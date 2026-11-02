@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
 import { AlertCircle, Check, Copy, LayoutDashboard, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import { AuthDashboard } from '@/routes'
+
 import { ErrorDetails } from './ErrorDetails'
 
 /**

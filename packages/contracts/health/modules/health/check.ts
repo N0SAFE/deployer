@@ -1,4 +1,5 @@
 import z from "zod/v4";
+
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 // Define the input for the check endpoint

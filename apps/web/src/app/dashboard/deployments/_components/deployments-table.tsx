@@ -1,13 +1,16 @@
 'use client'
 
+import { RotateCw, ExternalLink } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { RotateCw, ExternalLink } from 'lucide-react'
+
 import { StatusBadge, EnvironmentBadge } from '@/components/dashboard'
-import { AuthDashboardProjectsProjectIdServicesServiceId, AuthDashboardProjectsProjectIdServicesServiceIdDeployments } from '@/routes'
 import { formatDateTime } from '@/lib/format/date'
-import { RelativeTime } from '../../projects/_components/workload/RelativeTime'
+import { AuthDashboardProjectsProjectIdServicesServiceId, AuthDashboardProjectsProjectIdServicesServiceIdDeployments } from '@/routes'
+
 import { IdChip } from '../../projects/_components/workload/CopyButton'
+import { RelativeTime } from '../../projects/_components/workload/RelativeTime'
 import { deploymentDurationMs, deploymentStartedAt, formatDuration } from '../../projects/_utils/workload'
 
 export interface DeploymentTableRow {

@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+
 import type { MasterTokenManager as MTManager, MasterTokenSubscriber } from '@deployer/auth/client/plugins/masterToken/state'
 
 export interface MasterTokenContextValue {

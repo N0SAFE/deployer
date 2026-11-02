@@ -1,10 +1,12 @@
 import { ForbiddenException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
-import type { CanActivate, ContextType, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { fromNodeHeaders } from "better-auth/node";
-import type { IncomingHttpHeaders } from "http";
-import { getRequestFromContext } from "../utils/context";
+
 import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/auth-module-definition";
+import { getRequestFromContext } from "../utils/context";
+
+import type { CanActivate, ContextType, ExecutionContext } from "@nestjs/common";
+import type { IncomingHttpHeaders } from "http";
 
 
 export const AuthErrorType = {

@@ -1,11 +1,14 @@
-import type Docker from "dockerode";
-import { Effect } from "effect";
 import { PassThrough } from "node:stream";
+
+import { Effect } from "effect";
 
 import { engineMessage } from "../../errors/classify";
 import { DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
+
 import { extractInlineOutput, isReadableStream, isWritableStream } from "./streams";
+
+import type Docker from "dockerode";
 
 export type ExecResult = { readonly exitCode: number; readonly output: string };
 

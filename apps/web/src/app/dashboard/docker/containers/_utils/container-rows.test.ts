@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ContainerRow } from '../_models/container-list.model'
+
 import {
   actionTargets,
   fallbackImageRef,
@@ -8,6 +8,8 @@ import {
   hasActiveFilters,
   summarizeContainers,
 } from './container-rows'
+
+import type { ContainerRow } from '../_models/container-list.model'
 
 function row(overrides: Partial<ContainerRow>): ContainerRow {
   return {

@@ -1,5 +1,5 @@
-import { expect } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import { expect } from 'vitest'
 
 /**
  * Assertions for the page-state rules in UI-PRINCIPLES §1.

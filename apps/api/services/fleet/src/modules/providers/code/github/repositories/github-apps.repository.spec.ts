@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FleetDb } from "@/core/database/fleet-db";
+
 import { GithubAppsStore } from "./github-apps.repository";
 
 /**

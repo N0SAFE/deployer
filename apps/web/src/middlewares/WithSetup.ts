@@ -4,11 +4,13 @@ import {
     NextRequest,
     NextResponse,
 } from 'next/server'
-import { ConfigFactory, Matcher, MiddlewareFactory } from './utils/types'
-import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
+
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { orpc } from '@/lib/orpc'
 import { setupDestinationUrl } from '@/lib/setup-url'
-import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
+
+import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
+import { ConfigFactory, Matcher, MiddlewareFactory } from './utils/types'
 
 const debugSetup = createContextFilterDebugLogger(
     'WithSetup',

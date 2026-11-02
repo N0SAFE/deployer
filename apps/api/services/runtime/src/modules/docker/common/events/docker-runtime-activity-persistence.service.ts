@@ -1,10 +1,13 @@
 import { type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
-import { AppLogger } from "@deployer/logger";
-import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
-import { type EffectHostShape } from "@deployer/nest-effect";
 import { Effect } from "effect";
+import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
+
+import { AppLogger } from "@deployer/logger";
+import { type EffectHostShape } from "@deployer/nest-effect";
+
 import { DockerRuntimeActivities } from "../../repositories/runtime/docker-runtime-activities";
+
+import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
 
 /**
  * Adapter, not a domain service: the event source is still an Observable, so this class only turns

@@ -1,9 +1,12 @@
-import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DeploymentController } from "./deployment.controller";
-import { DeploymentService } from "../services/deployment.service";
+
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
+import { DeploymentService } from "../services/deployment.service";
+
+import { DeploymentController } from "./deployment.controller";
+
+import type { TestingModule } from "@nestjs/testing";
 
 /**
  * Resolve a built procedure's handler.

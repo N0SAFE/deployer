@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { normalizeUrl, buildAllowedOrigins, isLocalhostOrigin, resolveCorsDecision } from './cors.utils';
 
 describe('cors.utils', () => {

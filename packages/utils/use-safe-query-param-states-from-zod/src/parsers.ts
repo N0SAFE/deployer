@@ -18,7 +18,6 @@ import {
     parseAsStringLiteral,
     type SingleParser,
 } from 'nuqs'
-import type { z } from 'zod'
 
 import {
     getZodDefault,
@@ -26,6 +25,9 @@ import {
     isZodInteger,
     unwrapZodSchema,
 } from '@deployer/use-safe-query-param-states-from-zod/schema'
+
+import type { z } from 'zod'
+
 
 /**
  * Structural shape every `nuqs` parser builder satisfies. Keeping it

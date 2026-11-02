@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense } from 'react'
 import { usePathname } from 'next/navigation'
+import { Suspense } from 'react'
+
+import { cn } from '@/lib/utils'
 import {
   AuthDashboardDocker,
   AuthDashboardDockerActivity,
@@ -13,7 +15,6 @@ import {
   AuthDashboardDockerShell,
   AuthDashboardDockerVolumes,
 } from '@/routes'
-import { cn } from '@/lib/utils'
 
 const TABS: { label: string; href: string }[] = [
   { label: 'Overview', href: AuthDashboardDocker() },

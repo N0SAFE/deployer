@@ -1,7 +1,6 @@
 "use client";
 
-import * as React from "react";
-import { CalendarIcon } from "lucide-react";
+import { cva, VariantProps } from "class-variance-authority";
 import {
   startOfWeek,
   endOfWeek,
@@ -14,11 +13,12 @@ import {
   endOfDay
 } from "date-fns";
 import { toDate, formatInTimeZone } from "date-fns-tz";
+import { CalendarIcon } from "lucide-react";
+import * as React from "react";
 import { DateRange } from "react-day-picker";
-import { cva, VariantProps } from "class-variance-authority";
 
-import { cn } from "@deployer/ui/lib/utils";
 import { Button } from "@deployer/ui/components/shadcn/button";
+import { Calendar } from "@deployer/ui/components/shadcn/calendar";
 import {
   Popover,
   PopoverContent,
@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@deployer/ui/components/shadcn/select";
-import { Calendar } from "@deployer/ui/components/shadcn/calendar";
+import { cn } from "@deployer/ui/lib/utils";
 
 const months = [
   "January",

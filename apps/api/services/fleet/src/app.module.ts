@@ -4,7 +4,15 @@ import {
 	EffectRuntimeModule,
 	EffectHostModule,
 } from "@deployer/nest-effect";
+import { createBetterAuth } from "@deployer/shared/config/auth/auth";
+import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
+import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
+import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
+import { SwarmInventoryModule } from "@deployer/shared/core/modules/swarm/swarm-inventory.module";
 import {
 	DEPENDENCIES,
 	HealthModule,
@@ -13,19 +21,13 @@ import {
 	ServiceHealthModule,
 	createOrpcModule,
 } from "@deployer/shared/server";
-import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
-import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { DatabasePortModule } from "./core/database/database.module";
-import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
-import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
+import { DatabasePortModule } from "./core/database/database.module";
 import { ClusterModule } from "./modules/cluster/cluster.module";
-import { FleetModule } from "./modules/fleet/fleet.module";
 import { EnrollmentModule } from "./modules/enrollment/enrollment.module";
+import { FleetModule } from "./modules/fleet/fleet.module";
 import { MeshViewModule } from "./modules/mesh-view/mesh-view.module";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
+
 // ── THE NODE INVENTORY: WHAT MAKES `/nodes/servers` NON-EMPTY ──────────────
 // `SwarmInventoryModule` owns `NodeInventoryService`, the only writer of the
 // SHARED `cluster_nodes` table (`GlobalClusterNodesRepository.enrollLocalNode`)
@@ -49,10 +51,10 @@ import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.mod
 //
 // Fleet owns the inventory: it already hosts `MeshCoreModule`, and
 // `clusterNodes` is in its own repository (`FleetRepository`).
-import { SwarmInventoryModule } from "@deployer/shared/core/modules/swarm/swarm-inventory.module";
+
 import { PlatformModule } from "./modules/platform/platform.module";
-import { ProvidersModule } from "./modules/providers/providers.module";
 import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
+import { ProvidersModule } from "./modules/providers/providers.module";
 import { ReachabilityModule } from "./modules/reachability/reachability.module";
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the

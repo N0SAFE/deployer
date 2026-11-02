@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
 import type {
     StandardLinkInterceptor,
     StandardLinkInterceptorOptions,
 } from '@orpc/client/standard'
 
 /** The only context flag the plugin reads. */
-type PluginContext = { noRedirectOnUnauthorized?: boolean }
+interface PluginContext { noRedirectOnUnauthorized?: boolean }
 
 // --- Mocks (all `mock*`-prefixed so vi.mock factories can reference them) ---
 

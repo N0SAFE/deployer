@@ -1,11 +1,12 @@
 "use client"
 
 import { Network, Sparkles, ArrowRight, Check } from "lucide-react"
-import { Button } from "@deployer/ui/components/shadcn/button"
-import { cn } from "@deployer/ui/lib/utils"
 import { useState } from "react"
 
-type Props = {
+import { Button } from "@deployer/ui/components/shadcn/button"
+import { cn } from "@deployer/ui/lib/utils"
+
+interface Props {
   initialMode: "local" | "remote" | null
   onContinue: (mode: "local" | "remote") => void
 }
@@ -32,7 +33,7 @@ export function ModeStep({ initialMode, onContinue }: Props) {
           highlights={["Create admin account", "Provision PostgreSQL", "Bootstrap a fresh cluster"]}
           tag="LOCAL"
           selected={selected === "local"}
-          onClick={() => setSelected("local")}
+          onClick={() => { setSelected("local"); }}
         />
         <ModeCard
           icon={Network}
@@ -42,7 +43,7 @@ export function ModeStep({ initialMode, onContinue }: Props) {
           highlights={["Verify cluster URL", "Authenticate via a peer", "Sync shared identity"]}
           tag="REMOTE"
           selected={selected === "remote"}
-          onClick={() => setSelected("remote")}
+          onClick={() => { setSelected("remote"); }}
         />
       </div>
 

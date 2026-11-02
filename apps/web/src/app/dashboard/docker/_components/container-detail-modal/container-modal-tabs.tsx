@@ -1,18 +1,17 @@
 'use client'
 
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+import { useState } from 'react'
+
 import type { DockerContainer, DockerContainerInspectDetail } from '@deployer/contracts-entities'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
-import { DockerContainerLogsTab } from '../../containers/_components/container-detail-modal/logs-tab'
-import { DockerDetailLoadingState } from '../docker-loading-states'
-import { DockerEngineError } from '../docker-engine-error'
+
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { buildComposeRows, resolveOrchestrator } from '../../_utils/container-detail'
-import type { useContainerFiles } from '../../_hooks/use-container-files'
-import type { useContainerLogs } from '../../_hooks/use-container-logs'
-import type { useContainerMetrics } from '../../_hooks/use-container-metrics'
-import type { useContainerProcesses } from '../../_hooks/use-container-processes'
-import type { useContainerSecurity } from '../../_hooks/use-container-security'
-import type { useContainerTerminal } from '../../_hooks/use-container-terminal'
+import { DockerContainerLogsTab } from '../../containers/_components/container-detail-modal/logs-tab'
+import { DockerEngineError } from '../docker-engine-error'
+import { DockerDetailLoadingState } from '../docker-loading-states'
+
 import {
   DockerContainerComposeTab,
   DockerContainerConfigTab,
@@ -27,7 +26,15 @@ import {
   DockerContainerSecurityTab,
   DockerContainerTerminalTab,
 } from './tabs'
-import { useState } from 'react'
+
+import type { useContainerFiles } from '../../_hooks/use-container-files'
+import type { useContainerLogs } from '../../_hooks/use-container-logs'
+import type { useContainerMetrics } from '../../_hooks/use-container-metrics'
+import type { useContainerProcesses } from '../../_hooks/use-container-processes'
+import type { useContainerSecurity } from '../../_hooks/use-container-security'
+import type { useContainerTerminal } from '../../_hooks/use-container-terminal'
+
+
 
 export const CONTAINER_TABS = [
   ['overview', 'Overview'],

@@ -1,23 +1,16 @@
 'use client'
 
 import { ChevronRight, Rocket, Search } from 'lucide-react'
-import {
-  visibleNavGroups,
-  hasActiveNavChild,
-  isNavItemActive,
-  type NavGroup,
-  type NavItem,
-} from './navigation'
-import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
+import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
-import { AuthDashboard } from '@/routes'
-import { useIsPlatformAdmin } from '@/lib/access/platform-role'
-import { SidebarProjectTree } from './SidebarProjectTree'
-import { SidebarUserMenu } from './SidebarUserMenu'
-import { toggleInList, useStoredStringList } from './persisted-state'
-import { openCommandPalette } from './command-palette-store'
+
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@deployer/ui/components/shadcn/collapsible'
+import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 import {
   Sidebar,
   SidebarContent,
@@ -37,11 +30,22 @@ import {
   SidebarSeparator,
   useSidebar,
 } from '@deployer/ui/components/shadcn/sidebar'
+
+import { useIsPlatformAdmin } from '@/lib/access/platform-role'
+import { AuthDashboard } from '@/routes'
+
+import { openCommandPalette } from './command-palette-store'
 import {
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from '@deployer/ui/components/shadcn/collapsible'
+  visibleNavGroups,
+  hasActiveNavChild,
+  isNavItemActive,
+  type NavGroup,
+  type NavItem,
+} from './navigation'
+import { toggleInList, useStoredStringList } from './persisted-state'
+import { SidebarProjectTree } from './SidebarProjectTree'
+import { SidebarUserMenu } from './SidebarUserMenu'
+
 
 /**
  * One rail entry, rendered from the shared navigation model.

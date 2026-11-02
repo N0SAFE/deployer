@@ -4,7 +4,14 @@ import {
 	EffectHostModule,
 	EffectHost,
 } from "@deployer/nest-effect";
+import { createBetterAuth } from "@deployer/shared/config/auth/auth";
+import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
+import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
+import { NodeStateModule } from "@deployer/shared/core/modules/node-state/node-state.module";
 import {
 	DEPENDENCIES,
 	HealthModule,
@@ -12,17 +19,10 @@ import {
 	ServiceHealthModule,
 	createOrpcModule,
 } from "@deployer/shared/server";
-import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
-import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { NodeStateModule } from "@deployer/shared/core/modules/node-state/node-state.module";
-import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
-import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
+import { RuntimeDatabaseModule } from "./core/database/database.module";
 import { DeploymentDomainModule } from "./modules/deployment/deployment.module";
 import { DockerDomainModule } from "./modules/docker/docker.module";
-import { RuntimeDatabaseModule } from "./core/database/database.module";
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.

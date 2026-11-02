@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { color256, parseAnsi, stripAnsi } from './ansi'
 
 const ESC = String.fromCharCode(27)

@@ -4,13 +4,15 @@
  */
 import { dockerContainerRuntimeEventSchema, type DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { isRecord } from "@deployer/type-guards";
-import type * as systeminformation from "systeminformation";
 
 import {
   collectFieldFilterValues,
   matchesIdentifier,
   type RuntimeEventFilterNode,
 } from "../../../common/runtime/runtime-event-filter";
+
+import type * as systeminformation from "systeminformation";
+
 
 export type ContainerMetricsSelector = {
   containerIds?: string[];

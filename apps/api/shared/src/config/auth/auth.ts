@@ -3,8 +3,8 @@ import { betterAuthFactory } from "@deployer/auth/server";
 /** A string env value, or nothing: the schema's optional keys widen to a union through `EnvService`. */
 const optionalString = (value: unknown): string | undefined =>
     typeof value === "string" && value.length > 0 ? value : undefined;
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { EnvService } from "../env/env.module";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 export const createBetterAuth = <TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,

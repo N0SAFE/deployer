@@ -1,9 +1,11 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "./database-connection"
-import { GlobalDatabaseService } from './global/global-database.service';
 import { LocalDatabase } from "@deployer/node-state"
+
+import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "./database-connection"
+import { DatabaseModule } from './database.module';
+import { GlobalDatabaseService } from './global/global-database.service';
 
 // Mock heavy sub-modules that trigger env validation and real DB connections
 vi.mock('./global/global-database.module', () => ({
@@ -52,7 +54,6 @@ vi.mock('./services/database-failure-tracker.service', () => ({
   DatabaseFailureTracker: class {},
 }));
 
-import { DatabaseModule } from './database.module';
 
 describe('DatabaseModule', () => {
   let module: TestingModule;

@@ -1,10 +1,13 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
+
+import type { DockerContainer } from '@deployer/contracts-entities'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { RefreshCw } from 'lucide-react'
+
 import { DockerContainerDetailModalTrigger } from '../../_components/container-detail-modal'
-import type { DockerContainer } from '@deployer/contracts-entities'
+
 
 function errorReason(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'The log stream closed without a reason.'

@@ -1,4 +1,3 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 /**
  * BootstrapOrchestratorService — the API's post-start provisioning sequence.
  *
@@ -43,31 +42,35 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
  * READY is correct, and that is what happens.
  */
 
-import { Injectable, Logger, Inject } from "@nestjs/common";
-import type { OnApplicationBootstrap } from "@nestjs/common";
 import { existsSync } from "node:fs";
+
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { Pool } from "pg";
-import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 // The migration directory is owned by the schema package; resolving it there is
 // what keeps the restart path's "apply pending migrations" step from silently
 // finding nothing (see `resolveMigrationsFolder`).
-import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
-import { AppError } from "@deployer/errors";
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env";
+import { AppError } from "@deployer/errors";
+import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+
+import { adminBootstrapDecisionFromProcessEnv } from "../../admin-bootstrap/admin-bootstrap-policy";
+import { ensureDefaultAdmin } from "../../admin-bootstrap/default-admin.bootstrap";
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
 } from "../database/database-connection"
-
-import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
-import { BootstrapAdvisoryLockService } from "../database/services/bootstrap-advisory-lock.service";
 import { applyGlobalMigrations } from "../database/migrations/global-migrations";
-import type { GlobalDatabase } from "../database/global/global-database.service";
-import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { BootstrapAdvisoryLockService } from "../database/services/bootstrap-advisory-lock.service";
+import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../supervisors/platform/swarm-app-wiring.supervisor";
-import { ensureDefaultAdmin } from "../../admin-bootstrap/default-admin.bootstrap";
-import { adminBootstrapDecisionFromProcessEnv } from "../../admin-bootstrap/admin-bootstrap-policy";
+
+import type { GlobalDatabase } from "../database/global/global-database.service";
+import type { OnApplicationBootstrap } from "@nestjs/common";
 
 @Injectable()
 export class BootstrapOrchestratorService implements OnApplicationBootstrap {

@@ -55,10 +55,10 @@ export class NodeAgents extends Context.Service<NodeAgents, NodeAgentsShape>()("
     private readonly sources: Map<string, Set<string>>;
 
     constructor(
-      agents: Map<string, KnownAgent> = new Map(),
-      links: Map<string, ClientLink<ClientContext>> = new Map(),
-      marks: Map<string, number> = new Map(),
-      sources: Map<string, Set<string>> = new Map(),
+      agents = new Map<string, KnownAgent>(),
+      links = new Map<string, ClientLink<ClientContext>>(),
+      marks = new Map<string, number>(),
+      sources = new Map<string, Set<string>>(),
     ) {
       this.agents = agents;
       this.links = links;

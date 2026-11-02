@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { UploadSourceProviderService } from '../upload/services/upload-source-provider.service';
+
 import { CustomSourceProviderService } from '../custom/services/custom-source-provider.service';
 import { GithubSourceProviderService } from '../github/services/github-source-provider.service';
+import { UploadSourceProviderService } from '../upload/services/upload-source-provider.service';
 
 describe('Source provider conformance', () => {
   it('upload provider emits dockerfile runtime context with image when provided', async () => {

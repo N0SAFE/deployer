@@ -1,15 +1,16 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import type { Dirent } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { Injectable } from '@nestjs/common'
 
+import { WorkspaceScanError } from '../errors'
 import {
     workspaceManifestSchema,
     rootManifestSchema,
     type Workspace,
 } from '../schemas'
-import { WorkspaceScanError } from '../errors'
+
+import type { Dirent } from 'node:fs'
 
 /**
  * Workspace trees scanned when the root manifest declares no globs.

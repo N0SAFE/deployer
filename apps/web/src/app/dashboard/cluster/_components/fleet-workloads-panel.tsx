@@ -1,6 +1,8 @@
 'use client'
 
+import { Boxes, Globe, Layers, ListTree } from 'lucide-react'
 import { useMemo, useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
@@ -16,12 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@deployer/ui/components/shadcn/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Boxes, Globe, Layers, ListTree } from 'lucide-react'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { CopyId } from '../../_components/copy-id-button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { useClusterServices, useClusterTasks } from '@/domains/cluster/hooks'
+
+import { CopyId } from '../../_components/copy-id-button'
 
 interface ServiceRow {
   id: string

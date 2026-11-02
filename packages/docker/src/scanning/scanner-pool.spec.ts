@@ -2,6 +2,7 @@ import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { DockerInvalid } from "../errors/errors";
+
 import { makeScannerPool, type ScannerConfig } from "./scanner-pool";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

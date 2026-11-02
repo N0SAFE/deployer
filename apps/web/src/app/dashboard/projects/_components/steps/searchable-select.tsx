@@ -1,6 +1,8 @@
 'use client'
 
+import { Check, ChevronsUpDown, PencilLine } from 'lucide-react'
 import { useState } from 'react'
+
 import {
   Command,
   CommandEmpty,
@@ -10,7 +12,6 @@ import {
   CommandList,
 } from '@deployer/ui/components/shadcn/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
-import { Check, ChevronsUpDown, PencilLine } from 'lucide-react'
 import { cn } from '@deployer/ui/lib/utils'
 
 export interface SearchableOption {

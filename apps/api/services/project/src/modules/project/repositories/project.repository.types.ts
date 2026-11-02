@@ -1,7 +1,9 @@
-import type { environments, variableTemplates } from "@deployer/nest-schema/global/project/environment";
-import type { projectCollaborators, projects } from "@deployer/nest-schema/global/project/deployment";
-import type { z } from "zod/v4";
 import type { projectRoleSchema } from "@deployer/contracts-entities";
+import type { projectCollaborators, projects } from "@deployer/nest-schema/global/project/deployment";
+import type { environments, variableTemplates } from "@deployer/nest-schema/global/project/environment";
+
+import type { z } from "zod/v4";
+
 
 // ---------------------------------------------------------------------------
 // Row types (derived from Drizzle schema)

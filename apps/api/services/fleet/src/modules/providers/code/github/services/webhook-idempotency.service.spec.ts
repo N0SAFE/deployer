@@ -1,8 +1,10 @@
-import { provideTo } from "@deployer/effect-core";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { provideTo } from "@deployer/effect-core";
+
 import { GithubAppsStore, type GithubAppsStoreShape } from "../repositories/github-apps.repository";
+
 import { WebhookIdempotencyService } from "./webhook-idempotency.service";
 
 describe("WebhookIdempotencyService (durable)", () => {

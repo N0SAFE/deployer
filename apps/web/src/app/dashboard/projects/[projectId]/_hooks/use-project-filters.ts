@@ -1,8 +1,10 @@
 'use client'
 
-import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
-import { projectFilterSchema, deploymentFilterSchema, type ProjectFilterParams } from '../_models/project-filters-schema'
 import { useCallback } from 'react'
+
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
+
+import { projectFilterSchema, deploymentFilterSchema, type ProjectFilterParams } from '../_models/project-filters-schema'
 
 /**
  * Project filters hook

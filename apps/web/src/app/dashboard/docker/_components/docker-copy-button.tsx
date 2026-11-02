@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
+import { useState } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { cn } from '@/lib/utils'
 
 /** Icon-only copy button with an accessible name and a transient "copied" state. */

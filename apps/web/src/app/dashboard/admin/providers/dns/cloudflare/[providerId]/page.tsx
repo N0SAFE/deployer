@@ -1,21 +1,25 @@
 'use client'
 
-import { Suspense } from 'react'
-import { useParams } from 'next/navigation'
 import { Globe, Network } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { Suspense } from 'react'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { buttonVariants } from '@deployer/ui/components/shadcn/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
+
 import { PageHeader } from '@/components/dashboard'
-import { AuthDashboardAdminProvidersDnsCloudflare } from '@/routes'
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
 import { getErrorMessage } from '@/lib/orpc/typed-errors'
-import { deriveDnsAppStatus } from '../../../_lib/provider-status'
-import { IntegrationStatusBadge } from '../../../_components/status-line'
+import { AuthDashboardAdminProvidersDnsCloudflare } from '@/routes'
+
 import { ProviderLoadError, ProviderPageSkeleton } from '../../../_components/states'
-import CloudflareDetailLoading from './loading'
+import { IntegrationStatusBadge } from '../../../_components/status-line'
+import { deriveDnsAppStatus } from '../../../_lib/provider-status'
+
 import { RecordsTab } from './_components/records-tab'
 import { TunnelsTab } from './_components/tunnels-tab'
+import CloudflareDetailLoading from './loading'
 
 export default function CloudflareAccountPage() {
   return (

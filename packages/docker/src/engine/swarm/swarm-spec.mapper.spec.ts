@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type Docker from "dockerode";
+
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
+
 import { toDockerServiceSpec } from "./swarm-spec.mapper";
+
+import type Docker from "dockerode";
 
 /** Narrow the TaskTemplate discriminated union to the container variant. */
 function containerSpec(spec: Docker.ServiceSpec): Docker.ContainerSpec | undefined {

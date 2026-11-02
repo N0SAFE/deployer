@@ -1,5 +1,6 @@
-import { createModuleContext } from "@deployer/nest-effect";
 import { TerminusModule } from "@nestjs/terminus";
+
+import { createModuleContext } from "@deployer/nest-effect";
 
 import { SetupHealthController } from "./setup-health.controller";
 import { SetupPhaseService } from "./setup-phase.service";

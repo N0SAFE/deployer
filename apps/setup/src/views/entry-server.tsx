@@ -1,7 +1,8 @@
+import { PageContextProvider, NavigationProvider } from '@nestjs-ssr/react/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { renderToString, renderToPipeableStream } from 'react-dom/server';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { PageContextProvider, NavigationProvider } from '@nestjs-ssr/react/client';
+
 import ThemeProvider from '@deployer/ui/components/theme-provider';
 
 /** Fresh React Query client per SSR render (no cross-request cache). */

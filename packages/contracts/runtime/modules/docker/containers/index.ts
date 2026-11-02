@@ -1,20 +1,7 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 
-import { dockerListContainersContract } from "./list";
-import { dockerListContainersGroupedContract } from "./list-grouped";
-import { dockerContainerLinkedListContract } from "./linked-list";
-import { dockerContainerInspectContract } from "./inspect";
 import { dockerContainerActionsContract } from "./actions";
-import { dockerContainerStreamsContract } from "./streams";
-import {
-  dockerContainerProcessesNamespaceContract,
-  dockerContainerProcessesContract,
-} from "./processes";
-import {
-  dockerContainerLogsContract,
-  dockerContainerLogsListContract,
-} from "./logs";
 import {
   dockerContainerFilesystemContract,
   dockerContainerCreateDirectoryContract,
@@ -24,6 +11,26 @@ import {
   dockerContainerRenamePathContract,
   dockerContainerWriteFileContract,
 } from "./filesystem";
+import { dockerContainerInspectContract } from "./inspect";
+import { dockerContainerLinkedListContract } from "./linked-list";
+import { dockerListContainersContract } from "./list";
+import { dockerListContainersGroupedContract } from "./list-grouped";
+import {
+  dockerContainerLogsContract,
+  dockerContainerLogsListContract,
+} from "./logs";
+import {
+  dockerContainerProcessesNamespaceContract,
+  dockerContainerProcessesContract,
+} from "./processes";
+import { dockerContainerRuntimeActionContract } from "./runtime-action";
+import { dockerContainerStreamsContract } from "./streams";
+import {
+  dockerContainerInspectStreamContract,
+  dockerContainerLogsStreamContract,
+  dockerContainerProcessLogsStreamContract,
+  dockerContainerProcessesStreamContract,
+} from "./streams";
 import {
   dockerContainerTerminalContract,
   dockerContainerTerminalCloseContract,
@@ -31,13 +38,6 @@ import {
   dockerContainerTerminalOpenContract,
   dockerContainerTerminalStreamContract,
 } from "./terminal";
-import { dockerContainerRuntimeActionContract } from "./runtime-action";
-import {
-  dockerContainerInspectStreamContract,
-  dockerContainerLogsStreamContract,
-  dockerContainerProcessLogsStreamContract,
-  dockerContainerProcessesStreamContract,
-} from "./streams";
 
 export const dockerContainersContract = oc.meta(openapi({ tags: ["Docker Containers"], prefix: "/containers" })).router({
   list: dockerListContainersContract,

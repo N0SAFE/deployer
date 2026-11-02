@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import type { DockerEngineShape } from "@deployer/docker";
 
@@ -120,7 +121,7 @@ describe("SwarmActivityEnricherService", () => {
 		const enricher = new SwarmActivityEnricherService(dockerService);
 		// The exact reason from the ingress incident.
 		const portError = "no suitable node (host-mode port already in use on 1 node)";
-		dockerService.listAllSwarmTasks = vi.fn(async () => [task("pending", portError)]) as never;
+		dockerService.listAllSwarmTasks = vi.fn(async () => [task("pending", portError)]);
 
 		const result = await enricher.enrichEvent(serviceEvent());
 

@@ -1,4 +1,5 @@
 import { managedWebEndpoints } from './endpoints'
+
 import type { InvalidationConfig } from '../shared/helpers'
 
 type ManagedWebEndpoints = typeof managedWebEndpoints

@@ -1,18 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect, Stream } from "effect";
-import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceNotFound } from "../domain/project.errors";
 import { EMPTY } from "rxjs";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { DatabasePort } from "@project/core/database/database.port";
+import { ProjectDb } from "@project/core/database/project-db";
 import type { CoreEventSyncShape } from "@project/core/ports/core-event-sync.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import type { ProjectEventServiceShape } from "@project/modules/project/services/project-event.service";
-import { ProjectEventService } from "@project/modules/project/services/project-event.service";
 import type { RuntimeConfigurationAccessorShape } from "@project/core/ports/runtime-configuration-accessor.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
-import { ProjectDb } from "@project/core/database/project-db";
-import { DatabasePort } from "@project/core/database/database.port";
-import type { ProjectStoreShape } from "../repositories/project.repository";
+import type { ProjectEventServiceShape } from "@project/modules/project/services/project-event.service";
+import { ProjectEventService } from "@project/modules/project/services/project-event.service";
+
+import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceNotFound } from "../domain/project.errors";
 import { ProjectStore } from "../repositories/project.repository";
+
 import { ProjectServiceImpl } from "./project.service";
+
+import type { ProjectStoreShape } from "../repositories/project.repository";
+
+
 
 type Fn = ReturnType<typeof vi.fn>;
 type Fakes<T> = { [K in keyof T]: Fn };

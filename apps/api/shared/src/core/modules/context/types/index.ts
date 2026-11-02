@@ -1,5 +1,4 @@
 import type { EnvName } from '@deployer/contracts-common';
-
 import { AppError } from "@deployer/errors";
 /**
  * Service Context System
@@ -341,7 +340,11 @@ export class ProjectContextBuilder {
             if (prop === 'getProjectContext') {
               return () => projectContext;
             }
-            return serviceTarget[prop as keyof ServiceContext];
+            const value: unknown = serviceTarget[prop as keyof ServiceContext];
+            // Methods are bound to the target: returning them unbound loses `this` at the call site.
+            return typeof value === "function"
+                ? (value as (...args: unknown[]) => unknown).bind(serviceTarget)
+                : value;
           },
         });
       },

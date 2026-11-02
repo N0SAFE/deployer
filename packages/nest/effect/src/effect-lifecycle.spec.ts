@@ -1,4 +1,4 @@
-import { Context, Effect, Fiber } from "effect";
+import { Context, Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { ServiceLifecycleRunner, serviceLifecycle, type ServiceLifecycleShape } from "./effect-lifecycle";
@@ -19,11 +19,12 @@ function recordingHost() {
 		},
 		fork: (_label, _effect) => {
 			calls.push("fork");
-			return async () => {
+			return () => {
 				calls.push("interrupt");
+				return Promise.resolve();
 			};
 		},
-		context: async () => Context.empty() as Context.Context<unknown>,
+		context: () => Promise.resolve(Context.empty() as Context.Context<unknown>),
 		contextFor: () => Context.empty() as Context.Context<unknown>,
 		size: () => 0,
 	};
@@ -107,11 +108,23 @@ describe("serviceLifecycle", () => {
 	});
 });
 
-/** Type-level: a shape with no lifecycle member is refused. Kept as a compile check, never run. */
-const _noLifecycleIsRefused = (): void => {
-	const Plain = class extends Context.Service<never, { readonly ping: () => Effect.Effect<void> }>()("test/Plain") {};
-	// @ts-expect-error — `serviceLifecycle` requires onStart/run/onStop in the shape
-	serviceLifecycle(Plain);
-};
-void _noLifecycleIsRefused;
-void Fiber;
+/**
+ * Type-level: a shape with no lifecycle member is refused.
+ *
+ * A compile check, not a test — the `@ts-expect-error` fails the build the day the constraint stops holding.
+ */
+describe("serviceLifecycle's shape constraint", () => {
+	it("refuses a tag whose shape declares no lifecycle", () => {
+		const Plain = class extends Context.Service<
+			never,
+			{ readonly ping: () => Effect.Effect<void> }
+		>()("test/Plain") {};
+
+		// The gate is the compiler: `@ts-expect-error` fails this build the day the constraint stops holding. At
+		// runtime the provider is ordinary, which is what makes the check free.
+		// @ts-expect-error — `serviceLifecycle` requires onStart / run / onStop in the shape
+		const provider = serviceLifecycle(Plain);
+
+		expect(provider).toBeDefined();
+	});
+});

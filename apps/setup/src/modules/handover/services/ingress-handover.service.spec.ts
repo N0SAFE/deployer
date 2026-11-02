@@ -1,10 +1,12 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { IngressHandoverService } from "./ingress-handover.service";
 import { makeEnvService } from "@/test-support/env";
+
+import { IngressHandoverService } from "./ingress-handover.service";
 
 /**
  * The handover writes the two files that decide who owns each hostname. Both

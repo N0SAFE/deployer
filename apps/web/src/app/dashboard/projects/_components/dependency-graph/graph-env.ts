@@ -1,4 +1,5 @@
 import { type EnvName } from '@deployer/contracts-common'
+
 import type { DependencyRecord } from './graph-types'
 
 export const GROUP_NODE_WIDTH = 1040

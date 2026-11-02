@@ -1,6 +1,7 @@
-import { domainError } from "@deployer/effect-core";
 import { call as callProcedure, ORPCError, os } from "@orpc/server";
 import { describe, expect, it } from "vitest";
+
+import { domainError } from "@deployer/effect-core";
 
 import { domainErrorInterceptor } from "./domain-error-interceptor";
 

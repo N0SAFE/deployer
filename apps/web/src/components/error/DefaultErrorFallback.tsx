@@ -7,9 +7,11 @@
 
 'use client'
 
-import React from 'react'
 import { AlertCircle, RotateCcw } from 'lucide-react'
+import React from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { ErrorDetails } from './ErrorDetails'
 
 interface DefaultErrorFallbackProps {

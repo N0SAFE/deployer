@@ -1,13 +1,17 @@
+import { Effect } from "effect";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
-import { Effect } from "effect";
+
 import type {
 	ProjectStreamEvent,
 	ProjectStreamQueryInput,
 } from "@deployer/project-contracts/modules/project/stream";
+
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
+
 import { ProjectStore, type ProjectStoreShape } from "../repositories/project.repository";
+
 import {
 	ProjectEventService,
 	type ProjectEventServiceImpl,

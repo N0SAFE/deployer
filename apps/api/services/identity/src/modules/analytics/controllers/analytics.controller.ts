@@ -7,8 +7,8 @@ import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
-import { serve } from "@identity/core/orpc/serve";
 import { DatabasePort } from "@identity/core/database/database.port";
+import { serve } from "@identity/core/orpc/serve";
 
 import { AnalyticsFieldRequired } from "../domain/analytics.errors";
 import { AnalyticsRepository } from "../repositories/analytics.repository";

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ServiceDagService } from "./service-dag.service";
+
 import { FleetRollbackService } from "./fleet-rollback.service";
+import { ServiceDagService } from "./service-dag.service";
+
 import type { ServiceDeploymentRef } from "./fleet-rollback.service";
 
 const mkRef = (serviceId: string, deploymentId: string, lastGoodDeploymentId?: string): ServiceDeploymentRef => ({

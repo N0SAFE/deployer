@@ -1,5 +1,7 @@
 'use client'
 
+import { MoreHorizontal, Play, RotateCcw, Square, Trash2 } from 'lucide-react'
+
 import type { DockerContainer } from '@deployer/contracts-entities'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -9,10 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@deployer/ui/components/shadcn/dropdown-menu'
-import { MoreHorizontal, Play, RotateCcw, Square, Trash2 } from 'lucide-react'
+
 import { DockerContainerDetailModalTrigger } from '../../_components/container-detail-modal'
-import type { ContainerAction, ContainerRow } from '../_models/container-list.model'
 import { isLive } from '../_utils/container-rows'
+
+import type { ContainerAction, ContainerRow } from '../_models/container-list.model'
 
 const OPENER_CLASS = 'inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline'
 

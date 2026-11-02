@@ -8,9 +8,9 @@ import { os } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket } from "@deployer/mesh-server";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { joinServiceMeshOnNode, type JoinOnNodeOptions } from "./join-service-mesh-on-node";
 
@@ -146,7 +146,7 @@ describe("joinServiceMeshOnNode", () => {
       const stopAgent = await fakeAgent("node-a");
       const http = createServer();
       await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
-      const socket = join(dirs[dirs.length - 1] as string, "agent.sock");
+      const socket = join(dirs[dirs.length - 1]!, "agent.sock");
 
       const membership = joinServiceMeshOnNode({
         service: "project",

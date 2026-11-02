@@ -1,15 +1,18 @@
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { Context, Effect } from "effect";
+
 import type { DbError } from "@deployer/effect-infra";
 import {
   dockerImageSecurityScanHistory,
   dockerImageSecurityScans,
 } from "@deployer/nest-schema/global/runtime/docker-security-scan";
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { Context, Effect } from "effect";
 
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../../core/database/runtime-db";
+
+import { tolerateMissingScanTable } from "./tolerate-missing-scan-table";
+
 import type { RawImageSecurityScan } from "./docker-image-scanner.types";
 import type { PersistedScanRow } from "./scan-storage";
-import { tolerateMissingScanTable } from "./tolerate-missing-scan-table";
 
 type DbRequirements = RuntimeDb | RuntimeDatabasePort;
 

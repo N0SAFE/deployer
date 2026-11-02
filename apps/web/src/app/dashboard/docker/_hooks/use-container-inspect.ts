@@ -1,9 +1,13 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useDockerContainerInspect, useDockerRuntimeEventSubscriber } from '@/domains/docker/hooks'
+
 import { dockerContainerInspectDetailSchema, type DockerContainer } from '@deployer/contracts-entities'
+
+import { useDockerContainerInspect, useDockerRuntimeEventSubscriber } from '@/domains/docker/hooks'
+
 import { buildFallbackContainer, matchesRuntimeTarget } from '../_utils/container-detail'
+
 import { useOnDepsChange } from './use-on-deps-change'
 
 const INSPECT_REFRESH_COOLDOWN_MS = 400

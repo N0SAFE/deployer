@@ -1,9 +1,10 @@
-import type { Type } from "@nestjs/common";
-import type { DiscoveryService } from "@nestjs/core";
 import { Context } from "effect";
 
 import { isMeshController, MeshController, type MeshProcedureMeta } from "./mesh-controller";
+
 import type { MeshRouter, MeshTransportOptions } from "./mesh-transport.options";
+import type { Type } from "@nestjs/common";
+import type { DiscoveryService } from "@nestjs/core";
 
 export type MeshRouters = {
 	/** Served on the peer door: every contract group except `node`. */

@@ -1,12 +1,15 @@
 'use client'
 
+import { Play, RotateCcw, ScrollText, Trash2, XCircle } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Play, RotateCcw, ScrollText, Trash2, XCircle } from 'lucide-react'
+
 import { EnvironmentBadge, StatusBadge } from '@/components/dashboard'
 import { AuthDashboardProjectsProjectIdServicesServiceId, AuthDashboardProjectsProjectIdServicesServiceIdLogs } from '@/routes'
-import { RelativeTime } from '../../../_components/workload/RelativeTime'
+
 import { IdChip } from '../../../_components/workload/CopyButton'
+import { RelativeTime } from '../../../_components/workload/RelativeTime'
 import { deploymentDurationMs, deploymentStartedAt, formatDuration, isInProgress } from '../../../_utils/workload'
 
 export interface ProjectDeploymentRow {

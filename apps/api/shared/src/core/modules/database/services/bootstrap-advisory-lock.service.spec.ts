@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Pool, PoolClient } from "pg";
 
 import { BootstrapAdvisoryLockService } from "./bootstrap-advisory-lock.service";
+
+import type { Pool, PoolClient } from "pg";
+
 
 /** A pool whose single connection answers `locked` for the try-lock. */
 function fakePool(locked: boolean) {

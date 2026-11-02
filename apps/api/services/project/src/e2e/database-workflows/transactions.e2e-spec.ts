@@ -1,17 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
-import { projects } from '@deployer/nest-schema/global/project/deployment'
-import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
+
 import { and, eq } from 'drizzle-orm'
-import { Effect, Exit, Fiber } from 'effect'
 import { sql } from 'drizzle-orm'
+import { Effect, Exit, Fiber } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { getSharedApiRuntimeContext } from '@/e2e/runtime'
+import { projects } from '@deployer/nest-schema/global/project/deployment'
+import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
+import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
+
+import { getSharedApiRuntimeContext } from '@/e2e/runtime'
+import { ProjectStore } from '@/modules/project/repositories/project.repository'
+
 import { DatabasePort } from '@project/core/database/database.port'
 import { ProjectDb } from '@project/core/database/project-db'
-import { ProjectStore } from '@/modules/project/repositories/project.repository'
+
 
 /**
  * Transactions against a REAL Postgres: commit, rollback, and cancellation of a running statement.

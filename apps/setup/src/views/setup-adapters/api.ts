@@ -9,6 +9,9 @@
  */
 
 import type { SetupWizardApi } from "@deployer/ui/components/setup/types";
+
+import { signInWithEmail } from "@/views/lib/auth";
+import { getErrorMessage } from "@/views/lib/errors";
 import {
 	useInitializeStream,
 	usePostSetupDestination,
@@ -21,8 +24,6 @@ import {
 	joinMesh,
 	issueMeshToken,
 } from "@/views/setup-adapters/hooks";
-import { signInWithEmail } from "@/views/lib/auth";
-import { getErrorMessage } from "@/views/lib/errors";
 import { resolvePostSetupRedirect } from "@/views/setup-adapters/redirect-target";
 
 export const setupApi: SetupWizardApi = {

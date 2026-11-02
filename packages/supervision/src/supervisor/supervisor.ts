@@ -1,10 +1,11 @@
 import { Effect } from "effect";
-import type z from "zod/v4";
 
-import type { SupervisorEvent } from "../events/supervisor-event";
-import type { SupervisorEventBusShape } from "../events/event-bus";
+
 import type { HealthSnapshot, SupervisorSpec } from "./spec";
 import type { SupervisorState } from "./state";
+import type { SupervisorEventBusShape } from "../events/event-bus";
+import type { SupervisorEvent } from "../events/supervisor-event";
+import type z from "zod/v4";
 
 /**
  * A running supervisor: the spec plus the state it has reached. This is what the registry holds and

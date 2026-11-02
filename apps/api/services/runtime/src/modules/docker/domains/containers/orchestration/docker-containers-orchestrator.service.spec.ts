@@ -1,11 +1,13 @@
-import { DockerEngine } from "@deployer/docker";
-import type { DockerContainer } from "@deployer/contracts-entities";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
+import type { DockerContainer } from "@deployer/contracts-entities";
+import { DockerEngine } from "@deployer/docker";
 
 import { RuntimeDb, RuntimeDatabasePort } from "../../../../../core/database/runtime-db";
 import { DockerContainerLinks } from "../../../repositories/containers/links/docker-container-links";
 import { DockerContainerLinksLookup } from "../../../repositories/containers/links/docker-container-links-lookup.repository";
+
 import { ContainersLocalPort, ContainersMeshPort, DockerContainerResolution } from "./docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./docker-containers-orchestrator.service";
 
@@ -91,7 +93,7 @@ describe("DockerContainersOrchestratorService.listContainersLinked", () => {
 		const attach = vi.fn((rows: readonly DockerContainer[]) => Effect.succeed(rows));
 
 		const effect = DockerContainersOrchestratorService.live
-			.listContainersLinked({ limit: 10, offset: 0, maxDepth: 1 } as never, "admin")
+			.listContainersLinked({ limit: 10, offset: 0, maxDepth: 1 }, "admin")
 			.pipe(
 				Effect.provideService(
 					DockerContainerResolution,

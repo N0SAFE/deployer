@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+
 import type { NodeDoorClient } from "@deployer/mesh-client";
 
-import { MeshOnboardingService } from "./mesh-onboarding.service";
 import { makeEnvService } from "@/test-support/env";
+
+import { MeshOnboardingService } from "./mesh-onboarding.service";
 
 /**
  * The mesh card's answers. The node door NEVER throws — it resolves `null` when

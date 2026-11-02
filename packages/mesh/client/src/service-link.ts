@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 import { MESH_ADMIN_SOCKET_NAME, MESH_LOCAL_SOCKET_NAME, MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { contractId } from "./contract-id";
@@ -6,7 +8,6 @@ import { type PooledLink, pooledLink } from "./pooled-link";
 import { relayLink } from "./relay-link";
 import { openWebSocketConnection } from "./websocket-link";
 
-import { existsSync } from "node:fs";
 
 import type { ClientContext, ClientLink } from "@orpc/client";
 

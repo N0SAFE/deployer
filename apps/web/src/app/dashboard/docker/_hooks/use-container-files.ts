@@ -1,6 +1,9 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+
+import type { DockerContainerInspectDetail, DockerFileEntry } from '@deployer/contracts-entities'
+
 import {
   useDockerContainerFiles,
   useDockerContainerReadFile,
@@ -10,9 +13,10 @@ import {
   useDockerWriteContainerFile,
 } from '@/domains/docker/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import type { DockerContainerInspectDetail, DockerFileEntry } from '@deployer/contracts-entities'
+
 import { getEntryName, getParentPath, toSafePathName } from '../_components/docker-filesystem-utils'
 import { joinContainerPath } from '../_utils/container-detail'
+
 import { useOnDepsChange } from './use-on-deps-change'
 
 type FileType = DockerFileEntry['type']

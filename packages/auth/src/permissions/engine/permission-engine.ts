@@ -21,6 +21,11 @@
  * Phase B: buildWhereClause() — compiles rules to a Drizzle SQL predicate.
  */
 
+import { and, or, inArray, sql as rawSql, type SQL } from "drizzle-orm";
+
+import { compileDFilter, type ColumnResolver } from "@deployer/auth/permissions/engine/filter-compiler";
+import { matchFilter } from "@deployer/auth/permissions/engine/filter-matcher";
+import { getAncestorChain } from "@deployer/auth/permissions/engine/resource-graph";
 import type {
     DFilter,
     DynamicVars,
@@ -31,10 +36,7 @@ import type {
     ResourceRule,
     ResourceScope,
 } from "@deployer/auth/permissions/engine/types";
-import { matchFilter } from "@deployer/auth/permissions/engine/filter-matcher";
-import { getAncestorChain } from "@deployer/auth/permissions/engine/resource-graph";
-import { compileDFilter, type ColumnResolver } from "@deployer/auth/permissions/engine/filter-compiler";
-import { and, or, inArray, sql as rawSql, type SQL } from "drizzle-orm";
+
 
 export type { ColumnResolver };
 

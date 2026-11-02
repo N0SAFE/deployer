@@ -3,20 +3,26 @@ import '@deployer/ui/styles/globals.css'
 // Configure server auth for declarative routing SessionPage wrappers
 // This must be imported before any SessionPage is used
 import '@/routes/configure-auth'
-import type { Metadata } from 'next'
 import { Geist, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
-import { type JSX } from 'react'
-import { cn } from '@deployer/ui/lib/utils'
-import ThemeProvider from '@deployer/ui/components/theme-provider'
-import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
-import AuthProviders from '@/utils/providers/AuthProviders/index'
-import NextTopLoader from 'nextjs-toploader'
 import Script from 'next/script'
-import { validateEnvSafe } from '#/env'
+import NextTopLoader from 'nextjs-toploader'
+import { type JSX } from 'react'
+
 import { Toaster } from '@deployer/ui/components/shadcn/sonner'
-import { PostSetupHints } from '@/components/setup/post-setup-hints'
-import { NuqsAdapter } from '@/utils/providers/NuqsProvider'
+import ThemeProvider from '@deployer/ui/components/theme-provider'
+import { cn } from '@deployer/ui/lib/utils'
+
 import { TanStackDevTools } from '@/components/devtools/TanStackDevTools'
+import { PostSetupHints } from '@/components/setup/post-setup-hints'
+import AuthProviders from '@/utils/providers/AuthProviders/index'
+import { NuqsAdapter } from '@/utils/providers/NuqsProvider'
+import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
+
+import type { Metadata } from 'next'
+
+import { validateEnvSafe } from '#/env'
+
+
 
 // Font stack — the fleet console's typographic identity:
 //   - Geist (--font-sans): neutral UI body at high density.

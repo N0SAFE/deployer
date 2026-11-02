@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { masterTokenPlugin } from '@deployer/auth/server/plugins/masterTokenAuth';
 
 // Mock better-auth/api

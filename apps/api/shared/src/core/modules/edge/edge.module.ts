@@ -14,6 +14,7 @@
 import { createGlobalModule } from "@deployer/nest-effect";
 
 import { MeshNodeModule } from "../mesh-node/mesh-node.module";
+
 import { EdgeProviderRegistry } from "./edge-provider.registry";
 import { EdgeStateStore } from "./edge-state.store";
 import { DirectEdgeProvider } from "./providers/direct.edge-provider";

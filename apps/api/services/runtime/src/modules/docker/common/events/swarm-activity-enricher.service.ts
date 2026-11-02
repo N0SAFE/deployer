@@ -1,9 +1,10 @@
 import { Logger } from "@nestjs/common";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { from, type Observable } from "rxjs";
 import { filter, map, mergeMap } from "rxjs/operators";
+
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import type { DockerEngineShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 /** A synthesized activity: the docker event enriched with real swarm state. */
 export type SwarmActivityEnrichment = {

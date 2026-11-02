@@ -1,8 +1,10 @@
-import { ConfigModule } from "@nestjs/config";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { createModuleContext } from "@deployer/nest-effect";
+
+import { ConfigModule } from "@nestjs/config";
+
 import { apiEnvSchema } from "@deployer/env";
+import { createModuleContext } from "@deployer/nest-effect";
 
 import { apiEnvironmentProvider, EnvService } from "./env.service";
 

@@ -1,18 +1,25 @@
 import { Logger } from "@nestjs/common";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Observable, from, interval } from "rxjs";
 import { exhaustMap, mergeMap, startWith, tap } from "rxjs/operators";
 import * as systeminformation from "systeminformation";
-import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+
 import {
   dockerContainerRuntimeEventSchema,
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
-import { AppLogger } from "@deployer/logger";
 import type { DockerEngineShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { AppLogger } from "@deployer/logger";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
+
+import {
+  isRuntimeEventFilterNode,
+  matchesIdentifier,
+  type RuntimeEventFilterNode,
+} from "../../../common/runtime/runtime-event-filter";
 
 import {
   buildMetricsPoolKey,
@@ -28,11 +35,6 @@ import {
   formatError,
   type ContainerMetricsSelector,
 } from "./container-metrics";
-import {
-  isRuntimeEventFilterNode,
-  matchesIdentifier,
-  type RuntimeEventFilterNode,
-} from "../../../common/runtime/runtime-event-filter";
 
 const DEFAULT_METRICS_INTERVAL_MS = 400;
 

@@ -1,18 +1,21 @@
 'use client'
 
-import { Suspense, useState } from 'react'
 import { Network, Server, Waypoints } from 'lucide-react'
+import { Suspense, useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { PageErrorState, PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
 import { useMeshSseState } from '@/domains/mesh/hooks'
 import { useHydrated } from '@/lib/use-hydrated'
 import { AuthDashboardNetworkMesh, AuthDashboardNodes } from '@/routes'
-import { JoinTokenCard } from './_components/join-token-card'
-import { NodesCard } from './_components/nodes-card'
-import { ReplicasCard } from './_components/replicas-card'
+
 import { DecisionsCard } from './_components/decisions-card'
 import { HISTORY_LIMIT, type MeshLookupHistoryEntry } from './_components/diagnostics-types'
+import { JoinTokenCard } from './_components/join-token-card'
+import { NodesCard } from './_components/nodes-card'
 import { OwnershipLookupCard } from './_components/ownership-lookup-card'
+import { ReplicasCard } from './_components/replicas-card'
 
 /**
  * Control-mesh diagnostics — engineering view of how the platform's instances

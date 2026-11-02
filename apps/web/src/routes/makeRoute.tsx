@@ -1,12 +1,13 @@
 /*
 Derived from: https://www.flightcontrol.dev/blog/fix-nextjs-routing-to-have-full-type-safety
 */
-import React from 'react'
-import { z } from 'zod'
-import queryString from 'query-string'
+import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import Link from 'next/link'
 import NProgress from 'nprogress'
-import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
+import queryString from 'query-string'
+import React from 'react'
+import { z } from 'zod'
+
 import type { Session } from '@deployer/auth'
 // IMPORTANT: We explicitly import from /server subpath to ensure server-side implementations
 // are used for SessionPage. The conditional exports (react-server condition) don't work
@@ -84,10 +85,7 @@ export function createRouteInfo<
         search: (info.search ?? emptySchema) as Search extends undefined ? typeof emptySchema : Search,
         description: info.description,
         ...(info.anchors ? { anchors: info.anchors } : {}),
-    } as RouteInfo<
-        Params extends undefined ? typeof emptySchema : Params,
-        Search extends undefined ? typeof emptySchema : Search
-    >
+    }
 }
 
 export function createGetInfo<Result extends z.ZodType>(
@@ -598,7 +596,7 @@ function createRouteBuilder<
 
         // Pass raw params to urlBuilder - params should be Record<string, string | string[]>
         // The type system ensures z.input<Params> is compatible with this at runtime
-        const baseUrl = fn((params ?? {}) as Record<string, string | string[]>)
+        const baseUrl = fn((params ?? {}))
         const searchString = search ? queryString.stringify(search) : ''
         const anchorString = anchor ? `#${anchor}` : ''
         return [baseUrl, searchString ? `?${searchString}` : '', anchorString].join('')

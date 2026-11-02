@@ -1,16 +1,16 @@
-import type Docker from "dockerode";
 import { Context, Effect, Layer } from "effect";
 
-import type { DockerError } from "../errors/errors";
-import { engineCall } from "./call";
 import { DockerClient } from "../client/docker-client";
-import { makeBuild, type BuildShape } from "./images/build";
-import { makeEvents, type EventsShape } from "./events/events";
+
+import { engineCall } from "./call";
+import { makeContainers, type ContainersShape } from "./containers/containers";
 import { makeExec, type ExecShape } from "./containers/exec";
 import { makeLogs, type LogsShape } from "./containers/logs";
-import { makeContainers, type ContainersShape } from "./containers/containers";
+import { makeEvents, type EventsShape } from "./events/events";
+import { makeBuild, type BuildShape } from "./images/build";
 import { makeImages, type ImagesShape } from "./images/images";
 import { makeNetworks, type NetworksShape } from "./networking/networks";
+import { makeVolumes, type VolumesShape } from "./networking/volumes";
 import {
 	makeSwarmCluster,
 	makeSwarmConfigs,
@@ -22,7 +22,9 @@ import {
 	type SwarmSecretsShape,
 } from "./swarm/swarm-cluster";
 import { makeSwarmServices, type SwarmServicesShape } from "./swarm/swarm-services";
-import { makeVolumes, type VolumesShape } from "./networking/volumes";
+
+import type { DockerError } from "../errors/errors";
+import type Docker from "dockerode";
 
 /**
  * The Docker engine, grouped by what it manages. Every operation is an Effect failing with a typed

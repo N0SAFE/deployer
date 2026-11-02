@@ -1,5 +1,7 @@
 import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
 	configureSchemaCodecs,
 	decryptSecret,
@@ -8,7 +10,6 @@ import {
 } from "@deployer/nest-schema/codecs/codec-registry";
 import { findEncryptedColumns } from "@deployer/nest-schema/codecs/reseal";
 import * as globalSchema from "@deployer/nest-schema/global";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerSchemaCodecs, resolveSealer } from "./schema-codecs";
 

@@ -1,16 +1,17 @@
 import { createGlobalModule } from '@deployer/nest-effect';
+
 import { DatabaseModule } from '../database/database.module';
 import { TraefikCoreModule } from '../traefik/traefik.module';
 
 // Services
-import { DomainVerificationService } from './services/domain-verification.service';
-import { DomainConflictService } from './services/domain-conflict.service';
-import { ServiceDomainMappingService } from './services/service-domain-mapping.service';
-import { DomainRoutingService } from './services/domain-routing.service';
-
-// Repositories
 import { ProjectDomainRepository } from './repositories/project-domain.repository';
 import { ServiceDomainMappingRepository } from './repositories/service-domain-mapping.repository';
+import { DomainConflictService } from './services/domain-conflict.service';
+import { DomainRoutingService } from './services/domain-routing.service';
+import { DomainVerificationService } from './services/domain-verification.service';
+import { ServiceDomainMappingService } from './services/service-domain-mapping.service';
+
+// Repositories
 
 /**
  * CORE MODULE: Domain Infrastructure

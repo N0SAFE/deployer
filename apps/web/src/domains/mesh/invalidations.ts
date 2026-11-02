@@ -1,4 +1,5 @@
 import { defineInvalidations, type InvalidationConfig } from "@/domains/shared/helpers";
+
 import { meshEndpoints } from "./endpoints";
 
 /** Mesh domain cache invalidations. */

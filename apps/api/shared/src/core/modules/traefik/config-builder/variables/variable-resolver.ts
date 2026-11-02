@@ -1,7 +1,10 @@
-import type { VariableRegistry, VariableContext } from './variable-registry';
-import { VariableValidator, type ValidationError } from './variable-validator';
-import type { ResolutionOptions, ResolutionResult } from '../../interfaces';
 import { ConfigValidationError } from '../../errors';
+
+import { VariableValidator, type ValidationError } from './variable-validator';
+
+import type { VariableRegistry, VariableContext } from './variable-registry';
+import type { ResolutionOptions, ResolutionResult } from '../../interfaces';
+
 
 /**
  * Resolution error

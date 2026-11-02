@@ -1,7 +1,8 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
-import { ensureNodeAgentContainer, isNodeAgentSwarmMode, makeNodeAgentEngine } from "@deployer/node-agent-container";
-import { nodeDoorFromEnv, type NodeDoorClient, type NodeDoorStatus } from "@deployer/mesh-client";
+
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { nodeDoorFromEnv, type NodeDoorClient, type NodeDoorStatus } from "@deployer/mesh-client";
+import { ensureNodeAgentContainer, isNodeAgentSwarmMode, makeNodeAgentEngine } from "@deployer/node-agent-container";
 
 import { EnvService } from "@/config/env/env.module";
 

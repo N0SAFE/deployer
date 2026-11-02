@@ -1,15 +1,19 @@
 'use client'
 
-import { Input } from '@deployer/ui/components/shadcn/input'
+import { Layers } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
-import { Layers } from 'lucide-react'
+import { Input } from '@deployer/ui/components/shadcn/input'
+
+import { AutocompleteField } from '../autocomplete-field'
+import { RequiredError } from '../required-error'
+import { SearchableSelect } from '../searchable-select'
+
+import { KeyValueEditor, TagsInput } from './primitives'
+
 import type { CreateServiceFormApi } from '../../CreateService.hook'
 import type { useRunnerDetection } from '../runner-detection-context'
-import { AutocompleteField } from '../autocomplete-field'
-import { SearchableSelect } from '../searchable-select'
-import { RequiredError } from '../required-error'
-import { KeyValueEditor, TagsInput } from './primitives'
 
 /**
  * Compose STACK — ONE service managing a docker-compose stack as a single

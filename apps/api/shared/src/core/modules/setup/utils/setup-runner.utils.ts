@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+
 import type { SetupStepId } from "@deployer/contracts-entities";
+
 import { SetupStepTracker } from "../services/setup-step-tracker";
 
 /**

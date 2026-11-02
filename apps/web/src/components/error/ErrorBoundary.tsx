@@ -9,7 +9,9 @@
 'use client'
 
 import React, { Component, ReactNode } from 'react'
+
 import { logger } from '@deployer/logger'
+
 import { DefaultErrorFallback } from './DefaultErrorFallback'
 
 interface ErrorBoundaryProps {

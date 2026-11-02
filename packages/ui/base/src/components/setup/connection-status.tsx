@@ -1,11 +1,12 @@
 "use client"
 
 import { CheckCircle2, Loader2, XCircle, Circle } from "lucide-react"
+
 import { cn } from "@deployer/ui/lib/utils"
 
 export type ConnectionState = "idle" | "checking" | "reachable" | "unreachable"
 
-type Props = {
+interface Props {
   state: ConnectionState
   idleLabel?: string
   checkingLabel?: string

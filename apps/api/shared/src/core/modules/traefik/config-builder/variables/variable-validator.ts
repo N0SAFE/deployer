@@ -1,3 +1,5 @@
+import { ConfigValidationError } from '../../errors';
+
 import type { VariableRegistry, VariableContext } from './variable-registry';
 import type { 
   ValidationError, 
@@ -5,7 +7,6 @@ import type {
   ValidationOptions 
 } from '../../interfaces';
 import type { z } from 'zod';
-import { ConfigValidationError } from '../../errors';
 
 /**
  * Validation result specific to variable validation

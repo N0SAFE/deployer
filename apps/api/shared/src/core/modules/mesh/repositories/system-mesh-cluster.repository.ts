@@ -1,14 +1,16 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Injectable, Inject, Optional } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, gt, inArray, isNull } from "drizzle-orm";
-import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@deployer/nest-schema/global";
-import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@deployer/contracts-entities";
-import { GlobalDatabaseService } from "../../database/global/global-database.service";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
+import { Injectable, Inject, Optional } from "@nestjs/common";
+import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+
+import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@deployer/contracts-entities";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { AppError } from "@deployer/errors";
 import type { NodeDoorClient } from "@deployer/mesh-client";
+import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@deployer/nest-schema/global";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { GlobalDatabaseService } from "../../database/global/global-database.service";
 
 /** The node door, as a Nest token: `MeshCoreModule` hands out `nodeDoorFromEnv(env)`, a spec hands out a fake. */
 export const MESH_NODE_DOOR = Symbol("mesh-node-door");

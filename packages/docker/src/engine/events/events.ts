@@ -1,9 +1,10 @@
-import type Docker from "dockerode";
 import { Effect, Stream } from "effect";
 
 import { DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
 import { isReadableStream } from "../containers/streams";
+
+import type Docker from "dockerode";
 
 /** One entry of the engine's event feed; only the fields callers read are typed. */
 export type DockerEvent = {

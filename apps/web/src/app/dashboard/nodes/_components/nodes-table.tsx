@@ -2,14 +2,19 @@
 
 import { ArrowRight, Server } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { AuthDashboardNetworkMesh, AuthDashboardNodesNodeId } from '@/routes'
-import { cn } from '@/lib/utils'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EmptyState, FilteredEmptyState } from '@/components/dashboard'
-import { Age } from '../../network/_components/network-copy'
+import { cn } from '@/lib/utils'
+import { AuthDashboardNetworkMesh, AuthDashboardNodesNodeId } from '@/routes'
+
 import { CopyButton } from '../../network/_components/copy-button'
+import { Age } from '../../network/_components/network-copy'
+
 import { PresenceBadge } from './presence-badge'
+
 import type { NodePresence } from '../_utils/node-presence'
 
 export interface NodeRow {

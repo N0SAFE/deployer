@@ -1,16 +1,20 @@
 'use client'
 
-import { useState } from 'react'
 import { GitFork, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EmptyState, PageHeader, StatusBadge } from '@/components/dashboard'
 import { useDeleteGitHubApp, useGitHubApps, useGitHubManifestInit, useGitHubSelfCheck } from '@/domains/github-apps/hooks'
 import { getErrorMessage } from '@/lib/orpc/typed-errors'
-import { ProviderLoadError, ProviderPageSkeleton } from '../../_components/states'
+
 import { RemoveAccountDialog } from '../../_components/remove-account-dialog'
+import { ProviderLoadError, ProviderPageSkeleton } from '../../_components/states'
+
 import { GithubManualDialog } from './_components/github-manual-dialog'
 import { GithubPatDialog } from './_components/github-pat-dialog'
 import { GithubSetup } from './_components/github-setup'

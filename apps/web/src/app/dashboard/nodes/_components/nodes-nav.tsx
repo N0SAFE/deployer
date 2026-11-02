@@ -2,6 +2,7 @@
 
 import { Activity, Cpu, LayoutGrid } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+
 import { SectionNav, type SectionNavItem } from '@/components/dashboard'
 import { useFleetAdmissionRequests } from '@/domains/fleet/hooks'
 import { useHydrated } from '@/lib/use-hydrated'

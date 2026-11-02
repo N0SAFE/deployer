@@ -1,12 +1,15 @@
-import { serviceOver, type Over } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
 
+import { serviceOver, type Over } from "@deployer/effect-core";
+
 import { attempt, describeFailure, recover } from "@/core/effects";
-import { PreviewCleanupPolicy, type PreviewCleanupPolicyShape, PreviewNaming, type PreviewNamingShape } from "@/core/ports/preview-policy.port";
 import { DomainRouting, type DomainRoutingShape } from "@/core/ports/domain-routing.port";
+import { PreviewCleanupPolicy, type PreviewCleanupPolicyShape, PreviewNaming, type PreviewNamingShape } from "@/core/ports/preview-policy.port";
+
 import { PreviewLifecycleEventService, type PreviewLifecycleEventServiceShape } from "../events/preview-lifecycle-event.service";
-import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
+
 import { GithubDeploymentRuleService, type GithubDeploymentRuleServiceShape } from "./github-deployment-rule.service";
+import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
 
 export type GithubPrAction =
     | "opened"

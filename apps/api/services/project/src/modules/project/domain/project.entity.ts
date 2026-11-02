@@ -1,6 +1,7 @@
-import { ForbiddenError, ValidationError } from "@deployer/errors";
-import type { z } from "zod/v4";
 import { collaboratorSchema, projectSchema } from "@deployer/contracts-entities";
+import { ForbiddenError, ValidationError } from "@deployer/errors";
+
+import type { z } from "zod/v4";
 
 /**
  * The Project aggregate.

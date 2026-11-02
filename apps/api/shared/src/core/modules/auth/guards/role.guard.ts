@@ -1,15 +1,18 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { Auth } from "../types/auth";
 import { APIError } from "better-auth/api";
+
 import {
   type Permission,
   type PlatformRole,
   type RoleName,
   PermissionChecker,
 } from "@deployer/auth/permissions";
+
 import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/auth-module-definition";
+
+import type { Auth } from "../types/auth";
+import type { CanActivate, ExecutionContext } from "@nestjs/common";
 
 type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & { role?: PlatformRole };
 

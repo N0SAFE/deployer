@@ -8,8 +8,9 @@
  * `sourceType` through ONE shared method.
  */
 import { Logger } from "@nestjs/common";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
 export abstract class CodeProvider {
     /** Dispatch key (lowercase): "github" | "gitlab" | "upload" | "custom" | ... */

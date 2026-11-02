@@ -1,9 +1,12 @@
 'use client'
 
 import { Cpu, Globe, HardDrive, Server, ShieldCheck, Waypoints, type LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+
 import { StatStrip, StatStripItem, type StatusTone } from '@/components/dashboard'
+
 import { Hint } from './hint'
+
+import type { ReactNode } from 'react'
 
 function Vital({ icon, label, value, hint, tone, help }: { icon: LucideIcon; label: string; value: ReactNode; hint?: ReactNode; tone?: StatusTone; help: string }) {
 	return (

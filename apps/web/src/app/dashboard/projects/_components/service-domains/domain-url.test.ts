@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { resolveFullUrl, sanitizeBasePath, sanitizeSubdomain, sslLabel } from './domain-url'
 
 describe('domain-url', () => {

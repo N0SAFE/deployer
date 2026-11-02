@@ -1,11 +1,14 @@
 'use client'
 
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
+
 import type { DockerImageLayerEntry } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { DockerRelativeTime } from '../docker-relative-time'
+
 import { DockerCopyableId } from '../docker-copy-button'
+import { DockerRelativeTime } from '../docker-relative-time'
+
 import type { LayerRisk } from './scan-model'
 
 type LayerStatus = 'clean' | 'unconfirmed' | 'findings' | 'pending'

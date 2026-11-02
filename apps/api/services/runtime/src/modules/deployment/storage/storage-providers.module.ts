@@ -1,18 +1,20 @@
 import { createModuleContext } from "@deployer/nest-effect";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
-import { DEPLOYMENT_STORAGE_PROVIDERS } from "./base/storage-provider.token";
-import type { DeploymentStorageProvider } from "./base/storage-provider.interface";
+
 import { DEPLOYMENT_STORAGE_POLICY_RESOLVERS } from "./base/storage-policy-resolver.token";
-import type { DeploymentStoragePolicyResolver } from "./base/storage-policy-resolver.interface";
+import { DEPLOYMENT_STORAGE_PROVIDERS } from "./base/storage-provider.token";
 import { LocalStorageProviderService } from "./local/local-storage-provider.service";
 import { NfsStorageProviderService } from "./nfs/nfs-storage-provider.service";
+import { RuntimeConfigurationStoragePolicyResolverService } from "./policy/runtime-configuration-storage-policy-resolver.service";
 import { ServiceCustomDataStoragePolicyResolverService } from "./policy/service-custom-data-storage-policy-resolver.service";
 import { ServiceTopLevelStoragePolicyResolverService } from "./policy/service-top-level-storage-policy-resolver.service";
-import { RuntimeConfigurationStoragePolicyResolverService } from "./policy/runtime-configuration-storage-policy-resolver.service";
 import { StoragePolicyResolverRegistryService } from "./policy/storage-policy-resolver-registry.service";
 import { S3StorageProviderService } from "./s3/s3-storage-provider.service";
 import { StorageProviderRegistryService } from "./storage-provider-registry.service";
 import { VolumeStorageProviderService } from "./volume/volume-storage-provider.service";
+
+import type { DeploymentStoragePolicyResolver } from "./base/storage-policy-resolver.interface";
+import type { DeploymentStorageProvider } from "./base/storage-provider.interface";
 
 export class DeploymentStorageProvidersModule extends createModuleContext({
     imports: [ConfigurationCoreModule],

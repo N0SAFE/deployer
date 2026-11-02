@@ -1,4 +1,5 @@
 import z from "zod/v4";
+
 import { projectVariableTemplateOps } from "./shared";
 
 export const projectGetVariableTemplateContract = projectVariableTemplateOps

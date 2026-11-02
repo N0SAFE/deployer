@@ -1,4 +1,3 @@
-import type { z } from 'zod/v4'
 import type {
     getPublicKeyOutputSchema,
     getStatsOutputSchema,
@@ -7,6 +6,8 @@ import type {
     subscribeOutputSchema,
     subscriptionSchema,
 } from '@deployer/identity-contracts'
+
+import type { z } from 'zod/v4'
 
 /**
  * The push domain's vocabulary, inferred from the contract schemas so the

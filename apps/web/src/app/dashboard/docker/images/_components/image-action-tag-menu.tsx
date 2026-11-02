@@ -1,9 +1,11 @@
 'use client'
 
+import { Download, Loader2, Play } from 'lucide-react'
 import { useState } from 'react'
+
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@deployer/ui/components/shadcn/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
-import { Download, Loader2, Play } from 'lucide-react'
+
 import type { TagSelectionOption } from '../models'
 
 interface ImageActionTagMenuProps {

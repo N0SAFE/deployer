@@ -1,5 +1,5 @@
-import type { ExecutionContext } from "@nestjs/common";
 import type { Auth } from "../types/auth";
+import type { ExecutionContext } from "@nestjs/common";
 
 /**
  * Extracts the request object from either HTTP, GraphQL or WebSocket execution context

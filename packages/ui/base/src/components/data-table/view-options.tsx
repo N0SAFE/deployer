@@ -1,7 +1,9 @@
 "use client";
 
-import type { Table, Column } from "@tanstack/react-table";
 import { Check, GripVertical, Settings2, RotateCcw } from "lucide-react";
+import * as React from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
+
 import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Command,
@@ -18,8 +20,8 @@ import {
   PopoverTrigger,
 } from "@deployer/ui/components/shadcn/popover";
 import { cn } from "@deployer/ui/lib/utils";
-import * as React from "react";
-import { useCallback, useEffect, useState, useMemo } from "react";
+
+import type { Table, Column } from "@tanstack/react-table";
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
@@ -165,7 +167,7 @@ export function DataTableViewOptions<TData>({
   }, [table]);
 
   // Get column display label
-  const getColumnLabel = useCallback((column: Column<TData, unknown>) => {
+  const getColumnLabel = useCallback((column: Column<TData>) => {
     // First check if we have a mapping for this column
     if (columnMapping && column.id in columnMapping) {
       return columnMapping[column.id];
@@ -198,11 +200,11 @@ export function DataTableViewOptions<TData>({
               {orderedColumns.map((column) => (
                 <CommandItem
                   key={column.id}
-                  onSelect={() => handleColumnVisibilityToggle(column.id)}
+                  onSelect={() => { handleColumnVisibilityToggle(column.id); }}
                   draggable
-                  onDragStart={(e) => handleDragStart(e, column.id)}
+                  onDragStart={(e) => { handleDragStart(e, column.id); }}
                   onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, column.id)}
+                  onDrop={(e) => { handleDrop(e, column.id); }}
                   className={cn(
                     "flex items-center cursor-grab",
                     draggedColumnId === column.id && "bg-accent opacity-50"

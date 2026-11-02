@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+
+import { Injectable, Logger, Inject } from "@nestjs/common";
+
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 /**
  * Setup Database CLI Command
@@ -17,10 +21,9 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
  */
 
 import { Command, CommandRunner, Option } from "nest-commander";
-import { Injectable, Logger, Inject } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import type { SetupState } from "@deployer/nest-schema/local/node-config";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 type SetupDbOptions = {
   url?: string;

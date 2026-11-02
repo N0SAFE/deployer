@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging -- the interface/class merge below is how the flattened procedures get their types */
 import { Injectable } from "@nestjs/common";
 
-import { BaseClient, type FlatLeaves } from "@deployer/service-client";
-import type { ContractRouterClient } from "@orpc/contract";
 import { analyticsContract } from "@deployer/identity-contracts";
+import { BaseClient, type FlatLeaves } from "@deployer/service-client";
+
 import { ServiceClientRegistry } from "../service-registry";
+
+import type { ContractRouterClient } from "@orpc/contract";
 
 /**
  * The identity service's ANALYTICS surface, as its own client.

@@ -1,6 +1,8 @@
 import { execSync } from "node:child_process";
+
 import "reflect-metadata";
 import { afterAll, beforeEach, vi } from "vitest";
+
 import { stopAllSharedApiRuntimes } from "../shared-api-runtime";
 import { SHARED_POSTGRES_CONNECTION_URI_ENV } from "../shared-api-runtime/types";
 

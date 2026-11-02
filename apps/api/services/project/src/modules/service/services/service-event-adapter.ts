@@ -1,7 +1,8 @@
-import type { EffectHost } from "@deployer/nest-effect";
-import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { Effect } from "effect";
 import { defer, from, mergeMap } from "rxjs";
+
+import type { EffectHost } from "@deployer/nest-effect";
+import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 
 import { ServiceService } from "./service.service";
 

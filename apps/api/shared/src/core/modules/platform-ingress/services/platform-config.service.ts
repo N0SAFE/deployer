@@ -8,9 +8,10 @@ import { Injectable } from "@nestjs/common";
 import { eq, or } from "drizzle-orm";
 import z from "zod/v4";
 
-import { GlobalDatabaseService } from "../../database/services/global-database.service";
-import { EnvService } from "../../../../config/env/env.module";
 import { appConfig } from "@deployer/nest-schema/global";
+
+import { EnvService } from "../../../../config/env/env.module";
+import { GlobalDatabaseService } from "../../database/services/global-database.service";
 
 export const MANAGED_WEB_APP_ENABLED_KEY = "managed_web_app.enabled";
 

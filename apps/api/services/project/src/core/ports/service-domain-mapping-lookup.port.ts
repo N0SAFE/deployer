@@ -1,5 +1,6 @@
-import type { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
 import { Context } from "effect";
+
+import type { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
 
 /**
  * Effect view of the service-domain mapping's subdomain lookup.

@@ -1,6 +1,8 @@
 import { ConfigService } from "@nestjs/config";
+
 import { runSyncUnwrapped } from "@deployer/effect-core";
 import { makeEnvironment, type EnvironmentShape } from "@deployer/environment";
+
 import { setupEnvSchema, type SetupEnv } from "./env.schema";
 
 /**

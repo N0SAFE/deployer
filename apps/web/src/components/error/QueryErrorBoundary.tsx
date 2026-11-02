@@ -7,11 +7,14 @@
 
 'use client'
 
-import React, { ReactNode } from 'react'
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
+import React, { ReactNode } from 'react'
+
+import { logger } from '@deployer/logger'
+
 import { ErrorBoundary } from './ErrorBoundary'
 import { QueryErrorFallback } from './QueryErrorFallback'
-import { logger } from '@deployer/logger'
+
 
 interface QueryErrorBoundaryProps {
   /** Child components to render */

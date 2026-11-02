@@ -1,4 +1,6 @@
-import type Docker from "dockerode";
+import { Effect } from "effect";
+import z from "zod/v4";
+
 import {
 	dockerodeConfigSummarySchema,
 	dockerodeNodeSummarySchema,
@@ -15,12 +17,13 @@ import {
 	type SwarmInitOptions,
 	type SwarmJoinOptions,
 } from "@deployer/contracts-entities";
-import { Effect } from "effect";
-import z from "zod/v4";
+
+import { engineCall } from "../call";
+
+import { buildSwarmNodeSpecPayload, type SwarmNodeSpecChange, type SwarmNodeSpecOperation } from "./swarm-node";
 
 import type { DockerError } from "../../errors/errors";
-import { buildSwarmNodeSpecPayload, type SwarmNodeSpecChange, type SwarmNodeSpecOperation } from "./swarm-node";
-import { engineCall } from "../call";
+import type Docker from "dockerode";
 
 export type SwarmClusterShape = {
 	/** The local engine's Swarm state (`GET /info`); `LocalNodeState` tells whether it is in a cluster. */

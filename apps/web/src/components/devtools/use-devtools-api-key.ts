@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useState, useSyncExternalStore } from 'react'
-import { authClient } from '@/lib/auth'
+
 import {
     getMasterTokenEnabled,
     setDevtoolsApiKeyProvider,
 } from '@deployer/auth/client'
+
+import { authClient } from '@/lib/auth'
 
 /**
  * Dev-only API key for the TanStack DevTools "act as user" panel.

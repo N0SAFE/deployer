@@ -1,7 +1,7 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 import z from "zod/v4";
+
 import {
     clusterMasterSchema,
     clusterNodeSchema,
@@ -12,6 +12,7 @@ import {
     swarmServiceRuntimeSchema,
     swarmTaskRuntimeSchema,
 } from "@deployer/contracts-entities";
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 // ─── Cluster contract module (SW-003) ───────────────────────────────────────
 // Admin/ops surface for the Swarm cluster: local snapshot, fleet inventory,

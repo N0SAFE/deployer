@@ -1,10 +1,10 @@
 'use client'
 
 import { useParams } from 'next/navigation'
+
 import { PageSkeleton } from '@/components/dashboard'
 import { useProject } from '@/domains/project/hooks'
-import { ProjectContractsCard } from '../_components/project-contracts-card'
-import { InlineError } from '../../_components/workload/WorkloadStates'
+
 import { GeneralConfigCard } from '../../_components/configuration/GeneralConfigCard'
 import {
   DeploymentConfigCard,
@@ -12,6 +12,8 @@ import {
   ResourceConfigCard,
   SecurityConfigCard,
 } from '../../_components/configuration/ProjectConfigSections'
+import { InlineError } from '../../_components/workload/WorkloadStates'
+import { ProjectContractsCard } from '../_components/project-contracts-card'
 
 /**
  * Project settings — PROJECT-LEVEL configuration only: identity, deployment

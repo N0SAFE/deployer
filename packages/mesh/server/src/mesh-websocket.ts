@@ -109,7 +109,7 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
       ws.on("pong", () => alive.add(ws));
       if (options.onBytes !== undefined) {
         const count = options.onBytes;
-        ws.on("message", (data: RawData) => count(byteLength(data)));
+        ws.on("message", (data: RawData) => { count(byteLength(data)); });
         const send = ws.send.bind(ws) as (...args: unknown[]) => unknown;
         ws.send = ((data: RawData, ...rest: unknown[]) => {
           count(byteLength(data));

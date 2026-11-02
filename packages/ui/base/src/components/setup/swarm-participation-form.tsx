@@ -20,28 +20,29 @@
  * Pure/controlled: the parent owns the persisted value and the save action.
  */
 
-import { useMemo, useState } from "react";
 import { Check, Copy, Network, Sparkles, Waypoints } from "lucide-react";
-import { Button } from "@deployer/ui/components/shadcn/button";
-import { Input } from "@deployer/ui/components/shadcn/input";
-import { Badge } from "@deployer/ui/components/shadcn/badge";
-import { cn } from "@deployer/ui/lib/utils";
+import { useMemo, useState } from "react";
+
 import type {
   SwarmConfigView,
   SwarmParticipationInput,
   SwarmNodePolicy,
   SwarmParticipationMode,
 } from "@deployer/contracts-entities";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Input } from "@deployer/ui/components/shadcn/input";
+import { cn } from "@deployer/ui/lib/utils";
 
 export type SwarmParticipationContext = "founding" | "joining" | "edit";
 
-export type SwarmParticipationDraft = {
+export interface SwarmParticipationDraft {
   mode: SwarmParticipationMode;
   policy: SwarmNodePolicy;
   advertiseAddr: string;
   joinToken: string;
   joinAddrs: string;
-};
+}
 
 export function participationDraftFromView(view: SwarmConfigView): SwarmParticipationDraft {
   const p = view.participation;
@@ -173,7 +174,7 @@ export function SwarmParticipationForm({
     try {
       await navigator.clipboard.writeText(value);
       setCopied(label);
-      setTimeout(() => setCopied(null), 1200);
+      setTimeout(() => { setCopied(null); }, 1200);
     } catch {
       /* clipboard unavailable */
     }
@@ -215,7 +216,7 @@ export function SwarmParticipationForm({
                 <button
                   key={mode}
                   type="button"
-                  onClick={() => update({ mode })}
+                  onClick={() => { update({ mode }); }}
                   aria-pressed={active}
                   className={cn(
                     "flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-all",
@@ -262,7 +263,7 @@ export function SwarmParticipationForm({
                 <button
                   key={p.policy}
                   type="button"
-                  onClick={() => update({ policy: p.policy })}
+                  onClick={() => { update({ policy: p.policy }); }}
                   aria-pressed={active}
                   className={cn(
                     "relative flex flex-col gap-2 rounded-lg border p-4 text-left transition-all",
@@ -298,7 +299,7 @@ export function SwarmParticipationForm({
             <Input
               type="password"
               value={draft.joinToken}
-              onChange={(e) => update({ joinToken: e.target.value })}
+              onChange={(e) => { update({ joinToken: e.target.value }); }}
               placeholder="SWMTKN-1-…"
               autoComplete="off"
             />
@@ -312,7 +313,7 @@ export function SwarmParticipationForm({
             <span className="font-medium">Control-plane addresses</span>
             <Input
               value={draft.joinAddrs}
-              onChange={(e) => update({ joinAddrs: e.target.value })}
+              onChange={(e) => { update({ joinAddrs: e.target.value }); }}
               placeholder="10.0.0.1:2377, 10.0.0.2:2377"
             />
             <span className="text-xs text-muted-foreground">Comma-separated host:port list.</span>
@@ -327,7 +328,7 @@ export function SwarmParticipationForm({
             <span className="font-medium">Advertise address (optional)</span>
             <Input
               value={draft.advertiseAddr}
-              onChange={(e) => update({ advertiseAddr: e.target.value })}
+              onChange={(e) => { update({ advertiseAddr: e.target.value }); }}
               placeholder="10.0.0.5:2377 or empty for loopback"
             />
             <span className="text-xs text-muted-foreground">

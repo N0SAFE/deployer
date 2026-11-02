@@ -1,7 +1,8 @@
 import "server-only";
 
-import React, { type ReactNode } from "react";
 import { QueryClient, HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import React, { type ReactNode } from "react";
+
 import { DEFAULT_SESSION_QUERY_KEY } from "@deployer/auth/react/session/shared";
 
 /**

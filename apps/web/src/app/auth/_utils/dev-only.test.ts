@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { devConveniencesEnabled, signInErrorHint } from './dev-only'
 
 describe('devConveniencesEnabled', () => {

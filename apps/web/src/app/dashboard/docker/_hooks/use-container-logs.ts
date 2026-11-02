@@ -1,17 +1,21 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+
+import type { DockerContainerLogEntry } from '@deployer/contracts-entities'
+
 import {
   useDockerContainerLogsSnapshot,
   useDockerContainerLogsStream,
 } from '@/domains/docker/hooks'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
-import type { DockerContainerLogEntry } from '@deployer/contracts-entities'
+
 import {
   explodeCompositeLogEntry,
   mergeContainerLogsWithLimit,
   normalizeLogStreamPayloads,
 } from '../_utils/container-logs'
+
 import { STREAM_QUERY_BASE_OPTIONS } from './container-stream-options'
 import { useOnDepsChange } from './use-on-deps-change'
 

@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
 import process from 'process'
+
+import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 describe('WithEnv Middleware', () => {
     // Mock all the required modules inside the describe block
@@ -117,7 +118,7 @@ describe('WithEnv Middleware', () => {
             const request = createMockRequest('http://localhost:3003/dashboard')
             mockMatcherHandler.mockReturnValue({
                 hit: true,
-                data: mockNext(request, {} as NextFetchEvent),
+                data: mockNext(request, {}),
             })
 
             const middleware = withEnv(mockNext)

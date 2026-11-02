@@ -1,15 +1,19 @@
 'use client'
 
 import { ExternalLink } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EnvironmentBadge, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
-import { AuthDashboardProjectsProjectIdServicesServiceIdLogs } from '@/routes'
 import { formatDateTime } from '@/lib/format/date'
-import { RelativeTime } from '../../../../../_components/workload/RelativeTime'
+import { AuthDashboardProjectsProjectIdServicesServiceIdLogs } from '@/routes'
+
 import { IdChip } from '../../../../../_components/workload/CopyButton'
+import { RelativeTime } from '../../../../../_components/workload/RelativeTime'
 import { deploymentDurationMs, deploymentStartedAt, formatDuration } from '../../../../../_utils/workload'
+
 import { DeploymentLogsViewer } from './deployment-logs-viewer'
 
 export interface DetailDeployment {

@@ -2,6 +2,7 @@ import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeNetworks } from "./networks";
+
 import type { SwarmServicesShape } from "../swarm/swarm-services";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

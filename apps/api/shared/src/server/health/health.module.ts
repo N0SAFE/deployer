@@ -1,24 +1,22 @@
 import { Controller, Inject, Module, Sse } from "@nestjs/common";
-import { declareModule, serviceLifecycle } from "@deployer/nest-effect";
-import type { DynamicModule } from "@nestjs/common";
-
-import type { Pool } from "pg";
-import type { Observable } from "rxjs";
 import { interval, map, startWith, switchMap } from "rxjs";
+
+import { declareModule, serviceLifecycle } from "@deployer/nest-effect";
 
 import { GLOBAL_DATABASE_POOL } from "../../core/modules/database/database-connection";
 
 import { HealthRegistry, type HealthIndicatorEntry } from "./health-registry.service";
-
 import { DatabaseHealthIndicator } from "./indicators/database.indicator";
 import { DiskHealthIndicator } from "./indicators/disk.indicator";
 import { MemoryHealthIndicator } from "./indicators/memory.indicator";
 import { MigrationsHealthIndicator } from "./indicators/migrations.indicator";
 import { RedisHealthIndicator } from "./indicators/redis.indicator";
 
-import type { Effect } from "effect";
 
 import type { HealthSnapshot, IndicatorResult } from "./types";
+import type { Effect } from "effect";
+import type { Pool } from "pg";
+import type { Observable } from "rxjs";
 
 /** The indicator sets a service can ask for by name. */
 export const INDICATORS = {

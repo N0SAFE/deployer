@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
 import { Logger, type INestApplication } from '@nestjs/common'
 import { REQUEST } from '@nestjs/core'
 import { Test, type TestingModule } from '@nestjs/testing'
@@ -12,15 +12,18 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
+
 import { getMockEnv } from '@deployer/env/mock'
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
 import * as schema from '@deployer/nest-schema/global'
-import { GlobalDatabaseService } from '../../core/modules/database/global/global-database.service'
+
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
 } from "../../core/modules/database/database-connection"
+import { GlobalDatabaseService } from '../../core/modules/database/global/global-database.service'
 import { TraefikFileSystemService } from '../../core/modules/traefik/services/traefik-file-system.service'
+
 import { defaultRequestOverride, sharedRequestOverride } from './request-override'
 import {
     DEFAULT_SHARED_RUNTIME_KEY,
@@ -33,6 +36,8 @@ import {
     type SharedRuntimeNestAppInitContext,
     type SharedRuntimePlugin,
 } from './types'
+
+import type { AddressInfo } from 'node:net'
 
 const SHARED_RUNTIME_LOG_ENV = 'E2E_SHARED_RUNTIME_LOGS'
 
@@ -510,12 +515,15 @@ export class SharedApiRuntimeManager {
         }
 
         for (const containerInfo of containers) {
-            const dockerContainer = docker.getContainer(containerInfo.Id)
+            const dockerContainer = docker.getContainer(containerInfo.Id) as {
+                stop: (options: { t: number }) => Promise<unknown>
+                remove: (options: { force: boolean }) => Promise<unknown>
+            }
             try {
                 await dockerContainer.stop({ t: 5 }).catch(() => undefined)
                 await dockerContainer.remove({ force: true }).catch(() => undefined)
                 logStep(
-                    `Cleaned up deployer-managed container: ${containerInfo.Names?.[0] ?? containerInfo.Id}`,
+                    `Cleaned up deployer-managed container: ${String(containerInfo.Names?.[0] ?? containerInfo.Id)}`,
                 )
             } catch {
                 // already removed or inaccessible — ignore

@@ -1,10 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
-import z from "zod/v4";
 import { firstValueFrom, from } from "rxjs";
 import { map as rxMap, take, toArray } from "rxjs/operators";
-import { BaseEventService } from "../base/index";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import z from "zod/v4";
+
 import { contractBuilder } from "@deployer/events";
+
+import { BaseEventService } from "../base/index";
+
+
 import { CoreEventSyncService } from "./core-event-sync.service";
 
 const typedContracts = {
@@ -754,7 +758,7 @@ describe("CoreEventSyncService", () => {
                     service: typedService,
                     eventName: "statusChanged",
                 })
-                .filterRow((row) => row.deployment.eventName === "statusChanged")
+                .filterRow((row) => row.deployment.eventName.startsWith("status"))
                 .mapRow((row) => ({
                     deployment: row.deployment,
                     mirror: row.deployment,

@@ -1,8 +1,8 @@
 'use client'
 
+import { Activity, Network } from 'lucide-react'
 import { useMemo } from 'react'
-import { useMeshSseState } from '@/domains/mesh/hooks'
-import { useFleetServers } from '@/domains/fleet/hooks'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
@@ -11,7 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@deployer/ui/components/shadcn/card'
-import { Activity, Network } from 'lucide-react'
+
+import { useFleetServers } from '@/domains/fleet/hooks'
+import { useMeshSseState } from '@/domains/mesh/hooks'
+
 import {
   FleetLatencyMap,
   type FleetMapNode,

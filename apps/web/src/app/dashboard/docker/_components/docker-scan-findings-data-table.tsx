@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import type { ColumnDef } from '@tanstack/react-table'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { DataTableColumnHeader } from '@deployer/ui/components/data-table/column-header'
 import { DataTable } from '@deployer/ui/components/data-table/data-table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+
+import type { ColumnDef } from '@tanstack/react-table'
 
 export interface DockerScanFindingRow {
   id: string

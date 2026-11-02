@@ -1,7 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+
 import type { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
-import type { DeploymentRepository } from "../repositories/deployment.repository";
+
 import { DeploymentReadModelProjectorService } from "./deployment-read-model-projector.service";
+
+import type { DeploymentRepository } from "../repositories/deployment.repository";
 
 function createEventRow(input: {
     id: string;

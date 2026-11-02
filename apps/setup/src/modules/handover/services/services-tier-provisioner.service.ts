@@ -12,13 +12,15 @@ import {
  */
 const ADMIN_DOOR_APPS: ReadonlySet<string> = new Set(["fleet"]);
 import { Injectable, Logger, Inject, type OnModuleInit } from "@nestjs/common";
+
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { nodeDoorFromEnv, type NodeDoorClient } from "@deployer/mesh-client";
 
 import { EnvService } from "@/config/env/env.module";
-import { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { SetupEnv } from "@/config/env/env.schema";
+import { SetupGateService } from "@/modules/wizard/setup-gate.service";
+
 import { platformOverlayForPrefix } from "@deployer/docker";
 import { apiServiceName, apiServicePort, type ApiServiceName } from "@deployer/env";
 

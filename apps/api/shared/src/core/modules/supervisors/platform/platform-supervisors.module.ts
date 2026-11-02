@@ -20,24 +20,25 @@
  * dependency: platform helps → supervisors use).
  */
 
-import { createGlobalModule } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { createGlobalModule } from "@deployer/nest-effect";
 
+import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { CoreDockerModule } from "../../docker/docker.module";
-import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingress.module";
-import { CoreEdgeModule } from "../../edge/edge.module";
-import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
+import { CoreEdgeModule } from "../../edge/edge.module";
 import { ClusterSettings } from "../../mesh-node/cluster-settings";
+import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingress.module";
 import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
 import { PublicEdgeService } from "../../reachability/services/public-edge.service";
 import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
-import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { makeNodeAgentSwarmRegistration } from "../node-agent/node-agent.supervisor";
+
 import { makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
 import { makeManagedWebRegistration } from "./managed-web.supervisor";
 import { makeRedisRegistration } from "./redis.supervisor";

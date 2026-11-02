@@ -1,10 +1,13 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
 import type { DockerEngineShape } from "@deployer/docker";
 
-import type { EnvService } from "../../../../config/env/env.module";
-import { makeRedisRegistration } from "./redis.supervisor";
 import { harness, testBus } from "../supervisor-test-harness";
+
+import { makeRedisRegistration } from "./redis.supervisor";
+
+import type { EnvService } from "../../../../config/env/env.module";
 
 function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 	const values: Record<string, unknown> = {

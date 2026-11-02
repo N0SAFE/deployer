@@ -1,22 +1,27 @@
 'use client'
 
+import { ArrowRight, Server } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowRight, Server } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Progress } from '@deployer/ui/components/shadcn/progress'
+
 import { EmptyState } from '@/components/dashboard'
-import { PresenceBadge } from '../../_components/presence-badge'
-import type { NodePresence } from '../../_utils/node-presence'
 import { useSetFleetServerCapacity, type useFleetServers } from '@/domains/fleet/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import { useRouter } from 'next/navigation'
 import { AuthDashboardNetworkMesh, AuthDashboardNodesNodeId } from '@/routes'
+
+import { PresenceBadge } from '../../_components/presence-badge'
+
 import { ALLOCATION_MODE_LABEL, formatCpu, formatMemory, utilisationIndicatorClass, utilisationPct } from './capacity-format'
+
+import type { NodePresence } from '../../_utils/node-presence'
 
 type FleetServer = NonNullable<ReturnType<typeof useFleetServers>['data']>['items'][number]
 interface FleetAllocation {

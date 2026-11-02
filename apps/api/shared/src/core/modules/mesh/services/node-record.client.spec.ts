@@ -30,7 +30,7 @@ const RECORD = {
 
 /** A link that answers the one procedure with `answer`, or rejects with `error`. */
 const answering = (answer: unknown, error?: Error): ClientLink<ClientContext> =>
-  ({ call: vi.fn(error === undefined ? () => Promise.resolve(answer) : () => Promise.reject(error)) }) as never;
+  ({ call: vi.fn(error === undefined ? () => Promise.resolve(answer) : () => Promise.reject(error)) });
 
 describe("readNodeRecord", () => {
   it("reads the node's record from its agent over the node door", async () => {

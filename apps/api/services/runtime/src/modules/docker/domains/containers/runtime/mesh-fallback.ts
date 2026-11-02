@@ -5,6 +5,7 @@
  */
 import { Effect } from "effect";
 import { Observable, from, interval, startWith, switchMap, type Observable as Obs } from "rxjs";
+
 import type { DockerContainerLogEntry } from "@deployer/contracts-entities";
 
 import { createLogDeduper, DEFAULT_REFRESH_INTERVAL_MS } from "./container-streams";

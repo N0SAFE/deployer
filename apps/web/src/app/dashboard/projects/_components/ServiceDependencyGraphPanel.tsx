@@ -18,7 +18,8 @@ import {
 } from '@xyflow/react'
 import '@/assets/css/xyflow.css'
 import { AlertCircle, GitBranch, Link2, FolderTree, Layers } from 'lucide-react'
-import { serviceEndpoints } from '@/domains/service/endpoints'
+
+import { ENV_NAMES, type EnvName } from '@deployer/contracts-common'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
@@ -27,8 +28,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@deployer/ui/components/shadcn/card'
-import { ENV_NAMES, type EnvName } from '@deployer/contracts-common'
+
 import { StatusBadge, statusMeta } from '@/components/dashboard'
+import { serviceEndpoints } from '@/domains/service/endpoints'
 import { cn } from '@/lib/utils'
 
 export interface ServiceGraphNode {
@@ -64,7 +66,7 @@ export interface ServiceGraphDependencyRoute {
   targetScope: string
 }
 
-type ServiceNodeData = {
+interface ServiceNodeData {
   service: ServiceGraphNode
   dependencies: number
   dependents: number
@@ -72,13 +74,13 @@ type ServiceNodeData = {
   onNavigate?: (serviceId: string) => void
 }
 
-type EnvironmentGroupNodeData = {
+interface EnvironmentGroupNodeData {
   environment: string
   serviceCount: number
   linkCount: number
 }
 
-type SubserviceGroupNodeData = {
+interface SubserviceGroupNodeData {
   service: ServiceGraphNode
   childCount: number
   environment: string
@@ -230,7 +232,7 @@ function computeServiceDepths(
 
 /** Status-aware node card — status badge replaces the plain active/inactive. */
 function ServiceNode({ data }: NodeProps) {
-  const nodeData = data as ServiceNodeData
+  const nodeData = data as unknown as ServiceNodeData
   const projectIdLabel = nodeData.service.projectId.slice(0, 8)
   const status = nodeData.service.status ?? (nodeData.service.isActive ? 'active' : 'inactive')
   const isSubService = Boolean(nodeData.service.parentId)
@@ -293,7 +295,7 @@ function ServiceNode({ data }: NodeProps) {
 }
 
 function EnvironmentGroupNode({ data }: NodeProps) {
-  const nodeData = data as EnvironmentGroupNodeData
+  const nodeData = data as unknown as EnvironmentGroupNodeData
   const laneColor = getColorForEnvironment(nodeData.environment)
 
   return (
@@ -322,7 +324,7 @@ function EnvironmentGroupNode({ data }: NodeProps) {
  * and a child-count badge; children are positioned inside it.
  */
 function SubserviceGroupNode({ data }: NodeProps) {
-  const nodeData = data as SubserviceGroupNodeData
+  const nodeData = data as unknown as SubserviceGroupNodeData
   const status = nodeData.service.status ?? (nodeData.service.isActive ? 'active' : 'inactive')
   const meta = statusMeta(status)
 
@@ -801,7 +803,7 @@ export function ServiceDependencyGraphPanel({
 
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      const data = node.data as ServiceNodeData | undefined
+      const data = node.data as unknown as ServiceNodeData | undefined
       if (data?.service?.id) {
         navigate(data.service.id)
       }

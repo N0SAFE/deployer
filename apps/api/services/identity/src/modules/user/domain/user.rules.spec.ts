@@ -1,7 +1,9 @@
-import { ForbiddenError, ValidationError } from "@deployer/errors";
 import { describe, expect, it } from "vitest";
 
+import { ForbiddenError, ValidationError } from "@deployer/errors";
+
 import { userRules } from "./user.rules";
+
 import type { Actor, User } from "./user.types";
 
 const admin: Actor = { userId: "admin-1", role: "admin" };

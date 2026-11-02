@@ -7,7 +7,9 @@
  */
 import { Injectable, Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
+
 import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
+
 import type { GlobalDatabase } from "../database/global/global-database.service";
 
 export type GitHubOAuthConfig = {

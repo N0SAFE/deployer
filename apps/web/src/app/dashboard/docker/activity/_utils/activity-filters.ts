@@ -1,7 +1,9 @@
 import { z } from 'zod'
+
 import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
-import { activityKind, describeActivity } from './describe-activity'
+
 import { resolveResourceName, resolveSwarmTaskErrors } from './activity-fields'
+import { activityKind, describeActivity } from './describe-activity'
 
 export const KIND_FILTERS = ['all', 'container', 'image', 'network', 'volume', 'swarm', 'other'] as const
 export const SEVERITY_FILTERS = ['all', 'info', 'warning', 'error'] as const

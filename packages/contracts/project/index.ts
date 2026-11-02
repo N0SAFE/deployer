@@ -9,6 +9,7 @@ export * from "./modules/project";
 export * from "./modules/service";
 
 import { oc } from "@orpc/contract";
+
 import { domainContract } from "./modules/domain";
 import { projectContract } from "./modules/project";
 import { serviceContract } from "./modules/service";

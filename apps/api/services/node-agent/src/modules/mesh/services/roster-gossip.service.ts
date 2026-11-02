@@ -242,7 +242,7 @@ const readLabels = (labels: Pick<NodeLabelsShape, "read">) =>
 		Effect.catch((error) =>
 			Effect.sync(() => {
 				console.warn(`[node-agent] could not read the node's labels: ${error.operation}`);
-				return {} as Record<string, string>;
+				return {};
 			}),
 		),
 	);

@@ -1,9 +1,7 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { user } from "@deployer/nest-schema/global/identity/auth";
-import { environments } from "@deployer/nest-schema/global/project/environment";
-import { encryptedText } from "../../codecs/codec-registry";
-import { traefikConfigBuilder } from "../../codecs/codec-registry";
+import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
+
+import { PROJECT_ROLES } from "@deployer/auth";
 import {
     deploymentEnvironmentSchema,
     deploymentPhaseSchema,
@@ -16,12 +14,17 @@ import {
     sourceTypeSchema,
 } from "@deployer/contracts-common";
 import type { NetworkDnsRecordType } from "@deployer/contracts-entities";
-import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
-import { PROJECT_ROLES } from "@deployer/auth";
-import { projects, services } from "@deployer/nest-schema/global/project/deployment";
-import { sourceTypeEnum } from "@deployer/nest-schema/global/platform/deployment";
-import { environmentVariables } from "@deployer/nest-schema/global/project/environment";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
+import { user } from "@deployer/nest-schema/global/identity/auth";
+import { sourceTypeEnum } from "@deployer/nest-schema/global/platform/deployment";
+import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { environments } from "@deployer/nest-schema/global/project/environment";
+import { environmentVariables } from "@deployer/nest-schema/global/project/environment";
+import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
+
+import { encryptedText } from "../../codecs/codec-registry";
+import { traefikConfigBuilder } from "../../codecs/codec-registry";
+
 export const deploymentStatusEnum = pgEnum("deployment_status", [...zodEnumToPgEnumValues(deploymentStatusSchema)]);
 
 

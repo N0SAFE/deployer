@@ -1,10 +1,12 @@
 'use client'
 
-import { Button } from '@deployer/ui/components/shadcn/button'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+
+import { ScopeLabel } from '@/components/dashboard'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { useNodeScope } from '@/domains/node/node-context'
-import { ScopeLabel } from '@/components/dashboard'
+
 import { shortId } from '../_utils/format'
 
 /**

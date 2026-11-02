@@ -15,11 +15,12 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { GlobalDatabaseService } from '../../../database/services/global-database.service';
-import { deploymentCache } from '@deployer/nest-schema/global';
 import { eq, and, desc } from 'drizzle-orm';
 
 import { AppError } from "@deployer/errors";
+import { deploymentCache } from '@deployer/nest-schema/global';
+
+import { GlobalDatabaseService } from '../../../database/services/global-database.service';
 // Type inference from schema
 type DeploymentCache = typeof deploymentCache.$inferSelect;
 type DeploymentCacheInsert = typeof deploymentCache.$inferInsert;

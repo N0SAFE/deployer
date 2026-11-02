@@ -1,8 +1,8 @@
 import { Effect } from "effect";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
-import { type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { agentLink, createMeshClient } from "@deployer/mesh-client";
+import { type nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { openAgentStore } from "@/local/agent-store";
 

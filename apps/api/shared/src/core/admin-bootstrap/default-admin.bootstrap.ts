@@ -24,13 +24,15 @@
  * an admin grants it explicitly.
  */
 
-import { Pool } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+
 import { Roles } from "@deployer/auth/permissions";
 import { provisionUserAccount } from "@deployer/auth/server";
-import { user } from "@deployer/nest-schema/global/identity/auth";
 import * as globalSchema from "@deployer/nest-schema/global";
+import { user } from "@deployer/nest-schema/global/identity/auth";
+
 import { createBetterAuth } from "../../config/auth/auth";
 
 export type EnsureDefaultAdminResult =

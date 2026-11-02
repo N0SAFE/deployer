@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import { multiSession } from 'better-auth/plugins';
-import { usePasskey } from './plugins';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { betterAuthFactory } from './auth';
+import { usePasskey } from './plugins';
 import { loginAsPlugin, masterTokenPlugin } from './plugins';
 
 // Mock better-auth

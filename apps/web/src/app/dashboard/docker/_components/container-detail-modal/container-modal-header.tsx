@@ -2,11 +2,14 @@
 
 import type { DockerContainer } from '@deployer/contracts-entities'
 import { DialogDescription, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+
+import { shortId } from '../../_utils/format'
 import { DockerCopyableId } from '../docker-copy-button'
 import { DockerNodeBadge } from '../docker-node-context'
-import { shortId } from '../../_utils/format'
+
 import { ContainerQuickActions } from './container-quick-actions'
 import { ContainerStatusBadges } from './container-status-badge'
+
 import type { ContainerOp } from '../../_hooks/use-container-actions'
 
 interface ContainerModalHeaderProps {

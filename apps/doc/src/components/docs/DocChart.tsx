@@ -15,13 +15,13 @@
  *   />
  */
 
-import { useMemo } from 'react';
-import { Chart } from '@tanstack/charts/react';
 import { barY, defineChart, lineY } from '@tanstack/charts';
+import { Chart } from '@tanstack/charts/react';
 import { scaleBand } from '@tanstack/charts/scales/band';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
 import { scalePoint } from '@tanstack/charts/scales/point';
 import { tooltip } from '@tanstack/charts/tooltip';
+import { useMemo } from 'react';
 
 export interface DocChartProps {
   /** Mark family to render. Defaults to `line`. */

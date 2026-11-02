@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { BadRequestError } from '@deployer/errors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { BadRequestError } from '@deployer/errors';
 
 import { assertGitRef, assertRepositoryUrl } from './git-input';
 

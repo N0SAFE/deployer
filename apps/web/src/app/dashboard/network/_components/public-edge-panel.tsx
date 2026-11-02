@@ -1,7 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { Globe, Pencil, Power, Trash2, TriangleAlert } from 'lucide-react'
+import { useMemo, useState } from 'react'
+
+import type {
+  EdgeOptionField,
+  EdgeOptions,
+  EdgeProviderDescriptor,
+  IngressState,
+} from '@deployer/fleet-contracts/modules/reachability/index'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
@@ -20,15 +27,11 @@ import { Label } from '@deployer/ui/components/shadcn/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { cn } from '@deployer/ui/lib/utils'
-import type {
-  EdgeOptionField,
-  EdgeOptions,
-  EdgeProviderDescriptor,
-  IngressState,
-} from '@deployer/fleet-contracts/modules/reachability/index'
+
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
 import { useTeardownPublicEdge, useUpdateIngress } from '@/domains/reachability/hooks'
 import { AuthDashboardAdminProvidersDns } from '@/routes'
+
 import { EdgeHealthBadge, KindBadge, Mono } from './network-copy'
 import { useNetworkAction } from './use-network-action'
 

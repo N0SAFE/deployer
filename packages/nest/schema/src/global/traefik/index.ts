@@ -1,8 +1,9 @@
 import { relations } from "drizzle-orm";
 import { pgTable, text, boolean, timestamp, jsonb, integer, uuid, json, index, uniqueIndex } from "drizzle-orm/pg-core";
 import z from "zod/v4";
-import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
+
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 
 // Create enum for DNS status
 const dnsStatusEnum = ["pending", "valid", "invalid", "error"] as const;

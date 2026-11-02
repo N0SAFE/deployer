@@ -1,9 +1,10 @@
 import { Logger, Module, type DynamicModule } from "@nestjs/common";
-import { declareModule } from "@deployer/nest-effect";
+import { HttpException } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import { ORPCModule, type ORPCModuleConfig } from "@orpc/nest";
 import { onError, ORPCError } from "@orpc/server";
-import { HttpException } from "@nestjs/common";
+
+import { declareModule } from "@deployer/nest-effect";
 
 /**
  * One entry of the handler's interceptor list, taken from the config type that

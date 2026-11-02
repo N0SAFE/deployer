@@ -1,15 +1,19 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { Activity } from 'lucide-react'
+import { useMemo, useState } from 'react'
+
 import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
+
 import { EmptyState, FilteredEmptyState } from '@/components/dashboard'
+
 import { DockerEngineError } from '../_components/docker-engine-error'
 import { DockerPageSkeleton } from '../_components/docker-loading-states'
 import { useDockerNode } from '../_components/docker-node-context'
+
 import { ActivityDetail } from './_components/activity-detail'
-import { ActivityFilters, ActivityLiveIndicator } from './_components/activity-toolbar'
 import { ActivityTable } from './_components/activity-table'
+import { ActivityFilters, ActivityLiveIndicator } from './_components/activity-toolbar'
 import { useActivityFeed, useSelectedActivity } from './_hooks/use-activity-feed'
 import { ACTIVITY_QUERY_SCHEMA, filterActivities, hasActiveFilters } from './_utils/activity-filters'
 

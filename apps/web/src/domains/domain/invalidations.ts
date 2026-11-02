@@ -1,4 +1,5 @@
 import { domainEndpoints } from './endpoints'
+
 import type { InvalidationConfig } from '../shared/helpers'
 
 type DomainEndpoints = typeof domainEndpoints

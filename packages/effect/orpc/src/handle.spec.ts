@@ -1,7 +1,8 @@
-import { Correlation, CurrentActor, domainError } from "@deployer/effect-core";
 import { ORPCError } from "@orpc/client";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
+import { Correlation, CurrentActor, domainError } from "@deployer/effect-core";
 
 import { handle } from "./handle";
 import { actorFromContext, correlationFromContext, provideRequest } from "./request-context";

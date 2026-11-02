@@ -1,7 +1,7 @@
 import { Logger } from "@nestjs/common";
-import type { DockerEngineShape } from "@deployer/docker";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 import { Effect } from "effect";
+
+import type { DockerEngineShape } from "@deployer/docker";
 import { splitManagedEnv } from "@deployer/env";
 import {
 	DATABASE_SERVICE_SUPERVISOR_ID,
@@ -12,6 +12,7 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { DATABASE_SERVICE_SUPERVISOR_ID };
 

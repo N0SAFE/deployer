@@ -1,7 +1,7 @@
 import { implement, ORPCError, os } from "@orpc/server";
+import { Context as EffectContext } from "effect";
 
 import { authzConfigured, authzGate } from "./authz";
-import { Context as EffectContext } from "effect";
 
 
 import type { InferSchemaInput, InferSchemaOutput } from "@orpc/contract";
@@ -171,7 +171,9 @@ export function procedure<
 				// generic wrapper cannot name.
 				const target = options === null || options.mode === "off" ? wrapped : (Reflect.get(wrapped, "use", receiver) as (m: unknown) => Record<PropertyKey, unknown>)(authzGate(options));
 				const effect = Reflect.get(target, "effect") as (h: unknown) => unknown;
-				return effect.call(target, handler);
+				// The whole implementer is cast at the end of this function: oRPC's handler type is generic in a context
+				// this wrapper cannot name, so the call is typed here rather than invented.
+				return effect.call(target, handler) as never;
 			};
 		},
 	});

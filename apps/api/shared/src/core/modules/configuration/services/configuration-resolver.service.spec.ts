@@ -1,6 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+
 import { ConfigurationDefinitionService } from "./configuration-definition.service";
 import { ConfigurationResolverService } from "./configuration-resolver.service";
+
 import type {
     RuntimeConfigurationResolverInputByScope,
     RuntimeEnvironmentMutationInput,

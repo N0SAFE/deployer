@@ -1,9 +1,11 @@
 'use client'
 
+import { AlertCircle, Moon, Shield, ShieldAlert, ShieldCheck, ShieldX, Sun, Terminal } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { AlertCircle, Moon, Shield, ShieldAlert, ShieldCheck, ShieldX, Sun, Terminal } from 'lucide-react'
+
 import { DockerScanFindingsDataTable } from './docker-scan-findings-data-table'
 
 export interface DockerScanStageSummaryRow {

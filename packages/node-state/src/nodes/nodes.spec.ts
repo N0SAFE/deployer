@@ -1,12 +1,14 @@
-import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
-import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import { Cause, Effect, Exit, Scope } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
+import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
+
 import { makeLocalDatabase } from "../database/local-database";
+
 import { makeClusterNodeInventoryRepository } from "./cluster-node-inventory.repository";
-import { toEngineNodeRow } from "./engine-node-row";
 import { makeClusterNodeRepository } from "./cluster-node.repository";
+import { toEngineNodeRow } from "./engine-node-row";
 import { makeAgentFirstNodeConfigRepository, makeNodeConfigRepository, type NewNodeConfigRow, type NodeConfigRow } from "./node-config.repository";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

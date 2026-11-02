@@ -1,6 +1,8 @@
 import { Logger } from '@nestjs/common';
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+
 import type * as localSchema from '@deployer/nest-schema/local';
+
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 
 /**
  * Drop every table in the local SQLite file.

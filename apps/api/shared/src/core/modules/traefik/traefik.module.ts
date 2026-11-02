@@ -1,24 +1,27 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { TraefikTemplateService } from './services/traefik-template.service';
-import { TraefikVariableResolverService } from './services/traefik-variable-resolver.service';
-import { TraefikService } from './services/traefik.service';
-import { TraefikSyncService } from './services/traefik-sync.service';
-import { TraefikFileSystemService } from './services/traefik-file-system.service';
-import { TraefikValidationService } from './services/traefik-validation.service';
-import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
-import { TraefikRepository } from './repositories/traefik.repository';
-import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
-import { TraefikEventService } from './events/traefik-event.service';
-import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
-import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
-import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
+
+import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { DatabaseModule } from '../database/database.module';
-import { EventsModule } from '../events/events.module';
-import { SupervisorsModule } from "../supervision/index";
-import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
 import { CoreDockerModule } from '../docker/docker.module';
 import { CoreEdgeModule } from '../edge/edge.module';
-import { EnvModule, EnvService } from "../../../config/env/env.module";
+import { EventsModule } from '../events/events.module';
+import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
+import { SupervisorsModule } from "../supervision/index";
+
+import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
+import { TraefikEventService } from './events/traefik-event.service';
+import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
+import { TraefikRepository } from './repositories/traefik.repository';
+import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
+import { TraefikFileSystemService } from './services/traefik-file-system.service';
+import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
+import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
+import { TraefikSyncService } from './services/traefik-sync.service';
+import { TraefikTemplateService } from './services/traefik-template.service';
+import { TraefikValidationService } from './services/traefik-validation.service';
+import { TraefikVariableResolverService } from './services/traefik-variable-resolver.service';
+import { TraefikService } from './services/traefik.service';
+
 
 /**
  * CORE MODULE: Traefik

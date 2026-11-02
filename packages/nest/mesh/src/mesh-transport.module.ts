@@ -1,5 +1,6 @@
 import { Module, type DynamicModule } from "@nestjs/common";
 import { DiscoveryModule, DiscoveryService } from "@nestjs/core";
+
 import { declareModule } from "@deployer/nest-effect";
 
 import { MeshRouterResolver } from "./mesh-router.resolver";

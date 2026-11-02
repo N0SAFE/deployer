@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
 import { AuthUtils, AuthUtilsEmpty } from './auth-utils';
+
 import type { ORPCAuthContext } from './types';
 
 // Mock the plugin-wrapper-factory module

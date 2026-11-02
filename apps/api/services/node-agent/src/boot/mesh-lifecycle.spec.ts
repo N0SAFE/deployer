@@ -1,13 +1,13 @@
 import { Effect } from "effect";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
-import { type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { createMeshClient, openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
+import { type nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { type BootedAgent, bootAgent, removeDataDir } from "./boot-agent";
 
-import type { ContractRouterClient } from "@orpc/contract";
 import type { ClientContext } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
 
 type NodeAgentClient = ContractRouterClient<typeof nodeAgentContract>;
 

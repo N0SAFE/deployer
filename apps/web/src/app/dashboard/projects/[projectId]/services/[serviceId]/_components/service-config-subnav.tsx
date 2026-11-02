@@ -1,5 +1,8 @@
 'use client'
 
+import { SlidersHorizontal, Puzzle, Network, KeyRound, Rocket } from 'lucide-react'
+
+import { cn } from '@/lib/utils'
 import {
   AuthDashboardProjectsProjectIdServicesServiceIdConfigurationEnvironment,
   AuthDashboardProjectsProjectIdServicesServiceIdConfigurationGeneral,
@@ -7,8 +10,6 @@ import {
   AuthDashboardProjectsProjectIdServicesServiceIdConfigurationPreview,
   AuthDashboardProjectsProjectIdServicesServiceIdConfigurationProvider,
 } from '@/routes'
-import { cn } from '@/lib/utils'
-import { SlidersHorizontal, Puzzle, Network, KeyRound, Rocket } from 'lucide-react'
 
 const sectionRoute = [
   { key: 'general', name: 'General', icon: SlidersHorizontal, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationGeneral },

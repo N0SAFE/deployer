@@ -1,7 +1,8 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { useSyncExternalStore } from 'react'
+
 import { formatDateTime } from '@/lib/format/date'
 
 /**

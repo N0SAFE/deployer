@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
+import { describe, expect, it, vi } from "vitest";
+
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
 import { EDGE_CONNECTOR_SUPERVISOR_ID } from "../../supervisors/platform/edge-connector.supervisor";
 import { PLATFORM_INGRESS_SUPERVISOR_ID } from "../../supervisors/platform/traefik.supervisor";
+
 import { TraefikConfigRefresher } from "./traefik-config-refresher.service";
 
 describe("TraefikConfigRefresher", () => {
@@ -24,7 +26,8 @@ describe("TraefikConfigRefresher", () => {
 		const refresher = new TraefikConfigRefresher({ convergeNow } as unknown as SupervisorOrchestratorShape);
 		// `logger` is private by design; the test asserts on a logged warning, so it reads
                 // the instance through a typed view rather than widening the member for tests.
-                const warn = vi.spyOn(refresher["logger"], "warn").mockImplementation(() => undefined);
+                const typedView = refresher as unknown as { logger: { warn: (message: string) => void } };
+                const warn = vi.spyOn(typedView.logger, "warn").mockImplementation(() => undefined);
 
 		expect(() => {
 			refresher.refresh();

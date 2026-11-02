@@ -1,17 +1,19 @@
-import type Docker from "dockerode";
+import { Effect } from "effect";
+import z from "zod/v4";
+
 import {
 	dockerodeNetworkSummarySchema,
 	type DockerodeNetworkSummary,
 	type SwarmOverlayNetworkRequest,
 } from "@deployer/contracts-entities";
 import { fromAbortable } from "@deployer/effect-core";
-import { Effect } from "effect";
-import z from "zod/v4";
 
 import { isNotFound } from "../../errors/classify";
 import { DockerConflict, DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
+
 import type { SwarmServicesShape } from "../swarm/swarm-services";
+import type Docker from "dockerode";
 
 const VXLAN_ID_OPTION = "com.docker.network.driver.overlay.vxlanid_list";
 

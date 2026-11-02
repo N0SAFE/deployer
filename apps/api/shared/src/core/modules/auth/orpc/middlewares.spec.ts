@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { requireAuth, publicAccess } from './middlewares';
+
 import { AuthUtils, AuthUtilsEmpty } from './auth-utils';
+import { requireAuth, publicAccess } from './middlewares';
+
 import type { MiddlewareDone, MiddlewareOptions } from '@orpc/server';
 
 // Mock only validatePermission to avoid dependency on actual permission config

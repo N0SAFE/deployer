@@ -1,15 +1,17 @@
 'use client'
 
-import { useState } from 'react'
 import { Eye, EyeOff, KeyRound, RefreshCw, Shield } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
-import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
+
 import { useMeshNodeConfig, useMeshRegenerateNodeConfigSecret } from '@/domains/mesh/hooks'
 import { formatDateTime } from '@/lib/format/date'
+import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 
 /**
  * Danger zone: the mesh shared secret peers present to this node. Regenerating it

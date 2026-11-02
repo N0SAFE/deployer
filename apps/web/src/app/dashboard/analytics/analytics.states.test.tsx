@@ -1,5 +1,6 @@
 import '@/test-support/mocks'
 import { describePageStates } from '@/test-support'
+
 import AnalyticsPage from './page'
 
 describePageStates('Analytics', {

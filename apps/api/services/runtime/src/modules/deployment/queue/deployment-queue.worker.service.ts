@@ -22,30 +22,28 @@ import { RuntimeInvalid } from "../../../core/runtime.errors";
 
 import { Injectable, Logger, Optional } from "@nestjs/common";
 
-import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@deployer/errors";
 
-import type { AppError } from "@deployer/errors";
+
 import { randomUUID } from "crypto";
+
 import { Effect, Semaphore } from "effect";
-import { EnvService } from "@deployer/shared/config/env/env.module";
-import type { Subscription } from "rxjs";
-import type { DeploymentQueueJob } from "@deployer/contracts-entities";
-import { DeploymentService } from "../services/deployment.service";
-import {
-    deploymentStorageBindingSchema,
-    type DeploymentStorageBinding,
-} from "../storage/base/storage-provider.interface";
-import { deploymentSourceCheckoutContextSchema } from "@deployer/contracts-entities";
+import z from "zod/v4";
+
 import {
     runtimeRunnerOptionsSchema,
     type RuntimeRunnerOptions,
 } from "@deployer/contracts-entities";
-import z from "zod/v4";
+import { deploymentSourceCheckoutContextSchema } from "@deployer/contracts-entities";
+import type { DeploymentQueueJob } from "@deployer/contracts-entities";
+import type { AppError } from "@deployer/errors";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@deployer/errors";
+import { EnvService } from "@deployer/shared/config/env/env.module";
+
 import {
     DeploymentArtifactBuilderService,
     type DeploymentBuilderKind,
 } from "../builders/deployment-artifact-builder.service";
+
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
 import { makeJobRunner } from "./worker/job-runner";
 
@@ -55,6 +53,15 @@ const attempt = <A>(operation: () => Promise<A>): Effect.Effect<A, unknown> =>
 
 type ClaimedJob = { readonly id: string; readonly lockToken: string; /** The delivered job this claim answers (ids can differ when the queue re-keys). */ readonly deliveredJobId: string };
 import { beginHeavyWork } from "@deployer/shared/core/utils/heavy-work.registry";
+
+import { DeploymentService } from "../services/deployment.service";
+import {
+    deploymentStorageBindingSchema,
+    type DeploymentStorageBinding,
+} from "../storage/base/storage-provider.interface";
+
+import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import type { Subscription } from "rxjs";
 
 const executionPlanSchema = z.object({
     builder: z

@@ -1,9 +1,6 @@
-import { AuthDashboardSettingsAccount } from '@/routes'
-import { ProfileForm } from './profile-form'
-import { PageTimingLogger } from '@/lib/timing'
-import { PageHeader } from '@/components/dashboard'
-import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
+
 import {
   ActiveSessionsCard,
   ApiKeysCard,
@@ -11,6 +8,13 @@ import {
   PasskeysCard,
   SecurityPostureCard,
 } from '@/components/account/security-cards'
+import { PageHeader } from '@/components/dashboard'
+import { PageTimingLogger } from '@/lib/timing'
+import { AuthDashboardSettingsAccount } from '@/routes'
+
+import { ProfileForm } from './profile-form'
+
+
 
 /**
  * Settings > Account page using SessionRoute pattern

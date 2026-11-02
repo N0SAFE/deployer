@@ -1,13 +1,17 @@
 'use client'
 
 import { CheckCircle2, CircleAlert, CircleHelp, OctagonAlert } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent } from '@deployer/ui/components/shadcn/card'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { StatusDot } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
-import type { PlatformVerdict } from '../_utils/platform-verdict'
+
 import { AttentionLink } from './attention-link'
+
+import type { PlatformVerdict } from '../_utils/platform-verdict'
 
 const LEVEL_STYLE = {
 	healthy: { icon: CheckCircle2, text: 'text-status-live', ring: 'ring-status-live/20 bg-status-live/5', label: 'Healthy' },

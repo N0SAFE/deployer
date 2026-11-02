@@ -1,10 +1,13 @@
 import { UnauthorizedException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
-import type { EnvService } from "../../../../config/env/env.module";
 import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
-import type { TraefikIngressConfigService } from "../services/traefik-ingress-config.service";
+
 import { TraefikIngressConfigController } from "./traefik-ingress-config.controller";
+
+import type { EnvService } from "../../../../config/env/env.module";
+import type { TraefikIngressConfigService } from "../services/traefik-ingress-config.service";
+
 
 const config = { http: { routers: {}, services: {} } };
 

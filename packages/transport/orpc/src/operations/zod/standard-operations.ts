@@ -7,7 +7,8 @@
  */
 
 import * as z from "zod";
-import type { HTTPPath } from "@deployer/orpc-utils/types/types";
+
+import { ZodPluginTransformer } from "@deployer/orpc-utils/builder/index";
 import {
     BaseStandardOperations,
     type EntityOperationOptions as BaseEntityOperationOptions,
@@ -33,7 +34,7 @@ import {
 } from "@deployer/orpc-utils/operations/zod/utils/index";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- DetailedOutputBrand/DetailedInputBrand are imported so inferred declaration types can name them (TS4053)
 import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "@deployer/orpc-utils/builder/core/route-builder";
-import { ZodPluginTransformer } from "@deployer/orpc-utils/builder/index";
+import type { HTTPPath } from "@deployer/orpc-utils/types/types";
 
 /**
  * Zod entity schema type - requires ZodObject for schema manipulation

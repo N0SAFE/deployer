@@ -7,23 +7,28 @@
  * converges via cluster.setSwarmConfig.
  */
 
-import { useMemo, useState } from "react";
-import { Loader2, Save } from "lucide-react";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@deployer/ui/components/shadcn/dialog";
-import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@deployer/ui/components/shadcn/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@deployer/ui/components/shadcn/card";
-import { Badge } from "@deployer/ui/components/shadcn/badge";
-import { useSetSwarmConfig, useSwarmConfig } from "@/domains/cluster/hooks";
-import { clusterEndpoints } from "@/domains/cluster/endpoints";
+import { Loader2, Save } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+
 import {
   SwarmParticipationForm,
   draftToInput,
   participationDraftFromView,
   type SwarmParticipationDraft,
 } from "@deployer/ui/components/setup/swarm-participation-form";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@deployer/ui/components/shadcn/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@deployer/ui/components/shadcn/dialog";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+
+
+
+import { clusterEndpoints } from "@/domains/cluster/endpoints";
+import { useSetSwarmConfig, useSwarmConfig } from "@/domains/cluster/hooks";
+
 
 export function SwarmConfigPanel() {
   const { data: view, isPending, error, refetch } = useSwarmConfig()

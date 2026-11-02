@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+
 import { assertAuthenticated, type ORPCAuthContext, type ORPCAuthenticatedContext } from './types';
 
 describe('ORPC Auth Types', () => {

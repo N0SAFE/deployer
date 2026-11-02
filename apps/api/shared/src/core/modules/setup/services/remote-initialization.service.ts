@@ -1,22 +1,26 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { AppError } from "@deployer/errors";
 import { Injectable, Logger, Inject } from '@nestjs/common'
+
 import {
     meshEnrollmentDescribeResultSchema,
     meshEnrollmentEnrollResultSchema,
     type SetupInitializeRemoteInput,
 } from '@deployer/contracts-entities'
+import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { AppError } from "@deployer/errors";
 import { meshEnrollmentContract } from '@deployer/fleet-contracts'
 import { nodeAgentLink, nodeDoorFromEnv, serviceLink, type NodeDoorClient } from '@deployer/mesh-client'
-import type { ClientContext, ClientLink } from '@orpc/client'
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-
-import { EnvService } from "../../../../config/env/env.module"
-import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
-import { DEPLOYER_VERSION, semverCompare } from '../../../utils/deployer-version'
-import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
 import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
 import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+
+import { EnvService } from "../../../../config/env/env.module"
+import { DEPLOYER_VERSION, semverCompare } from '../../../utils/deployer-version'
+import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
+
+import type { ClientContext, ClientLink } from '@orpc/client'
+
+
 
 /** How long a joining node waits for its agent to find the fleet, and how often it asks again. */
 const FLEET_WAIT_MS = 60_000
@@ -109,7 +113,7 @@ export class RemoteInitializationService {
                 try {
                     return await call(fleet, path, body)
                 } catch (error) {
-                    const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code: unknown }).code) : ''
+                    const code = typeof error === 'object' && error !== null && 'code' in error ? String((error).code) : ''
                     // The agent has not learned where the fleet is yet: it will, so wait. Anything else is an answer.
                     if (code !== 'NOT_FOUND' && code !== 'SERVICE_UNAVAILABLE' && code !== 'INTERNAL_SERVER_ERROR') throw error
                     if (Date.now() >= deadline) {
@@ -281,8 +285,8 @@ export class RemoteInitializationService {
      * should fall back to the mesh URL's origin when null.
      */
     private resolveServerUrl(): string | null {
-        const candidate = this.envService.get('APP_URL')?.toString().trim()
-            ?? this.envService.get('NEXT_PUBLIC_APP_URL')?.toString().trim()
+        const appUrl = this.envService.get('APP_URL')?.trim() ?? ''
+        const candidate = appUrl.length > 0 ? appUrl : (this.envService.get('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
         if (!candidate) {
             return null
         }

@@ -1,9 +1,10 @@
-import type { Request, Response } from "express";
 import { Logger } from "@nestjs/common";
-import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LoggerMiddleware } from "./logger.middleware";
+
+import type { Request, Response } from "express";
+import type { Mock } from "vitest";
 
 /**
  * `os.hostname()` runs on every request, so its real value would make the

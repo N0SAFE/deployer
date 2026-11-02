@@ -1,4 +1,5 @@
 import { Effect, type Scope } from "effect";
+
 import { FsError } from "./errors";
 
 export type FileKind = "file" | "directory" | "symlink" | "other";

@@ -1,11 +1,14 @@
 'use client'
 
+import { Search } from 'lucide-react'
 import { type ChangeEvent, useMemo, useState } from 'react'
+
 import type { DockerImageSecurityScanSummary, DockerVulnerabilityEntry } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Input } from '@deployer/ui/components/shadcn/input'
-import { Search } from 'lucide-react'
+
 import { DockerCopyButton } from '../docker-copy-button'
+
 import {
   buildVulnerabilityRowKey,
   filterAndSortVulnerabilities,

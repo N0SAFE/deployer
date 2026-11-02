@@ -1,9 +1,11 @@
-import { Cause, Effect, Exit, Stream } from "effect";
 import { PassThrough } from "node:stream";
+
+import { Cause, Effect, Exit, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { makeDockerEngine } from "./docker-engine";
 import { DockerConflict, DockerNotFound, DockerUnavailable } from "../errors/errors";
+
+import { makeDockerEngine } from "./docker-engine";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 	const exit = await Effect.runPromiseExit(effect);

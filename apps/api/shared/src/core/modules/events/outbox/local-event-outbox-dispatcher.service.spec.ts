@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
-import type { LocalEventOutboxRepository } from "./local-event-outbox.repository";
+
 import { LocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
+
+import type { LocalEventOutboxRepository } from "./local-event-outbox.repository";
 import type { GlobalDatabaseService } from "../../database/global/global-database.service";
 
 /**

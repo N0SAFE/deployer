@@ -1,6 +1,7 @@
 import type { projectDomains, serviceDomainMappings } from "@deployer/nest-schema/global/project/domain";
-import type { z } from 'zod';
 import type { projectDomainSchema, serviceDomainMappingSchema, addDomainResponseSchema, verifyDomainResponseSchema, verificationInstructionsSchema } from "@deployer/project-contracts";
+
+import type { z } from 'zod';
 
 type ProjectDomain = typeof projectDomains.$inferSelect;
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;

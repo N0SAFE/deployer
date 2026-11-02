@@ -1,5 +1,7 @@
-import { RuntimeInvalid } from "../../../../../core/runtime.errors";
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+import { RuntimeInvalid } from "../../../../../core/runtime.errors";
+
 import { GithubSourceProviderService } from './github-source-provider.service';
 
 describe('GithubSourceProviderService', () => {

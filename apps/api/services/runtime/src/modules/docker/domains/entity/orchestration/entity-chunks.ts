@@ -40,7 +40,7 @@ export function validateEntityBase(kind: DockerEntityKind, raw: unknown, log: En
   if (!(kind in BASE_SCHEMAS)) {
     return null;
   }
-  const parsed = BASE_SCHEMAS[kind as keyof typeof BASE_SCHEMAS].safeParse(raw);
+  const parsed = BASE_SCHEMAS[kind].safeParse(raw);
   if (!parsed.success) {
     log.warn(`[docker-entity-orchestrator] dropping invalid ${kind} entity`, { issues: parsed.error.issues });
     return null;

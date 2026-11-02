@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useState, type RefObject } from 'react'
+
 import { countNewLines, type IdentifiedLine } from '../_lib/merge-lines'
 
 const BOTTOM_THRESHOLD_PX = 24

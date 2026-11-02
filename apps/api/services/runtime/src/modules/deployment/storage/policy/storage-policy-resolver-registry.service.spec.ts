@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { DeploymentStoragePolicyResolver } from "../base/storage-policy-resolver.interface";
-import { StoragePolicyResolverRegistryService } from "./storage-policy-resolver-registry.service";
+
+import { ConfigurationDefinitionService } from "@deployer/shared/core/modules/configuration/services/configuration-definition.service";
+import { ConfigurationResolverService } from "@deployer/shared/core/modules/configuration/services/configuration-resolver.service";
+import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
+
+import { RuntimeConfigurationStoragePolicyResolverService } from "./runtime-configuration-storage-policy-resolver.service";
 import { ServiceCustomDataStoragePolicyResolverService } from "./service-custom-data-storage-policy-resolver.service";
 import { ServiceTopLevelStoragePolicyResolverService } from "./service-top-level-storage-policy-resolver.service";
-import { RuntimeConfigurationStoragePolicyResolverService } from "./runtime-configuration-storage-policy-resolver.service";
-import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
-import { ConfigurationResolverService } from "@deployer/shared/core/modules/configuration/services/configuration-resolver.service";
-import { ConfigurationDefinitionService } from "@deployer/shared/core/modules/configuration/services/configuration-definition.service";
+import { StoragePolicyResolverRegistryService } from "./storage-policy-resolver-registry.service";
+
+import type { DeploymentStoragePolicyResolver } from "../base/storage-policy-resolver.interface";
+
 
 describe("StoragePolicyResolverRegistryService", () => {
     const accessor = new RuntimeConfigurationAccessorService(

@@ -1,7 +1,8 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { dockerEntityListContract } from "./list";
+
 import { dockerEntityInspectContract } from "./inspect";
+import { dockerEntityListContract } from "./list";
 import { dockerEntityStreamContract } from "./stream";
 
 /**

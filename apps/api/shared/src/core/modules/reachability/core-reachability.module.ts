@@ -1,15 +1,17 @@
 import { createGlobalModule } from '@deployer/nest-effect';
+
+import { EnvModule } from '../../../config/env/env.module';
 import { GlobalDatabaseModule } from '../database/global/global-database.module';
-import { EventsModule } from '../events/events.module';
-import { NodeStateModule } from '../node-state/node-state.module';
 import { CoreEdgeModule } from '../edge/edge.module';
 import { CoreEgressModule } from '../egress/egress.module';
-import { EnvModule } from '../../../config/env/env.module';
-import { ReachabilityService } from './services/reachability.service';
-import { PublicEdgeService } from './services/public-edge.service';
-import { PublicAccessPointService } from './services/public-access-point.service';
+import { EventsModule } from '../events/events.module';
+import { NodeStateModule } from '../node-state/node-state.module';
+
 import { PublicAccessPointEventService } from './events/public-access-point-event.service';
 import { NodeNetworkConfigRepository } from './repositories/node-network-config.repository';
+import { PublicAccessPointService } from './services/public-access-point.service';
+import { PublicEdgeService } from './services/public-edge.service';
+import { ReachabilityService } from './services/reachability.service';
 
 /**
  * CORE: Reachability + Public Access Point.

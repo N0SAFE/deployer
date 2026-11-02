@@ -1,15 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
-import { mergeByKey } from '../../_utils/scan-events'
-import { isDefinedORPCError, getErrorMessage } from '@/lib/orpc/typed-errors'
-import { useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
+
 import type {
   DockerImageInspectDetail,
   DockerImageSecurityScanEvent,
   DockerVulnerabilityEntry,
 } from '@deployer/contracts-entities'
+
+import { useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
+import { isDefinedORPCError, getErrorMessage } from '@/lib/orpc/typed-errors'
+
+import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
+import { mergeByKey } from '../../_utils/scan-events'
+
+
 import {
   SECURITY_SCAN_EVENT_LIMIT,
   SECURITY_SCAN_SCANNERS,

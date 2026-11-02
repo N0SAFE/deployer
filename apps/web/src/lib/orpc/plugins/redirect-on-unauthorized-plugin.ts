@@ -1,7 +1,9 @@
-import { AppLogger } from '@deployer/logger'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
-import clientRedirect from '@/actions/redirect'
 import { redirect, RedirectType, unstable_rethrow } from 'next/navigation'
+
+import { AppLogger } from '@deployer/logger'
+
+import clientRedirect from '@/actions/redirect'
 import { AuthSignin } from '@/routes/index'
 
 const pluginLogger = new AppLogger('web').scope('RedirectOnUnauthorized')

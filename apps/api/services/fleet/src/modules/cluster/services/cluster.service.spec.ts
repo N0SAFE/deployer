@@ -1,7 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import { Cause, Effect, Exit } from "effect";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import { provideTo } from "@deployer/effect-core";
+
 import {
     ClusterEnvPort,
     ClusterNodeRepoPort,
@@ -10,6 +12,7 @@ import {
     SwarmFleetPort,
     SwarmParticipationPort,
 } from "../cluster.ports";
+
 import { ClusterService } from "./cluster.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */

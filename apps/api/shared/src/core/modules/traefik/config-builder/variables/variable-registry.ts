@@ -1,5 +1,6 @@
-import type { Variable, VariableMetadata } from './variable.types';
 import z from 'zod';
+
+import type { Variable, VariableMetadata } from './variable.types';
 
 /**
  * Variable registration error

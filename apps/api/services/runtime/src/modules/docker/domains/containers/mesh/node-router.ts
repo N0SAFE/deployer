@@ -1,6 +1,6 @@
 import { implement } from "@orpc/server";
-import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 
+import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { runtimeNodeContract } from "@deployer/runtime-contracts/mesh/index";
 
 import type { LocalNodeOperations } from "./local-node-operations";

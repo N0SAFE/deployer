@@ -1,9 +1,7 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { user } from "@deployer/nest-schema/global/identity/auth";
-import { environments } from "@deployer/nest-schema/global/project/environment";
-import { encryptedText } from "../../codecs/codec-registry";
-import { traefikConfigBuilder } from "../../codecs/codec-registry";
+import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
+
+import { PROJECT_ROLES } from "@deployer/auth";
 import {
     deploymentEnvironmentSchema,
     deploymentPhaseSchema,
@@ -16,11 +14,16 @@ import {
     sourceTypeSchema,
 } from "@deployer/contracts-common";
 import type { NetworkDnsRecordType } from "@deployer/contracts-entities";
-import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
-import { PROJECT_ROLES } from "@deployer/auth";
-import { environmentVariables } from "@deployer/nest-schema/global/project/environment";
+import { user } from "@deployer/nest-schema/global/identity/auth";
 import { sourceTypeEnum } from "@deployer/nest-schema/global/platform/deployment";
+import { environments } from "@deployer/nest-schema/global/project/environment";
+import { environmentVariables } from "@deployer/nest-schema/global/project/environment";
 import { deploymentRules, deployments } from "@deployer/nest-schema/global/runtime/deployment";
+import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
+
+import { encryptedText } from "../../codecs/codec-registry";
+import { traefikConfigBuilder } from "../../codecs/codec-registry";
+
 // Enums for deployment-related types
 // project_role is the SSOT PROJECT_ROLES (owner/maintainer/deployer/viewer) —
 // the canonical project roles from the permission system.

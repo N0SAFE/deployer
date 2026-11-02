@@ -1,19 +1,23 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+
+import type { DockerFileEntry } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
-import type { DockerFileEntry } from '@deployer/contracts-entities'
+
+import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+
+import { formatBytes, shortId } from '../_utils/format'
+
 import { DockerContainerDetailModalTrigger } from './container-detail-modal'
 import { DockerCopyButton } from './docker-copy-button'
 import { DockerFileBrowser } from './docker-file-browser'
 import { DockerKeyValueGrid } from './docker-key-value-grid'
 import { DockerDetailLoadingState } from './docker-loading-states'
 import { DockerRelativeTime } from './docker-relative-time'
-import { formatBytes, shortId } from '../_utils/format'
 
 type VolumeTab = 'overview' | 'usage' | 'files' | 'labels'
 

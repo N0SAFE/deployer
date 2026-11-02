@@ -1,6 +1,6 @@
 import { createModuleContext, effectHostProvider } from "@deployer/nest-effect";
-import { nodeAgentContract } from "@deployer/node-agent-contracts";
 import { MeshTransportModule } from "@deployer/nest-mesh";
+import { nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { MeshTransportService } from "./mesh-transport.service";
 import { SERVICE_DOOR_PROCEDURES } from "./service-door";

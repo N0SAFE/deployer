@@ -1,12 +1,16 @@
-import type { TestingModule } from '@nestjs/testing';
-import { Test } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Reflector } from '@nestjs/core';
-import type { ExecutionContext } from '@nestjs/common';
-import { RoleGuard } from './role.guard';
-import { MODULE_OPTIONS_TOKEN } from '../definitions/auth-module-definition';
+import { Test } from '@nestjs/testing';
 import { APIError } from 'better-auth/api';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
 import { PermissionChecker } from '@deployer/auth/permissions';
+
+import { MODULE_OPTIONS_TOKEN } from '../definitions/auth-module-definition';
+
+import { RoleGuard } from './role.guard';
+
+import type { ExecutionContext } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
 
 // Mock the permissions module
 vi.mock('@deployer/auth/permissions', () => ({

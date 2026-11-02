@@ -1,13 +1,18 @@
-import { HttpException, Injectable, Logger } from "@nestjs/common";
-import { APIError } from "better-auth/api";
-import type { Request } from "express";
-import { ORPCError } from "@orpc/server";
 import { randomUUID } from "node:crypto";
+
+import { HttpException, Injectable, Logger } from "@nestjs/common";
+import { ORPCError } from "@orpc/server";
+import { APIError } from "better-auth/api";
+
+import { MeshBaseDomainError } from "../../modules/mesh/shared/domain/mesh-base-error";
+
 import {
     getInternalErrorRequestContext,
     type InternalErrorRequestContext,
 } from "./internal-error-context";
-import { MeshBaseDomainError } from "../../modules/mesh/shared/domain/mesh-base-error";
+
+import type { Request } from "express";
+
 
 export type InternalErrorInsightModule = {
     readonly id: string;

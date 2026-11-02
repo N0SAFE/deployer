@@ -1,6 +1,7 @@
+import snakeCase from 'lodash.snakecase'
+
 import { SnakeCaseSeq } from './type-utils'
 
-import snakeCase from 'lodash.snakecase'
 
 export function keysToSnake<T extends Record<string, unknown>>(object: T) {
     return Object.keys(object).reduce<Record<

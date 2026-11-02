@@ -3,12 +3,15 @@
 import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { StatusBadge } from '@/components/dashboard'
 import { formatDateTime } from '@/lib/format/date'
+
 import { DockerContainerDetailModalTrigger } from '../../_components/container-detail-modal'
 import { DockerCopyableId } from '../../_components/docker-copy-button'
-import { describeActivity } from '../_utils/describe-activity'
 import { resolveContainerId, resolveResourceName, resolveSwarmSummary } from '../_utils/activity-fields'
+import { describeActivity } from '../_utils/describe-activity'
+
 import { severityVariant } from './activity-severity'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

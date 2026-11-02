@@ -1,7 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState, useCallback, useRef } from 'react'
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@deployer/ui/components/shadcn/dialog'
+
 import {
   AuthDashboard,
   AuthDashboardDeployments,
@@ -12,13 +21,8 @@ import {
   AuthDashboardProjects,
   AuthDashboardServices,
 } from '@/routes'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@deployer/ui/components/shadcn/dialog'
+
+
 import { openCommandPalette } from './command-palette-store'
 
 /** go-to bindings: press `g`, then a letter within the window. */

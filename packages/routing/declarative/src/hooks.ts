@@ -9,9 +9,8 @@
  * All hooks work with RouteBuilder instances to ensure type safety.
  */
 
-import { useCallback, useMemo } from 'react'
 import { useParams as useNextParams, useRouter, useSearchParams as useNextSearchParams } from 'next/navigation'
-import { z } from 'zod'
+import NProgress from 'nprogress'
 import {
     createParser,
     parseAsArrayOf,
@@ -26,8 +25,10 @@ import {
     type Options as NuqsOptions,
     type SingleParserBuilder,
 } from 'nuqs'
-import NProgress from 'nprogress'
 import queryString from 'query-string'
+import { useCallback, useMemo } from 'react'
+import { z } from 'zod'
+
 import type { RouteBuilder } from '@deployer/declarative-routing/make-route'
 import { isRecord } from "@deployer/type-guards"
 

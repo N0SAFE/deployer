@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Download, Pause, Play, RefreshCw, ScrollText, WrapText } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Toggle } from '@deployer/ui/components/shadcn/toggle'
+
 import { EmptyState } from '@/components/dashboard'
 import { useDeploymentLogs } from '@/domains/deployment/hooks'
 import { formatDateTime } from '@/lib/format/date'
+
 import { InlineError } from '../../../../../_components/workload/WorkloadStates'
 import { isInProgress } from '../../../../../_utils/workload'
 

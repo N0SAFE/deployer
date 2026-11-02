@@ -1,10 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import { Siren } from 'lucide-react'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+
+import type { ReactNode } from 'react'
 
 /**
  * Confirmation for removing an integration account. Names the object, states the

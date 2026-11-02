@@ -1,9 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { Cause, Effect, Exit } from "effect";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
 import { provideTo } from "@deployer/effect-core";
-import { FleetService } from "./fleet.service";
+
+import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
+
 import { FleetRepository, FleetDatabasePort, type FleetRepositoryShape } from "../repositories/fleet.repository";
+
+import { FleetService } from "./fleet.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

@@ -1,5 +1,6 @@
-import { primaryLanAddress } from "@deployer/node-agent-container";
 import { describe, expect, it } from "vitest";
+
+import { primaryLanAddress } from "@deployer/node-agent-container";
 
 import { lanAddresses } from "./host-addresses";
 

@@ -1,13 +1,18 @@
 'use client'
 
 import { Pause, Play, RefreshCw, Search } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
-import { cn } from '@/lib/utils'
+
 import { StatusDot } from '@/components/dashboard'
-import type { FeedConnection } from '../_hooks/use-activity-feed'
-import { ACTIVITY_KIND_LABELS } from '../_utils/describe-activity'
+import { cn } from '@/lib/utils'
+
 import { ACTIVITY_QUERY_SCHEMA, KIND_FILTERS, SEVERITY_FILTERS, STATUS_FILTERS, type ActivityFilters as ActivityFilterState } from '../_utils/activity-filters'
+import { ACTIVITY_KIND_LABELS } from '../_utils/describe-activity'
+
+import type { FeedConnection } from '../_hooks/use-activity-feed'
+
 
 const SELECT_CLASS = 'h-9 rounded-md border border-border/70 bg-background px-3 text-sm'
 

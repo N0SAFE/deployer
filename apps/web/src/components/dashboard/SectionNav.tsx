@@ -1,8 +1,10 @@
 'use client'
 
-import type { ComponentType, ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
+
 import { cn } from '@deployer/ui/lib/utils'
+
+import type { ComponentType, ReactNode } from 'react'
 
 /** A typed route builder as `@/routes` generates them: callable for the URL, with a `Link`. */
 interface SectionRoute {

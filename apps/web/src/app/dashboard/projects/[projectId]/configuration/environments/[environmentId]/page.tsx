@@ -1,13 +1,16 @@
 'use client'
 
-import { useParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
+import { useParams } from 'next/navigation'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { PageSkeleton, StatusBadge } from '@/components/dashboard'
 import { useProject, useProjectEnvironment } from '@/domains/project/hooks'
 import { AuthDashboardProjectsProjectIdConfiguration, AuthDashboardProjectsProjectIdEnvironments } from '@/routes'
+
 import { IdChip } from '../../../../_components/workload/CopyButton'
 import { RelativeTime } from '../../../../_components/workload/RelativeTime'
 import { InlineError } from '../../../../_components/workload/WorkloadStates'

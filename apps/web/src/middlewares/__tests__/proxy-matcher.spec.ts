@@ -26,6 +26,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { compileMatchers } from '../utils/compileMatchers'
+
 import type { Middleware } from '../utils/types'
 
 const PROXY = join(import.meta.dirname, '..', '..', 'proxy.ts')

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { DeploymentTriggerRegistryService } from "./deployment-trigger-registry.service";
+
 import { ApiTriggerSource } from "./api-trigger.source";
+import { DeploymentTriggerRegistryService } from "./deployment-trigger-registry.service";
 import { GithubPushTriggerSource } from "./github-push-trigger.source";
+
 import type { DeploymentTriggerSource } from "./base/deployment-trigger-source.interface";
 
 /**

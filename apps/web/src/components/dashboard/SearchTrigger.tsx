@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+
 import { openCommandPalette } from './command-palette-store'
 
 /**

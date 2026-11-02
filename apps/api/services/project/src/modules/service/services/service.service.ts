@@ -1,25 +1,13 @@
-import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "@/modules/project/domain/project.errors";
+import { Context, Effect } from "effect";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
-import { Context, Effect } from "effect";
-import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
-import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
-import { DatabasePort } from "@project/core/database/database.port";
-import { attempt, rule } from "@/modules/project/project-effects";
-import { ServiceStore, type ServiceStoreShape } from "../repositories/service.repository";
-import {
-	ServiceEventService,
-	type ServiceEventServiceImpl,
-} from "./service-event.service";
-import { PreviewTopologyService } from "./preview-topology.service";
-import { defaultProviderConfig, defaultRunnerConfig } from "./service-config-defaults";
-import { emptyEffectiveConfig, foldServiceChain, mergeServiceConfig } from "./service-effective-config";
+
+import type { ProjectRole } from "@deployer/auth";
+import type { ServiceProviderType, ServiceRunnerType } from "@deployer/contracts-common";
 import type { ServiceEffectiveConfig, ServiceWithEffectiveConfig } from "@deployer/contracts-entities";
-import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
 import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
 import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
-import type { ProjectRole } from "@deployer/auth";
+import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
 import type {
     ServiceStreamEvent,
     ServiceStreamQueryInput,
@@ -28,7 +16,25 @@ import type {
     ConfigurationProviderType,
     ConfigurationRunnerType,
 } from "@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema";
-import type { ServiceProviderType, ServiceRunnerType } from "@deployer/contracts-common";
+import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+
+import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "@/modules/project/domain/project.errors";
+import { attempt, rule } from "@/modules/project/project-effects";
+
+import { DatabasePort } from "@project/core/database/database.port";
+import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
+import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
+
+import { ServiceStore, type ServiceStoreShape } from "../repositories/service.repository";
+
+import { PreviewTopologyService } from "./preview-topology.service";
+import { defaultProviderConfig, defaultRunnerConfig } from "./service-config-defaults";
+import { emptyEffectiveConfig, foldServiceChain, mergeServiceConfig } from "./service-effective-config";
+import {
+	ServiceEventService,
+	type ServiceEventServiceImpl,
+} from "./service-event.service";
+
 
 type StreamEventWithMeta<T extends object> = T & {
     sequence: number;

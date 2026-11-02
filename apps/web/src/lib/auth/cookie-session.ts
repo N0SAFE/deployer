@@ -24,9 +24,12 @@ import 'server-only'
 import { getCookieCache, getSessionCookie } from 'better-auth/cookies'
 import { cookies } from 'next/headers'
 import { unstable_rethrow } from 'next/navigation'
-import { validateEnvSafe } from '#/env'
+
 import { AppLogger } from '@deployer/logger'
+
 import type { Session } from '@/lib/auth'
+
+import { validateEnvSafe } from '#/env'
 
 // Validate environment variables
 const env = validateEnvSafe(process.env).data

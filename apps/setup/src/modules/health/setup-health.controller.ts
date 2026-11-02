@@ -1,9 +1,11 @@
 import { Controller, Get, HttpCode, Res } from "@nestjs/common";
 import { HealthCheckService } from "@nestjs/terminus";
-import type { Response } from "express";
+
 
 import { SetupPhaseService } from "./setup-phase.service";
 import { SetupReadinessIndicator } from "./setup-readiness.indicator";
+
+import type { Response } from "express";
 
 /**
  * The setup app's health surface.

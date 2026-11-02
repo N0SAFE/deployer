@@ -10,10 +10,12 @@ import {
   tap,
 } from "rxjs";
 
-import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
-import { SwarmBootstrapService } from "./swarm-bootstrap.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+
+import { SwarmBootstrapService } from "./swarm-bootstrap.service";
+
+import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 
 /**
  * Drives the cluster phase as an RxJS pipeline.

@@ -1,5 +1,3 @@
-import type { QueryKey } from '@tanstack/react-query';
-import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 import type {
   ExtractInput,
   ExtractMutationContext,
@@ -10,6 +8,9 @@ import type {
   MutationProcedureNames,
   QueryProcedureNames,
 } from '@deployer/orpc-utils/hooks/types/route-method.types';
+
+import type { QueryKey } from '@tanstack/react-query';
+import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 
 type ResolverResult<TContract extends object, TRouter extends object = TContract> = Partial<{
   [Q in QueryProcedureNames<TContract, TRouter>]: Q extends keyof TRouter

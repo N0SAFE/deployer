@@ -1,14 +1,16 @@
 import "@orpc/effect/extensions/effect";
 
-import { effectContext } from "@deployer/nest-effect/testing";
-import { callProcedure } from "@deployer/orpc-utils/testing";
 import { Context, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HealthController } from "./health.controller";
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+
 import { HealthRegistryRepository, UptimeSource } from "../services/health.service";
 import { HealthService, SERVICE_NAME } from "../services/health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
+
+import { HealthController } from "./health.controller";
 
 // Authentication and role checks are the shared middlewares' concern; here they let the call
 // through so the rest of the chain runs for real.

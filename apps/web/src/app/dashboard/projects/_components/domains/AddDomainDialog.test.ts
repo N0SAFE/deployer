@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { parseSubdomains } from './AddDomainDialog'
 
 describe('parseSubdomains', () => {

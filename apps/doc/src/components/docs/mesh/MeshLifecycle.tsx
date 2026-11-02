@@ -6,7 +6,7 @@ import { ArrowDefs, Box, Frame, ink, Label, ROUTE_COLOURS, Stepper, StepList, TO
 
 type Arrow = 'reg1' | 'reg2' | 'call' | 'serve' | 'join1' | 'join2' | 'cross' | 'grant' | 'direct';
 
-type Phase = {
+interface Phase {
   readonly title: string;
   readonly detail: string;
   /** Whether node B (the swarm) is part of the picture. */
@@ -18,7 +18,7 @@ type Phase = {
   readonly b: readonly string[];
   readonly on: readonly Arrow[];
   readonly caption: string;
-};
+}
 
 const PHASES: readonly Phase[] = [
   {

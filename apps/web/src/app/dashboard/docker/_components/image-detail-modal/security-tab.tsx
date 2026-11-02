@@ -1,19 +1,25 @@
 'use client'
 
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { isDefinedORPCError, getErrorMessage } from '@/lib/orpc/typed-errors'
-import type { DockerPullTimelineRow } from '../docker-image-pull-progress-panel'
-import { DockerImagePullProgressPanel } from '../docker-image-pull-progress-panel'
-import { DockerImageSecurityFlow, type DockerImageSecurityFlowStage } from '../docker-image-security-flow'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { Loader2, RefreshCw } from 'lucide-react'
-import { SecurityLogsPane } from './security-logs-pane'
-import { SecurityResultsPane } from './security-results-pane'
+
+import { isDefinedORPCError, getErrorMessage } from '@/lib/orpc/typed-errors'
+
+import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
+import { DockerImagePullProgressPanel } from '../docker-image-pull-progress-panel'
+import { DockerImageSecurityFlow, type DockerImageSecurityFlowStage } from '../docker-image-security-flow'
+
 import { buildPullingLayers, buildPullingScannerRows } from './pull-layer-model'
 import { toClock } from './scan-model'
+import { SecurityLogsPane } from './security-logs-pane'
+import { SecurityResultsPane } from './security-results-pane'
+
+import type { DockerPullTimelineRow } from '../docker-image-pull-progress-panel'
 import type { ImageScanSession } from './use-image-scan-session'
-import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
+
 
 interface SecurityTabProps {
   imageRef: string

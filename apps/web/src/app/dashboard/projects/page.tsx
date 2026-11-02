@@ -1,29 +1,32 @@
 'use client'
 
+import { FolderKanban, Pencil, Plus, Search, Settings, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import {
-  AuthDashboardDeployments,
-  AuthDashboardProjectsProjectId,
-  AuthDashboardProjectsProjectIdConfiguration,
-} from '@/routes'
-import { useProjectList, useCreateProject, useUpdateProject, useDeleteProject } from '@/domains/project/hooks'
-import { useServiceList } from '@/domains/service/hooks'
-import { useDeploymentList } from '@/domains/deployment/hooks'
+import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { FolderKanban, Pencil, Plus, Search, Settings, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+
 import {
   PageHeader, PageErrorState, EmptyState, FilteredEmptyState, ScopeLabel, StatStrip, StatStripItem, StatusBadge,
 } from '@/components/dashboard'
 import { PageSkeleton } from '@/components/dashboard/Skeletons'
-import { useSlowLoading, errorReason } from './_components/workload/WorkloadStates'
-import { RelativeTime } from './_components/workload/RelativeTime'
-import { IdChip } from './_components/workload/CopyButton'
+import { useDeploymentList } from '@/domains/deployment/hooks'
+import { useProjectList, useCreateProject, useUpdateProject, useDeleteProject } from '@/domains/project/hooks'
+import { useServiceList } from '@/domains/service/hooks'
+import {
+  AuthDashboardDeployments,
+  AuthDashboardProjectsProjectId,
+  AuthDashboardProjectsProjectIdConfiguration,
+} from '@/routes'
+
 import { ProjectFormDialog, DeleteProjectDialog } from './_components/list/project-dialogs'
+import { IdChip } from './_components/workload/CopyButton'
+import { RelativeTime } from './_components/workload/RelativeTime'
+import { useSlowLoading, errorReason } from './_components/workload/WorkloadStates'
 import {
   buildProjectGlance, matchesProjectQuery, sortProjects, type ProjectSortKey,
 } from './_utils/project-overview'

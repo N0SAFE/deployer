@@ -1,11 +1,15 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
-import { NODE_CONFIG_STORE, type NodeConfigStore } from "./node-config.port";
+
+import { runSyncUnwrapped } from "@deployer/effect-core";
+
+
 import { EnvService } from "@/config/env/env.module";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import type { ClusterEntryMode } from "@/modules/cluster/cluster.types";
+import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+
+import { NODE_CONFIG_STORE, type NodeConfigStore } from "./node-config.port";
 
 /**
  * The gate that decides when the API may start.

@@ -1,10 +1,12 @@
 import { createGlobalModule } from "@deployer/nest-effect"
-import { BootstrapOrchestratorService } from './bootstrap-orchestrator.service'
+
 import { EnvModule } from "../../../config/env/env.module"
-import { GlobalDatabaseModule } from '../database/global/global-database.module'
 import { DatabaseModule } from '../database/database.module'
-import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supervisors.module'
+import { GlobalDatabaseModule } from '../database/global/global-database.module'
 import { SupervisorsModule } from "../supervision/index";
+import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supervisors.module'
+
+import { BootstrapOrchestratorService } from './bootstrap-orchestrator.service'
 
 /**
  * BootstrapModule — the global boot coordinator.

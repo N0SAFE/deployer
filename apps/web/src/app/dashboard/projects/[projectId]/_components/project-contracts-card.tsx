@@ -1,15 +1,17 @@
 'use client'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { FileCheck, Plus, X, Save } from 'lucide-react'
 import { useState } from 'react'
-import { useProject, useUpdateProject } from '@/domains/project/hooks'
+import { toast } from 'sonner'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
-import { FileCheck, Plus, X, Save } from 'lucide-react'
-import { toast } from 'sonner'
+
+import { useProject, useUpdateProject } from '@/domains/project/hooks'
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 
 /**
  * Contract Registry card — the "interfaces" services implement (DI semantics).

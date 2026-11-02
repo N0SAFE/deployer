@@ -1,8 +1,11 @@
 'use client'
 
 import { Download, Loader2, Search, Shield } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { cn } from '@/lib/utils'
+
 import type { Stage } from './pull-scan.model'
 import type { PullScanFlow } from './use-pull-scan-flow'
 

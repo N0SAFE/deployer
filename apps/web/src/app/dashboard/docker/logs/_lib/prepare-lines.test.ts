@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+
 import { formatLinesAsText, prepareLine, searchLines } from './prepare-lines'
+
 import type { LogLineProjection } from '../_models/logs.types'
 
 const ESC = String.fromCharCode(27)

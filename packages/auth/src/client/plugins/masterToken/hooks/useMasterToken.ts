@@ -1,4 +1,5 @@
 import { useContext } from "react"
+
 import { MasterTokenContextValue, MasterTokenContext } from "@deployer/auth/client/plugins/masterToken/components/context"
 
 export const useMasterToken = (): MasterTokenContextValue => {

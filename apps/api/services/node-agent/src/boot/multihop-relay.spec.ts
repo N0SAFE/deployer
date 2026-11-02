@@ -6,13 +6,15 @@ import { os } from "@orpc/server";
 import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { nodeDoor, openWebSocketConnection, pooledLink, relayLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
+
+
+import type { NodeAgentsShape } from "@/modules/mesh/services/node-agents.service";
 
 import { type BootedAgent, bootAgent, peerClient, removeDataDir } from "./boot-agent";
 
-import type { NodeAgentsShape } from "@/modules/mesh/services/node-agents.service";
 import type { ClientContext, ClientLink } from "@orpc/client";
 import type { AddressInfo } from "node:net";
 
@@ -32,7 +34,7 @@ const linkTo = (agent: Agent) =>
 /** A link that never opens: the partial partition this test needs, since gossip makes every address symmetric. */
 const deadLink: ClientLink<ClientContext> = {
   call: () => Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:1")),
-} as unknown as ClientLink<ClientContext>;
+};
 
 /**
  * A's roster, with its link to C replaced: A cannot dial C, and everyone else can.

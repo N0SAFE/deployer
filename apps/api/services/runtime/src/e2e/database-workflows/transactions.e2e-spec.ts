@@ -1,18 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
-import { deployments } from '@deployer/nest-schema/global/runtime/deployment'
-import {
-    projects,
-    services,
-} from '@deployer/nest-schema/global/project/deployment'
-import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
-import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
+
 import { eq, sql } from 'drizzle-orm'
 import { Effect, Exit, Fiber } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { getSharedApiRuntimeContext } from '@/e2e/runtime'
+import {
+    projects,
+    services,
+} from '@deployer/nest-schema/global/project/deployment'
+import { deployments } from '@deployer/nest-schema/global/runtime/deployment'
+import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
+import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
+import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
+
+
 import { RuntimeDatabasePort, RuntimeDb } from '@/core/database/runtime-db'
+import { getSharedApiRuntimeContext } from '@/e2e/runtime'
 import { DeploymentRepository } from '@/modules/deployment/repositories/deployment.repository'
 
 /** The slice of the shared `pg.Pool` these tests read. */

@@ -1,5 +1,6 @@
-import { apiServicePort } from "@deployer/env";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { apiServicePort } from "@deployer/env";
 
 import {
   MAX_RELAY_MAX_HOPS,
@@ -13,7 +14,7 @@ import {
 import type { NetworkInterfaceInfo } from "node:os";
 
 /** The interfaces the mocked `node:os` reports: a host with a LAN interface, or one with loopback only. */
-const host = vi.hoisted(() => ({ interfaces: {} as NodeJS.Dict<NetworkInterfaceInfo[]> }));
+const host = vi.hoisted(() => ({ interfaces: {} }));
 
 vi.mock("node:os", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("node:os")>();
@@ -26,7 +27,7 @@ vi.mock("node:os", async (importOriginal) => {
 });
 
 const lan = (address: string): NetworkInterfaceInfo =>
-	({ address, family: "IPv4", internal: false, netmask: "255.255.255.0", mac: "00:00:00:00:00:00", cidr: `${address}/24` }) as NetworkInterfaceInfo;
+	({ address, family: "IPv4", internal: false, netmask: "255.255.255.0", mac: "00:00:00:00:00:00", cidr: `${address}/24` });
 
 const port = apiServicePort("node-agent");
 

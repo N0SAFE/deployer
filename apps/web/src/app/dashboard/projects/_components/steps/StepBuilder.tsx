@@ -1,15 +1,18 @@
 'use client'
 
-import { Input } from '@deployer/ui/components/shadcn/input'
+import { Check, Sparkles, Container } from 'lucide-react'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
-import { Check, Sparkles, Container } from 'lucide-react'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { cn } from '@deployer/ui/lib/utils'
-import type { CreateServiceFormApi } from '../CreateService.hook'
-import { useRunnerDetection } from './runner-detection-context'
+
 import { AutocompleteField } from './autocomplete-field'
+import { useRunnerDetection } from './runner-detection-context'
 import { BUILD_METHOD_META, type BuildMethod } from './runner-presets'
 import { Section } from './step-section'
+
+import type { CreateServiceFormApi } from '../CreateService.hook'
 
 const ROOT_PATH_PRESETS = ['/', './apps/web', './apps/api', './packages/app', './client', './server', './src'] as const
 const BUILD_CONTEXT_PRESETS = ['.', './src', './apps/web', './packages/app', './client', './server', '../..'] as const

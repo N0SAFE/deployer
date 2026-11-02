@@ -1,8 +1,10 @@
 'use client'
 
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { useCreateMeshJoinToken } from '@/domains/mesh/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 

@@ -1,10 +1,12 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactElement } from 'react'
+
 import { expectEmptyState, expectErrorState, expectLoadingState, expectNoBrokenText, expectPopulated, queryControl } from './assertions'
 import { resetMutations } from './domain-hooks'
 import { renderPage } from './render-page'
 import { allRefetchSpies, resetScenario, scenario, type Scenario, type TestRole } from './scenario'
+
+import type { ReactElement } from 'react'
 
 export interface PageStatesSpec {
 	/** Builds the page element. Called once per test, after the scenario is set. */

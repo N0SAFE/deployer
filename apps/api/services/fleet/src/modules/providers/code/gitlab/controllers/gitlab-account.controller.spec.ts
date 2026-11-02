@@ -1,12 +1,14 @@
 import "@orpc/effect/extensions/effect";
 
-import { effectContext } from "@deployer/nest-effect/testing";
-import { callProcedure } from "@deployer/orpc-utils/testing";
 import { Context, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GitlabAppsController } from "./gitlab-account.controller";
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+
 import { GitlabAppsStore, type GitlabAppsStoreShape } from "../repositories/gitlab-apps.repository";
+
+import { GitlabAppsController } from "./gitlab-account.controller";
 
 // Authentication and role checks are the shared middlewares' concern; here they let the call
 // through so the rest of the chain (Effect context, `serve`, failure handling) runs for real.

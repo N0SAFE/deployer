@@ -6,19 +6,20 @@ import "@orpc/effect/extensions/effect";
 import "@deployer/shared/core/orpc/context";
 // Adds `effect/context` to `DefaultInitialContext` for `.effect()` handlers.
 
+import { apiServicePort } from "@deployer/env";
+import { healthContract } from "@deployer/health-contracts";
+import { joinServiceMeshOnNode } from "@deployer/mesh-service";
+import { assertRequirementsMet, EffectRuntime } from "@deployer/nest-effect";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
-import { apiServicePort } from "@deployer/env";
 
-import { assertRequirementsMet, EffectRuntime } from "@deployer/nest-effect";
-import { healthContract } from "@deployer/health-contracts";
-import { joinServiceMeshOnNode } from "@deployer/mesh-service";
-import type { Server } from "node:http";
 
 import { HealthServiceModule } from "./app.module";
+
+import type { Server } from "node:http";
 
 /**
  * The health service's process entry point.

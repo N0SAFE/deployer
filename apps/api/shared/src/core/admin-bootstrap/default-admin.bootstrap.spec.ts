@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * calls, and the credential decision never reaches the database at all.
  */
 
-const fakeEnd = vi.fn(async () => undefined);
+const fakeEnd = vi.fn(() => Promise.resolve(undefined));
 const fakeLimit = vi.fn();
 const fakeWhere = vi.fn(() => ({ limit: fakeLimit }));
 const fakeFrom = vi.fn(() => ({ where: fakeWhere }));
@@ -40,7 +40,7 @@ vi.mock("../../config/auth/auth", () => ({
 }));
 
 vi.mock("@deployer/auth/server", () => ({
-  provisionUserAccount: vi.fn(async () => "created-user-id"),
+  provisionUserAccount: vi.fn(() => Promise.resolve("created-user-id")),
 }));
 
 const { ensureDefaultAdmin } = await import("./default-admin.bootstrap");

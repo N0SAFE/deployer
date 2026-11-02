@@ -1,4 +1,5 @@
 import type { IngressState } from '@deployer/fleet-contracts'
+
 import { minutesAgo, daysAgo, type FixtureMap } from './types'
 
 export const node = (over: Record<string, unknown> = {}) => ({

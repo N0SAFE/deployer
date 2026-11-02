@@ -1,8 +1,11 @@
-import { ProjectConflict } from "../domain/project.errors";
-import { webhooks } from "@deployer/nest-schema/global/project/deployment";
 import { eq, and } from "drizzle-orm";
 import { Context, Effect } from "effect";
+
+import { webhooks } from "@deployer/nest-schema/global/project/deployment";
+
 import { DatabasePort } from "@project/core/database/database.port";
+
+import { ProjectConflict } from "../domain/project.errors";
 import { attempt } from "../project-effects";
 
 // ---------------------------------------------------------------------------

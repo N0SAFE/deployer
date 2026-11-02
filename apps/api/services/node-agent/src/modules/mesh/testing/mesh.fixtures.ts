@@ -2,8 +2,11 @@ import { DatabaseSync } from "node:sqlite";
 
 import { Context, Effect } from "effect";
 
+import type { AgentOverlay } from "@deployer/node-agent-contracts";
+
 import { AgentStore, agentStoreOver } from "../../../local/agent-store";
 import { SwarmCredential, swarmCredentialFrom } from "../../../local/swarm-credential";
+import { NodeLabels } from "../../node/services/node-labels.service";
 import { MeshDirectoryRepository } from "../repositories/directory.repository";
 import { AccessChecks } from "../services/access-checks.service";
 import { AgentLinkFactory, agentLinkFactoryOver } from "../services/agent-link-factory.service";
@@ -17,7 +20,6 @@ import { LeaseSigner, leaseSignerOver } from "../services/lease-signer.service";
 import { MeshClock } from "../services/mesh-clock.service";
 import { NodeAgents } from "../services/node-agents.service";
 import { NodeIdentity } from "../services/node-identity.service";
-import { NodeLabels } from "../../node/services/node-labels.service";
 import { PendingSeeds } from "../services/pending-seeds.service";
 import { RelayMetrics, type RelayMetricsShape } from "../services/relay-metrics.service";
 import { RelaySettings, type RelaySettingsShape } from "../services/relay-settings.service";
@@ -25,7 +27,6 @@ import { MeshRelay } from "../services/relay.service";
 import { ReplicaLinks, type ReplicaLinksShape } from "../services/replica-links.service";
 import { AdvertisedAddress, GossipSettings, RosterGossip } from "../services/roster-gossip.service";
 
-import type { AgentOverlay } from "@deployer/node-agent-contracts";
 
 import type { ReplicaRecord } from "../rules/replica-record";
 import type { ClientContext, ClientLink } from "@orpc/client";

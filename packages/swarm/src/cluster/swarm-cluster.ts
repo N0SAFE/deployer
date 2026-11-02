@@ -1,3 +1,5 @@
+import { Context, Effect, Layer } from "effect";
+
 import {
 	clusterSnapshotSchema,
 	type ClusterSnapshot,
@@ -7,7 +9,6 @@ import {
 } from "@deployer/contracts-entities";
 import { DockerEngine, resolveSwarmNodeRole, type DockerEngineShape, type DockerError } from "@deployer/docker";
 import { ingressFromLabels, platformRoleFromLabels } from "@deployer/node-state";
-import { Context, Effect, Layer } from "effect";
 
 import { SwarmTimeout, SwarmUnavailable } from "../errors";
 

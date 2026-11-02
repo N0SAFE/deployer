@@ -1,5 +1,5 @@
-import type { z } from 'zod'
 import type { ImageGroupRow } from './models'
+import type { z } from 'zod'
 
 export type ImageSavedView = 'all' | 'failed' | 'popular'
 export type ImageSortBy = 'usage' | 'name' | 'failed' | 'lastSeen'

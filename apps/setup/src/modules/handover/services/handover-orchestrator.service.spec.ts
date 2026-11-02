@@ -1,13 +1,15 @@
 import { firstValueFrom, of } from "rxjs";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { HandoverOrchestratorService } from "./handover-orchestrator.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import type { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import type { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import { makeEnvService } from "@/test-support/env";
+
+import { HandoverOrchestratorService } from "./handover-orchestrator.service";
+
 import type { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 import type { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import type { IngressHandoverService } from "./ingress-handover.service";

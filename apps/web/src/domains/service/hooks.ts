@@ -7,9 +7,11 @@
  */
 
 import { useQuery, useMutation } from '@tanstack/react-query'
+
+import { wrapWithInvalidations } from '../shared/helpers'
+
 import { serviceEndpointOperations, serviceEndpoints } from './endpoints'
 import { serviceInvalidations } from './invalidations'
-import { wrapWithInvalidations } from '../shared/helpers'
 
 const enhancedService = wrapWithInvalidations(serviceEndpointOperations, serviceInvalidations)
 

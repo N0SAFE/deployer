@@ -1,7 +1,8 @@
 'use client'
 
-import redirect from '@/actions/redirect'
 import { useEffect } from 'react'
+
+import redirect from '@/actions/redirect'
 
 export default function RedirectAfterDelay({
     delay,

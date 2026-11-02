@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
 import { ColumnSizingState } from "@tanstack/react-table";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 /** localStorage is untrusted: only accept a map of finite numeric widths. */
 function isColumnSizingState(value: unknown): value is ColumnSizingState {

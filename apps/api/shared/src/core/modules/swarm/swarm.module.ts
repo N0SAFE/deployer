@@ -36,9 +36,12 @@
 
 import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
 import { Effect, Fiber } from "effect";
-import { createModuleContext } from "@deployer/nest-effect";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { splitManagedEnv } from "@deployer/env";
+import { nodeDoorFromEnv } from "@deployer/mesh-client";
+import { createModuleContext } from "@deployer/nest-effect";
 import {
     ClusterNodeRepository,
     NodeConfigRepository,
@@ -57,11 +60,10 @@ import {
     type SwarmServicesOptions,
 } from "@deployer/swarm";
 
-import { splitManagedEnv } from "@deployer/env";
-import { NodeStateModule } from "../node-state/node-state.module";
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { MeshNodeModule } from "../mesh-node/mesh-node.module";
-import { nodeDoorFromEnv } from "@deployer/mesh-client";
+import { NodeStateModule } from "../node-state/node-state.module";
+
 
 const SWARM_SERVICES = Symbol("SWARM_SERVICES");
 

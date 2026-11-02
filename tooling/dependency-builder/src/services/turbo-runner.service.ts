@@ -14,11 +14,12 @@ import { dirname, join, relative, sep } from 'node:path'
 
 import { Injectable } from '@nestjs/common'
 
-import type { UnionMember } from '../schemas'
 import { BuildFailedError } from '../errors'
 import { scopedLogger } from '../logger'
 
 import { stripApplications } from './graph-scope'
+
+import type { UnionMember } from '../schemas'
 
 /**
  * Where built artifacts are published for the application containers.

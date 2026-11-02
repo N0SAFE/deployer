@@ -4,11 +4,14 @@
  * are tested on plain strings.
  */
 import type { DockerEngineShape } from "@deployer/docker";
+
 import { ReplaySubject, from } from "rxjs";
+
 import type { ExecShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { dockerFileEntrySchema, type DockerFileEntry, type DockerTerminalProfile } from "@deployer/contracts-entities";
 import { isRecord } from "@deployer/type-guards";
+
 import path from "node:path";
 
 export type TerminalSessionEvent = {

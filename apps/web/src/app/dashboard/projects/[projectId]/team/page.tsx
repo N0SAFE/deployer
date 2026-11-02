@@ -1,21 +1,24 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { PageSkeleton } from '@/components/dashboard'
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
 import {
   useInviteProjectCollaborator,
   useProjectCollaborators,
   useRemoveProjectCollaborator,
   useUpdateProjectCollaborator,
 } from '@/domains/project/hooks'
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { ConfirmDialog } from '../../_components/ConfirmDialog'
-import { InlineError } from '../../_components/workload/WorkloadStates'
 import { InviteMemberDialog, type ProjectRole } from '../../_components/team/InviteMemberDialog'
 import { InviteButton, MembersTable, type Member } from '../../_components/team/MembersTable'
+import { InlineError } from '../../_components/workload/WorkloadStates'
 import { countOwners, memberSummary } from '../_utils/team'
 
 const errDescription = (err: unknown): string => (isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE)

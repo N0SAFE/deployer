@@ -1,4 +1,5 @@
 import z from 'zod/v4';
+
 import type { VariableType, VariableMetadata as BaseVariableMetadata } from '../../interfaces';
 
 /**

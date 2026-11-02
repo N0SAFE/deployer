@@ -1,12 +1,9 @@
 export * from "./enrollment";
 
-import z from "zod/v4";
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import {
-    standard,
-    type ComputeInputSchema,
-} from "@deployer/orpc-utils";
+import z from "zod/v4";
+
 import {
     nodeAgentNodeSchema,
     nodeAgentNodesResultSchema,
@@ -27,6 +24,10 @@ import {
     meshNodeConfigTestDbInputSchema,
     meshNodeConfigTestDbResultSchema,
 } from "@deployer/contracts-entities";
+import {
+    standard,
+    type ComputeInputSchema,
+} from "@deployer/orpc-utils";
 
 const meshEventStreamOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStream");
 

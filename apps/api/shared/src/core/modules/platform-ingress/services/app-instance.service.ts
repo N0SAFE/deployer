@@ -7,12 +7,14 @@
  * verification immediately.
  */
 
-import { Injectable, Logger } from "@nestjs/common";
 import { randomBytes, createHash } from "node:crypto";
+
+import { Injectable, Logger } from "@nestjs/common";
 import { and, eq, lt } from "drizzle-orm";
 
-import { GlobalDatabaseService } from "../../database/services/global-database.service";
 import { appInstances, type AppInstanceEntity } from "@deployer/nest-schema/global/platform/app-instance";
+
+import { GlobalDatabaseService } from "../../database/services/global-database.service";
 
 /** Instances without a heartbeat for this long become stale. */
 export const STALE_AFTER_MS = 30 * 60 * 1000;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { filterDeployments, hasActiveFilters, sortDeployments } from '../deployment-list'
 
 const names: Record<string, string> = { s1: 'api', s2: 'web' }

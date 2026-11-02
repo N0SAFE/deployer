@@ -1,15 +1,18 @@
+import { Context, Effect } from "effect";
+
+import { DockerEngine } from "@deployer/docker";
 import type {
   DockerContainerTerminalCloseBodyInput,
   DockerContainerTerminalInputBodyInput,
   DockerContainerTerminalOpenBodyInput,
   DockerContainerTerminalStreamQueryInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import { DockerEngine } from "@deployer/docker";
-import { Context, Effect } from "effect";
-import type { Observable } from "rxjs";
+
+import { TerminalSessionManager } from "./docker-terminal-session-manager";
 
 import type { TerminalSessionEvent } from "./container-runtime-helpers";
-import { TerminalSessionManager } from "./docker-terminal-session-manager";
+import type { Observable } from "rxjs";
+
 
 export type DockerTerminalSessionsShape = {
   readonly open: (input: DockerContainerTerminalOpenBodyInput) => Effect.Effect<

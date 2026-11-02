@@ -1,5 +1,6 @@
 import { Injectable, Logger, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
+
 import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 
 @Injectable()
@@ -14,9 +15,9 @@ export class DatabaseFailureTracker {
   recordFailure(pool: Pool): void {
     this.failureCount++
     if (this.failureCount >= this.threshold && this.lifecycle.stateNow().phase !== AppLifecyclePhase.DEGRADED) {
-      this.logger.warn(`🚨 ${this.failureCount} consecutive DB failures — entering degraded mode`)
+      this.logger.warn(`🚨 ${String(this.failureCount)} consecutive DB failures — entering degraded mode`)
       this.lifecycle.transitionNow(AppLifecyclePhase.DEGRADED, {
-        error: `${this.failureCount} consecutive database failures`,
+        error: `${String(this.failureCount)} consecutive database failures`,
         databaseReachable: false,
       })
       this.scheduleRecovery(pool)
@@ -33,13 +34,15 @@ export class DatabaseFailureTracker {
 
   private scheduleRecovery(pool: Pool): void {
     const delay = Math.min(2_000 * Math.pow(2, this.failureCount - this.threshold), 30_000)
-    this.recoveryTimer = setTimeout(async () => {
-      try {
-        const client = await pool.connect()
-        await client.query('SELECT 1')
-        client.release()
-        this.recordSuccess()
-      } catch { this.scheduleRecovery(pool) }
+    this.recoveryTimer = setTimeout(() => {
+      void (async () => {
+        try {
+          const client = await pool.connect()
+          await client.query('SELECT 1')
+          client.release()
+          this.recordSuccess()
+        } catch { this.scheduleRecovery(pool) }
+      })()
     }, delay)
   }
 }

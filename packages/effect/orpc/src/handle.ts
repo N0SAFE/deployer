@@ -1,9 +1,10 @@
-import { Correlation } from "@deployer/effect-core";
 import { ORPCError } from "@orpc/client";
 import { Cause, Effect } from "effect";
 
-import { catchDomainErrors } from "./map-domain-error";
+import { Correlation } from "@deployer/effect-core";
 import type { DomainError } from "@deployer/effect-core";
+
+import { catchDomainErrors } from "./map-domain-error";
 
 /** Observer for the full cause of a defect; the wire only ever sees the correlation id. */
 export type DefectLogger = (cause: Cause.Cause<unknown>, correlationId: string) => void;
@@ -49,7 +50,7 @@ export const handle =
 	): Effect.Effect<A, ORPCError<string, unknown>, Exclude<R, Correlation> | Correlation> =>
 		Effect.gen(function* () {
 			const { id } = yield* Correlation;
-			return yield* catchDomainErrors(effect, (error) => reportDomainCause(error, id, options));
+			return yield* catchDomainErrors(effect, (error) => { reportDomainCause(error, id, options); });
 		}).pipe(
 			Effect.catchCause((cause) =>
 				Cause.hasInterrupts(cause) && !Cause.hasFails(cause)

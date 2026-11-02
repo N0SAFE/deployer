@@ -1,18 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
 import { Sparkles, Plus, X, Layers, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { cn } from '@deployer/ui/lib/utils'
-import type { CreateServiceFormApi } from '../../CreateService.hook'
+
 import { useRunnerDetection } from '../runner-detection-context'
 import { subServicesFromHints } from '../runner-presets'
-import type { OrchestratorSubService } from '../runner-types'
+
 import { emptySubService } from './sub-service-defaults'
 import { SubServiceTabs } from './SubServiceTabs'
+
+import type { CreateServiceFormApi } from '../../CreateService.hook'
+import type { OrchestratorSubService } from '../runner-types'
 
 /** Collapsed summary row for a sub-service. */
 function SubServiceRow({ svc, index, expanded, onToggle, onRemove }: {

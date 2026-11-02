@@ -1,10 +1,11 @@
 'use client'
 
 import { Loader2, Play } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
-import { DockerNodeBadge, useDockerNode } from './docker-node-context'
+
 import { ContainerConfigStage } from './create-container-modal/container-config-stage'
 import { ImageStage, PullStage, ScanStage } from './create-container-modal/image-stages'
 import { StageTabs } from './create-container-modal/stage-tabs'
@@ -12,6 +13,8 @@ import { useContainerForm } from './create-container-modal/use-container-form'
 import { useCreateContainerSubmit } from './create-container-modal/use-create-container-submit'
 import { useImageCatalog } from './create-container-modal/use-image-catalog'
 import { usePullScanFlow } from './create-container-modal/use-pull-scan-flow'
+import { DockerNodeBadge, useDockerNode } from './docker-node-context'
+
 import type { DockerCreateContainerPayload } from './create-container-modal/container-form.model'
 
 interface DockerCreateContainerModalProps {

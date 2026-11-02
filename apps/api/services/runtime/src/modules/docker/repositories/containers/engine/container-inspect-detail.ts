@@ -5,10 +5,13 @@
 import { dockerContainerInspectDetailSchema } from "@deployer/contracts-entities";
 import type { ContainersShape } from "@deployer/docker";
 import { isRecord } from "@deployer/type-guards";
-import type { Effect } from "effect";
+
 
 import { toStringArray } from "../../images/engine/docker-image-reference";
+
 import { detectWatchModeFromLabels, toHealthcheckSeconds } from "./container-inspect-reading";
+
+import type { Effect } from "effect";
 
 export type ContainerInspect = Effect.Success<ReturnType<ContainersShape["inspect"]>>;
 

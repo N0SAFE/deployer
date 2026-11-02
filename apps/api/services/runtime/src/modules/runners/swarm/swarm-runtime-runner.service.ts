@@ -15,7 +15,6 @@
 
 import { Context, Effect } from "effect";
 
-import { AppError, TimeoutError } from "@deployer/errors";
 import type {
     DockerodeServiceSummary,
     DockerodeTaskSummary,
@@ -26,14 +25,16 @@ import type {
 import { platformOverlayForPrefix } from "@deployer/docker";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm";
+import { AppError, TimeoutError } from "@deployer/errors";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { verifySwarmRouteAgainstTraefik } from "@deployer/shared/core/modules/traefik/services/swarm-route-verifier";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm";
+
 import { attempt } from "../../../core/effects";
 import { RuntimeConflict } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
 import { RunnerEnvPort } from "../runners.ports";
-import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
+
 import {
     buildStorageMounts,
     computeTaskStateCheck,
@@ -42,6 +43,8 @@ import {
     sanitizeEnvironmentVariables,
     sanitizeExecutorLabels,
 } from "./swarm-runner.helpers";
+
+import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
 
 const RUNNER_TYPE = "swarm" as const;
 

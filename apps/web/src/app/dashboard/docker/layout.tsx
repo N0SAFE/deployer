@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
-import { DockerRuntimeEventsProviderClient } from './_components/docker-runtime-events-provider'
-import { DockerSectionTabs } from './_components/docker-section-tabs'
-import { DockerSectionHeader } from './_components/docker-section-header'
+
 import { DockerScopeNotice } from './_components/docker-node-context'
+import { DockerRuntimeEventsProviderClient } from './_components/docker-runtime-events-provider'
+import { DockerSectionHeader } from './_components/docker-section-header'
+import { DockerSectionTabs } from './_components/docker-section-tabs'
+
 import type { Metadata } from 'next'
 
 // Metadata lives in the layout: the pages under it are client components, and

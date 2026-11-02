@@ -1,10 +1,12 @@
 import { lstat, mkdir, mkdtemp, open, readdir, realpath, rm } from "node:fs/promises";
 
-import { fromAbortable } from "@deployer/effect-core";
 import { Effect } from "effect";
+
+import { fromAbortable } from "@deployer/effect-core";
 
 import { FsError } from "./errors";
 import { fsError, kindFromStats } from "./helpers";
+
 import type { FileSystemShape } from "./types";
 
 const failure = (op: string, path: string, kind: FsError["kind"], message: string) => new FsError({ op, path, kind, message });

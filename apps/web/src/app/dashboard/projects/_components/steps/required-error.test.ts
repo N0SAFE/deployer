@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { requiredMessage } from './required-error'
 
 describe('requiredMessage', () => {

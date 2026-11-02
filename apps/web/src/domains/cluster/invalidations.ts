@@ -1,4 +1,5 @@
 import { defineInvalidations } from "@/domains/shared/helpers";
+
 import { clusterEndpoints } from "./endpoints";
 
 export const clusterInvalidations = defineInvalidations(clusterEndpoints, {

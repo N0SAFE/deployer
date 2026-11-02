@@ -37,7 +37,7 @@ const RECORD = { agentId: "node-agent-a", configured: true, config: CONFIG };
 
 /** A link that answers the one procedure with `answer`, or rejects with `error`. */
 const answering = (answer: unknown, error?: Error): ClientLink<ClientContext> =>
-	({ call: vi.fn(error === undefined ? () => Promise.resolve(answer) : () => Promise.reject(error)) }) as never;
+	({ call: vi.fn(error === undefined ? () => Promise.resolve(answer) : () => Promise.reject(error)) });
 
 describe("nodeConfigRowFromRecord", () => {
 	it("carries the agent's record into the row the API reads", () => {

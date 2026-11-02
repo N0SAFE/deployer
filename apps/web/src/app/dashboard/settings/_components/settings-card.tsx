@@ -1,6 +1,8 @@
-import type { ComponentType, ReactNode } from 'react'
 import { ArrowRight } from 'lucide-react'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
+import type { ComponentType, ReactNode } from 'react'
 
 /** A typed route builder as `@/routes` generates them. */
 export interface SettingsRoute {

@@ -1,31 +1,32 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Boxes } from "lucide-react"
 import { QueryClientProvider } from "@tanstack/react-query"
+import { Boxes } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
+
 import type { SetupStreamEvent } from "@deployer/contracts-entities"
+import { setupQueryClient } from "@deployer/ui/components/setup/query-client"
+import { markSetupComplete } from "@deployer/ui/components/setup/setup-storage"
 import { StepIndicator } from "@deployer/ui/components/setup/step-indicator"
-import { ModeStep } from "@deployer/ui/components/setup/steps/mode-step"
-import { RemoteTokenStep } from "@deployer/ui/components/setup/steps/remote-token-step"
-import { ProgressStep, type ProgressStepContext } from "@deployer/ui/components/setup/steps/progress-step"
-import { LocalAccountStep } from "@deployer/ui/components/setup/steps/local-account-step"
-import { LocalDatabaseStep } from "@deployer/ui/components/setup/steps/local-database-step"
 import { ClusterStep } from "@deployer/ui/components/setup/steps/cluster-step"
 import { JoinClusterStep } from "@deployer/ui/components/setup/steps/join-cluster-step"
+import { LocalAccountStep } from "@deployer/ui/components/setup/steps/local-account-step"
+import { LocalDatabaseStep } from "@deployer/ui/components/setup/steps/local-database-step"
 import { MeshStep } from "@deployer/ui/components/setup/steps/mesh-step"
+import { ModeStep } from "@deployer/ui/components/setup/steps/mode-step"
+import { ProgressStep, type ProgressStepContext } from "@deployer/ui/components/setup/steps/progress-step"
+import { RemoteTokenStep } from "@deployer/ui/components/setup/steps/remote-token-step"
 import {
   foundingDraftToSelection,
   joinDraftToSelection,
   type SwarmParticipationDraft,
 } from "@deployer/ui/components/setup/swarm-participation-form"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert"
 import { Button } from "@deployer/ui/components/shadcn/button"
-import { toast } from "sonner"
-import { cn } from "@deployer/ui/lib/utils"
 import ModeToggle from "@deployer/ui/components/shadcn/mode-toggle"
-import { markSetupComplete } from "@deployer/ui/components/setup/setup-storage"
-import { setupQueryClient } from "@deployer/ui/components/setup/query-client"
-import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
+import { cn } from "@deployer/ui/lib/utils"
 
 type WizardStep =
   | "mode"

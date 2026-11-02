@@ -1,10 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import {
 	createAuthenticatedSession,
 	type AuthenticatedSession,
 } from "@deployer/shared/e2e-harness/authenticated-session";
+
+import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 
 /** A signed-in admin reads the fleet service's node and provider surfaces. */
 describe("Fleet routes e2e: an authenticated admin", () => {

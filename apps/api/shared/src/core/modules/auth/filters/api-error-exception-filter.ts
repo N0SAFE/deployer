@@ -1,10 +1,12 @@
-import type { ArgumentsHost } from "@nestjs/common";
 import { Catch, Injectable } from "@nestjs/common";
-import type { ExceptionFilter } from "@nestjs/common";
 import { APIError } from "better-auth/api";
-import type { Request, Response } from "express";
+
 import { getInternalErrorRequestContext } from "../../../middlewares/internal-error/internal-error-context";
 import { InternalErrorInsightService } from "../../../middlewares/internal-error/internal-error-insight.service";
+
+import type { ExceptionFilter } from "@nestjs/common";
+import type { ArgumentsHost } from "@nestjs/common";
+import type { Request, Response } from "express";
 
 @Injectable()
 @Catch(APIError)

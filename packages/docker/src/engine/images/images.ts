@@ -1,15 +1,18 @@
-import type Docker from "dockerode";
+import { Effect } from "effect";
+import z from "zod/v4";
+
 import {
 	dockerodeImageSummarySchema,
 	type DockerodeImageSummary,
 } from "@deployer/contracts-entities";
-import { Effect } from "effect";
-import z from "zod/v4";
 
 import { engineMessage } from "../../errors/classify";
 import { DockerInvalid, DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
+
 import { followProgress } from "./progress";
+
+import type Docker from "dockerode";
 
 export type ImagePullPolicy = "IfNotPresent" | "Always" | "Never";
 

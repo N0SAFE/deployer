@@ -16,7 +16,7 @@ import {
   takeUntil,
   timer,
 } from "rxjs";
-import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+
 import {
   dockerBuilderRuntimeEventSchema,
   dockerConfigRuntimeEventSchema,
@@ -33,12 +33,14 @@ import {
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
 import type { DockerEngineShape } from "@deployer/docker";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
-import { buildGetEventsOptions, buildStreamPoolKey, mapDockerEvent, formatError, extractFastPathFilters, type DockerKnownSource, type StreamQuery } from "./docker-event-mapping";
 import { isRuntimeEventFilterNode } from "../runtime/runtime-event-filter";
+
+import { buildGetEventsOptions, buildStreamPoolKey, mapDockerEvent, formatError, extractFastPathFilters, type DockerKnownSource, type StreamQuery } from "./docker-event-mapping";
 
 export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";

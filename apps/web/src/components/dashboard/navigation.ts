@@ -21,6 +21,7 @@ import {
   Waypoints,
   type LucideIcon,
 } from 'lucide-react'
+
 import {
   AuthDashboard,
   AuthDashboardAdminProviders,

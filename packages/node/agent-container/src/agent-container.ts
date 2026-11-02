@@ -9,9 +9,10 @@
 
 import { hostname, networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import type { CreateContainerOptions, DockerEngineShape } from "@deployer/docker";
 import { Effect } from "effect";
+
+import type { CreateContainerOptions, DockerEngineShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 /** Container name. One agent per host: it owns the host's `deployer-mesh` interface. */
 export const NODE_AGENT_CONTAINER_NAME = "deployer-node-agent";
@@ -196,7 +197,7 @@ export function makeNodeAgentEngine(engine: DockerEngineShape): NodeAgentEngine 
 				),
 			),
 		create: (name, spec) =>
-			runPromiseUnwrapped(containers.create({ name, ...spec } as CreateContainerOptions).pipe(Effect.map(({ id }) => id))),
+			runPromiseUnwrapped(containers.create({ name, ...spec }).pipe(Effect.map(({ id }) => id))),
 		start: (id) => runPromiseUnwrapped(containers.start(id)),
 		remove: (id) => runPromiseUnwrapped(containers.removeIfExists(id)),
 		imageExists: (image) => runPromiseUnwrapped(images.exists(image)),

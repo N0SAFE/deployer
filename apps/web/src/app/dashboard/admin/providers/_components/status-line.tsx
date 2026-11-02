@@ -1,4 +1,5 @@
 import { StatusBadge } from '@/components/dashboard'
+
 import type { IntegrationStatus } from '../_lib/provider-status'
 
 /** Badge + one sentence of evidence, so a status is never colour-only or unexplained. */

@@ -1,16 +1,23 @@
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
-import React from 'react'
+import { safe } from '@orpc/client'
 import { redirect } from 'next/navigation'
+import React from 'react'
+
+import { SetupWizard } from '@deployer/ui/components/setup/setup-wizard'
+
+import { setupApi } from '@/domains/setup/api'
+import { setupEndpoints } from '@/domains/setup/endpoints'
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { Setup, AuthSignin } from '@/routes'
+
 // ONE wizard implementation, shared with the API's own setup page. This page
 // only supplies the web app's data access (the adapter).
-import { SetupWizard } from '@deployer/ui/components/setup/setup-wizard'
-import { setupApi } from '@/domains/setup/api'
+
+
+import { ErrorScreen } from './_component/ErrorScreen';
 
 import type { Metadata } from 'next'
-import { safe } from '@orpc/client'
-import { setupEndpoints } from '@/domains/setup/endpoints'
-import { ErrorScreen } from './_component/ErrorScreen';
+
+
 
 export default Setup.Route(async ({ searchParams }) => {
     const [error, data] = await safe(setupEndpoints.getState.call())

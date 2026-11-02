@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { HealthIndicatorService } from "@nestjs/terminus";
+import { describe, expect, it } from "vitest";
 
-import { SetupReadinessIndicator } from "./setup-readiness.indicator";
 import { SetupPhaseService } from "./setup-phase.service";
+import { SetupReadinessIndicator } from "./setup-readiness.indicator";
 
 /**
  * The indicator is the last step before compose decides. Its whole job is to

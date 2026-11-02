@@ -5,9 +5,11 @@ import { DockerNotFound, type DockerEngineShape } from "@deployer/docker";
 import { isNodeAgentSwarmMode } from "@deployer/node-agent-container";
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
-import type { EnvService } from "../../../../config/env/env.module";
 import { harness, testBus } from "../supervisor-test-harness";
+
 import { makeNodeAgentSwarmRegistration } from "./node-agent.supervisor";
+
+import type { EnvService } from "../../../../config/env/env.module";
 
 type ReconciledSpec = { name: string; mode: string; image: string; networks: { target: string }[]; capabilitiesAdd?: string[] };
 

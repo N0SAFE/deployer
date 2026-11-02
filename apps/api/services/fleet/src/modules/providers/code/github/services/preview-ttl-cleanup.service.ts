@@ -12,10 +12,12 @@
  */
 import { serviceOver, type Over } from "@deployer/effect-core";
 import type { EffectHostShape } from "@deployer/nest-effect";
+
 import { Logger } from "@nestjs/common";
 import { Context, Effect, Schedule } from "effect";
 
 import { describeFailure, recover } from "@/core/effects";
+
 import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
 
 export const TTL_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
@@ -72,7 +74,7 @@ export function startPreviewTtlCleanup(host: EffectHostShape, intervalMs: number
                     const cleanup = yield* PreviewTtlCleanupService;
                     yield* cleanup.runCleanup();
                 }),
-                (error) => Effect.sync(() => logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`)),
+                (error) => Effect.sync(() => { logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`); }),
             ),
             Schedule.spaced(intervalMs),
         ),

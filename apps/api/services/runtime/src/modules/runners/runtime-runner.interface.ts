@@ -1,6 +1,7 @@
-import type { Effect } from "effect";
 import type { DeploymentObservabilityContext, RuntimeRunnerOptions } from "@deployer/contracts-entities";
+
 import type { DeploymentStorageBinding } from "../deployment/storage/base/storage-provider.interface";
+import type { Effect } from "effect";
 
 export type BuildArtifactResult = {
     containerImage: string | null;

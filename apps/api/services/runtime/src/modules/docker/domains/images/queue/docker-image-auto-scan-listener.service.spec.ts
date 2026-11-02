@@ -79,7 +79,7 @@ function createServiceHarness(options?: {
   };
 
   const service = new DockerImageAutoScanListenerService(
-    nodeMesh as never,
+    nodeMesh,
     dockerRuntimeEventsStreamService as never,
     dockerRuntimeMeshRelayService as never,
     dockerImagesApplicationService as never,
@@ -152,7 +152,7 @@ describe("DockerImageAutoScanListenerService", () => {
     const envService = { get: vi.fn(() => false) };
 
     const serviceWithCustomStream = new DockerImageAutoScanListenerService(
-      { selfNodeId: vi.fn(() => "node-local") } as never,
+      { selfNodeId: vi.fn(() => "node-local") },
       dockerRuntimeEventsStreamService as never,
       { relayRuntimeEvent: vi.fn() } as never,
       dockerImagesApplicationService as never,

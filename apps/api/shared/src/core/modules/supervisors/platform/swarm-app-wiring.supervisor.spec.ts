@@ -1,10 +1,14 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { DockerNotFound } from "@deployer/docker";
 import { Effect, Stream } from "effect";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+
+import { DockerNotFound } from "@deployer/docker";
 import type { DockerEngineShape } from "@deployer/docker";
-import type { EnvService } from "../../../../config/env/env.module";
-import { makeSwarmAppWiringRegistration } from "./swarm-app-wiring.supervisor";
+
 import { harness, testBus } from "../supervisor-test-harness";
+
+import { makeSwarmAppWiringRegistration } from "./swarm-app-wiring.supervisor";
+
+import type { EnvService } from "../../../../config/env/env.module";
 
 const PLATFORM_NETWORK = "deployer-platform";
 const OVERLAY = "deployer-platform-overlay";

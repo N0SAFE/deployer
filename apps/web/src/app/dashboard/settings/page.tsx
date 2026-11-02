@@ -1,6 +1,7 @@
 'use client'
 
 import { Boxes, FolderKanban, Gauge, Network, Plug, Server, User, Users } from 'lucide-react'
+
 import { PageHeader } from '@/components/dashboard'
 import {
   AuthDashboardAdminProviders,
@@ -12,9 +13,11 @@ import {
   AuthDashboardSettingsNode,
   AuthDashboardSettingsUsers,
 } from '@/routes'
+
+import { useIntegrationSummary } from '../admin/providers/_components/integration-list'
+
 import { SettingsCard } from './_components/settings-card'
 import { useIsPlatformAdmin } from './_components/use-is-admin'
-import { useIntegrationSummary } from '../admin/providers/_components/integration-list'
 
 function GroupHeading({ title, description }: { title: string; description: string }) {
   return (

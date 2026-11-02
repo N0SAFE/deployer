@@ -14,7 +14,9 @@
  */
 
 import { describe, expect, it } from "vitest";
+
 import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
+
 import { buildSwarmNodeSpecPayload } from "./swarm-node";
 
 /** The node's current labels, as every caller reads them to build the desired set. */

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+
 import { PreviewNamingService } from "@deployer/shared/core/modules/deployment/services/preview-naming.service";
 
 describe("PreviewNamingService", () => {

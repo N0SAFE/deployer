@@ -40,7 +40,7 @@ describe("container streams", () => {
 
   it("surfaces a collector failure as a stream error", async () => {
     const failing = new Subject<never>();
-    void failing;
+    failing;
     await expect(
       firstValueFrom(streamLogs(async () => { throw new Error("engine down"); }, { refreshIntervalMs: 5 })),
     ).rejects.toThrow("engine down");

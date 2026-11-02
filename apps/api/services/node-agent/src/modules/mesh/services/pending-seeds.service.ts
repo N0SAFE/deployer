@@ -17,7 +17,7 @@ export class PendingSeeds extends Context.Service<PendingSeeds, PendingSeedsShap
   static readonly live = class PendingSeedsImpl implements PendingSeedsShape {
     private readonly addresses: Set<string>;
 
-    constructor(addresses: Set<string> = new Set()) {
+    constructor(addresses = new Set<string>()) {
       this.addresses = addresses;
     }
 

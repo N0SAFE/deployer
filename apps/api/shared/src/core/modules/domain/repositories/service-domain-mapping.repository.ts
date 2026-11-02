@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { eq, and, ne, isNull } from 'drizzle-orm';
-import { GlobalDatabaseService } from '../../database/services/global-database.service';
+
 import { AppError } from "@deployer/errors";
-import { serviceDomainMappings, projectDomains } from "@deployer/nest-schema/global/project/domain";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
+import { serviceDomainMappings, projectDomains } from "@deployer/nest-schema/global/project/domain";
+
+import { GlobalDatabaseService } from '../../database/services/global-database.service';
 
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;

@@ -1,9 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BadRequestError } from "@deployer/errors";
-import { DeploymentQueueWorkerService } from "./deployment-queue.worker.service";
 import { mkdtempSync } from "node:fs";
 import path from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { DeploymentQueueJob } from "@deployer/contracts-entities";
+import { BadRequestError } from "@deployer/errors";
+
+import { DeploymentQueueWorkerService } from "./deployment-queue.worker.service";
+
 
 describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     const claimedJob = {

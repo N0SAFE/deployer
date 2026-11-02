@@ -1,9 +1,11 @@
 'use client'
 
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Plus, X } from 'lucide-react'
+
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+
 
 export function TagsInput({ value, onChange, placeholder }: {
   value: string[]

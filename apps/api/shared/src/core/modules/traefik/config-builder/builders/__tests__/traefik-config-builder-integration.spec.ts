@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
+
 import { TraefikConfigBuilder } from '../traefik-config-builder';
+
 import type { VariableContext } from '../../variables';
 
 describe('TraefikConfigBuilder Integration', () => {

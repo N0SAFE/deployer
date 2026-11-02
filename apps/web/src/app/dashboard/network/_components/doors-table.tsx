@@ -1,8 +1,10 @@
 'use client'
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { StatusBadge } from '@/components/dashboard'
 import type { MeshDoorView } from '@deployer/fleet-contracts/modules/reachability/index'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
+import { StatusBadge } from '@/components/dashboard'
+
 import { Mono } from './network-copy'
 
 const DOOR_LANE: Record<MeshDoorView['lane'], string> = {

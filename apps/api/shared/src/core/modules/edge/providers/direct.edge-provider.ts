@@ -12,10 +12,12 @@
  */
 
 import { Injectable } from "@nestjs/common";
+
 import type { EdgeProviderDescriptor, EdgeStatus, PublicJoinPath, PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { EdgeContext, EdgeDnsRecord, EdgeIngressPlan, EdgeProvider } from "../edge-provider";
 import { EdgeProviderRegistry } from "../edge-provider.registry";
+
+import type { EdgeContext, EdgeDnsRecord, EdgeIngressPlan, EdgeProvider } from "../edge-provider";
 
 export const DIRECT_EDGE_ID = "direct";
 

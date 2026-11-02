@@ -5,16 +5,16 @@ import { join } from "node:path";
 
 import { vi } from "vitest";
 
-import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { agentLink, createMeshClient, openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
+import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { createApiServerApp } from "@deployer/shared/server";
 
 import type { NodeAgentsShape } from "@/modules/mesh/services/node-agents.service";
 import type { MeshTransportService } from "@/transport/mesh-transport.service";
 
-import type { ContractRouterClient } from "@orpc/contract";
-import type { ClientContext } from "@orpc/client";
 import type { INestApplication } from "@nestjs/common";
+import type { ClientContext } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
 import type { AddressInfo } from "node:net";
 
 /** The client every spec talks through: the contract, on the peer door or on the local socket, depending on the link. */

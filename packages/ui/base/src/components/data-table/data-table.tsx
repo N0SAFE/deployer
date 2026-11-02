@@ -2,9 +2,7 @@
 
 // ** import types
 import type { ColumnDef, ColumnResizeMode, Row, ExpandedState, TableOptions } from "@tanstack/react-table";
-import type { TableConfig } from "@deployer/ui/components/data-table/utils/table-config";
-import type { CaseFormatConfig } from "@deployer/ui/components/data-table/utils/case-utils";
-import type { DataTransformFunction, ExportableData } from "@deployer/ui/components/data-table/utils/export-utils";
+
 
 /** Column definition extended with meta and accessorKey for header rendering. */
 // NOTE: type alias, not interface — `ColumnDef<TData>` is a complex
@@ -27,29 +25,28 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { AlertCircle } from "lucide-react";
+import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
 
 // ** import components
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@deployer/ui/components/shadcn/table";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
-import { DataTablePagination } from "@deployer/ui/components/data-table/pagination";
-import { DataTableToolbar } from "@deployer/ui/components/data-table/toolbar";
 import { DataTableResizer } from "@deployer/ui/components/data-table/data-table-resizer";
 
 // ** import utils
-import { cn } from "@deployer/ui/lib/utils";
-import { useTableConfig } from "@deployer/ui/components/data-table/utils/table-config";
 import { useTableColumnResize } from "@deployer/ui/components/data-table/hooks/use-table-column-resize";
+import { DataTablePagination } from "@deployer/ui/components/data-table/pagination";
+import { DataTableToolbar } from "@deployer/ui/components/data-table/toolbar";
+import type { CaseFormatConfig } from "@deployer/ui/components/data-table/utils/case-utils";
+import {
+  initializeColumnSizes,
+  trackColumnResizing,
+  cleanupColumnResizing
+} from "@deployer/ui/components/data-table/utils/column-sizing";
+import { createConditionalStateHook } from "@deployer/ui/components/data-table/utils/conditional-state";
+import type { DataTransformFunction, ExportableData } from "@deployer/ui/components/data-table/utils/export-utils";
+import { createKeyboardNavigationHandler } from "@deployer/ui/components/data-table/utils/keyboard-navigation";
 import { preprocessSearch } from "@deployer/ui/components/data-table/utils/search";
+import { useTableConfig } from "@deployer/ui/components/data-table/utils/table-config";
+import type { TableConfig } from "@deployer/ui/components/data-table/utils/table-config";
 import {
   createSortingHandler,
   createColumnFiltersHandler,
@@ -58,13 +55,17 @@ import {
   createColumnSizingHandler,
   createSortingState
 } from "@deployer/ui/components/data-table/utils/table-state-handlers";
-import { createKeyboardNavigationHandler } from "@deployer/ui/components/data-table/utils/keyboard-navigation";
-import { createConditionalStateHook } from "@deployer/ui/components/data-table/utils/conditional-state";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
 import {
-  initializeColumnSizes,
-  trackColumnResizing,
-  cleanupColumnResizing
-} from "@deployer/ui/components/data-table/utils/column-sizing";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@deployer/ui/components/shadcn/table";
+import { cn } from "@deployer/ui/lib/utils";
 
 // Define types for the data fetching function params and result
 interface DataFetchParams {
@@ -562,7 +563,7 @@ export function DataTable<TData extends ExportableData, TValue>({
             const subRowItemId = subRow[idField];
             subrows.push({
               parentId: (parentId !== null && parentId !== undefined) ? parentId as string | number : 0,
-              subrow: subRow as TData
+              subrow: subRow
             });
             if (subRowItemId !== null && subRowItemId !== undefined) {
               subrowIds.push(subRowItemId as string | number);
@@ -656,7 +657,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       if (Array.isArray(subRowsData)) {
         subRowsData.forEach((subRow: TData) => {
           if (selectedSubrowIds.has(String(subRow[idField]))) {
-            subrowsInCurrentPage.push(subRow as TData);
+            subrowsInCurrentPage.push(subRow);
           }
         });
       }
@@ -704,7 +705,7 @@ export function DataTable<TData extends ExportableData, TValue>({
         if (Array.isArray(subRowsData)) {
           subRowsData.forEach((subRow: TData) => {
             if (selectedSubrowIds.has(String(subRow[idField]))) {
-              fetchedSubrows.push(subRow as TData);
+              fetchedSubrows.push(subRow);
             }
           });
         }

@@ -1,4 +1,8 @@
+import { randomBytes } from 'crypto';
+import * as dns from 'dns/promises';
+
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+
 import {
   ProjectDomainNotFoundError,
   DnsLookupError,
@@ -6,13 +10,13 @@ import {
   VerificationRecordNotFoundError,
   VerificationAttemptError,
 } from '../errors';
+import { ProjectDomainRepository } from '../repositories/project-domain.repository';
+
 import type { 
   VerificationInstructions, 
   VerifyDomainResult,
 } from '../interfaces';
-import * as dns from 'dns/promises';
-import { randomBytes } from 'crypto';
-import { ProjectDomainRepository } from '../repositories/project-domain.repository';
+
 
 const AUTO_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -27,7 +31,7 @@ export class DomainVerificationService implements OnModuleInit, OnModuleDestroy 
     this.autoVerificationTimer = setInterval(() => {
       void this.autoVerifyPendingDomains();
     }, AUTO_VERIFICATION_INTERVAL_MS);
-    this.autoVerificationTimer.unref?.();
+    this.autoVerificationTimer.unref();
   }
 
   onModuleDestroy(): void {
@@ -112,7 +116,7 @@ The verification will be checked automatically within an hour, or you can trigge
   async verifyProjectDomain(projectId: string, domainId: string): Promise<VerifyDomainResult> {
     const projectDomain = await this.projectDomainRepository.findById(domainId);
 
-    if (!projectDomain || projectDomain.projectId !== projectId) {
+    if (projectDomain?.projectId !== projectId) {
       throw new ProjectDomainNotFoundError(domainId);
     }
 

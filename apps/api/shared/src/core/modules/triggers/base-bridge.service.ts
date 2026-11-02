@@ -22,9 +22,11 @@
 
 import { type Observable, type Subscription } from 'rxjs';
 import z from 'zod/v4';
-import { BaseEventService } from '../events/base/index';
+
 import { contractBuilder } from '@deployer/events';
 import type { EventContract } from '@deployer/events';
+
+import { BaseEventService } from '../events/base/index';
 
 /**
  * Convenience: extract the output (payload) type from a trigger schema.
@@ -55,7 +57,7 @@ export class BaseTriggerService<TSchema extends z.ZodType> extends BaseEventServ
    * even when different DI containers create separate instances, they all
    * read/write the same underlying state via the static key.
    */
-  private static sharedStates = new Map<string, { value: unknown | null; resolve: ((v: unknown) => void) | null }>();
+  private static sharedStates = new Map<string, { value: unknown; resolve: ((v: unknown) => void) | null }>();
 
   private _lastValue: z.output<TSchema> | null = null;
   private _isCompleted = false;

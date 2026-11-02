@@ -1,5 +1,8 @@
 import { Logger, type OnModuleDestroy } from '@nestjs/common';
 import { Effect, Stream } from 'effect';
+import { EMPTY, merge, Observable, Subject } from 'rxjs';
+import { filter as rxFilter, map } from 'rxjs/operators';
+
 import { runPromiseUnwrapped } from '@deployer/effect-core';
 import {
   EventLogUnavailable,
@@ -8,9 +11,6 @@ import {
   type EventLogStoreShape,
   type PersistedEventLog,
 } from '@deployer/events';
-import { EMPTY, merge, Observable, Subject } from 'rxjs';
-import { filter as rxFilter, map } from 'rxjs/operators';
-import { observableToAsyncIterable } from './observable.utils';
 import type {
   EventContracts,
   EventContract,
@@ -18,6 +18,8 @@ import type {
   EventOutput,
 } from '@deployer/events';
 import { isRecord } from '@deployer/type-guards';
+
+import { observableToAsyncIterable } from './observable.utils';
 
 export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
 

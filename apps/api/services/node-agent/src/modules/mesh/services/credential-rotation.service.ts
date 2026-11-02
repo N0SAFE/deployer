@@ -87,7 +87,7 @@ const broadcast = (
   input: { readonly secret: string; readonly validUntil: number; readonly epoch: number },
 ): Effect.Effect<boolean> =>
   Effect.tryPromise({
-    try: () => link.call(ROTATE_PATH, input, { context: {} }) as Promise<unknown>,
+    try: () => link.call(ROTATE_PATH, input, { context: {} }),
     catch: (error) => new Error(String(error)),
   }).pipe(
     Effect.timeout(BROADCAST_TIMEOUT_MS),

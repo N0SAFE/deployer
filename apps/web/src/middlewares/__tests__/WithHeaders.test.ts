@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 describe('WithHeaders Middleware', () => {
     const mockCreateContextFilterDebugLogger = vi.fn(() => vi.fn())

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+
 import { signMeshToken, verifyMeshToken } from "@deployer/auth/mesh/index";
 
 // We need to access the module-level seenNonces set between tests.

@@ -1,17 +1,20 @@
-import type Docker from "dockerode";
+import { Effect } from "effect";
+import z from "zod/v4";
+
 import {
 	dockerodeServiceSummarySchema,
 	dockerodeTaskSummarySchema,
 	type DockerodeServiceSummary,
 	type DockerodeTaskSummary,
 } from "@deployer/contracts-entities";
-import { Effect } from "effect";
-import z from "zod/v4";
+import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
+
+import { engineCall } from "../call";
+
+import { toDockerServiceSpec } from "./swarm-spec.mapper";
 
 import type { DockerError } from "../../errors/errors";
-import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
-import { toDockerServiceSpec } from "./swarm-spec.mapper";
-import { engineCall } from "../call";
+import type Docker from "dockerode";
 
 export type SwarmServicesShape = {
 	/** The service as the engine reports it; `DockerNotFound` when there is none. */

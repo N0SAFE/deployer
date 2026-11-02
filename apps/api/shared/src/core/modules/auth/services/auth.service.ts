@@ -1,11 +1,13 @@
 import { Injectable, Optional, Scope } from "@nestjs/common";
-import type { Auth } from "../../../../auth";
+
 import {
 	AuthCoreService,
 	normalizeHeaders,
 } from "./auth-core.service";
-import type { PluginRegistry } from "../plugin-utils/plugin-wrapper-factory";
+
+import type { Auth } from "../../../../auth";
 import type { AuthWithPlugins } from "../definitions/auth-module-definition";
+import type { PluginRegistry } from "../plugin-utils/plugin-wrapper-factory";
 
 // ============================================================================
 // AuthService Class (REQUEST-SCOPED - Wrapper for HTTP Context)

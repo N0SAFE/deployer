@@ -1,11 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { filter, from, map, mergeMap } from "rxjs";
+
+import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@deployer/contracts-entities";
 import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
-import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@deployer/contracts-entities";
-import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
+
 import { projectRuntimeEvent } from "../../../common/events/runtime-activity-projection";
 import { SwarmActivityEnricherService } from "../../../common/events/swarm-activity-enricher.service";
+import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 
 @Injectable()
 export class DockerRuntimeActivityDomainService {

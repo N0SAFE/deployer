@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { Observable } from "rxjs";
+
 import type { DeploymentProgressEvent } from "@deployer/runtime-contracts/modules/deployment/stream";
+
 import { DeploymentService } from "../../services/deployment.service";
 
 export type OpenDeploymentStreamInput = {

@@ -1,12 +1,14 @@
-import type Docker from "dockerode";
+import { Effect } from "effect";
+
 import {
 	dockerodeVolumeListResponseSchema,
 	type DockerodeVolumeListResponse,
 } from "@deployer/contracts-entities";
-import { Effect } from "effect";
+
+import { engineCall } from "../call";
 
 import type { DockerError } from "../../errors/errors";
-import { engineCall } from "../call";
+import type Docker from "dockerode";
 
 export type VolumesShape = {
 	/** Volumes on this engine (`GET /volumes`). */

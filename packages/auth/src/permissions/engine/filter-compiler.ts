@@ -35,9 +35,10 @@ import {
     type SQL,
     type SQLWrapper,
 } from "drizzle-orm";
+
+import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
 import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "@deployer/auth/permissions/engine/types";
 import { isVariable } from "@deployer/auth/permissions/engine/types";
-import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
 
 // ---------------------------------------------------------------------------
 // ColumnResolver type

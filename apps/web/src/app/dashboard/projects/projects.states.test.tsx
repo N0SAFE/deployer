@@ -1,13 +1,14 @@
 import '@/test-support/mocks'
 import { describePageStates } from '@/test-support'
 import { PROJECT_ID } from '@/test-support/fixtures/projects'
-import DashboardProjectsPage from './page'
-import DashboardProjectOverviewPage from './[projectId]/page'
+
 import ProjectDeploymentsPage from './[projectId]/deployments/page'
-import DashboardProjectServicesPage from './[projectId]/services/page'
-import DashboardProjectEnvironmentsPage from './[projectId]/environments/page'
-import ProjectTeamPage from './[projectId]/team/page'
 import ProjectDomainsPage from './[projectId]/domains/page'
+import DashboardProjectEnvironmentsPage from './[projectId]/environments/page'
+import DashboardProjectOverviewPage from './[projectId]/page'
+import DashboardProjectServicesPage from './[projectId]/services/page'
+import ProjectTeamPage from './[projectId]/team/page'
+import DashboardProjectsPage from './page'
 
 const params = { projectId: PROJECT_ID }
 

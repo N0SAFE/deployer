@@ -20,8 +20,11 @@
  * The DNS, route and row steps are best effort: one failing is logged and the others still run.
  */
 import { serviceOver, type Over } from "@deployer/effect-core";
+
 import { Context, Effect } from "effect";
+
 import { isIP } from "node:net";
+
 import { attempt, describeFailure, recover } from "@/core/effects";
 import { DomainRouting, type DomainRoutingShape } from "@/core/ports/domain-routing.port";
 import { PublicAccessPoint, type PublicAccessPointShape } from "@/core/ports/public-access-point.port";
@@ -30,6 +33,7 @@ import {
     type CloudflareDnsProviderServiceShape,
 } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
 import type { DnsProviderAccountRef, DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
+
 import { PreviewEnvironmentStore, type PreviewEnvironmentStoreShape } from "../repositories/preview-environment.repository";
 
 export type PreviewProvisionInput = {

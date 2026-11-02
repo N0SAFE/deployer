@@ -9,8 +9,8 @@
  * `DockerEngineError` instead of a thrown exception.
  */
 
-import { Context, Data, Effect } from "effect";
 import Docker from "dockerode";
+import { Context, Data, Effect } from "effect";
 
 export type ContainerSummary = {
 	readonly id: string;
@@ -80,7 +80,7 @@ export const SocketDockerEngine = {
 							? null
 							: {
 									id: body.Id,
-									running: body.State?.Running === true,
+									running: body.State?.Running,
 									labels: body.Config?.Labels ?? {},
 									networks: Object.keys(body.NetworkSettings?.Networks ?? {}),
 									publishedPorts: Object.entries(body.NetworkSettings?.Ports ?? {})

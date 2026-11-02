@@ -11,11 +11,14 @@ import { runSyncUnwrapped } from "@deployer/effect-core";
  */
 
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Inject } from "@nestjs/common";
-import { DatabaseNotReadyReporter } from "../../database/services/db-not-ready";
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
-import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
+
 import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
 import { toEngineNodeRow } from "@deployer/node-state";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+
+import { DatabaseNotReadyReporter } from "../../database/services/db-not-ready";
+import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
+
 
 @Injectable()
 export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {

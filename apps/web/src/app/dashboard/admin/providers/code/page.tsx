@@ -1,6 +1,7 @@
 'use client'
 
 import { PageHeader } from '@/components/dashboard'
+
 import { IntegrationList } from '../_components/integration-list'
 
 export default function CodeIntegrationsPage() {

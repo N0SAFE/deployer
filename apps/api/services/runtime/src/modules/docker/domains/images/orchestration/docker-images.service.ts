@@ -1,6 +1,6 @@
-import { serviceOver, type Over } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
 
+import { serviceOver, type Over } from "@deployer/effect-core";
 import type { DockerImageInspectQueryInput } from "@deployer/runtime-contracts/modules/docker/images/inspect";
 import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
 

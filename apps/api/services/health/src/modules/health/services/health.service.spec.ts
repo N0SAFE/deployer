@@ -2,8 +2,9 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { HealthRegistryRepository, UptimeSource } from "../services/health.service";
-import { HealthService, SERVICE_NAME } from "./health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
+
+import { HealthService, SERVICE_NAME } from "./health.service";
 
 const service = new HealthService.live();
 

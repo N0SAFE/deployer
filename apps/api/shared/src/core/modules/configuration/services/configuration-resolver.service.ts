@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { ConfigurationDefinitionService } from "./configuration-definition.service";
+
 import {
     resolvedRuntimeConfigurationSchema,
     runtimeConfigurationResolverInputSchema,
@@ -11,6 +11,8 @@ import {
     type RuntimeConfigurationResolverScopedInput,
     type ResolvedRuntimeConfiguration,
 } from "../schemas/runtime-configuration.schema";
+
+import { ConfigurationDefinitionService } from "./configuration-definition.service";
 
 const ALL_PROVIDER_TYPES = ["github", "gitlab", "git", "upload", "custom"] as const;
 const ALL_RUNNER_TYPES = ["docker", "buildpack", "static", "custom"] as const;

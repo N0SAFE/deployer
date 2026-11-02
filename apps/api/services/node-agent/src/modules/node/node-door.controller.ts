@@ -1,9 +1,9 @@
 import { Controller } from "@nestjs/common";
 import { Effect } from "effect";
 
-import { nodeAgentContract } from "@deployer/node-agent-contracts";
-import { declareProcedures, MeshController } from "@deployer/nest-mesh";
 import { procedure } from "@deployer/nest-effect";
+import { declareProcedures, MeshController } from "@deployer/nest-mesh";
+import { nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { requireNodeDoor } from "../../core/orpc/node-door.guard";
 import { serveMeshPeer } from "../../core/orpc/serve";

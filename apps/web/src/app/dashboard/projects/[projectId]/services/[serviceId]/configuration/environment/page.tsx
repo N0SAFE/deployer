@@ -1,28 +1,31 @@
 'use client'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useMemo, useState } from 'react'
+import { Save, Plus, X, Globe, KeyRound, Rocket, LayoutTemplate, Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useService, useUpdateService } from '@/domains/service/hooks'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+
+import { ENV_NAMES, type EnvName } from '@deployer/contracts-common'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+
+import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
+import { PageSkeleton } from '@/components/dashboard'
 import {
   useProjectVariableTemplates,
   useProjectServiceEnvironmentLinks,
   useUpsertServiceEnvironmentLink,
 } from '@/domains/project/hooks'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Save, Plus, X, Globe, KeyRound, Rocket, LayoutTemplate, Eye, EyeOff } from 'lucide-react'
-import { toast } from 'sonner'
-import { ENV_NAMES, type EnvName } from '@deployer/contracts-common'
-import { PageSkeleton } from '@/components/dashboard'
-import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
-import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
+import { useService, useUpdateService } from '@/domains/service/hooks'
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import {
   AuthDashboardProjectsProjectIdConfigurationEnvironmentsEnvironmentId,
   AuthDashboardProjectsProjectIdServicesServiceIdDeployments,
 } from '@/routes'
+
+import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
 
 const ENV_META: Record<EnvName, { color: string; label: string }> = {
   production: { color: 'text-red-500', label: 'Production' },

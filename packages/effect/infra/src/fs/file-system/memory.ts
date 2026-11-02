@@ -2,6 +2,7 @@ import { Effect } from 'effect'
 
 import { FsError } from './errors'
 import { dirname, normalize } from './helpers'
+
 import type { FileSystemShape } from './types'
 
 /**

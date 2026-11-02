@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { mergeScanEvents } from './scan-events'
 
 const event = (message: string) => ({ timestamp: 't', type: 'log', stage: 'scanning', scanner: null, message })

@@ -1,5 +1,7 @@
 'use client'
 
+import { LayoutDashboard, Settings2, Layers3, ScrollText, GitBranch, Activity, type LucideIcon } from 'lucide-react'
+
 import {
   AuthDashboardProjectsProjectIdServicesServiceId,
   AuthDashboardProjectsProjectIdServicesServiceIdConfiguration,
@@ -8,7 +10,7 @@ import {
   AuthDashboardProjectsProjectIdServicesServiceIdMonitoring,
   AuthDashboardProjectsProjectIdServicesServiceIdPreviews,
 } from '@/routes'
-import { LayoutDashboard, Settings2, Layers3, ScrollText, GitBranch, Activity, type LucideIcon } from 'lucide-react'
+
 import { ScopedSectionNav, type ScopedNavItem } from '../../../../_components/workload/ScopedSectionNav'
 
 type ServiceSection = 'overview' | 'configuration' | 'deployments' | 'logs' | 'previews' | 'monitoring'

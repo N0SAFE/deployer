@@ -11,7 +11,6 @@
  * @module middleware-converter
  */
 
-import type { CanActivate, ExecutionContext, Type } from '@nestjs/common';
 import {
   Injectable,
   ForbiddenException,
@@ -21,9 +20,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { os } from '@orpc/server';
+
 import { isRecord } from '@deployer/type-guards';
+
 import type { MiddlewareCheck, MiddlewareContext, MiddlewareErrorCode } from './middleware-check';
 import type { ORPCContextWithAuthOnly } from '../../orpc';
+import type { CanActivate, ExecutionContext, Type } from '@nestjs/common';
 
 const logger = new Logger('MiddlewareConverter');
 
@@ -98,10 +100,10 @@ function defaultContextExtractor(executionContext: ExecutionContext): Middleware
   const request = executionContext.switchToHttp().getRequest();
 
   // Extract and safely type the request properties
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  const params: Record<string, string> = request.params ?? {};
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  const query: Record<string, string> = request.query ?? {};
+   
+  const params: Record<string, string> = (request as { params?: Record<string, string> }).params ?? {};
+   
+  const query: Record<string, string> = (request as { query?: Record<string, string> }).query ?? {};
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   const body = request.body as unknown;
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access

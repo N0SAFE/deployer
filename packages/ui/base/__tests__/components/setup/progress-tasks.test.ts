@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest"
 
+import type { SetupStreamEvent } from "@deployer/contracts-entities"
 import {
 	buildTasksFromEvents,
 	isPipelineComplete,
 	isSetupRunFinished,
 	type ProgressTask,
 } from "@deployer/ui/components/setup/progress-tasks"
-import type { SetupStreamEvent } from "@deployer/contracts-entities"
 
 /**
  * `buildTasksFromEvents` merges TWO producers into one timeline: the setup app
@@ -26,7 +26,7 @@ function stepDetail(stepId: string, title = stepId): SetupStreamEvent {
 		description: title,
 		seq: 1,
 		ts: "2026-01-01T00:00:00Z",
-	} as SetupStreamEvent
+	}
 }
 
 /** A `snapshot` event carrying the authoritative state of the steps it names. */

@@ -4,14 +4,14 @@ import { os } from "@orpc/server";
 import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { agentLink, createMeshClient, openWebSocketConnection, pooledLink, relayLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
+import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { adminClient, type BootedAgent, bootAgent, peerClient, removeDataDir } from "./boot-agent";
 
-import type { ContractRouterClient } from "@orpc/contract";
 import type { ClientContext } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
 import type { AddressInfo } from "node:net";
 
 const SECRET = "mesh-cluster-spec-secret-of-at-least-32-chars";

@@ -1,18 +1,25 @@
-import type { DockerEngineShape } from "@deployer/docker";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
-import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { EnvService } from "../../../../config/env/env.module";
+import { describe, expect, it, vi } from "vitest";
+
+import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
+import type { DockerEngineShape } from "@deployer/docker";
+
+
+
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
 import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
+
+import { TraefikIngressConfigService } from "./traefik-ingress-config.service";
+
+import type { EnvService } from "../../../../config/env/env.module";
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import type { PlatformRoutesSource, SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
 import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
 import type { TraefikRepository } from "../repositories/traefik.repository";
-import { TraefikIngressConfigService } from "./traefik-ingress-config.service";
+
 
 async function makeService(options: { lanes?: IngressLanes; routes?: SupervisedRoute[]; setupFile?: string; webTarget?: string | null } = {}) {
 	const dir = await mkdtemp(join(process.env.TMPDIR ?? "/tmp", "ingress-config-"));

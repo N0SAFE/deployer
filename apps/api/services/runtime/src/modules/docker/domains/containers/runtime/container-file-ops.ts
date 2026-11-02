@@ -1,5 +1,6 @@
-import { parseListEntry } from "./container-runtime-helpers";
 import type { DockerFileEntry } from "@deployer/contracts-entities";
+
+import { parseListEntry } from "./container-runtime-helpers";
 
 export type FileMutationAck = { readonly ok: true; readonly timestamp: string };
 

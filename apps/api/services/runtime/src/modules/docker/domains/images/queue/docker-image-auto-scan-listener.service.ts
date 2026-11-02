@@ -5,7 +5,6 @@ import { AppLogger } from "@deployer/logger";
 import { EnvService } from "@deployer/shared/config/env/env.module";
 import { heavyWorkSnapshot } from "@deployer/shared/core/utils/heavy-work.registry";
 
-import { DOCKER_NODE_MESH, type DockerNodeMesh } from "../../containers/mesh/docker-node-mesh";
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service";
 import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
 import { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
@@ -14,6 +13,7 @@ import {
 	readScanPressure,
 	resolveScanConcurrencyCeiling,
 } from "../../../services/scan-concurrency";
+import { DOCKER_NODE_MESH, type DockerNodeMesh } from "../../containers/mesh/docker-node-mesh";
 import { DockerImagesApplicationService } from "../application/docker-images-application.service";
 
 import type { Subscription } from "rxjs";

@@ -1,4 +1,5 @@
 import z from "zod/v4";
+
 import { availableDomainOps } from "./shared";
 
 export const getAvailableDomainsInput = z.object({

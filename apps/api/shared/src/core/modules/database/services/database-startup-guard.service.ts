@@ -1,9 +1,11 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { AppError } from "@deployer/errors";
 import { Injectable, Logger, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { AppError } from "@deployer/errors";
 import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import { DatabaseProbeService } from './database-probe.service'
 
 @Injectable()
@@ -136,10 +138,17 @@ export class DatabaseStartupGuard {
 
   private async tryDockerContainerRecovery(): Promise<boolean> {
     try {
-      const { default: Dockerode } = await import('dockerode')
-      const container = new Dockerode().getContainer('deployer-postgres-dev')
+      const { default: Dockerode } = (await import('dockerode')) as unknown as {
+        default: new () => { getContainer: (id: string) => unknown }
+      }
+      const docker = new Dockerode()
+      // dockerode's own types are loose here; name the two calls this probe makes.
+      const container = docker.getContainer('deployer-postgres-dev') as {
+        inspect: () => Promise<{ State?: { Running?: boolean } }>
+        start: () => Promise<unknown>
+      }
       const info = await container.inspect()
-      if (info.State.Running) return false
+      if (info.State?.Running === true) return false
       this.logger.log('🔄 Restarting stopped Postgres container...')
       await container.start()
       const storedUrl = (await runPromiseUnwrapped(this.nodeConfigRepository.find()))?.databaseUrl ?? ''

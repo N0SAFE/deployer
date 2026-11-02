@@ -1,3 +1,5 @@
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
+
 import type { DockerContainerInspectDetail } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
@@ -8,7 +10,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@deployer/ui/components/shadcn/chart'
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 
 const overviewChartConfig = {
   cpu: {

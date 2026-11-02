@@ -1,11 +1,13 @@
-import type Docker from "dockerode";
-import { fromAbortable } from "@deployer/effect-core";
 import { Effect } from "effect";
+
+import { fromAbortable } from "@deployer/effect-core";
 
 import { engineMessage } from "../../errors/classify";
 import { DockerInvalid, DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
+
 import type { ImagePullPolicy, ImagesShape } from "../images/images";
+import type Docker from "dockerode";
 
 /** What to create: dockerode's own options plus what the engine does not know about. */
 export type CreateContainerOptions = Docker.ContainerCreateOptions & {

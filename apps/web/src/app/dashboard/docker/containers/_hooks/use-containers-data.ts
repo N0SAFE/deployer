@@ -1,10 +1,14 @@
 'use client'
 
 import { useCallback, useDeferredValue, useMemo, useState } from 'react'
+
 import type { DockerContainer } from '@deployer/contracts-entities'
+
 import { useDockerLiveContainers, useDockerLiveImages } from '@/domains/docker/use-docker-live'
-import type { ContainerRow } from '../_models/container-list.model'
+
 import { imageRef, toContainerRow } from '../_utils/container-rows'
+
+import type { ContainerRow } from '../_models/container-list.model'
 
 /**
  * Live container inventory for this node: SSE-driven store reconciled every minute,

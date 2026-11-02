@@ -3,6 +3,7 @@
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+
 import { cn } from '@/lib/utils'
 
 /** A mono id (shortened for display) with a copy button for the full value. */

@@ -1,9 +1,11 @@
-import { createModuleContext } from "@deployer/nest-effect";
-import { ConfigModule } from "@nestjs/config";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { setupEnvSchema } from "./env.schema";
 
+import { ConfigModule } from "@nestjs/config";
+
+import { createModuleContext } from "@deployer/nest-effect";
+
+import { setupEnvSchema } from "./env.schema";
 import { setupEnvironmentProvider, EnvService } from "./env.service";
 
 // Re-exported so `@/config/env/env.module` is the ONE import path for both the

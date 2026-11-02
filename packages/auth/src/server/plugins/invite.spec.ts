@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { invitePlugin } from '@deployer/auth/server/plugins/invite';
 import * as z from 'zod';
+
+import { invitePlugin } from '@deployer/auth/server/plugins/invite';
 
 // Mock better-auth modules
 vi.mock('better-auth/api', () => ({

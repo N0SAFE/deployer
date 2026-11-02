@@ -1,3 +1,5 @@
+import { ConfigBuildError } from '../../errors';
+
 import type {
   LoadBalancerConfig,
   WeightedConfig,
@@ -11,7 +13,6 @@ import type {
   VariableNumber,
   VariableBoolean,
 } from '../../interfaces';
-import { ConfigBuildError } from '../../errors';
 
 /**
  * Builder for creating Traefik service configurations with type preservation

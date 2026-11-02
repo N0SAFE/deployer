@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
-import { WorkspaceScanner } from './workspace-scanner.service'
 import { NoEnabledApplicationsError, UnknownWorkspaceError } from '../errors'
 import { scopedLogger } from '../logger'
+
+import { WorkspaceScanner } from './workspace-scanner.service'
+
 import type { UnionMember } from '../schemas'
 
 /**

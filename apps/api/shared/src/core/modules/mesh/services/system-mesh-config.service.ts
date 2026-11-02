@@ -1,8 +1,11 @@
 import { Injectable, type OnModuleInit, Logger, Inject } from '@nestjs/common'
+
 import { runPromiseUnwrapped } from "@deployer/effect-core"
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import { EnvService } from "../../../../config/env/env.module"
 import { NodeMeshConfigRepository, type NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import { readNodeRecord, writeNodeRecord, type NodeRecord, type NodeRecordConfig } from "./node-record.client"
 
 /** What the agent's record says about this node's mesh: the section `node.configure` writes. */

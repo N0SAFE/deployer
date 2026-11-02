@@ -1,21 +1,24 @@
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { createModuleContext, EffectHost, effectHostProvider } from "@deployer/nest-effect";
-
-import { ProjectDb } from "@project/core/database/project-db";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
 import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
-import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
+import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
+import { ServiceClient } from "@deployer/shared/server";
+
+import { makeDnsProviderGateway } from "@/modules/network/dns-provider.gateway";
+
+import { DatabasePort } from "@project/core/database/database.port";
+import { ProjectDb } from "@project/core/database/project-db";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
-import { DatabasePort } from "@project/core/database/database.port";
-import { makeDnsProviderGateway } from "@/modules/network/dns-provider.gateway";
-import { ServiceClient } from "@deployer/shared/server";
+
+
 
 import { ProjectController } from "./controllers/project.controller";
 import { ProjectStore } from "./repositories/project.repository";

@@ -1,10 +1,12 @@
 import { expect } from 'vitest'
+
 import '@/test-support/mocks'
 import { asComponent, describePageStates, sessionFor } from '@/test-support'
-import SettingsPage from './page'
+
 import SettingsAccountPage from './account/page'
-import SettingsUsersPage from './users/page'
 import SettingsNodePage from './node/page'
+import SettingsPage from './page'
+import SettingsUsersPage from './users/page'
 
 describePageStates('Settings hub', {
 	page: () => <SettingsPage />,

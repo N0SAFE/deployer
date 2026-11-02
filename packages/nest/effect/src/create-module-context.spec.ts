@@ -55,6 +55,7 @@ describe("createModuleContext", () => {
 	});
 
 	it("does not grant a provider its import does not export", () => {
+		// Only its CONTEXT type is used, through `typeof` — the value itself is never read.
 		const PrivateRoot = createModuleContext({
 			imports: [PrivateLeaf],
 			providers: [{ provide: Database, useValue: { name: "db" } }],
@@ -63,5 +64,7 @@ describe("createModuleContext", () => {
 		type PrivateRootServices = ServicesOf<(typeof PrivateRoot)[typeof EffectContextOf]>;
 
 		expectTypeOf<PrivateRootServices>().toEqualTypeOf<Database>();
+		// `PrivateRoot` exists only to carry that type; referencing it keeps the helper above from being unused.
+		expect(PrivateRoot).toBeTypeOf("function");
 	});
 });

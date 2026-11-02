@@ -3,16 +3,17 @@ import { statSync } from "node:fs";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { type nodeAgentContract } from "@deployer/node-agent-contracts";
-import { ROTATION_GRACE_MS } from "@/local/swarm-credential";
 import { agentLink, createMeshClient, openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
+import { type nodeAgentContract } from "@deployer/node-agent-contracts";
 
 import { openAgentStore } from "@/local/agent-store";
+import { ROTATION_GRACE_MS } from "@/local/swarm-credential";
+
 
 import { type BootedAgent, bootAgent, removeDataDir } from "./boot-agent";
 
-import type { ContractRouterClient } from "@orpc/contract";
 import type { ClientContext } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
 
 type NodeAgentClient = ContractRouterClient<typeof nodeAgentContract>;
 

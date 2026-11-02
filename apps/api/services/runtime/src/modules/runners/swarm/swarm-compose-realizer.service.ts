@@ -1,4 +1,3 @@
-import { RuntimeInvalid } from "../../../core/runtime.errors";
 /**
  * SwarmComposeRealizerService — Compose→Swarm transform (SW-025,
  * docs/swarm-orchestration/05 §6).
@@ -23,12 +22,10 @@ import { RuntimeInvalid } from "../../../core/runtime.errors";
  * executor is the only thing touching `DockerService`.
  */
 
-import { Effect } from "effect";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger, Inject } from "@nestjs/common";
-
+import { Effect } from "effect";
 import { parse } from "yaml";
-import { AppError, BadRequestError } from "@deployer/errors";
+
 
 import type {
     ComposeCompatibilityIssue,
@@ -45,6 +42,10 @@ import type {
 import { composeModelSchema, composeServiceModelSchema } from "@deployer/contracts-entities";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { AppError, BadRequestError } from "@deployer/errors";
+
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 
 // ─── Compose value normalizers (string forms → typed values) ────────────────
 

@@ -1,10 +1,14 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { PageErrorState } from '@/components/dashboard'
-import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { useIngress } from '@/domains/reachability/hooks'
 import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
+import { PageErrorState } from '@/components/dashboard'
+import { useIngress } from '@/domains/reachability/hooks'
+
+import type { ReactNode } from 'react'
+
+
 
 /** Shape of the Network pages while the ingress snapshot loads: a vitals strip and two cards. */
 function NetworkSkeleton() {

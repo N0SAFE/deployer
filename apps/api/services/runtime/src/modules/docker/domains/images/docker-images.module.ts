@@ -1,13 +1,15 @@
+import { createModuleContext } from "@deployer/nest-effect";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+
 import { DockerCommonModule } from "../../common/docker-common.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
 import { DockerContainersModule } from "../containers/docker-containers.module";
-import { DockerImageAutoScanListenerService } from "./queue/docker-image-auto-scan-listener.service";
+
+import { DockerImagesApplicationService } from "./application/docker-images-application.service";
 import { DockerImagesOrchestratorService } from "./orchestration/docker-images-orchestrator.service";
 import { DockerImageCatalogPort, DockerImages } from "./orchestration/docker-images.service";
+import { DockerImageAutoScanListenerService } from "./queue/docker-image-auto-scan-listener.service";
 import { DockerImageSecurityScanService } from "./security/docker-image-security-scan.service";
-import { DockerImagesApplicationService } from "./application/docker-images-application.service";
-import { createModuleContext } from "@deployer/nest-effect";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 
 export class DockerImagesModule extends createModuleContext({
   imports: [DockerCommonModule, DockerRepositoriesModule, DockerContainersModule,

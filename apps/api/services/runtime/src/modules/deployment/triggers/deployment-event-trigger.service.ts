@@ -1,8 +1,10 @@
-import type { DeploymentTriggerFromEventInput } from "@deployer/runtime-contracts/modules/deployment/crud";
-import { CurrentActor } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
 
+import { CurrentActor } from "@deployer/effect-core";
+import type { DeploymentTriggerFromEventInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import { attempt } from "../../../core/effects";
+
 import { SystemDeploymentsPort, TriggerRegistryPort } from "./deployment-trigger.ports";
 
 export type DeploymentEventTriggerResult =

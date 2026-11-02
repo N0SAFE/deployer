@@ -1,16 +1,6 @@
 'use client'
 
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useState, useEffect } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { useSession, authClient } from '@/lib/auth'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Label } from '@deployer/ui/components/shadcn/label'
-import { Avatar, AvatarFallback, AvatarImage } from '@deployer/ui/components/shadcn/avatar'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { Separator } from '@deployer/ui/components/shadcn/separator'
 import { 
   User, 
   Mail, 
@@ -19,9 +9,23 @@ import {
   Loader2,
   CheckCircle,
 } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+
 import type { Session } from '@deployer/auth'
+import { Avatar, AvatarFallback, AvatarImage } from '@deployer/ui/components/shadcn/avatar'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Separator } from '@deployer/ui/components/shadcn/separator'
+
+
+
+import { useSession, authClient } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format/date'
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
 
 function getInitials(name: string | null | undefined): string {
   if (!name) return 'U'
@@ -56,7 +60,7 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
   const [isEditing, setIsEditing] = useState(false)
   
   // Get user name from session - session data can be null when not authenticated
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+   
   const userName = currentSession?.user?.name ?? ''
 
   const form = useForm({
@@ -119,7 +123,7 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
           <div className="flex items-center gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
+                { }
                 <AvatarImage src={user.image ?? undefined} alt={user.name ?? 'User'} />
                 <AvatarFallback className="text-2xl">
                   {getInitials(user.name)}
@@ -127,7 +131,7 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
               </Avatar>
             </div>
             <div className="space-y-1">
-              {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
+              { }
               <h3 className="text-xl font-semibold">{user.name ?? 'User'}</h3>
               <p className="text-sm text-muted-foreground">{user.email}</p>
               <div className="flex items-center gap-2">

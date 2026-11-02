@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
-import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import { describe, expect, it, vi } from "vitest";
+
 import type { DockerContainer } from "@deployer/contracts-entities";
+import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
+
 import { createResolution } from "./testing";
 
 function createMeshListResult(
@@ -120,8 +122,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const result = await service.listContainers(baseInput);
@@ -162,8 +164,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const result = await service.listContainers(baseInput);
@@ -267,8 +269,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const result = await service.listContainersGrouped({
@@ -360,8 +362,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const result = await service.listContainersGrouped({
@@ -390,8 +392,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const result = await service.listContainers(baseInput, { localOnly: true });
@@ -488,8 +490,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const detail = await service.inspectContainer("ctr-1");
@@ -548,8 +550,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         const detail = await service.inspectContainer("local-ctr");
@@ -575,8 +577,8 @@ describe("DockerContainerResolutionService", () => {
         };
 
         const service = createResolution(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
+            dockerContainerMeshService,
+            dockerRepository,
         );
 
         await expect(service.inspectContainer("ghost-ctr")).rejects.toBeInstanceOf(NotFoundException);

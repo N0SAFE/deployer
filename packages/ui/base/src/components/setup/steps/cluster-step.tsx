@@ -12,13 +12,14 @@
  */
 
 import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
-import { Button } from "@deployer/ui/components/shadcn/button";
 import { useState } from "react";
+
 import type { SwarmPolicyDocument } from "@deployer/contracts-entities";
 import {
   SwarmParticipationForm,
   type SwarmParticipationDraft,
 } from "@deployer/ui/components/setup/swarm-participation-form";
+import { Button } from "@deployer/ui/components/shadcn/button";
 
 /**
  * Founding policies (copy mirrors the API's policy documents — only the two
@@ -48,11 +49,11 @@ const FOUNDING_POLICIES: SwarmPolicyDocument[] = [
   },
 ];
 
-type Props = {
+interface Props {
   initial: SwarmParticipationDraft;
   onBack?: () => void;
   onContinue: (draft: SwarmParticipationDraft) => void;
-};
+}
 
 export function ClusterStep({ initial, onBack, onContinue }: Props) {
   const [draft, setDraft] = useState<SwarmParticipationDraft>(initial);
@@ -94,7 +95,7 @@ export function ClusterStep({ initial, onBack, onContinue }: Props) {
         ) : (
           <span />
         )}
-        <Button size="lg" type="button" onClick={() => onContinue(draft)} className="gap-2">
+        <Button size="lg" type="button" onClick={() => { onContinue(draft); }} className="gap-2">
           Continue
           <ArrowRight className="h-4 w-4" />
         </Button>

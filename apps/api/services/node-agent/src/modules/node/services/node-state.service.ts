@@ -1,12 +1,12 @@
 import { Context, Effect } from "effect";
 
+import { domainError } from "@deployer/effect-core";
 import {
   type MeshNodeConfig,
   type MeshNodeConfigureInput,
   type MeshNodeState,
   meshNodeConfigSchema,
 } from "@deployer/node-agent-contracts";
-import { domainError } from "@deployer/effect-core";
 
 import { AgentStore, type AgentStoreError } from "../../../local/agent-store";
 import { NodeIdentity } from "../../mesh/services/node-identity.service";

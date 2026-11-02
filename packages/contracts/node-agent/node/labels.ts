@@ -1,4 +1,5 @@
 import z from "zod/v4";
+
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** How many facts a node may publish about itself: enough for the platform's own labels, small enough to gossip. */

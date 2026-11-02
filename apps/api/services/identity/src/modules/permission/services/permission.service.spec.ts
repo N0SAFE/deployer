@@ -1,12 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
 import { Effect } from 'effect'
+import { describe, expect, it, vi } from 'vitest'
+
 import { ForbiddenError, type ResourceRule } from '@deployer/auth/permissions'
 
 import { PermissionRepository } from '../repositories/permission.repository'
+
 import {
     PermissionService,
     type PermissionServiceShape,
 } from './permission.service'
+
 import type { PermissionRepositoryShape } from '../repositories/permission.repository'
 
 // ---------------------------------------------------------------------------

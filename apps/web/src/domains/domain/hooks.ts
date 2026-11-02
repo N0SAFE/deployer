@@ -1,6 +1,8 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { domainEndpoints, domainEndpointOperations } from './endpoints'
+
 import { wrapWithInvalidations } from '../shared/helpers'
+
+import { domainEndpoints, domainEndpointOperations } from './endpoints'
 import { domainInvalidations } from './invalidations'
 
 const enhancedDomain = wrapWithInvalidations(domainEndpointOperations, domainInvalidations as never)

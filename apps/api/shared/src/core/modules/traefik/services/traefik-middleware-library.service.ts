@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { MiddlewareError, MiddlewareConfigurationError } from '../errors';
 
 // Import types from centralized interfaces

@@ -16,19 +16,19 @@ import {
 } from "../../config/node-agent.env";
 import { AgentLocalModule } from "../../local/agent-local.module";
 import { SwarmCredential } from "../../local/swarm-credential";
-import { DoorConverger } from "../../network/doors/door-converger";
 import { DockerEngine, DockerSocket, SocketDockerEngine } from "../../network/doors/docker-engine";
+import { DoorConverger } from "../../network/doors/door-converger";
 import { DoorAddresses, DoorsTick } from "../../network/doors/doors-tick.service";
 import { DoorImage } from "../../network/doors/doors.setting";
 import { OverlaySettings, WireguardTick } from "../../network/wireguard-tick.service";
 import { HostCommands, WireguardDriver, WireguardPaths } from "../../network/wireguard.service";
+import { NodeDoorController } from "../node/node-door.controller";
+import { NodeStatus } from "../node/services/node-status.service";
 
 import { AccessController } from "./controllers/access.controller";
 import { DirectoryController } from "./controllers/directory.controller";
 import { RelayController } from "./controllers/relay.controller";
 import { RosterController } from "./controllers/roster.controller";
-import { NodeDoorController } from "../node/node-door.controller";
-import { NodeStatus } from "../node/services/node-status.service";
 import { MeshDirectoryRepository } from "./repositories/directory.repository";
 import { AccessChecks } from "./services/access-checks.service";
 import { AgentLinkFactory, agentLinkFactoryOver } from "./services/agent-link-factory.service";
@@ -41,13 +41,14 @@ import { KeyHints } from "./services/key-hints.service";
 import { LeaseSigner, leaseSignerOver } from "./services/lease-signer.service";
 import { MeshClock } from "./services/mesh-clock.service";
 import { NodeAgents } from "./services/node-agents.service";
-import type { NodeAgentsShape } from "./services/node-agents.service";
 import { PendingSeeds } from "./services/pending-seeds.service";
 import { RelayMetrics } from "./services/relay-metrics.service";
 import { RelaySettings } from "./services/relay-settings.service";
 import { MeshRelay } from "./services/relay.service";
 import { ReplicaLinks, replicaLinksOver, withCredential } from "./services/replica-links.service";
 import { AdvertisedAddress, GossipSettings, RosterGossip } from "./services/roster-gossip.service";
+
+import type { NodeAgentsShape } from "./services/node-agents.service";
 
 /** How long a direct grant lives: long enough to open a link, short enough that a dead replica's grant dies with it. */
 const LEASE_TTL_MS = 30_000;

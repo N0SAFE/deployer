@@ -1,10 +1,10 @@
+import type { Auth } from '../../auth'
+import type { AppContract } from '../../core/orpc/app-contract'
 import type { INestApplication, Type } from '@nestjs/common'
 import type { TestingModule } from '@nestjs/testing'
 import type { AnyContractRouter, ContractRouterClient } from '@orpc/contract'
-import type { AppContract } from '../../core/orpc/app-contract'
 import type { Pool } from 'pg'
 import type request from 'supertest'
-import type { Auth } from '../../auth'
 
 export type SharedPostgresContainerHandle = {
     getConnectionUri(): string

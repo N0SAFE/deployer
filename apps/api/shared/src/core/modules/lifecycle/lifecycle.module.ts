@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
-import { declareModule } from "@deployer/nest-effect";
+
 import { AppLifecycle, makeAppLifecycle } from "@deployer/lifecycle";
+import { declareModule } from "@deployer/nest-effect";
 
 /**
  * Provides the application lifecycle Effect service under its own tag, once per process, for every

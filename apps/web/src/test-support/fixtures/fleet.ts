@@ -1,4 +1,5 @@
 import { ERROR_MESSAGE, type Scenario } from '../scenario'
+
 import { daysAgo, minutesAgo, type FixtureMap } from './types'
 
 export const NODE_A = '0190a000-0000-7000-8000-00000000000a'

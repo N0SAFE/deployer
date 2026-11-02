@@ -1,7 +1,6 @@
-import { RuntimeInvalid } from "../../../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
+
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 import {
     resolveRuntimeRunnerKind,
@@ -9,8 +8,12 @@ import {
     type RuntimeRunnerOptions,
 } from "@deployer/contracts-entities";
 import { uploadSourceCheckoutContextSchema } from "@deployer/contracts-entities";
-import { UploadBundleRegistryService } from "./upload-bundle-registry.service";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
+import { RuntimeInvalid } from "../../../../../core/runtime.errors";
 import { CodeProvider } from "../../shared/code-provider.interface";
+
+import { UploadBundleRegistryService } from "./upload-bundle-registry.service";
 
 const uploadSourceContextSchema = z.object({
     sourceType: z.literal("upload"),

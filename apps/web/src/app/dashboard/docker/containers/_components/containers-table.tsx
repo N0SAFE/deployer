@@ -1,20 +1,25 @@
 'use client'
 
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+
 import type { DockerContainer } from '@deployer/contracts-entities'
 import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+
 import { EnvironmentBadge, FilteredEmptyState } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
+
 import { DockerContainerDetailModalTrigger } from '../../_components/container-detail-modal'
 import { DockerCopyableId } from '../../_components/docker-copy-button'
 import { DockerImageDetailModalTrigger } from '../../_components/docker-image-detail-modal'
 import { DockerRelativeTime } from '../../_components/docker-relative-time'
 import { shortId } from '../../_utils/format'
 import { CONTAINER_COLUMNS, type ContainerColumn } from '../columns'
-import type { ContainerAction, ContainerRow, ContainerSortKey } from '../_models/container-list.model'
+
 import { ContainerRowActions } from './container-row-actions'
 import { ContainerStatusCell } from './container-status-cell'
+
+import type { ContainerAction, ContainerRow, ContainerSortKey } from '../_models/container-list.model'
 
 const COLUMN_COUNT = CONTAINER_COLUMNS.length + 2
 

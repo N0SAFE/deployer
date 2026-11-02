@@ -1,14 +1,17 @@
 'use client'
 
-import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
+import { useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { useUpdateProjectGeneralConfig } from '@/domains/project/hooks'
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { CopyButton } from '../workload/CopyButton'
 
 interface GeneralValues { name: string; description: string; baseDomain: string }

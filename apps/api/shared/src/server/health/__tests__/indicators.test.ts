@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
 import { statfs } from "node:fs/promises";
+
 import { Effect } from "effect";
+import { describe, expect, it, vi } from "vitest";
 
 // `statfs` delegates to the real one unless a test overrides it, so the unreadable-path
 // case stays real while the free-space case does not depend on how full this machine is.

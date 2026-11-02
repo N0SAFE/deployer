@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery, useMutation } from '@tanstack/react-query'
+
 import { githubAppEndpoints } from './endpoints'
 
 export function useGitHubApps() {

@@ -14,23 +14,24 @@
  * when the operator refreshes or a join succeeds.
  */
 
-import { useState } from "react"
 import { Check, Copy, RefreshCw } from "lucide-react"
+import { useState } from "react"
+
 import type { SetupMeshJoinResult } from "@deployer/contracts-entities"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 import { Badge } from "@deployer/ui/components/shadcn/badge"
 import { Button } from "@deployer/ui/components/shadcn/button"
 import { Input } from "@deployer/ui/components/shadcn/input"
-import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 import { cn } from "@deployer/ui/lib/utils"
 
 /** The three mesh calls, once the host has them (see `SetupWizardApi`). */
-export type MeshStepApi = {
+export interface MeshStepApi {
   useMeshStatus: NonNullable<SetupWizardApi["useMeshStatus"]>
   joinMesh: NonNullable<SetupWizardApi["joinMesh"]>
   issueMeshToken: NonNullable<SetupWizardApi["issueMeshToken"]>
 }
 
-type Props = {
+interface Props {
   api: MeshStepApi
 }
 
@@ -114,7 +115,7 @@ export function MeshStep({ api }: Props) {
 
       {status === undefined ? (
         <p className="text-xs text-muted-foreground">Reading mesh state…</p>
-      ) : status.available === false ? (
+      ) : !status.available ? (
         <p className="text-xs text-muted-foreground">
           No mesh agent answered on this node. It runs standalone; start the agent to join a swarm.
         </p>
@@ -180,7 +181,7 @@ export function MeshStep({ api }: Props) {
           <Input
             id="mesh-invite"
             value={token}
-            onChange={(event) => setToken(event.target.value)}
+            onChange={(event) => { setToken(event.target.value); }}
             placeholder="Invite token from another node"
             autoComplete="off"
             spellCheck={false}

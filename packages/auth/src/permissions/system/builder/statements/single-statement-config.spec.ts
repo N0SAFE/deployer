@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { StatementConfig } from '@deployer/auth/permissions/system/builder/statements/single-statement-config';
 
 describe('StatementConfig', () => {

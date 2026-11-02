@@ -1,6 +1,6 @@
-import { BaseConfig } from '@deployer/auth/permissions/system/builder/shared/base-config';
-import { RoleConfig } from '@deployer/auth/permissions/system/builder/roles/single-role-config';
 import { RoleConfigCollection } from '@deployer/auth/permissions/system/builder/roles/role-config-collection';
+import { RoleConfig } from '@deployer/auth/permissions/system/builder/roles/single-role-config';
+import { BaseConfig } from '@deployer/auth/permissions/system/builder/shared/base-config';
 
 /**
  * RolesConfig - Manages all roles in the permission system

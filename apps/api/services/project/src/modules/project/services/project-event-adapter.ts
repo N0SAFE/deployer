@@ -1,6 +1,7 @@
+import { defer, from, map, mergeMap } from "rxjs";
+
 import type { EffectHost } from "@deployer/nest-effect";
 import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
-import { defer, from, map, mergeMap } from "rxjs";
 
 import { streamProjectEvents, toStreamQueryInput } from "./project-stream";
 

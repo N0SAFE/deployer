@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Radio } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -12,11 +15,11 @@ import {
   CardTitle,
 } from '@deployer/ui/components/shadcn/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Radio } from 'lucide-react'
+
+
 import { StatusBadge } from '@/components/dashboard'
-import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
-import { formatDateTime as formatDate } from '@/lib/format/date'
 import { dockerEndpoints } from '@/domains/docker/endpoints'
+import { formatDateTime as formatDate } from '@/lib/format/date'
 
 /**
  * SwarmEventFeedPanel — the live orchestrator event feed.

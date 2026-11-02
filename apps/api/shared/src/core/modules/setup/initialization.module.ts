@@ -1,18 +1,21 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { InitializationService } from "./services/initialization.service";
-import { NodeStateModule } from "../node-state/node-state.module";
-import { RemoteInitializationService } from "./services/remote-initialization.service";
-import { LocalInitializationService } from "./services/local-initialization.service";
-import { SetupEventService } from "./services/setup-event.service";
-import { MeshInitializationModule } from "../mesh/initialization/mesh-initialization.module";
+
+import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { LocalDatabaseModule } from "../database/local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
-import { CoreReachabilityModule } from "../reachability/core-reachability.module";
-import { MeshVersionService } from "../mesh/version/mesh-version.service";
-import { SwarmCoreModule } from "../swarm/swarm.module";
 import { AppLifecycleModule } from "../lifecycle";
+import { MeshInitializationModule } from "../mesh/initialization/mesh-initialization.module";
+import { MeshVersionService } from "../mesh/version/mesh-version.service";
+import { NodeStateModule } from "../node-state/node-state.module";
+import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { SupervisorsModule } from "../supervision/index";
-import { EnvModule, EnvService } from "../../../config/env/env.module";
+import { SwarmCoreModule } from "../swarm/swarm.module";
+
+import { InitializationService } from "./services/initialization.service";
+import { LocalInitializationService } from "./services/local-initialization.service";
+import { RemoteInitializationService } from "./services/remote-initialization.service";
+import { SetupEventService } from "./services/setup-event.service";
+
 
 /**
  * Global Setup Module

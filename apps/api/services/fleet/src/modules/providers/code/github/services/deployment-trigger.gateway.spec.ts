@@ -1,10 +1,12 @@
-import { provideTo } from "@deployer/effect-core";
 import { Cause, Effect, Exit } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { provideTo } from "@deployer/effect-core";
 import { verifySystemActorClaim } from "@deployer/shared/core/modules/auth/system-actor/system-actor";
 
 import { PlatformEnv, type PlatformEnvShape } from "@/core/ports/platform-env.port";
 import { SystemActorClients, type SystemActorClientsShape } from "@/core/ports/system-actor-clients.port";
+
 import { DeploymentTriggerGateway } from "./deployment-trigger.gateway";
 
 const SECRET = "a-secret-that-is-long-enough-for-tests";

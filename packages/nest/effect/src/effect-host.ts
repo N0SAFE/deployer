@@ -61,7 +61,7 @@ export function makeEffectHost(runtime: EffectRuntime): EffectHostShape {
 		contextFor: (controller) => runtime.contextFor(controller),
 		runUnwrapped: (effect) => runtime.runPromiseUnwrapped(effect),
 		fork: (label, effect) => {
-			const fiber = runtime.runFork(effect as Effect.Effect<void, never, never>);
+			const fiber = runtime.runFork(effect as Effect.Effect<void>);
 			live.set(label, fiber);
 			return remove(label, fiber);
 		},

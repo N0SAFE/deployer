@@ -1,6 +1,6 @@
 import { createModuleContext } from '@deployer/nest-effect'
-import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
 import { ConfigurationCoreModule } from '@deployer/shared/core/modules/configuration/configuration-core.module'
+import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
 
 import { PermissionRepository } from './repositories/permission.repository'
 import { PermissionService } from './services/permission.service'

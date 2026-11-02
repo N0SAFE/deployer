@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+
+import { GLOBAL_DATABASE_POOL } from "../database-connection";
+
 import type { OnModuleDestroy } from "@nestjs/common";
 import type { Pool, PoolClient } from "pg";
 
-import { GLOBAL_DATABASE_POOL } from "../database-connection";
 
 /**
  * A Postgres advisory lock around the boot-time side effects.

@@ -1,15 +1,10 @@
-import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
-import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Effect } from 'effect';
 import { firstValueFrom, take, toArray } from 'rxjs';
-import { DeploymentService } from './deployment.service';
-import { DeploymentEventService } from '../events/deployment-event.service';
-import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
-import { DomainRoutingService } from '@deployer/shared/core/modules/domain/services/domain-routing.service';
-import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service';
-import { RuntimeConfigurationAccessorService } from '@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+
+import { DockerEngine } from "@deployer/docker";
 import {
     runtimeConfigurationContextSchema,
     meshRuntimeConfigSchema,
@@ -18,35 +13,45 @@ import {
     userRuntimeConfigSchema,
     type ResolvedRuntimeConfiguration,
 } from '@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema';
-import { GithubSourceProviderService } from "@/modules/providers/code/github/services/github-source-provider.service";
-import { UploadSourceProviderService } from "@/modules/providers/code/upload/services/upload-source-provider.service";
-import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
+import { RuntimeConfigurationAccessorService } from '@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service';
+import { DeploymentProviderBuilderRunnerStateMachineService } from '@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service';
+import { DomainRoutingService } from '@deployer/shared/core/modules/domain/services/domain-routing.service';
+import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service';
+import { SwarmCluster } from "@deployer/swarm";
+
 import { CustomSourceProviderService } from "@/modules/providers/code/custom/services/custom-source-provider.service";
+import { GithubSourceProviderService } from "@/modules/providers/code/github/services/github-source-provider.service";
+import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
+import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
+import { UploadSourceProviderService } from "@/modules/providers/code/upload/services/upload-source-provider.service";
+import { DockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
+import { RunnerEnvPort, RunnerTraefikPort } from "@/modules/runners/runners.ports";
 import {
     RuntimeRunnerRegistry,
     RuntimeRunnerRegistryService,
 } from "@/modules/runners/runtime-runner-registry.service";
-import { DockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
-import { RunnerEnvPort, RunnerTraefikPort } from "@/modules/runners/runners.ports";
-import { DockerEngine } from "@deployer/docker";
-import { SwarmCluster } from "@deployer/swarm";
 import { SwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
 import { run as runEffect } from "@/modules/runners/testing";
-import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
-import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository';
-import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
+
+import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
+import { DeploymentEventService } from '../events/deployment-event.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
-import { StorageProviderRegistryService } from '../storage/storage-provider-registry.service';
+import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
+import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository';
 import { LocalStorageProviderService } from '../storage/local/local-storage-provider.service';
-import { S3StorageProviderService } from '../storage/s3/s3-storage-provider.service';
 import { NfsStorageProviderService } from '../storage/nfs/nfs-storage-provider.service';
-import { VolumeStorageProviderService } from '../storage/volume/volume-storage-provider.service';
-import { StoragePolicyResolverRegistryService } from '../storage/policy/storage-policy-resolver-registry.service';
+import { RuntimeConfigurationStoragePolicyResolverService } from '../storage/policy/runtime-configuration-storage-policy-resolver.service';
 import { ServiceCustomDataStoragePolicyResolverService } from '../storage/policy/service-custom-data-storage-policy-resolver.service';
 import { ServiceTopLevelStoragePolicyResolverService } from '../storage/policy/service-top-level-storage-policy-resolver.service';
-import { RuntimeConfigurationStoragePolicyResolverService } from '../storage/policy/runtime-configuration-storage-policy-resolver.service';
+import { StoragePolicyResolverRegistryService } from '../storage/policy/storage-policy-resolver-registry.service';
+import { S3StorageProviderService } from '../storage/s3/s3-storage-provider.service';
+import { StorageProviderRegistryService } from '../storage/storage-provider-registry.service';
+import { VolumeStorageProviderService } from '../storage/volume/volume-storage-provider.service';
 
-import { DeploymentProviderBuilderRunnerStateMachineService } from '@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service';
+import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
+import { DeploymentService } from './deployment.service';
+
+import type { TestingModule } from '@nestjs/testing';
 
 async function* fromArray<T>(items: T[]): AsyncGenerator<T> {
     for (const item of items) {

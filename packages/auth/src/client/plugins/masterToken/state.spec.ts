@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+
 import {
     MASTER_TOKEN_COOKIE_NAME,
     getMasterTokenEnabled,

@@ -22,7 +22,7 @@ describe("createOrpcModule extraContext", () => {
 			calls += 1;
 			return { "effect/context": `snapshot-${String(calls)}` };
 		});
-		const factory = configFactory({ extraContext: { inject: [], resolve } as never });
+		const factory = configFactory({ extraContext: { inject: [], resolve } });
 
 		const config = await factory({}, { createEmptyAuthUtils: () => ({}) });
 

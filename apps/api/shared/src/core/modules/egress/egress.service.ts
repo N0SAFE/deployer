@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Duration, Effect } from "effect";
+
 import {
 	makeSafeHttpClient,
 	publicEgressMessage,
@@ -9,7 +11,6 @@ import {
         type SafeHttpClient,
 } from "@deployer/effect-infra";
 import { probeAddress, probePeer, type AddressProbeResult, type PeerProbeResult } from "@deployer/effect-reachability";
-import { Duration, Effect } from "effect";
 
 import { resolveEgressPolicies, type EgressEnv, type EgressPolicies } from "./egress-policy";
 

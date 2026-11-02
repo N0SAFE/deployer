@@ -1,8 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Crown, Globe, HardDrive, Info, Network, Server, ShieldCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { AuthDashboardNodesNodeId } from '@/routes'
+import { useMemo, useState } from 'react'
+
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
@@ -20,13 +22,17 @@ import {
 } from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Crown, Globe, HardDrive, Info, Network, Server, ShieldCheck } from 'lucide-react'
+
+
 import { PageHeader, PageLoadingState, PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { MeshPulse } from '@/components/dashboard/MeshPulse'
+import { useClusterMaster, useClusterNodes, useClusterSnapshot, useUpdateClusterNode } from '@/domains/cluster/hooks'
+import { AuthDashboardNodesNodeId } from '@/routes'
+
 import { FleetWorkloadsPanel } from './_components/fleet-workloads-panel'
 import { SwarmConfigPanel } from './_components/swarm-config-panel'
 import { SwarmEventFeedPanel } from './_components/swarm-event-feed-panel'
-import { useClusterMaster, useClusterNodes, useClusterSnapshot, useUpdateClusterNode } from '@/domains/cluster/hooks'
+
 
 interface ClusterNodeRow {
   nodeId: string

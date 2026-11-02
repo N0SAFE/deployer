@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { BUNDLES, PERMISSIONS, SYSTEM_ROLES, capabilitiesOfRole, roleGrants, type Permission } from "./catalog";
 import { can, decide } from "./evaluate";
+
 import type { CapabilitySet } from "./types";
 
 const ALL = Object.keys(PERMISSIONS) as Permission[];

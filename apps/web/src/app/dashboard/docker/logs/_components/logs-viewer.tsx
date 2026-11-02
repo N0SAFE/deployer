@@ -1,14 +1,18 @@
 'use client'
 
-import type { RefObject } from 'react'
 import { ArrowDown, ScrollText } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { EmptyState } from '@/components/dashboard'
+
+import { LogLineRow } from './log-line-row'
+
+import type { useLogFollow } from '../_hooks/use-log-follow'
 import type { MatchRange } from '../_lib/highlight'
 import type { PreparedLine } from '../_lib/prepare-lines'
-import type { useLogFollow } from '../_hooks/use-log-follow'
-import { LogLineRow } from './log-line-row'
+import type { RefObject } from 'react'
 
 export function LogsViewer({
   lines,

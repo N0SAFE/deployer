@@ -1,6 +1,7 @@
 import { Cause, Effect } from "effect";
-import { OutputLine } from "./types";
+
 import { STDERR_TAIL_CHARS } from "./limits";
+import { OutputLine } from "./types";
 
 /** Splits decoded text into lines and reports them. Keeps the last partial line until flushed. */
 export const lineSplitter = (stream: OutputLine["stream"], emit: (line: OutputLine) => void) => {

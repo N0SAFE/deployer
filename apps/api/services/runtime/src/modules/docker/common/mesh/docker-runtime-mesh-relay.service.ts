@@ -1,8 +1,10 @@
 import { Observable, Subject, defer, merge, share } from "rxjs";
+
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 
-import type { DockerRuntimeEventsSourceService } from "../events/docker-runtime-events-source.service";
 import { relayableRuntimeEvents } from "../events/relayable-runtime-events";
+
+import type { DockerRuntimeEventsSourceService } from "../events/docker-runtime-events-source.service";
 
 /** What the relay needs of the mesh: the other nodes' event streams, and the id of this node once the agent has told it. */
 export type RuntimeEventsPeers = {
@@ -35,9 +37,9 @@ export class DockerRuntimeMeshRelayService {
   localEvents$(): Observable<DockerRuntimeEvent> {
     return new Observable<DockerRuntimeEvent>((subscriber) =>
       this.local$.subscribe({
-        next: (event) => subscriber.next(this.withNodeId(event)),
-        error: (error: unknown) => subscriber.error(error),
-        complete: () => subscriber.complete(),
+        next: (event) => { subscriber.next(this.withNodeId(event)); },
+        error: (error: unknown) => { subscriber.error(error); },
+        complete: () => { subscriber.complete(); },
       }),
     );
   }

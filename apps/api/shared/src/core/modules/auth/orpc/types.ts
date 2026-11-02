@@ -1,8 +1,9 @@
+import { AppError } from "@deployer/errors";
+
 import type { Auth } from "../../../../auth";
 import type { AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
 import type { SessionUserWithRole } from "../utils/auth-utils";
 
-import { AppError } from "@deployer/errors";
 /**
  * Brand symbol for authenticated context
  */

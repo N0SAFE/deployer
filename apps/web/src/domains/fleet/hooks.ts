@@ -1,9 +1,11 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+
+import { wrapWithInvalidations } from "@/domains/shared/helpers";
+
 import { fleetEndpoints } from "./endpoints";
 import { fleetInvalidations } from "./invalidations";
-import { wrapWithInvalidations } from "@/domains/shared/helpers";
 
 const enhancedFleet = wrapWithInvalidations(fleetEndpoints, fleetInvalidations);
 

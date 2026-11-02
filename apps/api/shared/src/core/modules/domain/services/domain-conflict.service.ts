@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { ServiceDomainMappingService } from './service-domain-mapping.service';
+
 import type { SubdomainAvailabilityResult } from '../interfaces';
 
 @Injectable()

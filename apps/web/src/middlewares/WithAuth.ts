@@ -1,14 +1,20 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-import { NextFetchEvent, NextProxy, NextRequest, NextResponse } from "next/server";
-import { ConfigFactory, Matcher, MiddlewareFactory } from "./utils/types";
-import { nextjsRegexpPageOnly, nextNoApi } from "./utils/static";
-import { redirectSameOrigin } from "./utils/redirects";
-import { validateEnvSafe } from "#/env";
-import { AuthDashboard, AuthSignin } from "@/routes/index";
-import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
-import { isPlatformAdministrator } from "@deployer/auth/authz";
+import { NextFetchEvent, NextProxy, NextRequest, NextResponse } from "next/server";
+
 import type { Session } from "@deployer/auth";
+import { isPlatformAdministrator } from "@deployer/auth/authz";
+
+import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
+import { AuthDashboard, AuthSignin } from "@/routes/index";
+
+import { redirectSameOrigin } from "./utils/redirects";
+import { nextjsRegexpPageOnly, nextNoApi } from "./utils/static";
+import { ConfigFactory, Matcher, MiddlewareFactory } from "./utils/types";
+
+import { validateEnvSafe } from "#/env";
+
+
 
 const debugAuth = createContextFilterDebugLogger("WithAuth", "middleware:[WithAuth]");
 const debugAuthError = createContextFilterDebugLogger("WithAuth", "middleware:[WithAuth]:error");
@@ -29,13 +35,13 @@ const ADMIN_ONLY_PATHS: readonly RegExp[] = [/^\/settings\/users(\/.*)?$/];
 /** What the gate decided for one request. */
 export type AuthGateDecision = "allow" | "signin" | "forbidden";
 
-export type AuthGateInput = {
+export interface AuthGateInput {
 	/** A session cookie is present (signed by the API, but not verified here on its own). */
 	readonly hasSessionCookie: boolean;
 	/** The verified session: the cookie cache when it is live, otherwise the API's answer. */
 	readonly session: { readonly user?: { readonly role?: string | null } } | null;
 	readonly path: string;
-};
+}
 
 /**
  * The decision, as data.
@@ -80,9 +86,9 @@ async function verifyWithApi(request: NextRequest, baseUrl: string): Promise<Ses
 	}
 }
 
-type SessionLike = {
+interface SessionLike {
 	readonly user?: { readonly role?: string | null };
-};
+}
 
 
 

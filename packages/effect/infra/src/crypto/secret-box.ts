@@ -1,5 +1,6 @@
-import { fromAbortable } from "@deployer/effect-core";
 import { Context, Effect, Layer, Redacted } from "effect";
+
+import { fromAbortable } from "@deployer/effect-core";
 
 import { OpenFailed, SealError, type UnknownKeyId } from "./errors";
 import { KeyRing, type KeyPurpose } from "./key-ring";

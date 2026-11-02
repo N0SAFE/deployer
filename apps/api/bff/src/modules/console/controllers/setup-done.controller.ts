@@ -4,6 +4,7 @@ import { Render as SsrRender } from "@nestjs-ssr/react";
 import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import SetupDoneView from "@/views/pages/setup-done";
+
 import { ManagedWebClient } from "../clients/managed-web.client";
 
 /**

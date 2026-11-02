@@ -2,9 +2,12 @@
 
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
+
 import { useDockerRunContainerAction } from '@/domains/docker/hooks'
-import type { ContainerAction, ContainerRow } from '../_models/container-list.model'
+
 import { actionTargets } from '../_utils/container-rows'
+
+import type { ContainerAction, ContainerRow } from '../_models/container-list.model'
 
 export interface ContainerActionRequest {
   action: ContainerAction

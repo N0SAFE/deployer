@@ -2,9 +2,11 @@ import { Effect } from "effect";
 
 import { stripBrackets } from "../address";
 import { isIpLiteral } from "../ip-policy";
+
 import { readCapped } from "./body";
 import { checkTarget, defaultResolve, denyReason } from "./egress-check";
 import { EgressDenied, HttpFailed, TooManyRedirects, type SafeHttpError } from "./errors";
+
 import type { EgressPolicy } from "./policy";
 import type { HttpReq, HttpRes, ResolvedAddress, SafeHttpOptions } from "./types";
 

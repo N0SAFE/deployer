@@ -1,5 +1,6 @@
-import { ValidationError } from '@deployer/errors'
 import { describe, expect, it } from 'vitest'
+
+import { ValidationError } from '@deployer/errors'
 
 import { pushRules } from './push.rules'
 

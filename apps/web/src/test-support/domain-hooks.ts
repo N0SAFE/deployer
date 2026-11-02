@@ -1,4 +1,5 @@
 import { vi, type Mock } from 'vitest'
+
 import { HOOK_FIXTURES, type HookFixture } from './fixtures'
 import { idleMutation, errorQuery, loadingQuery, successQuery, type MutationStub } from './query-results'
 import { ERROR_MESSAGE, refetchSpy, scenario } from './scenario'

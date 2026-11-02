@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
+
+import { INGRESS_LANES_SETTING, IngressLanesService } from "./ingress-lanes.service";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { ClusterSettings } from "../../mesh-node/cluster-settings";
-import { INGRESS_LANES_SETTING, IngressLanesService } from "./ingress-lanes.service";
 
 const env = { get: vi.fn((key: string) => (key === "DEPLOYER_TRAEFIK_HTTP_PORT" ? 8080 : undefined)) } as unknown as EnvService;
 

@@ -1,8 +1,11 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { SwarmClusterShape } from "@deployer/swarm"
-import { NodeInventoryService } from "./node-inventory.service";
+
 import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
+import type { SwarmClusterShape } from "@deployer/swarm"
+
+import { NodeInventoryService } from "./node-inventory.service";
+
 import type { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
 
 const activeSnapshot = {

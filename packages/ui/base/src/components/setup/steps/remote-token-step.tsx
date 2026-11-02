@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
 import { ArrowLeft, ArrowRight, KeyRound } from "lucide-react"
+import { useState } from "react"
+
 import { Button } from "@deployer/ui/components/shadcn/button"
 import { Label } from "@deployer/ui/components/shadcn/label"
 import { Textarea } from "@deployer/ui/components/shadcn/textarea"
 
-type Props = {
+interface Props {
   initialToken: string
   onBack: () => void
   onContinue: (data: { token: string }) => void

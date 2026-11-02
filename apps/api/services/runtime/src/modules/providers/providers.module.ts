@@ -1,12 +1,13 @@
 import { createModuleContext } from "@deployer/nest-effect";
 import { GitModule } from "@deployer/shared/core/modules/git/index";
-import { CodeProvider } from "./code/shared/code-provider.interface";
-import { CodeProviderRegistryService } from "./code/shared/code-provider-registry.service";
+
 import { CustomSourceProviderService } from "./code/custom/services/custom-source-provider.service";
 import { GithubSourceProviderService } from "./code/github/services/github-source-provider.service";
 import { GitlabSourceProviderService } from "./code/gitlab/services/gitlab-source-provider.service";
-import { UploadSourceProviderService } from "./code/upload/services/upload-source-provider.service";
+import { CodeProviderRegistryService } from "./code/shared/code-provider-registry.service";
+import { CodeProvider } from "./code/shared/code-provider.interface";
 import { UploadBundleRegistryService } from "./code/upload/services/upload-bundle-registry.service";
+import { UploadSourceProviderService } from "./code/upload/services/upload-source-provider.service";
 
 /**
  * The runtime's SOURCE providers.

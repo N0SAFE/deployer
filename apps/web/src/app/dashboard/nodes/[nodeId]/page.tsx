@@ -1,19 +1,24 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { AuthDashboardNodes } from '@/routes'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
+import { useParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
+
+
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
+
 import { PageHeader, PageErrorState, ScopeLabel } from '@/components/dashboard'
-import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
+import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useMeshLocalNode, useMeshNodeConfig, useMeshSseState } from '@/domains/mesh/hooks'
+import { AuthDashboardNodes } from '@/routes'
+
 import { CopyableMono } from '../../network/_components/copy-button'
 import { PresenceBadge } from '../_components/presence-badge'
 import { liveNodeIds, nodePresence } from '../_utils/node-presence'
 import { useNow } from '../_utils/use-now'
+
 import { NodeConfigTab } from './_components/node-config-tab'
 import { NodeDeploymentsTab, type DeploymentRow } from './_components/node-deployments-tab'
 import { NodeFleetTab } from './_components/node-fleet-tab'

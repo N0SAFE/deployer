@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
+
 import { ServiceDagService } from "./service-dag.service";
+
 import type { ServiceDependencyInput } from "./service-dag.service";
 
 const mkEdge = (serviceId: string, dependsOnServiceId: string, isRequired = true): ServiceDependencyInput => ({

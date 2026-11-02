@@ -1,13 +1,15 @@
 import { createModuleContext, EffectHost, effectHostProvider, type EffectHostShape } from "@deployer/nest-effect";
-import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/events/events.module"
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
+import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/events/events.module"
+
+import { DockerCatalogModule } from "../../catalog/docker-catalog.module"
 import { DockerCommonModule } from "../../common/docker-common.module"
+import { DockerRuntimeEventsStreamService } from "../../common/events/docker-runtime-events-stream.service"
 import { DockerContainersModule } from "../containers/docker-containers.module"
 import { DockerImagesModule } from "../images/docker-images.module"
-import { DockerCatalogModule } from "../../catalog/docker-catalog.module"
-import { DockerRuntimeEventsStreamService } from "../../common/events/docker-runtime-events-stream.service"
-import { DockerEntityCacheService } from "./orchestration/docker-entity-cache.service"
+
 import { DockerEntityCachePort } from "./orchestration/docker-entity-cache.port"
+import { DockerEntityCacheService } from "./orchestration/docker-entity-cache.service"
 import { DockerEntityDomainService } from "./orchestration/docker-entity-domain.service"
 import { DockerEntityOrchestratorService, entityChunkLog } from "./orchestration/docker-entity-orchestrator.service"
 import { entityStreamsOver } from "./orchestration/docker-entity-streams"

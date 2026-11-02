@@ -1,5 +1,6 @@
-import type { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { Context } from "effect";
+
+import type { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 
 /** Effect view of the fleet DNS calls. */
 export type DnsProviderShape = Pick<

@@ -25,8 +25,8 @@
  * ```
  */
 
-import type { QueryClient } from "@tanstack/react-query";
 import type { Client, ClientContext } from "@orpc/client";
+import type { QueryClient } from "@tanstack/react-query";
 
 // ============================================================================
 // TYPE EXTRACTION

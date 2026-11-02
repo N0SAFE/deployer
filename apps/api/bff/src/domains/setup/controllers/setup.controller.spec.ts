@@ -1,14 +1,22 @@
-import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { ORPCError } from "@orpc/server";
-import { SetupController } from "./setup.controller";
-import { InitializationService } from "@/core/modules/setup/services/initialization.service";
-import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.service";
+import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { InitializationService } from "@/core/modules/setup/services/initialization.service";
+
+
+
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService } from "../services/post-setup-verification.service";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { SetupController } from "./setup.controller";
+
+
+import type { TestingModule } from "@nestjs/testing";
 
 function createImplementMock() {
     const chainable = {

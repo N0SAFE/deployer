@@ -1,6 +1,7 @@
 import { Effect } from "effect";
-import { DockerEngine } from "@deployer/docker";
 import { describe, expect, it } from "vitest";
+
+import { DockerEngine } from "@deployer/docker";
 
 import { DockerImagesRepository, ImageNotFound } from "./docker-images.repository";
 import {
@@ -56,7 +57,7 @@ describe("image inspect detail", () => {
       identity,
       generatedAt: "2026-10-01T00:00:00.000Z",
       usedByContainerIds: ["c1"],
-      securityScan: { vulnerabilities: [], scanSummary: null } as never,
+      securityScan: { vulnerabilities: [], scanSummary: null },
     });
     expect(detail.layers.map((layer) => layer.id)).toEqual(["l1", "l2"]);
     expect(detail.createdAt).toBe("2026-09-01T00:00:00.000Z");

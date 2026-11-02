@@ -1,14 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { Loader2, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@deployer/ui/components/shadcn/dialog'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
-import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@deployer/ui/components/shadcn/dialog'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+
 import { AutocompleteField } from '../steps/autocomplete-field'
 
 export const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'TXT'] as const

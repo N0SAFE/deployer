@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
+
+import type { traefikServiceConfigs } from "@deployer/nest-schema/global/traefik/index";
+
+import { ConfigNotFoundError } from '../errors';
 import { TraefikRepository } from '../repositories/traefik.repository';
-import { TraefikFileSystemService } from './traefik-file-system.service';
-import { TraefikSyncService } from './traefik-sync.service';
+
 import {
   verifySwarmRouteAgainstTraefik,
   type SwarmRouteVerificationResult,
   type SwarmRouteVerifyOptions,
 } from './swarm-route-verifier';
-import { ConfigNotFoundError } from '../errors';
+import { TraefikFileSystemService } from './traefik-file-system.service';
+import { TraefikSyncService } from './traefik-sync.service';
 
 // Import types from centralized interfaces
 import type {
@@ -21,7 +25,6 @@ import type {
   ValidationResult,
   ValidationError,
 } from '../interfaces';
-import type { traefikServiceConfigs } from "@deployer/nest-schema/global/traefik/index";
 import type { InferSelectModel } from 'drizzle-orm';
 
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>;

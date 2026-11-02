@@ -1,5 +1,6 @@
-import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import { request as httpRequest } from "node:http";
+
+import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import {
   Observable,
   Subject,
@@ -14,16 +15,19 @@ import {
   tap,
 } from "rxjs";
 
+import { EnvService } from "@/config/env/env.module";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
-import { EnvService } from "@/config/env/env.module";
-import type { HandoverResult } from "../handover.types";
-import { ApiServiceProvisioner } from "./api-service-provisioner.service";
+
+
 import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
+import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { IngressHandoverService } from "./ingress-handover.service";
+
+import type { HandoverResult } from "../handover.types";
 
 /**
  * Drives the handover: wait for the API, retarget the ingress, publish `ready`.

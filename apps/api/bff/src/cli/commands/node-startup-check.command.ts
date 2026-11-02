@@ -1,4 +1,3 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 /**
  * Node Startup Check CLI Command
  *
@@ -18,13 +17,16 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
  *   configuredAt, message }
  */
 
-import { Command, CommandRunner } from "nest-commander";
-import { Injectable, Logger, Inject } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Command, CommandRunner } from "nest-commander";
+
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { SetupState } from "@deployer/nest-schema/local/node-config";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 // ─── Resolve version from package.json ─────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);

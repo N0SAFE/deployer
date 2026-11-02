@@ -1,7 +1,7 @@
 import { Context, Data, Effect } from "effect";
 
-import type { Auth } from "../../../../auth";
 import type { UserSession } from "./auth-utils";
+import type { Auth } from "../../../../auth";
 
 /** Better Auth could not answer; the caller treats it as "no session" and logs it. */
 export class SessionLookupFailed extends Data.TaggedError("SessionLookupFailed")<{

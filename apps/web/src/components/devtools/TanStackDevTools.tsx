@@ -1,23 +1,32 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 "use client";
 
-import React, { useState } from "react";
 import {
   TanStackDevtools,
   type TanStackDevtoolsReactPlugin,
 } from "@tanstack/react-devtools";
-import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
-import { orpc } from "@/lib/orpc";
-import { isRecord } from "@deployer/type-guards";
 import { useQuery } from "@tanstack/react-query";
-import { authClient, signOut, useSession } from "@/lib/auth";
-import { logger } from "@deployer/logger";
-import { useDevtoolsResource } from "./use-devtools-resource";
+import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import React, { useState } from "react";
+import z from "zod/v4";
+
 import {
   hasMasterTokenPlugin,
   MasterTokenProvider,
   useMasterToken,
 } from "@deployer/auth/client";
+import { logger } from "@deployer/logger";
+import { isRecord } from "@deployer/type-guards";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@deployer/ui/components/shadcn/command";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -29,23 +38,17 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@deployer/ui/components/shadcn/popover";
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@deployer/ui/components/shadcn/command";
-import { Button } from "@deployer/ui/components/shadcn/button";
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { Switch } from "@deployer/ui/components/shadcn/switch";
-import z from "zod/v4";
-import { useDevtoolsApiKey } from "./use-devtools-api-key";
+
+import { authClient, signOut, useSession } from "@/lib/auth";
+import { orpc } from "@/lib/orpc";
+
 import { AgentAuthPanel } from "./plugins/agent-auth-panel";
 import { ApiKeysPanel } from "./plugins/api-keys-panel";
 import { ConnectionsPanel } from "./plugins/connections-panel";
 import { SecurityPanel } from "./plugins/security-panel";
+import { useDevtoolsApiKey } from "./use-devtools-api-key";
+import { useDevtoolsResource } from "./use-devtools-resource";
 
 // Plugin Components
 

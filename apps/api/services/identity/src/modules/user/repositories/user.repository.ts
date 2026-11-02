@@ -1,22 +1,26 @@
-import { serviceOver, type Over } from "@deployer/effect-core"
-import { Context, Effect } from 'effect'
 import { asc, count, desc, eq } from 'drizzle-orm'
+import { Context, Effect } from 'effect'
+
+import { serviceOver, type Over } from "@deployer/effect-core"
 import { apikey, session, user } from '@deployer/nest-schema/global/identity/auth'
+
 import {
     DatabasePort,
     type DatabaseShape,
 } from '@identity/core/database/database.port'
 
 import { userRules } from '../domain/user.rules'
-import type { NewUser, User, UserPatch } from '../domain/user.types'
 import { UserRepositoryFailure } from '../user.failures'
+
+import { buildWhere, toUser, USER_SORT_COLUMNS } from './user.repository.sql'
 import { attempt } from './user.repository.utils'
+
 import type {
     UserFilter,
     UserListFilter,
     UserPage,
 } from './user.repository.types'
-import { buildWhere, toUser, USER_SORT_COLUMNS } from './user.repository.sql'
+import type { NewUser, User, UserPatch } from '../domain/user.types'
 
 /** The repository contract, declared BEFORE the implementation. */
 export type UserRepositoryShape = {

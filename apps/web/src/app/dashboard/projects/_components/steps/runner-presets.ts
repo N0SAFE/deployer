@@ -1,8 +1,9 @@
 'use client'
 
-import type { ComponentType } from 'react'
 import { Box, Cog, FileCode2, Globe, Layers, Package, Server, Sparkles, Container, TrainFront, ShipWheel, FlaskConical, type LucideIcon } from 'lucide-react'
+
 import type { RunnerFormData, RunnerDetectionHints, OrchestratorSubService } from './runner-types'
+import type { ComponentType } from 'react'
 
 /* ─── Runner type metadata ─────────────────────────────────────────── */
 

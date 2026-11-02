@@ -112,19 +112,18 @@ describe("SocketDockerEngine", () => {
 			const stream = {
 				on: (event: string, handler: (value: unknown) => void) => {
 					handlers[event] = handler;
-					if (event === "end") queueMicrotask(() => handler(undefined));
+					if (event === "end") queueMicrotask(() => { handler(undefined); });
 					for (const chunk of chunks) queueMicrotask(() => handlers.data?.(Buffer.from(chunk)));
 					return stream;
 				},
 			};
 			return stream;
 		};
-		docker.client.pull.mockImplementationOnce((_image: string, callback: (error: null, stream: unknown) => void) => callback(null, events(['{"status":"Pulling"}\n'])));
+		docker.client.pull.mockImplementationOnce((_image: string, callback: (error: null, stream: unknown) => void) => { callback(null, events(['{"status":"Pulling"}\n'])); });
 		await expect(run(engine().pullImage("nginx:alpine"))).resolves.toBeUndefined();
 		expect(docker.client.pull).toHaveBeenCalledWith("nginx:alpine", expect.any(Function));
 
-		docker.client.pull.mockImplementationOnce((_image: string, callback: (error: null, stream: unknown) => void) =>
-			callback(null, events(['{"error":"manifest unknown"}\n'])),
+		docker.client.pull.mockImplementationOnce((_image: string, callback: (error: null, stream: unknown) => void) => { callback(null, events(['{"error":"manifest unknown"}\n'])); },
 		);
 		await expect(run(engine().pullImage("nginx:missing"))).rejects.toMatchObject({ status: 500 });
 	});

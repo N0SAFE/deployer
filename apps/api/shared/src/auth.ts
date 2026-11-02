@@ -1,6 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { createBetterAuth } from "./config/auth/auth";
+
 import * as authSchema from "@deployer/nest-schema/global/identity/auth";
+
+import { createBetterAuth } from "./config/auth/auth";
 
 export type Auth = ReturnType<typeof createBetterAuth>["auth"];
 

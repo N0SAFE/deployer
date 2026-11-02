@@ -1,13 +1,14 @@
 import '@/test-support/mocks'
 import { asComponent, describePageStates } from '@/test-support'
-import DashboardDockerPage from './page'
+
+import DashboardDockerActivityPage from './activity/page'
 import DashboardDockerContainersPage from './containers/page'
 import DashboardDockerImagesPage from './images/page'
-import DashboardDockerNetworksPage from './networks/page'
-import DashboardDockerVolumesPage from './volumes/page'
 import DashboardDockerLogsPage from './logs/page'
-import DashboardDockerActivityPage from './activity/page'
+import DashboardDockerNetworksPage from './networks/page'
+import DashboardDockerPage from './page'
 import DashboardDockerShellPage from './shell/page'
+import DashboardDockerVolumesPage from './volumes/page'
 
 describePageStates('Docker overview', {
 	page: () => <DashboardDockerPage />,

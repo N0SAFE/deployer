@@ -8,9 +8,11 @@
 'use client'
 
 import React, { ReactNode } from 'react'
+
+import { logger } from '@deployer/logger'
+
 import { ErrorBoundary } from './ErrorBoundary'
 import { FeatureErrorFallback } from './FeatureErrorFallback'
-import { logger } from '@deployer/logger'
 
 interface FeatureErrorBoundaryProps {
   /** Child components to render */

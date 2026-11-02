@@ -1,25 +1,29 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Building2, Globe, Plus, Siren } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { EmptyState, PageErrorState, PageHeader } from '@/components/dashboard'
 import { useProjectDomains, useRemoveProjectDomain, useVerifyProjectDomain } from '@/domains/domain/hooks'
 import { useProjectList } from '@/domains/project/hooks'
 import { useCheckDomainGate } from '@/domains/reachability/hooks'
-import { AuthDashboardNetworkIngress, AuthDashboardProjects } from '@/routes'
 import { isDefinedORPCError, getErrorMessage, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+import { AuthDashboardNetworkIngress, AuthDashboardProjects } from '@/routes'
+
 import { AddDomainDialog } from './_components/add-domain-dialog'
 import { DnsCheckDialog, RemoveDomainDialog } from './_components/dialogs'
 import { DomainsTable } from './_components/domains-table'
-import type { DomainRow, ReachabilityResult } from './_components/domain-types'
 import { useDomainReachability } from './_components/use-domain-reachability'
+
+import type { DomainRow, ReachabilityResult } from './_components/domain-types'
 
 function errorDescription(err: unknown, fallback: string): string {
   return isDefinedORPCError(err) ? getErrorMessage(err, fallback) : UNKNOWN_ORPC_ERROR_MESSAGE

@@ -1,4 +1,3 @@
-import { isRecord } from "@deployer/type-guards";
 import type {
 DockerRuntimeEvent,
 DockerRuntimeActivityEntity,
@@ -6,6 +5,8 @@ DockerRuntimeActivityStatus,
 DockerRuntimeActivitySeverity,
 DockerRuntimeActivityCategory,
 } from "@deployer/contracts-entities"
+import { isRecord } from "@deployer/type-guards";
+
 import type { SwarmActivityEnrichment } from "./swarm-activity-enricher.service"
 
 /**

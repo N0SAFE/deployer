@@ -18,6 +18,7 @@
  * Run: bun --bun run test:e2e   (builds, starts the prod server, runs these)
  */
 import { describe, expect, it } from 'vitest'
+
 import { getWebE2eBaseUrl } from '../../vitest.setup.e2e'
 
 const baseUrl = getWebE2eBaseUrl()

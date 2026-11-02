@@ -1,27 +1,33 @@
 'use client'
 
-import type { RouteVisibility } from '@deployer/contracts-entities/entities/ingress/index'
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useMemo, useState } from 'react'
+import { Save, Network, Lock, Plus, Cloud, ShieldCheck, ArrowRight } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useServiceNetwork, useUpdateServiceNetwork } from '@/domains/service/hooks'
-import { useDNSProviders, useCloudflareZones } from '@/domains/dns-providers/hooks'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+
+import type { RouteVisibility } from '@deployer/contracts-entities/entities/ingress/index'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Label } from '@deployer/ui/components/shadcn/label'
-import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
-import { Save, Network, Lock, Plus, Cloud, ShieldCheck, ArrowRight } from 'lucide-react'
-import { toast } from 'sonner'
-import { PageSkeleton } from '@/components/dashboard'
-import { AuthDashboardNetworkDns, AuthDashboardNetworkIngress } from '@/routes'
-import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+
+
+
+
+import { DnsRecordsCard } from '@/app/dashboard/projects/_components/service-network/DnsRecordsCard'
+import { RECORD_TYPES, isRecordType, type RecordType } from '@/app/dashboard/projects/_components/service-network/ProvisionRecordDialog'
 import { ServiceDomainConfig } from '@/app/dashboard/projects/_components/ServiceDomainConfig'
 import { AutocompleteField } from '@/app/dashboard/projects/_components/steps/autocomplete-field'
 import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
-import { DnsRecordsCard } from '@/app/dashboard/projects/_components/service-network/DnsRecordsCard'
-import { RECORD_TYPES, isRecordType, type RecordType } from '@/app/dashboard/projects/_components/service-network/ProvisionRecordDialog'
+import { PageSkeleton } from '@/components/dashboard'
+import { useDNSProviders, useCloudflareZones } from '@/domains/dns-providers/hooks'
+import { useServiceNetwork, useUpdateServiceNetwork } from '@/domains/service/hooks'
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { AuthDashboardNetworkDns, AuthDashboardNetworkIngress } from '@/routes'
+
+import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
 
 type NetworkView = NonNullable<ReturnType<typeof useServiceNetwork>['data']>
 

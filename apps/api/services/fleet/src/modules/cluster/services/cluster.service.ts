@@ -1,4 +1,3 @@
-import { runPromiseUnwrapped, runSyncUnwrapped, serviceOver, type Over } from "@deployer/effect-core";
 /**
  * ClusterService — platform-facing facade over the Swarm cluster (SW-003).
  * Implements the data needs of the `cluster` ORPC contract using the
@@ -7,6 +6,17 @@ import { runPromiseUnwrapped, runSyncUnwrapped, serviceOver, type Over } from "@
 
 import { Context, Effect } from "effect";
 import { Observable } from "rxjs";
+
+import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@deployer/contracts-entities";
+import { resolveSwarmNodeRole } from "@deployer/docker";
+import { runPromiseUnwrapped, runSyncUnwrapped, serviceOver, type Over } from "@deployer/effect-core";
+import { type ClusterMasterView } from "@deployer/fleet-contracts";
+import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
+import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
+import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
+import { ingressFromLabels, platformRoleFromLabels, withIngress, withPlatformRole } from "@deployer/node-state";
+import type { EnvService } from "@deployer/shared/config/env/env.module";
+import type { SwarmClusterShape, SwarmFleetShape, SwarmParticipationShape } from "@deployer/swarm"
 
 import { attempt, attemptSync } from "../../../core/effects";
 import {
@@ -17,15 +27,6 @@ import {
     SwarmFleetPort,
     SwarmParticipationPort,
 } from "../cluster.ports";
-import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@deployer/contracts-entities";
-import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
-import { type ClusterMasterView } from "@deployer/fleet-contracts";
-import { resolveSwarmNodeRole } from "@deployer/docker";
-import type { SwarmClusterShape, SwarmFleetShape, SwarmParticipationShape } from "@deployer/swarm"
-import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
-import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
-import type { EnvService } from "@deployer/shared/config/env/env.module";
-import { ingressFromLabels, platformRoleFromLabels, withIngress, withPlatformRole } from "@deployer/node-state";
 
 
 type Ports = {

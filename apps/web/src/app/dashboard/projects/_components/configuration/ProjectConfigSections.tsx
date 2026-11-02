@@ -1,10 +1,11 @@
 'use client'
 
+import { projectDeploymentStrategySchema } from '@deployer/contracts-common'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
-import { projectDeploymentStrategySchema } from '@deployer/contracts-common'
+
 import {
   useProjectDeploymentConfig,
   useProjectNotificationConfig,
@@ -15,6 +16,7 @@ import {
   useUpdateProjectResourceConfig,
   useUpdateProjectSecurityConfig,
 } from '@/domains/project/hooks'
+
 import { ConfigSectionCard, Stat, parseNumber } from './ConfigSectionCard'
 
 const STRATEGY_LABEL: Record<string, string> = { rolling: 'Rolling', blue_green: 'Blue-green', canary: 'Canary' }

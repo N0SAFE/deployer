@@ -1,7 +1,8 @@
 import z from "zod/v4";
+
+import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
 import { routeVisibilitySchema } from "@deployer/contracts-entities/entities/ingress/index";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
-import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
 
 /** Service network read model — config + resolved project context + zone records. */
 export const serviceNetworkViewSchema = z.object({

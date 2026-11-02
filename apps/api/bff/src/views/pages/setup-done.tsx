@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
 import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
+import React from "react";
+
 import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Card,

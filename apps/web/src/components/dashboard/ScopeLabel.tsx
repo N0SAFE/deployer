@@ -1,7 +1,8 @@
 'use client'
 
-import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Network, Server } from 'lucide-react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 /**
  * ScopeLabel — makes the node-vs-mesh distinction explicit on every page.

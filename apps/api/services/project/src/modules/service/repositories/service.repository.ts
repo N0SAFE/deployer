@@ -1,23 +1,28 @@
-import { ProjectConflict } from "@/modules/project/domain/project.errors";
-import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
-import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
+import * as crypto from "node:crypto";
+
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
-import type { GlobalDatabase } from "@deployer/shared/core/modules/database/global/global-database.service";
-import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
-import { TraefikConfigBuilder } from "@deployer/shared/core/modules/traefik/config-builder/builders/index";
-import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
-import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
-import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
+import { Context, Effect } from "effect";
+
 import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
 import { serviceProviderConfigUnionSchema, serviceRunnerConfigUnionSchema, implementedContractSchema, previewSourceTemplateSchema } from "@deployer/contracts-entities";
-import * as crypto from "node:crypto";
-import { isRecord } from "@deployer/type-guards"
 import { resolveNodeId } from "@deployer/env";
 import { readTraefikConfig } from "@deployer/nest-schema/codecs/codec-registry";
-import { Context, Effect } from "effect";
-import { ProjectDb } from "@project/core/database/project-db";
-import { DatabasePort } from "@project/core/database/database.port";
+import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
+import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
+import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
+import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
+import type { GlobalDatabase } from "@deployer/shared/core/modules/database/global/global-database.service";
+import { TraefikConfigBuilder } from "@deployer/shared/core/modules/traefik/config-builder/builders/index";
+import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
+import { isRecord } from "@deployer/type-guards"
+
+
+import { ProjectConflict } from "@/modules/project/domain/project.errors";
 import { attempt } from "@/modules/project/project-effects";
+
+import { DatabasePort } from "@project/core/database/database.port";
+import { ProjectDb } from "@project/core/database/project-db";
 
 
 

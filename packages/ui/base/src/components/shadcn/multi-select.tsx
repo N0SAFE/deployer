@@ -1,13 +1,13 @@
 "use client"
 
-import * as React from "react"
 import { Check, ChevronDown, X } from "lucide-react"
+import * as React from "react"
 
-import { cn } from "@deployer/ui/lib/utils"
 import { Badge } from "@deployer/ui/components/shadcn/badge"
 import { Button } from "@deployer/ui/components/shadcn/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@deployer/ui/components/shadcn/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@deployer/ui/components/shadcn/popover"
+import { cn } from "@deployer/ui/lib/utils"
 
 export interface MultiSelectOption {
   value: string

@@ -1,4 +1,5 @@
 import { Duration } from "effect";
+
 import type { AddressClass } from "../ip-policy";
 
 export type EgressPolicy = {

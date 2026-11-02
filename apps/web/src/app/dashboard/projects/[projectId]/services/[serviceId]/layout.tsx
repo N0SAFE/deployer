@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
+
 import { ServiceDetailLayoutInner } from './_components/service-detail-layout-inner'
 import { ServiceDetailSkeleton } from './_components/service-detail-skeleton'
-import type { ReactNode } from 'react'
+
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 
 // Metadata lives in the layout: the service pages are client components, and
 // `metadata` cannot be exported from a `'use client'` file.

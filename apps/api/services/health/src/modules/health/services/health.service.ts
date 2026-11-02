@@ -1,5 +1,6 @@
-import type { HealthSnapshot } from "@deployer/shared/server";
 import { Context, Effect } from "effect";
+
+import type { HealthSnapshot } from "@deployer/shared/server";
 
 import { HealthCheckFailed } from "../health.errors";
 

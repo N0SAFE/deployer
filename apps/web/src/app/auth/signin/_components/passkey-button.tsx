@@ -1,11 +1,14 @@
 'use client'
 
-import * as React from 'react'
 import { Fingerprint } from 'lucide-react'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
+import * as React from 'react'
+
 import { Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { authClient } from '@/lib/auth'
+
 import { getPostSignInTarget } from '../_utils/url'
 
 function subscribeNoop(): () => void {

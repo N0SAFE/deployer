@@ -1,7 +1,8 @@
-import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit, type Provider, type Type } from "@nestjs/common";
 import { Context, Effect } from "effect";
 
 import { EffectHost, type EffectHostShape } from "./effect-host";
+
+import type { OnModuleDestroy, OnModuleInit, Provider, Type } from "@nestjs/common";
 
 /**
  * The lifecycle a service declares **in its shape**.
@@ -62,7 +63,6 @@ const lifecycleToken = (key: string): symbol => Symbol.for(`effect-lifecycle:${k
  *
  * That order is the whole point: nothing stops while the work that uses it may still be running.
  */
-@Injectable()
 export class ServiceLifecycleRunner implements OnModuleInit, OnModuleDestroy {
 	private stopProgram: (() => Promise<void>) | undefined;
 

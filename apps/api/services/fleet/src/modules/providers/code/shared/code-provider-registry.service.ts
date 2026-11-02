@@ -1,10 +1,13 @@
-import { serviceOver, type Over, type RequirementsOf } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
+
+import { serviceOver, type Over, type RequirementsOf } from "@deployer/effect-core";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import { CustomSourceProviderService, type CustomSourceProviderServiceShape } from "../custom/services/custom-source-provider.service";
 import { GithubSourceProviderService, type GithubSourceProviderServiceShape } from "../github/services/github-source-provider.service";
 import { GitlabSourceProviderService, type GitlabSourceProviderServiceShape } from "../gitlab/services/gitlab-source-provider.service";
 import { UploadSourceProviderService, type UploadSourceProviderServiceShape } from "../upload/services/upload-source-provider.service";
+
 import type { CodeProvider } from "./code-provider.interface";
 
 /** The providers, by the lowercase source type the registry dispatches on. */

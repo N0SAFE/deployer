@@ -1,6 +1,6 @@
+import { Effect } from "effect";
 import { firstValueFrom, take, toArray } from "rxjs";
 import { describe, expect, it } from "vitest";
-import { Effect } from "effect";
 
 import { HealthRegistry, type HealthIndicatorEntry } from "../health-registry.service";
 

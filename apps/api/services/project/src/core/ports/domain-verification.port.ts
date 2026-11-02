@@ -1,5 +1,6 @@
-import type { DomainVerificationService } from "@deployer/shared/core/modules/domain/services/domain-verification.service";
 import { Context } from "effect";
+
+import type { DomainVerificationService } from "@deployer/shared/core/modules/domain/services/domain-verification.service";
 
 /** Effect view of the DNS verification workflow. */
 export type DomainVerificationShape = Pick<

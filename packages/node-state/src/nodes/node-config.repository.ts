@@ -1,5 +1,6 @@
-import { nodeConfig } from "@deployer/nest-schema/local";
 import { Context, Effect, Layer } from "effect";
+
+import { nodeConfig } from "@deployer/nest-schema/local";
 
 import { isMissingTable, LocalDatabaseError, NodeStateConflict } from "../database/errors";
 import { LocalDatabase, type LocalDatabaseShape } from "../database/local-database";

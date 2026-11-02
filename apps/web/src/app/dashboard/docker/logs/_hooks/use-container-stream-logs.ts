@@ -1,12 +1,16 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
+
+import { isRecord } from "@deployer/type-guards"
+
 import { useDockerContainerLogsStream } from '@/domains/docker/hooks'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { useLogger } from '@/lib/logging/use-logger'
+
+import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 import { extractContainerLogEntries } from '../_lib/log-entry-parser'
 import { mergeLines } from '../_lib/merge-lines'
 import { CONTAINER_STREAM_LOG_LIMIT, type LogLineProjection } from '../_models/logs.types'
-import { isRecord } from "@deployer/type-guards"
+
 
 interface ContainerStreamEntity {
   id: string

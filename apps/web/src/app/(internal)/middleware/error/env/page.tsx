@@ -1,4 +1,5 @@
 import { $ZodIssue, $ZodIssueInvalidType } from 'zod/v4/core'
+
 import {
     Card,
     CardContent,
@@ -6,10 +7,12 @@ import {
     CardHeader,
     CardTitle,
 } from '@deployer/ui/components/shadcn/card'
-import { validateEnvSafe } from '#/env'
+
 import RedirectAfterDelay from './RedirectAfterDelay'
 
 import type { Metadata } from 'next'
+
+import { validateEnvSafe } from '#/env'
 function renderInvalidType(issue: $ZodIssueInvalidType) {
     // The received value may be a secret: only ever echo it in development.
     const showReceived = process.env.NODE_ENV === 'development'

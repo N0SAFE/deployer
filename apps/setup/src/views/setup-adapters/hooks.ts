@@ -10,6 +10,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
 import type {
 	SetupInitializeInput,
 	SetupMeshJoinInput,
@@ -19,8 +20,9 @@ import type {
 	SetupStreamEvent,
 } from "@deployer/contracts-entities";
 import { isSetupRunFinished } from "@deployer/ui/components/setup/progress-tasks";
-import { setupEndpoints } from "@/views/setup-adapters/endpoints";
+
 import { getErrorMessage } from "@/views/lib/errors";
+import { setupEndpoints } from "@/views/setup-adapters/endpoints";
 
 const setupKeys = {
 	all: ["setup"] as const,

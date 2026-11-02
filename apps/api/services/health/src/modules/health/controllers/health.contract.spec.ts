@@ -1,8 +1,10 @@
-import type { InferClientError } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
 import { describe, expectTypeOf, it } from "vitest";
 
 import { healthContract } from "@deployer/health-contracts";
+
+import type { InferClientError } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
+
 
 type Client = ContractRouterClient<typeof healthContract>;
 type CodeOf<T> = T extends { readonly code: infer C } ? C : never;

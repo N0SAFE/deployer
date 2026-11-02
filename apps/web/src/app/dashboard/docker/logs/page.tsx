@@ -1,15 +1,18 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { Boxes } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useMemo } from 'react'
+
 import { EmptyState } from '@/components/dashboard'
 import { useDockerContainerList } from '@/domains/docker/hooks'
 import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
-import { DockerEngineError } from '../_components/docker-engine-error'
-import { useDockerNode } from '../_components/docker-node-context'
-import { DockerPageSkeleton } from '../_components/docker-loading-states'
 import { AuthDashboardDockerContainers, AuthDashboardProjects } from '@/routes'
+
+import { DockerEngineError } from '../_components/docker-engine-error'
+import { DockerPageSkeleton } from '../_components/docker-loading-states'
+import { useDockerNode } from '../_components/docker-node-context'
+
 import { LogsWorkspace, type LogsContainer } from './_components/logs-workspace'
 
 const CONTAINER_LIST_INPUT = { query: { limit: 100, offset: 0 } } as const

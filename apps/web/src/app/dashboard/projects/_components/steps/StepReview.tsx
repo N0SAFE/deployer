@@ -1,12 +1,16 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Sparkles, Globe, Layers, Rocket, Server, GitBranch, Package, KeyRound, Activity, Lock } from 'lucide-react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { useProjectDomains } from '@/domains/domain/hooks'
-import type { CreateServiceFormApi } from '../CreateService.hook'
-import { ReviewSubServiceCard, type SubServiceSummary } from './review/ReviewSubServiceCard'
+
 import { describeBinding, describeTls, describeVisibility, serviceTypeFor, stringifyValue, type DomainBindingInput, type TlsInput } from './review/review-helpers'
+import { ReviewSubServiceCard, type SubServiceSummary } from './review/ReviewSubServiceCard'
+
+import type { CreateServiceFormApi } from '../CreateService.hook'
+import type { ReactNode } from 'react'
 
 /* ─── Small helpers ────────────────────────────────────────────────── */
 

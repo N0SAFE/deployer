@@ -1,3 +1,5 @@
+import { Context, Effect, Layer } from "effect";
+
 import {
 	swarmNodeResourcesSchema,
 	type SwarmNodeResources,
@@ -5,7 +7,6 @@ import {
 	type SwarmTaskRuntime,
 } from "@deployer/contracts-entities";
 import { DockerEngine, type DockerEngineShape, type DockerError } from "@deployer/docker";
-import { Context, Effect, Layer } from "effect";
 
 import { toServiceRuntime, toTaskRuntime } from "./runtime-views";
 

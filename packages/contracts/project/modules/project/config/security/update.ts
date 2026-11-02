@@ -1,6 +1,8 @@
 import z from "zod/v4";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+
 import { projectSecurityConfigSchema } from "@deployer/contracts-entities";
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+
 import { projectSecurityConfigReadSchema } from "./get";
 
 const projectSecurityConfigOps = standard.zod(projectSecurityConfigSchema, "projectSecurityConfig");

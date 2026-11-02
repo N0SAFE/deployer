@@ -1,6 +1,9 @@
-import { ResourceNotFound } from "@/modules/project/domain/project.errors";
 import { Context, Effect } from "effect";
+
+import { ResourceNotFound } from "@/modules/project/domain/project.errors";
+
 import { ServiceStore } from "../repositories/service.repository";
+
 import {
     resolvePreviewTopology,
     type TopologyContext,

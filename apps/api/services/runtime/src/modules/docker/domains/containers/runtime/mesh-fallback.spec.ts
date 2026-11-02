@@ -60,7 +60,7 @@ describe("mesh fallback", () => {
             seen.push(line);
             if (seen.length === 2) { sub.next(seen); sub.complete(); }
           });
-          return () => subscription.unsubscribe();
+          return () => { subscription.unsubscribe(); };
         }),
       ),
     );

@@ -1,5 +1,6 @@
 import { stripBrackets } from "../address";
 import { classifyAddress, type AddressClass } from "../ip-policy";
+
 import { EgressDenied } from "./errors";
 import { EgressPolicy } from "./policy";
 import { ResolvedAddress } from "./types";

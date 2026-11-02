@@ -1,4 +1,10 @@
 import path from "node:path";
+
+import { Context, Effect } from "effect";
+
+import type { DockerContainerLogEntry, DockerContainerProcessEntry, DockerFileEntry } from "@deployer/contracts-entities";
+import { DockerEngine } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type {
   DockerContainerCreateDirectoryBodyInput,
   DockerContainerDeletePathBodyInput,
@@ -10,18 +16,15 @@ import type {
   DockerContainerRenamePathBodyInput,
   DockerContainerWriteFileBodyInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type { DockerContainerLogEntry, DockerContainerProcessEntry, DockerFileEntry } from "@deployer/contracts-entities";
-import { DockerEngine } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Context, Effect } from "effect";
 
-import { parseContainerLogEntries, parseContainerProcesses } from "./container-ops-parsing";
+
 import {
   buildFileListing,
   type FileMutationAck,
 } from "./container-file-ops";
-import { DEFAULT_LOG_TAIL, type LogsCollector } from "./container-streams";
+import { parseContainerLogEntries, parseContainerProcesses } from "./container-ops-parsing";
 import { escapeShellArg, logMatchesProcess, normalizeContainerPath } from "./container-runtime-helpers";
+import { DEFAULT_LOG_TAIL, type LogsCollector } from "./container-streams";
 
 const toSeconds = (date: Date | undefined) => (date ? Math.max(0, Math.floor(date.getTime() / 1_000)) : undefined);
 

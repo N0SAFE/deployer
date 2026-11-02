@@ -3,9 +3,9 @@
  * Pure Standard Schema implementation without Zod dependency
  */
 
+import { s } from "@deployer/orpc-utils/operations/base/schema";
 import type { AnySchema, SchemaWithConfig, ObjectSchema } from "@deployer/orpc-utils/operations/base/types";
 import { CONFIG_SYMBOL, withConfig } from "@deployer/orpc-utils/operations/base/types";
-import { s } from "@deployer/orpc-utils/operations/base/schema";
 
 /**
  * Search configuration type

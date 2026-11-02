@@ -1,7 +1,9 @@
 'use client'
 
 import { LayoutGrid, Plug, Server, User, Users } from 'lucide-react'
+
 import { SectionNav, type SectionNavItem } from '@/components/dashboard'
+import { useCan } from '@/lib/access/permissions'
 import {
   AuthDashboardAdminProviders,
   AuthDashboardSettings,
@@ -9,7 +11,6 @@ import {
   AuthDashboardSettingsNode,
   AuthDashboardSettingsUsers,
 } from '@/routes'
-import { useCan } from '@/lib/access/permissions'
 
 /**
  * Personal settings first, then the platform-wide ones. Integrations links OUT to

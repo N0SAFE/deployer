@@ -1,18 +1,22 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
+
+import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+
+import { shortId } from '../_utils/format'
+import { describeNetwork, isBuiltInNetwork } from '../networks/_utils/networks'
+
 import { DockerContainerDetailModalTrigger } from './container-detail-modal'
 import { DockerCopyButton } from './docker-copy-button'
-import { DockerDetailLoadingState } from './docker-loading-states'
 import { DockerKeyValueGrid } from './docker-key-value-grid'
+import { DockerDetailLoadingState } from './docker-loading-states'
 import { DockerRelativeTime } from './docker-relative-time'
-import { describeNetwork, isBuiltInNetwork } from '../networks/_utils/networks'
-import { shortId } from '../_utils/format'
 
 type NetworkTab = 'overview' | 'containers' | 'labels'
 

@@ -9,11 +9,13 @@
  */
 import { useRouter, usePathname } from 'next/navigation'
 import { useCallback, useMemo } from 'react'
-import type { z } from 'zod'
+
 
 import { mergeWithDefaults } from '@deployer/use-safe-query-param-states-from-zod/merge'
-import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod/useSafeQueryParamStatesFromZod'
 import type { UnknownRecord, UseSafeQueryParamStatesOptions } from '@deployer/use-safe-query-param-states-from-zod/types'
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod/useSafeQueryParamStatesFromZod'
+
+import type { z } from 'zod'
 
 /**
  * Minimal shape of a route builder the helpers understand. The

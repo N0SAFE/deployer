@@ -11,7 +11,7 @@ async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 
 function makeService() {
 	return makeSwarmParticipation({
-		defaults: {} as never,
+		defaults: {},
 		nodeConfig: {
 			find: () =>
 				Effect.succeed({

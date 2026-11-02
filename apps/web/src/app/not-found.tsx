@@ -1,5 +1,7 @@
 import { Compass, LayoutDashboard } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { AuthDashboard, Home } from '@/routes'
 
 export default function NotFound() {

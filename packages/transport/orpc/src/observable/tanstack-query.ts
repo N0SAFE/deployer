@@ -1,14 +1,16 @@
-import type { Client, ClientContext, NestedClient } from "@orpc/client";
 import {
   createTanstackQueryUtils,
   type RouterUtilsOptions,
   type RouterUtils,
 } from "@orpc/tanstack-query";
-import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
 import { Observable as RxjsObservable } from "rxjs";
-import type { Observable as RxObservable } from "rxjs";
+
 import { reconstructObservableFromEventIterator } from "@deployer/orpc-utils/observable/event-iterator";
 import { isObjectLike } from "@deployer/type-guards"
+
+import type { Client, ClientContext, NestedClient } from "@orpc/client";
+import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
+import type { Observable as RxObservable } from "rxjs";
 
 export type ObservableQueryMode = "observable" | "streamed-observable";
 

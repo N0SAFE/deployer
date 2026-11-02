@@ -1,14 +1,18 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
-import { procedure } from '@deployer/nest-effect'
+
 
 import { userContract } from '@deployer/identity-contracts'
+import { procedure } from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
+
 import { serve, serveAnonymous } from '@identity/core/orpc/serve'
 
-import type { UserPatch } from '../domain/user.types'
 import { UserService } from '../services/user.service'
+
 import { readFilter, readSortField } from './user.filters'
+
+import type { UserPatch } from '../domain/user.types'
 
 /**
  * The user domain's oRPC surface.

@@ -1,10 +1,12 @@
-import { provideTo } from "@deployer/effect-core";
 import { BadGatewayException } from "@nestjs/common";
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { CloudflareTunnelService } from "./cloudflare-tunnel.service";
+
+import { provideTo } from "@deployer/effect-core";
+
 import { CloudflareAppService, type CloudflareAppServiceShape, type DnsProviderAppView } from "./cloudflare-app.service";
 import { CloudflareDnsProviderService, type CloudflareDnsProviderServiceShape } from "./cloudflare-dns-provider.service";
+import { CloudflareTunnelService } from "./cloudflare-tunnel.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

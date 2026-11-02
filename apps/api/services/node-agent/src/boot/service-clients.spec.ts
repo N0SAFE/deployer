@@ -1,18 +1,21 @@
 import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+
 
 import { ORPCError } from "@orpc/client";
 import { type RouterContract, eventIterator, oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/node";
 import { implement } from "@orpc/server";
-import { agentLink, serviceLink } from "@deployer/mesh-client";
-import { type MeshMembership, joinServiceMesh } from "@deployer/mesh-service";
-import { ServiceClientRegistry } from "@deployer/service-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as z from "zod";
 
+import { agentLink, serviceLink } from "@deployer/mesh-client";
+import { type MeshMembership, joinServiceMesh } from "@deployer/mesh-service";
+import { ServiceClientRegistry } from "@deployer/service-client";
+
 import { type BootedAgent, bootAgent, removeDataDir } from "./boot-agent";
+
+import type { AddressInfo } from "node:net";
 
 /** A contract the way the platform's are: a path parameter, a date, a typed error, the caller's cookie, a stream. */
 const contract = {
@@ -92,7 +95,7 @@ describe("service clients over the mesh", () => {
 
   afterAll(async () => {
     await membership.stop();
-    await new Promise<void>((resolve) => http.close(() => resolve()));
+    await new Promise<void>((resolve) => http.close(() => { resolve(); }));
     await agent.stop();
     removeDataDir(agent.dataDir);
   });

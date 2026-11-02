@@ -1,14 +1,18 @@
 import { NestFactory } from "@nestjs/core";
-import type { NestApplicationOptions } from "@nestjs/common";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
-import type { INestApplication, Type } from "@nestjs/common";
+
+
+import { logger } from "@deployer/logger";
+import { type RequirementsMet } from "@deployer/nest-effect";
 
 import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "../core/utils/cors.utils";
-import { type RequirementsMet } from "@deployer/nest-effect";
-import { logger } from "@deployer/logger";
+
 import { PreflightService } from "./preflight/preflight.service";
+
 import type { PreflightDependency, PreflightReport } from "./preflight/types";
+import type { INestApplication, Type } from "@nestjs/common";
+import type { NestApplicationOptions } from "@nestjs/common";
 
 /**
  * CORS for a platform app.

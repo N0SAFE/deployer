@@ -1,5 +1,6 @@
-import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { Context } from "effect";
+
+import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 
 /** Effect view of the edge provider registry: only what the DNS providers read. */
 export type EdgeProvidersShape = Pick<EdgeProviderRegistry, "accountsInUse">;

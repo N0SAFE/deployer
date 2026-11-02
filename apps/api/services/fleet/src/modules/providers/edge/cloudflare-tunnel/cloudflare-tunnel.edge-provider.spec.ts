@@ -1,12 +1,13 @@
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
 
+import type { PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
+import type { EffectHostShape } from "@deployer/nest-effect";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import type { EdgeStateStore } from "@deployer/shared/core/modules/edge/edge-state.store";
-import type { EffectHostShape } from "@deployer/nest-effect";
+
 import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
 
 import { CLOUDFLARE_TUNNEL_EDGE_ID, CloudflareTunnelEdgeProvider } from "./cloudflare-tunnel.edge-provider";

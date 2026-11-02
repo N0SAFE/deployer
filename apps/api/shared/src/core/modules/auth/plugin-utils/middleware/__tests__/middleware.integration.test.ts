@@ -9,6 +9,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+
+import type {
+  AdminPermissionsPlugin,
+  AnyPermissionBuilder,
+} from '@deployer/auth/permissions/plugins';
+
 import {
   AdminMiddlewareDefinition,
   createNestGuard,
@@ -19,10 +25,6 @@ import {
   BaseMiddlewareCheck,
   type MiddlewareContext,
 } from '../index';
-import type {
-  AdminPermissionsPlugin,
-  AnyPermissionBuilder,
-} from '@deployer/auth/permissions/plugins';
 
 // ============================================================================
 // Mock Types

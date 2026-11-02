@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
 
-import { scopedLogger } from '../logger'
 import { NoEnabledApplicationsError } from '../errors'
+import { scopedLogger } from '../logger'
+
 import type { Workspace } from '../schemas'
 
 /**

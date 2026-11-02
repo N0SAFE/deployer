@@ -1,23 +1,31 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect, Stream } from "effect";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { Service } from "@deployer/contracts-entities";
-import { ProjectConflict, ProjectInvalid, ResourceNotFound } from "@/modules/project/domain/project.errors";
+import { ProjectAccessRepository } from "@deployer/shared/core/modules/project/repositories/project-access.repository";
 import type { ProjectAccessShape } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
-import { ProjectAccessRepository } from "@deployer/shared/core/modules/project/repositories/project-access.repository";
+
+import { ProjectConflict, ProjectInvalid, ResourceNotFound } from "@/modules/project/domain/project.errors";
+
+import { DatabasePort } from "@project/core/database/database.port";
+import { ProjectDb } from "@project/core/database/project-db";
 import type { RuntimeConfigurationAccessorShape } from "@project/core/ports/runtime-configuration-accessor.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import type { ServiceEventServiceShape } from "@project/modules/service/services/service-event.service";
-import { ProjectDb } from "@project/core/database/project-db";
+
 import { ProjectStore } from "../../project/repositories/project.repository";
-import { DatabasePort } from "@project/core/database/database.port";
-import type { ServiceStoreShape } from "../repositories/service.repository";
-import { ServiceEventService } from "./service-event.service";
 import { ServiceStore } from "../repositories/service.repository";
-import type { PreviewTopologyServiceShape } from "./preview-topology.service";
+
 import { PreviewTopologyService } from "./preview-topology.service";
 import { DEFAULT_HEALTH_CHECK } from "./service-effective-config";
+import { ServiceEventService } from "./service-event.service";
 import { ServiceServiceImpl } from "./service.service";
+
+import type { PreviewTopologyServiceShape } from "./preview-topology.service";
+import type { ServiceStoreShape } from "../repositories/service.repository";
+
+
 
 type Fn = ReturnType<typeof vi.fn>;
 type Fakes<T> = { -readonly [K in keyof T]: Fn };

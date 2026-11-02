@@ -1,9 +1,10 @@
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
+import { makeSwarmLeadership, type ClusterMetricsProvider } from "./swarm-leadership";
+
 import type { SwarmClusterShape } from "../cluster/swarm-cluster";
 import type { SwarmElectionConfig } from "../config";
-import { makeSwarmLeadership, type ClusterMetricsProvider } from "./swarm-leadership";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 	const exit = await Effect.runPromiseExit(effect);

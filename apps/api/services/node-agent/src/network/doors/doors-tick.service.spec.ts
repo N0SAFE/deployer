@@ -6,6 +6,7 @@ import { AgentStore, type AgentStoreShape } from "../../local/agent-store";
 import { DoorConverger, type DoorConvergerShape } from "./door-converger";
 import { DoorAddresses, DoorsTick } from "./doors-tick.service";
 import { DoorImage } from "./doors.setting";
+
 import type { NodeDoorsSetting } from "./doors.types";
 
 const SETTING: NodeDoorsSetting = {

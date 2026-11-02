@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
+
 import { countNewLines } from '../_lib/merge-lines'
-import type { LogLineProjection } from '../_models/logs.types'
+
 import { useContainerStreamLogs } from './use-container-stream-logs'
 import { useRuntimeEventLogs } from './use-runtime-event-logs'
+
+import type { LogLineProjection } from '../_models/logs.types'
 
 export type LogsSource = 'container' | 'events' | 'all'
 

@@ -1,7 +1,9 @@
 import { Injectable, type NestMiddleware } from "@nestjs/common";
-import type { NextFunction, Request, Response } from "express";
 
 import { runWithServiceAuth } from "./service-auth-context";
+
+import type { NextFunction, Request, Response } from "express";
+
 
 /** The header a caller uses to present a platform-scoped mesh internal key. */
 const HDR_MESH_INTERNAL_KEY = "x-mesh-internal-key";

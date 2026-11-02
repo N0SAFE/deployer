@@ -6,12 +6,14 @@
  */
 
 import { adminClient } from "better-auth/client/plugins";
-import type { BetterAuthClientPlugin } from "better-auth/client";
+
 import {
   platformAc,
   platformRoles,
 } from "@deployer/auth/permissions/index";
 import type { invitePlugin } from "@deployer/auth/server/plugins/invite";
+
+import type { BetterAuthClientPlugin } from "better-auth/client";
 
 // ============================================================================
 // Re-export existing plugins

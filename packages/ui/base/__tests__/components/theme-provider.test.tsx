@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 // Mock next-themes before importing the component
 vi.mock('next-themes', () => ({
@@ -27,6 +27,7 @@ vi.mock('next/dynamic', () => ({
 
 // Import after mocking
 import ThemeProvider from '../../src/components/theme-provider'
+
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
 
 describe('ThemeProvider Component', () => {

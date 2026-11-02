@@ -1,6 +1,7 @@
+import { Context } from "effect";
+
 import type { PreviewCleanupPolicyService } from "@deployer/shared/core/modules/deployment/services/preview-cleanup-policy.service";
 import type { PreviewNamingService } from "@deployer/shared/core/modules/deployment/services/preview-naming.service";
-import { Context } from "effect";
 
 /** Effect view of preview naming: the name and URL a pull request's preview gets. */
 export type PreviewNamingShape = Pick<PreviewNamingService, "buildPreviewName">;

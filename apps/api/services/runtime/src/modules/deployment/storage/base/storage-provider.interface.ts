@@ -1,5 +1,7 @@
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
+
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import type { DeploymentStoragePolicy } from "./storage-policy.schema";
 
 export const deploymentStorageTypeSchema = z.enum(["local", "s3", "nfs", "volume"]);

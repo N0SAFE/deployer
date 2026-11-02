@@ -1,22 +1,26 @@
 'use client'
 
-import { useState } from 'react'
 import { Pencil, Plus, Trash2, FileText } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+
 import { EmptyState } from '@/components/dashboard'
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
 import {
   useCreateProjectVariableTemplate,
   useDeleteProjectVariableTemplate,
   useUpdateProjectVariableTemplate,
 } from '@/domains/project/hooks'
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import { ConfirmDialog } from '../ConfirmDialog'
+
 import type { VariableTemplate } from './types'
 
 type Dialogs =

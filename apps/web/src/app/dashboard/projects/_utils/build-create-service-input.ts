@@ -1,6 +1,6 @@
-import type { ServiceCreateInput, ServiceCreateInputInput } from '@deployer/project-contracts/modules/service/crud/create'
-import type { RouteVisibility } from '@deployer/fleet-contracts/modules/reachability/index'
 import { orchestratorRunnerConfigSchema } from '@deployer/contracts-entities'
+import type { RouteVisibility } from '@deployer/fleet-contracts/modules/reachability/index'
+import type { ServiceCreateInput, ServiceCreateInputInput } from '@deployer/project-contracts/modules/service/crud/create'
 
 /**
  * Maps the create-service wizard's output to the `service.create` input.

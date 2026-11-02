@@ -1,8 +1,7 @@
 'use client'
 
-import { useNodeScope } from '@/domains/node/node-context'
-import { useFleetServers } from '@/domains/fleet/hooks'
-import { useMeshLocalNode } from '@/domains/mesh/hooks'
+import { Network, Server } from 'lucide-react'
+
 import {
   Select,
   SelectContent,
@@ -10,7 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@deployer/ui/components/shadcn/select'
-import { Network, Server } from 'lucide-react'
+
+import { useFleetServers } from '@/domains/fleet/hooks'
+import { useMeshLocalNode } from '@/domains/mesh/hooks'
+import { useNodeScope } from '@/domains/node/node-context'
+
+
 
 /**
  * NodeScopePicker — header control for switching between mesh-wide and per-node views.

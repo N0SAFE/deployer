@@ -1,17 +1,12 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
-import { Effect } from "effect";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+
+import { Injectable, Logger, Inject } from "@nestjs/common";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
-import { eq } from "drizzle-orm";
-import { Roles } from "@deployer/auth/permissions";
-import { provisionUserAccount } from "@deployer/auth/server";
-import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
-import * as globalSchema from "@deployer/nest-schema/global";
-import { user } from "@deployer/nest-schema/global/identity/auth";
+import { Effect } from "effect";
+import { Pool } from "pg";
+
 // ── WHY THE PACKAGE CONSTANT AND NOT A RELATIVE PATH ───────────────────────
 // This used to be `new URL("../../../../config/drizzle/global/migrations",
 // import.meta.url)` — five `../` counted from THIS file's location. When
@@ -26,21 +21,31 @@ import { user } from "@deployer/nest-schema/global/identity/auth";
 // which reads like a missing journal rather than "this directory is not there".
 // `GLOBAL_MIGRATIONS_DIR` is resolved by the schema package itself, which owns
 // the migrations, so the path cannot drift when a caller moves.
-import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
-import { createBetterAuth } from "../../../../config/auth/auth";
 
-import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
-import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
-import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
-import { EnvService } from "../../../../config/env/env.module";
-import { splitManagedEnv } from "@deployer/env";
-import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
-import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
-import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
+import { Roles } from "@deployer/auth/permissions";
+import { provisionUserAccount } from "@deployer/auth/server";
+import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
+import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
+import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
+import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
+import { resolveDockerHostIp } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { splitManagedEnv } from "@deployer/env";
+import { AppError, ConflictError } from "@deployer/errors";
+import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
+import * as globalSchema from "@deployer/nest-schema/global";
+import { user } from "@deployer/nest-schema/global/identity/auth";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
 
+import { createBetterAuth } from "../../../../config/auth/auth";
+import { EnvService } from "../../../../config/env/env.module";
+import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
+import { resolvePostgresIdentity } from "../../docker/containers/postgres/postgres-identity";
+import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor";
 import {
     SetupStepTracker,
     listMigrationNames,
@@ -49,11 +54,8 @@ import {
     slugify,
     type EmitEvent,
 } from "../utils/setup-runner.utils";
-import { resolveDockerHostIp } from "@deployer/docker";
-import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 
-import { AppError, ConflictError } from "@deployer/errors";
-import { resolvePostgresIdentity } from "../../docker/containers/postgres/postgres-identity";
+import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
 /**
  * Local bootstrap flow.
  *

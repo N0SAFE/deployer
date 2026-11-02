@@ -1,8 +1,10 @@
 'use client'
 
 import { Cpu, HeartPulse, Shield } from 'lucide-react'
+
 import { CollapsibleSection, TagInput, ToggleChips } from './form-primitives'
 import { CheckboxField, TextField } from './text-field'
+
 import type { ContainerForm } from './use-container-form'
 
 const COMMON_CAPABILITIES = ['SYS_ADMIN', 'SYS_PTRACE', 'NET_ADMIN', 'NET_RAW', 'SYS_TIME', 'CHOWN', 'SETUID', 'SETGID'] as const

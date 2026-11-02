@@ -1,20 +1,23 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { Globe, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EmptyState, PageSkeleton } from '@/components/dashboard'
-import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import { useProject } from '@/domains/project/hooks'
 import { useAddProjectDomain, useProjectDomains, useRemoveProjectDomain } from '@/domains/domain/hooks'
+import { useProject } from '@/domains/project/hooks'
+import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
+
 import { ConfirmDialog } from '../../_components/ConfirmDialog'
-import { InlineError } from '../../_components/workload/WorkloadStates'
 import { AddDomainDialog, type AddDomainValues } from '../../_components/domains/AddDomainDialog'
 import { ProjectDomainRow, type ProjectDomain } from '../../_components/domains/ProjectDomainRow'
+import { InlineError } from '../../_components/workload/WorkloadStates'
 
 const messageFor = (err: unknown, fallback: string): string => (isDefinedORPCError(err) ? getErrorMessage(err, fallback) : fallback)
 

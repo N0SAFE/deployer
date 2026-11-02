@@ -1,10 +1,13 @@
-import type { TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Reflector } from '@nestjs/core';
-import type { ExecutionContext } from '@nestjs/common';
-import { AuthGuard } from './auth.guard';
+
 import { MODULE_OPTIONS_TOKEN } from '../definitions/auth-module-definition';
+
+import { AuthGuard } from './auth.guard';
+
+import type { ExecutionContext } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
 
 // Mock better-auth/node
 vi.mock('better-auth/node', () => ({

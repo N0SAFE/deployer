@@ -1,10 +1,13 @@
 'use client'
 
-import { useProjectEnvironments } from '@/domains/project/hooks'
-import { Label } from '@deployer/ui/components/shadcn/label'
-import { EnvironmentBadge } from '@/components/dashboard'
-import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
+
+import { Label } from '@deployer/ui/components/shadcn/label'
+
+import { EnvironmentBadge } from '@/components/dashboard'
+import { useProjectEnvironments } from '@/domains/project/hooks'
+import { cn } from '@/lib/utils'
+
 
 interface EnvironmentSelectorProps {
   projectId: string

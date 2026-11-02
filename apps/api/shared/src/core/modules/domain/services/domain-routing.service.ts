@@ -16,13 +16,15 @@
  * resolved from the mapping-derived context via TraefikVariableResolverService.
  */
 import { Injectable, Logger } from "@nestjs/common";
-import { ServiceDomainMappingRepository } from "../repositories/service-domain-mapping.repository";
-import { TraefikRepository } from "../../traefik/repositories/traefik.repository";
-import { TraefikService } from "../../traefik/services/traefik.service";
-import { TraefikSyncService } from "../../traefik/services/traefik-sync.service";
-import { TraefikVariableResolverService } from "../../traefik/services/traefik-variable-resolver.service";
 
 import { AppError } from "@deployer/errors";
+
+import { TraefikRepository } from "../../traefik/repositories/traefik.repository";
+import { TraefikSyncService } from "../../traefik/services/traefik-sync.service";
+import { TraefikVariableResolverService } from "../../traefik/services/traefik-variable-resolver.service";
+import { TraefikService } from "../../traefik/services/traefik.service";
+import { ServiceDomainMappingRepository } from "../repositories/service-domain-mapping.repository";
+
 export type ResolvedServiceUrl = {
     mappingId: string;
     /** hostname only, e.g. "api.example.com" or "example.com" */
@@ -146,7 +148,12 @@ export class DomainRoutingService {
             return { success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null };
         }
 
-        const primary = urls.find((u) => u.isPrimary) ?? urls[0]!;
+        const primary = urls.find((u) => u.isPrimary) ?? urls[0];
+        if (primary === undefined) {
+            // Same answer as the empty case above: the length check already proved this unreachable, and a guard
+            // narrows the type without the non-null assertion the lint rule refuses.
+            return { success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null };
+        }
         const port = options?.port ?? 80;
 
         // Find or create the traefik service config (unique per serviceId).
@@ -406,9 +413,7 @@ export class DomainRoutingService {
             sslProvider: "letsencrypt",
         });
 
-        if (!created) {
-            return { promoted: false, host, reason: "insert_failed" };
-        }
+        // `create` returns the inserted row or throws; there is no "nothing created" answer to branch on.
 
         // Re-sync routes so the promoted host gets a stable route (and the
         // preview route for it is superseded by the mapping-derived route).

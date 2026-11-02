@@ -7,9 +7,9 @@ import { os } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket } from "@deployer/mesh-server";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { NODE_AGENT, type NodeAgent } from "../../modules/docker/domains/containers/mesh/docker-node-mesh";
 import { LOCAL_NODE_OPERATIONS } from "../../modules/docker/domains/containers/mesh/local-node-operations";

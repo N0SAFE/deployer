@@ -1,6 +1,7 @@
-import { Correlation, CurrentActor, domainError } from "@deployer/effect-core";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
+import { Correlation, CurrentActor, domainError } from "@deployer/effect-core";
 
 import { createServe } from "./serve";
 

@@ -1,11 +1,14 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import type { OnModuleInit } from "@nestjs/common";
-import type { OnModuleDestroy } from "@nestjs/common";
 import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+
 import { DeploymentRepository } from "./../repositories/deployment.repository";
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
+
 import type { DeploymentRow } from "./../repositories/deployment.repository";
+import type { OnModuleDestroy } from "@nestjs/common";
+import type { OnModuleInit } from "@nestjs/common";
 
 /**
  * W-Queue (Q3) — startup reconciliation of orphaned in-flight deployments.

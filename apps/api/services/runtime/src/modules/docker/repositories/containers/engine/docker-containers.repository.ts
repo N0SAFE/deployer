@@ -1,10 +1,11 @@
+import { Context, Data, Effect } from "effect";
+
 import {
   dockerodeContainerListSchema,
   type DockerContainerInspectDetail,
   type DockerodeContainerList,
 } from "@deployer/contracts-entities";
 import { DockerEngine, type DockerError } from "@deployer/docker";
-import { Context, Data, Effect } from "effect";
 
 import { buildContainerInspectDetail, layerFallbackCandidates } from "./container-inspect-detail";
 import { extractRootFsLayers } from "./container-inspect-reading";

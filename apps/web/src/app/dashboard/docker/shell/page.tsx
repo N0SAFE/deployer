@@ -1,14 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { TerminalSquare } from 'lucide-react'
-import { AuthDashboardDockerContainers } from '@/routes'
+import { useMemo, useState } from 'react'
+
 import { EmptyState } from '@/components/dashboard'
 import { useDockerContainerList } from '@/domains/docker/hooks'
 import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
+import { AuthDashboardDockerContainers } from '@/routes'
+
 import { DockerEngineError } from '../_components/docker-engine-error'
 import { DockerPageSkeleton } from '../_components/docker-loading-states'
 import { useDockerNode } from '../_components/docker-node-context'
+
 import { ShellSession } from './_components/shell-session'
 
 const LIST_INPUT = { query: { limit: 100, offset: 0 } } as const

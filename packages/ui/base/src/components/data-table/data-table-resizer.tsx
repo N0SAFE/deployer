@@ -1,17 +1,18 @@
 "use client"
 
 // ** import types
-import type { Header, Table } from "@tanstack/react-table"
 
 // ** import core packages
-import React from "react"
 import { GripVertical } from "lucide-react"
+import React from "react"
 
 // ** import components
 import { Separator } from "@deployer/ui/components/shadcn/separator"
 
 // ** import utils
 import { cn } from "@deployer/ui/lib/utils"
+
+import type { Header, Table } from "@tanstack/react-table"
 
 export function DataTableResizer<TData>({
   header,

@@ -1,9 +1,9 @@
 'use client'
 
-import { useContainerInspect } from '../../_hooks/use-container-inspect'
-import { useContainerTerminal } from '../../_hooks/use-container-terminal'
 import { DockerContainerTerminalTab } from '../../_components/container-detail-modal/tabs/terminal-tab'
 import { DockerDetailLoadingState } from '../../_components/docker-loading-states'
+import { useContainerInspect } from '../../_hooks/use-container-inspect'
+import { useContainerTerminal } from '../../_hooks/use-container-terminal'
 
 const noop = () => undefined
 

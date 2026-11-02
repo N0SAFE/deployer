@@ -1,15 +1,19 @@
 'use client'
 
-import { useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { Network, TriangleAlert } from 'lucide-react'
-import { AuthDashboardNodes, AuthDashboardNodesNodeId } from '@/routes'
+import { useRouter } from 'next/navigation'
+import { useMemo } from 'react'
+
+import type { ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
+import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { useClusterNodes } from '@/domains/cluster/hooks'
 import { cn } from '@/lib/utils'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import type { ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
-import { useNow } from './use-now'
+import { AuthDashboardNodes, AuthDashboardNodesNodeId } from '@/routes'
+
+
 import { deriveNodeHealth, formatAgo, summarizePulse, type NodeEvidence } from './mesh-pulse-model'
+import { useNow } from './use-now'
 
 /**
  * MeshPulse — the nodes-at-a-glance spine.

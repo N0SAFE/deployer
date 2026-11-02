@@ -3,11 +3,12 @@ import { Context, Effect } from "effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
 import type { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
+
 import { attempt } from "../../../core/effects";
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
 import { RunnerTraefikPort } from "../runners.ports";
-import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
+
 import {
     buildFallbackSubdomain,
     materializeStorageBinding,
@@ -16,6 +17,8 @@ import {
     sanitizeExecutorLabels,
     sanitizeStartupCommand,
 } from "./docker-runner.helpers";
+
+import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
 
 const RUNNER_TYPE = "docker" as const;
 

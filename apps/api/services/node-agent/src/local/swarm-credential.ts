@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 
-import { credentialVerifier } from "@deployer/mesh-server";
 import { Context, Effect } from "effect";
+
+import { credentialVerifier } from "@deployer/mesh-server";
 
 import { AgentStore, type AgentStoreError } from "./agent-store";
 

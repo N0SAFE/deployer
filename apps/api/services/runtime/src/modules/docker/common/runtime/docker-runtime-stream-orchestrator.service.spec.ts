@@ -1,19 +1,22 @@
-import { runtimeOverResolution } from "../../domains/containers/orchestration/testing";
-import { describe, expect, it, vi } from "vitest";
 import { Subject, of } from "rxjs";
 import { firstValueFrom } from "rxjs";
 import { toArray } from "rxjs/operators";
+import { describe, expect, it, vi } from "vitest";
+
 import {
     dockerImageInspectDetailSchema,
     dockerContainerRuntimeEventSchema,
     dockerImageRuntimeEventSchema,
     dockerUnknownRuntimeEventSchema,
 } from "@deployer/contracts-entities";
+
+import { runtimeOverResolution } from "../../domains/containers/orchestration/testing";
+
 import { DockerRuntimeStreamOrchestratorService } from "./docker-runtime-stream-orchestrator.service";
 
 /** The `EffectHost` face the orchestrator sees, with container resolution substituted by a Promise fake. */
 const hostOverResolution = (fake: { inspectContainer: (...args: never[]) => unknown }) => {
-    const { runPromiseUnwrapped } = runtimeOverResolution(fake as never);
+    const { runPromiseUnwrapped } = runtimeOverResolution(fake);
     return { runUnwrapped: runPromiseUnwrapped } as never;
 };
 

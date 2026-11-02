@@ -1,13 +1,15 @@
 import "@orpc/effect/extensions/effect";
 
-import { effectContext } from "@deployer/nest-effect/testing";
-import { callProcedure } from "@deployer/orpc-utils/testing";
 import { Context, Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { ReachabilityController } from "./reachability.controller";
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+
 import { IngressEdgeService, type IngressEdgeServiceShape } from "../services/ingress-edge.service";
 import { NodeReachabilityService, type NodeReachabilityServiceShape } from "../services/node-reachability.service";
+
+import { ReachabilityController } from "./reachability.controller";
 
 // Authentication and role checks are the shared middlewares' concern; here they let the call
 // through so the rest of the chain (Effect context, `serve`, failure handling) runs for real.

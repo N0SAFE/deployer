@@ -1,7 +1,8 @@
 import { Redacted } from "effect";
+
 import { CommandError, ExeNotAllowed, InvalidCommand } from "./errors";
-import { Command } from "./types";
 import { MIN_SECRET_LENGTH } from "./limits";
+import { Command } from "./types";
 
 export const unwrapEnv = (
   env: Command["env"],

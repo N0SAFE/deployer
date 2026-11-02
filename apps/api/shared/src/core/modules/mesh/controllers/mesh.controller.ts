@@ -1,18 +1,24 @@
+import * as crypto from "node:crypto";
+
 import { Controller, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { meshContract } from "@deployer/fleet-contracts";
-import { requireAuth } from "../../auth/orpc/middlewares";
-import { AllowAnonymous } from "../../auth/decorators/decorators";
-import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
-import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
-import { EnvService } from "../../../../config/env/env.module";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-
-import * as crypto from "node:crypto";
 import { Client } from "pg";
+
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { meshContract } from "@deployer/fleet-contracts";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
+
+import { EnvService } from "../../../../config/env/env.module";
+import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
+import { AllowAnonymous } from "../../auth/decorators/decorators";
+import { requireAuth } from "../../auth/orpc/middlewares";
+import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
+
+
+
+
 
 /**
  * Mesh Controller — what is left of the old mesh control plane: the ping, the node's metrics, the event streams and the
@@ -51,9 +57,9 @@ export class MeshController {
     }
 
     private resolveAdvertisedHost(): string | null {
-        const candidate = this.envService.get("APP_URL")?.toString().trim()
-            ?? this.envService.get("NEXT_PUBLIC_APP_URL")?.toString().trim();
-        if (!candidate) {
+        const appUrl = this.envService.get("APP_URL")?.trim() ?? "";
+        const candidate = appUrl.length > 0 ? appUrl : (this.envService.get("NEXT_PUBLIC_APP_URL")?.trim() ?? "");
+        if (candidate.length === 0) {
             return null;
         }
         try {
@@ -163,8 +169,8 @@ export class MeshController {
                     configuredAt: row?.configuredAt ?? null,
                     updatedAt: row?.updatedAt ?? new Date().toISOString(),
                     meshSharedSecretUpdatedAt: row?.meshSharedSecretUpdatedAt ?? null,
-                    region: localNode.region ?? null,
-                    zone: localNode.zone ?? null,
+                    region: localNode.region,
+                    zone: localNode.zone,
                     roles: localNode.roles ?? null,
                     version: localNode.version ?? null,
                     routingMode: localNode.routingMode ?? null,

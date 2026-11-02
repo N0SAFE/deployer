@@ -1,8 +1,11 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
-import type { OnModuleInit } from "@nestjs/common";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import { CodeProvider } from "./code-provider.interface";
+
+import type { OnModuleInit } from "@nestjs/common";
 
 @Injectable()
 export class CodeProviderRegistryService implements OnModuleInit {

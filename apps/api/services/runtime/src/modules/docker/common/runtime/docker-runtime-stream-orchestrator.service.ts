@@ -1,11 +1,8 @@
 
+import { Effect } from "effect";
 import { EMPTY, Observable, defer, from, interval, merge, of } from "rxjs";
 import { catchError, distinctUntilChanged, filter, finalize, map, mergeWith, switchMap, tap } from "rxjs/operators";
-import type {
-    DockerContainerInspectStreamQueryInput,
-} from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
-import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+
 import {
     dockerContainerInspectDetailSchema,
     dockerImageInspectDetailSchema,
@@ -14,14 +11,21 @@ import {
     type DockerImageInspectDetail,
     type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
-import { type EffectHostShape } from "@deployer/nest-effect";
-import { Effect } from "effect";
-import { DockerContainerResolution } from "../../domains/containers/orchestration/docker-container-resolution";
-import { DockerContainerMetricsStreamService } from "../../domains/containers/events/docker-container-metrics-stream.service";
-import { DockerRepository } from "../../repositories/facade/docker.repository";
 import { AppLogger } from "@deployer/logger";
-import { DockerRuntimeEventsStreamService } from "../events/docker-runtime-events-stream.service";
+import { type EffectHostShape } from "@deployer/nest-effect";
+import type {
+    DockerContainerInspectStreamQueryInput,
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
+
+import { DockerContainerMetricsStreamService } from "../../domains/containers/events/docker-container-metrics-stream.service";
+import { DockerContainerResolution } from "../../domains/containers/orchestration/docker-container-resolution";
+import { DockerRepository } from "../../repositories/facade/docker.repository";
+import { DockerRuntimeEventsStreamService } from "../events/docker-runtime-events-stream.service";
+
+
 import {
     areValuesEqual,
     collectFieldFilterValues,

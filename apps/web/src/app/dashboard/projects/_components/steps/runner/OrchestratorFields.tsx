@@ -1,21 +1,27 @@
 'use client'
 
+import { Sparkles, ChevronDown, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { Input } from '@deployer/ui/components/shadcn/input'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@deployer/ui/components/shadcn/collapsible'
 import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
-import { Sparkles, ChevronDown, Loader2 } from 'lucide-react'
-import type { CreateServiceFormApi } from '../../CreateService.hook'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+
+
 import { githubAppEndpoints } from '@/domains/github-apps/endpoints'
+
+import { AutocompleteField } from '../autocomplete-field'
+import { RequiredError } from '../required-error'
 import { useRunnerDetection } from '../runner-detection-context'
 import { subServicesFromHints } from '../runner-presets'
-import { AutocompleteField } from '../autocomplete-field'
 import { SearchableSelect } from '../searchable-select'
-import { RequiredError } from '../required-error'
+
 import { KeyValueEditor, TagsInput } from './primitives'
 import { SubServiceEditor } from './SubServiceEditor'
+
+import type { CreateServiceFormApi } from '../../CreateService.hook'
 
 /** Orchestrator fields: compose file + cascade env + sub-services. */
 export function OrchestratorFields({ form, hints }: {

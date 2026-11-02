@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { pgTable, text } from "drizzle-orm/pg-core";
+import { describe, expect, it } from "vitest";
 
 import { allOf, correlated, relationPredicates } from "./relation-predicates";
 
@@ -130,7 +130,9 @@ describe("relationPredicates", () => {
 		});
 
 		it("drops undefined conditions instead of sending them to the driver", () => {
-			const status: string | undefined = undefined;
+			// Typed, not literal: the test is about the helper dropping an absent condition, so `status` must stay
+			// `string | undefined` rather than narrowing to `undefined`.
+			const status = undefined as string | undefined;
 			const { params } = db
 				.select()
 				.from(projects)

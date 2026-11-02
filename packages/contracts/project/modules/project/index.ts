@@ -1,35 +1,12 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { projectListContract } from "./list";
-import { projectFindByIdContract } from "./findById";
-import { projectCreateContract } from "./create";
-import { projectUpdateContract } from "./update";
-import { projectDeleteContract } from "./delete";
+
 import {
     projectGetCollaboratorsContract,
     projectInviteCollaboratorContract,
     projectUpdateCollaboratorContract,
     projectRemoveCollaboratorContract,
 } from "./collaborators";
-import {
-    projectListEnvironmentsContract,
-    projectGetEnvironmentContract,
-    projectCreateEnvironmentContract,
-    projectUpdateEnvironmentContract,
-    projectDeleteEnvironmentContract,
-    projectCloneEnvironmentContract,
-} from "./environments";
-import {
-    projectListServiceEnvironmentLinksContract,
-    projectUpsertServiceEnvironmentLinkContract,
-} from "./service-environment-links";
-import {
-    projectListVariableTemplatesContract,
-    projectGetVariableTemplateContract,
-    projectCreateVariableTemplateContract,
-    projectUpdateVariableTemplateContract,
-    projectDeleteVariableTemplateContract,
-} from "./templates";
 import {
     projectGetDeploymentConfigContract,
     projectGetEnvironmentConfigContract,
@@ -44,16 +21,40 @@ import {
     projectUpdateResourceConfigContract,
     projectUpdateSecurityConfigContract,
 } from "./config";
+import { projectCreateContract } from "./create";
+import { projectDeleteContract } from "./delete";
+import {
+    projectListEnvironmentsContract,
+    projectGetEnvironmentContract,
+    projectCreateEnvironmentContract,
+    projectUpdateEnvironmentContract,
+    projectDeleteEnvironmentContract,
+    projectCloneEnvironmentContract,
+} from "./environments";
+import { projectFindByIdContract } from "./findById";
+import { projectListContract } from "./list";
+import {
+    projectGetNetworkContract,
+    projectUpdateNetworkContract,
+} from "./network";
+import {
+    projectListServiceEnvironmentLinksContract,
+    projectUpsertServiceEnvironmentLinkContract,
+} from "./service-environment-links";
+import { projectQueryStreamContract } from "./stream";
+import {
+    projectListVariableTemplatesContract,
+    projectGetVariableTemplateContract,
+    projectCreateVariableTemplateContract,
+    projectUpdateVariableTemplateContract,
+    projectDeleteVariableTemplateContract,
+} from "./templates";
+import { projectUpdateContract } from "./update";
 import {
     projectGetAllEnvironmentStatusesContract,
     projectGetEnvironmentStatusContract,
     projectRefreshEnvironmentStatusContract,
 } from "./utils";
-import { projectQueryStreamContract } from "./stream";
-import {
-    projectGetNetworkContract,
-    projectUpdateNetworkContract,
-} from "./network";
 
 export const projectContract = oc.meta(openapi({ tags: ["Project"], prefix: "/projects" })).router({
     // Core CRUD

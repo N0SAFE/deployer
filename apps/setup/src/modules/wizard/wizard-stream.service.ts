@@ -1,14 +1,16 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Observable, from, interval, map, merge, takeUntil, Subject, share, concat, type Subscription } from "rxjs";
+
 import type { SetupStreamEvent } from "@deployer/contracts-entities";
 
-import { WizardUpstreamService } from "./wizard-upstream.service";
+import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import {
   OrchestrationStreamService,
   isOrchestrationStepId,
   type OrchestrationStepId,
 } from "@/modules/progress/services/orchestration-stream.service";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+
+import { WizardUpstreamService } from "./wizard-upstream.service";
 
 /**
  * The setup progress stream: setup's own orchestration, then the API's.

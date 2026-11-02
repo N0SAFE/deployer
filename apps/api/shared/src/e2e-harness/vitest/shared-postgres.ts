@@ -1,8 +1,10 @@
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+
 import Dockerode from "dockerode";
 import { Pool } from "pg";
+
 import { SHARED_POSTGRES_CONNECTION_URI_ENV } from "../shared-api-runtime/types";
 
 /**

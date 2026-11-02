@@ -1,5 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
+
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
+
 import { TestController } from "./controllers/test.controller";
 
 /**

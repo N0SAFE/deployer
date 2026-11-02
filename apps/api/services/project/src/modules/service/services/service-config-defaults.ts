@@ -1,3 +1,5 @@
+import z from "zod/v4";
+
 import type { ServiceProviderType, ServiceRunnerType } from "@deployer/contracts-common";
 import {
   githubProviderConfigSchema,
@@ -13,7 +15,6 @@ import {
   nomadRunnerConfigSchema,
   staticRunnerConfigSchema,
 } from "@deployer/contracts-entities";
-import z from "zod/v4";
 
 type GithubProviderConfig = z.infer<typeof githubProviderConfigSchema>;
 type GitlabProviderConfig = z.infer<typeof gitlabProviderConfigSchema>;

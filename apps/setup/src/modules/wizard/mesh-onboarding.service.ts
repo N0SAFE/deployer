@@ -1,5 +1,5 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
-import { nodeDoorFromEnv, type NodeDoorClient } from "@deployer/mesh-client";
+
 import type {
   SetupMeshJoinInput,
   SetupMeshJoinResult,
@@ -7,6 +7,7 @@ import type {
   SetupMeshTokenInput,
   SetupMeshTokenResult,
 } from "@deployer/contracts-entities";
+import { nodeDoorFromEnv, type NodeDoorClient } from "@deployer/mesh-client";
 
 import { EnvService } from "@/config/env/env.module";
 

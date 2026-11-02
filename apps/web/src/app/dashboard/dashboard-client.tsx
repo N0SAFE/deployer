@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+
 import { PageHeader } from '@/components/dashboard'
 import { MeshPulse } from '@/components/dashboard/MeshPulse'
+import { useRealTimeMetrics } from '@/domains/analytics/hooks'
 import { useClusterNodes, useClusterSnapshot } from '@/domains/cluster/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useFleetAdmissionRequests } from '@/domains/fleet/hooks'
-import { useRealTimeMetrics } from '@/domains/analytics/hooks'
 import { useIngress } from '@/domains/reachability/hooks'
 import { useServiceList } from '@/domains/service/hooks'
+
 import { PlatformVitals, type Vitals } from './_components/platform-vitals'
 import { QuickActions } from './_components/quick-actions'
 import { RecentDeploymentsCard, type RecentDeployment } from './_components/recent-deployments-card'

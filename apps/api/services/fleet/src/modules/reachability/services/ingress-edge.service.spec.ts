@@ -1,9 +1,10 @@
 import { Cause, Effect, Exit } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { EnvService } from "@deployer/shared/config/env/env.module";
+import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
+import { provideTo } from "@deployer/effect-core";
 import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
+import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "@deployer/shared/core/modules/edge/testing/edge-registry.fixture";
 import { EnvHostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
@@ -12,8 +13,8 @@ import type { NodeNetworkConfigRepository } from "@deployer/shared/core/modules/
 import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
-import type { EdgeDnsServiceShape } from "./edge-dns.service";
-import { provideTo } from "@deployer/effect-core";
+import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+
 import {
 	EdgeProvidersPort,
 	HostnamesPort,
@@ -22,9 +23,12 @@ import {
 	PublicEdgePort,
 	TraefikRefresherPort,
 } from "../reachability.ports";
-import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+
+
 import { EdgeDnsService } from "./edge-dns.service";
 import { IngressEdgeService } from "./ingress-edge.service";
+
+import type { EdgeDnsServiceShape } from "./edge-dns.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `toThrow(/text/)` reads the real message. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {

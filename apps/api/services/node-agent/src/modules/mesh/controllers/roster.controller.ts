@@ -1,23 +1,22 @@
 import { Controller } from "@nestjs/common";
 import { Effect } from "effect";
 
-import { nodeAgentContract } from "@deployer/node-agent-contracts";
-import { declareProcedures, MeshController } from "@deployer/nest-mesh";
 import { procedure } from "@deployer/nest-effect";
+import { declareProcedures, MeshController } from "@deployer/nest-mesh";
+import { nodeAgentContract } from "@deployer/node-agent-contracts";
 
+import { requireNodeDoor } from "../../../core/orpc/node-door.guard";
+import { serveMeshPeer } from "../../../core/orpc/serve";
 import { AgentStore } from "../../../local/agent-store";
 import { ROTATION_GRACE_MS } from "../../../local/swarm-credential";
 import { OVERLAY_SELF_SECRET, parseOverlaySelf } from "../../../network/overlay";
-import { serveMeshPeer } from "../../../core/orpc/serve";
 import { NodeLabels } from "../../node/services/node-labels.service";
 import { CredentialRotation } from "../services/credential-rotation.service";
 import { JoinTokens } from "../services/join-tokens.service";
+import { NodeAgents } from "../services/node-agents.service";
 import { NodeIdentity } from "../services/node-identity.service";
 import { AdvertisedAddress } from "../services/roster-gossip.service";
-import { NodeAgents } from "../services/node-agents.service";
 import { RosterGossip } from "../services/roster-gossip.service";
-
-import { requireNodeDoor } from "../../../core/orpc/node-door.guard";
 
 const roster = nodeAgentContract.roster;
 
@@ -181,7 +180,7 @@ export class RosterController extends MeshController {
           const overlay = parseOverlaySelf(
             yield* store.secret(OVERLAY_SELF_SECRET).pipe(Effect.catch(() => Effect.succeed(undefined))),
           );
-          const labels = yield* (yield* NodeLabels).read().pipe(Effect.catch(() => Effect.succeed({} as Record<string, string>)));
+          const labels = yield* (yield* NodeLabels).read().pipe(Effect.catch(() => Effect.succeed({})));
           const known = yield* (yield* NodeAgents).known();
           return {
             self: { nodeId: self.nodeId, address: advertised.address, overlay, labels },

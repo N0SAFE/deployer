@@ -3,13 +3,15 @@
  * fingerprint, group for the inventory, worst-status-wins merges, and the filter/sort/paginate rules. Pure.
  */
 import { BadRequestError } from "@deployer/errors";
-import type { DockerContainerGroupedListItem, DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import { dockerContainerInspectDetailSchema, dockerNetworkSchema, dockerRegistrySchema, dockerRuntimeCatalogSchema, dockerStackSchema, dockerVolumeSchema, type DockerContainer, type DockerContainerInspectDetail, type DockerImage, type DockerNetwork, type DockerRegistry, type DockerRuntimeCatalog, type DockerStack, type DockerVolume } from "@deployer/contracts-entities";
-import type { DockerContainerInspectResponsePayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/node-mesh-types";
+import type { DockerContainerGroupedListItem, DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import { isRecord } from "@deployer/type-guards";
+
 import { normalizeComparableValue, normalizeContainer, normalizeContainerGroupName, normalizeImage } from "./mesh-entity-normalization";
-import type { DockerGroupedDaemonDiagnostics, DockerListResult, ParsedFilterEntry } from "./mesh-universe-types";
 import { HEALTH_PRIORITY, STATUS_PRIORITY } from "./mesh-universe-types";
+
+import type { DockerGroupedDaemonDiagnostics, DockerListResult, ParsedFilterEntry } from "./mesh-universe-types";
+import type { DockerContainerInspectResponsePayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/node-mesh-types";
 
 export function computeSharedDaemonDiagnostics(
     responses: DockerContainerListResponsePayload[],

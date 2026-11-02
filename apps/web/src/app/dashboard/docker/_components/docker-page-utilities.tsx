@@ -1,11 +1,13 @@
 'use client'
 
+import { Check, ChevronDown, ChevronRight, Download, Minus } from 'lucide-react'
 import { useMemo } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { TableCell, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Check, ChevronDown, ChevronRight, Download, Minus } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@deployer/ui/components/shadcn/dropdown-menu'
+import { TableCell, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import type { ReactNode } from 'react'
 
 export interface FilterChip {

@@ -1,6 +1,7 @@
-import { DockerEngine, DockerUnavailable } from "@deployer/docker";
 import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
+
+import { DockerEngine, DockerUnavailable } from "@deployer/docker";
 
 import { DockerNetworksRepository, normalizeNetworkDriver, normalizeNetworkScope } from "./docker-networks.repository";
 

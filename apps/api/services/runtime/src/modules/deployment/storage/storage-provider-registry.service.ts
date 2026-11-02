@@ -1,10 +1,14 @@
-import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
+
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+
+import { resolveRequestedStorageType } from "./base/storage-provider.utils";
+
+import type { DeploymentStoragePolicy } from "./base/storage-policy.schema";
 import type { DeploymentStorageProvider } from "./base/storage-provider.interface";
 import type { DeploymentStorageBinding } from "./base/storage-provider.interface";
-import type { DeploymentStoragePolicy } from "./base/storage-policy.schema";
-import { resolveRequestedStorageType } from "./base/storage-provider.utils";
 
 @Injectable()
 export class StorageProviderRegistryService {

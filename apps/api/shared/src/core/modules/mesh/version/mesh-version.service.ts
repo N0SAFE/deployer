@@ -13,8 +13,9 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { MeshInitializationService } from "../initialization/services/mesh-initialization.service";
+
 import { DEPLOYER_VERSION, semverCompare } from "../../../utils/deployer-version";
+import { MeshInitializationService } from "../initialization/services/mesh-initialization.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ export class MeshVersionService {
           const pingResult = await session.client.ping({});
           version = pingResult.version ?? "unknown";
         } finally {
-          await session.close().catch(() => {});
+          await session.close().catch(() => undefined);
         }
 
         peers.push({ url, version, reachable: true });
@@ -110,7 +111,7 @@ export class MeshVersionService {
       localVersion: DEPLOYER_VERSION,
       peers,
       consistent,
-      meshVersion: consistent && versions.length === 1 ? versions[0]! : null,
+      meshVersion: consistent && versions.length === 1 ? (versions[0] ?? null) : null,
       reachableCount: reachablePeers.length,
       unreachableCount: peers.length - reachablePeers.length,
     };

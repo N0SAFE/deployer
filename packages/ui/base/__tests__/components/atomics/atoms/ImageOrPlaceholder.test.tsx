@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+
 import ImageOrPlaceholder from '../../../../src/components/atomics/atoms/ImageOrPlaceholder'
 
 // Mock Next.js Image component

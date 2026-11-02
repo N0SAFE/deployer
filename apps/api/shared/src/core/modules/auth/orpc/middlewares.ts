@@ -1,8 +1,20 @@
-import { logger } from '@deployer/logger'
+import { os } from '@orpc/server'
 import { fromNodeHeaders } from 'better-auth/node'
-import type { IncomingHttpHeaders } from 'http'
-import type { Auth } from '../../../../auth'
+
+import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
+import { secretsMatch } from "@deployer/auth/server";
+import { runSyncUnwrapped } from "@deployer/effect-core"
+import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
+import { makeLenientEnvironment } from "@deployer/environment"
+import { logger } from '@deployer/logger'
+import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@deployer/orpc-utils'
+
+import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
+
 import { AuthUtils } from './auth-utils'
+import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
+
+import type { ORPCGlobalContext } from './orpc-context'
 import type {
     ORPCAuthContext,
     MeshContext,
@@ -11,16 +23,8 @@ import type {
     ORPCContextWithAuth,
     ORPCContextWithAuthBrand,
 } from './types'
-import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
-import { os } from '@orpc/server'
-import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@deployer/orpc-utils'
-import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
-import { runSyncUnwrapped } from "@deployer/effect-core"
-import { makeLenientEnvironment } from "@deployer/environment"
-import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
-import type { ORPCGlobalContext } from './orpc-context'
-import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
-import { secretsMatch } from "@deployer/auth/server";
+import type { Auth } from '../../../../auth'
+import type { IncomingHttpHeaders } from 'http'
 
 /**
  * Read a value from the API's environment outside the DI container.
@@ -119,7 +123,9 @@ export function createAuthMiddleware(auth: Auth) {
 function validateAuthOnContext(
     ctx: ORPCGlobalContext
 ): ctx is ORPCGlobalContext & ORPCContextWithAuthOnly {
-    return ctx.auth !== undefined
+    // A cast, not a redundant check: `ORPCGlobalContext["auth"]` is declared, so TypeScript believes it always
+    // exists while a context built outside the auth middleware genuinely may not carry it.
+    return (ctx as { readonly auth?: unknown }).auth !== undefined
 }
 
 /**

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import type { ClientContext, ClientLink } from "@orpc/client";
 import { Observable } from "rxjs";
-import { relayLink } from "@deployer/mesh-client";
+
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
+import { relayLink } from "@deployer/mesh-client";
 
 import type {
   DockerContainerCreateDirectoryRequestPayload,
@@ -41,6 +41,7 @@ import type {
   DockerRuntimeCatalogRequestPayload,
   DockerRuntimeCatalogResponsePayload,
 } from "./node-mesh-types";
+import type { ClientContext, ClientLink } from "@orpc/client";
 
 /** How long a node is given to answer before the caller moves on without it. */
 const DEFAULT_TIMEOUT_MS = 1_500;
@@ -179,7 +180,7 @@ export function dockerNodeMeshOver(holder: NodeAgent) {
         });
       };
 
-      const timer = setTimeout(() => finish(false, true), timeoutMs);
+      const timer = setTimeout(() => { finish(false, true); }, timeoutMs);
       timer.unref();
       if (nodes.length === 0) {
         finish(false, false);

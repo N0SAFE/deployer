@@ -14,7 +14,6 @@ import type {
 } from "@deployer/contracts-entities";
 import type { DbError, DbShape } from "@deployer/effect-infra";
 import { deploymentDeadLetterJobs, deploymentQueueJobs } from "@deployer/nest-schema/global/runtime/deployment-queue";
-
 import type { GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 type JobRow = typeof deploymentQueueJobs.$inferSelect;

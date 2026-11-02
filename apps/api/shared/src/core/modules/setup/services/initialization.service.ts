@@ -1,22 +1,30 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
-import { classifyAddress, isIpLiteral, stripBrackets } from "@deployer/effect-infra"
-import { standardErrorActions } from "@deployer/orpc-utils"
 import { lookup } from "node:dns/promises"
+
+import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
 import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
+
 import type {
     SetupInitializeInput,
     SetupStreamEvent,
     SetupStateSnapshot,
 } from '@deployer/contracts-entities'
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { classifyAddress, isIpLiteral, stripBrackets } from "@deployer/effect-infra"
+import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle";
 import { NodeConfigRepository, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state"
+import { standardErrorActions } from "@deployer/orpc-utils"
+
+
+import { SetupStepTracker } from '../utils/setup-runner.utils'
+
 import { LocalInitializationService } from './local-initialization.service'
 import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupEventService } from './setup-event.service'
-import { SetupStepTracker } from '../utils/setup-runner.utils'
+
+
 import type { EmitEvent } from '../utils/setup-runner.utils'
-import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle";
+
 
 
 export type SetupCompletionStatus = {
@@ -303,7 +311,9 @@ export class InitializationService implements OnModuleInit {
      */
     async assertDatabaseProbeAllowed(databaseUrl: string): Promise<void> {
         const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
-        const refusal = databaseProbeRefusal(databaseUrl, config?.databaseUrl?.trim() || null)
+        const stored = config?.databaseUrl?.trim()
+        // An empty stored URL is not a URL: `||` was doing that job, spelled out here so the types stay honest.
+        const refusal = databaseProbeRefusal(databaseUrl, stored === undefined || stored === "" ? null : stored)
         if (refusal !== null) throw standardErrorActions.BAD_REQUEST(refusal)
 
         const host = stripBrackets(new URL(databaseUrl).hostname)

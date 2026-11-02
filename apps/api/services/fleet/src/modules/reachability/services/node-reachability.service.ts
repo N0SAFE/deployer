@@ -1,11 +1,12 @@
+import { Context, Effect } from "effect";
+import { Observable } from "rxjs";
+
+import { serviceOver, type Over } from "@deployer/effect-core";
 import type { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
 import type { NodeNetworkConfigData } from "@deployer/shared/core/modules/reachability/services/node-network-config.mapper";
 import type { PublicAccessPointService } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
 import type { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { serviceOver, type Over } from "@deployer/effect-core";
-import { Context, Effect } from "effect";
-import { Observable } from "rxjs";
 
 import { attempt, attemptSync } from "../../../core/effects";
 import {

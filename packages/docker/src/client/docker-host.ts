@@ -1,8 +1,10 @@
 import { Context } from "effect";
 
 import { makeDockerEngine, type DockerEngineShape } from "../engine/docker-engine";
-import type { ScannerEngineAccess } from "../scanning/scanner-pool";
+
 import { resolveDockerClient, type DockerConnectionConfig } from "./docker-client";
+
+import type { ScannerEngineAccess } from "../scanning/scanner-pool";
 
 /** The engine this process drives, and how a container it starts would reach that same engine. */
 export type DockerHostShape = {

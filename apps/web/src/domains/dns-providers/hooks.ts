@@ -1,8 +1,10 @@
 'use client'
 
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { dnsProviderEndpoints, dnsProviderEndpointOperations } from './endpoints'
+
 import { wrapWithInvalidations } from '../shared/helpers'
+
+import { dnsProviderEndpoints, dnsProviderEndpointOperations } from './endpoints'
 import { dnsProviderInvalidations } from './invalidations'
 
 const enhancedDnsProviders = wrapWithInvalidations(dnsProviderEndpointOperations, dnsProviderInvalidations as never)

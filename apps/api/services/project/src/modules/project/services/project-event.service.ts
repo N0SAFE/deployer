@@ -1,9 +1,9 @@
-import * as z from "zod";
-import { projectRoleSchema } from "@deployer/contracts-entities";
-import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
 import { Context } from "effect";
+import * as z from "zod";
 
+import { projectRoleSchema } from "@deployer/contracts-entities";
 import { contractBuilder } from "@deployer/events";
+import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 
 export const projectEventContracts = {

@@ -1,6 +1,7 @@
-import { DockerEngine } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
+import { DockerEngine } from "@deployer/docker";
 
 import { ContainerAccessMeshPort, DockerContainerAccess } from "./docker-container-access";
 import { DockerContainerOps } from "./docker-container-ops";
@@ -22,7 +23,7 @@ describe("DockerContainerAccess", () => {
   it("serves a local container without asking the mesh", async () => {
     const mesh = { listContainerFilesSnapshotAcrossInstances: vi.fn() };
     const ops = { listFiles: () => Effect.succeed({ entries: [], path: "/" }) };
-    await expect(run(new DockerContainerAccess.live().listFiles({ containerId: "c1" } as never), { ops, mesh })).resolves.toEqual({
+    await expect(run(new DockerContainerAccess.live().listFiles({ containerId: "c1" }), { ops, mesh })).resolves.toEqual({
       entries: [],
       path: "/",
     });
@@ -33,7 +34,7 @@ describe("DockerContainerAccess", () => {
     const snapshot = { content: "remote" };
     const mesh = { readContainerFileSnapshotAcrossInstances: vi.fn(async () => ({ responses: [{ snapshot }] })) };
     const ops = { readFile: noSuchContainer };
-    const result = await run(new DockerContainerAccess.live().readFile({ containerId: "c1", path: "/x" } as never), { ops, mesh });
+    const result = await run(new DockerContainerAccess.live().readFile({ containerId: "c1", path: "/x" }), { ops, mesh });
     expect(result).toBe(snapshot);
     expect(mesh.readContainerFileSnapshotAcrossInstances).toHaveBeenCalledWith(
       { query: { containerId: "c1", path: "/x" } },
@@ -44,7 +45,7 @@ describe("DockerContainerAccess", () => {
   it("reports the local error when no node has the container", async () => {
     const mesh = { deleteContainerPathAcrossInstances: vi.fn(async () => ({ responses: [] })) };
     await expect(
-      run(new DockerContainerAccess.live().deletePath({ containerId: "c1", path: "/x" } as never), { ops: { deletePath: noSuchContainer }, mesh }),
+      run(new DockerContainerAccess.live().deletePath({ containerId: "c1", path: "/x" }), { ops: { deletePath: noSuchContainer }, mesh }),
     ).rejects.toThrow(/No such container/);
   });
 
@@ -52,20 +53,20 @@ describe("DockerContainerAccess", () => {
     const ack = { ok: true };
     const mesh = { sendContainerTerminalInputAcrossInstances: vi.fn(async () => ({ responses: [{ ack }] })) };
     const sessions = { sendInput: () => Effect.fail(new Error("Terminal session 's1' not found")) };
-    await expect(run(new DockerContainerAccess.live().sendTerminalInput({ sessionId: "s1", input: "ls" } as never), { sessions, mesh })).resolves.toBe(ack);
+    await expect(run(new DockerContainerAccess.live().sendTerminalInput({ sessionId: "s1", input: "ls" }), { sessions, mesh })).resolves.toBe(ack);
   });
 
   it("treats closing a session nobody has as a success", async () => {
     const mesh = { closeContainerTerminalSessionAcrossInstances: vi.fn(async () => ({ responses: [] })) };
     const sessions = { close: () => Effect.fail(new Error("Terminal session 's1' not found")) };
-    const closed = (await run(new DockerContainerAccess.live().closeTerminal({ sessionId: "s1" } as never), { sessions, mesh })) as { ok: boolean };
+    const closed = (await run(new DockerContainerAccess.live().closeTerminal({ sessionId: "s1" }), { sessions, mesh })) as { ok: boolean };
     expect(closed.ok).toBe(true);
   });
 
   it("does not hide an unrelated terminal failure behind the mesh", async () => {
     const mesh = { sendContainerTerminalInputAcrossInstances: vi.fn() };
     const sessions = { sendInput: () => Effect.fail(new Error("stream write failed")) };
-    await expect(run(new DockerContainerAccess.live().sendTerminalInput({ sessionId: "s1", input: "x" } as never), { sessions, mesh })).rejects.toThrow("stream write failed");
+    await expect(run(new DockerContainerAccess.live().sendTerminalInput({ sessionId: "s1", input: "x" }), { sessions, mesh })).rejects.toThrow("stream write failed");
     expect(mesh.sendContainerTerminalInputAcrossInstances).not.toHaveBeenCalled();
   });
 });

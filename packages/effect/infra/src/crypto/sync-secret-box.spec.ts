@@ -1,6 +1,7 @@
-import { runSyncUnwrapped as sync } from "@deployer/effect-core";
 import { Effect, Exit, Layer, Redacted } from "effect";
 import { describe, expect, it } from "vitest";
+
+import { runSyncUnwrapped as sync } from "@deployer/effect-core";
 
 import { KeyRing } from "./key-ring";
 import { isLegacyCiphertext, LegacyFormatInvalid, readLegacyCiphertext } from "./legacy-ciphertext";

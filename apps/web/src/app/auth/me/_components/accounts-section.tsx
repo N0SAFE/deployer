@@ -8,7 +8,6 @@
  * confirmation dialog, which is pure view state.
  */
 
-import * as React from 'react'
 import {
     AlertCircle,
     ArrowLeftRight,
@@ -17,6 +16,9 @@ import {
     UserPlus,
     Users,
 } from 'lucide-react'
+import * as React from 'react'
+
+import { Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
 import { Avatar, AvatarFallback } from '@deployer/ui/components/shadcn/avatar'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button, buttonVariants } from '@deployer/ui/components/shadcn/button'
@@ -36,13 +38,15 @@ import {
     DialogTitle,
 } from '@deployer/ui/components/shadcn/dialog'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
-import { AuthMe, AuthSignin } from '@/routes'
+
 import { useSession } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { AuthMe, AuthSignin } from '@/routes'
+
 import { useDeviceAccounts } from '../_hooks/use-device-accounts'
-import type { DeviceAccount } from '../_models/device-account.types'
 import { getInitials } from '../_utils/initials'
+
+import type { DeviceAccount } from '../_models/device-account.types'
 
 export function AccountsSection() {
     const { data: session } = useSession()

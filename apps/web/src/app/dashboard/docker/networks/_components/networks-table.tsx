@@ -1,14 +1,17 @@
 'use client'
 
 import { Network as NetworkIcon } from 'lucide-react'
+
+import type { DockerNetwork } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import type { DockerNetwork } from '@deployer/contracts-entities'
+
 import { EmptyState, FilteredEmptyState } from '@/components/dashboard'
+
 import { DockerCopyButton } from '../../_components/docker-copy-button'
-import { DockerRelativeTime } from '../../_components/docker-relative-time'
 import { DockerTableSkeleton } from '../../_components/docker-loading-states'
 import { DockerNetworkDetailModalTrigger } from '../../_components/docker-network-detail-modal'
+import { DockerRelativeTime } from '../../_components/docker-relative-time'
 import { shortId } from '../../_utils/format'
 import { isBuiltInNetwork } from '../_utils/networks'
 

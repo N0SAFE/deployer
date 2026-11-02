@@ -4,6 +4,12 @@ import {
 	EffectHost,
 	EffectHostModule,
 } from "@deployer/nest-effect";
+import { createBetterAuth } from '@deployer/shared/config/auth/auth'
+import { registerSchemaCodecs } from '@deployer/shared/config/drizzle/schema-codecs'
+import { EnvModule, EnvService } from '@deployer/shared/config/env/env.module'
+import { AuthModule } from '@deployer/shared/core/modules/auth/auth.module'
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
+import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
 import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module';
 import {
     DEPENDENCIES,
@@ -12,18 +18,13 @@ import {
     ServiceHealthModule,
     createOrpcModule,
 } from '@deployer/shared/server'
-import { registerSchemaCodecs } from '@deployer/shared/config/drizzle/schema-codecs'
-import { EnvModule, EnvService } from '@deployer/shared/config/env/env.module'
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
-import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
-import { AuthModule } from '@deployer/shared/core/modules/auth/auth.module'
-import { createBetterAuth } from '@deployer/shared/config/auth/auth'
+
 import { DatabasePortModule } from '@identity/core/database/database.module'
 
-import { UserDomainModule } from './modules/user/user.module'
-import { PushDomainModule } from './modules/push/push.module'
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
 import { PermissionDomainModule } from './modules/permission/permission.module'
+import { PushDomainModule } from './modules/push/push.module'
+import { UserDomainModule } from './modules/user/user.module'
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.

@@ -7,6 +7,8 @@
  * `orpc.providers.dns.<variant>.*`.
  */
 import { oc } from "@orpc/contract";
+
+import { cloudflareProviderContract } from "./cloudflare";
 import {
     dnsProviderListContract,
     dnsProviderCreateContract,
@@ -14,7 +16,6 @@ import {
     dnsProviderDeleteContract,
     dnsProviderCheckStateContract,
 } from "./shared";
-import { cloudflareProviderContract } from "./cloudflare";
 
 export const dnsProvidersContract = oc.router({
     // Generic provider-app CRUD (shared across all DNS provider variants)

@@ -1,8 +1,10 @@
 'use client'
 
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { managedWebEndpoints, managedWebEndpointOperations } from './endpoints'
+
 import { wrapWithInvalidations } from '../shared/helpers'
+
+import { managedWebEndpoints, managedWebEndpointOperations } from './endpoints'
 import { managedWebInvalidations } from './invalidations'
 
 const enhancedManagedWeb = wrapWithInvalidations(

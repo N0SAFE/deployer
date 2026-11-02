@@ -1,5 +1,6 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
+
 import {
     serviceCrudContract,
     serviceListContract,
@@ -16,30 +17,13 @@ import {
     type ServiceCreateInput,
     type ServiceUpdateInput,
 } from "./crud";
-import { serviceLifecycleContract, serviceToggleActiveContract } from "./lifecycle";
 import {
     serviceDependenciesContract,
     serviceGetDependenciesContract,
     serviceAddDependencyContract,
     serviceRemoveDependencyContract,
 } from "./dependencies";
-import {
-    serviceStreamsContract,
-    serviceQueryStreamContract,
-    serviceStreamEventTypeSchema,
-    serviceStreamEventSchema,
-    serviceStreamQueryFiltersSchema,
-    type ServiceStreamEvent,
-    type ServiceStreamQueryInput,
-} from "./streams";
-import {
-    servicePreviewTopologyContract,
-    previewTopologyResolveContract,
-    resolvedPreviewNodeSchema,
-    previewResolutionKindSchema,
-    type ResolvedPreviewNode,
-    type PreviewResolutionKind,
-} from "./preview-topology";
+import { serviceLifecycleContract, serviceToggleActiveContract } from "./lifecycle";
 import {
     serviceNetworkContract,
     serviceGetNetworkContract,
@@ -49,6 +33,23 @@ import {
     type ServiceUpdateNetworkInput,
     type ServiceProvisionDnsRecordInput,
 } from "./network";
+import {
+    servicePreviewTopologyContract,
+    previewTopologyResolveContract,
+    resolvedPreviewNodeSchema,
+    previewResolutionKindSchema,
+    type ResolvedPreviewNode,
+    type PreviewResolutionKind,
+} from "./preview-topology";
+import {
+    serviceStreamsContract,
+    serviceQueryStreamContract,
+    serviceStreamEventTypeSchema,
+    serviceStreamEventSchema,
+    serviceStreamQueryFiltersSchema,
+    type ServiceStreamEvent,
+    type ServiceStreamQueryInput,
+} from "./streams";
 
 export const serviceContract = oc.meta(openapi({ tags: ["Service"], prefix: "/services" })).router({
     crud: serviceCrudContract,

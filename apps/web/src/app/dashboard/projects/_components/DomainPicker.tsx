@@ -1,9 +1,11 @@
 'use client'
 
-import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { Label } from '@deployer/ui/components/shadcn/label'
-import { cn } from '@/lib/utils'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { useProjectDomains } from '@/domains/domain/hooks'
+import { cn } from '@/lib/utils'
+
 import { InlineError } from './workload/WorkloadStates'
 
 interface DomainPickerProps {

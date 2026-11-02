@@ -8,21 +8,21 @@ export type StoryStatus = 'built' | 'mechanism' | 'design';
 /** One line on the diagram: an SVG path, the router it travels on, and how to draw it. */
 export type StoryPath = readonly [d: string, route: Route, style?: 'dashed' | 'wide'];
 
-export type StoryStep = {
+export interface StoryStep {
   readonly title: string;
   readonly detail: string;
   /** The agents the step is about. */
   readonly highlight: readonly NodeId[];
   readonly paths: readonly StoryPath[];
-};
+}
 
-export type Story = {
+export interface Story {
   readonly name: string;
   readonly status: StoryStatus;
   /** What is built and what is not, for this story. */
   readonly note: string;
   readonly steps: readonly StoryStep[];
-};
+}
 
 export const STATUS_LABEL: Record<StoryStatus, string> = {
   built: 'Built',

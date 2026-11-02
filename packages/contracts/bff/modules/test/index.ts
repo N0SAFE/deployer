@@ -2,10 +2,10 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 
 // Import all test contract definitions
-import { testNonAuthenticatedContract } from './non-authenticated';
 import { testAuthenticatedContract } from './authenticated';
-import { testFileUploadContract } from './file-upload';
 import { testFileDownloadContract } from './file-download';
+import { testFileUploadContract } from './file-upload';
+import { testNonAuthenticatedContract } from './non-authenticated';
 import { testStreamOutputContract } from './stream-output';
 
 // Combine into main test contract

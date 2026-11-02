@@ -1,5 +1,6 @@
 'use client';
 
+import { useDocsSearch } from 'fumadocs-core/search/client';
 import {
   SearchDialog,
   SearchDialogClose,
@@ -11,9 +12,10 @@ import {
   SearchDialogList,
   SearchDialogOverlay,
 } from 'fumadocs-ui/components/dialog/search';
-import { useDocsSearch } from 'fumadocs-core/search/client';
-import type { SharedProps } from 'fumadocs-ui/contexts/search';
 import { use, useMemo } from 'react';
+
+import type { SharedProps } from 'fumadocs-ui/contexts/search';
+
 
 /**
  * Search dialog for the static export.

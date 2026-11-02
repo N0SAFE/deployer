@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
+
 import { ProjectDetailLayoutInner } from './_components/project-detail-layout-inner'
 import { ProjectDetailSkeleton } from './_components/project-detail-skeleton'
-import type { ReactNode } from 'react'
+
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 
 // Metadata lives in the layout: the project pages are client components, and
 // `metadata` cannot be exported from a `'use client'` file. The project's own

@@ -2,16 +2,20 @@
 
 import { MailWarning, Trash2, UserPlus, Users } from 'lucide-react'
 import z from 'zod/v4'
+
 import { projectAssignableRoleSchema, projectRoleSchema } from '@deployer/contracts-entities'
 import { Avatar, AvatarFallback } from '@deployer/ui/components/shadcn/avatar'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EmptyState } from '@/components/dashboard'
+
 import { memberState, isSoleOwner } from '../../[projectId]/_utils/team'
 import { CopyButton } from '../workload/CopyButton'
 import { RelativeTime } from '../workload/RelativeTime'
+
 import type { ProjectRole } from './InviteMemberDialog'
 
 export interface Member {

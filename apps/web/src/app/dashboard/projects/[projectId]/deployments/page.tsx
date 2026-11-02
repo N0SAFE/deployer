@@ -1,29 +1,34 @@
 'use client'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useMemo, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { useProjectDetail } from '../_hooks/use-project-detail'
-import { useDeploymentFilters } from '../_hooks/use-project-filters'
-import { useTriggerDeployment, useCancelDeployment, useRollbackDeployment, useRetryDeployment, useDeleteDeployment } from '@/domains/deployment/hooks'
-import { useServiceList } from '@/domains/service/hooks'
-import { useProjectEnvironments } from '@/domains/project/hooks'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Siren, RefreshCw, Rocket, RotateCcw, XCircle, Play, Trash2, ScrollText } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import { z } from 'zod/v4'
+
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@deployer/ui/components/shadcn/dialog'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@deployer/ui/components/shadcn/dialog'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
-import { Siren, RefreshCw, Rocket, RotateCcw, XCircle, Play, Trash2, ScrollText } from 'lucide-react'
-import { toast } from 'sonner'
-import { formatDate, shortId } from '../_utils/helpers'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { StatusBadge, EmptyState, FilteredEmptyState } from '@/components/dashboard'
+import { useTriggerDeployment, useCancelDeployment, useRollbackDeployment, useRetryDeployment, useDeleteDeployment } from '@/domains/deployment/hooks'
+import { useProjectEnvironments } from '@/domains/project/hooks'
 import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
+import { useServiceList } from '@/domains/service/hooks'
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { AuthDashboardProjectsProjectIdServicesServiceIdLogs } from '@/routes'
-import { z } from 'zod/v4'
+
+import { useProjectDetail } from '../_hooks/use-project-detail'
+import { useDeploymentFilters } from '../_hooks/use-project-filters'
+import { formatDate, shortId } from '../_utils/helpers'
+
+
 
 const triggerSchema = z.object({
   serviceId: z.string().min(1, 'Select a service'),
@@ -48,7 +53,7 @@ export default function ProjectDeploymentsPage() {
   const projectEnvironments = useMemo(() => {
     if (!environmentsData) return []
     const list = Array.isArray(environmentsData) ? environmentsData : (environmentsData as { environments?: unknown[] }).environments ?? []
-    return list as Array<{ id: string; name: string; kind?: string }>
+    return list as { id: string; name: string; kind?: string }[]
   }, [environmentsData])
 
   // ── Service filter state (not URL-synced — derived per project) ──
@@ -126,7 +131,7 @@ export default function ProjectDeploymentsPage() {
   const handleCancel = async () => {
     if (!cancelId) return
     try {
-      await cancelDeployment.mutateAsync({ params: { id: cancelId } } as any)
+      await cancelDeployment.mutateAsync({ params: { id: cancelId } })
       toast.success('Deployment cancelled'); setCancelOpen(false); setCancelId(null)
     } catch (err) { toast.error('Failed to cancel', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
   }
@@ -146,7 +151,7 @@ export default function ProjectDeploymentsPage() {
   // ── Retry ───────────────────────────────────────────────────────
   const handleRetry = async (id: string) => {
     try {
-      await retryDeployment.mutateAsync({ params: { id } } as any)
+      await retryDeployment.mutateAsync({ params: { id } })
       toast.success('Retrying deployment')
     } catch (err) { toast.error('Failed to retry', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
   }
@@ -158,7 +163,7 @@ export default function ProjectDeploymentsPage() {
   const handleDelete = async () => {
     if (!deleteId) return
     try {
-      await deleteDeployment.mutateAsync({ params: { id: deleteId } } as any)
+      await deleteDeployment.mutateAsync({ params: { id: deleteId } })
       toast.success('Deployment deleted'); setDeleteOpen(false); setDeleteId(null)
     } catch (err) { toast.error('Failed to delete', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
   }
@@ -201,7 +206,7 @@ export default function ProjectDeploymentsPage() {
                   {(field) => (
                     <div className="grid gap-2">
                       <Label>Service</Label>
-                      <Select value={field.state.value} onValueChange={(v) => field.handleChange(v)}>
+                      <Select value={field.state.value} onValueChange={(v) => { field.handleChange(v); }}>
                         <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
                         <SelectContent>
                           {localServices.map((s: any) => (<SelectItem key={s.id} value={s.id}>{s.name ?? s.id}</SelectItem>))}
@@ -214,7 +219,7 @@ export default function ProjectDeploymentsPage() {
                   {(field) => (
                     <div className="grid gap-2">
                       <Label>Environment</Label>
-                      <Select value={field.state.value} onValueChange={(v) => field.handleChange(v)}>
+                      <Select value={field.state.value} onValueChange={(v) => { field.handleChange(v); }}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {projectEnvironments.length === 0 ? (
@@ -233,7 +238,7 @@ export default function ProjectDeploymentsPage() {
                 </triggerForm.Field>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setTriggerOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setTriggerOpen(false); }}>Cancel</Button>
                 <triggerForm.Subscribe selector={(s) => s.isSubmitting}>
                   {(isSubmitting) => (
                     <Button onClick={triggerForm.handleSubmit} disabled={isSubmitting || triggerDeployment.isPending}>
@@ -250,7 +255,7 @@ export default function ProjectDeploymentsPage() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="grid gap-1.5">
               <Label className="text-[11px] text-muted-foreground">Status</Label>
-              <Select value={filters.status} onValueChange={(v) => setFilters({ status: v as never })}>
+              <Select value={filters.status} onValueChange={(v) => { setFilters({ status: v as never }); }}>
                 <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
@@ -263,7 +268,7 @@ export default function ProjectDeploymentsPage() {
             </div>
             <div className="grid gap-1.5">
               <Label className="text-[11px] text-muted-foreground">Environment</Label>
-              <Select value={filters.environment ?? 'all'} onValueChange={(v) => setFilters({ environment: v })}>
+              <Select value={filters.environment ?? 'all'} onValueChange={(v) => { setFilters({ environment: v }); }}>
                 <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All environments</SelectItem>
@@ -378,7 +383,7 @@ export default function ProjectDeploymentsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Cancel Deployment</DialogTitle><DialogDescription>This will stop the running deployment <strong className="font-mono">{shortId(cancelId ?? '')}</strong>.</DialogDescription></DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => { setCancelOpen(false); }}>Close</Button>
             <Button variant="destructive" onClick={handleCancel} disabled={cancelDeployment.isPending}>{cancelDeployment.isPending ? 'Cancelling...' : 'Cancel Deployment'}</Button>
           </DialogFooter>
         </DialogContent>
@@ -389,7 +394,7 @@ export default function ProjectDeploymentsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Rollback Deployment</DialogTitle><DialogDescription>Revert deployment <strong className="font-mono">{shortId(rollbackId ?? '')}</strong> to the previous version.</DialogDescription></DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRollbackOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => { setRollbackOpen(false); }}>Close</Button>
             <Button onClick={handleRollback} disabled={rollbackDeployment.isPending}>{rollbackDeployment.isPending ? 'Rolling back...' : 'Rollback'}</Button>
           </DialogFooter>
         </DialogContent>
@@ -400,7 +405,7 @@ export default function ProjectDeploymentsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Delete Deployment</DialogTitle><DialogDescription>This permanently removes the deployment record <strong className="font-mono">{shortId(deleteId ?? '')}</strong>.</DialogDescription></DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setDeleteOpen(false); }}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleteDeployment.isPending}>{deleteDeployment.isPending ? 'Deleting...' : 'Delete'}</Button>
           </DialogFooter>
         </DialogContent>

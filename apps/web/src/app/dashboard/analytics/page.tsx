@@ -1,17 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { useMemo, useState } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+
 import { PageHeader, ScopeLabel } from '@/components/dashboard'
-import type { Granularity, TimeRange } from '@/domains/analytics/types'
 import { useDeploymentMetrics, useDeploymentUsage, useRealTimeMetrics, useServiceHealth } from '@/domains/analytics/hooks'
-import { allowedGranularities, bucketLabel, coerceGranularity, TIME_RANGE_LABELS, usageRangeFor } from './_utils/range'
+import type { Granularity, TimeRange } from '@/domains/analytics/types'
+
 import { DeploymentActivityCard } from './_components/deployment-activity-card'
 import { ResourceSnapshotCard } from './_components/resource-snapshot-card'
 import { ServiceHealthCard } from './_components/service-health-card'
+import { allowedGranularities, bucketLabel, coerceGranularity, TIME_RANGE_LABELS, usageRangeFor } from './_utils/range'
 
 const GRANULARITY_LABELS: Record<Granularity, string> = { minute: 'Per minute', hour: 'Per hour', day: 'Per day' }
 

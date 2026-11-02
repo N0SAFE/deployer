@@ -30,19 +30,19 @@ export function runtimeOverResolution(fake: PromiseResolution) {
         inspectContainer: wrap("inspectContainer"),
     };
     return {
-        runPromiseUnwrapped: <A>(effect: Effect.Effect<A, unknown, never>) =>
+        runPromiseUnwrapped: <A>(effect: Effect.Effect<A, unknown>) =>
             Effect.runPromise(Effect.provideService(effect as never, DockerContainerResolution, service as never)) as Promise<A>,
     };
 }
 
 /** The resolution built over fake collaborators, called as a Promise API the way the old class was. */
 export function createResolution(mesh: unknown, local: unknown) {
-    const provide = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect);
+    const provide = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
     const withPorts = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
         effect.pipe(
             Effect.provideService(ContainersMeshPort, mesh as never),
             Effect.provideService(ContainersLocalPort, local as never),
-        ) as Effect.Effect<A, E, never>;
+        ) as Effect.Effect<A, E>;
     return {
         listContainers: (...args: Parameters<typeof DockerContainerResolution.live.listContainers>) =>
             provide(withPorts(DockerContainerResolution.live.listContainers(...args))),

@@ -1,6 +1,8 @@
-import type { Auth } from "../../../../auth";
-import { createPluginRegistry, type AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
 import { standardErrorActions } from "@deployer/orpc-utils";
+
+import { createPluginRegistry, type AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
+
+import type { Auth } from "../../../../auth";
 
 export type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
   // `role` comes from Better Auth's `user.additionalFields.role` (DB text).

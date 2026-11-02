@@ -6,7 +6,9 @@
  * registered under, so a provider carries no type key of its own.
  */
 import type { Effect } from "effect";
+
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import type { DeploymentSourceCheckoutContext } from "../../base/source-provider.interface";
 
 export type CodeProvider<R = never> = {

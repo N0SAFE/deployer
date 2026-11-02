@@ -10,6 +10,7 @@
  */
 
 import * as z from "zod";
+
 import {
     type SearchConfig as BaseSearchConfig,
     type SearchSchemaOutput as BaseSearchSchemaOutput,

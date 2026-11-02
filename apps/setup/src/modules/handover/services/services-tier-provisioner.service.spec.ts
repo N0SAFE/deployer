@@ -1,10 +1,11 @@
-import { toDockerServiceSpec } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
+import { toDockerServiceSpec } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import type { NodeDoorClient, NodeDoorStatus } from "@deployer/mesh-client";
 
 import { makeEnvService } from "@/test-support/env";
-import type { DockerEngineShape } from "@deployer/docker";
 
 import { ServicesTierProvisioner } from "./services-tier-provisioner.service";
 

@@ -1,13 +1,17 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
-import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { GlobalDatabaseService } from "../../database/services/global-database.service";
-import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+
 import { coreDomainEventEnvelopeSchema } from "@deployer/contracts-entities";
 import { resolveNodeId } from "@deployer/env";
+import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+
+import { GlobalDatabaseService } from "../../database/services/global-database.service";
+
 import {
     LocalEventOutboxRepository,
     type OutboxRow,
 } from "./local-event-outbox.repository";
+
+import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 
 @Injectable()
 export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
@@ -46,9 +50,8 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
             });
         }, this.pollIntervalMs);
 
-        if (this.ticker && typeof this.ticker.unref === "function") {
-            this.ticker.unref();
-        }
+        // `unref` exists on Node's Timeout, and the assignment above just narrowed it to non-null.
+        this.ticker.unref();
     }
 
     onModuleDestroy(): void {

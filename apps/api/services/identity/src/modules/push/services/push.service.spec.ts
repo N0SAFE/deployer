@@ -3,20 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Actor, Correlation, CurrentActor } from '@deployer/effect-core'
 
+import { PushInvalid, PushSubscriptionNotFound } from '../domain/push.errors'
 import {
     PushRepository,
     type PushRepositoryShape,
 } from '../repositories/push.repository'
-import type {
-    StoredSubscription,
-    VapidKeys,
-} from '../repositories/push.repository.types'
-import { PushInvalid, PushSubscriptionNotFound } from '../domain/push.errors'
+
 import {
     PushService,
     type PushFailure,
     type PushServiceShape,
 } from './push.service'
+
+import type {
+    StoredSubscription,
+    VapidKeys,
+} from '../repositories/push.repository.types'
 
 /**
  * The push domain's RULES.

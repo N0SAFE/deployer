@@ -1,21 +1,26 @@
 import { randomUUID } from 'node:crypto'
+
 import request from 'supertest'
 import { afterAll, beforeAll } from 'vitest'
+
 import { setupContract } from '@deployer/bff-contracts'
-import { appContract } from '../core/orpc/app-contract'
-import type { AnyContractRouter } from '@orpc/contract'
-import type { Auth } from '../auth'
+
 import { AuthCoreService } from '../core/modules/auth/services/auth-core.service'
+import { appContract } from '../core/orpc/app-contract'
+
 import { SharedApiRuntimeManager } from './shared-api-runtime/manager'
+import {
+    createSharedOrpcResponseTracker,
+    createSharedRuntimeOrpcClient,
+} from './shared-api-runtime/orpc'
 import {
     resetSharedRuntimeRequestOverride,
     setSharedRuntimeAuthHeaders,
     setSharedRuntimeRequestOverride,
 } from './shared-api-runtime/request-override'
-import {
-    createSharedOrpcResponseTracker,
-    createSharedRuntimeOrpcClient,
-} from './shared-api-runtime/orpc'
+import { resolveSharedRuntimeMaxConcurrency } from './shared-api-runtime/types'
+
+import type { Auth } from '../auth'
 import type {
     ClassConstructor,
     SharedApiRuntime,
@@ -25,7 +30,7 @@ import type {
     SharedRuntimeOrpcClientOptions,
     SharedRuntimeServiceMapper,
 } from './shared-api-runtime/types'
-import { resolveSharedRuntimeMaxConcurrency } from './shared-api-runtime/types'
+import type { AnyContractRouter } from '@orpc/contract'
 
 const sharedRuntimeManager = new SharedApiRuntimeManager()
 const runtimeContextPromisesByKey = new Map<string, Promise<SharedApiRuntimeContext>>()
@@ -68,7 +73,7 @@ async function buildSharedApiRuntimeContext(
         orpc: createSharedRuntimeOrpcClient(appContract, runtime, {
             tracker,
         }),
-        http: request(runtime.app.getHttpServer()),
+        http: request(runtime.app.getHttpServer() as Parameters<typeof request>[0]),
         betterAuth,
         serviceMapper,
         orpcTracker: tracker,

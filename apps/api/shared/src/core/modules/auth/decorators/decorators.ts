@@ -1,12 +1,16 @@
 import { createParamDecorator, SetMetadata } from "@nestjs/common";
-import type { CustomDecorator, ExecutionContext } from "@nestjs/common";
-import type { createAuthMiddleware } from "better-auth/api";
-import { AFTER_HOOK_KEY, BEFORE_HOOK_KEY, HOOK_KEY } from "../types/symbols";
+
 import type { RoleName } from "@deployer/auth/permissions";
 import { PermissionChecker } from "@deployer/auth/permissions";
-import type { Session as BetterAuthSession } from "better-auth";
-import type { UserWithRole } from "better-auth/plugins";
+
+import { AFTER_HOOK_KEY, BEFORE_HOOK_KEY, HOOK_KEY } from "../types/symbols";
 import { getRequestFromContext } from "../utils/context";
+
+import type { CustomDecorator, ExecutionContext } from "@nestjs/common";
+import type { Session as BetterAuthSession } from "better-auth";
+import type { createAuthMiddleware } from "better-auth/api";
+import type { UserWithRole } from "better-auth/plugins";
+
 /**
  * Allows unauthenticated (anonymous) access to a route or controller.
  * When applied, the AuthGuard will not perform authentication checks.

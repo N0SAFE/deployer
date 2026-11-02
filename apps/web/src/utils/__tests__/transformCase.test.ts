@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+
 import { keysToSnake } from '../transformCase'
 
 // Mock lodash.snakecase

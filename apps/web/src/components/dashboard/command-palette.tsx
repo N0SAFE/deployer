@@ -1,13 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
 import { Clock } from 'lucide-react'
-import { isStringArray, pushRecent, readStoredJson, writeStoredJson } from './persisted-state'
+import { FolderKanban, Server, type LucideIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import {
-  AuthDashboardProjectsProjectId,
-  AuthDashboardProjectsProjectIdServicesServiceId,
-} from '@/routes'
+import { useEffect, useMemo, useState } from 'react'
+
 import {
   CommandDialog,
   CommandEmpty,
@@ -18,14 +15,20 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@deployer/ui/components/shadcn/command'
-import { FolderKanban, Server, type LucideIcon } from 'lucide-react'
+
 import { useProjectList } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
 import { useIsPlatformAdmin } from '@/lib/access/platform-role'
+import {
+  AuthDashboardProjectsProjectId,
+  AuthDashboardProjectsProjectIdServicesServiceId,
+} from '@/routes'
+
 // `useSession` is no longer needed here: the admin gate moved to the shared hook.
-import { visibleNavGroups } from './navigation'
 import { subscribeCommandPalette } from './command-palette-store'
 import { fuzzyMatch } from './fuzzy'
+import { visibleNavGroups } from './navigation'
+import { isStringArray, pushRecent, readStoredJson, writeStoredJson } from './persisted-state'
 
 interface PaletteEntry {
   id: string

@@ -1,23 +1,24 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { templateListContract } from "./list";
-import { templateFindByIdContract } from "./findById";
-import { templateCreateContract } from "./create";
-import { templateUpdateContract } from "./update";
-import { templateDeleteContract } from "./delete";
+
 import { templateGetCompatibilityMatrixContract, templateValidateCompatibilityContract } from "./compatibility";
+import { templateCreateContract } from "./create";
+import { templateDeleteContract } from "./delete";
+import { templateFindByIdContract } from "./findById";
+import { templateListContract } from "./list";
+import {
+    templateApplyVersionMigrationContract,
+    templateListVersionMigrationsContract,
+    templatePreviewVersionMigrationContract,
+} from "./migration";
+import { templateResolveContract, templateResolveSetContract } from "./resolver";
+import { templateUpdateContract } from "./update";
 import {
     templateValidateContract,
     templateValidateSemanticContract,
     templateValidateSetContract,
     templateValidateStructuralContract,
 } from "./validation";
-import { templateResolveContract, templateResolveSetContract } from "./resolver";
-import {
-    templateApplyVersionMigrationContract,
-    templateListVersionMigrationsContract,
-    templatePreviewVersionMigrationContract,
-} from "./migration";
 
 export const templateContract = oc.meta(openapi({ tags: ["Template"], prefix: "/templates" })).router({
     list: templateListContract,

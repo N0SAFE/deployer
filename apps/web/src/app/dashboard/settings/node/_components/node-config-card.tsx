@@ -1,17 +1,21 @@
 'use client'
 
-import { useState } from 'react'
 import { Eye, EyeOff, Settings, Sliders } from 'lucide-react'
+import { useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
-import { QueryError } from '../../_components/query-error'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { useNodeStatus } from '@/domains/setup/hooks'
+
 import { useMeshNodeConfig, useMeshSseState } from '@/domains/mesh/hooks'
+import { useNodeStatus } from '@/domains/setup/hooks'
 import { formatDateTime } from '@/lib/format/date'
-import { NodeConfigForm } from './node-config-form'
+
+import { QueryError } from '../../_components/query-error'
+
 import { ValueTile } from './field'
+import { NodeConfigForm } from './node-config-form'
 import { useNodeConfigForm } from './use-node-config-form'
 
 /**

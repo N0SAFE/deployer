@@ -1,5 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
 import { request as httpRequest } from "node:http";
+
+import { Injectable, Logger } from "@nestjs/common";
+
 import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";

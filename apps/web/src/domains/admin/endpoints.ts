@@ -13,8 +13,10 @@
  */
 
 import { authClient } from '@/lib/auth'
-import { custom, mapBetterAuth } from '../shared/helpers'
+
 import { STALE_TIME } from '../shared/config'
+import { custom, mapBetterAuth } from '../shared/helpers'
+
 import {
   listUsersSchema,
   banUserSchema,

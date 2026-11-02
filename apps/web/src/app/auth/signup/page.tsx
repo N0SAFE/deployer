@@ -1,11 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 'use client'
 
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Label } from '@deployer/ui/components/shadcn/label'
+import { useForm } from '@tanstack/react-form'
+import { UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import React from 'react'
+
+import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
 import { Alert, AlertDescription } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
     Card,
     CardContent,
@@ -13,19 +16,25 @@ import {
     CardHeader,
     CardTitle,
 } from '@deployer/ui/components/shadcn/card'
-import { useForm } from '@tanstack/react-form'
-import React from 'react'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+
+
 import redirect from '@/actions/redirect'
-import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
-import { signupSchema } from './schema'
+import { useSetupState } from '@/domains/setup/hooks'
+import { authClient } from '@/lib/auth'
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { setupDestinationUrl } from '@/lib/setup-url'
 import { AuthSignup, AuthSignin } from '@/routes'
-import { UserPlus } from 'lucide-react'
+
+
 import { PasswordInput } from '../_components/password-input'
 import { devConveniencesEnabled } from '../_utils/dev-only'
-import { authClient } from '@/lib/auth'
-import { useSetupState } from '@/domains/setup/hooks'
-import { setupDestinationUrl } from '@/lib/setup-url'
-import { useRouter } from 'next/navigation'
+
+import { signupSchema } from './schema'
+
+
+
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignup.Route(({ searchParams }) => {

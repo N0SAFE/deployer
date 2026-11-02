@@ -23,7 +23,8 @@
  * switch, the teardown is cleanup.
  */
 
-import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts/modules/reachability/contracts";
+import { Context, Effect } from "effect";
+
 import {
 	ingressExposure,
 	ingressLanesSchema,
@@ -31,14 +32,17 @@ import {
 	type IngressLanes,
 	type PublicLane,
 } from "@deployer/contracts-entities/entities/ingress/index";
+import { bindServices, serviceOver, type Over } from "@deployer/effect-core";
+import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts/modules/reachability/contracts";
 import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
 import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { bindServices, serviceOver, type Over } from "@deployer/effect-core";
-import { Context, Effect } from "effect";
+
+
+import type { DnsProviderRegistryServices } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 
 import { attempt, attemptSync } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
@@ -51,7 +55,7 @@ import {
 	PublicEdgePort,
 	TraefikRefresherPort,
 } from "../reachability.ports";
-import type { DnsProviderRegistryServices } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+
 import { EdgeDnsService, type EdgeDnsServiceShape } from "./edge-dns.service";
 import { planLaneDnsRecords } from "./lane-dns-plan";
 

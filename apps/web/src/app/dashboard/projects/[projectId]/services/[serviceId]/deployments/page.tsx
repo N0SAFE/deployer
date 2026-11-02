@@ -1,23 +1,27 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { Rocket, Search } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useDeploymentList } from '@/domains/deployment/hooks'
-import { useDockerContainerList } from '@/domains/docker/hooks'
-import { useNow } from '@/components/dashboard/use-now'
-import { EmptyState, EnvironmentBadge, FilteredEmptyState, StatusBadge } from '@/components/dashboard'
+import { useParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { ListLoading, InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
-import { RelativeTime } from '../../../../_components/workload/RelativeTime'
+
+import { EmptyState, EnvironmentBadge, FilteredEmptyState, StatusBadge } from '@/components/dashboard'
+import { useNow } from '@/components/dashboard/use-now'
+import { useDeploymentList } from '@/domains/deployment/hooks'
+import { useDockerContainerList } from '@/domains/docker/hooks'
+import { cn } from '@/lib/utils'
+
 import { IdChip } from '../../../../_components/workload/CopyButton'
-import { deploymentDurationMs, deploymentStartedAt, formatDuration } from '../../../../_utils/workload'
+import { RelativeTime } from '../../../../_components/workload/RelativeTime'
+import { ListLoading, InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
 import { filterDeployments, hasActiveFilters, sortDeployments, type StatusFilter } from '../../../../_utils/deployment-list'
+import { deploymentDurationMs, deploymentStartedAt, formatDuration } from '../../../../_utils/workload'
+
 import { DeploymentDetail } from './_components/deployment-detail'
 
 const CONTAINER_INPUT = { query: { limit: 500, offset: 0 } } as const

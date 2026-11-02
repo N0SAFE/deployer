@@ -1,6 +1,7 @@
 import { Logger } from "@nestjs/common";
+import { Effect } from "effect";
+
 import type { DockerEngineShape } from "@deployer/docker";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 import {
 	makeManagedWebSupervisor,
 	managedWebProcessInfoSchema,
@@ -8,13 +9,13 @@ import {
 	PLATFORM_MANAGED_WEB_SUPERVISOR_ID,
 	type ManagedWebSupervisor,
 } from "@deployer/platform-supervisors";
-import { Effect } from "effect";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
-import { MANAGED_WEB_CONTAINER_BASE_NAME, platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
+import { MANAGED_WEB_CONTAINER_BASE_NAME, platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { PLATFORM_MANAGED_WEB_SUPERVISOR_ID };
 

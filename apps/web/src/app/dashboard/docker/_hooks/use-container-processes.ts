@@ -1,18 +1,22 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { useDockerContainerProcessLogsStream, useDockerContainerProcessesStream } from '@/domains/docker/hooks'
+
 import {
   dockerContainerProcessEntrySchema,
   type DockerContainerLogEntry,
   type DockerContainerProcessEntry,
   type DockerContainerInspectDetail,
 } from '@deployer/contracts-entities'
+
+import { useDockerContainerProcessLogsStream, useDockerContainerProcessesStream } from '@/domains/docker/hooks'
+
 import {
   explodeCompositeLogEntry,
   extractContainerLogEntries,
   mergeContainerLogsWithLimit,
 } from '../_utils/container-logs'
+
 import { STREAM_QUERY_BASE_OPTIONS } from './container-stream-options'
 import { useOnDepsChange } from './use-on-deps-change'
 

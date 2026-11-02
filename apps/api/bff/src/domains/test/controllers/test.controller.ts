@@ -56,31 +56,33 @@
 import { Controller, Get, Logger, Param, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiParam, ApiBearerAuth } from "@nestjs/swagger";
 import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
 import { Implement } from "@orpc/nest";
+import { openapi } from "@orpc/openapi";
 import { implement } from "@orpc/server";
 import * as z from "zod/v4";
 
 // Auth Service (single source of truth)
-import { AuthService } from "@/core/modules/auth/services/auth.service";
+import type { RoleName } from "@deployer/auth/permissions";
 
-// NestJS Guards
-import { AuthGuard } from "@/core/modules/auth/guards/auth.guard";
-
-// NestJS Decorators
 import {
     AllowAnonymous,
     OptionalAuth,
     Session,
     AuthenticatedUser,
 } from "@/core/modules/auth/decorators/decorators";
+import { AuthGuard } from "@/core/modules/auth/guards/auth.guard";
+
+// NestJS Guards
+
+// NestJS Decorators
 
 // ORPC Middlewares
 import { requireAuth, publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import { assertAuthenticated } from "@/core/modules/auth/orpc/types";
+import { AuthService } from "@/core/modules/auth/services/auth.service";
 
 // Types
-import type { RoleName } from "@deployer/auth/permissions";
+
 import type { UserSession } from "@/core/modules/auth/utils/auth-utils";
 
 // =============================================================================

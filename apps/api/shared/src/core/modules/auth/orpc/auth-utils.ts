@@ -1,9 +1,10 @@
-import type { ORPCAuthContext } from "./types";
 import { 
   AuthUtils as GlobalAuthUtils, 
   AuthUtilsEmpty as GlobalAuthUtilsEmpty,
   type UserSession
 } from "../utils/auth-utils";
+
+import type { ORPCAuthContext } from "./types";
 
 // Re-export UserSession for use in plugins
 export type { UserSession };

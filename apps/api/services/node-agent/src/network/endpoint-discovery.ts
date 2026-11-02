@@ -117,7 +117,7 @@ export function stunReflexiveAddress(server: string, timeoutMs = 3_000): Promise
 					if (error) finish(null);
 				});
 			})
-			.catch(() => finish(null));
+			.catch(() => { finish(null); });
 	});
 }
 

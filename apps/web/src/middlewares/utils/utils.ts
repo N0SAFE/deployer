@@ -113,7 +113,7 @@ export function matcherHandler<
             } as Ret<M, T, Callback, Options>
         }
 
-        const [matcher, callback] = item as [matcher: M, callback: Callback]
+        const [matcher, callback] = item
         const isMatched = match(matcher)
         if (isMatched) {
             const data = callback()

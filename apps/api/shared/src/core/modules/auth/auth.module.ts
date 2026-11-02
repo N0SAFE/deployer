@@ -1,19 +1,16 @@
 import { Inject, Logger, Module } from "@nestjs/common";
-import type {
-	DynamicModule,
-	MiddlewareConsumer,
-	NestModule,
-	OnModuleInit,
-} from "@nestjs/common";
 import {
 	DiscoveryModule,
 	DiscoveryService,
 	HttpAdapterHost,
 	MetadataScanner,
 } from "@nestjs/core";
-import { toNodeHandler } from "better-auth/node";
+import { APP_GUARD } from "@nestjs/core";
 import { createAuthMiddleware } from "better-auth/api";
-import type { Request, Response } from "express";
+import { toNodeHandler } from "better-auth/node";
+
+import { AppError } from "@deployer/errors";
+
 import {
 	type ASYNC_OPTIONS_TYPE,
 	type AuthModuleOptions,
@@ -21,18 +18,23 @@ import {
 	MODULE_OPTIONS_TOKEN,
 	type OPTIONS_TYPE,
 } from "./definitions/auth-module-definition";
-import { AuthService } from "./services/auth.service";
-import { AuthCoreService } from "./services/auth-core.service";
-import { makeSessionResolver, SessionResolver } from "./orpc/session-resolver";
-import { SkipBodyParsingMiddleware } from "./middlewares/middlewares";
-import { AFTER_HOOK_KEY, BEFORE_HOOK_KEY, HOOK_KEY } from "./types/symbols";
 import { AuthGuard } from "./guards/auth.guard";
-import { APP_GUARD } from "@nestjs/core";
+import { SkipBodyParsingMiddleware } from "./middlewares/middlewares";
+import { makeSessionResolver, SessionResolver } from "./orpc/session-resolver";
+import { AuthCoreService } from "./services/auth-core.service";
+import { AuthService } from "./services/auth.service";
+import { AFTER_HOOK_KEY, BEFORE_HOOK_KEY, HOOK_KEY } from "./types/symbols";
+
+import type { Auth } from "../../../auth";
+import type {
+	DynamicModule,
+	MiddlewareConsumer,
+	NestModule,
+	OnModuleInit,
+} from "@nestjs/common";
 import type { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 import type { AuthContext, MiddlewareContext, MiddlewareOptions } from "better-auth";
-import type { Auth } from "../../../auth";
-
-import { AppError } from "@deployer/errors";
+import type { Request, Response } from "express";
 const HOOKS = [
 	{ metadataKey: BEFORE_HOOK_KEY, hookType: "before" as const },
 	{ metadataKey: AFTER_HOOK_KEY, hookType: "after" as const },

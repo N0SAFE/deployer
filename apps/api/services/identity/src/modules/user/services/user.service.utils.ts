@@ -1,9 +1,10 @@
+import { Effect } from 'effect'
+
 import {
     BadRequestError,
     ForbiddenError,
     ValidationError,
 } from '@deployer/errors'
-import { Effect } from 'effect'
 
 import { UserForbidden, UserInvalid } from '../domain/user.errors'
 

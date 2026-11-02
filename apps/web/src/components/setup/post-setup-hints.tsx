@@ -1,10 +1,12 @@
 "use client";
 
+import { ScanSearch, Bell, Globe, Cog } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { ScanSearch, Bell, Globe, Cog } from "lucide-react";
+
 import { AuthDashboardNodes, AuthDashboardProjects, AuthDashboardSettingsAccount } from "@/routes";
+
 import { SETUP_COMPLETE_KEY } from "./setup-storage";
 
 // ─── Hint definitions with fully custom run() logic ─────────────────────

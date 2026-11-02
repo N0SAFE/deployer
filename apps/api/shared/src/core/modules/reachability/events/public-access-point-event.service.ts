@@ -11,9 +11,11 @@
  * structured schema for the whole flow.
  */
 import { Injectable } from "@nestjs/common";
-import { BasePooledEventService } from "../../events/base/index";
 import { Observable } from "rxjs";
+
+import { BasePooledEventService } from "../../events/base/index";
 import { CoreEventStreamPoolService } from "../../events/base/index";
+
 import {
     publicAccessPointEventContracts,
     type PublicAccessPointEventContracts,

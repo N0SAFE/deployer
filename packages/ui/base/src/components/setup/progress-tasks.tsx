@@ -1,13 +1,14 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import { CheckCircle2, Loader2, Circle, XCircle, ChevronDown } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+
 import type { SetupStreamEvent, SetupStepId, SetupStreamStepState } from "@deployer/contracts-entities"
 import { cn } from "@deployer/ui/lib/utils"
 
 export type TaskStatus = "pending" | "running" | "done" | "error"
 
-export type ProgressTask = {
+export interface ProgressTask {
   id: string
   label: string
   description: string
@@ -70,7 +71,7 @@ function apiTookOver(events: SetupStreamEvent[]): boolean {
  * As soon as the API emits a `snapshot` event for a step, the API's
  * authoritative state replaces the template for that step.
  */
-export type TaskTemplate = {
+export interface TaskTemplate {
   /** SetupStepId (or any stable string). Must match what the API emits. */
   id: SetupStepId | (string & {})
   label: string
@@ -402,7 +403,7 @@ export function ProgressTasks({ tasks, scrollable = false }: { tasks: ProgressTa
     >
       {ordered.map((task) => (
         <li key={task.id} className="shrink-0">
-          <TaskCard task={task} expanded={!!expanded[task.id]} onToggle={() => toggle(task.id)} />
+          <TaskCard task={task} expanded={!!expanded[task.id]} onToggle={() => { toggle(task.id); }} />
         </li>
       ))}
     </ol>

@@ -6,18 +6,19 @@
  */
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { SupervisorOrchestrator } from "@deployer/supervision";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
 import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { ProvidersModule } from "@/modules/providers/providers.module";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
-import { PlatformController } from "./controllers/platform.controller";
-import { PlatformManagedWebController } from "./controllers/platform-managed-web.controller";
-import { PlatformManagedWebService } from "./services/platform-managed-web.service";
+import { SupervisorOrchestrator } from "@deployer/supervision";
 
+import { ProvidersModule } from "@/modules/providers/providers.module";
+
+
+import { PlatformManagedWebController } from "./controllers/platform-managed-web.controller";
+import { PlatformController } from "./controllers/platform.controller";
 import {
     PlatformConfigPort,
     PlatformEnvPort,
@@ -25,6 +26,7 @@ import {
     PlatformRefresherPort,
     SupervisorsPort,
 } from "./platform.ports";
+import { PlatformManagedWebService } from "./services/platform-managed-web.service";
 
 /**
  * `PlatformManagedWebService` is a Layer (see `platform.layers.ts`) built by the app's Effect

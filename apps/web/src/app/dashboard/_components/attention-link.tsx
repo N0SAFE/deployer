@@ -1,6 +1,5 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import {
 	AuthDashboardCluster,
 	AuthDashboardDeployments,
@@ -11,7 +10,9 @@ import {
 	AuthDashboardProjectsProjectIdServicesServiceIdDeployments,
 	DashboardAnalytics,
 } from '@/routes'
+
 import type { AttentionItem } from '../_utils/platform-verdict'
+import type { ReactNode } from 'react'
 
 const cls = 'text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring'
 

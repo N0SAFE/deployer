@@ -1,23 +1,29 @@
 import { Logger } from '@nestjs/common';
-import { EnvModule } from "@/config/env/env.module";
+
 import { createModuleContext } from "@deployer/nest-effect";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
-import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
-import { DatabaseModule } from "@/core/modules/database/database.module";
-import { AuthModule } from '@/core/modules/auth/auth.module';
-import { EnvService } from "@/config/env/env.module";
-import { createBetterAuth } from '@/config/auth/auth';
-import { CliAuthService } from './services/cli-auth.service';
-import { SeedCommand } from './commands/seed.command/index';
-import { MigrateCommand } from './commands/migrate.command';
-import { ResetCommand } from './commands/reset.command/index';
-import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
-import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
-import { SetupDbCommand } from './commands/setup-db.command';
-import { ResealSecretsCommand } from './commands/reseal-secrets.command';
-import { MigrationJournalService } from '@/core/utils/migration-journal.service';
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
+
+import { createBetterAuth } from '@/config/auth/auth';
+import { EnvModule } from "@/config/env/env.module";
+import { EnvService } from "@/config/env/env.module";
+import { AuthModule } from '@/core/modules/auth/auth.module';
+import { DatabaseModule } from "@/core/modules/database/database.module";
+import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
+import { MigrationJournalService } from '@/core/utils/migration-journal.service';
+
+import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
+import { MigrateCommand } from './commands/migrate.command';
+import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
+import { ResealSecretsCommand } from './commands/reseal-secrets.command';
+import { ResetCommand } from './commands/reset.command/index';
+import { SeedCommand } from './commands/seed.command/index';
+import { SetupDbCommand } from './commands/setup-db.command';
+import { CliAuthService } from './services/cli-auth.service';
+
+
+
 
 export class CLIModule extends createModuleContext({
   imports: [

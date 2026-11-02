@@ -1,11 +1,14 @@
 'use client'
 
 import { ArrowRight, Cable, DoorOpen, Globe, Network, Waypoints } from 'lucide-react'
+
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { PageHeader, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
-import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { AuthDashboardNetworkDns, AuthDashboardNetworkIngress, AuthDashboardNetworkMesh } from '@/routes'
+
 import { ExposureCard } from './_components/exposure-card'
 import { WithIngress } from './_components/ingress-query-state'
 import { JoinPathsCard } from './_components/join-paths-card'

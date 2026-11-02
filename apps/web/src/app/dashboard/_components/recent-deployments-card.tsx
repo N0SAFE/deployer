@@ -1,16 +1,19 @@
 'use client'
 
 import { Rocket } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { EmptyState, EnvironmentBadge, PageErrorState, StatusBadge } from '@/components/dashboard'
 import {
 	AuthDashboardDeployments,
 	AuthDashboardProjects,
 	AuthDashboardProjectsProjectIdServicesServiceIdDeployments,
 } from '@/routes'
-import { useRouter } from 'next/navigation'
+
 import { RelativeTime } from './relative-time'
 
 export interface RecentDeployment {

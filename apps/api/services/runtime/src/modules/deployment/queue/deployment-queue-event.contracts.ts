@@ -1,11 +1,12 @@
 import * as z from "zod";
-import { contractBuilder } from "@deployer/events";
+
 import {
     deploymentQueueJobSchema,
     deploymentDeadLetterJobSchema,
     deploymentQueueJobTypeSchema,
     deploymentQueueJobStatusSchema,
 } from "@deployer/contracts-entities";
+import { contractBuilder } from "@deployer/events";
 
 export const deploymentQueueEventFilterSchema = z.object({
     queue: z.literal("deployment").default("deployment"),

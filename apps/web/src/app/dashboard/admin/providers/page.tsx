@@ -1,6 +1,7 @@
 'use client'
 
 import { PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
+
 import { IntegrationList, useIntegrationSummary } from './_components/integration-list'
 
 function GroupHeading({ title, description }: { title: string; description: string }) {

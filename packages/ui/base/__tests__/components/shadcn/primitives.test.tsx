@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { Button, buttonVariants } from '../../../src/components/shadcn/button'
+import { describe, expect, it } from 'vitest'
+
 import { Badge, badgeVariants } from '../../../src/components/shadcn/badge'
+import { Button, buttonVariants } from '../../../src/components/shadcn/button'
 import { Skeleton, skeletonVariants } from '../../../src/components/shadcn/skeleton'
 import { Spinner } from '../../../src/components/shadcn/spinner'
 import { Table, TableCell, TableBody, TableRow } from '../../../src/components/shadcn/table'

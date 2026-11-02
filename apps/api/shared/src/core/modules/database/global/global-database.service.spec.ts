@@ -1,7 +1,9 @@
-import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
-import { GlobalDatabaseService } from './global-database.service';
 import { describe, it, expect, beforeEach } from "vitest";
+
+import { GlobalDatabaseService } from './global-database.service';
+
+import type { TestingModule } from '@nestjs/testing';
 
 describe('GlobalDatabaseService', () => {
   let service: GlobalDatabaseService;

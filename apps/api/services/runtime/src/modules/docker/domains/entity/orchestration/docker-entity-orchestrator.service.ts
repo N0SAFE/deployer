@@ -1,12 +1,16 @@
+import { Context, Effect } from "effect"
+
+import type { DockerEntityKind, DockerEntityStreamChunk } from "@deployer/contracts-entities"
+import { AppLogger } from "@deployer/logger"
 import type {
   DockerEntityListInput,
   DockerEntityInspectInput,
 } from "@deployer/runtime-contracts/modules/docker/entity/shared"
-import type { DockerEntityKind, DockerEntityStreamChunk } from "@deployer/contracts-entities"
-import { AppLogger } from "@deployer/logger"
-import { Context, Effect } from "effect"
-import { buildInspectChunk, buildListChunks, type EntityChunkLog } from "./entity-chunks"
+
+
 import { DockerEntityDomainService, type DockerEntityDomainPorts } from "./docker-entity-domain.service"
+import { buildInspectChunk, buildListChunks, type EntityChunkLog } from "./entity-chunks"
+
 import type { DockerEntityStreamsShape } from "./docker-entity-streams"
 
 export type DockerEntityListResult<TKind extends DockerEntityKind> = {
@@ -24,8 +28,8 @@ const debugLogger = apiLogger.createContextFilterLogger({
 })
 
 const chunkLog: EntityChunkLog = {
-  warn: (message, context) => apiLogger.log.warn(message, context ?? {}),
-  debug: (message, context) => apiLogger.log.debug(message, context ?? {}),
+  warn: (message, context) => { apiLogger.log.warn(message, context ?? {}); },
+  debug: (message, context) => { apiLogger.log.debug(message, context ?? {}); },
 }
 
 /** The chunk-sink the list/inspect builders and the stream coercer share. */

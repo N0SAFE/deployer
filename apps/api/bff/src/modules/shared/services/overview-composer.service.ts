@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
-import { optional, ScreenReadService, type Section } from "./screen-read.service";
-import type { Stat } from "../screen-shapes";
 import { ServiceNotFoundError } from "../errors/service-not-found.error";
+
+import { optional, ScreenReadService, type Section } from "./screen-read.service";
+
+import type { Stat } from "../screen-shapes";
 import type { DeploymentRow, ProjectOverview, ProjectRow, ServiceRow, ServiceWithStatus } from "../types/project-overview";
 
 /** The labels the stat strip renders, so the wording has a single owner. */

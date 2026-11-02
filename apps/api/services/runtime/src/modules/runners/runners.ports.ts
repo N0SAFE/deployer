@@ -1,6 +1,7 @@
+import { Context } from "effect";
+
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
-import { Context } from "effect";
 
 /**
  * What the runners depend on and have no Effect version of yet, as ports over Promise-based providers.

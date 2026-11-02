@@ -1,8 +1,10 @@
 import type { DockerodeTaskSummary, SwarmServiceSpecInput, SwarmTaskStateCheck } from "@deployer/contracts-entities";
 import { parsePlacementPolicyLabel, toSwarmPlacement } from "@deployer/swarm";
+
 import { RuntimeInvalid } from "../../../core/runtime.errors";
-import type { RuntimeExecutionInput } from "../runtime-runner.interface";
 import { assertExecutorLabelAllowed } from "../base/reserved-labels";
+
+import type { RuntimeExecutionInput } from "../runtime-runner.interface";
 
 /**
  * The swarm runner's pure decisions: what a task list means, where a workload may be scheduled,

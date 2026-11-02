@@ -9,6 +9,7 @@
  */
 
 import type { SetupWizardApi } from "@deployer/ui/components/setup/types";
+
 import {
 	useInitializeStream,
 	useProbeDatabase,
@@ -16,9 +17,9 @@ import {
 	useSetupState,
 	useTriggerInitialize,
 } from "@/domains/setup/hooks";
+import { getBaseApiUrl } from "@/lib/api-url";
 import { signInWithEmail } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/orpc/typed-errors";
-import { getBaseApiUrl } from "@/lib/api-url";
 import { setupDestinationUrl } from "@/lib/setup-url";
 
 export const setupApi: SetupWizardApi = {

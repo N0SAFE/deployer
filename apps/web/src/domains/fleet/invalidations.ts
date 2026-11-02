@@ -1,4 +1,5 @@
 import { defineInvalidations } from "@/domains/shared/helpers";
+
 import { fleetEndpoints } from "./endpoints";
 
 export const fleetInvalidations = defineInvalidations(fleetEndpoints, {

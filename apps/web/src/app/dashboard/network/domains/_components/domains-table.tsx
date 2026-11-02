@@ -1,10 +1,13 @@
 'use client'
 
 import { Network, RefreshCw, Trash2 } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { CopyableMono } from '../../_components/copy-button'
+
 import { nextStep, ReachabilityBadge, VerificationBadge } from './domain-status'
 import { METHOD_LABELS, verificationRecordName, type DomainRow, type ReachabilityState } from './domain-types'
 

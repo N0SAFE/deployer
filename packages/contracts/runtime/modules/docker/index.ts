@@ -24,6 +24,7 @@ import {
   dockerContainerTerminalStreamContract,
   dockerContainerWriteFileContract,
 } from "./containers";
+import { dockerEntityContract, dockerEntityStreamContract, dockerEntityInspectContract, dockerEntityListContract, dockerEntityListInputSchema, dockerEntityInspectInputSchema, dockerEntityStreamInputSchema } from "./entity";
 import {
   dockerImagesContract,
   dockerImageInspectContract,
@@ -32,13 +33,12 @@ import {
   dockerListImagesContract,
 } from "./images";
 import { dockerNetworksContract, dockerListNetworksContract } from "./networks";
-import { dockerVolumesContract, dockerListVolumesContract } from "./volumes";
 import {
   dockerRuntimeContract,
   dockerRuntimeEventsStreamContract,
   dockerRuntimeSnapshotContract,
 } from "./runtime";
-import { dockerEntityContract, dockerEntityStreamContract, dockerEntityInspectContract, dockerEntityListContract, dockerEntityListInputSchema, dockerEntityInspectInputSchema, dockerEntityStreamInputSchema } from "./entity";
+import { dockerVolumesContract, dockerListVolumesContract } from "./volumes";
 
 export const dockerContract = oc.meta(openapi({ tags: ["Core Docker"], prefix: "/docker" })).router({
   containers: dockerContainersContract,

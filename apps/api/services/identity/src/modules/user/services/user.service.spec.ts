@@ -2,10 +2,13 @@ import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
-import type { User } from "../domain/user.types";
-import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
+
 import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
+import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
+
 import { UserService, type UserFailure, type UserServiceShape } from "./user.service";
+
+import type { User } from "../domain/user.types";
 
 const admin = { userId: "admin-1", role: "admin" };
 const root = { userId: "root-1", role: "superAdmin" };
@@ -390,7 +393,7 @@ describe("UserService", () => {
 			},
 		];
 
-		const hierarchy: ReadonlyArray<{ actor: keyof typeof actors; target: Role; allowed: boolean }> = [
+		const hierarchy: readonly { actor: keyof typeof actors; target: Role; allowed: boolean }[] = [
 			{ actor: "superAdmin", target: "superAdmin", allowed: true },
 			{ actor: "superAdmin", target: "admin", allowed: true },
 			{ actor: "superAdmin", target: "viewer", allowed: true },

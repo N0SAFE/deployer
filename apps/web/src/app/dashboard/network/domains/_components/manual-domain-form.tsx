@@ -2,13 +2,16 @@
 
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { DialogFooter } from '@deployer/ui/components/shadcn/dialog'
 import { Field, FieldDescription, FieldLabel } from '@deployer/ui/components/shadcn/field'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+
 import { useAddProjectDomain } from '@/domains/domain/hooks'
 import { isDefinedORPCError, getErrorMessage, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+
 import type { VerificationMethod } from './domain-types'
 
 /** Add a domain and create the verification record yourself. */

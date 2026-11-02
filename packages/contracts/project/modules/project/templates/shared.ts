@@ -1,6 +1,7 @@
 import z from "zod/v4";
-import { standard } from "@deployer/orpc-utils";
+
 import { variableTemplateSchema } from "@deployer/contracts-entities";
+import { standard } from "@deployer/orpc-utils";
 
 export const projectIdParamSchema = z.object({ id: z.uuid() });
 

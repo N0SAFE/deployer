@@ -1,3 +1,5 @@
+import { expect } from "vitest";
+
 import {
   deploymentDeadLetterJobSchema,
   deploymentDeadLetterListResultSchema,
@@ -11,7 +13,6 @@ import {
   type DeploymentDeadLetterJob,
   type DeploymentQueueJob,
 } from "@deployer/contracts-entities";
-import { expect } from "vitest";
 
 export function parseQueueJob(value: unknown): DeploymentQueueJob {
   return deploymentQueueJobSchema.parse(value);

@@ -1,10 +1,11 @@
-import type { HealthSnapshot } from "@deployer/shared/server";
 import { Effect } from "effect";
-import type { z } from "zod";
+
 
 import type { healthCheckOutput, healthDetailedOutput } from "@deployer/health-contracts";
+import type { HealthSnapshot } from "@deployer/shared/server";
 
 import type { HealthRegistryShape } from "../services/health.service";
+import type { z } from "zod";
 
 export type HealthCheckPayload = z.infer<typeof healthCheckOutput>;
 export type HealthDetailedPayload = z.infer<typeof healthDetailedOutput>;

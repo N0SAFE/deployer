@@ -1,8 +1,12 @@
-import { authClient } from '../../auth'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
-import type { ClientContext } from '@orpc/client'
+
 import { hasMasterTokenPlugin } from '@deployer/auth/client'
+
 import { readDevtoolsApiKey } from '@/components/devtools/use-devtools-api-key'
+
+import { authClient } from '../../auth'
+
+import type { ClientContext } from '@orpc/client'
 
 /**
  * Devtools auth plugin for the ORPC client.

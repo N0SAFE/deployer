@@ -1,9 +1,10 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
+import { LocalDatabaseError, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state";
+
 import { NodeConfigSnapshot } from "./node-config.snapshot";
 
-import { LocalDatabaseError, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state";
 
 const row = (databaseUrl: string): NodeConfigRow => ({
 	id: 1,

@@ -1,6 +1,8 @@
-import type { Auth } from "../../../../auth";
 import { ConfigurableModuleBuilder } from "@nestjs/common";
+
 import type { ApiMethodsWithAdminPlugin, platformBuilder } from "@deployer/auth/permissions";
+
+import type { Auth } from "../../../../auth";
 
 /**
  * Preserve Better Auth API as source-of-truth, then add permission plugin APIs on top.

@@ -1,17 +1,22 @@
-import { createModuleContext } from "@deployer/nest-effect";
 import { Module } from '@nestjs/common'
+
+import { nodeDoorFromEnv } from '@deployer/mesh-client'
+import { createModuleContext } from "@deployer/nest-effect";
+
+import { EnvModule } from '../../../config/env/env.module'
+import { EnvService } from '../../../config/env/env.module'
 import { DatabaseModule } from '../database/database.module'
 import { EventsModule } from '../events/events.module'
-import { SystemMetricsModule } from '../system-metrics/system-metrics.module'
 import { NodeStateModule } from '../node-state/node-state.module'
-import { EnvModule } from '../../../config/env/env.module'
-import { SystemMeshClusterRepository, MESH_NODE_DOOR } from './repositories/system-mesh-cluster.repository'
-import { NodeMeshConfigRepository } from './repositories/node-mesh-config.repository'
-import { SystemMeshConfigService } from './services/system-mesh-config.service'
-import { MeshInitializationModule } from './initialization/mesh-initialization.module'
+import { SystemMetricsModule } from '../system-metrics/system-metrics.module'
+
 import { MeshController } from './controllers/mesh.controller'
-import { EnvService } from '../../../config/env/env.module'
-import { nodeDoorFromEnv } from '@deployer/mesh-client'
+import { MeshInitializationModule } from './initialization/mesh-initialization.module'
+import { NodeMeshConfigRepository } from './repositories/node-mesh-config.repository'
+import { SystemMeshClusterRepository, MESH_NODE_DOOR } from './repositories/system-mesh-cluster.repository'
+import { SystemMeshConfigService } from './services/system-mesh-config.service'
+
+
 
 /**
  * What is left of the platform's old mesh: the node's identity and configuration, the registry of the fleet's nodes, and

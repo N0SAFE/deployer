@@ -50,12 +50,13 @@ type ProcedureUtilsPublic<
   ProcedureUtils<Record<never, never>, TInput, TOutput, TError>,
   keyof ProcedureUtils<Record<never, never>, TInput, TOutput, TError>
 >;
+import { enhanceSingleEndpoint, type EndpointWithCache } from "./cache-operations";
+
+import type { BetterFetchResponse } from "@better-fetch/fetch";
 import type { Client } from "@orpc/client";
 import type { useQueryClient } from "@tanstack/react-query";
 import type { MutationOptions, QueryKey, DataTag } from "@tanstack/react-query";
 import type { z } from "zod";
-import type { BetterFetchResponse } from "@better-fetch/fetch";
-import { enhanceSingleEndpoint, type EndpointWithCache } from "./cache-operations";
 type MaybeOptionalOptions<TOptions> = Record<never, never> extends TOptions ? [options?: TOptions] : [options: TOptions];
 
 // ============================================================================

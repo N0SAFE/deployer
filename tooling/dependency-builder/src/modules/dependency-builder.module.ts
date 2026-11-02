@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common'
 
 import { BuildCommand } from '../commands/build.command'
-import { WorkspaceScanner } from '../services/workspace-scanner.service'
-import { UnionPlanner } from '../services/union-planner.service'
-import { TurboRunner } from '../services/turbo-runner.service'
 import { ApplicationDetector } from '../services/application-detector.service'
+import { TurboRunner } from '../services/turbo-runner.service'
+import { UnionPlanner } from '../services/union-planner.service'
+import { WorkspaceScanner } from '../services/workspace-scanner.service'
 
 /**
  * The dependency-builder's Nest module.

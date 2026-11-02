@@ -3,13 +3,13 @@ import { openapi } from "@orpc/openapi";
 
 
 // Import all contract definitions
-import { userListContract } from './list';
-import { userFindByIdContract } from './findById';
-import { userCreateContract } from './create';
-import { userUpdateContract } from './update';
-import { userDeleteContract } from './delete';
 import { userCheckEmailContract } from './checkEmail';
 import { userCountContract } from './count';
+import { userCreateContract } from './create';
+import { userDeleteContract } from './delete';
+import { userFindByIdContract } from './findById';
+import { userListContract } from './list';
+import { userUpdateContract } from './update';
 
 // Combine into main user contract
 export const userContract = oc.meta(openapi({ tags: ["User"], prefix: "/user" })).router({

@@ -9,7 +9,6 @@ import {
 } from "@deployer/contracts-entities";
 import { isRecord } from "@deployer/type-guards";
 
-import type { ResolvedImageSecurityScan } from "../security/docker-image-scanner.types";
 import {
   buildFallbackImageRepository,
   normalizeImageDigest,
@@ -17,6 +16,8 @@ import {
   resolvePrimaryImageTag,
 } from "./docker-image-identity";
 import { toStringArray } from "./docker-image-reference";
+
+import type { ResolvedImageSecurityScan } from "../security/docker-image-scanner.types";
 
 /** Who the engine says this image is: its id, tags, digests and the registry/repository they imply. */
 export type InspectedImageIdentity = {

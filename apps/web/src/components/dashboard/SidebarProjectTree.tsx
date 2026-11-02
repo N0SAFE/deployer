@@ -1,23 +1,27 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
-import Link from 'next/link'
 import { ChevronRight, Plus, Search } from 'lucide-react'
-import {
-  AuthDashboardProjects,
-  AuthDashboardProjectsProjectId,
-  AuthDashboardProjectsProjectIdServicesServiceId,
-} from '@/routes'
-import { useProjectList } from '@/domains/project/hooks'
-import { useServiceList } from '@/domains/service/hooks'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useMemo, useRef, useState } from 'react'
+
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@deployer/ui/components/shadcn/collapsible'
 import {
   SidebarMenuItem,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@deployer/ui/components/shadcn/sidebar'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@deployer/ui/components/shadcn/collapsible'
+
+import { useProjectList } from '@/domains/project/hooks'
+import { useServiceList } from '@/domains/service/hooks'
+import {
+  AuthDashboardProjects,
+  AuthDashboardProjectsProjectId,
+  AuthDashboardProjectsProjectIdServicesServiceId,
+} from '@/routes'
+
+
 import { fuzzyMatch } from './fuzzy'
 
 interface NamedRow {

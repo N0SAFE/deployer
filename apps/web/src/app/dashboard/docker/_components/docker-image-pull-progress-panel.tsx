@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { AlertCircle, CheckCircle2, Download, Loader2, XCircle } from 'lucide-react'
+import { useEffect, useMemo, useRef } from 'react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 export interface DockerPullLayerRow {
   id: string

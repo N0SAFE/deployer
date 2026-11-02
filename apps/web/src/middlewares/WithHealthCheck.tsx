@@ -4,13 +4,17 @@ import {
     NextRequest,
     NextResponse,
 } from 'next/server'
-import { Matcher, MiddlewareFactory } from './utils/types'
-import { validateEnvPath } from '#/env'
-import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
-import { redirectSameOrigin, sameOriginUrl } from './utils/redirects'
+
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { orpc } from '@/lib/orpc'
 import { InternalMiddlewareErrorHealthCheck } from '@/routes'
-import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
+
+import { redirectSameOrigin, sameOriginUrl } from './utils/redirects'
+import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
+import { Matcher, MiddlewareFactory } from './utils/types'
+
+import { validateEnvPath } from '#/env'
+
 
 const debugHealthCheck = createContextFilterDebugLogger('WithHealthCheck', 'middleware:[WithHealthCheck]')
 const debugHealthCheckError = createContextFilterDebugLogger('WithHealthCheck', 'middleware:[WithHealthCheck]:error')

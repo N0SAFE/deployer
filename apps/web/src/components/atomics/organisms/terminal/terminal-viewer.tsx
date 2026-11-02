@@ -1,11 +1,13 @@
 'use client'
 
+import { Keyboard } from 'lucide-react'
 import { type CSSProperties, type ReactNode, Fragment, useMemo } from 'react'
-import { LogsViewer } from '@/components/atomics/organisms/logs'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
-import { Keyboard } from 'lucide-react'
+
+import { LogsViewer } from '@/components/atomics/organisms/logs'
 
 export interface TerminalViewerProfile {
   id: string

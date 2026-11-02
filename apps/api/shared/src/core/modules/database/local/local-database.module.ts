@@ -12,8 +12,10 @@
  * (`LOCAL_DATABASE_CONNECTION` for Drizzle, `LOCAL_DATABASE_CLIENT` for the raw driver).
  */
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
-import { createGlobalModule } from "@deployer/nest-effect";
 import { Cause, Effect, Exit, Scope } from "effect";
+
+import { createGlobalModule } from "@deployer/nest-effect";
+import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 import {
 	LocalDatabase,
 	migrateLocalDatabase,
@@ -21,7 +23,6 @@ import {
 	type LocalDatabaseOptions,
 	type LocalDatabaseShape,
 } from "@deployer/node-state";
-import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "../database-connection";

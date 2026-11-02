@@ -1,20 +1,29 @@
 'use client'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { ChevronRight, Siren, Home } from 'lucide-react'
 import { useParams, useSelectedLayoutSegment } from 'next/navigation'
-import { AuthDashboardProjects, AuthDashboardProjectsProjectId, AuthDashboardProjectsProjectIdServicesServiceId } from '@/routes'
-import { useProject } from '@/domains/project/hooks'
-import { useService, useToggleServiceActive } from '@/domains/service/hooks'
-import { ServiceSectionNav } from './service-section-nav'
-import { ServiceDetailSkeleton } from './service-detail-skeleton'
-import { statusBadgeVariant } from '../../../_utils/helpers'
+import { toast } from 'sonner'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { PageHeader } from '@/components/dashboard'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
-import { ChevronRight, Siren, Home } from 'lucide-react'
-import { toast } from 'sonner'
+
+import { PageHeader } from '@/components/dashboard'
+import { useProject } from '@/domains/project/hooks'
+import { useService, useToggleServiceActive } from '@/domains/service/hooks'
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { AuthDashboardProjects, AuthDashboardProjectsProjectId, AuthDashboardProjectsProjectIdServicesServiceId } from '@/routes'
+
+import { statusBadgeVariant } from '../../../_utils/helpers'
+
+import { ServiceDetailSkeleton } from './service-detail-skeleton'
+import { ServiceSectionNav } from './service-section-nav'
+
+
+
+
+
 import type { ReactNode } from 'react'
 
 type ServiceSection = 'overview' | 'configuration' | 'deployments' | 'logs' | 'previews' | 'monitoring'

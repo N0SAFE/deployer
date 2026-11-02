@@ -1,8 +1,9 @@
 'use client'
 
-import type { QueryClient, QueryCacheNotifyEvent } from '@tanstack/react-query'
 import { QueryClientContext } from '@tanstack/react-query'
 import { useCallback, useContext, useMemo, useSyncExternalStore } from 'react'
+
+import type { QueryClient, QueryCacheNotifyEvent } from '@tanstack/react-query'
 
 // Default session query key - can be overridden
 export const DEFAULT_SESSION_QUERY_KEY = ['session'] as const

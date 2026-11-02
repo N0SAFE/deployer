@@ -16,13 +16,14 @@
  */
 
 import { ArrowLeft, ArrowRight, Info } from "lucide-react";
-import { Button } from "@deployer/ui/components/shadcn/button";
 import { useState } from "react";
+
 import type { SwarmPolicyDocument } from "@deployer/contracts-entities";
 import {
   SwarmParticipationForm,
   type SwarmParticipationDraft,
 } from "@deployer/ui/components/setup/swarm-participation-form";
+import { Button } from "@deployer/ui/components/shadcn/button";
 
 /** Roles a joining node can take (copy mirrors the API's policy documents). */
 const JOINING_POLICIES: SwarmPolicyDocument[] = [
@@ -58,11 +59,11 @@ const JOINING_POLICIES: SwarmPolicyDocument[] = [
   },
 ];
 
-type Props = {
+interface Props {
   initial: SwarmParticipationDraft;
   onBack?: () => void;
   onContinue: (draft: SwarmParticipationDraft) => void;
-};
+}
 
 export function JoinClusterStep({ initial, onBack, onContinue }: Props) {
   const [draft, setDraft] = useState<SwarmParticipationDraft>({
@@ -105,7 +106,7 @@ export function JoinClusterStep({ initial, onBack, onContinue }: Props) {
         ) : (
           <span />
         )}
-        <Button size="lg" type="button" onClick={() => onContinue(draft)} className="gap-2">
+        <Button size="lg" type="button" onClick={() => { onContinue(draft); }} className="gap-2">
           Continue
           <ArrowRight className="h-4 w-4" />
         </Button>

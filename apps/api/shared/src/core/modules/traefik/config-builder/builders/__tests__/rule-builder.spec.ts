@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { RuleBuilder } from '../rule-builder';
 
 describe('RuleBuilder', () => {

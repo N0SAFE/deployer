@@ -7,17 +7,12 @@
  * opt-in: Zod) — the builder never calls the schema factories directly.
  */
 
-import type { AnySchema, UnionTuple } from "@deployer/orpc-utils/types/types";
-import type { ObjectSchema, VoidSchema, SchemaShape } from "@deployer/orpc-utils/types/standard-schema-helpers";
 import { eventIterator } from "@orpc/contract";
-import type { Schema } from "@orpc/contract";
-import type { AsyncIteratorClass } from "@orpc/shared";
-import { observable, type Observable } from "@deployer/orpc-utils/observable/contract";
+
 import type { PathParam, PathParamBuilderWithExisting, ParamsToSchemaShape } from "@deployer/orpc-utils/builder/core/params-builder";
 import { createPathParamBuilder } from "@deployer/orpc-utils/builder/core/params-builder";
 import { ProxyBuilderBase } from "@deployer/orpc-utils/builder/core/proxy-builder.base";
-import { s } from "@deployer/orpc-utils/operations/base/schema";
-import { isRecord } from "@deployer/type-guards"
+import { DetailedInputBrand } from "@deployer/orpc-utils/builder/core/route-builder";
 import {
     BasePluginTransformer,
     StandardPluginTransformer,
@@ -28,7 +23,14 @@ import {
     type PluginIsEmptyObjectSchemaType,
     type PluginParamsShapeOf,
 } from "@deployer/orpc-utils/builder/plugin/index";
-import { DetailedInputBrand } from "@deployer/orpc-utils/builder/core/route-builder";
+import { observable, type Observable } from "@deployer/orpc-utils/observable/contract";
+import { s } from "@deployer/orpc-utils/operations/base/schema";
+import type { ObjectSchema, VoidSchema, SchemaShape } from "@deployer/orpc-utils/types/standard-schema-helpers";
+import type { AnySchema, UnionTuple } from "@deployer/orpc-utils/types/types";
+import { isRecord } from "@deployer/type-guards"
+
+import type { Schema } from "@orpc/contract";
+import type { AsyncIteratorClass } from "@orpc/shared";
 
 /**
  * Query builder - exposes current query schema and entity schema for direct chaining

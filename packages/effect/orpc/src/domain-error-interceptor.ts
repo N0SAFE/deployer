@@ -1,8 +1,11 @@
-import { isDomainError } from "@deployer/effect-core";
 import { onError } from "@orpc/server";
-import type { Interceptor } from "@orpc/shared";
+
+import { isDomainError } from "@deployer/effect-core";
 
 import { mapDomainError } from "./map-domain-error";
+
+import type { Interceptor } from "@orpc/shared";
+
 
 /**
  * oRPC interceptor for code that THROWS a domain error (Promise-based services, middleware)

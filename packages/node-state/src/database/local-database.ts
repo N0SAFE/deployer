@@ -1,12 +1,15 @@
-import * as localSchema from "@deployer/nest-schema/local";
-import { Database } from "bun:sqlite";
-import { Context, Effect, Layer, type Scope } from "effect";
-import { drizzle, type BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { Database } from "bun:sqlite";
+import { drizzle, type BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import { Context, Effect, Layer, type Scope } from "effect";
+
+import * as localSchema from "@deployer/nest-schema/local";
+
 import { LocalDatabaseError } from "./errors";
 import { runMigrations } from "./migrations/run-migrations";
+
 import type { LocalDatabaseOptions } from "./options";
 
 /** The typed Drizzle handle on the local SQLite database. */

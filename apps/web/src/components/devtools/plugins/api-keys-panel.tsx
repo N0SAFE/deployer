@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useDevtoolsResource } from "../use-devtools-resource";
-import { authClient } from "@/lib/auth";
+
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
 import { Badge } from "@deployer/ui/components/shadcn/badge";
 import { Button } from "@deployer/ui/components/shadcn/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@deployer/ui/components/shadcn/select";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
 import {
   Table,
   TableBody,
@@ -13,15 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from "@deployer/ui/components/shadcn/table";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@deployer/ui/components/shadcn/select";
+
+import { authClient } from "@/lib/auth";
+
+import { useDevtoolsResource } from "../use-devtools-resource";
 
 /**
  * DevTools panel: API keys.

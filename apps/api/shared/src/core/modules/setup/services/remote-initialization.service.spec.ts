@@ -1,18 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { NodeDoorClient } from "@deployer/mesh-client";
+import type { NodeConfigRepositoryShape } from "@deployer/node-state";
+import type { SwarmBootstrapShape, SwarmClusterShape } from "@deployer/swarm";
+
 import { RemoteInitializationService } from "./remote-initialization.service";
 import { SetupStepTracker } from "./setup-step-tracker";
 
-import type { ClientContext, ClientLink } from "@orpc/client";
-import type { NodeConfigRepositoryShape } from "@deployer/node-state";
-import type { NodeDoorClient } from "@deployer/mesh-client";
-import type { SwarmBootstrapShape, SwarmClusterShape } from "@deployer/swarm";
 import type { EnvService } from "../../../../config/env/env.module";
+import type { ClientContext, ClientLink } from "@orpc/client";
+
 
 const noop = () => undefined;
 
 /** The `agent_join` step is the first thing the flow does, so a redeem that rejects is enough to observe the token. */
-function serviceWith(joinWithToken: (token: string) => Promise<unknown>, agent: ClientLink<ClientContext> | undefined = undefined) {
+function serviceWith(joinWithToken: (token: string) => Promise<unknown>, agent?: ClientLink<ClientContext>) {
     class Testable extends RemoteInitializationService {
         protected override nodeDoor(): NodeDoorClient {
             return { joinWithToken } as unknown as NodeDoorClient;

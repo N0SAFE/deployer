@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
@@ -9,8 +11,9 @@ import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
-import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
+
 import { useUpdateIngress } from '@/domains/reachability/hooks'
+
 import { LANE_COPY, Mono } from './network-copy'
 import { useNetworkAction } from './use-network-action'
 

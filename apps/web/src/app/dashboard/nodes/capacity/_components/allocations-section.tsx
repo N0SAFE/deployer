@@ -1,13 +1,15 @@
 'use client'
 
+import { Cpu } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Cpu } from 'lucide-react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EmptyState } from '@/components/dashboard'
 import {
   useDeleteFleetAllocation,
@@ -16,7 +18,9 @@ import {
   type useFleetServers,
 } from '@/domains/fleet/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
+
 import { ConfirmDialog } from '../../_components/confirm-dialog'
+
 import { ALLOCATION_MODE_LABEL, formatMemory } from './capacity-format'
 
 type FleetServer = NonNullable<ReturnType<typeof useFleetServers>['data']>['items'][number]

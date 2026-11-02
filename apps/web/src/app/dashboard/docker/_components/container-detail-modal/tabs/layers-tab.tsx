@@ -1,5 +1,6 @@
-import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 interface LayerItem {
   id: string

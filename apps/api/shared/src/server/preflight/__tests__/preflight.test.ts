@@ -25,7 +25,7 @@ function contextOf(options: {
 
 describe("checkDatabase", () => {
 	it("passes when the query succeeds", async () => {
-		const result = await checkDatabase(contextOf({ query: async () => [{ "?column?": 1 }] }));
+		const result = await checkDatabase(contextOf({ query: () => Promise.resolve([{ "?column?": 1 }]) }));
 
 		expect(result.outcome).toBe("ok");
 		expect(result.dependency).toBe(PreflightDependency.Database);
@@ -34,9 +34,7 @@ describe("checkDatabase", () => {
 	it("fails with the driver's message when the query throws", async () => {
 		const result = await checkDatabase(
 			contextOf({
-				query: async () => {
-					throw new Error("connect ECONNREFUSED 127.0.0.1:5432");
-				},
+				query: () => Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:5432")),
 			}),
 		);
 

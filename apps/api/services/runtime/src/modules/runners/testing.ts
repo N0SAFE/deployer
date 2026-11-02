@@ -13,7 +13,7 @@ export async function run<A>(effect: Effect.Effect<A, unknown>): Promise<A> {
  */
 export function provideTo<T extends object>(
     service: T,
-    provide: (effect: Effect.Effect<unknown, unknown, never>) => Effect.Effect<unknown, unknown, never>,
+    provide: (effect: Effect.Effect<unknown, unknown>) => Effect.Effect<unknown, unknown>,
 ): {
     [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer X, infer E, infer _R>
         ? (...args: A) => Effect.Effect<X, E>
@@ -23,7 +23,7 @@ export function provideTo<T extends object>(
     for (const [key, value] of Object.entries(service)) {
         bound[key] =
             typeof value === "function"
-                ? (...args: unknown[]) => provide((value as (...a: unknown[]) => Effect.Effect<unknown, unknown, never>)(...args))
+                ? (...args: unknown[]) => provide((value as (...a: unknown[]) => Effect.Effect<unknown, unknown>)(...args))
                 : value;
     }
     return bound as never;

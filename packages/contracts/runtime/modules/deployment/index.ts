@@ -1,6 +1,11 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { deploymentListContract } from "./list";
+
+import {
+    deploymentCompilePlanContract,
+    deploymentCompilePlanPreviewContract,
+    deploymentCompileRollbackEdgesContract,
+} from "./compiler";
 import {
     deploymentFindByIdContract,
     deploymentDeleteContract,
@@ -14,29 +19,29 @@ import {
     deploymentGetRollbackHistoryContract,
 } from "./crud";
 import {
-    deploymentStreamContract,
-    deploymentInternalStreamContract,
-    serviceDeploymentsStreamContract,
-    deploymentQueryStreamContract,
-    deploymentStreamsListContract,
-    deploymentStreamFindByIdContract,
-} from "./stream";
+    deploymentCancelExecutionContract,
+    deploymentGetExecutionCheckpointByRunContract,
+    deploymentGetExecutionCheckpointContract,
+    deploymentResumeExecutionContract,
+} from "./execution";
 import {
-    deploymentGetTemplateProvenanceByRunContract,
-    deploymentGetTemplateProvenanceContract,
-    deploymentUpsertTemplateProvenanceContract,
-} from "./provenance";
+    deploymentEmitNodeLifecycleEventContract,
+    deploymentListNodeLifecycleEventsContract,
+    deploymentNodeLifecycleEventsStreamContract,
+} from "./lifecycle-events";
+import { deploymentListContract } from "./list";
 import {
     deploymentCreateCompiledPlanSnapshotContract,
     deploymentGetCompiledPlanSnapshotByRunContract,
     deploymentGetCompiledPlanSnapshotContract,
     deploymentListCompiledPlanSnapshotsContract,
 } from "./plan-snapshot";
+import { listServicePreviewsContract, promoteServicePreviewContract } from "./previews";
 import {
-    deploymentCompilePlanContract,
-    deploymentCompilePlanPreviewContract,
-    deploymentCompileRollbackEdgesContract,
-} from "./compiler";
+    deploymentGetTemplateProvenanceByRunContract,
+    deploymentGetTemplateProvenanceContract,
+    deploymentUpsertTemplateProvenanceContract,
+} from "./provenance";
 import {
     deploymentQueueClaimJobsContract,
     deploymentQueueCompleteJobContract,
@@ -50,26 +55,22 @@ import {
     deploymentQueueReplayDeadLetterJobContract,
 } from "./queue";
 import {
+    deploymentListRetryPoliciesContract,
+    deploymentResolveRetryPolicyContract,
+} from "./retry-policy";
+import {
     deploymentApplyPhaseTransitionContract,
     deploymentListPhaseTransitionsContract,
     deploymentValidatePhaseTransitionContract,
 } from "./state-machine";
 import {
-    deploymentListRetryPoliciesContract,
-    deploymentResolveRetryPolicyContract,
-} from "./retry-policy";
-import {
-    deploymentCancelExecutionContract,
-    deploymentGetExecutionCheckpointByRunContract,
-    deploymentGetExecutionCheckpointContract,
-    deploymentResumeExecutionContract,
-} from "./execution";
-import {
-    deploymentEmitNodeLifecycleEventContract,
-    deploymentListNodeLifecycleEventsContract,
-    deploymentNodeLifecycleEventsStreamContract,
-} from "./lifecycle-events";
-import { listServicePreviewsContract, promoteServicePreviewContract } from "./previews";
+    deploymentStreamContract,
+    deploymentInternalStreamContract,
+    serviceDeploymentsStreamContract,
+    deploymentQueryStreamContract,
+    deploymentStreamsListContract,
+    deploymentStreamFindByIdContract,
+} from "./stream";
 
 export const deploymentContract = oc.meta(openapi({ tags: ["Deployment"], prefix: "/deployments" })).router({
     list: deploymentListContract,

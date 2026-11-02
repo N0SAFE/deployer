@@ -1,10 +1,11 @@
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SwarmClusterShape } from "../cluster/swarm-cluster";
-import type { SwarmJoinConfig, SwarmParticipationDefaults } from "../config";
 import { decideRole } from "./join-decision";
 import { makeSwarmJoinGrant } from "./swarm-join-grant";
+
+import type { SwarmClusterShape } from "../cluster/swarm-cluster";
+import type { SwarmJoinConfig, SwarmParticipationDefaults } from "../config";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 	const exit = await Effect.runPromiseExit(effect);

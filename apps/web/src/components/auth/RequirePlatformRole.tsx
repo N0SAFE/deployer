@@ -1,9 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { useSession } from '@/lib/auth'
-import { isPlatformAdminRole, isPlatformRole, isPlatformRoleAtLeast } from '@/lib/access/platform-role.rules'
 import type { PlatformRole } from '@deployer/auth/permissions'
+
+import { isPlatformAdminRole, isPlatformRole, isPlatformRoleAtLeast } from '@/lib/access/platform-role.rules'
+import { useSession } from '@/lib/auth'
+
+import type { ReactNode } from 'react'
+
 
 export interface RequirePlatformRoleProps {
   /**

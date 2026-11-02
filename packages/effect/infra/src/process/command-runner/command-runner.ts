@@ -1,10 +1,11 @@
 import { Context, Duration, Effect, Layer, Queue, Stream } from "effect";
-import { CommandError, CommandFailed, CommandTimeout, OutputTooLarge, SpawnFailed } from "./errors";
-import { Command, CommandResult, CommandRunnerOptions, CommandRunnerShape, OutputLine } from "./types";
-import { DEFAULT_KILL_GRACE, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT } from "./limits";
+
 import { validate } from "./environment";
-import { acquire, signalGroup } from "./process";
+import { CommandError, CommandFailed, CommandTimeout, OutputTooLarge, SpawnFailed } from "./errors";
+import { DEFAULT_KILL_GRACE, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT } from "./limits";
 import { failCause, lineSplitter, pump, tail } from "./output";
+import { acquire, signalGroup } from "./process";
+import { Command, CommandResult, CommandRunnerOptions, CommandRunnerShape, OutputLine } from "./types";
 
 /**
  * Runs host commands: **no shell, no interpolation, explicit allow-list, no ambient

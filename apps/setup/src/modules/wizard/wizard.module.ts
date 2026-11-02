@@ -1,21 +1,24 @@
-import { createModuleContext } from "@deployer/nest-effect";
 import { RenderModule } from "@nestjs-ssr/react";
 
-import { EnvModule } from "@/config/env/env.module";
-import { NodeStateModule } from "@/config/database/node-state.module";
+import { createModuleContext } from "@deployer/nest-effect";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
-import { SetupHealthModule } from "@/modules/health/setup-health.module";
+
+import { NodeStateModule } from "@/config/database/node-state.module";
+import { EnvModule } from "@/config/env/env.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
-import { SetupGateService } from "./setup-gate.service";
+import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupProgressModule } from "@/modules/progress/progress.module";
+
 import { MeshOnboardingService } from "./mesh-onboarding.service";
-import { WizardController } from "./wizard.controller";
+import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
+import { SetupGateService } from "./setup-gate.service";
 import { WizardOrpcModule } from "./wizard-orpc.module";
 import { WizardPageController } from "./wizard-page.controller";
 import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
-import { SetupProgressModule } from "@/modules/progress/progress.module";
+import { WizardController } from "./wizard.controller";
+
 
 /**
  * The wizard half of setup: the onboarding page and the proxy to the API that

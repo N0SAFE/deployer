@@ -1,10 +1,14 @@
-import { Injectable, type NestMiddleware } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { Request, Response } from "express";
+
+import { Injectable, type NestMiddleware } from "@nestjs/common";
+
 import {
     setInternalErrorRequestContext,
     type InternalErrorRequestContext,
 } from "./internal-error-context";
+
+import type { Request, Response } from "express";
+
 
 @Injectable()
 export class InternalErrorContextMiddleware implements NestMiddleware {

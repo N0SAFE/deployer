@@ -43,7 +43,6 @@
  * | `pathname` | Left `undefined` — nuqs falls back to `location.pathname`, what `usePathname()` returns client-side |
  */
 
-import { startTransition, useCallback, useOptimistic, type ReactElement, type ReactNode } from 'react'
 import { ReadonlyURLSearchParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   renderQueryString,
@@ -51,6 +50,7 @@ import {
   type unstable_AdapterInterface,
   type unstable_UpdateUrlFunction,
 } from 'nuqs/adapters/custom'
+import { startTransition, useCallback, useOptimistic, type ReactElement, type ReactNode } from 'react'
 
 /**
  * nuqs issues three History calls per URL update; the rate limiter uses this to

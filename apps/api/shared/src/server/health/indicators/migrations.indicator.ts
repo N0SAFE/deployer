@@ -3,7 +3,6 @@ import { Context, Effect } from "effect";
 import { indicatorFor, type HealthIndicatorShape } from "./indicator-result";
 
 import type { IndicatorResult } from "../types";
-
 import type { Pool } from "pg";
 
 /** The journal table drizzle writes when it applies a migration. */

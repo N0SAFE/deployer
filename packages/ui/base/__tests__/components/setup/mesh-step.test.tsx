@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import type { SetupMeshJoinResult, SetupMeshStatus } from "@deployer/contracts-entities"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
+import type { SetupMeshJoinResult, SetupMeshStatus } from "@deployer/contracts-entities"
 import { MeshStep, type MeshStepApi } from "@deployer/ui/components/setup/steps/mesh-step"
 
 /**

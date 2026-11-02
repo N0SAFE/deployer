@@ -1,15 +1,18 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
 import { defaultIngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 import type { DockerEngineShape } from "@deployer/docker";
 import { makeSupervisorOrchestrator } from "@deployer/supervision";
+
 import { harness, testBus } from "../supervisor-test-harness";
+
+import { EDGE_CONNECTOR_SUPERVISOR_ID, makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EdgeConnectorSpec } from "../../edge/edge-provider";
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "../../reachability/services/public-edge.service";
-import { EDGE_CONNECTOR_SUPERVISOR_ID, makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
 
 const connector: EdgeConnectorSpec = { image: "tunnel:1", env: ["TOKEN=secret"], command: ["tunnel"], args: ["run"], replicas: 2 };
 

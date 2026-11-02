@@ -1,5 +1,5 @@
-import { serviceOver, type Over } from "@deployer/effect-core"
 import { Context, Effect } from 'effect'
+
 import {
     PermissionEngine,
     ForbiddenError,
@@ -10,19 +10,23 @@ import {
     type ColumnResolver,
     type FilterableScalar,
 } from '@deployer/auth/permissions'
-import type { SQL } from 'drizzle-orm'
+import { serviceOver, type Over } from "@deployer/effect-core"
 
-import {
-    PermissionRepository,
-    type PermissionRepositoryShape,
-} from '../repositories/permission.repository'
+
+import { DatabasePort } from '@identity/core/database/database.port'
+
 import {
     PermissionDenied,
     type PermissionFailure,
     type PermissionRepositoryFailure,
 } from '../permission.failures'
-import { DatabasePort } from '@identity/core/database/database.port'
+import {
+    PermissionRepository,
+    type PermissionRepositoryShape,
+} from '../repositories/permission.repository'
+
 import type { RoleRuleRow } from '../permission.types'
+import type { SQL } from 'drizzle-orm'
 
 /**
  * PermissionService — thin wrapper around PermissionEngine.

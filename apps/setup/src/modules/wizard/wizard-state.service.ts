@@ -1,7 +1,10 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
+
 import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@deployer/contracts-entities";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+
+import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
+
 
 /**
  * The wizard's PRE-GATE state, answered locally.

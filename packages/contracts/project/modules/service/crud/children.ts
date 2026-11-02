@@ -1,7 +1,9 @@
 import * as z from "zod";
+
 import { serviceEffectiveConfigSchema, serviceObjectShape } from "@deployer/contracts-entities";
-import { serviceOps } from "./shared";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+
+import { serviceOps } from "./shared";
 
 /**
  * Direct children (one level) of a service. Used by the tree UI to render the

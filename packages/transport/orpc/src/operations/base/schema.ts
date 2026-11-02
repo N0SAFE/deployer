@@ -5,7 +5,6 @@
  * These functions create schemas that conform to @standard-schema/spec.
  */
 
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type {
     AnySchema,
     ArraySchema,
@@ -28,6 +27,8 @@ import type {
 } from "@deployer/orpc-utils/operations/base/types";
 import { SHAPE_SYMBOL } from "@deployer/orpc-utils/operations/base/types";
 import { voidSchema as _voidSchema, neverSchema } from "@deployer/orpc-utils/types/standard-schema-helpers";
+
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 /**
  * Re-exported from shared — single canonical implementation

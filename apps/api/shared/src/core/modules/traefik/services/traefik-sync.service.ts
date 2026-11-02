@@ -1,11 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { isRecord } from "@deployer/type-guards";
-import * as yaml from 'yaml';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TraefikRepository } from '../repositories/traefik.repository';
-import { TraefikFileSystemService } from './traefik-file-system.service';
+
+import { Injectable, Logger } from '@nestjs/common';
+import * as yaml from 'yaml';
+
+import { isRecord } from "@deployer/type-guards";
+
 import { ConfigSyncError } from '../errors';
+import { TraefikRepository } from '../repositories/traefik.repository';
+
+import { TraefikFileSystemService } from './traefik-file-system.service';
 
 // Import types from centralized interfaces
 import type {

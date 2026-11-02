@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
-import { createGlobalModule } from "@deployer/nest-effect";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+
 import {
   DockerEngine,
   DockerHost,
@@ -14,6 +13,8 @@ import {
   type ScannerConfig,
   type ScannerPoolShape,
 } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { createGlobalModule } from "@deployer/nest-effect";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 
@@ -29,7 +30,6 @@ import { EnvModule, EnvService } from "../../../config/env/env.module";
  */
 
 /** Defaults live HERE, not in the package: what scanner image to run is a deployment decision. */
-const DEFAULT_SCANNER_RUNNER_IMAGE = "deployer-scanner-runner:latest";
 const DEFAULT_SCANNER_APP_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** Stops the scanner containers this process started, when the context closes. */
@@ -61,9 +61,10 @@ export const CoreDockerModule = createGlobalModule({
       provide: ScannerPool,
       useFactory: (host: DockerHostShape, env: EnvService): ScannerPoolShape => {
         const config: ScannerConfig = {
-          image: env.get("SCANNER_RUNNER_IMAGE") ?? DEFAULT_SCANNER_RUNNER_IMAGE,
+          // The schema gives it a default, so `env.get` is always a string: the fallback was dead code.
+          image: env.get("SCANNER_RUNNER_IMAGE"),
           buildContext: env.get("SCANNER_RUNNER_BUILD_CONTEXT"),
-          idleTimeoutMs: env.get("SCANNER_APP_IDLE_TIMEOUT_MS") ?? DEFAULT_SCANNER_APP_IDLE_TIMEOUT_MS,
+          idleTimeoutMs: env.get("SCANNER_APP_IDLE_TIMEOUT_MS"),
           autoScanDisabled: env.get("DISABLE_AUTO_SCAN"),
         };
         return makeScannerPool({ docker: host.engine, config, access: host.scannerAccess });

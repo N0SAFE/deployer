@@ -1,7 +1,10 @@
-import { Command, CommandRunner } from 'nest-commander';
 import { Injectable, Logger, Inject } from '@nestjs/common';
-import { seedLocal } from './local';
+import { Command, CommandRunner } from 'nest-commander';
+
 import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
+
+import { seedLocal } from './local';
+
 
 @Command({
   name: "seed",

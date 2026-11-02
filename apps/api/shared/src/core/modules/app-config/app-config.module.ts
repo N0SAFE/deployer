@@ -5,6 +5,7 @@
  * Replaces env-var-based configuration for settings like GitHub OAuth.
  */
 import { createGlobalModule } from "@deployer/nest-effect";
+
 import { AppConfigService } from "./app-config.service";
 
 export const AppConfigModule = createGlobalModule({

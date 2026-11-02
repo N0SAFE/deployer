@@ -1,9 +1,12 @@
 'use client'
 
 import { Network } from 'lucide-react'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { EmptyState, PageHeader } from '@/components/dashboard'
 import { AuthDashboardAdminProvidersDns } from '@/routes'
+
 import { DnsRecordsTable } from '../_components/dns-records-table'
 import { WithIngress } from '../_components/ingress-query-state'
 import { Mono } from '../_components/network-copy'

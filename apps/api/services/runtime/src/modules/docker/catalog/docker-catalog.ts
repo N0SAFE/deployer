@@ -1,14 +1,17 @@
+import { Context, Effect } from "effect";
+
 import type { DockerRuntimeCatalog } from "@deployer/contracts-entities";
+import { serviceOver, type Over } from "@deployer/effect-core";
 import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
 import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
-import { serviceOver, type Over } from "@deployer/effect-core";
-import { Context, Effect } from "effect";
 
 import { formatError } from "../domains/containers/orchestration/mesh-entity-normalization";
 import { mergeRuntimeCatalogResponses } from "../domains/containers/orchestration/mesh-universe-merge";
+
+import { listNetworksOf, listVolumesOf } from "./catalog-lists";
+
 import type { DockerNodeMesh } from "../domains/containers/mesh/docker-node-mesh";
 import type { DockerRepository } from "../repositories/facade/docker.repository";
-import { listNetworksOf, listVolumesOf } from "./catalog-lists";
 
 /** The mesh fan-out that collects every node's runtime catalog (a Promise-based Nest provider until it moves). */
 export class CatalogMeshPort extends Context.Service<

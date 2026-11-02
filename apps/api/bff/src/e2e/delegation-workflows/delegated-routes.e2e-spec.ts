@@ -1,9 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { getSharedApiRuntimeContext, stopSharedApiRuntime, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import { createAuthenticatedSession } from "@deployer/shared/e2e-harness/authenticated-session";
+
+import { getSharedApiRuntimeContext, stopSharedApiRuntime, type SharedApiRuntimeContext } from "@/e2e/runtime";
+
+import type { AddressInfo } from "node:net";
 
 /**
  * The BFF delegating to a service, over the real wire format.

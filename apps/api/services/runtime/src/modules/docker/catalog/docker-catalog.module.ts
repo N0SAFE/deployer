@@ -1,9 +1,10 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { DOCKER_NODE_MESH } from "../domains/containers/mesh/docker-node-mesh";
 import { DockerContainersModule } from "../domains/containers/docker-containers.module";
-import { DockerRepository } from "../repositories/facade/docker.repository";
+import { DOCKER_NODE_MESH } from "../domains/containers/mesh/docker-node-mesh";
 import { DockerRepositoriesModule } from "../repositories/docker-repositories.module";
+import { DockerRepository } from "../repositories/facade/docker.repository";
+
 import { CatalogLocalPort, CatalogMeshPort, DockerCatalog } from "./docker-catalog";
 
 /** The mesh-wide runtime catalog: the constant service and the two Nest providers it reads through ports. */

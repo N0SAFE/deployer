@@ -30,7 +30,7 @@ export class GlobalDatabaseLifecycleService implements OnApplicationShutdown {
     constructor(@Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool | undefined) {}
 
     async onApplicationShutdown(): Promise<void> {
-        if (this.pool === undefined || this.pool === null) {
+        if (!this.pool) {
             return;
         }
         try {

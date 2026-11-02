@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { Context, Effect } from "effect";
-import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
+
 import { githubApps, githubWebhookEvents } from "@deployer/nest-schema/global/fleet/github-provider";
+import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
 import { services } from "@deployer/nest-schema/global/project/deployment";
 
 import { FleetDb } from "@/core/database/fleet-db";

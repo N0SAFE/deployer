@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, boolean, uuid, jsonb, pgEnum, integer, } from "drizzle-orm/pg-core";
+
 import {
     envNameSchema,
     environmentKindSchema,
@@ -6,9 +7,10 @@ import {
     variableResolutionStatusSchema,
 } from "@deployer/contracts-common";
 import type { EnvironmentRules, EnvironmentTrigger } from "@deployer/contracts-entities";
-import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
+
 import { encryptedText } from "../../codecs/codec-registry";
 // Environment kinds (the primitive TYPE: stable | preview | ephemeral)
 export const environmentKindEnum = pgEnum('environment_kind', [

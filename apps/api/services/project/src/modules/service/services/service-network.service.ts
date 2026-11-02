@@ -1,6 +1,7 @@
-import { ResourceNotFound, ProjectInvalid } from "@/modules/project/domain/project.errors";
 import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import z from "zod/v4";
+
 import {
     defaultServiceNetworkConfig,
     serviceNetworkConfigSchema,
@@ -8,12 +9,15 @@ import {
     type ServiceNetworkConfig,
 } from "@deployer/contracts-entities";
 import { type ServiceNetworkView, type ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
-import { Context, Effect } from "effect";
+
+import { ResourceNotFound, ProjectInvalid } from "@/modules/project/domain/project.errors";
 import { attempt } from "@/modules/project/project-effects";
+import { ProjectStore } from "@/modules/project/repositories/project.repository";
+
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
-import { ProjectStore } from "@/modules/project/repositories/project.repository";
+
 import { ServiceStore } from "../repositories/service.repository";
 
 /** Validate a provider record type against the contract's full enum. */

@@ -1,5 +1,6 @@
 import { runSyncUnwrapped } from "@deployer/effect-core";
 import { makeLenientEnvironment } from "@deployer/environment";
+
 import type { EnvService } from "@/config/env/env.module";
 import { setupEnvSchema } from "@/config/env/env.schema";
 

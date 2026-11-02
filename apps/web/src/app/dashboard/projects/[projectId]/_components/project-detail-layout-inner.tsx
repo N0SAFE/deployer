@@ -1,16 +1,22 @@
 'use client'
 
-import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { Siren, ArrowLeft, Settings } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useSelectedLayoutSegment } from 'next/navigation'
-import { AuthDashboardProjects, AuthDashboardProjectsProjectIdConfiguration } from '@/routes'
-import { useProject } from '@/domains/project/hooks'
-import { ProjectSectionNav } from './project-section-nav'
-import { ProjectDetailSkeleton } from './project-detail-skeleton'
+
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
-import { Siren, ArrowLeft, Settings } from 'lucide-react'
 import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { PageHeader } from '@/components/dashboard'
+import { useProject } from '@/domains/project/hooks'
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { AuthDashboardProjects, AuthDashboardProjectsProjectIdConfiguration } from '@/routes'
+
+import { ProjectDetailSkeleton } from './project-detail-skeleton'
+import { ProjectSectionNav } from './project-section-nav'
+
+
+
 import type { ReactNode } from 'react'
 
 /**

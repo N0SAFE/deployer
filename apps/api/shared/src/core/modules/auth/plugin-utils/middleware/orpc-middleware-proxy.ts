@@ -41,13 +41,16 @@
  */
 
 import { os, type DecoratedMiddleware } from '@orpc/server';
-import type { MiddlewareCheck, ValueOrResolver } from './middleware-check';
+
 import { isRecord } from '@deployer/type-guards';
+
 import {
   createOrpcMiddleware,
   createCompositeOrpcMiddleware,
   type OrpcMiddlewareOptions,
 } from './middleware-converter';
+
+import type { MiddlewareCheck, ValueOrResolver } from './middleware-check';
 import type { ORPCContextWithAuthOnly } from '../../orpc';
 
 // ============================================================================

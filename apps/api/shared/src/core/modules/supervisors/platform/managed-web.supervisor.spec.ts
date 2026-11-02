@@ -1,13 +1,16 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+
 import type { DockerEngineShape } from "@deployer/docker";
+
+import { harness, testBus } from "../supervisor-test-harness";
+
+import { makeManagedWebRegistration } from "./managed-web.supervisor";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import type { HostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import { makeManagedWebRegistration } from "./managed-web.supervisor";
-import { harness, testBus } from "../supervisor-test-harness";
 
 /**
  * The host's job is wiring: the environment, hostnames, platform flag and app-instance service reach

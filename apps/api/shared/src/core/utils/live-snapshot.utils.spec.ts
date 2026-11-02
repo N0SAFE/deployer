@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
 import { firstValueFrom, take, toArray } from 'rxjs'
+import { describe, expect, it, vi } from 'vitest'
 
 import { liveSnapshot } from './live-snapshot.utils'
 

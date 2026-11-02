@@ -1,28 +1,29 @@
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { createModuleContext, EffectHost, effectHostProvider } from "@deployer/nest-effect";
-
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
 import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
-import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
-import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
+import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+
+import { ProjectDomainModule } from "@/modules/project/project.module";
+
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
-import { ProjectDomainModule } from "@/modules/project/project.module";
 
 import { ServiceController } from "./controllers/service.controller";
 import { ServiceStore } from "./repositories/service.repository";
+import { PreviewTopologyService } from "./services/preview-topology.service";
 import { registerServiceEventAdapter, SERVICE_EVENT_REGISTRATION } from "./services/service-event-adapter";
 import { ServiceEventService, ServiceEventServiceImpl } from "./services/service-event.service";
-import { PreviewTopologyService } from "./services/preview-topology.service";
 import { ServiceNetworkService } from "./services/service-network.service";
 import { ServiceService } from "./services/service.service";
 

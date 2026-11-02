@@ -1,16 +1,19 @@
+import { Context, Effect } from "effect";
+
 import { DomainAdapter } from "@deployer/shared/core/modules/domain/adapters/domain.adapter";
+import { DomainAlreadyExistsError } from "@deployer/shared/core/modules/domain/errors/domain-errors";
 import {
 	ProjectDomainDeletionError,
 	ProjectDomainNotFoundError,
 	ProjectDomainUpdateError,
 } from "@deployer/shared/core/modules/domain/errors/index";
-import { DomainAlreadyExistsError } from "@deployer/shared/core/modules/domain/errors/domain-errors";
-import { attempt, toFailure } from "@/modules/project/project-effects";
-import { DomainVerification } from "@project/core/ports/domain-verification.port";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+
+import { attempt, toFailure } from "@/modules/project/project-effects";
+
+import { DomainVerification } from "@project/core/ports/domain-verification.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { ServiceDomainMappingRepo } from "@project/core/ports/service-domain-mapping-repository.port";
-import { Context, Effect } from "effect";
 
 export type AddProjectDomainInput = {
 	readonly projectId: string;

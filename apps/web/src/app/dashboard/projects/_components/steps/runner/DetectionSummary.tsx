@@ -1,9 +1,11 @@
 'use client'
 
+import { Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@deployer/ui/components/shadcn/collapsible'
-import { Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
+
 import type { useRunnerDetection } from '../runner-detection-context'
 
 /** Compact detection summary — one line + expandable details. */

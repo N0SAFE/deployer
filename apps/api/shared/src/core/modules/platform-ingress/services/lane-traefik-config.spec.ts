@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { buildNodeDoors } from "./ingress-doors";

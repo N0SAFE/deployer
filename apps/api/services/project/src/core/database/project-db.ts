@@ -1,3 +1,6 @@
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Context } from 'effect'
+
 import {
     lazyPgDb,
     type LazyDbShape,
@@ -5,8 +8,6 @@ import {
     type PgPoolLike,
 } from '@deployer/effect-infra'
 import type { GlobalDatabase } from '@deployer/shared/core/modules/database/services/global-database.service'
-import { Context } from 'effect'
-import { drizzle } from 'drizzle-orm/node-postgres'
 
 import { DatabasePort } from './database.port'
 

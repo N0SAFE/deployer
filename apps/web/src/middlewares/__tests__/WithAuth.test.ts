@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("WithAuth middleware", () => {
   const mockValidateEnvSafe = vi.fn();

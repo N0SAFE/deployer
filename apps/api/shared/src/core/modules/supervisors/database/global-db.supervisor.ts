@@ -1,8 +1,8 @@
 import { Logger } from "@nestjs/common";
-import type { DockerEngineShape } from "@deployer/docker";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
-import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
 import { Effect } from "effect";
+
+import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { splitManagedEnv } from "@deployer/env";
 import {
 	GLOBAL_DB_SUPERVISOR_ID,
@@ -14,6 +14,7 @@ import {
 
 import { EnvService } from "../../../../config/env/env.module";
 import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { GLOBAL_DB_SUPERVISOR_ID };
 
@@ -67,7 +68,7 @@ export function makeGlobalDbRegistration({ engine, snapshot, env, bus }: GlobalD
 					return null;
 				}
 				// A real DATABASE URL has been written to the node config (setup wizard or dev bootstrap completed).
-				if (!Boolean(row?.databaseUrl?.trim())) {
+				if (!row?.databaseUrl?.trim()) {
 					logger.log("Global-db dependencies not ready (no database URL) — skipping registration (retry from dev console after setup)");
 					return null;
 				}

@@ -1,7 +1,8 @@
-import { domainError, type ErrorKind } from "@deployer/effect-core";
 import { ORPCError } from "@orpc/client";
 import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
+
+import { domainError, type ErrorKind } from "@deployer/effect-core";
 
 import { catchDomainErrors, mapDomainError } from "./map-domain-error";
 

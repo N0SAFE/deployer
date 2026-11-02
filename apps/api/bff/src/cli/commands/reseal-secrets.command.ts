@@ -1,15 +1,18 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Command, CommandRunner, Option } from "nest-commander";
-import type { Pool } from "pg";
-import { GLOBAL_DATABASE_POOL } from "@deployer/shared/core/modules/database/database-connection"
-import * as globalSchema from "@deployer/nest-schema/global";
+
 import {
   findEncryptedColumns,
   makePgResealStore,
   resealEncryptedColumns,
   type ColumnReport,
 } from "@deployer/nest-schema/codecs/reseal";
+import * as globalSchema from "@deployer/nest-schema/global";
+import { GLOBAL_DATABASE_POOL } from "@deployer/shared/core/modules/database/database-connection"
+
 import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
+
+import type { Pool } from "pg";
 
 /*
  * ─── Exit codes ──────────────────────────────────────────────────────────────

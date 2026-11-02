@@ -1,16 +1,20 @@
-import { ResourceNotFound } from "../domain/project.errors";
 import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import z from "zod/v4";
+
 import {
 	defaultProjectNetworkConfig,
 	projectNetworkConfigSchema,
 	type ProjectNetworkConfig,
 } from "@deployer/contracts-entities";
 import { type ProjectNetworkView } from "@deployer/project-contracts";
-import { Context, Effect } from "effect";
-import { attempt } from "../project-effects";
+
+
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
+
+import { ResourceNotFound } from "../domain/project.errors";
+import { attempt } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
 
 /** Validate a provider record type against the contract's full enum. */

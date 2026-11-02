@@ -1,13 +1,3 @@
-import React from 'react'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@deployer/ui/components/shadcn/card'
-import { AuthSignin, AuthDashboard } from '@/routes'
 import {
     ArrowRight,
     GitBranch,
@@ -16,11 +6,23 @@ import {
     Server,
     Workflow,
 } from 'lucide-react'
-import { PageTimingLogger } from '@/lib/timing'
+import React from 'react'
 
-import type { JSX } from 'react'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@deployer/ui/components/shadcn/card'
+
+import { PageTimingLogger } from '@/lib/timing'
+import { AuthSignin, AuthDashboard } from '@/routes'
 
 import type { Metadata } from 'next'
+import type { JSX } from 'react'
+
 function FeatureCard({
     icon: Icon,
     title,

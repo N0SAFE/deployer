@@ -1,14 +1,16 @@
 'use client'
 
-import { useParams } from 'next/navigation'
 import { useQueries } from '@tanstack/react-query'
-import { useProject } from '@/domains/project/hooks'
-import { useServiceList } from '@/domains/service/hooks'
-import { useDeploymentList } from '@/domains/deployment/hooks'
-import { serviceEndpoints } from '@/domains/service/endpoints'
-import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
+import { useParams } from 'next/navigation'
 import { useMemo } from 'react'
 import { useCallback } from 'react'
+
+import { useDeploymentList } from '@/domains/deployment/hooks'
+import { useProject } from '@/domains/project/hooks'
+import { serviceEndpoints } from '@/domains/service/endpoints'
+import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
+import { useServiceList } from '@/domains/service/hooks'
+
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -73,7 +75,7 @@ export function useProjectDetail() {
    */
   const { dependencies, subServiceNodes } = useMemo(() => {
     const deps: any[] = []
-    const nodes: Array<{ id: string; name: string; type: string; parentId: string | null; status?: string }> = []
+    const nodes: { id: string; name: string; type: string; parentId: string | null; status?: string }[] = []
     for (const q of dependencyQueries) {
       const data = q.data as {
         dependencies?: unknown[]
@@ -125,7 +127,7 @@ interface SubDepsNodeShape {
 function collectSubServiceNodes(
   subServices: unknown[] | undefined,
   deps: unknown[],
-  nodes: Array<{ id: string; name: string; type: string; parentId: string | null; status?: string }>,
+  nodes: { id: string; name: string; type: string; parentId: string | null; status?: string }[],
   parentServiceId: string | null,
 ): void {
   for (const raw of subServices ?? []) {

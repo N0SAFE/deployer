@@ -1,13 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
-import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
-import { GLOBAL_DB_SUPERVISOR_ID, makeGlobalDbRegistration } from "./global-db.supervisor";
-import { makeSupervisorOrchestrator } from "@deployer/supervision";
-import { harness, testBus } from "../supervisor-test-harness";
+import { describe, expect, it, vi } from "vitest";
+
+import { DockerNotFound } from "@deployer/docker";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
-import type { EnvService } from "../../../../config/env/env.module";
+import { makeSupervisorOrchestrator } from "@deployer/supervision";
+
+
 import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
+import { harness, testBus } from "../supervisor-test-harness";
+
+import { GLOBAL_DB_SUPERVISOR_ID, makeGlobalDbRegistration } from "./global-db.supervisor";
+
+import type { EnvService } from "../../../../config/env/env.module";
 
 type Service = { ID: string; CreatedAt: string; UpdatedAt: string; Spec: { Name: string } };
 

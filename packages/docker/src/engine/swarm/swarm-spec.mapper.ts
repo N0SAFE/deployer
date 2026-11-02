@@ -14,8 +14,9 @@
  * Zod types; dockerode types never leak past `DockerService` + this mapper.
  */
 
-import type Docker from "dockerode";
 import type { SwarmHealthcheckConfig, SwarmServiceSpecInput, SwarmUpdateConfig } from "@deployer/contracts-entities";
+
+import type Docker from "dockerode";
 /** dockerode health/update/rollback intervals are expressed in nanoseconds. */
 const NANOS_PER_MS = 1_000_000;
 

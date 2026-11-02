@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
 import { AuthService } from './auth.service';
+
 import type { AuthCoreService } from './auth-core.service';
 import type { UserSession } from '../utils/auth-utils';
 

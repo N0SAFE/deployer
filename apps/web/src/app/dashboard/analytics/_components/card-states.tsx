@@ -1,10 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
+
 import { Hint } from '../../_components/hint'
+
+import type { ReactNode } from 'react'
 
 /** Loading / error / empty states shared by the analytics cards, so one failing query never blanks the page. */
 export function CardBody({

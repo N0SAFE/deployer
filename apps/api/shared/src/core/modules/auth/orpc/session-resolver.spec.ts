@@ -1,8 +1,9 @@
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Auth } from "../../../../auth";
 import { makeSessionResolver, SessionLookupFailed } from "./session-resolver";
+
+import type { Auth } from "../../../../auth";
 
 const session = { session: { id: "s1" }, user: { id: "u1", role: "admin" } };
 

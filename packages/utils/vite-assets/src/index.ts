@@ -1,4 +1,3 @@
-import type { RequestHandler } from "express";
 import { logger } from "@deployer/logger";
 
 import {
@@ -6,6 +5,8 @@ import {
   isViteAssetRequest,
   resolveViteDevServerUrl,
 } from "./vite-assets-proxy";
+
+import type { RequestHandler } from "express";
 
 const log = logger.scope("ViteAssetsMiddleware");
 

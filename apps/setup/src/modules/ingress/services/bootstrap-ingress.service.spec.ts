@@ -1,10 +1,12 @@
-import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { BootstrapIngressService } from "./bootstrap-ingress.service";
-import type { EnvService } from "@/config/env/env.module";
+import { DockerNotFound } from "@deployer/docker";
 import type { DockerEngineShape } from "@deployer/docker";
+
+import type { EnvService } from "@/config/env/env.module";
+
+import { BootstrapIngressService } from "./bootstrap-ingress.service";
 
 /**
  * `releaseEntryPort` is the handover of the host port from setup's bootstrap

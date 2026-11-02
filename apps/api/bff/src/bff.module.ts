@@ -1,32 +1,43 @@
 import { type MiddlewareConsumer, type NestModule } from "@nestjs/common";
+
 import { createModuleContext } from "@deployer/nest-effect";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
+import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
 import {
 	createOrpcModule,
 	PreflightModule,
 	DEPENDENCIES,
 	ServiceHealthModule,
 } from "@deployer/shared/server";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
+
+import { createBetterAuth } from "@/config/auth/auth";
 import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@/config/env/env.module";
-import { DatabaseModule } from "@/core/modules/database/database.module";
 import { AuthModule } from "@/core/modules/auth/auth.module";
-import { createBetterAuth } from "@/config/auth/auth";
+import { BootstrapModule } from "@/core/modules/bootstrap/bootstrap.module";
+import { DatabaseModule } from "@/core/modules/database/database.module";
+import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
+import { SupervisorsDatabaseModule } from "@/core/modules/supervisors/database/database-supervisors.module";
+import { SupervisorsPlatformModule } from "@/core/modules/supervisors/platform/platform-supervisors.module";
+import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
+import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 
-import { ServiceClientModule } from "./clients/service-client.module";
 import { ServiceAuthContextMiddleware } from "./clients/service-auth-context.middleware";
+import { ServiceClientModule } from "./clients/service-client.module";
+import { SetupDomainModule } from "./domains/setup/setup.module";
+import { TestDomainModule } from "./domains/test/test.module";
+import { PlatformConsoleModule } from "./modules/console/platform-console.module";
+import { OrchestrationModule } from "./modules/dashboard/orchestration.module";
 import { DelegationModule } from "./modules/delegation/delegation.module";
 import { DocsModule } from "./modules/docs/docs.module";
-import { OrchestrationModule } from "./modules/dashboard/orchestration.module";
 import { PlatformHealthModule } from "./modules/health/platform-health.module";
-import { PlatformConsoleModule } from "./modules/console/platform-console.module";
-import { SetupDomainModule } from "./domains/setup/setup.module";
+
 // The boot coordinator (migrations, default admin). See the import note in
 // `BootstrapModule`'s entry in the module list — without it nothing applies the
 // global migrations on boot and no service can ever pass its `migrations` check.
-import { BootstrapModule } from "@/core/modules/bootstrap/bootstrap.module";
-import { TestDomainModule } from "./domains/test/test.module";
+
+
 // ── THE PLATFORM SUPERVISORS, WHICH THE BFF IS THE ONLY APP TO RUN ────────
 // In a supervised stack NOTHING but the platform runs the database, Redis or the
 // ingress. Those supervisors shipped in the tier but were imported by NO
@@ -40,21 +51,16 @@ import { TestDomainModule } from "./domains/test/test.module";
 // The monolith has always imported these (`apps/api/src/app.module.ts`), which is
 // why the supervised monolith profile worked and the microservices one could not.
 // The BFF inherits the monolith's public role, so it inherits the duty.
-import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
-import { SupervisorsDatabaseModule } from "@/core/modules/supervisors/database/database-supervisors.module";
-import { SupervisorsPlatformModule } from "@/core/modules/supervisors/platform/platform-supervisors.module";
+
 // ── THE INGRESS'S ROUTE SOURCE ──────────────────────────────────────────
 // Traefik runs with its HTTP provider pointed at
 // `/<TRAEFIK_CONFIG_PATH>` on THIS app, and `TraefikIngressConfigController` is
 // what answers there. Without this module the ingress polls a 404, caches an
 // empty routing table, and every hostname 404s while all seven services report
 // healthy — the most misleading state a supervised stack can be in.
-import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 // Swarm primitives the supervisors schedule onto, plus the node's mesh agent —
 // the same two the monolith imports beside the supervisors, for the same reason:
 // the supervisors cannot converge overlay networks the engine has not joined.
-import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
-import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
 
 // Registered at MODULE LOAD, not in a lifecycle hook: the column codecs run at
 // QUERY time and the first query can happen during bootstrap — before any

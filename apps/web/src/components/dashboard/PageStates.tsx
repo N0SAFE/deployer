@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
-import { Button } from '@deployer/ui/components/shadcn/button'
 import { Check, Copy, RefreshCw, Siren } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+
+import { Button } from '@deployer/ui/components/shadcn/button'
+
 import { PageSkeleton } from './Skeletons'
 
 /**

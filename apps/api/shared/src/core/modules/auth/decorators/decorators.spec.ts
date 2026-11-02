@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { ExecutionContext } from "@nestjs/common";
+
 import {
     AllowAnonymous,
     OptionalAuth,
@@ -9,6 +9,8 @@ import {
     UserRoles,
     AuthenticatedUser,
 } from "./decorators";
+
+import type { ExecutionContext } from "@nestjs/common";
 
 // Mock the permissions module with complete types
 vi.mock("@deployer/auth/permissions", () => ({
@@ -126,7 +128,9 @@ describe("Auth Decorators", () => {
         it("should apply OptionalAuth decorator to method", () => {
             class TestController {
                 @OptionalAuth()
-                testMethod() {}
+                testMethod(): void {
+                    /* the decorator is the subject; the body has nothing to do */
+                }
             }
 
             expect(TestController).toBeDefined();

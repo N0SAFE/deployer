@@ -1,6 +1,8 @@
-import type { RunnerDetectionHints, RunnerFormData } from '../runner-types'
 import { RUNNER_DEFAULT_CONFIG, subServicesFromHints } from '../runner-presets'
+
 import { emptySubService } from './sub-service-defaults'
+
+import type { RunnerDetectionHints, RunnerFormData } from '../runner-types'
 
 type RunnerId = RunnerFormData['runnerId']
 

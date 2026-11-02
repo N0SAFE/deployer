@@ -1,9 +1,10 @@
-import type { BetterAuthPlugin } from "better-auth";
 import { createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import * as z from "zod/v4";
 
 import { bearerToken, secretsMatch } from "../secrets";
+
+import type { BetterAuthPlugin } from "better-auth";
 
 interface LoginAsOptions {
     enabled?: boolean;

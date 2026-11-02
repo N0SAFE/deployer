@@ -1,5 +1,6 @@
 "use client"
 
+import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
 import * as React from "react"
 import {
   DayPicker,
@@ -8,9 +9,8 @@ import {
   type Locale,
 } from "react-day-picker"
 
-import { cn } from "@deployer/ui/lib/utils"
 import { Button, buttonVariants } from "@deployer/ui/components/shadcn/button"
-import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
+import { cn } from "@deployer/ui/lib/utils"
 
 function Calendar({
   className,

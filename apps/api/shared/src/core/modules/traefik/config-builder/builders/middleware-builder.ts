@@ -1,3 +1,5 @@
+import { MiddlewareConfigurationError } from '../../errors';
+
 import type {
   HttpMiddlewareConfig,
   HeadersConfig,
@@ -11,7 +13,6 @@ import type {
   CorsOptions,
   RateLimitConfig,
 } from '../../interfaces';
-import { MiddlewareConfigurationError } from '../../errors';
 
 /**
  * Builder for creating Traefik middleware configurations

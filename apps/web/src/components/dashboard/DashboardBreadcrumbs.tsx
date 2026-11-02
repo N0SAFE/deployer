@@ -1,13 +1,10 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
-import Link from 'next/link'
-import { Fragment, useMemo } from 'react'
-import { cn } from '@/lib/utils'
-import { useProjectList } from '@/domains/project/hooks'
-import { useServiceList } from '@/domains/service/hooks'
-import { buildBreadcrumbs } from './breadcrumbs-model'
 import { Home } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Fragment, useMemo } from 'react'
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,6 +13,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@deployer/ui/components/shadcn/breadcrumb'
+
+import { useProjectList } from '@/domains/project/hooks'
+import { useServiceList } from '@/domains/service/hooks'
+import { cn } from '@/lib/utils'
+
+import { buildBreadcrumbs } from './breadcrumbs-model'
+
+
 
 /**
  * DashboardBreadcrumbs — breadcrumb trail for the dashboard header.

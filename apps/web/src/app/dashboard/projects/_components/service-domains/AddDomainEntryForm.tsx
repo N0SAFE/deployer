@@ -1,14 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { Globe, Loader2, Plus } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
-import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+
 import { useCheckSubdomainAvailability } from '@/domains/domain/hooks'
+
 import { resolveFullUrl, sanitizeBasePath, sanitizeSubdomain, type ServiceDomainEntry } from './domain-url'
 
 export interface ProjectDomainOption {

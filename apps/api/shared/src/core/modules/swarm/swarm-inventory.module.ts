@@ -24,10 +24,12 @@
 
 
 import { createModuleContext } from "@deployer/nest-effect";
+
 import { MeshCoreModule } from "../mesh/mesh-core.module";
-import { SwarmCoreModule } from "./swarm.module";
+
 import { GlobalClusterNodesRepository } from "./repositories/global-cluster-nodes.repository";
 import { NodeInventoryService } from "./services/node-inventory.service";
+import { SwarmCoreModule } from "./swarm.module";
 
 export class SwarmInventoryModule extends createModuleContext({
     // SwarmCoreModule supplies SwarmClusterService (the `docker node ls` read

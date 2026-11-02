@@ -1,14 +1,16 @@
 'use client'
 
-import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { Suspense, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, GitFork, Loader2, XCircle, ArrowLeft } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useMemo } from 'react'
+
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
-import { AuthDashboardAdminProvidersCodeGithub } from '@/routes'
+
 import { useGitHubInstallCallback } from '@/domains/github-apps/hooks'
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
+import { AuthDashboardAdminProvidersCodeGithub } from '@/routes'
 
 /**
  * GitHub App installation callback — GitHub redirects here (the manifest's

@@ -1,9 +1,10 @@
-import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+
+import { Injectable } from "@nestjs/common";
 import { createORPCClient } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi/fetch";
-import { meshContract, type MeshContract } from "@deployer/fleet-contracts";
+
+import { signMeshToken } from "@deployer/auth/mesh";
 import {
     meshJoinGrantConsumeResultSchema,
     meshJoinGrantIssueResultSchema,
@@ -11,9 +12,12 @@ import {
     type MeshJoinGrantConsumeInput,
     type MeshNetworkCluster,
 } from "@deployer/contracts-entities";
-import { signMeshToken } from "@deployer/auth/mesh";
+import { meshContract, type MeshContract } from "@deployer/fleet-contracts";
+
 import { MeshValidationError } from "../../services/system-mesh-topology/domain/mesh-errors";
 import { toMeshWebSocketUrl } from "../../shared/utils/mesh-server-url.utils";
+
+import type { ContractRouterClient } from "@orpc/contract";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -158,7 +162,9 @@ export class MeshInitializationService {
                     } else {
                         for (const [name, value] of Object.entries(existing)) {
                             // A header record may hold several values for one name.
-                            headers.set(name, Array.isArray(value) ? (value as readonly string[]).join(", ") : String(value));
+                            // `Object.entries` widens the value to `string | readonly string[]`; `Array.isArray` does not narrow a
+// readonly array, so the non-array branch is asserted rather than converted.
+                            headers.set(name, Array.isArray(value) ? (value as readonly string[]).join(", ") : (value as string));
                         }
                     }
                 }

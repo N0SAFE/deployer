@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { NodeConfigRepositoryShape } from "@deployer/node-state";
+
 import { SystemMeshClusterRepository } from "./system-mesh-cluster.repository";
 
 import type { GlobalDatabaseService } from "../../database/global/global-database.service";
-import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 
 const GRANT_ID = "9f1b7a2e-0b4e-4f6a-9c1d-1f2e3d4c5b6a";
 const EXPIRES_AT = new Date("2026-10-30T12:00:00.000Z");
@@ -20,7 +21,7 @@ function repository(door: { issueJoinToken: (ttlMs?: number) => Promise<{ token:
                 }),
             },
         } as unknown as GlobalDatabaseService,
-        { find: async () => null } as unknown as NodeConfigRepositoryShape,
+        { find: () => Promise.resolve(null) } as unknown as NodeConfigRepositoryShape,
         door,
     );
 }

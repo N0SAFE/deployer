@@ -5,8 +5,10 @@
  * called on the network" logic lives in ONE place.
  */
 
-import type { ContainersShape } from "@deployer/docker";
 import { Effect } from "effect";
+
+import type { ContainersShape } from "@deployer/docker";
+
 import type { EnvService } from "../../../../config/env/env.module";
 
 /**

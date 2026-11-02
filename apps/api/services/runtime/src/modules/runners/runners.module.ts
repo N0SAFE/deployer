@@ -8,17 +8,18 @@
  */
 
 import { createModuleContext, effectHostProvider, EffectHost, type EffectHostShape } from "@deployer/nest-effect";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
-import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
+import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
+
+import { DockerRuntimeRunner } from "./docker/docker-runtime-runner.service";
 import { RunnerEnvPort, RunnerTraefikPort } from "./runners.ports";
 import { RuntimeRunnerRegistry, RuntimeRunnerRegistryService } from "./runtime-runner-registry.service";
-import { DockerRuntimeRunner } from "./docker/docker-runtime-runner.service";
-import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
 import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.service";
+import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
 
 export class RunnersDomainModule extends createModuleContext({
     // `EnvModule` is imported EXPLICITLY: `SwarmRuntimeRunnerService` injects

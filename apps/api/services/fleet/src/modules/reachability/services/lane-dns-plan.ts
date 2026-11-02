@@ -17,7 +17,6 @@
  */
 
 import type { IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
-
 import type { EdgeDnsRecord } from "@deployer/shared/core/modules/edge/edge-provider";
 
 export type LaneDnsRecordPlan = {

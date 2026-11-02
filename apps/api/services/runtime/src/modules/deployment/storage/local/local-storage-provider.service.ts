@@ -1,18 +1,21 @@
 import { Injectable } from "@nestjs/common";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
+
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+
 import {
     deploymentStorageBindingSchema,
     type DeploymentStorageBinding,
     type DeploymentStorageProvider,
 } from "../base/storage-provider.interface";
-import type { DeploymentStoragePolicy } from "../base/storage-policy.schema";
 import {
     extractStorageConfig,
     resolveAutoRedeployOnUpdate,
     resolveMountPath,
     resolveUpdateStrategy,
 } from "../base/storage-provider.utils";
+
+import type { DeploymentStoragePolicy } from "../base/storage-policy.schema";
 
 const localStorageConfigSchema = z
     .object({

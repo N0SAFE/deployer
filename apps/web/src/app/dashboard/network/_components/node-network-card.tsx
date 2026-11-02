@@ -1,9 +1,12 @@
 'use client'
 
 import { ArrowRight, Waypoints } from 'lucide-react'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { useIngress, useListNodeNetworkConfigs } from '@/domains/reachability/hooks'
 import { AuthDashboardNetworkMesh } from '@/routes'
+
 import { Age, LinkPathBadge, Mono } from './network-copy'
 
 /** Label a node member carries with its platform node id (mirrors `MEMBER_LABEL_NODE_ID`). */

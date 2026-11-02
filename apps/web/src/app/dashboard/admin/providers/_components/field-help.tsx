@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
+
+import type { ReactNode } from 'react'
 
 /** "Where do I get this?" — numbered steps plus a link to the provider's own page. */
 export function FieldHelp({ href, linkLabel, children }: { href: string; linkLabel: string; children: ReactNode }) {

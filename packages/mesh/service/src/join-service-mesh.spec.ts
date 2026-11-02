@@ -11,9 +11,9 @@ import { implement, os } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as z from "zod";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { contractId, openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket } from "@deployer/mesh-server";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { joinServiceMesh } from "./join-service-mesh";
 

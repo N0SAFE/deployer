@@ -1,6 +1,7 @@
-import { provideTo } from "@deployer/effect-core";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { provideTo } from "@deployer/effect-core";
 
 import { DomainRouting, type DomainRoutingShape } from "@/core/ports/domain-routing.port";
 import {
@@ -9,7 +10,9 @@ import {
     PreviewNaming,
     type PreviewNamingShape,
 } from "@/core/ports/preview-policy.port";
+
 import { PreviewLifecycleEventService, type PreviewLifecycleEventServiceShape } from "../events/preview-lifecycle-event.service";
+
 import { GithubDeploymentRuleService, type GithubDeploymentRuleServiceShape } from "./github-deployment-rule.service";
 import { GithubWebhookDispatchService, type GithubPrEvent } from "./github-webhook-dispatch.service";
 import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";

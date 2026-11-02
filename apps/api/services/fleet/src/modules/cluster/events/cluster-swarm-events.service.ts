@@ -1,16 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
-/**
- * ClusterSwarmEventsService — event-driven SSE for the cluster page.
- *
- * Instead of polling on intervals, subscribes to Docker's native event
- * stream (docker.getEvents) and dispatches swarm-relevant events
- * (node, service, task changes) to pooled RxJS observables.
- *
- * Each subscriber gets: (1) the current state immediately (via
- * BehaviorSubject replay), then (2) incremental updates as swarm
- * events arrive from the Docker engine.
- */
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Inject } from "@nestjs/common";
+import { Cause, Effect, Fiber, Stream } from "effect";
 import {
     BehaviorSubject,
     Observable,
@@ -23,17 +11,32 @@ import {
     timer,
 } from "rxjs";
 import { map } from "rxjs/operators";
-import { Cause, Effect, Fiber, Stream } from "effect";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
-import { SwarmFleet, type SwarmFleetShape } from "@deployer/swarm"
-import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
+
 import type { ClusterSnapshot, SwarmServiceRuntime, SwarmTaskRuntime } from "@deployer/contracts-entities";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+
+/**
+ * ClusterSwarmEventsService — event-driven SSE for the cluster page.
+ *
+ * Instead of polling on intervals, subscribes to Docker's native event
+ * stream (docker.getEvents) and dispatches swarm-relevant events
+ * (node, service, task changes) to pooled RxJS observables.
+ *
+ * Each subscriber gets: (1) the current state immediately (via
+ * BehaviorSubject replay), then (2) incremental updates as swarm
+ * events arrive from the Docker engine.
+ */
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Inject } from "@nestjs/common";
+
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
 import { type ClusterMasterView } from "@deployer/fleet-contracts";
+import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+import { SwarmFleet, type SwarmFleetShape } from "@deployer/swarm"
 
 /** Docker engine event types relevant to swarm cluster state. */
 const SWARM_EVENT_TYPES = new Set(["node", "service", "task"]);

@@ -1,15 +1,19 @@
-import { RuntimeConflict, RuntimeInvalid } from "../../../core/runtime.errors";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
-import { TimeoutError } from "@deployer/errors";
-import type { RuntimeExecutionInput } from "../runtime-runner.interface";
-import { provideTo, run } from "../testing";
-import { computeTaskStateCheck } from "./swarm-runner.helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { DockerNotFound } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
+import { TimeoutError } from "@deployer/errors";
 import { SwarmCluster } from "@deployer/swarm";
+
+import { RuntimeConflict, RuntimeInvalid } from "../../../core/runtime.errors";
 import { RunnerEnvPort } from "../runners.ports";
+import { provideTo, run } from "../testing";
+
+import { computeTaskStateCheck } from "./swarm-runner.helpers";
 import { SwarmRuntimeRunner } from "./swarm-runtime-runner.service";
+
+import type { RuntimeExecutionInput } from "../runtime-runner.interface";
 
 const baseInput: RuntimeExecutionInput = {
     deployment: {

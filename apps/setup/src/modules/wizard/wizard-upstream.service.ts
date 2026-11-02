@@ -1,7 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 
-import { EnvService } from "@/config/env/env.module";
 import { resolveApiBaseUrl } from "@/config/api-address";
+import { EnvService } from "@/config/env/env.module";
 
 /**
  * Deadline for one forward to the platform API.

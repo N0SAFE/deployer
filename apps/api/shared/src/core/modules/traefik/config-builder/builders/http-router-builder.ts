@@ -1,11 +1,13 @@
+import { ConfigBuildError } from '../../errors';
+
+import { RuleBuilder } from './rule-builder';
+
 import type {
   HttpRouterConfig,
   TLSOptions,
   VariableString,
   VariableArray,
 } from '../../interfaces';
-import { RuleBuilder } from './rule-builder';
-import { ConfigBuildError } from '../../errors';
 
 /**
  * Builder for creating HTTP router configurations

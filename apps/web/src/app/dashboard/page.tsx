@@ -1,4 +1,5 @@
 import { AuthDashboard } from '@/routes'
+
 import { DashboardOverviewClient } from './dashboard-client'
 
 import type { Metadata } from 'next'

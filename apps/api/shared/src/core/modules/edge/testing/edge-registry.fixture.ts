@@ -5,9 +5,10 @@
 
 import type { EdgeProviderDescriptor, EdgeStatus, PublicJoinPath } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { EdgeConnectorSpec, EdgeContext, EdgeDnsRecord, EdgeIngressPlan, EdgeProvider } from "../edge-provider";
 import { EdgeProviderRegistry } from "../edge-provider.registry";
 import { DirectEdgeProvider } from "../providers/direct.edge-provider";
+
+import type { EdgeConnectorSpec, EdgeContext, EdgeDnsRecord, EdgeIngressPlan, EdgeProvider } from "../edge-provider";
 
 export const TEST_TUNNEL_ID = "test-tunnel";
 

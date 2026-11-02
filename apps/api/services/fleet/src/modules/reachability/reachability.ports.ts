@@ -1,3 +1,5 @@
+import { Context } from 'effect'
+
 import type { NodeDoorClient } from '@deployer/mesh-client'
 import type { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
@@ -7,7 +9,6 @@ import type { PublicAccessPointService } from '@deployer/shared/core/modules/rea
 import type { PublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
 import type { ReachabilityService } from '@deployer/shared/core/modules/reachability/services/reachability.service'
 import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
-import { Context } from 'effect'
 
 /**
  * The shared platform services reachability depends on, as Effect ports.

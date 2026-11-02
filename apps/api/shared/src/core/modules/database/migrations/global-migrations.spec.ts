@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { GlobalDatabase } from "../global/global-database.service";
 import { applyGlobalMigrations, MigrationFailedError } from "./global-migrations";
+
+import type { GlobalDatabase } from "../global/global-database.service";
 
 const db = {} as GlobalDatabase;
 const migrationsFolder = "/tmp/migrations";

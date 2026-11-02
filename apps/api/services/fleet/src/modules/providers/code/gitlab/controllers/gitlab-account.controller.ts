@@ -7,14 +7,16 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { providersContract } from "@deployer/fleet-contracts";
-import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { Effect } from "effect";
 import z from "zod/v4";
 
+import { providersContract } from "@deployer/fleet-contracts";
+import { procedure } from "@deployer/nest-effect";
+import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+
 import { FleetConflict, FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { serve } from "@/core/orpc/serve";
+
 import { GitlabAppsStore } from "../repositories/gitlab-apps.repository";
 
 /** GitLab instance URL must be an http(s) URL. */

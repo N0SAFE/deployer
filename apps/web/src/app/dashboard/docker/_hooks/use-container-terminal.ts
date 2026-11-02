@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
+
+import type { DockerContainerInspectDetail, DockerFileEntry, DockerTerminalProfile } from '@deployer/contracts-entities'
+
 import {
   useDockerCloseContainerTerminalSession,
   useDockerContainerTerminalSessionStream,
@@ -9,7 +12,7 @@ import {
   useDockerSendContainerTerminalInput,
 } from '@/domains/docker/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import type { DockerContainerInspectDetail, DockerFileEntry, DockerTerminalProfile } from '@deployer/contracts-entities'
+
 import {
   appendTerminalOutput,
   escapeShellPath,
@@ -20,6 +23,7 @@ import {
   type DockerTerminalSessionState,
   type DockerTerminalStreamEvent,
 } from '../_utils/container-terminal'
+
 import { STREAM_QUERY_BASE_OPTIONS } from './container-stream-options'
 import { useOnDepsChange } from './use-on-deps-change'
 

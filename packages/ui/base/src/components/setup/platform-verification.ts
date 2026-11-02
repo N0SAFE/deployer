@@ -1,5 +1,4 @@
 import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities"
-
 import type { ProgressTask, TaskStatus } from "@deployer/ui/components/setup/progress-tasks"
 
 /**

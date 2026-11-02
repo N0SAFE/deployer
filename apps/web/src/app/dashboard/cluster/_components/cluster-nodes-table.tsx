@@ -1,22 +1,26 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Crown, Server } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { toast } from 'sonner'
+
+import type { ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { EmptyState, StatusBadge } from '@/components/dashboard'
-import { AuthDashboardNodesNodeId } from '@/routes'
 import { useUpdateClusterNode } from '@/domains/cluster/hooks'
-import type { ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
+import { AuthDashboardNodesNodeId } from '@/routes'
+
 import { CopyId } from '../../_components/copy-id-button'
 import { Hint } from '../../_components/hint'
 import { RelativeTime } from '../../_components/relative-time'
 import { confirmationFor, type Confirmation, type GuardNode, type NodeChange } from '../_utils/node-change-guard'
+
 import { ConfirmNodeChangeDialog } from './confirm-node-change-dialog'
 
 const ROLE_HELP = {

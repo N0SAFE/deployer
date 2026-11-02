@@ -1,15 +1,15 @@
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { type nodeAgentContract, meshNodeContract } from "@deployer/node-agent-contracts";
 import { agentLink, createMeshClient, openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
+import { type nodeAgentContract, meshNodeContract } from "@deployer/node-agent-contracts";
 
 import { openAgentStore } from "@/local/agent-store";
 
 import { type BootedAgent, bootAgent, removeDataDir } from "./boot-agent";
 
-import type { ContractRouterClient } from "@orpc/contract";
 import type { ClientContext } from "@orpc/client";
+import type { ContractRouterClient } from "@orpc/contract";
 
 type NodeAgentClient = ContractRouterClient<typeof nodeAgentContract>;
 

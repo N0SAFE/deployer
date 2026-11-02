@@ -2,6 +2,7 @@ import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { FleetNotFound } from "@/core/fleet.errors";
+
 import { ProviderSchemaService } from "./provider-schema.service";
 
 const service = ProviderSchemaService.live;

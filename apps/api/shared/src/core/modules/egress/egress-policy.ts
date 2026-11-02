@@ -1,4 +1,5 @@
 import { Duration } from "effect";
+
 import { EgressPolicy, type EgressPolicy as Policy } from "@deployer/effect-infra";
 
 /** The slice of the environment the egress policy reads. */

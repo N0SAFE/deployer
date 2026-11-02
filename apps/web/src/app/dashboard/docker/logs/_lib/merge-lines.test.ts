@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { countNewLines, formatLogTime, mergeLines } from './merge-lines'
 
 const line = (id: string) => ({ id })

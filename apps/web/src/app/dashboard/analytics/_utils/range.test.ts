@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { allowedGranularities, bucketLabel, coerceGranularity, usageRangeFor } from './range'
 
 describe('analytics range helpers', () => {

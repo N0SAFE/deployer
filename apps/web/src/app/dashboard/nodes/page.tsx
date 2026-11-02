@@ -1,16 +1,19 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Cpu, Globe, Info, Network, Server, WifiOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { AuthDashboardNodesNodeId } from '@/routes'
+import { useMemo, useState } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Cpu, Globe, Info, Network, Server, WifiOff } from 'lucide-react'
+
 import { PageHeader, PageErrorState, ScopeLabel, StatStrip, StatStripItem } from '@/components/dashboard'
 import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useMeshLocalNode, useMeshSseState } from '@/domains/mesh/hooks'
+import { AuthDashboardNodesNodeId } from '@/routes'
+
 import { FleetTopologyPanel } from './_components/fleet-topology-panel'
 import { NodesTable, type NodeRow } from './_components/nodes-table'
 import { comparePresence, isPresent, liveNodeIds, nodePresence } from './_utils/node-presence'

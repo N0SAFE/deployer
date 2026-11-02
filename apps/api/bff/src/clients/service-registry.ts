@@ -1,15 +1,17 @@
 import { Injectable } from "@nestjs/common";
-import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 
+import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
+import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 import {
 	ServiceClientRegistry as PackageRegistry,
 	type ServiceClient,
 	type ServiceClientOptions,
 } from "@deployer/service-client";
+
+import { serviceAuthHeaders } from "./service-auth-context";
+
 import type { RouterContract } from "@orpc/contract";
 
-import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
-import { serviceAuthHeaders } from "./service-auth-context";
 
 /**
  * The link to the agent of this node, when it has one. Lazy: the socket is only opened by the first call.

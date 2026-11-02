@@ -1,23 +1,8 @@
-import { Logger } from "@nestjs/common";
-import { serviceOver, type Over } from "@deployer/effect-core";
-import { Context, Effect } from "effect";
-import { BadRequestError } from "@deployer/errors";
 import { createHash } from "node:crypto";
-import type {
-    DockerContainerGroupedListInput,
-    DockerContainerGroupedListItem,
-    DockerContainerGroupedListResult,
-    DockerContainerListInput,
-} from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type {
-    DockerImageListInput,
-} from "@deployer/runtime-contracts/modules/docker/images/list";
-import type {
-    DockerNetworkListInput,
-} from "@deployer/runtime-contracts/modules/docker/networks/list";
-import type {
-    DockerVolumeListInput,
-} from "@deployer/runtime-contracts/modules/docker/volumes/list";
+
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
+
 import {
     dockerContainerInspectDetailSchema,
     dockerContainerSchema,
@@ -36,16 +21,37 @@ import {
     type DockerStack,
     type DockerVolume,
 } from "@deployer/contracts-entities";
-import { DockerRepository } from "../../../repositories/facade/docker.repository";
-import type { DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, DockerContainerListRequestPayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/node-mesh-types";
-import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { BadRequestError } from "@deployer/errors";
+import type {
+    DockerContainerGroupedListInput,
+    DockerContainerGroupedListItem,
+    DockerContainerGroupedListResult,
+    DockerContainerListInput,
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type {
+    DockerImageListInput,
+} from "@deployer/runtime-contracts/modules/docker/images/list";
+import type {
+    DockerNetworkListInput,
+} from "@deployer/runtime-contracts/modules/docker/networks/list";
+import type {
+    DockerVolumeListInput,
+} from "@deployer/runtime-contracts/modules/docker/volumes/list";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
-
+import { DockerRepository } from "../../../repositories/facade/docker.repository";
 
 import { formatError, normalizeContainer, toError } from "./mesh-entity-normalization";
 import { applyContainerFilters, buildDaemonScopedContainerFingerprint, computeSharedDaemonDiagnostics, dedupeResponsesByResponder, getFilterEntry, groupContainersForInventory, isAbortLikeError, matchEq, matchString, mergeContainerHealth, mergeContainerStatus, mergeRuntimeCatalogResponses, paginate, paginateList, pickBestInspectDetail, sortContainers, sortItems } from "./mesh-universe-merge";
+
 import type { DockerContainerResolutionOptions, DockerGroupedDaemonDiagnostics, DockerListResult } from "./mesh-universe-types";
+import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
+import type { DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, DockerContainerListRequestPayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/node-mesh-types";
+
+
+
+
 
 const MESH_FANOUT_LIMIT = 500;
 
@@ -287,7 +293,7 @@ class ContainerResolutionImpl {
                 : `node:${response.responderNodeId ?? "unknown"}`;
 
             for (const item of response.data) {
-                const normalized = normalizeContainer(item, (m) => this.logger.warn(m));
+                const normalized = normalizeContainer(item, (m) => { this.logger.warn(m); });
                 if (!normalized) {
                     this.logger.warn("Dropping invalid docker container from mesh response after normalization");
                     continue;

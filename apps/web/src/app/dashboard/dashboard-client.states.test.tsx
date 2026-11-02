@@ -1,5 +1,6 @@
 import '@/test-support/mocks'
 import { describePageStates } from '@/test-support'
+
 import { DashboardOverviewClient } from './dashboard-client'
 
 describePageStates('Dashboard command center', {

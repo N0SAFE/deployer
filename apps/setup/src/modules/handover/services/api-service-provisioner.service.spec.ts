@@ -1,11 +1,18 @@
-import type { Mock } from "vitest";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiServiceProvisioner } from "./api-service-provisioner.service";
-import { makeEnvService } from "@/test-support/env";
+
+
+
 import type { DockerEngineShape } from "@deployer/docker";
 import { DockerUnavailable } from "@deployer/docker";
-import { Effect } from "effect";
+
+import { makeEnvService } from "@/test-support/env";
+
+import { ApiServiceProvisioner } from "./api-service-provisioner.service";
+
+import type { Mock } from "vitest";
+
 
 /**
  * The provisioner is where `SETUP_MODE` actually forks, so the assertions are
@@ -150,7 +157,7 @@ describe("ApiServiceProvisioner", () => {
 
       await provisioner.ensureApi();
 
-      const overlayOrder = (docker.ensureOverlayNetwork as Mock).mock.invocationCallOrder[0] ?? 0;
+      const overlayOrder = (docker.ensureOverlayNetwork).mock.invocationCallOrder[0] ?? 0;
       const tierOrder = tier.ensureTier.mock.invocationCallOrder[0] ?? 0;
       expect(overlayOrder).toBeLessThan(tierOrder);
     });

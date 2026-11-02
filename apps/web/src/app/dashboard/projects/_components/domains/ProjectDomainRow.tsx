@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect } from 'react'
 import { CircleAlert, CircleCheck, CircleX, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { useEffect } from 'react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { TableCell, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { StatusBadge } from '@/components/dashboard'
 import { useDomainReachabilityCheck } from '@/domains/reachability/hooks'
+
 import { RelativeTime } from '../workload/RelativeTime'
 
 export interface ProjectDomain {

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+
 import { EnvHostnameService } from "./hostname.service";
+
 import type { EnvService } from "../../../../config/env/env.module";
 
 function makeEnv(prefix: string): EnvService {

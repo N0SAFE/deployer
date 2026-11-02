@@ -1,19 +1,9 @@
 'use client'
 
-import { AuthDashboardCluster, AuthDashboardDockerContainers, AuthDashboardNodesDiagnostics, AuthDashboardProjects } from '@/routes'
+import { Boxes, Server } from 'lucide-react'
 import { useMemo } from 'react'
-import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
-import { DockerTableLoadingRows } from './_components/docker-loading-states'
-import { DockerEngineError } from './_components/docker-engine-error'
-import { DockerRelativeTime } from './_components/docker-relative-time'
-import {
-  useDockerContainerList,
-  useDockerImageList,
-  useDockerRuntimeSnapshot,
-  useDockerRuntimeSseState,
-  useDockerServiceList,
-} from '@/domains/docker/hooks'
-import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
+
+import type { DockerContainer } from '@deployer/contracts-entities'
 import {
   Table,
   TableBody,
@@ -22,10 +12,26 @@ import {
   TableHeader,
   TableRow,
 } from '@deployer/ui/components/shadcn/table'
-import { Boxes, Server } from 'lucide-react'
-import type { DockerContainer } from '@deployer/contracts-entities'
+
 import { EmptyState, EnvironmentBadge, StatStrip, StatStripItem, StatusBadge, type StatusTone } from '@/components/dashboard'
+import {
+  useDockerContainerList,
+  useDockerImageList,
+  useDockerRuntimeSnapshot,
+  useDockerRuntimeSseState,
+  useDockerServiceList,
+} from '@/domains/docker/hooks'
 import type { DockerRuntimeSseState } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
+import { AuthDashboardCluster, AuthDashboardDockerContainers, AuthDashboardNodesDiagnostics, AuthDashboardProjects } from '@/routes'
+
+import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
+import { DockerEngineError } from './_components/docker-engine-error'
+import { DockerTableLoadingRows } from './_components/docker-loading-states'
+import { DockerRelativeTime } from './_components/docker-relative-time'
+
+
+
 
 /**
  * Live-state tones for the runtime event stream. A bare word like "disconnected"

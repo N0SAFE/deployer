@@ -1,17 +1,20 @@
 'use client'
 
-import { useMemo } from 'react'
-import { useParams } from 'next/navigation'
 import { Activity } from 'lucide-react'
-import { useProject } from '@/domains/project/hooks'
-import { useService, useServiceDependencies } from '@/domains/service/hooks'
-import { useDockerContainerList } from '@/domains/docker/hooks'
+import { useParams } from 'next/navigation'
+import { useMemo } from 'react'
+
+import { ENV_NAMES } from '@deployer/contracts-common'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import { ENV_NAMES } from '@deployer/contracts-common'
+
 import { EmptyState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { PageSkeleton } from '@/components/dashboard/Skeletons'
+import { useDockerContainerList } from '@/domains/docker/hooks'
+import { useProject } from '@/domains/project/hooks'
+import { useService, useServiceDependencies } from '@/domains/service/hooks'
+
 import { InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
 
 const LIST_INPUT = { query: { limit: 300, offset: 0 } } as const

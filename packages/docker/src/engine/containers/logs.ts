@@ -1,9 +1,11 @@
-import type Docker from "dockerode";
 import { Effect, Stream } from "effect";
 
 import { DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
+
 import { decodeLogsPayload, isReadableStream, logLines, readAll } from "./streams";
+
+import type Docker from "dockerode";
 
 export type LogsShape = {
 	/** The container's logs as text, multiplexing removed. */

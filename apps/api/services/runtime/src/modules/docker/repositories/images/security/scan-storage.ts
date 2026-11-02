@@ -3,11 +3,13 @@
  * the detection of a database that has not run the scan-table migration yet. Pure, so it is tested without a database.
  */
 import { createHash } from "node:crypto";
+
 import type {
   DockerImageInspectDetail,
   DockerImageLayerEfficiency,
   DockerImageScannerResult,
 } from "@deployer/contracts-entities";
+
 import type { RawImageSecurityScan } from "./docker-image-scanner.types";
 
 export interface PersistedScanRow {

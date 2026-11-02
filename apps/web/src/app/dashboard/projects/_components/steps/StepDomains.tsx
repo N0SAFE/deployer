@@ -1,15 +1,19 @@
 'use client'
 
-import { Field } from '@deployer/ui/components/shadcn/field'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Globe, ShieldCheck, Cloud, Rocket, Loader2, Plus, CheckCircle2, XCircle, Radio } from 'lucide-react'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { Globe, ShieldCheck, Cloud, Rocket, Loader2, Plus, CheckCircle2, XCircle, Radio } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Field } from '@deployer/ui/components/shadcn/field'
+
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
 import { AuthDashboardNetworkDomains } from '@/routes'
-import type { CreateServiceFormApi } from '../CreateService.hook'
+
 import { DomainPicker } from '../DomainPicker'
 import { ServiceDomainConfig } from '../ServiceDomainConfig'
+
+import type { CreateServiceFormApi } from '../CreateService.hook'
 
 const PROVIDER_LABELS: Record<string, string> = {
   cloudflare: 'Cloudflare',

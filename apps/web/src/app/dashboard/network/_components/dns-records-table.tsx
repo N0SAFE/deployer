@@ -1,9 +1,11 @@
 'use client'
 
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+
 import { StatusBadge } from '@/components/dashboard'
-import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
+
 import { Mono } from './network-copy'
 
 const STATUS: Record<IngressState['dns'][number]['status'], string> = {

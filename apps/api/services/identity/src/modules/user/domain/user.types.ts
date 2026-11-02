@@ -1,5 +1,6 @@
-import type { z } from "zod/v4";
 import { userSchema } from "@deployer/contracts-entities";
+
+import type { z } from "zod/v4";
 
 /**
  * The User aggregate. Inferred from the contract's entity schema so the

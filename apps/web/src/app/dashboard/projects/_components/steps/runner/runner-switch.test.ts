@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { configForRunnerSwitch } from './runner-switch'
 
 describe('configForRunnerSwitch', () => {

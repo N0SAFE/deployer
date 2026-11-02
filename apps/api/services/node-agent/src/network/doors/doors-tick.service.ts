@@ -6,8 +6,8 @@ import { AgentStore, type AgentStoreError } from "../../local/agent-store";
 import { OVERLAY_SELF_SECRET, parseOverlaySelf } from "../overlay";
 
 import { DoorConverger } from "./door-converger";
-import { NODE_DOORS_SETTING_KEY, type AgentDoorView, type NodeDoorsSetting } from "./doors.types";
 import { DoorImage, parseNodeDoorsSetting } from "./doors.setting";
+import { NODE_DOORS_SETTING_KEY, type AgentDoorView, type NodeDoorsSetting } from "./doors.types";
 
 import type { DockerEngine } from "./docker-engine";
 

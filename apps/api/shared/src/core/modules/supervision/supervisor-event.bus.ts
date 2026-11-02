@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { makeSupervisorEventBus, matchesEventFilter, type SupervisorEvent, type SupervisorEventBusShape, type SupervisorEventFilter } from "@deployer/supervision";
 import { Effect } from "effect";
 import { Observable, Subject, filter, firstValueFrom } from "rxjs";
+
+import { makeSupervisorEventBus, matchesEventFilter, type SupervisorEvent, type SupervisorEventBusShape, type SupervisorEventFilter } from "@deployer/supervision";
 
 /**
  * The Nest face of the supervisor event bus: the Effect bus (`core`) plus an Observable of the same

@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { 
   pgTable, 
   uuid, 
@@ -10,13 +11,13 @@ import {
   unique,
   index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
-import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+
 import {
   sslProviderSchema,
   verificationMethodSchema,
   verificationStatusSchema,
 } from "@deployer/contracts-common";
+import { projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
 
 // ==========================================

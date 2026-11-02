@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
+
+import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
 import {
     parseResourceRules,
     safeParseResourceRules,
     resourceRuleSchema,
 } from "@deployer/auth/permissions/engine/rule-validator";
-import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
 import type { DFilter, ResourceRule } from "@deployer/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------

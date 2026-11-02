@@ -6,19 +6,18 @@ import "@orpc/effect/extensions/effect";
 import "@deployer/shared/core/orpc/context";
 // Adds `effect/context` to `DefaultInitialContext` for `.effect()` handlers.
 
+import { apiServicePort } from "@deployer/env";
+import { assertRequirementsMet } from "@deployer/nest-effect";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
-import { apiServicePort } from "@deployer/env";
-
-import type { Server } from "node:http";
-
-import { assertRequirementsMet } from "@deployer/nest-effect";
 
 import { RuntimeServiceModule } from "./app.module";
 import { joinRuntimeMesh } from "./core/mesh/join-runtime-mesh";
+
+import type { Server } from "node:http";
 
 /**
  * The runtime service's process entry point.

@@ -1,11 +1,12 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { subscribeContract } from './subscribe';
-import { unsubscribeContract } from './unsubscribe';
+
 import { getPublicKeyContract } from './getPublicKey';
+import { getStatsContract } from './getStats';
 import { getSubscriptionsContract } from './getSubscriptions';
 import { sendTestNotificationContract } from './sendTestNotification';
-import { getStatsContract } from './getStats';
+import { subscribeContract } from './subscribe';
+import { unsubscribeContract } from './unsubscribe';
 
 export const pushContract = oc.meta(openapi({ tags: ["Push Notifications"], prefix: "/push" })).router({
   subscribe: subscribeContract,

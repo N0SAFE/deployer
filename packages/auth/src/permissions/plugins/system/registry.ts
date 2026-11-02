@@ -7,6 +7,7 @@
  */
 
 import type { InferSessionFromAuth } from "@deployer/auth/permissions/plugins/system/base-plugin-wrapper";
+
 import type { Auth as BetterAuthInstance } from 'better-auth';
 
 /**

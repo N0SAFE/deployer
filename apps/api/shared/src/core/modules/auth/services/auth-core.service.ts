@@ -1,24 +1,19 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { Auth } from "../../../../auth";
+import { os } from "@orpc/server";
+
+import type {
+	InferStatementFromBuilder,
+	InferRoleNamesFromBuilder,
+
+} from "@deployer/auth/permissions/plugins";
+import { AppError } from "@deployer/errors";
+
 import {
 	type AuthModuleOptions,
 	type AuthWithPlugins,
 	MODULE_OPTIONS_TOKEN,
 } from "../definitions/auth-module-definition";
-import type { IncomingHttpHeaders } from "http";
-import { os } from "@orpc/server";
 import { AuthUtils, AuthUtilsEmpty } from "../orpc/auth-utils";
-import type { ORPCContextWithAuthOnly } from "../orpc";
-import type { UserSession } from "../utils/auth-utils";
-import { AppError } from "@deployer/errors";
-import {
-	createPluginRegistry,
-	createPluginMiddlewares,
-	type AppPluginRegistry,
-	type PluginRegistry,
-	type PlatformBuilder,
-	type AppMiddlewares,
-} from "../plugin-utils/plugin-wrapper-factory";
 import {
 	createOrpcMiddlewareProxy,
 	type MiddlewareCheck,
@@ -28,11 +23,25 @@ import {
 	type OrpcMiddlewareOptionsContext,
 	type DecoratedMiddleware,
 } from "../plugin-utils/middleware";
-import type {
-	InferStatementFromBuilder,
-	InferRoleNamesFromBuilder,
+import {
+	createPluginRegistry,
+	createPluginMiddlewares,
+	type AppPluginRegistry,
+	type PluginRegistry,
+	type PlatformBuilder,
+	type AppMiddlewares,
+} from "../plugin-utils/plugin-wrapper-factory";
 
-} from "@deployer/auth/permissions/plugins";
+import type { Auth } from "../../../../auth";
+import type { ORPCContextWithAuthOnly } from "../orpc";
+import type { UserSession } from "../utils/auth-utils";
+import type { IncomingHttpHeaders } from "http";
+
+
+
+
+
+
 
 // ============================================================================
 // Type Utilities for Headers

@@ -1,4 +1,5 @@
 import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
 import { encryptedText } from "../../codecs/codec-registry";
 
 /**

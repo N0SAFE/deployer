@@ -2,9 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { AppError } from '@deployer/errors';
-import { buildTar, buildZip, gzip } from '@deployer/effect-platform/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { buildTar, buildZip, gzip } from '@deployer/effect-platform/testing';
+import { AppError } from '@deployer/errors';
 
 import { GitService } from './git.service';
 

@@ -1,9 +1,12 @@
+import { HttpException } from '@nestjs/common'
+import { Effect } from 'effect'
+import { ZodError } from 'zod/v4'
+
 import {
     BadRequestError,
     ForbiddenError,
     ValidationError,
 } from '@deployer/errors'
-import { HttpException } from '@nestjs/common'
 import {
     DomainAlreadyExistsError,
     DomainNotVerifiedError,
@@ -15,8 +18,6 @@ import {
     SubdomainConflictError,
     SubdomainNotAllowedError,
 } from '@deployer/shared/core/modules/domain/errors/index'
-import { Effect } from 'effect'
-import { ZodError } from 'zod/v4'
 
 import {
     ProjectConflict,

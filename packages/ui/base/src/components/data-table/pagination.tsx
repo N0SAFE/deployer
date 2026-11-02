@@ -6,7 +6,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import type { Table } from "@tanstack/react-table";
+
 import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Select,
@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@deployer/ui/components/shadcn/select";
+
+import type { Table } from "@tanstack/react-table";
 
 const getButtonSizeClass = (size: 'sm' | 'default' | 'lg') => {
   switch (size) {

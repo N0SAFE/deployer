@@ -1,15 +1,16 @@
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { createModuleContext, EffectHost, effectHostProvider, type EffectHostShape } from "@deployer/nest-effect";
-import { DockerContainerOps } from "./runtime/docker-container-ops";
-import { DockerTerminalSessions } from "./runtime/docker-terminal-sessions";
-import { ContainerAccessMeshPort, DockerContainerAccess } from "./runtime/docker-container-access";
-import { containerStreamsOver } from "./runtime/docker-container-streams";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
+
+import { runtimeReplicaId } from "../../../../core/mesh/runtime-replica-id";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
-import { DockerContainerMetricsStreamService } from "./events/docker-container-metrics-stream.service";
 import { DockerRepository } from "../../repositories/facade/docker.repository";
+
+import { DockerContainerMetricsStreamService } from "./events/docker-container-metrics-stream.service";
+import { DOCKER_NODE_MESH, NODE_AGENT, dockerNodeMeshOver, type NodeAgent } from "./mesh/docker-node-mesh";
+import { LOCAL_NODE_OPERATIONS, makeLocalNodeOperations } from "./mesh/local-node-operations";
 import {
   ContainersLocalPort,
   ContainersMeshPort,
@@ -17,9 +18,10 @@ import {
 } from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
 import { DockerContainers } from "./orchestration/docker-containers.service";
-import { LOCAL_NODE_OPERATIONS, makeLocalNodeOperations } from "./mesh/local-node-operations";
-import { runtimeReplicaId } from "../../../../core/mesh/runtime-replica-id";
-import { DOCKER_NODE_MESH, NODE_AGENT, dockerNodeMeshOver, type NodeAgent } from "./mesh/docker-node-mesh";
+import { ContainerAccessMeshPort, DockerContainerAccess } from "./runtime/docker-container-access";
+import { DockerContainerOps } from "./runtime/docker-container-ops";
+import { containerStreamsOver } from "./runtime/docker-container-streams";
+import { DockerTerminalSessions } from "./runtime/docker-terminal-sessions";
 
 export class DockerContainersModule extends createModuleContext({
   imports: [CoreDockerModule, EventsModule, DockerRepositoriesModule],

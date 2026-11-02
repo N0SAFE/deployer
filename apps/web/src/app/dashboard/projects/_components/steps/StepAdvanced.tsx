@@ -1,15 +1,19 @@
 'use client'
 
+import { Plus, X, ChevronDown, ChevronRight, KeyRound, Layers, Boxes, Cpu, MemoryStick } from 'lucide-react'
 import { useState } from 'react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@deployer/ui/components/shadcn/collapsible'
+import { Field, FieldLabel } from '@deployer/ui/components/shadcn/field'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
-import { Field, FieldLabel } from '@deployer/ui/components/shadcn/field'
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@deployer/ui/components/shadcn/collapsible'
-import { Plus, X, ChevronDown, ChevronRight, KeyRound, Layers, Boxes, Cpu, MemoryStick } from 'lucide-react'
-import type { CreateServiceFormApi, OrchestratorSubService } from '../CreateService.hook'
+
 import { Section } from './step-section'
+
+import type { CreateServiceFormApi, OrchestratorSubService } from '../CreateService.hook'
+
 
 /* ─── Key/value editor (advanced env vars) ─────────────────────────── */
 

@@ -1,7 +1,5 @@
 'use client'
 
-import { Badge } from '@deployer/ui/components/shadcn/badge'
-import { cn } from '@/lib/utils'
 import {
   CircleCheck,
   CircleX,
@@ -12,6 +10,10 @@ import {
   Rocket,
   type LucideIcon,
 } from 'lucide-react'
+
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+
+import { cn } from '@/lib/utils'
 
 /**
  * Unified live-status system — the SINGLE source of truth for status

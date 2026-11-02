@@ -1,7 +1,8 @@
 'use client'
 
-import * as React from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import * as React from 'react'
+
 import { Input } from '@deployer/ui/components/shadcn/input'
 
 type PasswordInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>

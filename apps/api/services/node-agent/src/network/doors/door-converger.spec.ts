@@ -1,8 +1,8 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { DoorConverger } from "./door-converger";
 import { type ContainerSummary, DockerEngine, type DockerEngineShape, DockerEngineError } from "./docker-engine";
+import { DoorConverger } from "./door-converger";
 import { DOOR_HASH_LABEL, DOOR_LABEL, type NodeDoorsSetting } from "./doors.types";
 
 const setting: NodeDoorsSetting = {

@@ -17,9 +17,9 @@ import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/se
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import { AnalyticsRepository } from "@/modules/analytics/repositories/analytics.repository";
 import { AnalyticsService, type AnalyticsServiceShape } from "@/modules/analytics/services/analytics.service";
+import { UserRepository } from "@/modules/user/repositories/user.repository";
 import { UserService, type UserServiceShape } from "@/modules/user/services/user.service";
 import type { UserFailure } from "@/modules/user/services/user.service";
-import { UserRepository } from "@/modules/user/repositories/user.repository";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 

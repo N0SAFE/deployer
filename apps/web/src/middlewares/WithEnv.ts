@@ -1,11 +1,15 @@
 import { NextProxy, NextResponse } from 'next/server'
-import { Matcher, MiddlewareFactory } from './utils/types'
-import { envIsValid, validateEnvSafe } from '#/env'
-import { nextjsRegexpPageOnly, nextNoApi, noPublic } from './utils/static'
-import { matcherHandler } from './utils/utils'
-import { redirectSameOrigin, sameOriginUrl } from './utils/redirects'
-import { InternalMiddlewareErrorEnv } from '@/routes'
+
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
+import { InternalMiddlewareErrorEnv } from '@/routes'
+
+import { redirectSameOrigin, sameOriginUrl } from './utils/redirects'
+import { nextjsRegexpPageOnly, nextNoApi, noPublic } from './utils/static'
+import { Matcher, MiddlewareFactory } from './utils/types'
+import { matcherHandler } from './utils/utils'
+
+import { envIsValid, validateEnvSafe } from '#/env'
+
 
 const debugEnv = createContextFilterDebugLogger('WithEnv', 'middleware:[WithEnv]')
 const debugEnvError = createContextFilterDebugLogger('WithEnv', 'middleware:[WithEnv]:error')

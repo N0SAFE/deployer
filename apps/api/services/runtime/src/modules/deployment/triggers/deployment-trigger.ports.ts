@@ -1,7 +1,7 @@
 import { Context } from 'effect'
 
-import type { DeploymentService } from '../services/deployment.service'
 import type { DeploymentTriggerRegistryService } from './deployment-trigger-registry.service'
+import type { DeploymentService } from '../services/deployment.service'
 
 /**
  * What event-triggered deployments depend on, as Effect ports over Promise-based Nest providers

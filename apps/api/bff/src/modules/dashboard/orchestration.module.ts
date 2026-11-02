@@ -1,8 +1,10 @@
 import { createModuleContext } from "@deployer/nest-effect";
+
 import { OverviewComposerService } from "../shared/services/overview-composer.service";
 import { ScreenReadService } from "../shared/services/screen-read.service";
-import { AnalyticsReadService } from "./services/analytics-read.service";
+
 import { OrchestrationController } from "./controllers/orchestration.controller";
+import { AnalyticsReadService } from "./services/analytics-read.service";
 
 /**
  * The BFF's composition surface.

@@ -1,11 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { Context, Effect } from "effect";
-import { projectCollaborators, projects } from "@deployer/nest-schema/global/project/deployment";
 
-import { domainError } from "@deployer/effect-core";
+
 
 import type { ProjectRole } from "@deployer/auth";
 import type { DatabaseHandleShape } from "@deployer/database";
+import { domainError } from "@deployer/effect-core";
+import { projectCollaborators, projects } from "@deployer/nest-schema/global/project/deployment";
+
 import type { GlobalDatabase } from "../../database/services/global-database.service";
 
 /** The project row an access check needs: who owns it, and that it exists. */
@@ -94,7 +96,7 @@ export class ProjectAccessRepository extends Context.Service<
 function toQueryFailure(cause: unknown): ProjectAccessQueryFailed {
 	const message =
 		cause instanceof Error ? cause.message : typeof cause === "object" && cause !== null && "_tag" in cause
-			? String((cause as { _tag: unknown })._tag)
+			? String((cause)._tag)
 			: String(cause);
 	return new ProjectAccessQueryFailed({ message, cause });
 }

@@ -5,11 +5,11 @@
 // here to verify the build pipeline of the new package.
 
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import { getZodObjectDefaults } from '@deployer/use-safe-query-param-states-from-zod/defaults'
-import { createParserForZodField } from '@deployer/use-safe-query-param-states-from-zod/parsers'
 import { mergeWithDefaults } from '@deployer/use-safe-query-param-states-from-zod/merge'
-import { z } from 'zod'
+import { createParserForZodField } from '@deployer/use-safe-query-param-states-from-zod/parsers'
 
 describe('package smoke', () => {
     it('derives defaults from a Zod schema', () => {

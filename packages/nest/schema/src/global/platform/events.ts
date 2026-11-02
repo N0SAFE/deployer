@@ -1,5 +1,6 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, index } from "drizzle-orm/pg-core";
+
 import { user } from "@deployer/nest-schema/global/identity/auth";
 
 export const coreEventStreams = pgTable("core_event_streams", {

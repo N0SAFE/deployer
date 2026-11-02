@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+
 import { matchFilter, MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
 import type { DFilter } from "@deployer/auth/permissions/engine/types";
 import { Variable } from "@deployer/auth/permissions/engine/types";

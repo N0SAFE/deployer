@@ -8,14 +8,14 @@ import { join } from "node:path";
 import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { createMeshClient } from "@deployer/mesh-client";
+import { MESH_WEBSOCKET_PATH, type nodeAgentContract } from "@deployer/node-agent-contracts";
 import { createApiServerApp } from "@deployer/shared/server";
 
 import { peerLink } from "./boot-agent";
 
-import type { ContractRouterClient } from "@orpc/contract";
 import type { INestApplication } from "@nestjs/common";
+import type { ContractRouterClient } from "@orpc/contract";
 
 const SECRET = "node-agent-e2e-secret-of-at-least-32-chars";
 

@@ -1,13 +1,17 @@
-import type Docker from "dockerode";
-import { fromAbortable } from "@deployer/effect-core";
-import { Effect } from "effect";
 import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import * as path from "node:path";
 
+import { Effect } from "effect";
+
+import { fromAbortable } from "@deployer/effect-core";
+
 import { DockerNotFound, DockerUnavailable, type DockerError } from "../../errors/errors";
 import { engineCall } from "../call";
+
 import { followProgress } from "./progress";
+
+import type Docker from "dockerode";
 
 export type BuildImageOptions = {
 	/** Default `Dockerfile`. */

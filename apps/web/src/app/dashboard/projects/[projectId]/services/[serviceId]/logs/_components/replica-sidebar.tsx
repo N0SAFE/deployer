@@ -1,7 +1,9 @@
 import { Search } from 'lucide-react'
-import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
+
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Input } from '@deployer/ui/components/shadcn/input'
+
+import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
 
 interface ReplicaSidebarProps {
   searchTerm: string

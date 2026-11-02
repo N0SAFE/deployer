@@ -1,9 +1,7 @@
 import { Context, Effect, Fiber, Layer } from "effect";
 
 import { SupervisorEventBus, type SupervisorEventBusShape } from "../events/event-bus";
-import type { HealthSnapshot } from "../supervisor/spec";
-import type { SupervisorState } from "../supervisor/state";
-import type { AnySupervisor } from "../supervisor/supervisor";
+
 import {
 	convergeAll,
 	DEGRADED_RETRY_INTERVAL_MS,
@@ -12,6 +10,10 @@ import {
 	retryDegraded,
 } from "./drift-control";
 import { DEFAULT_REGISTRATION_WAIT_MS, makeSupervisorRegistry, type SupervisorRegistryShape } from "./registry";
+
+import type { HealthSnapshot } from "../supervisor/spec";
+import type { SupervisorState } from "../supervisor/state";
+import type { AnySupervisor } from "../supervisor/supervisor";
 
 export type SupervisorOrchestratorShape = SupervisorRegistryShape & {
 	/** A registered supervisor `predicate` accepts, waiting for it to register if need be. */

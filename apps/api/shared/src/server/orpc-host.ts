@@ -1,24 +1,27 @@
-import { domainErrorInterceptor } from "@deployer/effect-orpc";
 import { Logger } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
-import { configureAuthz, platformRoleStore, type AuthzMode, type DecisionEvent } from "@deployer/nest-effect/authz";
+import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ORPCModule } from "@orpc/nest";
-import type { DefaultInitialContext, Router } from "@orpc/server";
-import { AuthPlugin } from "../core/modules/auth/orpc/plugins/auth.plugin";
-import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
+import {
+	RequestCompressionHandlerPlugin,
+} from "@orpc/server/plugins";
+import { ZodToJsonSchemaConverter } from "@orpc/zod";
+
+import { domainErrorInterceptor } from "@deployer/effect-orpc";
+import { configureAuthz, platformRoleStore, type AuthzMode, type DecisionEvent } from "@deployer/nest-effect/authz";
+
+import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import {
 	logOrpcErrors,
 	transformNestJSErrorToOrpcError,
 } from "../core/modules/auth/orpc/index";
-import { AuthCoreService } from "../core/modules/auth/services/auth-core.service";
+import { AuthPlugin } from "../core/modules/auth/orpc/plugins/auth.plugin";
 import { SessionResolver, type SessionResolverShape } from "../core/modules/auth/orpc/session-resolver";
-import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
-import {
-	RequestCompressionHandlerPlugin,
-} from "@orpc/server/plugins";
-import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
-import { ZodToJsonSchemaConverter } from "@orpc/zod";
+import { AuthCoreService } from "../core/modules/auth/services/auth-core.service";
+
+import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { DynamicModule, ExecutionContext } from "@nestjs/common";
+import type { DefaultInitialContext, Router } from "@orpc/server";
 
 /**
  * The ONE oRPC configuration shared by the BFF and every service.
@@ -82,7 +85,7 @@ function authzFromEnv(): Parameters<typeof configureAuthz>[0] {
 			if (event.decision.allowed) return;
 			console.debug(
 				`[authz] would deny ${event.decision.permission} on ${event.decision.scope.kind}` +
-					`${event.decision.scope.id === undefined ? "" : `:${event.decision.scope.id}`}` +
+					(event.decision.scope.id === undefined ? "" : `:${event.decision.scope.id}`) +
 					` for ${event.actor?.id ?? "anonymous"} (${event.decision.reason})${event.mode === "enforce" ? "" : " [shadow]"}`,
 			);
 		},
@@ -139,7 +142,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 					request,
 					auth: emptyAuthUtils,
 					...(extra ? await extra.resolve(executionContext, ...deps) : {}),
-				}) as unknown as DefaultInitialContext;
+				});
 
 			return {
 				interceptors: [

@@ -1,11 +1,13 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
+
 import { serviceListContract, serviceListConfigSchemas, type ServiceListInput } from "../list";
-import { serviceFindByIdContract } from "./find-by-id";
-import { serviceCreateContract, serviceCreateInputSchema, type ServiceCreateInput } from "./create";
-import { serviceUpdateContract, serviceUpdateInputSchema, type ServiceUpdateInput } from "./update";
-import { serviceDeleteContract } from "./delete";
+
 import { serviceChildrenContract, serviceSubtreeContract } from "./children";
+import { serviceCreateContract, serviceCreateInputSchema, type ServiceCreateInput } from "./create";
+import { serviceDeleteContract } from "./delete";
+import { serviceFindByIdContract } from "./find-by-id";
+import { serviceUpdateContract, serviceUpdateInputSchema, type ServiceUpdateInput } from "./update";
 
 export const serviceCrudContract = oc.meta(openapi({ tags: ["Service CRUD"] })).router({
   list: serviceListContract,

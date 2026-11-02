@@ -1,6 +1,7 @@
 import { FeatureErrorBoundary } from '@/components/error'
-import type { ReactNode } from 'react'
+
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 
 /**
  * Admin Panel Layout with Error Boundaries

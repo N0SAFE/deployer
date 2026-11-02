@@ -1,11 +1,12 @@
 import * as z from "zod";
-import { contractBuilder } from "@deployer/events";
+
 import {
     deploymentStatusSchema,
     deploymentPhaseSchema,
     deploymentLogSchema,
     deploymentSchema,
 } from "@deployer/contracts-entities";
+import { contractBuilder } from "@deployer/events";
 
 export const deploymentEventContracts = {
     deploymentTriggered: contractBuilder()

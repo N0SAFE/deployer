@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { Laptop, Server, UserX } from 'lucide-react'
+import { useState } from 'react'
+
+import type { MeshMemberView } from '@deployer/fleet-contracts/modules/reachability/index'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -15,11 +17,12 @@ import {
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import type { MeshMemberView } from '@deployer/fleet-contracts/modules/reachability/index'
+
 import { useRevokeMeshMember } from '@/domains/reachability/hooks'
 import { AuthDashboardNodesNodeId } from '@/routes'
-import { Age, LinkPathBadge, Mono } from './network-copy'
+
 import { CopyButton } from './copy-button'
+import { Age, LinkPathBadge, Mono } from './network-copy'
 import { useNetworkAction } from './use-network-action'
 
 /** Label a node member carries with its platform node id (mirrors `MEMBER_LABEL_NODE_ID`). */

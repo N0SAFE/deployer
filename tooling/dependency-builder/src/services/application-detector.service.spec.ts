@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { ApplicationDetector } from './application-detector.service'
 import { NoEnabledApplicationsError } from '../errors'
+
+import { ApplicationDetector } from './application-detector.service'
+
 import type { Workspace } from '../schemas'
 
 /**

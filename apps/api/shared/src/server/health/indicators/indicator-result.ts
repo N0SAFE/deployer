@@ -1,6 +1,6 @@
+import type { IndicatorResult } from "../types";
 import type { Effect } from "effect";
 
-import type { IndicatorResult } from "../types";
 
 /**
  * The result builder every check uses: `indicatorFor("memory").up({ heapRatio })`.

@@ -1,7 +1,7 @@
+import type { SupervisorState } from "./state";
 import type { Effect } from "effect";
 import type z from "zod/v4";
 
-import type { SupervisorState } from "./state";
 
 /** What a probe observed about the supervised resource. */
 export type ProbeResult<TPayload> = {

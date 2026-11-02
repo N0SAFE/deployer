@@ -1,5 +1,5 @@
-import type { InvalidationConfig } from '../shared/helpers'
 import type { DnsProviderEndpoints } from './endpoints'
+import type { InvalidationConfig } from '../shared/helpers'
 
 export const dnsProviderInvalidations: InvalidationConfig<DnsProviderEndpoints> = {
   list: ({ keys }) => [keys.list()],

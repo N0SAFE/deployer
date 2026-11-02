@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { RoleConfig } from '@deployer/auth/permissions/system/builder/roles/single-role-config';
 
 describe('RoleConfig', () => {

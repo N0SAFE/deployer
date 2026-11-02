@@ -1,18 +1,23 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useOnDepsChange } from '../_hooks/use-on-deps-change'
-import { useDockerImageInspect, useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
-import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
+import { toast } from 'sonner'
+
 import { dockerImageInspectDetailSchema } from '@deployer/contracts-entities'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
-import { toast } from 'sonner'
+
+import { useDockerImageInspect, useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
+
+import { useOnDepsChange } from '../_hooks/use-on-deps-change'
+
+
 import { DockerConfirmDialog } from './docker-confirm-dialog'
+import { DockerCopyableId } from './docker-copy-button'
 import { DockerEngineError } from './docker-engine-error'
 import { DockerDetailLoadingState } from './docker-loading-states'
-import { DockerCopyableId } from './docker-copy-button'
 import { ImageDetailActions, type ImageQueuedOp } from './image-detail-modal/image-detail-actions'
 import { ImageLabelsTab } from './image-detail-modal/labels-tab'
 import { ImageLayersTab } from './image-detail-modal/layers-tab'

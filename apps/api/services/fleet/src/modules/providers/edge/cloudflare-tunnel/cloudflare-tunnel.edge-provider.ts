@@ -1,4 +1,3 @@
-import { FleetInvalid } from "../../../../core/fleet.errors";
 /**
  * Cloudflare Tunnel — the public lane carried by connectors that dial OUT.
  *
@@ -16,17 +15,17 @@ import { FleetInvalid } from "../../../../core/fleet.errors";
  * connector) and never reaches a client.
  */
 
-import { EffectHost, type EffectHostShape } from "@deployer/nest-effect";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Effect } from "effect";
+import z from "zod/v4";
+
 import type {
 	EdgeProviderDescriptor,
 	EdgeStatus,
 	PublicJoinPath,
 	PublicLane,
 } from "@deployer/contracts-entities/entities/ingress/index";
-import z from "zod/v4";
-
+import { EffectHost, type EffectHostShape } from "@deployer/nest-effect";
 import { EnvService } from "@deployer/shared/config/env/env.module";
 import type {
 	EdgeConnectorSpec,
@@ -38,6 +37,7 @@ import type {
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { EdgeStateStore } from "@deployer/shared/core/modules/edge/edge-state.store";
 
+import { FleetInvalid } from "../../../../core/fleet.errors";
 import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
 
 export const CLOUDFLARE_TUNNEL_EDGE_ID = "cloudflare-tunnel";

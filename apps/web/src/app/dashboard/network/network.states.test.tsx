@@ -1,11 +1,12 @@
 import '@/test-support/mocks'
 import { describePageStates } from '@/test-support'
 import { emptyIngress } from '@/test-support/fixtures/platform'
-import NetworkOverviewPage from './page'
-import NetworkIngressPage from './ingress/page'
-import NetworkMeshPage from './mesh/page'
+
 import NetworkDnsPage from './dns/page'
 import NetworkDomainsPage from './domains/page'
+import NetworkIngressPage from './ingress/page'
+import NetworkMeshPage from './mesh/page'
+import NetworkOverviewPage from './page'
 
 describePageStates('Network overview', {
 	page: () => <NetworkOverviewPage />,

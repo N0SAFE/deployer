@@ -1,8 +1,10 @@
 // middlewares/stackMiddlewares
 import { NextResponse } from 'next/server'
+
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
+
 import { CustomNextMiddleware, MatcherType, Middleware } from './types'
 import { matcherHandler } from './utils'
-import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
 const debugMiddleware = createContextFilterDebugLogger('stackMiddlewares', 'middleware:[stackMiddlewares]')
 const debugMiddlewareError = createContextFilterDebugLogger('stackMiddlewares', 'middleware:[stackMiddlewares]:error')

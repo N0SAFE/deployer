@@ -1,5 +1,6 @@
-import { serviceOver, type Over } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
+
+import { serviceOver, type Over } from "@deployer/effect-core";
 
 import { DockerCatalog, type DockerCatalogPorts, type DockerCatalogShape } from "../../../catalog/docker-catalog";
 import {

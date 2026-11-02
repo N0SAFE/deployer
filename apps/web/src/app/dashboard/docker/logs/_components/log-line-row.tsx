@@ -1,9 +1,13 @@
 import { memo } from 'react'
+
 import { cn } from '@/lib/utils'
-import type { MatchRange } from '../_lib/highlight'
+
 import { formatLogTime } from '../_lib/merge-lines'
 import { highlightLine, type PreparedLine } from '../_lib/prepare-lines'
+
 import { AnsiText } from './ansi-text'
+
+import type { MatchRange } from '../_lib/highlight'
 
 function levelTag(prepared: PreparedLine): { label: string; className: string } | null {
   const { line } = prepared

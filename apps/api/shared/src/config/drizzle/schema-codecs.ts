@@ -1,15 +1,18 @@
+import { scryptSync } from "crypto";
+
 import { Logger } from "@nestjs/common";
-import { validateApiEnvPath } from "@deployer/env";
+import { Redacted } from "effect";
+
 import { runSyncUnwrapped } from "@deployer/effect-core";
 import { makeSyncSecretBox } from "@deployer/effect-infra";
-import { Redacted } from "effect";
-import { scryptSync } from "crypto";
+import { validateApiEnvPath } from "@deployer/env";
 import {
 	configureSchemaCodecs,
 	type EncryptedTextKeyProvider,
 	type EncryptedTextSealer,
 	type TraefikConfigCodec,
 } from "@deployer/nest-schema/codecs/codec-registry";
+
 import { TraefikConfigBuilder } from "../../core/modules/traefik/config-builder/builders";
 
 const logger = new Logger("SchemaCodecs");
@@ -90,7 +93,9 @@ export type SealerEnv = {
  * working (a random per-process key would make dev data unreadable after a restart).
  */
 export function resolveSealer(env: SealerEnv): EncryptedTextSealer {
-	const configured = env.DEPLOYER_ROOT_SECRET?.trim() || env.AUTH_SECRET?.trim() || undefined;
+	const configured = [env.DEPLOYER_ROOT_SECRET?.trim(), env.AUTH_SECRET?.trim()].find(
+		(value) => value !== undefined && value.length > 0,
+	);
 	const production = env.NODE_ENV === "production";
 	const fix = "Set DEPLOYER_ROOT_SECRET to at least 32 random characters (for example `openssl rand -base64 48`)";
 

@@ -8,10 +8,11 @@
  * dependency.
  */
 
-import { createGlobalModule } from "@deployer/nest-effect";
 import { nodeDoorFromEnv } from "@deployer/mesh-client";
+import { createGlobalModule } from "@deployer/nest-effect";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
+
 import { ClusterSettings } from "./cluster-settings";
 import { NodeAgentBootstrapService } from "./node-agent-bootstrap.service";
 

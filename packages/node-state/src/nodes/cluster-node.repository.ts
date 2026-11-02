@@ -1,7 +1,8 @@
+import { eq } from "drizzle-orm";
+import { Context, Effect, Layer } from "effect";
+
 import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import { clusterMasterHistory, clusterNode, type ClusterNodeRow } from "@deployer/nest-schema/local";
-import { Context, Effect, Layer } from "effect";
-import { eq } from "drizzle-orm";
 
 import { isMissingTable, LocalDatabaseError, NodeStateConflict } from "../database/errors";
 import { LocalDatabase, type LocalDatabaseShape } from "../database/local-database";

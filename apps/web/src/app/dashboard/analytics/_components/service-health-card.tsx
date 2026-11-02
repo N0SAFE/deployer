@@ -1,10 +1,12 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
-import { StatusBadge } from '@/components/dashboard'
-import { CardBody, DataSourceBadge } from './card-states'
 import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
+import { StatusBadge } from '@/components/dashboard'
 import { AuthDashboardProjects } from '@/routes'
+
+import { CardBody, DataSourceBadge } from './card-states'
 
 export interface ServiceHealthRow { serviceName: string; status: string; uptime: number }
 

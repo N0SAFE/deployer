@@ -18,9 +18,11 @@
  * that pre-fills the field — the user never retypes it.
  */
 
-import * as React from 'react'
 import { KeyRound, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
+import * as React from 'react'
 import { toast } from 'sonner'
+
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -32,8 +34,8 @@ import {
 } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
 import { authClient } from '@/lib/auth'
 
 type Outcome =
@@ -154,7 +156,7 @@ function DeviceApprovalForm() {
                     spellCheck={false}
                     placeholder="ABCD-1234"
                     className="font-mono tracking-widest uppercase"
-                    onChange={(e) => setUserCode(e.target.value)}
+                    onChange={(e) => { setUserCode(e.target.value); }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') void submit(true)
                     }}

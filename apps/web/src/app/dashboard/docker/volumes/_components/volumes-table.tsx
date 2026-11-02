@@ -1,13 +1,16 @@
 'use client'
 
 import { HardDrive } from 'lucide-react'
+
+import type { DockerVolume } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-import type { DockerVolume } from '@deployer/contracts-entities'
+
 import { EmptyState, FilteredEmptyState } from '@/components/dashboard'
+
 import { DockerCopyButton } from '../../_components/docker-copy-button'
-import { DockerRelativeTime } from '../../_components/docker-relative-time'
 import { DockerTableSkeleton } from '../../_components/docker-loading-states'
+import { DockerRelativeTime } from '../../_components/docker-relative-time'
 import { DockerVolumeDetailModalTrigger } from '../../_components/docker-volume-detail-modal'
 import { formatBytes, shortId } from '../../_utils/format'
 import { isVolumeInUse } from '../_utils/volumes'

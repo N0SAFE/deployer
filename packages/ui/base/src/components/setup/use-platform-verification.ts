@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import type { SetupVerificationTarget } from "@deployer/contracts-entities"
 
+import type { SetupVerificationTarget } from "@deployer/contracts-entities"
 import {
   buildVerificationTasks,
   isVerified,

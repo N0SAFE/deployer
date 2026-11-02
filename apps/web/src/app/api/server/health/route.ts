@@ -1,8 +1,10 @@
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { unstable_rethrow } from 'next/navigation'
 import { NextResponse } from 'next/server'
 import { connection } from 'next/server'
+
 import { orpc } from '@/lib/orpc'
-import { unstable_rethrow } from 'next/navigation'
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
+
 
 export async function GET() {
     // The handler probes the API over the network and reports whether it is

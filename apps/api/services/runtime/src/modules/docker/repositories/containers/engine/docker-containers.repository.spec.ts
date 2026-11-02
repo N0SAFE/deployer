@@ -1,6 +1,7 @@
-import { DockerEngine } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
+
+import { DockerEngine } from "@deployer/docker";
 
 import { DockerContainersRepository, parseDockerodeContainers } from "./docker-containers.repository";
 

@@ -1,7 +1,8 @@
 import { and, eq, lt } from "drizzle-orm";
 import { Context, Effect } from "effect";
-import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
+
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
+import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 
 import { FleetDb } from "@/core/database/fleet-db";
 

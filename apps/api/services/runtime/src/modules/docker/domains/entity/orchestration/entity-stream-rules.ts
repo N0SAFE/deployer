@@ -33,7 +33,7 @@ export function buildStreamFilter(input: EntityFilterInput) {
   const kinds = input.kinds ?? ENTITY_KINDS;
   const actions = input.actions ?? {};
   const nodes = kinds.map((kind) => {
-    const kindActions = actions[kind as keyof typeof actions] ?? [];
+    const kindActions = actions[kind] ?? [];
     return {
       source: { operator: "eq" as const, value: kind },
       ...(kindActions.length > 0 ? { action: { operator: "in" as const, value: kindActions } } : {}),
@@ -72,7 +72,7 @@ export function buildRemovedChunk(kind: DockerEntityKind, event: DockerRuntimeEv
     id,
     occurredAt: event.timestamp,
     eventId: event.eventId,
-  } as DockerEntityStreamChunk;
+  };
 }
 
 /** An entity as the chunk an event produced: the entity's fields plus the event's kind, action, time and id. */

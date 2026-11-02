@@ -1,10 +1,10 @@
 import { createGlobalModule } from "@deployer/nest-effect";
 
+import { FleetClient } from "./fleet/fleet.client";
 import { AnalyticsClient } from "./identity/analytics.client";
 import { IdentityClient } from "./identity/identity.client";
 import { ProjectClient } from "./project/project.client";
 import { RuntimeClient } from "./runtime/runtime.client";
-import { FleetClient } from "./fleet/fleet.client";
 
 /**
  * Every typed service client, provided once for the whole application.

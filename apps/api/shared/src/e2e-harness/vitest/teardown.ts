@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
+
 import { stopAllSharedApiRuntimes } from "../shared-api-runtime";
+
 import { stopSharedPostgresContainer } from "./shared-postgres";
 
 console.log("[e2e-teardown-load] vitest.teardown.e2e.ts module loaded");

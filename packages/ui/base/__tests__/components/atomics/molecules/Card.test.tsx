@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+
 import { Card } from '../../../../src/components/atomics/molecules/Card'
 
 describe('Card Component', () => {

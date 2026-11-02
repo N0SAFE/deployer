@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ** import utils
 import { isDeepEqual } from "@deployer/ui/components/data-table/utils/deep-utils";
-import { DATA_TABLE_URL_STATE_EVENT } from "@deployer/ui/components/data-table/utils/url-events";
 import { ensureUrlStateHistoryPatched } from "@deployer/ui/components/data-table/utils/history-sync";
+import { DATA_TABLE_URL_STATE_EVENT } from "@deployer/ui/components/data-table/utils/url-events";
 
 function canUseDOM(): boolean {
   return typeof window !== "undefined" && typeof window.location !== "undefined";

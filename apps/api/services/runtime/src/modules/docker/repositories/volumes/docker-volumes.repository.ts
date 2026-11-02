@@ -1,7 +1,8 @@
+import { Context, Effect } from "effect";
+
 import { dockerVolumeSchema, type DockerVolume } from "@deployer/contracts-entities";
 import type { DockerError, DockerEngineShape } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
-import { Context, Effect } from "effect";
 
 const VOLUME_DRIVERS = ["local", "nfs", "csi", "tmpfs"];
 
@@ -41,7 +42,7 @@ const mountsByVolume = (containers: readonly { readonly Id?: unknown; readonly M
 const listDockerVolumes = (engine: DockerEngineShape): Effect.Effect<DockerVolume[], DockerError> =>
 	Effect.suspend(() => Effect.all([engine.volumes.list(), engine.containers.list({ all: true })], { concurrency: "unbounded" })).pipe(
 			Effect.map(([volumes, containers]) => {
-				const used = mountsByVolume(containers as readonly { Id?: unknown; Mounts?: unknown }[]);
+				const used = mountsByVolume(containers);
 				return volumes.map((volume) => {
 					const driver = String(volume.Driver ?? "local");
 					const size = (volume.UsageData as { Size?: unknown } | undefined)?.Size;

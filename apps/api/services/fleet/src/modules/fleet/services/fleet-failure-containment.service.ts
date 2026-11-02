@@ -1,4 +1,5 @@
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
+
 import type { ServiceDag } from "./service-dag.service";
 
 export type FailureDomain = {

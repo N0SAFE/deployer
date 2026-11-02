@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+
 import {
   AuthDashboardDockerActivity,
   AuthDashboardDockerContainers,
@@ -10,6 +11,7 @@ import {
   AuthDashboardDockerShell,
   AuthDashboardDockerVolumes,
 } from '@/routes'
+
 import { DockerPageHeader } from './docker-page-header'
 
 interface HeaderCopy { href: string; title: string; description: string }

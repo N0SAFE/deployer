@@ -1,11 +1,12 @@
 "use client"
 import React, { useEffect, useState, useContext, useRef } from 'react'
 import { toast } from 'sonner'
+
+import { MasterTokenContext } from '@deployer/auth/client/plugins/masterToken/components/context'
 import {
     getMasterTokenEnabled,
     MasterTokenManager,
 } from '@deployer/auth/client/plugins/masterToken/state'
-import { MasterTokenContext } from '@deployer/auth/client/plugins/masterToken/components/context'
 
 interface MasterTokenProviderProps {
     refetch: () => void | Promise<void>

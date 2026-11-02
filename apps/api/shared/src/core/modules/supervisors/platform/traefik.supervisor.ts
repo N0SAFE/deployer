@@ -1,10 +1,11 @@
 import { Logger } from "@nestjs/common";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { platformOverlayForPrefix } from "@deployer/docker";
-import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-client";
+import { Effect } from "effect";
+
 import type { DockerEngineShape } from "@deployer/docker";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { platformOverlayForPrefix } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { splitManagedEnv } from "@deployer/env";
+import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-client";
 import {
 	makeTraefikSupervisor,
 	PLATFORM_INGRESS_SUPERVISOR_ID,
@@ -12,7 +13,6 @@ import {
 	traefikSupervisorPayloadSchema,
 	type TraefikSupervisor,
 } from "@deployer/platform-supervisors";
-import { Effect } from "effect";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
@@ -33,6 +33,7 @@ import {
 	platformTraefikContainerName,
 } from "../../platform-ingress/services/platform-names";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { PLATFORM_INGRESS_SUPERVISOR_ID };
 

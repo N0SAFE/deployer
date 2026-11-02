@@ -1,9 +1,9 @@
 "use client"
 
-import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
+import { SearchIcon, CheckIcon } from "lucide-react"
+import * as React from "react"
 
-import { cn } from "@deployer/ui/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,8 @@ import {
   InputGroup,
   InputGroupAddon,
 } from "@deployer/ui/components/shadcn/input-group"
-import { SearchIcon, CheckIcon } from "lucide-react"
+import { cn } from "@deployer/ui/lib/utils"
+
 
 function Command({
   className,

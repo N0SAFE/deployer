@@ -1,14 +1,20 @@
 import { Test, type TestingModule } from '@nestjs/testing';
-import { InitializationService } from './initialization.service';
+import { Effect } from "effect";
 import { describe, beforeEach, it, expect, vi } from 'vitest';
+
+import { AppLifecycle } from '@deployer/lifecycle';
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
+import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service';
+import { ReachabilityService } from '../../reachability/services/reachability.service';
+
+import { InitializationService } from './initialization.service';
 import { LocalInitializationService } from './local-initialization.service';
 import { RemoteInitializationService } from './remote-initialization.service';
 import { SetupEventService } from './setup-event.service';
-import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service';
-import { ReachabilityService } from '../../reachability/services/reachability.service';
-import { Effect } from "effect";
-import { AppLifecycle } from '@deployer/lifecycle';
+
+
+
 
 describe('InitializationService', () => {
   let service: InitializationService;

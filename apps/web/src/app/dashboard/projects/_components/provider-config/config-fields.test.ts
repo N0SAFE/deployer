@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { buildConfigFromFields, displayValue, entityToUiKey, initialFormValues, toEntityConfig } from './config-fields'
 
 describe('config-fields', () => {

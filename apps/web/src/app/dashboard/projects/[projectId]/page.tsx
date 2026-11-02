@@ -1,16 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
 import { ArrowUpRight, Rocket } from 'lucide-react'
-import { useProject, useProjectEnvironments } from '@/domains/project/hooks'
-import { useServiceList } from '@/domains/service/hooks'
-import { useDeploymentList } from '@/domains/deployment/hooks'
-import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { useParams, useRouter } from 'next/navigation'
+import { useMemo } from 'react'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import { EmptyState, EnvironmentBadge, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { PageSkeleton } from '@/components/dashboard/Skeletons'
+import { useDeploymentList } from '@/domains/deployment/hooks'
+import { useProject, useProjectEnvironments } from '@/domains/project/hooks'
+import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
+import { useServiceList } from '@/domains/service/hooks'
 import {
   AuthDashboardProjectsProjectIdServices,
   AuthDashboardProjectsProjectIdServicesServiceId,
@@ -18,8 +20,9 @@ import {
   AuthDashboardProjectsProjectIdDeployments,
   AuthDashboardProjectsProjectIdDependencies,
 } from '@/routes'
-import { InlineError } from '../_components/workload/WorkloadStates'
+
 import { RelativeTime } from '../_components/workload/RelativeTime'
+import { InlineError } from '../_components/workload/WorkloadStates'
 import { toTime } from '../_utils/workload'
 
 /**

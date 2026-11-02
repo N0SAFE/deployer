@@ -4,6 +4,7 @@
  */
 
 import type { userSchema } from "@deployer/contracts-entities";
+
 import type { z } from "zod/v4";
 
 // Base user type

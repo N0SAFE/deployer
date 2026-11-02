@@ -1,9 +1,11 @@
-import { Command, CommandRunner } from 'nest-commander'
 import { Injectable, Logger, Inject } from '@nestjs/common'
-import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import { sql } from 'drizzle-orm'
+import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
+import { Command, CommandRunner } from 'nest-commander'
+
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
 import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
+
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 /*

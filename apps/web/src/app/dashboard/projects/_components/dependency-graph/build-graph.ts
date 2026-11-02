@@ -1,5 +1,7 @@
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
+
 import { ENV_NAMES } from '@deployer/contracts-common'
+
 import {
   EDGE_ACTIVE_OPACITY,
   EDGE_DIMMED_OPACITY,
@@ -19,6 +21,7 @@ import {
   isServiceInEnvironment,
   resolveTargetEnvironment,
 } from './graph-env'
+
 import type { DependencyRecord, ServiceGraphDependencyRoute, ServiceGraphNode } from './graph-types'
 
 export interface BuildGraphInput {

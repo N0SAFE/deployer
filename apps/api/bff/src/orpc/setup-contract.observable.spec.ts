@@ -1,6 +1,7 @@
 import { getAsyncIteratorObjectSchemasDetails, type AnySchema } from "@orpc/contract";
-import { setupAppContract } from "@deployer/bff-contracts";
 import { describe, expect, it } from "vitest";
+
+import { setupAppContract } from "@deployer/bff-contracts";
 
 const contract = setupAppContract as unknown as Record<string, unknown>;
 

@@ -1,15 +1,19 @@
 import { Module } from "@nestjs/common";
-import { declareModule } from "@deployer/nest-effect";
-import type { DynamicModule } from "@nestjs/common";
 
-import { WAIT_FOR_DEPENDENCIES, type PreflightPolicy } from "./runner";
+import { declareModule } from "@deployer/nest-effect";
+
+
+import { SERVICE_READINESS } from "../service-health";
+
 import {
 	PREFLIGHT_DEPENDENCIES,
 	PREFLIGHT_POLICY,
 	PreflightService,
 } from "./preflight.service";
-import { SERVICE_READINESS } from "../service-health";
+import { WAIT_FOR_DEPENDENCIES, type PreflightPolicy } from "./runner";
+
 import type { PreflightDependency } from "./types";
+import type { DynamicModule } from "@nestjs/common";
 
 /**
  * Wires dependency preflight for one app.

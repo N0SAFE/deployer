@@ -1,15 +1,17 @@
 'use client'
 
+import { Bell, BellOff, Send } from 'lucide-react'
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
+
+import { logger } from '@deployer/logger'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import {
   usePushActions,
   usePushNotifications,
 } from '@/domains/push/hooks'
-import { logger } from '@deployer/logger'
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
-import { Bell, BellOff, Send } from 'lucide-react'
 import { usePushNotificationSupport } from '@/domains/push/utils'
 
 // Helper to convert VAPID key from base64 to Uint8Array

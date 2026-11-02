@@ -1,8 +1,9 @@
 import { firstValueFrom } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 import type { WizardUpstreamService } from "@/modules/wizard/wizard-upstream.service";
+
+import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 
 /**
  * The watcher is the GATE: nothing touches the ingress until it reports ready.

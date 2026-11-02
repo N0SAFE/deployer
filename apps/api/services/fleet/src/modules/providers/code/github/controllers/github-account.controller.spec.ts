@@ -1,14 +1,17 @@
 import "@orpc/effect/extensions/effect";
 
-import { effectContext } from "@deployer/nest-effect/testing";
-import { callProcedure } from "@deployer/orpc-utils/testing";
 import { Context, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+
 import { GitHub, type GitHubShape } from "@/core/ports/github.port";
 import { PublicAccessPoint, type PublicAccessPointShape } from "@/core/ports/public-access-point.port";
-import { GitHubAppsController } from "./github-account.controller";
+
 import { GithubAppsStore, type GithubAppsStoreShape } from "../repositories/github-apps.repository";
+
+import { GitHubAppsController } from "./github-account.controller";
 
 // Authentication and role checks are the shared middlewares' concern; here they let the call
 // through so the rest of the chain (Effect context, `serve`, failure handling) runs for real.

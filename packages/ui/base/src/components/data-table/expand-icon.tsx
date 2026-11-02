@@ -1,13 +1,14 @@
 "use client";
 
 // ** import types
-import type { Row } from "@tanstack/react-table";
 
 // ** import core packages
 import { ChevronRight } from "lucide-react";
 
 // ** import utils
 import { cn } from "@deployer/ui/lib/utils";
+
+import type { Row } from "@tanstack/react-table";
 
 interface ExpandIconProps<TData> {
   row: Row<TData>;

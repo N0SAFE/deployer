@@ -1,8 +1,10 @@
-import type { AnySchema } from '@orpc/contract';
 import { getAsyncIteratorObjectSchemasDetails } from '@orpc/contract';
+
+import { getObservableSchemaDetails } from '@deployer/orpc-utils/observable/contract';
 import { hasRouteMethodMeta, getRouteMethod } from '@deployer/orpc-utils/types/route-method-meta';
 import { isContractProcedure } from '@deployer/orpc-utils/types/type-helpers';
-import { getObservableSchemaDetails } from '@deployer/orpc-utils/observable/contract';
+
+import type { AnySchema } from '@orpc/contract';
 
 /**
  * Extended operation type supporting all ORPC operation types.

@@ -1,10 +1,10 @@
 import { Context, Effect } from "effect";
 
+import type { ProjectRole } from "@deployer/auth";
 import { domainError } from "@deployer/effect-core";
 
 import { ProjectAccessRepository, type ProjectAccessProject, type ProjectAccessQueryFailed } from "../repositories/project-access.repository";
 
-import type { ProjectRole } from "@deployer/auth";
 
 /** The project exists but the caller may not act on it at the requested level. */
 export class ProjectAccessDenied extends domainError("ProjectAccessDenied", "forbidden")<{

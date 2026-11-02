@@ -5,6 +5,7 @@
  */
 
 import { defineInvalidations } from "../shared/helpers";
+
 import { userEndpoints } from "./endpoints";
 
 function resolveUserId(input: unknown): string | undefined {

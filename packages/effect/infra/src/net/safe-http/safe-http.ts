@@ -1,10 +1,12 @@
 import { Context, Duration, Effect, Layer } from "effect";
+
 import { stripBrackets } from "../address";
 import { isIpLiteral } from "../ip-policy";
-import { EgressDenied, HttpTimeout, SafeHttpError } from "./errors";
-import { HttpReq, HttpRes, SafeHttpOptions, SafeHttpShape } from "./types";
+
 import { checkTarget, denyReason } from "./egress-check";
+import { EgressDenied, HttpTimeout, SafeHttpError } from "./errors";
 import { request } from "./request";
+import { HttpReq, HttpRes, SafeHttpOptions, SafeHttpShape } from "./types";
 
 /**
  * Outbound HTTP for targets the caller does not fully control, on Bun builtins

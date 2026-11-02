@@ -1,6 +1,7 @@
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
-import { serviceOps } from "./shared";
 import { serviceWithEffectiveConfigSchema } from "@deployer/contracts-entities";
+import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+
+import { serviceOps } from "./shared";
 
 /**
  * Service detail — includes the resolved `effectiveConfig` (parent-chain

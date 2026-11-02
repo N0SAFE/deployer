@@ -22,9 +22,11 @@
  * emitting whatever it likes while the public surface stays a single prefix.
  */
 
-import type { Request, Response, NextFunction, RequestHandler } from "express";
 import * as http from "node:http";
+
 import { logger } from "@deployer/logger";
+
+import type { Request, Response, NextFunction, RequestHandler } from "express";
 
 const log = logger.scope("ViteAssets");
 

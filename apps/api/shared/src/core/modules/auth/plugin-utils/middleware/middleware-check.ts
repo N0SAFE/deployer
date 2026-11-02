@@ -10,11 +10,12 @@
  * that encapsulates the check logic with its metadata.
  */
 
+import type { InferSessionFromAuth } from '@deployer/auth';
 import {
   PermissionAssertionError,
   RoleAssertionError,
 } from '@deployer/auth/permissions/plugins';
-import type { InferSessionFromAuth } from '@deployer/auth';
+
 import type { Auth as BetterAuthInstance } from 'better-auth';
 
 /**

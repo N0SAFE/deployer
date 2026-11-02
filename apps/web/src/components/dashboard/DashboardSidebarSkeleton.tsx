@@ -8,7 +8,7 @@ import {
   Rocket,
   UserCircle,
 } from 'lucide-react'
-import { Home as HomeRoute } from '@/routes'
+
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +24,8 @@ import {
   SidebarSeparator,
 } from '@deployer/ui/components/shadcn/sidebar'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+
+import { Home as HomeRoute } from '@/routes'
 
 /**
  * DashboardSidebarSkeleton - Static skeleton for the dashboard sidebar

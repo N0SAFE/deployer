@@ -1,4 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
+import { Effect, Fiber } from "effect";
+
 import { runPromiseUnwrapped, runSyncUnwrapped } from "@deployer/effect-core";
 import {
 	makeSupervisor,
@@ -7,10 +9,9 @@ import {
 	type SupervisorOrchestratorShape,
 	type SupervisorSpec,
 } from "@deployer/supervision";
-import { Effect, Fiber } from "effect";
-import type z from "zod/v4";
 
 import type { SupervisorEventBus } from "./supervisor-event.bus";
+import type z from "zod/v4";
 
 /**
  * One supervisor in a module: the Effect `Supervisor` built from its spec, and when (and whether) it

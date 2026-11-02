@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { FleetDb } from "@/core/database/fleet-db";
+
 import { GitlabAppsStore } from "./gitlab-apps.repository";
 
 /** A Drizzle stand-in: every builder call answers the builder, awaiting it answers `rows`. */

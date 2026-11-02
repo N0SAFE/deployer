@@ -1,5 +1,6 @@
-import type { NextFunction, Request, Response } from "express";
 import * as express from "express";
+
+import type { NextFunction, Request, Response } from "express";
 
 /**
  * Factory that returns a Nest middleware which skips body parsing for the

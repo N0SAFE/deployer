@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeEffectHost } from "./effect-host";
+
 import type { EffectRuntime } from "./effect-runtime";
 
 /**
@@ -11,12 +12,12 @@ import type { EffectRuntime } from "./effect-runtime";
 const fakeRuntime = () => {
 	const interrupted: string[] = [];
 	const runtime = {
-		runPromise: vi.fn((effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect)),
-		runPromiseUnwrapped: vi.fn((effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect)),
-		runFork: vi.fn((effect: Effect.Effect<void, never, never>) => {
+		runPromise: vi.fn((effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect)),
+		runPromiseUnwrapped: vi.fn((effect: Effect.Effect<unknown, unknown>) => Effect.runPromise(effect)),
+		runFork: vi.fn((effect: Effect.Effect<void>) => {
 			// A real fiber, but started and interrupted through the host's own bookkeeping.
 			const fiber = Effect.runFork(effect);
-			fiber.addObserver?.(() => interrupted.push("done"));
+			fiber.addObserver(() => interrupted.push("done"));
 			return fiber;
 		}),
 	};

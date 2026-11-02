@@ -1,8 +1,9 @@
 'use client'
 
 import { CheckCircle2, ShieldCheck, TriangleAlert } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+
 import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 
 /**
  * Plain answers about exposure, computed by the API from the lanes and the edge

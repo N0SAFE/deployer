@@ -1,3 +1,8 @@
+import { Context, Effect } from "effect";
+import { Observable, catchError, map, throwError } from "rxjs";
+
+import type { DockerContainerLogEntry, DockerContainerProcessEntry } from "@deployer/contracts-entities";
+import { DockerEngine } from "@deployer/docker";
 import type {
   DockerContainerCreateDirectoryBodyInput,
   DockerContainerDeletePathBodyInput,
@@ -14,15 +19,8 @@ import type {
   DockerContainerTerminalStreamQueryInput,
   DockerContainerWriteFileBodyInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type { DockerContainerLogEntry, DockerContainerProcessEntry } from "@deployer/contracts-entities";
-import { DockerEngine } from "@deployer/docker";
-import { Context, Effect } from "effect";
-import { Observable, catchError, map, throwError } from "rxjs";
 
-import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
-import type { DockerContainerTerminalOpenResult } from "../mesh/node-mesh-types";
 import { pollSnapshot, streamLogs, streamProcessLogs } from "./container-streams";
-import type { FileMutationAck } from "./container-file-ops";
 import { DockerContainerOps, type DockerContainerOpsShape } from "./docker-container-ops";
 import { DockerTerminalSessions, type DockerTerminalSessionsShape } from "./docker-terminal-sessions";
 import {
@@ -35,6 +33,10 @@ import {
   streamMeshTerminalEvents,
   withMeshFallback,
 } from "./mesh-fallback";
+
+import type { FileMutationAck } from "./container-file-ops";
+import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
+import type { DockerContainerTerminalOpenResult } from "../mesh/node-mesh-types";
 
 /** The mesh calls that reach the node owning a container; a Promise-based Nest provider until the mesh moves. */
 export class ContainerAccessMeshPort extends Context.Service<

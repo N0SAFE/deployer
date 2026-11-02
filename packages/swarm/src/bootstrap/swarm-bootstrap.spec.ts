@@ -1,8 +1,9 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SwarmParticipationShape } from "../participation/swarm-participation";
 import { makeSwarmBootstrap } from "./swarm-bootstrap";
+
+import type { SwarmParticipationShape } from "../participation/swarm-participation";
 
 const snapshot = { localNodeState: "active", nodeCount: 1, managerCount: 1, master: null, localNode: { swarmRole: "manager", availability: "active" } };
 

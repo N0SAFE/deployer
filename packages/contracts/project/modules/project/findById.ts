@@ -1,5 +1,5 @@
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 import { projectSchema, projectWithStatsSchema } from "@deployer/contracts-entities";
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 const projectOps = standard.zod(projectSchema, "project");
 

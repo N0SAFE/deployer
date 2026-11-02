@@ -1,27 +1,31 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { RefreshCw, Rocket, Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { AuthDashboardProjects } from '@/routes'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
-import { RefreshCw, Rocket, Search } from 'lucide-react'
-import { toast } from 'sonner'
+
 import {
   PageHeader, PageErrorState, ScopeLabel, EmptyState, FilteredEmptyState, StatStrip, StatStripItem,
 } from '@/components/dashboard'
 import { PageSkeleton } from '@/components/dashboard/Skeletons'
 import { useNow } from '@/components/dashboard/use-now'
 import { useDeploymentList, useRetryDeployment } from '@/domains/deployment/hooks'
-import { useServiceList } from '@/domains/service/hooks'
 import { useNodeScope } from '@/domains/node/node-context'
+import { useServiceList } from '@/domains/service/hooks'
+import { AuthDashboardProjects } from '@/routes'
+
 import { errorReason, useSlowLoading, InlineError } from '../projects/_components/workload/WorkloadStates'
-import { summarizeDeployments } from '../projects/_utils/workload'
 import {
   filterDeployments, hasActiveFilters, sortDeployments, type DeploymentSort, type StatusFilter,
 } from '../projects/_utils/deployment-list'
+import { summarizeDeployments } from '../projects/_utils/workload'
+
 import { DeploymentsTable, type ServiceRef } from './_components/deployments-table'
 
 const WINDOW = 100

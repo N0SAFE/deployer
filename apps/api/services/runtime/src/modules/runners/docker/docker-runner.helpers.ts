@@ -1,10 +1,13 @@
-import type Docker from "dockerode";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { RuntimeInvalid } from "../../../core/runtime.errors";
-import type { RuntimeExecutionInput } from "../runtime-runner.interface";
+
 import type { DeploymentStorageBinding } from "@/modules/deployment/storage/base/storage-provider.interface";
+
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { assertExecutorLabelAllowed } from "../base/reserved-labels";
+
+import type { RuntimeExecutionInput } from "../runtime-runner.interface";
+import type Docker from "dockerode";
 
 /**
  * The docker runner's pure decisions: what a label, a command, an env var or a storage binding

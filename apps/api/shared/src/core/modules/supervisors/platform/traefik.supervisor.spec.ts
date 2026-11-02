@@ -10,21 +10,26 @@ vi.mock("node:http", () => ({
 		},
 	},
 }));
-import { DockerNotFound, toDockerServiceSpec } from "@deployer/docker";
-import { Effect } from "effect";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
+import { DockerNotFound, toDockerServiceSpec } from "@deployer/docker";
+
+import { Effect } from "effect";
+
+import type { DockerEngineShape } from "@deployer/docker";
 
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
-import type { DockerEngineShape } from "@deployer/docker";
+import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
+import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
+import { harness, testBus } from "../supervisor-test-harness";
+
+import { makeTraefikRegistration } from "./traefik.supervisor";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { ClusterSettings } from "../../mesh-node/cluster-settings";
-import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
-import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
 import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
-import { makeTraefikRegistration } from "./traefik.supervisor";
-import { harness, testBus } from "../supervisor-test-harness";
+
+
 
 /**
  * The ingress is one GLOBAL swarm service with one entrypoint per lane. These tests
@@ -71,7 +76,7 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 	const reconcile = (input: Parameters<typeof toDockerServiceSpec>[0]) =>
 		failNext !== null
 			? Effect.suspend(() => {
-					const error = failNext as Error;
+					const error = failNext!;
 					failNext = null;
 					return Effect.fail(error);
 				})

@@ -32,10 +32,12 @@
  * ```
  */
 import { and, or, asc, desc, count, eq, ne, like, ilike, gt, gte, lt, lte, type AnyColumn, type SQL, type InferSelectModel } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
-import type { GlobalDatabase as Database } from "../modules/database/services/global-database.service";
+
 import { AppError } from "@deployer/errors";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
+
+import type { GlobalDatabase as Database } from "../modules/database/services/global-database.service";
+import type { PgTable } from "drizzle-orm/pg-core";
 
 /**
  * Constraint for filter objects with recursive _and/_or logical nesting.
@@ -136,7 +138,7 @@ function resolveFilter<TFilter extends Record<string, unknown>>(
     const parts: (SQL | undefined)[] = [];
 
     const resolverEntries = Object.entries(resolvers) as [string, (entry: never) => SQL | undefined][];
-    const filterRecord = isRecord(filter) ? filter : {};
+    const filterRecord: Record<string, unknown> = isRecord(filter) ? filter : {};
     for (const [key, resolver] of resolverEntries) {
         const entry = filterRecord[key];
         if (entry != null) {

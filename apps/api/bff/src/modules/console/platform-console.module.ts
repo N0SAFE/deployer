@@ -1,6 +1,8 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
+
 import { EnvModule } from "@/config/env/env.module";
+import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
+
 import { ManagedWebClient } from "./clients/managed-web.client";
 import { ConsoleControlController } from "./controllers/console-control.controller";
 import { PlatformConsoleController } from "./controllers/platform-console.controller";

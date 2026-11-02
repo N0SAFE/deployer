@@ -35,8 +35,8 @@ describe("DockerRuntimeActivities", () => {
 
   it("finds one activity or null", async () => {
     const store = { findById: vi.fn((id: string) => Effect.succeed(id === "missing" ? null : row(id))) };
-    await expect(run(DockerRuntimeActivities.live.getById({ id: "missing" } as never), store)).resolves.toBeNull();
-    const found = await run(DockerRuntimeActivities.live.getById({ id: "00000000-0000-4000-8000-000000000009" } as never), store);
+    await expect(run(DockerRuntimeActivities.live.getById({ id: "missing" }), store)).resolves.toBeNull();
+    const found = await run(DockerRuntimeActivities.live.getById({ id: "00000000-0000-4000-8000-000000000009" }), store);
     expect(found?.id).toBe("00000000-0000-4000-8000-000000000009");
   });
 

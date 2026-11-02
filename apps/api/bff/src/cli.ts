@@ -1,6 +1,8 @@
-import { CommandFactory } from "nest-commander";
-import { Logger } from "@nestjs/common";
 import { readFileSync } from "node:fs";
+
+import { Logger } from "@nestjs/common";
+import { CommandFactory } from "nest-commander";
+
 import { CLIModule } from "./cli/cli.module";
 
 const logger = new Logger("CLI");

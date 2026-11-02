@@ -1,5 +1,6 @@
-import type { z } from 'zod/v4'
 import type { projectEnvironmentSchema, variableTemplateSchema } from '@deployer/contracts-entities'
+
+import type { z } from 'zod/v4'
 
 export type ProjectEnvironment = z.infer<typeof projectEnvironmentSchema>
 export type VariableTemplate = z.infer<typeof variableTemplateSchema>

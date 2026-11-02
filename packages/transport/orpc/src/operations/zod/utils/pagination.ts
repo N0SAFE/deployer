@@ -11,12 +11,13 @@
  */
 
 import * as z from "zod";
+
+import { CONFIG_SYMBOL } from "@deployer/orpc-utils/operations/base/types";
 import {
     type PaginationConfig as BasePaginationConfig,
     type PaginationSchemaOutput as BasePaginationSchemaOutput,
     type PaginationMetaSchemaOutput as BasePaginationMetaSchemaOutput,
 } from "@deployer/orpc-utils/operations/base/utils/pagination";
-import { CONFIG_SYMBOL } from "@deployer/orpc-utils/operations/base/types";
 
 // Re-export base types for external use
 export type { BasePaginationConfig, BasePaginationSchemaOutput, BasePaginationMetaSchemaOutput };

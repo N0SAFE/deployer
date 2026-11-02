@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+
 import type {
   DeploymentQueueClaimResult,
   DeploymentDeadLetterJob,
@@ -14,8 +15,9 @@ import type {
   DeploymentQueueJob,
   DeploymentQueueTransitionResult,
 } from "@deployer/contracts-entities";
-import { DeploymentQueueLifecycleService } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
+
 import { getSharedApiRuntimeContext } from "@/e2e/runtime";
+import { DeploymentQueueLifecycleService } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
 
 export type DeploymentQueueLifecyclePort = {
   enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult>;

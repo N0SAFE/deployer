@@ -4,10 +4,10 @@ import "@orpc/effect/extensions/effect";
 // `@deployer/shared/core/...` so it is the SAME module identity the shared code resolves.
 import "@deployer/shared/core/orpc/context";
 
-import { assertRequirementsMet } from "@deployer/nest-effect";
-import { logger } from "@deployer/logger";
-import { DEPENDENCIES, DependencyNotReadyError, bootstrapApiServer } from "@deployer/shared/server";
 import { apiServicePort } from "@deployer/env";
+import { logger } from "@deployer/logger";
+import { assertRequirementsMet } from "@deployer/nest-effect";
+import { DEPENDENCIES, DependencyNotReadyError, bootstrapApiServer } from "@deployer/shared/server";
 
 import { NodeAgentServiceModule } from "./app.module";
 import { productionImageWarning } from "./config/node-agent.env";

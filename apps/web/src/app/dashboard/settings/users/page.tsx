@@ -1,10 +1,12 @@
 'use client'
 
+import { Ban, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+
 import type { PlatformRole } from '@deployer/auth'
-import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
-import { Button } from '@deployer/ui/components/shadcn/button'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
   Card,
   CardContent,
@@ -12,6 +14,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@deployer/ui/components/shadcn/select'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import {
   Table,
   TableBody,
@@ -20,19 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from '@deployer/ui/components/shadcn/table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@deployer/ui/components/shadcn/select'
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Ban, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
-import { useSession } from '@/lib/auth'
+
 import { PageHeader, PageErrorState } from '@/components/dashboard'
-import { toast } from 'sonner'
+import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
+import { useSession } from '@/lib/auth'
+
+
 import { BanUserDialog, RemoveUserDialog } from './_components/user-dialogs'
 
 const ROLE_HELP: { label: string; text: string }[] = [

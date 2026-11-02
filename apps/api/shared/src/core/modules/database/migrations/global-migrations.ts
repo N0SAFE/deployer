@@ -1,6 +1,7 @@
+import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
+
 import { AppError } from "@deployer/errors";
 import { isRecord } from "@deployer/type-guards";
-import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 
 import type { GlobalDatabase } from "../global/global-database.service";
 

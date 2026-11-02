@@ -33,12 +33,13 @@
  * ```
  */
 
-import type pino from 'pino'
 import {
   ContextFilterLogger,
   type ContextFilterLoggerOptions,
   type ContextFilterLoggerSource,
 } from '@deployer/logger/context-filter-logger'
+
+import type pino from 'pino'
 
 type LoggerBackend = {
   trace: (objOrMsg: unknown, msg?: string) => void

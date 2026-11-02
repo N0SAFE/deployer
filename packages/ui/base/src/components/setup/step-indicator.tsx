@@ -2,7 +2,7 @@
 
 import { cn } from "@deployer/ui/lib/utils"
 
-type Props = {
+interface Props {
   current: number
   total: number
   labels: string[]

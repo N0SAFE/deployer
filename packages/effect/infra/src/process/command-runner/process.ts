@@ -1,7 +1,8 @@
 import { Duration, Effect, type Scope } from "effect";
+
+import { scrubWith, unwrapEnv } from "./environment";
 import { SpawnFailed } from "./errors";
 import { Command } from "./types";
-import { scrubWith, unwrapEnv } from "./environment";
 
 export type Proc = Bun.Subprocess<"ignore" | "pipe", "pipe", "pipe">;
 

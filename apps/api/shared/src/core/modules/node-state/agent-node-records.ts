@@ -1,8 +1,9 @@
 import { Effect } from "effect";
 
+import type { NewNodeConfigRow, NodeConfigRecordStore, NodeConfigRow } from "@deployer/node-state";
+
 import { readNodeRecord, writeNodeRecord, type NodeRecordConfig, type NodeRecordOptions } from "../mesh/services/node-record.client";
 
-import type { NewNodeConfigRow, NodeConfigRecordStore, NodeConfigRow } from "@deployer/node-state";
 
 /**
  * The node's own record, kept by its agent.
