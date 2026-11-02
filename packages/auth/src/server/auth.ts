@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { multiSession, openAPI } from "better-auth/plugins";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+
+import { buildTrustedOrigins } from "./origins";
 import {
     adminHierarchyPlugin,
     adminSessionRevocationPlugin,
@@ -16,8 +17,9 @@ import {
     usePasskey,
     useTwoFactor,
 } from "./plugins";
-import { buildTrustedOrigins } from "./origins";
 import { passkeyCoordinates } from "./plugins/securityPlugins";
+
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 /** The environment the factory reads. One named shape, shared by every helper. */
 export interface AuthFactoryEnv {
@@ -131,7 +133,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             ? [
                   masterTokenPlugin({
                       devAuthKey,
-                      masterEmail: DEFAULT_ADMIN_EMAIL ?? "",
+                      masterEmail: DEFAULT_ADMIN_EMAIL,
                   }),
               ]
             : []),

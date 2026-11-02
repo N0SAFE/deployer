@@ -1,22 +1,24 @@
-import { createAuthClient } from 'better-auth/react'
-import type { BetterAuthClientOptions, BetterAuthClientPlugin } from 'better-auth/client'
+import { apiKeyClient } from '@better-auth/api-key/client'
+import { passkeyClient } from '@better-auth/passkey/client'
 import {
-    adminClient,
     deviceAuthorizationClient,
     inferAdditionalFields,
     lastLoginMethodClient,
     multiSessionClient,
     twoFactorClient,
 } from 'better-auth/client/plugins'
-import { apiKeyClient } from '@better-auth/api-key/client'
-import { passkeyClient } from '@better-auth/passkey/client'
-import type { betterAuthFactory, useAdmin } from '../server'
+import { createAuthClient } from 'better-auth/react'
+
+
 import {
     masterTokenClient,
     loginAsClientPlugin,
     useInviteClient,
     useAdminClient,
 } from './plugins'
+
+import type { betterAuthFactory, useAdmin } from '../server'
+import type { BetterAuthClientOptions } from 'better-auth/client'
 
 // Extract the actual auth type from the factory return type
 type AuthInstance = ReturnType<typeof betterAuthFactory>['auth']

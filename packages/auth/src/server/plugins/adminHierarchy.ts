@@ -1,7 +1,8 @@
-import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 import { createAuthMiddleware, getAuthoritativeSessionFromCtx } from "better-auth/api";
 
 import { refuseAdminAction, refuseRoleGrant, type HierarchyRefusal } from "../../authz/hierarchy";
+
+import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 
 /**
  * The admin endpoints this hook governs.
@@ -23,11 +24,11 @@ const ADMIN_ACTION_PATHS: readonly string[] = [
 /** The `set-role` and `update-user` bodies carry a role to grant; the others only name a target. */
 const GRANTING_PATHS: readonly string[] = ["/admin/set-role", "/admin/update-user"];
 
-type AdminActionBody = {
+interface AdminActionBody {
 	readonly userId?: string;
 	readonly role?: string;
 	readonly data?: { readonly role?: string };
-};
+}
 
 /** Everything the decision needs, extracted so the rule can be tested without an HTTP request or a database. */
 export function adminActionRefusal(input: {
@@ -72,9 +73,12 @@ export const adminHierarchyPlugin = (): BetterAuthPlugin => ({
 						where: [{ field: "id", value: body.userId }],
 					});
 
+					// The session type the API hands back is loosely typed; a role is a string or nothing.
+					const actorRole = typeof session.user.role === "string" ? session.user.role : null;
+
 					const refusal = adminActionRefusal({
 						path: ctx.path,
-						actorRole: session.user.role ?? null,
+						actorRole,
 						targetRole: target?.role ?? null,
 						grantedRole: body.role ?? body.data?.role ?? null,
 					});

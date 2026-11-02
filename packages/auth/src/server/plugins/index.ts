@@ -5,13 +5,16 @@
  * Use the `use*` functions for plugins that require access control configuration.
  */
 
-import { admin } from "better-auth/plugins";
 import { apiKey } from "@better-auth/api-key";
+import { admin } from "better-auth/plugins";
+
+import { isPlatformAdministrator, refuseRoleGrant } from "../../authz/hierarchy";
 import {
   platformAc,
   platformRoles,
   platformSchemas,
 } from "../../permissions/config";
+
 import { invitePlugin, type InvitePluginOptions } from "./invite";
 
 // ============================================================================
@@ -54,8 +57,6 @@ export * from './securityPlugins'
  * })
  * ```
  */
-import { isPlatformAdministrator, refuseRoleGrant } from '../../authz/hierarchy'
-
 export function useAdmin() {
   return admin({
     ac: platformAc,
@@ -131,7 +132,7 @@ type ConfiguredRoleNames = typeof platformSchemas.roleNames extends { _output: i
  *   plugins: [
  *     useAdmin({ defaultRole: 'guest' }),
  *     useInvite({
- *       inviteDurationDays: 7,
+ *       inviteDurationDays: options?.inviteDurationDays ?? 7,
  *     })
  *   ]
  * })
@@ -152,7 +153,7 @@ export function useInvite(
   options?: Omit<InvitePluginOptions<ConfiguredRoleNames>, "roleSchema" | "canCreateInvite" | "canInviteRole">
 ) {
   return invitePlugin({
-    inviteDurationDays: 7,
+    inviteDurationDays: options?.inviteDurationDays ?? 7,
     
     // Type assertion is safe here - platformSchemas.roleNames will always be compatible
     // with the RoleSchemaType that invitePlugin expects

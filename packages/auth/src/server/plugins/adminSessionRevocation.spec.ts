@@ -7,7 +7,7 @@ import { adminSessionRevocationPlugin, revokedUserId } from "./adminSessionRevoc
  * acting. The plugin's work is two adapter calls, so the test drives the hook with a fake context and asserts what it
  * asks for — including that a failure to revoke never turns a successful ban into an error.
  */
-type AfterHook = { matcher: (ctx: { path?: string }) => boolean; handler: (ctx: unknown) => Promise<unknown> };
+interface AfterHook { matcher: (ctx: { path?: string }) => boolean; handler: (ctx: unknown) => Promise<unknown> }
 
 const afterHook = (): AfterHook =>
 	(adminSessionRevocationPlugin().hooks?.after?.[0] ?? {}) as unknown as AfterHook;

@@ -1,5 +1,6 @@
-import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
+
+import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 
 /**
  * Revokes a user's credentials after an administration action that changes what they may do.
@@ -21,7 +22,7 @@ import { createAuthMiddleware } from "better-auth/api";
  */
 const REVOKING_PATHS: readonly string[] = ["/admin/ban-user", "/admin/set-role", "/admin/remove-user"];
 
-type RevocationBody = { readonly userId?: string };
+interface RevocationBody { readonly userId?: string }
 
 /** The user an admin action targeted, or `null` when the body does not name one. */
 export function revokedUserId(body: unknown): string | null {

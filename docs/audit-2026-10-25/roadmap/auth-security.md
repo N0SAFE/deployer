@@ -182,11 +182,12 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Design-impact (2026-10-26): scope +: device flow yields a bearer session bound to a CLI device row whose approval page lists client, exact scopes, `maxRisk` and expiry (passkey tap for sensitive scopes), inheriting the approver's AAL capped at 2 (`AUTH-068`); also the mint path for agent tokens (`AUTH-069`).
 
 ### Role model and permissions
-- [ ] `AUTH-024` **Define role `user` (or default new accounts to `viewer`) and fix `userSchema`** · FIX · P1 · S · Deps: `DEC-AUTH-4`
+- [x] `AUTH-024` **Define role `user` (or default new accounts to `viewer`) and fix `userSchema`** · FIX · P1 · S · Deps: `DEC-AUTH-4`
   - Why/Problem: DB default role `user` (`schema auth.ts:42`) is not in `PLATFORM_ROLES`; `userSchema.role = z.enum(PLATFORM_ROLES)` fails output validation for such rows; web `isPlatformRole('user')` returns null.
   - Do: pick the default (viewer recommended), migrate existing rows, fix contract schema and UI.
   - Done when: no row/response has a role outside the enum; contract tests pass.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (roles), auth.md#4 (14)
+  - Status (2026-11-02): **done**. The baseline `user` role now exists in the platform catalog with no permissions and is declared last (so it ranks below every other role). `PLATFORM_ROLES` therefore includes it, which is what `userSchema.role = z.enum(PLATFORM_ROLES)` needed: the database defaults `role` to `user`, and every contract that parsed a freshly created user row failed output validation. The web's own rank table was replaced by the shared hierarchy (`platformRoleRank` / `isPlatformAdministrator`): its index-based check had `viewer`, `operator` and `user` satisfying `minimumRole: 'admin'` and denied it to `superAdmin`. `platform-role.test.ts` covers the new ordering and the baseline's place.
   - Decision (2026-10-26): `DEC-AUTH-15` accepted: default role for new accounts is `member` with no capabilities (not `viewer`, not `user`); legacy `user` migrates to `member`.
   - Effect-impact (2026-10-26): still open and visible in new code: `actorOf` defaults role to `'user'` (identity `user.controller.ts`), `ADMIN_ROLES` is a string set not tied to `PLATFORM_ROLES`, `userSchema.role` enum lacks `user`. Fix once in the shared Actor type when the Actor service is built. Deps: `EFF-014`.
   - Design-impact (2026-10-26): `DEC-AUTH-4` is superseded by `DEC-AUTH-15`: new accounts get baseline role `member` with NO capabilities (not `viewer`); legacy role `user` migrates to `member` (`SEC-052`); the role enum becomes the catalog-driven system role list (`SEC-049`) and `userSchema.role` is generated from it.

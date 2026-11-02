@@ -8,5 +8,56 @@ if [ -d "$GIT_DIR/rebase-merge" ] || [ -d "$GIT_DIR/rebase-apply" ] || [ -f "$GI
     exit 0
 fi
 
-echo "🔎 pre-commit: lint + type-check + test for packages changed vs HEAD"
-bun --bun x turbo run lint type-check test --continue --output-logs=errors-only --filter='[HEAD]'
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$STAGED" ]; then
+    echo "⏭  pre-commit: nothing staged"
+    exit 0
+fi
+
+# The workspace packages the staged files belong to (by nearest package.json), one per line.
+PACKAGE_DIRS=$(printf '%s\n' "$STAGED" | while IFS= read -r file; do
+    dir=$(dirname "$file")
+    while [ "$dir" != "." ] && [ "$dir" != "/" ] && [ ! -f "$dir/package.json" ]; do
+        dir=$(dirname "$dir")
+    done
+    [ -f "$dir/package.json" ] && printf './%s\n' "${dir#./}"
+done | sort -u)
+
+echo "🔎 pre-commit: type-check + tests for the staged packages, lint for the staged files"
+
+# ── SCOPE ───────────────────────────────────────────────────────────────────
+# The packages are resolved from the STAGED FILES (nearest package.json), not from turbo's `[HEAD]`: a staged root
+# file (this hook, AGENTS.md, docs/) is not part of a package, and `[HEAD]` would then select the whole tree and run
+# every suite — docker e2e included.
+#
+# type-check: the staged packages and, through turbo's dependency graph, the packages they import, because a change
+#   here can break a consumer that still compiles on its own.
+# test: the staged packages only. A dependency's suite is long, and it is the dependency's own commit that proves it.
+#   web is skipped because its `test` runs the e2e project too, which needs a production build; the pre-push gate
+#   runs the full check, compile included, so e2e is covered there.
+#
+# lint runs on the staged FILES, not the packages: `bun lint` exits non-zero on warnings, and the tree carries
+# pre-existing ones in files nobody touched (auth 42 warnings; ~1750 problems across the tree). A gate that is red
+# before the first line of a commit is a gate everyone learns to bypass, so this lints the diff — the version that
+# can be enforced today. Clearing the backlog is its own change; then this widens to the packages.
+if [ -n "$PACKAGE_DIRS" ]; then
+    printf '%s\n' "$PACKAGE_DIRS" | while IFS= read -r dir; do
+        echo "   type-check: $dir"
+    done
+
+    for dir in $PACKAGE_DIRS; do
+        bun --bun x turbo run type-check --continue --output-logs=errors-only --filter="...{${dir}}"
+    done
+
+    for dir in $PACKAGE_DIRS; do
+        [ "$dir" = "./apps/web" ] && continue
+        bun --bun x turbo run test --continue --output-logs=errors-only --filter="${dir}"
+    done
+fi
+
+LINTABLE=$(printf '%s\n' "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$' || true)
+if [ -n "$LINTABLE" ]; then
+    printf '%s\n' "$LINTABLE" > "$GIT_DIR/opencode-staged-lint.txt"
+    xargs -a "$GIT_DIR/opencode-staged-lint.txt" bun lint --no-script --type-aware
+    rm -f "$GIT_DIR/opencode-staged-lint.txt"
+fi

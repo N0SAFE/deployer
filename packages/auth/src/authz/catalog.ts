@@ -16,11 +16,11 @@
 /** How damaging a permission is. Drives the guardrail default, the audit level and the editor's warning. */
 export type Risk = "read" | "write" | "destructive" | "reveal" | "admin";
 
-export type PermissionDefinition = {
+export interface PermissionDefinition {
 	readonly risk: Risk;
 	/** Shown by the role editor; the one sentence an administrator reads before granting it. */
 	readonly description: string;
-};
+}
 
 export const PERMISSIONS = {
 	// ── platform ──────────────────────────────────────────────────────────────────────────────────────────────

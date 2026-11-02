@@ -108,7 +108,7 @@ function loadEnvFiles(filePaths: string[]): Record<string, string> {
 /**
  * Check environment variables for a specific app or all apps
  */
-function checkEnv(appName?: AppName, envVars: Record<string, string> = process.env as any): boolean {
+function checkEnv(appName?: AppName, envVars: Record<string, string> = processEnv()): boolean {
     let success = true
 
     if (appName) {
@@ -148,7 +148,7 @@ function checkEnv(appName?: AppName, envVars: Record<string, string> = process.e
  * Load and validate environment variables, optionally running a command
  */
 async function loadEnv(appName?: AppName, envFiles?: string[], command?: string[]): Promise<void> {
-    let envVars: Record<string, string> = { ...process.env } as any
+    let envVars: Record<string, string> = processEnv()
 
     // Load .env files if provided
     if (envFiles && envFiles.length > 0) {
@@ -265,7 +265,7 @@ async function mockEnv(appName?: AppName, command?: string[]): Promise<void> {
     console.log(`✅ Loaded mock environment for ${appName || 'all apps'}`)
 
     // Merge with existing process.env (mock as defaults, process.env overrides)
-    const envVars = { ...mockVars, ...process.env } as any
+    const envVars: Record<string, string> = { ...mockVars, ...processEnv() }
 
     // Validate the environment
     const isValid = checkEnv(appName, envVars)
@@ -290,4 +290,19 @@ async function mockEnv(appName?: AppName, command?: string[]): Promise<void> {
     await runWithEnvironment(command, envVars)
 }
 
-void main()
+// Only run when this file IS the program: a test that imports `shellQuote` must not parse the environment, print a
+// report and `process.exit(1)` out from under the runner.
+if (import.meta.main) {
+    void main()
+}
+
+/**
+ * `process.env`, as the `Record<string, string | undefined>` it is.
+ *
+ * The callers treat the environment as a bag of strings; this is the one place that drops the `undefined` entries so
+ * nothing downstream needs an `as any`.
+ */
+function processEnv(): Record<string, string> {
+    const entries = Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+    return Object.fromEntries(entries)
+}

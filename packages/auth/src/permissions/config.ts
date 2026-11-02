@@ -1,6 +1,7 @@
-import z from "zod/v4";
-import { PermissionBuilder } from "@deployer/auth/permissions/system/builder/builder";
 import { defaultStatements as adminDefaultStatements } from "better-auth/plugins/admin/access";
+import z from "zod/v4";
+
+import { PermissionBuilder } from "@deployer/auth/permissions/system/builder/builder";
 
 
 /**
@@ -145,6 +146,19 @@ const platformBuilder = new PermissionBuilder({ metaShape: platformRoleMetaShape
             traefik: ['read'],
             platformDomain: ['list', 'read'],
         }).meta({ label: 'Viewer', description: 'Read-only platform access', color: 'slate' }),
+
+        /**
+         * User - the baseline: an account with no platform capability at all.
+         *
+         * This is the database's default (`user.role.defaultValue`), so it must exist here: without it, every
+         * contract that parses a freshly created user row failed output validation, and the web could not name the
+         * role. Declared last, which is what makes it the least privileged entry.
+         */
+        user: permissions({}).meta({
+            label: 'User',
+            description: 'A signed-in account with no platform-level access',
+            color: 'slate',
+        }),
         
     }));
 

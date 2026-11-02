@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+
 import { provisionUserAccount, type ProvisionUserInput } from "./provision-user";
+
 import type { BetterAuthFactoryResult } from "./auth";
 
 /**
@@ -9,9 +11,9 @@ import type { BetterAuthFactoryResult } from "./auth";
  * account is keyed to the user id.
  */
 function fakeAuth() {
-    const createUser = vi.fn(async (user: Record<string, unknown>) => ({ id: "u1", ...user }));
-    const createAccount = vi.fn(async (account: Record<string, unknown>) => account);
-    const hash = vi.fn(async (password: string) => `hashed:${password}`);
+    const createUser = vi.fn((user: Record<string, unknown>) => Promise.resolve({ id: "u1", ...user }));
+    const createAccount = vi.fn((account: Record<string, unknown>) => Promise.resolve(account));
+    const hash = vi.fn((password: string) => Promise.resolve(`hashed:${password}`));
 
     const auth = {
         $context: Promise.resolve({ internalAdapter: { createUser, createAccount }, password: { hash } }),

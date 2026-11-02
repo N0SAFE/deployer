@@ -1,4 +1,5 @@
 import * as z from 'zod';
+
 import type { PermissionBuilder, RolesAsRoleObjects } from '@deployer/auth/permissions/system/builder/builder';
 
 /**
@@ -150,8 +151,7 @@ export function createSchemas<
     
     const shape = {} as Record<string, z.ZodOptional<z.ZodArray<z.ZodType<string>>>>;
     for (const [resource, actions] of Object.entries(rolePerms)) {
-      // Ensure actions is an array before checking length
-      const actionsArray = Array.isArray(actions) ? [...actions] : Array.from(actions as Iterable<string>);
+      const actionsArray = actionsOf(actions);
       if (actionsArray.length === 0) continue;
       const actionSchema = (
         actionsArray.length === 1 ? z.literal(actionsArray[0]) :
@@ -250,10 +250,7 @@ export function createSchemas<
         
         const allRoleActions = new Set<string>();
         for (const actions of Object.values(rolePermsRecord)) {
-          // Skip if actions is empty or not iterable
-          if ((Array.isArray(actions) && actions.length === 0)) continue;
-          const actionsArray = Array.isArray(actions) ? actions : Array.from(actions as Iterable<string>);
-          for (const action of actionsArray) {
+          for (const action of actionsOf(actions)) {
             allRoleActions.add(action);
           }
         }
@@ -419,3 +416,14 @@ export type InferAllActions<T extends ReturnType<typeof createSchemas<Record<str
  */
 export type InferPermission<T extends ReturnType<typeof createSchemas<Record<string, readonly string[]>, Record<string, Record<string, readonly string[]>>>>> = 
   z.infer<T['permission']>;
+
+/**
+ * The actions of one resource, as strings.
+ *
+ * The permission records are loosely typed at this point (they come from the builder's dynamic schema), so this is
+ * the one place that decides what an "actions" value is instead of six `as` casts.
+ */
+function actionsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((action): action is string => typeof action === "string");
+}

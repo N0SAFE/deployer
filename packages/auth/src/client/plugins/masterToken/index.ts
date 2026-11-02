@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
-import type { BetterAuthClientPlugin, BetterFetch, ClientStore, BetterAuthClientOptions } from 'better-auth/client'
+ 
 import {
     getMasterTokenEnabled,
     setMasterTokenEnabled,
@@ -7,6 +6,8 @@ import {
     getDevtoolsApiKey,
     MasterTokenManager,
 } from '@deployer/auth/client/plugins/masterToken/state'
+
+import type { BetterAuthClientPlugin, BetterFetch, ClientStore, BetterAuthClientOptions } from 'better-auth/client'
 
 /**
  * Better Auth client plugin to attach a master token Authorization header
@@ -81,27 +82,16 @@ export const masterTokenClient = () =>
                             const key = getDevtoolsApiKey()
                             if (!key) return ctx
 
-                            const mergedHeaders = Object.assign(
-                                {
-                                    Authorization: `Bearer ${key}`,
-                                    ...Array.isArray(ctx?.headers) ? ctx.headers.reduce((acc, [key, data]) => {
-                                    return {
-                                        ...acc,
-                                        [key]: data
-                                    }
-                                }, {}) : ctx?.headers ?? {},
-                                },
-                                ctx?.headers || {}
-                            )
-                            return {
-                                ...(ctx || {}),
-                                headers: new Headers({ ...Array.isArray(mergedHeaders) ? mergedHeaders.reduce((acc, [key, data]) => {
-                                    return {
-                                        ...acc,
-                                        [key]: data
-                                    }
-                                }, {}) : mergedHeaders ?? {}, }),
-                            }
+                            // Better Auth types the plugin context loosely, so the header bag is narrowed once here
+                            // instead of letting `any` propagate through every spread.
+                            const rawHeaders: unknown = (ctx as { readonly headers?: unknown }).headers
+                            const headerPairs: Record<string, string> = Array.isArray(rawHeaders)
+                                ? Object.fromEntries(rawHeaders as readonly (readonly [string, string])[])
+                                : typeof rawHeaders === "object" && rawHeaders !== null
+                                    ? (rawHeaders as Record<string, string>)
+                                    : {}
+
+                            return { ...ctx, headers: new Headers({ Authorization: `Bearer ${key}`, ...headerPairs }) }
                         } catch (e) {
                             // defensive fallback
                             console.warn(

@@ -1,11 +1,12 @@
-import type { BetterAuthPlugin } from "better-auth";
 import {
   createAuthEndpoint,
   sessionMiddleware,
 } from "better-auth/api";
 import { generateRandomString } from "better-auth/crypto";
-import type { UserWithRole } from "better-auth/plugins";
 import * as z from "zod/v4";
+
+import type { BetterAuthPlugin } from "better-auth";
+import type { UserWithRole } from "better-auth/plugins";
 
 /**
  * Role schema type that accepts any valid role schema output from createSchemas
@@ -171,7 +172,7 @@ export const invitePlugin = <TRoles extends string>(
             const mayInviteRole = options.canInviteRole(user, ctx.body.role);
             if (!mayInviteRole) {
               throw ctx.error("FORBIDDEN", {
-                message: `You may not invite a user with the ${String(ctx.body.role)} role`,
+                message: `You may not invite a user with the ${ctx.body.role} role`,
               });
             }
           }
@@ -389,7 +390,7 @@ export const invitePlugin = <TRoles extends string>(
             model: "platformInvite",
             where: [{ field: "token", value: spentToken }],
           });
-          if (claimed === null || claimed === undefined) {
+          if (claimed === null) {
             throw ctx.error("BAD_REQUEST", {
               message: "Invitation has already been used",
             });
@@ -456,41 +457,3 @@ export const invitePlugin = <TRoles extends string>(
     },
   } satisfies BetterAuthPlugin;
 };
-
-/**
- * Consume an invitation exactly once.
- *
- * The adapter cannot express `WHERE used_at IS NULL`, so the claim rotates the unique `token` to an attempt-specific
- * value instead: two racers both write, exactly one row keeps its marker, and the read-back names the winner. The loser
- * is reported as "already used" — not as a 500, and never as a second provisioning.
- *
- * Rotation also makes the spent token unresolvable, so `/invite/check` reports "not found" afterwards instead of
- * "already used": the same answer for a token that never existed.
- */
-async function claimInvite(
-  ctx: {
-    context: {
-      adapter: {
-        update: (args: Record<string, unknown>) => Promise<unknown>;
-        findOne: (args: Record<string, unknown>) => Promise<unknown>;
-      };
-    };
-  },
-  token: string,
-  now: Date,
-): Promise<boolean> {
-  const spentToken = `${token}.spent.${generateRandomString(16, "a-z", "0-9")}`;
-
-  await ctx.context.adapter.update({
-    model: "platformInvite",
-    where: [{ field: "token", value: token }],
-    update: { token: spentToken, usedAt: now.toISOString() },
-  });
-
-  const claimed = (await ctx.context.adapter.findOne({
-    model: "platformInvite",
-    where: [{ field: "token", value: spentToken }],
-  })) as { id: string } | null | undefined;
-
-  return claimed !== null && claimed !== undefined;
-}

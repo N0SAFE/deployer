@@ -22,13 +22,14 @@
  */
 
 import { useMemo } from 'react'
+
+import { isPlatformAdministrator, platformRoleRank } from '@deployer/auth/authz'
 import type {
   PlatformRole,
   PlatformResource,
 } from '@deployer/auth/permissions/index'
 import {
   platformRolesConfig,
-  PLATFORM_ROLES,
 } from '@deployer/auth/permissions/index'
 
 // ============================================================================
@@ -134,9 +135,9 @@ export function createPermissionHooks({
 
     const platformRoleLevel = useMemo(() => {
       if (!user?.role) return 0
-      // Level derived from position in PLATFORM_ROLES array (higher index = higher privilege)
-      const idx = (PLATFORM_ROLES as readonly string[]).indexOf(user.role)
-      return idx === -1 ? 0 : idx + 1
+      // The shared rank, +1 so an unknown role is 0 and `viewer` is 1. Deriving it from the array index made
+      // `viewer` outrank `admin`, because the list is declared highest-first.
+      return platformRoleRank(user.role) + 1
     }, [user])
 
     // Platform role checks
@@ -155,12 +156,9 @@ export function createPermissionHooks({
     }, [user])
 
     const isPlatformAdmin = useMemo(() => {
-      return (): boolean => {
-        if (!user?.role) return false
-        const userIdx = (PLATFORM_ROLES as readonly string[]).indexOf(user.role)
-        const adminIdx = (PLATFORM_ROLES as readonly string[]).indexOf('admin')
-        return userIdx >= adminIdx && adminIdx !== -1
-      }
+      // `admin` or `superAdmin`, from the rule the API enforces. The old `indexOf >= indexOf('admin')` counted
+      // `operator`, `viewer` and `user` as administrators, because the list is declared highest-first.
+      return (): boolean => isPlatformAdministrator(user?.role ?? null)
     }, [user])
 
     const isPlatformSuperAdmin = useMemo(() => {

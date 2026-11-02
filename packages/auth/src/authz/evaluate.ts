@@ -1,5 +1,5 @@
-import type { CapabilitySet, Condition, Decision, Facts, Scope } from "./types";
 import type { Permission } from "./catalog";
+import type { CapabilitySet, Condition, Decision, Facts, Scope } from "./types";
 
 /**
  * The decision, and it is PURE.
@@ -51,10 +51,10 @@ export function can(capabilities: CapabilitySet | readonly Permission[], permiss
 export function conditionFailure(condition: Condition | undefined, facts: Facts): string | null {
 	if (condition === undefined) return null;
 
-	if ("ownerOnly" in condition && condition.ownerOnly) {
-		if (facts.ownerId === undefined || facts.ownerId === null || facts.ownerId !== facts.actorId) {
-			return "owner only";
-		}
+	// The member only exists with `ownerOnly: true`, so the `in` check is the whole test — and an absent owner is
+	// not the actor, so one comparison covers both refusals.
+	if ("ownerOnly" in condition && facts.ownerId !== facts.actorId) {
+		return "owner only";
 	}
 
 	if ("notEnvironment" in condition && condition.notEnvironment !== undefined) {
