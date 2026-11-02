@@ -14,8 +14,13 @@ describe("platformRoleRank", () => {
 		["admin", 2],
 		["operator", 1],
 		["viewer", 0],
+		// The baseline account role, declared in the catalog so a fresh row can be named: it ranks below every
+		// platform role and therefore administers nobody.
 		["user", -1],
-		["member", -1],
+		// A project role is declared too, with its project-scope rank; the hierarchy only ever consults platform
+		// actors, which `refuseAdminAction` checks first.
+		["member", 0],
+		["owner", 3],
 		["", -1],
 		[null, -1],
 		[undefined, -1],

@@ -4,14 +4,16 @@ import { Context, Effect, Layer, Ref } from "effect";
 
 import {
 	AuthzDenied,
-	capabilitiesOfRole,
+	SYSTEM_ROLES_TABLE,
 	decide,
+	permissionsInRoles,
 	type AccessDeclaration,
 	type Actor,
 	type CapabilitySet,
 	type Decision,
 	type Facts,
 	type Permission,
+	type RoleTable,
 	type Scope,
 } from "@deployer/auth/authz";
 
@@ -146,20 +148,23 @@ export const makeAuthz = (store: PermissionStore): Effect.Effect<AuthzShape> =>
 export const authzLive = (store: PermissionStore) => Layer.effect(Authz, makeAuthz(store));
 
 /**
- * The capabilities a platform role holds today.
+ * The capabilities a role holds, read from a role TABLE rather than a constant.
  *
- * Until the `authz_grants` migration, this is the whole store: the platform role decides, and a project-scoped check
- * resolves to an empty set (a deny) because membership belongs to the project service. That is the safe half of the
- * migration, and it is what makes shadow mode useful on day one.
+ * A role is data: a name, a scope, a rank and the permissions it grants. The shipped table is
+ * `SYSTEM_ROLES_TABLE`; the `roles` row set replaces the argument and nothing else changes, which is why every call site
+ * asks for permissions and never for a role name.
+ *
+ * A project-scoped check still resolves to an empty set: membership belongs to the project service, not to this store.
  */
-export const platformRoleStore: PermissionStore = {
-	capabilities: (actor: Actor, scope: Scope): Promise<CapabilitySet> =>
-		Promise.resolve(
-			scope.kind === "platform"
-				? { permissions: capabilitiesOfRole(actor.role), sources: [`platform role ${actor.role}`] }
-				: { permissions: [], sources: [] },
-		),
-};
+export function platformRoleStore(table: RoleTable = SYSTEM_ROLES_TABLE): PermissionStore {
+	return {
+		capabilities: (actor: Actor, scope: Scope): Promise<CapabilitySet> =>
+			Promise.resolve({
+				permissions: permissionsInRoles(table, actor.role, scope.kind),
+				sources: scope.kind === "platform" ? [`role ${actor.role}`] : [],
+			}),
+	};
+}
 
 /** The caller, from the oRPC context the auth middleware already populated. */
 export function actorOf(context: unknown): Actor | null {

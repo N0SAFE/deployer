@@ -9,7 +9,9 @@
 export {
 	BUNDLES,
 	PERMISSIONS,
+	ROLE_RANK,
 	SYSTEM_ROLES,
+	SYSTEM_ROLES_TABLE,
 	capabilitiesOfRole,
 	roleGrants,
 	type BundleName,
@@ -20,6 +22,14 @@ export {
 	type SystemRole,
 } from "./catalog";
 export { can, conditionFailure, decide } from "./evaluate";
+export {
+	permissionsInRoles,
+	rankInRoles,
+	roleTable,
+	type RoleDefinition,
+	type RoleRow,
+	type RoleTable,
+} from "./roles";
 export {
 	PLATFORM_ROLE_ORDER,
 	isPlatformAdministrator,

@@ -31,7 +31,7 @@ const caller = (role: string, id = "u1") => ({ auth: { user: { id, role } } });
 
 const store: PermissionStore = {
 	capabilities: (actor: Actor) =>
-		platformRoleStore.capabilities(actor, { kind: "platform" }),
+		platformRoleStore().capabilities(actor, { kind: "platform" }),
 };
 
 const execContract = os

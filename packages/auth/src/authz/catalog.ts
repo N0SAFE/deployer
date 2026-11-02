@@ -13,6 +13,8 @@
  * administrator can change *who* may do *what* without inventing a capability the product does not implement.
  */
 
+import { roleTable, type RoleTable } from "./roles";
+
 /** How damaging a permission is. Drives the guardrail default, the audit level and the editor's warning. */
 export type Risk = "read" | "write" | "destructive" | "reveal" | "admin";
 
@@ -118,6 +120,9 @@ export const SYSTEM_ROLES = {
 	admin: { scope: "platform", bundles: ["platform-read", "platform-admin", "platform-operate", "docker"] },
 	operator: { scope: "platform", bundles: ["platform-read", "platform-operate", "docker"] },
 	viewer: { scope: "platform", bundles: ["platform-read"] },
+	// The database default for a new account: an account with no capability at all. It has to be declared, or a role no
+	// rule can name ends up in `user.role`.
+	user: { scope: "platform", bundles: [] },
 	// project-scoped
 	owner: { scope: "project", bundles: ["project-admin", "deploy", "project-read", "docker"] },
 	maintainer: { scope: "project", bundles: ["deploy", "project-read", "docker"] },
@@ -126,6 +131,26 @@ export const SYSTEM_ROLES = {
 } as const satisfies Record<string, { readonly scope: ScopeKind; readonly bundles: readonly BundleName[] }>;
 
 export type SystemRole = keyof typeof SYSTEM_ROLES;
+
+/**
+ * Position in the hierarchy, per role.
+ *
+ * A capability says what you may do; rank says who you may do it to, which is a different question with a different
+ * answer — an `admin` holds `user:set-role` and still may not touch a peer. The numbers are declared here so the seed
+ * and the future `roles` table share one source.
+ */
+export const ROLE_RANK: Readonly<Record<string, number>> = {
+	superAdmin: 3,
+	admin: 2,
+	operator: 1,
+	viewer: 0,
+	// Below every platform role: the baseline cannot administer anything, including a peer.
+	user: -1,
+	owner: 3,
+	maintainer: 2,
+	deployer: 1,
+	member: 0,
+};
 
 /** The permissions a system role grants, in catalog order (used by the web and by the legacy store). */
 export function capabilitiesOfRole(role: string): readonly Permission[] {
@@ -142,3 +167,23 @@ export function capabilitiesOfRole(role: string): readonly Permission[] {
 export function roleGrants(role: string, permission: Permission): boolean {
 	return capabilitiesOfRole(role).includes(permission);
 }
+
+/**
+ * The roles this product ships with, as one table.
+ *
+ * This is the seed a `roles` table would be populated from, and the default a `PermissionStore` reads. Keeping it a
+ * `RoleTable` (rather than a bare record of bundles) is what lets a deployment replace it with rows without touching a
+ * call site: everything downstream asks `permissionsInRoles`/`rankInRoles`, never `SYSTEM_ROLES`.
+ */
+export const SYSTEM_ROLES_TABLE: RoleTable = roleTable(
+	(Object.entries(SYSTEM_ROLES) as [string, { scope: ScopeKind; bundles: readonly BundleName[] }][]).map(
+		([name, definition]) => ({
+			name,
+			scope: definition.scope,
+			rank: ROLE_RANK[name] ?? 0,
+			permissions: capabilitiesOfRole(name),
+			label: name,
+		}),
+	),
+	{ system: true },
+);

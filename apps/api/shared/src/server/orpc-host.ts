@@ -53,7 +53,7 @@ import type { DefaultInitialContext, Router } from "@orpc/server";
  * cosmetic.
  */
 /** DI tokens an app may contribute to the per-request oRPC context. */
-type ExtraTokens = readonly (abstract new (...args: any[]) => any)[];
+type ExtraTokens = readonly (abstract new (...args: never[]) => unknown)[];
 
 /** The injected instances, in the same order as `inject`. */
 type ExtraInstances<D extends ExtraTokens> = {
@@ -78,7 +78,7 @@ function authzFromEnv(): Parameters<typeof configureAuthz>[0] {
 	}
 	const mode: AuthzMode = raw;
 	return {
-		store: platformRoleStore,
+		store: platformRoleStore(),
 		mode,
 		// Shadow mode is only useful if the would-denies are visible: one line per refusal, no payload.
 		onDecision: (event: DecisionEvent) => {
@@ -117,7 +117,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 	configureAuthz(authzFromEnv());
 
 	return ORPCModule.forRootAsync({
-		useFactory: async (
+		useFactory: (
 			request: Request,
 			authCoreService: AuthCoreService,
 			sessions: SessionResolverShape,

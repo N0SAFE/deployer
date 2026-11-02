@@ -16,6 +16,9 @@
  * transport and of Effect.
  */
 
+import { SYSTEM_ROLES_TABLE } from "./catalog";
+import { rankInRoles, type RoleTable } from "./roles";
+
 /**
  * Platform roles, highest first. The DB default (`user`) and an empty column are not platform roles: they rank below
  * every entry here, which is what makes a freshly created account untouchable by another plain account.
@@ -24,12 +27,7 @@ export const PLATFORM_ROLE_ORDER = ["superAdmin", "admin", "operator", "viewer"]
 
 export type PlatformRoleName = (typeof PLATFORM_ROLE_ORDER)[number];
 
-const RANK: Readonly<Record<PlatformRoleName, number>> = {
-	superAdmin: 3,
-	admin: 2,
-	operator: 1,
-	viewer: 0,
-};
+
 
 /** The one role that may act on everyone and grant anything. */
 const ROOT_ROLE: PlatformRoleName = "superAdmin";
@@ -37,10 +35,14 @@ const ROOT_ROLE: PlatformRoleName = "superAdmin";
 /** Roles that may administer other accounts at all. */
 const ADMINISTRATOR_ROLES: ReadonlySet<string> = new Set<string>([ROOT_ROLE, "admin"]);
 
-/** Position of a stored role. Unknown (the `user` default, `member`, or nothing) ranks below every platform role. */
-export function platformRoleRank(role: string | null | undefined): number {
-	const name = role ?? "";
-	return Object.hasOwn(RANK, name) ? RANK[name as PlatformRoleName] : -1;
+/**
+ * Position of a stored role, read from the role table.
+ *
+ * One source: the same table a `roles` row will supply, so a custom role inherits its rank from its definition rather
+ * than from a constant here. Unknown (the `user` default, a removed role, nothing) ranks below every declared role.
+ */
+export function platformRoleRank(role: string | null | undefined, table: RoleTable = SYSTEM_ROLES_TABLE): number {
+	return rankInRoles(table, role);
 }
 
 /** Whether a role may administer other accounts. */
