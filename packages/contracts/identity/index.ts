@@ -6,6 +6,7 @@
 
 export * from "./modules/analytics";
 export * from "./modules/audit";
+export * from "./modules/role";
 export * from "./modules/push";
 export * from "./modules/user";
 
@@ -16,6 +17,7 @@ import { oc } from "@orpc/contract";
 
 import { analyticsContract } from "./modules/analytics";
 import { auditListContract } from "./modules/audit";
+import { roleListContract } from "./modules/role";
 import { pushContract } from "./modules/push";
 import { userContract } from "./modules/user";
 
@@ -34,6 +36,7 @@ import { userContract } from "./modules/user";
 export const identityContract = oc.router({
 	analytics: analyticsContract,
 	auditList: auditListContract,
+	roleList: roleListContract,
 	push: pushContract,
 	user: userContract,
 });
