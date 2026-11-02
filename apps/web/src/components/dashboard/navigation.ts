@@ -52,6 +52,7 @@ import {
   AuthDashboardProjects,
   AuthDashboardSettings,
   AuthDashboardSettingsAccount,
+  AuthDashboardSettingsAudit,
   AuthDashboardSettingsNode,
   AuthDashboardSettingsUsers,
   AuthDashboardServices,
@@ -349,6 +350,13 @@ export const NAV_GROUPS: NavGroup[] = [
         adminOnly: true,
         hint: 'Platform users & roles',
         keywords: 'users accounts roles permissions ban invite access admin',
+      },
+      {
+        title: 'Audit log',
+        url: AuthDashboardSettingsAudit(),
+        icon: ScrollText,
+        hint: 'Authentication and administration events',
+        keywords: 'audit log security events who did what history',
       },
       {
         title: 'Integrations',

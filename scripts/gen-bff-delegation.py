@@ -60,6 +60,8 @@ TARGETS: list[tuple[str, str, str, str, str]] = [
     ("user", "identity", "userContract", "identity", "@deployer/identity-contracts"),
     ("push", "identity", "pushContract", "identity", "@deployer/identity-contracts"),
     ("analytics", "identity", "analyticsContract", "identity", "@deployer/identity-contracts"),
+    ("audit", "identity", "auditContract", "identity", "@deployer/identity-contracts"),
+    ("role", "identity", "roleContract", "identity", "@deployer/identity-contracts"),
     ("project", "project", "projectContract", "project", "@deployer/project-contracts"),
     ("service", "project", "serviceContract", "project", "@deployer/project-contracts"),
     ("domain", "project", "domainContract", "project", "@deployer/project-contracts"),

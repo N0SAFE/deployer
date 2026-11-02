@@ -34,3 +34,10 @@ export const roleListContract = oc
 	.meta(openapi({ method: "GET", path: "/roles", tags: ["Roles"] }))
 	.input(z.object({ query: z.object({ scope: roleScopeSchema.optional() }) }))
 	.output(z.object({ data: z.array(roleSchema) }));
+
+/** The role namespace the BFF delegates to `identity`. */
+export const roleContract = oc.router({
+	list: roleListContract,
+});
+
+export type RoleContract = typeof roleContract;

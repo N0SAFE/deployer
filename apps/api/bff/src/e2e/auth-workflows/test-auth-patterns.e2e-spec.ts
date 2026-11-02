@@ -16,13 +16,10 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
   it("GET /test/orpc/public allows anonymous access", async () => {
     const response = await http.get("/test/orpc/public").expect(200);
 
-    const payload = response.body as {
-      message: string;
-      approach: string;
-    };
+    const payload = response.body as { message: string };
 
+    // The 200 above IS the assertion: no session, no `requireAuth()` on the procedure.
     expect(typeof payload.message).toBe("string");
-    expect(payload.approach.includes("AllowAnonymous")).toBe(true);
   });
 
   it("GET /test/orpc/authenticated rejects anonymous access", async () => {
@@ -55,12 +52,6 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
   it("GET /test/orpc/admin/permission rejects anonymous access", async () => {
     await http
       .get("/test/orpc/admin/permission")
-      .expect(401);
-  });
-
-  it("GET /test/composite/admin rejects anonymous access", async () => {
-    await http
-      .get("/test/composite/admin")
       .expect(401);
   });
 

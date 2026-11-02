@@ -41,3 +41,10 @@ export const auditListContract = oc
 			meta: z.object({ limit: z.number().int(), hasMore: z.boolean() }),
 		}),
 	);
+
+/** The audit namespace the BFF delegates to `identity`. */
+export const auditContract = oc.router({
+	list: auditListContract,
+});
+
+export type AuditContract = typeof auditContract;

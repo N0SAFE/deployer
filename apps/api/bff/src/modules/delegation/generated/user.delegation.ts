@@ -77,4 +77,19 @@ export class UserDelegationController {
 	count() {
 		return implement(userContract.count).handler(({ input }) => this.client.count(input));
 	}
+
+	@Implement(userContract.setRole)
+	setRole() {
+		return implement(userContract.setRole).handler(({ input }) => this.client.setRole(input));
+	}
+
+	@Implement(userContract.setBanned)
+	setBanned() {
+		return implement(userContract.setBanned).handler(({ input }) => this.client.setBanned(input));
+	}
+
+	@Implement(userContract.revokeSessions)
+	revokeSessions() {
+		return implement(userContract.revokeSessions).handler(({ input }) => this.client.revokeSessions(input));
+	}
 }

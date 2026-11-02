@@ -20,6 +20,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { AnalyticsDelegationController } from "./generated/analytics.delegation";
+import { AuditDelegationController } from "./generated/audit.delegation";
 import { ClusterDelegationController } from "./generated/cluster.delegation";
 import { DeploymentDelegationController } from "./generated/deployment.delegation";
 import { DockerDelegationController } from "./generated/docker.delegation";
@@ -33,6 +34,7 @@ import { ProvidersDelegationController } from "./generated/providers.delegation"
 import { ProviderSchemaDelegationController } from "./generated/providerSchema.delegation";
 import { PushDelegationController } from "./generated/push.delegation";
 import { ReachabilityDelegationController } from "./generated/reachability.delegation";
+import { RoleDelegationController } from "./generated/role.delegation";
 import { ServiceDelegationController } from "./generated/service.delegation";
 import { ServicePreviewTopologyDelegationController } from "./generated/servicePreviewTopology.delegation";
 import { UserDelegationController } from "./generated/user.delegation";
@@ -40,6 +42,7 @@ import { UserDelegationController } from "./generated/user.delegation";
 export class DelegationModule extends createModuleContext({
 	controllers: [
 		AnalyticsDelegationController,
+		AuditDelegationController,
 		ClusterDelegationController,
 		DeploymentDelegationController,
 		DockerDelegationController,
@@ -52,6 +55,7 @@ export class DelegationModule extends createModuleContext({
 		ProviderSchemaDelegationController,
 		ProvidersDelegationController,
 		PushDelegationController,
+		RoleDelegationController,
 		ReachabilityDelegationController,
 		ServiceDelegationController,
 		ServicePreviewTopologyDelegationController,

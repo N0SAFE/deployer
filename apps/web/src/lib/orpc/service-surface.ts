@@ -34,7 +34,7 @@ import {
 	reachabilityContract,
 } from "@deployer/fleet-contracts";
 import { healthContract } from "@deployer/health-contracts";
-import { analyticsContract, pushContract, userContract } from "@deployer/identity-contracts";
+import { analyticsContract, auditContract, pushContract, roleContract, userContract } from "@deployer/identity-contracts";
 import {
 	domainContract,
 	projectContract,
@@ -73,6 +73,8 @@ export function serviceSurface() {
 		user: userContract,
 		push: pushContract,
 		analytics: analyticsContract,
+		audit: auditContract,
+		role: roleContract,
 
 		// project
 		project: projectContract,
