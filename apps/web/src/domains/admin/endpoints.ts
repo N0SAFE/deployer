@@ -13,6 +13,9 @@
  */
 
 import { authClient } from '@/lib/auth'
+import { orpc } from '@/lib/orpc'
+
+import type { PlatformRole } from '@deployer/auth'
 
 import { STALE_TIME } from '../shared/config'
 import { custom, mapBetterAuth } from '../shared/helpers'
@@ -53,8 +56,19 @@ const customContracts = {
   listUsers: custom({
     input: listUsersSchema,
     keys: (i) => ['admin', 'listUsers', i],
-    handler: authClient.admin.listUsers,
-    map: mapBetterAuth(),
+    // The identity service owns the list (server pagination), so the admin surface is the same procedure the users page
+    // reads — no Better Auth admin route in between.
+    handler: async (input) => {
+      const page = await orpc.user.list.call({
+        query: {
+          limit: input.query.limit ?? 20,
+          offset: input.query.offset ?? 0,
+          sortBy: input.query.sortBy,
+          sortDirection: input.query.sortDirection,
+        },
+      })
+      return { users: page.data, total: page.meta.total, limit: page.meta.limit, offset: page.meta.offset }
+    },
     staleTime: STALE_TIME.DEFAULT,
   }),
 
@@ -75,8 +89,7 @@ const customContracts = {
   banUser: custom({
     input: banUserSchema,
     keys: (i) => ['admin', 'banUser', i],
-    handler: authClient.admin.banUser,
-    map: mapBetterAuth(),
+    handler: async (input) => orpc.user.setBanned.call({ params: { id: input.userId }, body: { banned: true } }),
   }),
 
   /**
@@ -85,8 +98,7 @@ const customContracts = {
   unbanUser: custom({
     input: unbanUserSchema,
     keys: (i) => ['admin', 'unbanUser', i],
-    handler: authClient.admin.unbanUser,
-    map: mapBetterAuth(),
+    handler: async (input) => orpc.user.setBanned.call({ params: { id: input.userId }, body: { banned: false } }),
   }),
 
   /**
@@ -95,8 +107,12 @@ const customContracts = {
   setRole: custom({
     input: setRoleSchema,
     keys: (i) => ['admin', 'setRole', i],
-    handler: authClient.admin.setRole,
-    map: mapBetterAuth(),
+    handler: async (input) => {
+      const role = Array.isArray(input.role) ? input.role[0] : input.role
+      if (role === undefined) throw new Error('a role is required')
+      // `input.role` was validated against `platformSchemas.roleNames` (the same union); the schema widens it to string.
+      return orpc.user.setRole.call({ params: { id: input.userId }, body: { role: role as PlatformRole } })
+    },
   }),
 
   /**
@@ -125,8 +141,7 @@ const customContracts = {
   removeUser: custom({
     input: removeUserSchema,
     keys: (i) => ['admin', 'removeUser', i],
-    handler: authClient.admin.removeUser,
-    map: mapBetterAuth(),
+    handler: async (input) => orpc.user.delete.call({ params: { id: input.userId } }),
   }),
 } as const
 
