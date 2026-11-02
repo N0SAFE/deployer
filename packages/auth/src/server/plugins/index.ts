@@ -6,14 +6,9 @@
  */
 
 import { apiKey } from "@better-auth/api-key";
-import { admin } from "better-auth/plugins";
 
 import { isPlatformAdministrator, refuseRoleGrant } from "../../authz/hierarchy";
-import {
-  platformAc,
-  platformRoles,
-  platformSchemas,
-} from "../../adapters/better-auth/config";
+import { platformSchemas } from "../../adapters/better-auth/config";
 
 import { invitePlugin, type InvitePluginOptions } from "./invite";
 
@@ -23,6 +18,7 @@ import { invitePlugin, type InvitePluginOptions } from "./invite";
 
 export * from './loginAs'
 export * from './masterTokenAuth'
+export * from './schema'
 export * from './invite'
 export * from './pushNotifications'
 export * from './agentAuth'

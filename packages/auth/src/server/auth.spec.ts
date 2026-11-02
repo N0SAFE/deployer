@@ -37,6 +37,10 @@ vi.mock('better-auth/plugins', () => ({
 
 // Mock plugins - all server plugins are now exported from ./plugins
 vi.mock('./plugins', () => ({
+  deployerUserSchemaPlugin: vi.fn(() => ({
+    id: 'deployer-user-schema',
+    schema: { user: { fields: { role: { type: 'string', required: true, input: false } } } },
+  })),
   useAdmin: vi.fn(() => ({ id: 'admin' })),
   useApiKey: vi.fn(() => ({ id: 'api-key' })),
   useInvite: vi.fn(() => ({ id: 'invite' })),
@@ -272,11 +276,14 @@ describe('betterAuthFactory', () => {
     });
 
     it('does not accept `role` from a sign-up payload', () => {
-      // AUTH-001. `input: true` let an anonymous caller name its own platform
-      // role. Roles are written server-side (admin bootstrap, invite, `setRole`).
+      // AUTH-001. A client-writable `role` let an anonymous caller name its own platform role. It is a plugin field with
+      // `input: false`, written only by the identity service.
       const result = betterAuthFactory(mockDb, mockEnv);
+      const schemaPlugin = result.auth.config.plugins.find(
+        (plugin) => plugin.id === 'deployer-user-schema',
+      );
 
-      expect(result.auth.config.user.additionalFields.role.input).toBe(false);
+      expect(schemaPlugin).toMatchObject({ schema: { user: { fields: { role: { input: false } } } } });
     });
   });
 

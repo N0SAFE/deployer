@@ -40,8 +40,15 @@ question it answers. This file is the rule list.
   user-scoped state in place.
 - **Sign-out is browser-wide.** The `multiSession` after-hook on `/sign-out` expires every `_multi-` cookie and deletes
   those sessions. Per-account removal is `multiSession.revoke`.
-- **`inferAdditionalFields<AuthInstance>()` must stay last** in the client plugin tuple, and the tuple must stay
-  concrete — an un-annotated `const x = []` widens to `any[]` and silently erases all plugin typing.
+- **The user columns are a plugin, not `user.additionalFields`.** `deployerUserSchemaPlugin` declares `role`, `banned`,
+  `banReason`, `banExpires` and `impersonatedBy`; the client's `deployerUserSchemaClient` points at it through
+  `$InferServerPlugin`, which is what types them on the client's session. The tuple must stay concrete — an un-annotated
+  `const x = []` widens to `any[]` and silently erases all plugin typing.
+- **`fields` needs `as const`.** Without it `required: false` / `input: false` widen to `boolean`, and Better Auth's
+  `InferFieldsInputClient` reads every nullable column as a REQUIRED field of `signUp.email`'s input type.
+- **`Session` (the root type) comes from the CLIENT.** Better Auth's server `$Infer` merges `additionalFields` but not a
+  plugin's `schema`, so `ReturnType<typeof createAuthClientFactory>['$Infer']['Session']` is the only derivation that
+  carries the plugin columns.
 - **Self-imports are relative.** Inside this package use `./x`/`../x`; `@deployer/auth/...` resolves through `dist`, so
   a source edit would not type-check until after a build (and a renamed folder would not resolve at all).
 - **The audit hook never fails a request.** `AuthAuditSink.record` is fire-and-forget; the sink reports its own errors.
@@ -50,13 +57,14 @@ question it answers. This file is the rule list.
 
 ### Server (`@deployer/auth/server`)
 - `betterAuthFactory(db, env, { audit? })` — the instance; the third argument is the only opt-in.
-- Server plugins: `masterTokenPlugin`, `loginAsPlugin`, `pushNotificationsPlugin`, `useInvite`, `useAdmin`, plus Better
-  Auth's built-ins `openAPI` and `multiSession`. (`useOrganization` is **not** implemented — see
-  `apps/doc/content/docs/dev/better-auth-plugin-evaluation.mdx` §4.1.)
+- Server plugins: `deployerUserSchemaPlugin`, `masterTokenPlugin`, `loginAsPlugin`, `pushNotificationsPlugin`,
+  `useInvite`, plus Better Auth's built-ins `openAPI` and `multiSession`. (`useOrganization` is **not** implemented — see
+  `apps/doc/content/docs/dev/better-auth-plugin-evaluation.mdx` §4.1. The Better Auth `admin` plugin is **removed**:
+  user administration is the identity service's oRPC procedures.)
 
 ### Client (`@deployer/auth/client`)
-- `createAuthClientFactory`, plugins `masterTokenClient`, `loginAsClientPlugin`, `useInviteClient`, `useAdminClient`,
-  guard `hasMasterTokenPlugin`.
+- `createAuthClientFactory`, plugins `deployerUserSchemaClient`, `masterTokenClient`, `loginAsClientPlugin`,
+  `useInviteClient`, guard `hasMasterTokenPlugin`.
 
 ### Root
 - Types `Session`, `User`, `Auth`, `InferSessionFromAuth`, `IEnvService`; `authz`'s catalog and decision; the Better Auth

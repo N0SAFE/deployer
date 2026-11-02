@@ -6,10 +6,6 @@
  */
 
 
-import {
-  platformAc,
-  platformRoles,
-} from "../../index";
 import type { invitePlugin } from "../../server/plugins/invite";
 
 import type { BetterAuthClientPlugin } from "better-auth/client";
@@ -18,6 +14,7 @@ import type { BetterAuthClientPlugin } from "better-auth/client";
 // Re-export existing plugins
 // ============================================================================
 
+export { deployerUserSchemaClient } from "./schema";
 export { default as masterTokenClient } from "./masterToken/index";
 export { loginAsClientPlugin } from "./loginAs/index";
 

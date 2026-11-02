@@ -7,6 +7,7 @@ import { auditEventFromRequest, type AuthAuditSink } from "../audit";
 
 import { buildTrustedOrigins } from "./origins";
 import {
+    deployerUserSchemaPlugin,
     masterTokenPlugin,
     loginAsPlugin,
     pushNotificationsPlugin,
@@ -180,47 +181,9 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             enabled: true,
             disableSignUp: true,
         },
-        // User model - `role` is the platform role. The admin plugin already
-        // adds `banned` / `banReason` / `banExpires` / `impersonatedBy` to the
-        // DB schema (plugin fields override these at runtime - no conflict),
-        // but the CLIENT session type only receives fields declared in
-        // `user.additionalFields` via `inferAdditionalFields<AuthInstance>()`.
-        // Declaring them here therefore: (1) keeps the DB columns consistent
-        // with the admin plugin, and (2) types `session.user.banned`,
-        // `banReason` and `banExpires` in the web app under BOTH tsgo and tsc
-        // (tsc cannot expand the admin plugin's `$InferServerPlugin` schema).
-        user: {
-            additionalFields: {
-                role: {
-                    type: "string",
-                    required: true,
-                    defaultValue: "user",
-                    // NOT client-writable. `input: true` let a sign-up (or any
-                    // create-user payload) name its own platform role, i.e. any
-                    // anonymous caller could register as `superAdmin`. Roles are
-                    // granted only server-side: the admin bootstrap writes the
-                    // column directly, and the admin plugin's `createUser` /
-                    // `setRole` pass through the authenticated grant path.
-                    input: false,
-                } as const,
-                banned: {
-                    type: "boolean",
-                    required: false,
-                    defaultValue: false,
-                    input: false,
-                } as const,
-                banReason: {
-                    type: "string",
-                    required: false,
-                    input: false,
-                } as const,
-                banExpires: {
-                    type: "date",
-                    required: false,
-                    input: false,
-                } as const,
-            },
-        },
+        // User columns live in `deployerUserSchemaPlugin` (a server plugin, linked to the client by
+        // `deployerUserSchemaClient`): the DB schema file is GENERATED, so the plugin is what keeps the columns across a
+        // regen, and `$InferServerPlugin` is what puts them on the client's session type.
         ...(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET ? {
             socialProviders: {
                 github: {
@@ -264,8 +227,12 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             },
         },
         plugins: [
-            // No Better Auth admin plugin: user administration is the identity service's oRPC procedures, and the
-            // authorization decision is `authz`. The user shape (role/banned/…) stays in `user.additionalFields`.
+            // The platform's own `user` columns. Declared as a plugin, not `user.additionalFields`, because
+            // `packages/nest/schema/src/global/identity/auth.ts` is GENERATED: a plugin's `schema` is an input to that
+            // generation, so a regen keeps `role`/`banned`/`banReason`/`banExpires`/`impersonatedBy`. The client's
+            // `deployerUserSchemaClient()` points at this plugin through `$InferServerPlugin`, which is what types them
+            // on `session.user`.
+            deployerUserSchemaPlugin(),
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the

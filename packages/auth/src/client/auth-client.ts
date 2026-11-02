@@ -2,7 +2,6 @@ import { apiKeyClient } from '@better-auth/api-key/client'
 import { passkeyClient } from '@better-auth/passkey/client'
 import {
     deviceAuthorizationClient,
-    inferAdditionalFields,
     lastLoginMethodClient,
     multiSessionClient,
     twoFactorClient,
@@ -11,16 +10,13 @@ import { createAuthClient } from 'better-auth/react'
 
 
 import {
-    masterTokenClient,
+    deployerUserSchemaClient,
+  masterTokenClient,
     loginAsClientPlugin,
     useInviteClient,
   } from './plugins'
 
-import type { betterAuthFactory } from '../server'
 import type { BetterAuthClientOptions } from 'better-auth/client'
-
-// Extract the actual auth type from the factory return type
-type AuthInstance = ReturnType<typeof betterAuthFactory>['auth']
 
 export type CreateAuthClientFactoryOptions = Pick<BetterAuthClientOptions, 'basePath' | 'baseURL' | 'fetchOptions'>
 
@@ -36,6 +32,7 @@ export type CreateAuthClientFactoryOptions = Pick<BetterAuthClientOptions, 'base
 // tuple is what makes `createAuthClient({ plugins: DEFAULT_PLUGINS })` produce a
 // fully typed client.
 const DEFAULT_PLUGINS = [
+  deployerUserSchemaClient(),
   masterTokenClient(),
   loginAsClientPlugin(),
   useInviteClient(),
@@ -48,7 +45,6 @@ const DEFAULT_PLUGINS = [
   twoFactorClient(),
   deviceAuthorizationClient(),
   lastLoginMethodClient(),
-  inferAdditionalFields<AuthInstance>(),
 ]
 
 // Server-side admin plugin types, carried into the client through better-auth's

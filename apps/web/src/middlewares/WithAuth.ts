@@ -2,8 +2,8 @@
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import { NextFetchEvent, NextProxy, NextRequest } from "next/server";
 
-import type { Session } from "@deployer/auth";
 import { isPlatformAdministrator } from "@deployer/auth/authz";
+import type { Session } from "@deployer/auth";
 
 import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 import { AuthDashboard, AuthSignin } from "@/routes/index";
@@ -116,8 +116,7 @@ const withAuth: MiddlewareFactory = (next: NextProxy) => {
 
 		let cached: SessionLike | null = null;
 		try {
-			cached = await getCookieCache<Session & { updatedAt: number }>(request, {
-				secret: env.BETTER_AUTH_SECRET,
+			cached = await getCookieCache<Session & { updatedAt: number }>(request, {				secret: env.BETTER_AUTH_SECRET,
 				// Match the cookie security setting from the API
 				// In Docker without HTTPS termination, use non-secure cookies
 				isSecure: env.NEXT_PUBLIC_API_URL?.startsWith("https://") ?? false,
