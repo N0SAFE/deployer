@@ -29,6 +29,8 @@ import type {
     InferRoleNamesFromBuilder,
 } from "./system/type-inference";
 
+import { authz } from "../../../authz/definition";
+
 import type { Auth as BetterAuthInstance } from "better-auth";
 import type { AccessControl, Role } from "better-auth/plugins/access";
 
@@ -147,44 +149,24 @@ export class AdminPermissionsPlugin<
 > extends BasePluginWrapper<TPermissionBuilder, TAuth>
 {
     /**
-     * Check if the current user has the specified permissions.
-     * Uses Better Auth's native `auth.api.userHasPermission()` API.
+     * Check the current session user against the authz model.
      *
-     * @param permissions - Resource to actions mapping to check (type-safe from permission builder)
-     * @returns Promise resolving to true if all permissions are granted
+     * Better Auth is used here ONLY to resolve the session: the decision is `authz`, the same table the oRPC gate and
+     * the web read, so a middleware check cannot disagree with a route's `.access({ permission })`.
      *
-     * @example
-     * ```typescript
-     * const canManageUsers = await plugin.checkPermission({
-     *   user: ['create', 'update', 'delete'],
-     * });
-     * ```
+     * @param permissions - Resource to actions mapping to check (typed by the builder's statement)
      */
     async checkPermission(
         permissions: InferStatementFromBuilder<TPermissionBuilder>
     ): Promise<boolean> {
         try {
-            const session = await this.auth.api.getSession({
-                headers: this.headers,
-            });
-
-            const userId =
-                session &&
-                typeof session.user === "object" &&
-                session.user !== null &&
-                "id" in session.user &&
-                typeof (session.user).id === "string"
-                    ? (session.user as { id: string }).id
+            const session = await this.auth.api.getSession({ headers: this.headers });
+            const user: unknown = session?.user;
+            const role =
+                typeof user === "object" && user !== null && "role" in user && typeof user.role === "string"
+                    ? user.role
                     : undefined;
-            if (!userId) return false;
-
-            // `permissions` is inferred from the builder's statement; the API derives the same shape from the access
-            // control instance. They are the same object, rendered by two different type paths.
-            const result = await this.auth.api.userHasPermission(
-                { body: { userId, permissions: permissions as never } }
-            );
-
-            return result.success;
+            return role !== undefined && grantsAll(role, permissions);
         } catch (error) {
             console.error("AdminPermissionsPlugin.checkPermission error:", error);
             return false;
@@ -206,29 +188,11 @@ export class AdminPermissionsPlugin<
      * });
      * ```
      */
-    async checkRolePermission(
+    checkRolePermission(
         role: InferRoleNamesFromBuilder<TPermissionBuilder>,
         permissions: InferStatementFromBuilder<TPermissionBuilder>
     ): Promise<boolean> {
-        try {
-            const result = await this.auth.api.userHasPermission({
-                body: {
-                    // Type assertion needed: InferRoleNamesFromBuilder is string union from our builder,
-                    // Better Auth expects InferAdminRolesFromOption which derives the same union differently
-                    role: role as InferAdminRolesFromOption<{
-                        roles: Record<string, Role>;
-                        ac: AccessControl;
-                    }>,
-                    // Same value, inferred through the builder's statement rather than the AC instance.
-                    permissions: permissions as never,
-                },
-            });
-
-            return result.success;
-        } catch (error) {
-            console.error("AdminPermissionsPlugin.checkRolePermission error:", error);
-            return false;
-        }
+        return Promise.resolve(grantsAll(String(role), permissions));
     }
 
     /**
@@ -532,3 +496,25 @@ export type AdminPlugin<
     TPermissionBuilder extends AnyPermissionBuilder = AnyPermissionBuilder,
     TAuth extends ApiMethodsWithAdminPlugin<TPermissionBuilder> = ApiMethodsWithAdminPlugin<TPermissionBuilder>
 > = AdminPermissionsPlugin<TPermissionBuilder, TAuth>;
+
+
+/**
+ * Does `role` hold every action in this statement mapping?
+ *
+ * The check is the authz model's, not Better Auth's: one table, one answer, wherever it is asked.
+ */
+/** The model's reader, widened once: the middleware passes a dynamic resource name from a route. */
+const hasPermissionOnModel = authz.rolesConfig.hasPermission as (
+    role: string,
+    resource: string,
+    action: string,
+) => boolean;
+
+function grantsAll(role: string, permissions: Record<string, readonly string[]>): boolean {
+    for (const [resource, actions] of Object.entries(permissions)) {
+        for (const action of actions) {
+            if (!hasPermissionOnModel(role, resource, action)) return false;
+        }
+    }
+    return true;
+}
