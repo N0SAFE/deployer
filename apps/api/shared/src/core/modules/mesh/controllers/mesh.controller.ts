@@ -56,9 +56,14 @@ export class MeshController {
         };
     }
 
+    /** A key `EnvService` types as `string` but answers `undefined` for when unset at runtime. */
+    private optionalEnv(key: "APP_URL" | "NEXT_PUBLIC_APP_URL"): string | undefined {
+        return this.envService.get(key);
+    }
+
     private resolveAdvertisedHost(): string | null {
-        const appUrl = this.envService.get("APP_URL")?.trim() ?? "";
-        const candidate = appUrl.length > 0 ? appUrl : (this.envService.get("NEXT_PUBLIC_APP_URL")?.trim() ?? "");
+        const appUrl = this.optionalEnv("APP_URL")?.trim() ?? "";
+        const candidate = appUrl.length > 0 ? appUrl : (this.optionalEnv("NEXT_PUBLIC_APP_URL")?.trim() ?? "");
         if (candidate.length === 0) {
             return null;
         }
@@ -171,13 +176,13 @@ export class MeshController {
                     meshSharedSecretUpdatedAt: row?.meshSharedSecretUpdatedAt ?? null,
                     region: localNode.region,
                     zone: localNode.zone,
-                    roles: localNode.roles ?? null,
-                    version: localNode.version ?? null,
-                    routingMode: localNode.routingMode ?? null,
-                    consistencyMode: localNode.consistencyMode ?? null,
-                    lifecycleState: localNode.lifecycleState ?? null,
-                    startedAt: localNode.startedAt ?? null,
-                    lastSeenAt: localNode.lastSeenAt ?? null,
+                    roles: localNode.roles,
+                    version: localNode.version,
+                    routingMode: localNode.routingMode,
+                    consistencyMode: localNode.consistencyMode,
+                    lifecycleState: localNode.lifecycleState,
+                    startedAt: localNode.startedAt,
+                    lastSeenAt: localNode.lastSeenAt,
                 };
             });
     }
@@ -211,19 +216,19 @@ export class MeshController {
                         nodeId: updated.nodeId,
                         strategy: updated.strategy,
                         meshUrlsSnapshot: updated.meshUrlsSnapshot ?? [],
-                        databaseUrl: updated.databaseUrl ?? null,
-                        configuredAt: updated.configuredAt ?? null,
+                        databaseUrl: updated.databaseUrl,
+                        configuredAt: updated.configuredAt,
                         updatedAt: updated.updatedAt,
-                        meshSharedSecretUpdatedAt: updated.meshSharedSecretUpdatedAt ?? null,
-                        region: localNode.region ?? null,
-                        zone: localNode.zone ?? null,
-                        roles: localNode.roles ?? null,
-                        version: localNode.version ?? null,
-                        routingMode: localNode.routingMode ?? null,
-                        consistencyMode: localNode.consistencyMode ?? null,
-                        lifecycleState: localNode.lifecycleState ?? null,
-                        startedAt: localNode.startedAt ?? null,
-                        lastSeenAt: localNode.lastSeenAt ?? null,
+                        meshSharedSecretUpdatedAt: updated.meshSharedSecretUpdatedAt,
+                        region: localNode.region,
+                        zone: localNode.zone,
+                        roles: localNode.roles,
+                        version: localNode.version,
+                        routingMode: localNode.routingMode,
+                        consistencyMode: localNode.consistencyMode,
+                        lifecycleState: localNode.lifecycleState,
+                        startedAt: localNode.startedAt,
+                        lastSeenAt: localNode.lastSeenAt,
                     },
                 };
             });

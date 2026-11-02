@@ -487,6 +487,7 @@
         "@nestjs/testing": "catalog:api:nest",
         "@testcontainers/postgresql": "^12.0.3",
         "@types/bun": "catalog:build",
+        "@types/dockerode": "^4.0.2",
         "@types/express": "catalog:api:nest",
         "@types/mime-types": "^3.0.1",
         "@types/node": "catalog:build",

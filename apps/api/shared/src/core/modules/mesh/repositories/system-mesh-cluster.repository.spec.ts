@@ -16,7 +16,7 @@ function repository(door: { issueJoinToken: (ttlMs?: number) => Promise<{ token:
             db: {
                 insert: () => ({
                     values: () => ({
-                        returning: async () => [{ id: GRANT_ID, expiresAt: EXPIRES_AT }],
+                        returning: () => Promise.resolve([{ id: GRANT_ID, expiresAt: EXPIRES_AT }]),
                     }),
                 }),
             },
@@ -30,7 +30,7 @@ const input = { issuedByUserId: "user-1", ttlSeconds: 900 };
 
 describe("SystemMeshClusterRepository.issueJoinGrant", () => {
     it("mints the agent's own join token alongside the platform grant", async () => {
-        const issueJoinToken = vi.fn(async () => ({ token: "agent-join-token", expiresAt: Date.now() + 900_000 }));
+        const issueJoinToken = vi.fn(() => Promise.resolve({ token: "agent-join-token", expiresAt: Date.now() + 900_000 }));
 
         const result = await repository({ issueJoinToken }).issueJoinGrant(input);
 
@@ -44,7 +44,7 @@ describe("SystemMeshClusterRepository.issueJoinGrant", () => {
     });
 
     it("returns no agent token when this node runs no new agent", async () => {
-        const issueJoinToken = vi.fn(async () => null);
+        const issueJoinToken = vi.fn(() => Promise.resolve(null));
 
         const result = await repository({ issueJoinToken }).issueJoinGrant(input);
 

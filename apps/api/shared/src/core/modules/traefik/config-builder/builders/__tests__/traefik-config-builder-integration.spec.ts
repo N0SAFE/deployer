@@ -173,7 +173,7 @@ describe('TraefikConfigBuilder Integration', () => {
 
       const config = builder.compile(variables);
       
-      expect(config.http?.services?.api?.loadBalancer?.servers?.at(0)?.url)
+      expect(config.http?.services?.api?.loadBalancer?.servers.at(0)?.url)
         .toBe('http://api.local:3000');
       // String templates resolve to strings, even if the variable value is a number
       expect(config.http?.middlewares?.['rate-limit']?.rateLimit?.average).toBe('100');
@@ -308,8 +308,8 @@ describe('TraefikConfigBuilder Integration', () => {
       const config1 = builder1.build();
       const config2 = builder2.build();
       
-      expect(Object.keys(config1.http?.routers || {})).toHaveLength(1);
-      expect(Object.keys(config2.http?.routers || {})).toHaveLength(2);
+      expect(Object.keys(config1.http?.routers ?? {})).toHaveLength(1);
+      expect(Object.keys(config2.http?.routers ?? {})).toHaveLength(2);
     });
   });
 
@@ -431,9 +431,9 @@ describe('TraefikConfigBuilder Integration', () => {
       });
 
       const config = builder.build();
-      expect(Object.keys(config.http?.routers || {})).toHaveLength(3);
-      expect(Object.keys(config.http?.services || {})).toHaveLength(3);
-      expect(Object.keys(config.http?.middlewares || {})).toHaveLength(3);
+      expect(Object.keys(config.http?.routers ?? {})).toHaveLength(3);
+      expect(Object.keys(config.http?.services ?? {})).toHaveLength(3);
+      expect(Object.keys(config.http?.middlewares ?? {})).toHaveLength(3);
     });
 
     it('should build complete microservices platform', () => {
@@ -495,9 +495,9 @@ describe('TraefikConfigBuilder Integration', () => {
 
       const config = builder.build();
       
-      expect(Object.keys(config.http?.routers || {})).toHaveLength(2);
-      expect(Object.keys(config.http?.services || {})).toHaveLength(2);
-      expect(Object.keys(config.http?.middlewares || {})).toHaveLength(4);
+      expect(Object.keys(config.http?.routers ?? {})).toHaveLength(2);
+      expect(Object.keys(config.http?.services ?? {})).toHaveLength(2);
+      expect(Object.keys(config.http?.middlewares ?? {})).toHaveLength(4);
       expect(config.tls?.certificates).toHaveLength(1);
     });
   });

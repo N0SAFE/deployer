@@ -42,38 +42,40 @@ function createOutboxRepositoryMock() {
     const dispatched: string[] = [];
 
     const repository = {
-        claimDue: vi.fn(async (limit: number) => {
+        claimDue: vi.fn((limit: number) => {
             // Claimable = still pending. Claiming REMOVES it, as the real claim does.
             const claimed = rows.filter((r) => r.state === "pending").slice(0, limit);
             for (const row of claimed) row.state = "dispatching";
-            return claimed;
+            return Promise.resolve(claimed);
         }),
-        findById: vi.fn(async (id: string) => rows.find((row) => row.id === id) ?? null),
-        hasSentDuplicateEventId: vi.fn(async () => false),
-        markSent: vi.fn(async (id: string) => {
+        findById: vi.fn((id: string) => Promise.resolve(rows.find((row) => row.id === id) ?? null)),
+        hasSentDuplicateEventId: vi.fn(() => Promise.resolve(false)),
+        markSent: vi.fn((id: string) => {
             updates.push({ id, state: "sent" });
             dispatched.push(id);
             const row = rows.find((r) => r.id === id);
             if (row) row.state = "sent";
+            return Promise.resolve();
         }),
-        scheduleRetry: vi.fn(async (id: string, retryCount: number, maxRetries: number) => {
+        scheduleRetry: vi.fn((id: string, retryCount: number, maxRetries: number) => {
             const nextRetryCount = retryCount + 1;
             if (nextRetryCount >= maxRetries) {
                 updates.push({ id, state: "dead_letter", retryCount: nextRetryCount });
-                return "dead_letter" as const;
+                return Promise.resolve("dead_letter" as const);
             }
             updates.push({ id, state: "pending", retryCount: nextRetryCount });
             const row = rows.find((r) => r.id === id);
             if (row) row.state = "pending";
-            return "retry" as const;
+            return Promise.resolve("retry" as const);
         }),
-        markDeadLetter: vi.fn(async (id: string, retryCount: number) => {
+        markDeadLetter: vi.fn((id: string, retryCount: number) => {
             updates.push({ id, state: "dead_letter", retryCount });
             const row = rows.find((r) => r.id === id);
             if (row) row.state = "dead_letter";
+            return Promise.resolve();
         }),
-        enqueue: vi.fn(async () => undefined),
-        findByTopic: vi.fn(async () => []),
+        enqueue: vi.fn(() => Promise.resolve(undefined)),
+        findByTopic: vi.fn(() => Promise.resolve([])),
     };
 
     return {
@@ -172,9 +174,11 @@ describe("LocalEventOutboxDispatcherService", () => {
         });
         // First markSent throws → retry scheduled.
         let markSentCalls = 0;
-        (mock.repositoryMock.markSent as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        vi.mocked(mock.repositoryMock.markSent).mockImplementation(() => {
             markSentCalls += 1;
-            if (markSentCalls === 1) throw new Error("forced-update-failure");
+            return markSentCalls === 1
+                ? Promise.reject(new Error("forced-update-failure"))
+                : Promise.resolve();
         });
 
         await service.dispatchPending(10);
@@ -213,17 +217,17 @@ describe("LocalEventOutboxDispatcherService", () => {
         const EVENTS = 20;
         for (let i = 0; i < EVENTS; i += 1) {
             mock.rows.push({
-                id: `outbox-${i}`,
+                id: `outbox-${String(i)}`,
                 state: "pending",
                 retryCount: 0,
                 payload: {
                     eventId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
                     aggregateType: "service",
-                    aggregateId: `svc-${i}`,
+                    aggregateId: `svc-${String(i)}`,
                     eventType: "service.updated",
                     version: "1",
                     occurredAt: new Date().toISOString(),
-                    payload: { serviceId: `svc-${i}` },
+                    payload: { serviceId: `svc-${String(i)}` },
                     metadata: { source: "test" },
                 },
                 createdAt: new Date(),

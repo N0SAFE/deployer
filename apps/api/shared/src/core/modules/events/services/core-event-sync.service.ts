@@ -33,10 +33,10 @@ export type CoreEventNamespaceAdapter = (
     input: CoreEventAdapterInput,
 ) => Observable<CoreEventAdapterEvent>;
 
-type ContractsOf<TService extends BaseEventService<any>> =
+type ContractsOf<TService extends BaseEventService> =
     TService extends BaseEventService<infer TContracts extends EventContracts> ? TContracts : never;
 
-type EventNamesOf<TService extends BaseEventService<any>> =
+type EventNamesOf<TService extends BaseEventService> =
     Extract<keyof ContractsOf<TService>, string>;
 
 type EnvelopeForEvent<TName extends string, TPayload> = Omit<
@@ -47,12 +47,12 @@ type EnvelopeForEvent<TName extends string, TPayload> = Omit<
     payload: TPayload;
 };
 
-export type ServiceEventEnvelope<TService extends BaseEventService<any>> = {
+export type ServiceEventEnvelope<TService extends BaseEventService> = {
     [K in EventNamesOf<TService>]: EnvelopeForEvent<K, EventOutput<ContractsOf<TService>[K]>>;
 }[EventNamesOf<TService>];
 
 export type NamespaceEventSubscription<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     K extends EventNamesOf<TService> = EventNamesOf<TService>,
 > = {
     eventName: K;
@@ -61,30 +61,30 @@ export type NamespaceEventSubscription<
     mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown;
 }
 
-export type RegisterNamespaceEventServiceOptions<TService extends BaseEventService<any>> = {
+export type RegisterNamespaceEventServiceOptions<TService extends BaseEventService> = {
     resolveSubscriptions?: (
         definition: CoreEventStreamDefinition,
     ) => NamespaceEventSubscription<TService>[];
 }
 
 type SelectedServiceEnvelope<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     K extends EventNamesOf<TService>,
 > = EnvelopeForEvent<K, EventOutput<ContractsOf<TService>[K]>> & {
     input: EventInput<ContractsOf<TService>[K]>;
 };
 
-type AnyServiceSelection<TService extends BaseEventService<any>> = {
+type AnyServiceSelection<TService extends BaseEventService> = {
     [K in EventNamesOf<TService>]: ServiceSelectionInput<TService, K>;
 }[EventNamesOf<TService>];
 
 type AliasForService<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     TAlias extends string | undefined,
 > = TAlias extends string ? TAlias : TService["namespace"];
 
 type ServiceSelectionInput<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     K extends EventNamesOf<TService>,
 > = {
     eventName: K;
@@ -94,7 +94,7 @@ type ServiceSelectionInput<
 }
 
 export type ServiceQuerySelectInput<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     K extends EventNamesOf<TService>,
     TAlias extends string | undefined = undefined,
 > = {
@@ -107,7 +107,7 @@ export type ServiceQuerySelectInput<
 }
 
 export type ServiceQuerySelectManyInput<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     TSelections extends readonly AnyServiceSelection<TService>[],
     TAlias extends string | undefined = undefined,
 > = {
@@ -135,7 +135,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
     }
 
     join<
-        TService extends BaseEventService<any>,
+        TService extends BaseEventService,
         K extends EventNamesOf<TService>,
         TAlias extends string | undefined,
     >(
@@ -319,7 +319,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
     }
 }
 
-type FluentSelectOptions<TService extends BaseEventService<any>, K extends EventNamesOf<TService>> = {
+type FluentSelectOptions<TService extends BaseEventService, K extends EventNamesOf<TService>> = {
     mapEventName?: string | ((eventName: string) => string);
     mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown;
 }
@@ -447,11 +447,11 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
     }
 }
 
-export class CoreEventNamespaceBuilder<TService extends BaseEventService<any> | null = null> {
+export class CoreEventNamespaceBuilder<TService extends BaseEventService | null = null> {
     private adapter?: CoreEventNamespaceAdapter;
-    private eventService?: BaseEventService<any>;
-    private resolver?: (definition: CoreEventStreamDefinition) => NamespaceEventSubscription<any>[];
-    private staticSelections: NamespaceEventSubscription<any>[] = [];
+    private eventService?: BaseEventService;
+    private resolver?: (definition: CoreEventStreamDefinition) => NamespaceEventSubscription<BaseEventService>[];
+    private staticSelections: NamespaceEventSubscription<BaseEventService>[] = [];
 
     constructor(
         private readonly service: CoreEventSyncService,
@@ -463,7 +463,7 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService<any> | 
         return this;
     }
 
-    fromEventService<T extends BaseEventService<any>>(eventService: T): this {
+    fromEventService<T extends BaseEventService>(eventService: T): this {
         this.eventService = eventService;
         // Re-type the builder with the concrete event service so later
         // `.select(name, input)` is checked against the REAL contracts of that
@@ -487,13 +487,13 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService<any> | 
         return this;
     }
 
-    usingResolver<T extends BaseEventService<any>>(
+    usingResolver<T extends BaseEventService>(
         this: CoreEventNamespaceBuilder<T>,
         resolver: (definition: CoreEventStreamDefinition) => NamespaceEventSubscription<T>[],
     ): CoreEventNamespaceBuilder<T> {
         this.resolver = resolver as unknown as (
             definition: CoreEventStreamDefinition,
-        ) => NamespaceEventSubscription<any>[];
+        ) => NamespaceEventSubscription<BaseEventService>[];
         return this;
     }
 
@@ -545,7 +545,7 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
         return new CoreEventNamespaceBuilder(this, namespace);
     }
 
-    registerNamespaceEventService<TService extends BaseEventService<any>>(
+    registerNamespaceEventService<TService extends BaseEventService>(
         namespace: string,
         eventService: TService,
         options?: RegisterNamespaceEventServiceOptions<TService>,
@@ -572,8 +572,11 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
                                     ? selection.mapEventName(selection.eventName)
                                     : (selection.mapEventName ?? selection.eventName);
 
-                            const payload = selection.mapPayload
-                                ? selection.mapPayload(value)
+                            // The subscription is erased at this point (the builder accepts any service), so neither the
+                            // handler's output nor the mapper's parameter carries a type. `never` is the one argument
+                            // every parameter accepts; the payload leaves this seam as `unknown`.
+                            const payload: unknown = selection.mapPayload
+                                ? selection.mapPayload(value as never)
                                 : value;
 
                             return {
@@ -597,7 +600,7 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
     }
 
     select<
-        TService extends BaseEventService<any>,
+        TService extends BaseEventService,
         K extends EventNamesOf<TService>,
         TAlias extends string | undefined = undefined,
     >(
@@ -623,7 +626,7 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
     }
 
     selectMany<
-        TService extends BaseEventService<any>,
+        TService extends BaseEventService,
         TSelections extends readonly AnyServiceSelection<TService>[],
         TAlias extends string | undefined = undefined,
     >(
@@ -656,7 +659,7 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
         });
     }
 
-    queryFromService<TService extends BaseEventService<any>, TAlias extends string>(input: {
+    queryFromService<TService extends BaseEventService, TAlias extends string>(input: {
         namespace: string;
         service: TService;
         alias: TAlias;
@@ -811,7 +814,7 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
 }
 
 function selectedServiceObservable<
-    TService extends BaseEventService<any>,
+    TService extends BaseEventService,
     K extends EventNamesOf<TService>,
 >(
     service: TService,
@@ -891,7 +894,7 @@ function buildFuzzyHaystack(row: CoreEventQueryRow, fields: FuzzyField[]): strin
         .toLowerCase();
 }
 
-function defaultSubscriptionsFromFilters<TService extends BaseEventService<any>>(
+function defaultSubscriptionsFromFilters<TService extends BaseEventService>(
     definition: CoreEventStreamDefinition,
 ): NamespaceEventSubscription<TService>[] {
     const filters = definition.filters ?? {};

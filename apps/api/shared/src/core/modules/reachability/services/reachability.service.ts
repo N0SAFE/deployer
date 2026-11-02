@@ -288,7 +288,7 @@ export class ReachabilityService {
     dnsMatch: boolean | null
     error?: string
   }> {
-    const cleanDomain = domain.replace(/^https?:\/\//, '').split('/')[0]!.split(':')[0]!
+    const cleanDomain = (domain.replace(/^https?:\/\//, '').split('/')[0] ?? '').split(':')[0] ?? ''
     let resolvedIps: string[] = []
     let dnsMatch: boolean | null = null
 
@@ -296,7 +296,7 @@ export class ReachabilityService {
     try {
       const addresses = await dns.resolve4(cleanDomain)
       resolvedIps = addresses
-    } catch (err) {
+    } catch {
       // DNS resolution failed
     }
 
@@ -319,7 +319,7 @@ export class ReachabilityService {
     // address supports both). A hostname is resolved and compared by
     // intersection with the domain's IPs.
     if (expectedIp && resolvedIps.length > 0) {
-      const expected = expectedIp.replace(/^https?:\/\//, '').split('/')[0]!.split(':')[0]!
+      const expected = (expectedIp.replace(/^https?:\/\//, '').split('/')[0] ?? '').split(':')[0] ?? ''
       if (isIP(expected) !== 0) {
         dnsMatch = resolvedIps.includes(expected)
       } else {

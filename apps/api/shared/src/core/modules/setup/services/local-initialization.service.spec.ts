@@ -80,10 +80,10 @@ function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationSe
 	// Short-circuit the DB-heavy steps. The provision step sets the URL; the
 	// migrate/seed steps must be no-ops for a deterministic run.
 	(service as unknown as { ensureDatabaseEmpty(): Promise<string[]> }).ensureDatabaseEmpty =
-		async () => [];
-	(service as unknown as { runMigrations(): Promise<void> }).runMigrations = async () => {};
+		() => Promise.resolve([]);
+	(service as unknown as { runMigrations(): Promise<void> }).runMigrations = () => Promise.resolve();
 	(service as unknown as { seedInitialData(): Promise<{ userId: string }> }).seedInitialData =
-		async () => ({ userId: "u1" });
+		() => Promise.resolve({ userId: "u1" });
 	return service;
 }
 
@@ -99,7 +99,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 		const service = makeService(mocks);
 		// No existingDatabaseUrl → provisionDockerDatabase path (locally managed).
 		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase =
-			async () => LOCAL_URL;
+			() => Promise.resolve(LOCAL_URL);
 
 		await service.initialize(
 			{
@@ -126,7 +126,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 		const service = makeService(mocks);
 		// existingDatabaseUrl → probeExistingDatabase path (externally managed).
 		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase =
-			async () => EXTERNAL_URL;
+			() => Promise.resolve(EXTERNAL_URL);
 
 		await service.initialize(
 			{
@@ -164,11 +164,11 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 		}) as never);
 
 		const service = makeService(mocks);
-		const probeSpy = vi.fn(async () => EXTERNAL_URL);
+		const probeSpy = vi.fn(() => Promise.resolve(EXTERNAL_URL));
 		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase = probeSpy;
-		const provisionSpy = vi.fn(async () => {
-			throw new Error("must not provision a container when a DB is provided");
-		});
+		const provisionSpy = vi.fn(() =>
+			Promise.reject(new Error("must not provision a container when a DB is provided")),
+		);
 		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase = provisionSpy;
 
 		await service.initialize(

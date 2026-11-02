@@ -26,8 +26,8 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.servers).toHaveLength(3);
-      expect(config.loadBalancer?.servers).toEqual([
+      expect(config.loadBalancer.servers).toHaveLength(3);
+      expect(config.loadBalancer.servers).toEqual([
         { url: 'http://api1:3000' },
         { url: 'http://api2:3000' },
         { url: 'http://api3:3000' },
@@ -42,7 +42,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.servers).toEqual([
+      expect(config.loadBalancer.servers).toEqual([
         { url: 'http://api1:3000', weight: 3 },
         { url: 'http://api2:3000', weight: 1 },
       ]);
@@ -56,7 +56,7 @@ describe('ServiceBuilder', () => {
         ]))
         .build();
 
-      expect(config.loadBalancer?.servers).toHaveLength(2);
+      expect(config.loadBalancer.servers).toHaveLength(2);
     });
 
     it('should support variables in server URLs', () => {
@@ -66,7 +66,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.servers?.at(0)?.url).toBe('http://~##apiHost##~:~##apiPort##~');
+      expect(config.loadBalancer.servers.at(0)?.url).toBe('http://~##apiHost##~:~##apiPort##~');
     });
   });
 
@@ -82,7 +82,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.healthCheck).toMatchObject({
+      expect(config.loadBalancer.healthCheck).toMatchObject({
         path: '/health',
         interval: '10s',
       });
@@ -105,7 +105,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.healthCheck).toMatchObject({
+      expect(config.loadBalancer.healthCheck).toMatchObject({
         path: '/api/health',
         interval: '30s',
         timeout: '5s',
@@ -128,8 +128,8 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.healthCheck?.path).toBe('~##healthPath##~');
-      expect(config.loadBalancer?.healthCheck?.interval).toBe('~##healthInterval##~');
+      expect(config.loadBalancer.healthCheck?.path).toBe('~##healthPath##~');
+      expect(config.loadBalancer.healthCheck?.interval).toBe('~##healthInterval##~');
     });
   });
 
@@ -142,7 +142,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.sticky).toMatchObject({
+      expect(config.loadBalancer.sticky).toMatchObject({
         cookie: {
           name: 'session',
         },
@@ -161,7 +161,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.sticky?.cookie).toMatchObject({
+      expect(config.loadBalancer.sticky?.cookie).toMatchObject({
         name: 'session',
         httpOnly: true,
         secure: true,
@@ -179,7 +179,7 @@ describe('ServiceBuilder', () => {
         )
         .build();
 
-      expect(config.loadBalancer?.passHostHeader).toBe(false);
+      expect(config.loadBalancer.passHostHeader).toBe(false);
     });
 
     it('should default passHostHeader to true', () => {
@@ -187,7 +187,7 @@ describe('ServiceBuilder', () => {
         .loadBalancer(lb => lb.server('http://api:3000'))
         .build();
 
-      expect(config.loadBalancer?.passHostHeader).toBeUndefined();
+      expect(config.loadBalancer.passHostHeader).toBeUndefined();
     });
   });
 
@@ -216,8 +216,8 @@ describe('ServiceBuilder', () => {
         ])
         .build();
 
-      expect(config.weighted?.services?.at(0)?.name).toBe('~##primaryService##~');
-      expect(config.weighted?.services?.at(1)?.name).toBe('~##canaryService##~');
+      expect(config.weighted.services.at(0)?.name).toBe('~##primaryService##~');
+      expect(config.weighted.services.at(1)?.name).toBe('~##canaryService##~');
     });
   });
 
@@ -245,7 +245,7 @@ describe('ServiceBuilder', () => {
         ])
         .build();
 
-      expect(config.mirroring?.mirrors).toHaveLength(2);
+      expect(config.mirroring.mirrors).toHaveLength(2);
     });
 
     it('should support variables in mirroring', () => {
@@ -255,8 +255,8 @@ describe('ServiceBuilder', () => {
         ])
         .build();
 
-      expect(config.mirroring?.service).toBe('~##primaryService##~');
-      expect(config.mirroring?.mirrors?.at(0)?.name).toBe('~##mirrorService##~');
+      expect(config.mirroring.service).toBe('~##primaryService##~');
+      expect(config.mirroring.mirrors?.at(0)?.name).toBe('~##mirrorService##~');
     });
   });
 
@@ -344,9 +344,9 @@ describe('ServiceBuilder', () => {
         .build();
 
       expect(name).toBe('api-production');
-      expect(config.loadBalancer?.servers).toHaveLength(3);
-      expect(config.loadBalancer?.healthCheck).toBeDefined();
-      expect(config.loadBalancer?.sticky).toBeDefined();
+      expect(config.loadBalancer.servers).toHaveLength(3);
+      expect(config.loadBalancer.healthCheck).toBeDefined();
+      expect(config.loadBalancer.sticky).toBeDefined();
     });
 
     it('should build canary deployment with weighted services', () => {
@@ -357,11 +357,11 @@ describe('ServiceBuilder', () => {
         ])
         .build();
 
-      expect(config.weighted?.services[0]).toMatchObject({
+      expect(config.weighted.services[0]).toMatchObject({
         name: 'api-stable',
         weight: 95,
       });
-      expect(config.weighted?.services[1]).toMatchObject({
+      expect(config.weighted.services[1]).toMatchObject({
         name: 'api-canary-v2',
         weight: 5,
       });

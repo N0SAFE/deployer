@@ -8,12 +8,12 @@ import type { Pool, PoolClient } from "pg";
 /** A pool whose single connection answers `locked` for the try-lock. */
 function fakePool(locked: boolean) {
 	const client = {
-		query: vi.fn(async (sql: string) =>
-			sql.includes("pg_try_advisory_lock") ? { rows: [{ locked }] } : { rows: [] },
+		query: vi.fn((sql: string) =>
+			Promise.resolve(sql.includes("pg_try_advisory_lock") ? { rows: [{ locked }] } : { rows: [] }),
 		),
 		release: vi.fn(),
 	};
-	const pool = { connect: vi.fn(async () => client) };
+	const pool = { connect: vi.fn(() => Promise.resolve(client)) };
 	return { pool, client, service: new BootstrapAdvisoryLockService(pool as unknown as Pool) };
 }
 
@@ -81,8 +81,8 @@ describe("BootstrapAdvisoryLockService", () => {
 	});
 
 	it("hands the connection back when the lock query itself fails", async () => {
-		const client = { query: vi.fn(async () => { throw new Error("boom"); }), release: vi.fn() };
-		const pool = { connect: vi.fn(async () => client) };
+		const client = { query: vi.fn(() => Promise.reject(new Error("boom"))), release: vi.fn() };
+		const pool = { connect: vi.fn(() => Promise.resolve(client)) };
 		const service = new BootstrapAdvisoryLockService(pool as unknown as Pool);
 
 		await expect(service.acquire()).rejects.toThrow("boom");

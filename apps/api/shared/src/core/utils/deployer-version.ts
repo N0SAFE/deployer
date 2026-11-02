@@ -17,6 +17,8 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import z from "zod/v4";
+
 import { AppError } from "@deployer/errors";
 // ─── Resolve path ──────────────────────────────────────────────────────────────
 // This file lives at: apps/api/shared/src/core/utils/deployer-version.ts
@@ -35,17 +37,22 @@ const PKG_PATH = join(__dirname, "..", "..", "..", "package.json");
 
 let _cachedVersion: string | null = null;
 
-function resolveVersion(): string {
-  if (_cachedVersion) return _cachedVersion;
+/** The one field this module needs out of `package.json`; the rest of the file is not ours to assume. */
+const packageJsonSchema = z.object({ version: z.string().min(1).optional() });
 
+function resolveVersion(): string {
+  if (_cachedVersion !== null) return _cachedVersion;
+
+  let resolved: string;
   try {
-    const raw = readFileSync(PKG_PATH, "utf-8");
-    _cachedVersion = JSON.parse(raw).version ?? "0.0.0";
+    const parsed = packageJsonSchema.safeParse(JSON.parse(readFileSync(PKG_PATH, "utf-8")) as unknown);
+    resolved = parsed.success ? (parsed.data.version ?? "0.0.0") : "0.0.0";
   } catch {
-    _cachedVersion = "0.0.0";
+    resolved = "0.0.0";
   }
 
-  return _cachedVersion!;
+  _cachedVersion = resolved;
+  return resolved;
 }
 
 /** The deployer's app version as resolved from package.json (e.g. "1.0.0"). */
@@ -68,8 +75,8 @@ export function semverCompare(a: string, b: string): -1 | 0 | 1 {
   const pb = b.split(".").map(Number);
 
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const na = i < pa.length ? pa[i]! : 0;
-    const nb = i < pb.length ? pb[i]! : 0;
+    const na = i < pa.length ? (pa[i] ?? 0) : 0;
+    const nb = i < pb.length ? (pb[i] ?? 0) : 0;
     if (na > nb) return 1;
     if (na < nb) return -1;
   }
@@ -118,7 +125,7 @@ export function semverSatisfies(version: string, required: string): boolean {
   // X.Y.Z - A.B.C (inclusive range)
   const rangeMatch = /^(\d+\.\d+\.\d+)\s*-\s*(\d+\.\d+\.\d+)$/.exec(trimmed);
   if (rangeMatch) {
-    return semverCompare(version, rangeMatch[1]!) >= 0 && semverCompare(version, rangeMatch[2]!) <= 0;
+    return semverCompare(version, rangeMatch[1] ?? "0.0.0") >= 0 && semverCompare(version, rangeMatch[2] ?? "0.0.0") <= 0;
   }
 
   throw new AppError(`Unsupported semver range pattern: "${required}"`, "VERSION_PARSE_ERROR");

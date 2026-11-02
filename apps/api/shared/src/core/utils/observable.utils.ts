@@ -96,21 +96,19 @@ export function observableToAsyncIterable<T>(observable: Observable<T> | AsyncIt
  */
 export function asyncIterableToObservable<T>(iterable: AsyncIterable<T>): Observable<T> {
     return new Observable<T>((subscriber) => {
-        let active = true;
-        (async () => {
+        // `subscriber.closed` IS the unsubscribe signal: RxJS sets it when the consumer tears down, so a local
+        // `active` flag (and the narrowing it attracted) is not needed.
+        void (async () => {
             try {
                 for await (const value of iterable) {
-                    if (!active) return;
+                    if (subscriber.closed) return;
                     subscriber.next(value);
                 }
-                if (active) subscriber.complete();
+                if (!subscriber.closed) subscriber.complete();
             } catch (error) {
-                if (active) subscriber.error(toError(error));
+                if (!subscriber.closed) subscriber.error(toError(error));
             }
         })();
-        return () => {
-            active = false;
-        };
     });
 }
 

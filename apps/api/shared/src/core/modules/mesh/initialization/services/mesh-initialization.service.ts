@@ -1,10 +1,7 @@
-import { randomUUID } from "node:crypto";
-
 import { Injectable } from "@nestjs/common";
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 
-import { signMeshToken } from "@deployer/auth/mesh";
 import {
     
     
@@ -15,7 +12,6 @@ import {
 import { meshContract, type MeshContract } from "@deployer/fleet-contracts";
 
 import { MeshValidationError } from "../../services/system-mesh-topology/domain/mesh-errors";
-import { toMeshWebSocketUrl } from "../../shared/utils/mesh-server-url.utils";
 
 import type { ContractRouterClient } from "@orpc/contract";
 
@@ -146,28 +142,10 @@ export class MeshInitializationService {
             origin: baseUrl,
             fetch: (input, init) => {
                 if (!internalHeaders) return fetch(input, init);
-                const headers = new Headers();
-                if (init && "headers" in init && init.headers) {
-                    const existing = init.headers;
-                    if (existing instanceof Headers) {
-                        for (const [name, value] of existing.entries()) {
-                            headers.set(name, value);
-                        }
-                    } else if (Array.isArray(existing)) {
-                        for (const [name, value] of existing) {
-                            if (typeof name === "string" && typeof value === "string") {
-                                headers.set(name, value);
-                            }
-                        }
-                    } else {
-                        for (const [name, value] of Object.entries(existing)) {
-                            // A header record may hold several values for one name.
-                            // `Object.entries` widens the value to `string | readonly string[]`; `Array.isArray` does not narrow a
-// readonly array, so the non-array branch is asserted rather than converted.
-                            headers.set(name, Array.isArray(value) ? (value as readonly string[]).join(", ") : (value as string));
-                        }
-                    }
-                }
+                // `Headers` already accepts every `HeadersInit` shape (record, tuple list, Headers), including a
+                // record whose value is several strings for one name. Re-implementing that normalization by hand
+                // produced a `string | readonly string[]` union that differs per lib.
+                const headers = new Headers("headers" in init ? init.headers : undefined);
                 for (const [name, value] of Object.entries(internalHeaders)) {
                     headers.set(name, value);
                 }

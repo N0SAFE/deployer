@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import Dockerode from "dockerode";
 import { Pool } from "pg";
 
+import { getErrorMessage } from "@deployer/errors";
+
 import { SHARED_POSTGRES_CONNECTION_URI_ENV } from "../shared-api-runtime/types";
 
 /**
@@ -67,7 +69,8 @@ async function pullPostgresImage(docker: Dockerode): Promise<void> {
 
   logSharedPostgres(`pulling Postgres image: ${POSTGRES_IMAGE}`);
   await new Promise<void>((resolve, reject) => {
-    docker.pull(POSTGRES_IMAGE, (error: Error | null, stream?: NodeJS.ReadableStream) => {
+    // The callback settles the surrounding Promise; dockerode also returns a stream Promise nobody consumes.
+    void docker.pull(POSTGRES_IMAGE, (error: Error | null, stream?: NodeJS.ReadableStream) => {
       if (error) {
         reject(error);
         return;
@@ -103,11 +106,6 @@ function logSharedPostgres(message: string): void {
 
   const now = new Date().toISOString();
   console.log(`[e2e-runtime-global ${now}] ${message}`);
-}
-
-function summarizeDbUrl(connectionUri: string): string {
-  const parsed = new URL(connectionUri);
-  return `${parsed.protocol}//${parsed.hostname}:${parsed.port}${parsed.pathname}`;
 }
 
 function describeActiveHandles(): string {
@@ -201,7 +199,7 @@ export function deleteSharedPostgresUriFile(): void {
       (error as NodeJS.ErrnoException).code !== "ENOENT"
     ) {
       logSharedPostgres(
-        `failed to delete shared Postgres URI file: ${error instanceof Error ? error.message : String(error)}`,
+        `failed to delete shared Postgres URI file: ${getErrorMessage(error)}`,
       );
     }
   }
@@ -259,7 +257,7 @@ export async function startSharedPostgresContainer(): Promise<void> {
 
   // Wait for container to be ready by polling PostgreSQL
   const data = await container.inspect();
-  const hostPort = data.NetworkSettings.Ports?.["5432/tcp"]?.[0]?.HostPort;
+  const hostPort = data.NetworkSettings.Ports["5432/tcp"]?.[0]?.HostPort;
   if (!hostPort) {
     await container.stop({ t: 5 }).catch(() => undefined);
     await container.remove({ force: true }).catch(() => undefined);
@@ -300,7 +298,7 @@ export async function stopSharedPostgresContainer(): Promise<void> {
   await container.remove({ force: true }).catch(() => undefined);
 
   sharedPostgresContainer = null;
-  delete process.env[SHARED_POSTGRES_CONNECTION_URI_ENV];
+  Reflect.deleteProperty(process.env, SHARED_POSTGRES_CONNECTION_URI_ENV);
 
   // Cleanly disconnect the Docker client to prevent hanging handles
   closeDockerClient(docker);

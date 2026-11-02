@@ -14,26 +14,26 @@ const run = (resolver: ReturnType<typeof makeSessionResolver>) => Effect.runProm
 
 describe("makeSessionResolver", () => {
 	it("returns the session Better Auth hands back directly", async () => {
-		const result = await run(resolverFor(async () => session));
+		const result = await run(resolverFor(() => Promise.resolve(session)));
 		expect(Exit.isSuccess(result) && result.value).toEqual(session);
 	});
 
 	it("reads a session out of a wrapped or bare Response", async () => {
-		const wrapped = await run(resolverFor(async () => ({ response: Response.json(session) })));
-		const bare = await run(resolverFor(async () => Response.json(session)));
+		const wrapped = await run(resolverFor(() => Promise.resolve({ response: Response.json(session) })));
+		const bare = await run(resolverFor(() => Promise.resolve(Response.json(session))));
 		expect(Exit.isSuccess(wrapped) && wrapped.value).toEqual(session);
 		expect(Exit.isSuccess(bare) && bare.value).toEqual(session);
 	});
 
 	it("is null when there is no session or the response is not ok", async () => {
-		const none = await run(resolverFor(async () => null));
-		const refused = await run(resolverFor(async () => new Response("no", { status: 401 })));
+		const none = await run(resolverFor(() => Promise.resolve(null)));
+		const refused = await run(resolverFor(() => Promise.resolve(new Response("no", { status: 401 }))));
 		expect(Exit.isSuccess(none) && none.value).toBeNull();
 		expect(Exit.isSuccess(refused) && refused.value).toBeNull();
 	});
 
 	it("fails with SessionLookupFailed when Better Auth throws", async () => {
-		const result = await run(resolverFor(async () => { throw new Error("db down"); }));
+		const result = await run(resolverFor(() => Promise.reject(new Error("db down"))));
 		expect(Exit.isFailure(result)).toBe(true);
 		if (Exit.isFailure(result)) expect(Cause.squash(result.cause)).toBeInstanceOf(SessionLookupFailed);
 	});

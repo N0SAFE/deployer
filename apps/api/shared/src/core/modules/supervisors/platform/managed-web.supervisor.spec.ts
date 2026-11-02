@@ -24,11 +24,11 @@ function makeSupervisor(options: { flag?: boolean; prefix?: string; managed?: { 
 		webOrigin: () => "http://web.deployer.localhost",
 		webHostname: () => "web.deployer.localhost",
 	} as unknown as HostnameService;
-	const platformConfig = { isManagedWebAppEnabled: vi.fn(async () => options.flag ?? true) } as unknown as PlatformConfigService;
+	const platformConfig = { isManagedWebAppEnabled: vi.fn(() => Promise.resolve(options.flag ?? true)) } as unknown as PlatformConfigService;
 	const appInstances = {
-		create: vi.fn(async () => ({ instanceId: "inst-1", appToken: "a-minted-token" })),
-		findManaged: vi.fn(async () => options.managed ?? null),
-		revoke: vi.fn(async () => true),
+		create: vi.fn(() => Promise.resolve({ instanceId: "inst-1", appToken: "a-minted-token" })),
+		findManaged: vi.fn(() => Promise.resolve(options.managed ?? null)),
+		revoke: vi.fn(() => Promise.resolve(true)),
 	};
 
 	const reconciled: { name: string; env: string[] }[] = [];

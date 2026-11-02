@@ -24,9 +24,11 @@ function statusOf(result: Record<string, { status: string }>): string {
 describe("DatabaseHealthIndicator", () => {
 	it("reports up with the server version when the pool answers", async () => {
 		const pool = {
-			query: vi.fn(async () => ({
-				rows: [{ version: "PostgreSQL 16.4 (Debian 16.4-1) on x86_64-pc-linux-gnu" }],
-			})),
+			query: vi.fn(() =>
+				Promise.resolve({
+					rows: [{ version: "PostgreSQL 16.4 (Debian 16.4-1) on x86_64-pc-linux-gnu" }],
+				}),
+			),
 		};
 		const indicator = new DatabaseHealthIndicator.live(pool as unknown as never);
 
@@ -41,9 +43,7 @@ describe("DatabaseHealthIndicator", () => {
 
 	it("reports down with a classification when the connection is refused", async () => {
 		const pool = {
-			query: vi.fn(async () => {
-				throw new Error("connect ECONNREFUSED 127.0.0.1:5432");
-			}),
+			query: vi.fn(() => Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:5432"))),
 		};
 		const indicator = new DatabaseHealthIndicator.live(pool as unknown as never);
 
@@ -55,9 +55,7 @@ describe("DatabaseHealthIndicator", () => {
 
 	it("never throws — a down dependency is an answer, not an error", async () => {
 		const pool = {
-			query: vi.fn(async () => {
-				throw new Error("boom");
-			}),
+			query: vi.fn(() => Promise.reject(new Error("boom"))),
 		};
 		const indicator = new DatabaseHealthIndicator.live(pool as unknown as never);
 
@@ -79,7 +77,7 @@ describe("DatabaseHealthIndicator", () => {
 
 describe("MigrationsHealthIndicator", () => {
 	it("reports up with the applied count", async () => {
-		const pool = { query: vi.fn(async () => ({ rows: [{ applied: 38, latest: "2026-10-01" }] })) };
+		const pool = { query: vi.fn(() => Promise.resolve({ rows: [{ applied: 38, latest: "2026-10-01" }] })) };
 		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
 		const result = await Effect.runPromise(indicator.check());
@@ -91,7 +89,7 @@ describe("MigrationsHealthIndicator", () => {
 	it("reports down when nothing has been migrated", async () => {
 		// The case reachability cannot catch: the database is up and every real
 		// query would fail with `relation ... does not exist`.
-		const pool = { query: vi.fn(async () => ({ rows: [{ applied: 0, latest: null }] })) };
+		const pool = { query: vi.fn(() => Promise.resolve({ rows: [{ applied: 0, latest: null }] })) };
 		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
 		const result = await Effect.runPromise(indicator.check());
@@ -101,7 +99,7 @@ describe("MigrationsHealthIndicator", () => {
 	});
 
 	it("coerces a string count rather than trusting a truthy '0'", async () => {
-		const pool = { query: vi.fn(async () => ({ rows: [{ applied: "0", latest: null }] })) };
+		const pool = { query: vi.fn(() => Promise.resolve({ rows: [{ applied: "0", latest: null }] })) };
 		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
 		const result = await Effect.runPromise(indicator.check());
@@ -111,9 +109,7 @@ describe("MigrationsHealthIndicator", () => {
 
 	it("explains a missing journal table instead of relaying the raw error", async () => {
 		const pool = {
-			query: vi.fn(async () => {
-				throw new Error('relation "drizzle.__drizzle_migrations" does not exist');
-			}),
+			query: vi.fn(() => Promise.reject(new Error('relation "drizzle.__drizzle_migrations" does not exist'))),
 		};
 		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 

@@ -17,8 +17,8 @@ function contextOf(options: {
 }): CheckContext {
 	return {
 		env: (key) => options.env?.[key],
-		query: options.query ?? (async () => []),
-		tcp: options.tcp ?? (async () => undefined),
+		query: options.query ?? (() => Promise.resolve([])),
+		tcp: options.tcp ?? (() => Promise.resolve(undefined)),
 		log: () => undefined,
 	};
 }
@@ -46,7 +46,7 @@ describe("checkDatabase", () => {
 
 describe("checkMigrations", () => {
 	it("passes when at least one migration is recorded", async () => {
-		const result = await checkMigrations(contextOf({ query: async () => [{ applied: 38 }] }));
+		const result = await checkMigrations(contextOf({ query: () => Promise.resolve([{ applied: 38 }]) }));
 
 		expect(result.outcome).toBe("ok");
 		expect(result.detail).toContain("38");
@@ -55,7 +55,7 @@ describe("checkMigrations", () => {
 	it("fails when the journal exists but is empty", async () => {
 		// The case reachability cannot catch: a fresh Postgres accepts connections
 		// and every query fails with `relation ... does not exist`.
-		const result = await checkMigrations(contextOf({ query: async () => [{ applied: 0 }] }));
+		const result = await checkMigrations(contextOf({ query: () => Promise.resolve([{ applied: 0 }]) }));
 
 		expect(result.outcome).toBe("failed");
 		expect(result.detail).toContain("no migrations applied");
@@ -64,9 +64,7 @@ describe("checkMigrations", () => {
 	it("fails when the journal table does not exist", async () => {
 		const result = await checkMigrations(
 			contextOf({
-				query: async () => {
-					throw new Error('relation "drizzle.__drizzle_migrations" does not exist');
-				},
+				query: () => Promise.reject(new Error('relation "drizzle.__drizzle_migrations" does not exist')),
 			}),
 		);
 
@@ -75,7 +73,7 @@ describe("checkMigrations", () => {
 	});
 
 	it("fails on an unreadable count rather than assuming zero", async () => {
-		const result = await checkMigrations(contextOf({ query: async () => [] }));
+		const result = await checkMigrations(contextOf({ query: () => Promise.resolve([]) }));
 
 		expect(result.outcome).toBe("failed");
 		expect(result.detail).toContain("unreadable");
@@ -84,7 +82,7 @@ describe("checkMigrations", () => {
 
 describe("checkRedis", () => {
 	it("passes when the TCP connect succeeds", async () => {
-		const tcp = vi.fn(async () => undefined);
+		const tcp = vi.fn(() => Promise.resolve(undefined));
 		const result = await checkRedis(
 			contextOf({ tcp, env: { DEPLOYER_REDIS_URL: "redis://redis:6379" } }),
 		);
@@ -94,7 +92,7 @@ describe("checkRedis", () => {
 	});
 
 	it("defaults the port when the URL omits it", async () => {
-		const tcp = vi.fn(async () => undefined);
+		const tcp = vi.fn(() => Promise.resolve(undefined));
 		await checkRedis(contextOf({ tcp, env: { DEPLOYER_REDIS_URL: "redis://cache" } }));
 
 		expect(tcp).toHaveBeenCalledWith("cache", 6379, expect.any(Number));
@@ -121,8 +119,8 @@ describe("runPreflight", () => {
 	it("is ready when every dependency passes", async () => {
 		const report = await runPreflight({
 			context: contextOf({
-				query: async () => [{ applied: 3 }],
-				tcp: async () => undefined,
+				query: () => Promise.resolve([{ applied: 3 }]),
+				tcp: () => Promise.resolve(undefined),
 				env: { DEPLOYER_REDIS_URL: "redis://redis:6379" },
 			}),
 			dependencies: [
@@ -141,9 +139,7 @@ describe("runPreflight", () => {
 	it("reports every failing dependency rather than stopping at the first", async () => {
 		const report = await runPreflight({
 			context: contextOf({
-				query: async () => {
-					throw new Error("no database");
-				},
+				query: () => Promise.reject(new Error("no database")),
 				env: {},
 			}),
 			dependencies: [
@@ -164,12 +160,11 @@ describe("runPreflight", () => {
 		let attempts = 0;
 		const report = await runPreflight({
 			context: contextOf({
-				query: async () => {
+				query: () => {
 					attempts += 1;
 					// Fail the first pass, succeed on the second — the case a boot must
 					// survive (a dependency still starting).
-					if (attempts <= 2) throw new Error("not yet");
-					return [{ applied: 1 }];
+					return attempts <= 2 ? Promise.reject(new Error("not yet")) : Promise.resolve([{ applied: 1 }]);
 				},
 			}),
 			dependencies: [PreflightDependency.Database, PreflightDependency.Migrations],
@@ -184,9 +179,7 @@ describe("runPreflight", () => {
 		const started = Date.now();
 		const report = await runPreflight({
 			context: contextOf({
-				query: async () => {
-					throw new Error("still down");
-				},
+				query: () => Promise.reject(new Error("still down")),
 			}),
 			dependencies: [PreflightDependency.Database],
 			policy: { waitMs: 30, retryEveryMs: 10 },

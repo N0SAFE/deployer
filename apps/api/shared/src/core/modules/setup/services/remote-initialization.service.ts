@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common'
+import z from 'zod/v4'
 
 import {
     meshEnrollmentDescribeResultSchema,
@@ -21,6 +22,9 @@ import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner
 import type { ClientContext, ClientLink } from '@orpc/client'
 
 
+
+/** What `door.view()` must carry for a join to continue: the node's own identity. */
+const nodeViewSchema = z.object({ self: z.object({ nodeId: z.string().min(1) }) })
 
 /** How long a joining node waits for its agent to find the fleet, and how often it asks again. */
 const FLEET_WAIT_MS = 60_000
@@ -95,12 +99,13 @@ export class RemoteInitializationService {
             meshJoined = true
             stepLog(`✅ The agent joined the swarm and knows ${String(redeemed.agents.length)} other agent(s)`)
 
-            // The agent's own view says which node this is.
-            const self = (await door.view())?.self
-            if (self === undefined || self === null) {
+            // The agent's own view says which node this is. It arrives over the wire, so it is PARSED rather than
+            // trusted: a missing identity is the one answer a join cannot continue from.
+            const view = nodeViewSchema.safeParse(await door.view())
+            if (!view.success) {
                 throw new AppError('This node\'s agent did not report its identity. Check that the agent is running.', 'INTERNAL_ERROR')
             }
-            nodeId = self.nodeId
+            nodeId = view.data.self.nodeId
             stepLog(`This node is ${nodeId}`)
         })
 
@@ -137,7 +142,7 @@ export class RemoteInitializationService {
         // ── Version Check ──────────────────────────────────────────────
         // A node cannot join a fleet running a higher version: it must be upgraded first. A node ahead of the fleet may
         // join, and the fleet's upgrade is for a super admin to trigger.
-        await runStep(tracker, emit, 'version_check', 'Version compatibility check', async (stepLog) => {
+        await runStep(tracker, emit, 'version_check', 'Version compatibility check', (stepLog) => {
             stepLog(`Local deployer version: ${DEPLOYER_VERSION}`)
             stepLog(`Fleet version: ${fleetVersion}`)
             const comparison = semverCompare(DEPLOYER_VERSION, fleetVersion)
@@ -284,9 +289,17 @@ export class RemoteInitializationService {
      * Returns `null` if neither is set or the value is empty. The caller
      * should fall back to the mesh URL's origin when null.
      */
+    /**
+     * A value for a key `EnvService` types as `string`, which an unset key still answers `undefined` for at runtime.
+     * Reading through a method keeps the optional chain honest instead of a crash on `undefined.trim`.
+     */
+    private optionalEnv(key: 'APP_URL' | 'NEXT_PUBLIC_APP_URL'): string | undefined {
+        return this.envService.get(key)
+    }
+
     private resolveServerUrl(): string | null {
-        const appUrl = this.envService.get('APP_URL')?.trim() ?? ''
-        const candidate = appUrl.length > 0 ? appUrl : (this.envService.get('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
+        const appUrl = this.optionalEnv('APP_URL')?.trim() ?? ''
+        const candidate = appUrl.length > 0 ? appUrl : (this.optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
         if (!candidate) {
             return null
         }

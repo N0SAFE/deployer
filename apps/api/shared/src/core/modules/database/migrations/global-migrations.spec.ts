@@ -14,7 +14,7 @@ function driverError(code: string, message: string) {
 
 describe("applyGlobalMigrations", () => {
 	it("reports a clean run as applied", async () => {
-		const migrate = vi.fn(async () => undefined);
+		const migrate = vi.fn(() => Promise.resolve(undefined));
 
 		await expect(applyGlobalMigrations(db, { migrationsFolder, migrate })).resolves.toBe(
 			"applied",
@@ -23,9 +23,7 @@ describe("applyGlobalMigrations", () => {
 	});
 
 	it("treats a duplicate-object SQLSTATE as already applied", async () => {
-		const migrate = vi.fn(async () => {
-			throw driverError("42P07", 'relation "users" already exists');
-		});
+		const migrate = vi.fn(() => Promise.reject(driverError("42P07", 'relation "users" already exists')));
 
 		// The MESSAGE says "already exists", but the decision is the code; a message
 		// that says something else would give the same answer.
@@ -35,9 +33,7 @@ describe("applyGlobalMigrations", () => {
 	});
 
 	it("throws MigrationFailedError on a real failure", async () => {
-		const migrate = vi.fn(async () => {
-			throw driverError("42P01", 'relation "missing_table" does not exist');
-		});
+		const migrate = vi.fn(() => Promise.reject(driverError("42P01", 'relation "missing_table" does not exist')));
 
 		const failure = await applyGlobalMigrations(db, { migrationsFolder, migrate }).catch(
 			(error: unknown) => error,
@@ -48,9 +44,7 @@ describe("applyGlobalMigrations", () => {
 	});
 
 	it("throws MigrationFailedError when the error carries no SQLSTATE", async () => {
-		const migrate = vi.fn(async () => {
-			throw new Error("socket hang up");
-		});
+		const migrate = vi.fn(() => Promise.reject(new Error("socket hang up")));
 
 		const failure = await applyGlobalMigrations(db, { migrationsFolder, migrate }).catch(
 			(error: unknown) => error,

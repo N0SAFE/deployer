@@ -29,7 +29,6 @@ import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
 import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
 import { platformNetworkName } from "@deployer/docker";
 import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
-import { resolveDockerHostIp } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { splitManagedEnv } from "@deployer/env";
 import { AppError, ConflictError } from "@deployer/errors";
@@ -209,7 +208,7 @@ export class LocalInitializationService {
                 if (swarmChoice?.advertiseAddr) {
                     stepLog(`  advertise = ${swarmChoice.advertiseAddr}`);
                 }
-                if (swarmChoice?.joinAddrs?.length) {
+                if (swarmChoice?.joinAddrs.length) {
                     stepLog(`  join    = ${swarmChoice.joinAddrs.join(", ")}`);
                 }
 
@@ -346,9 +345,7 @@ export class LocalInitializationService {
             stepLog("  mesh     = (none)");
             stepLog("  database = " + (databaseProvisioning === "local" ? "locally managed (supervised)" : "external (provided URL)"));
             if (swarmChoice) {
-                stepLog(
-                    `  swarm    = ${swarmChoice.mode ?? "create"} cluster (policy=${swarmChoice.policy ?? "auto"})`,
-                );
+                stepLog(`  swarm    = ${swarmChoice.mode} cluster (policy=${swarmChoice.policy})`);
             }
             stepLog("▸ Generating mesh shared secret…");
             const meshSharedSecret = generateMeshSharedSecret();
@@ -368,11 +365,11 @@ export class LocalInitializationService {
                 meshSharedSecretUpdatedAt: now,
                 swarmConfig: swarmChoice
                     ? {
-                          mode: swarmChoice.mode ?? "create",
-                          policy: swarmChoice.policy ?? "auto",
+                          mode: swarmChoice.mode,
+                          policy: swarmChoice.policy,
                           advertiseAddr: swarmChoice.advertiseAddr ?? null,
                           joinToken: swarmChoice.joinToken ?? null,
-                          joinAddrs: swarmChoice.joinAddrs ?? [],
+                          joinAddrs: swarmChoice.joinAddrs,
                       }
                     : undefined,
             }));
@@ -684,7 +681,7 @@ export class LocalInitializationService {
                 const hasMigrations = tables.includes('__drizzle_migrations') || tables.includes('schema_version');
                 if (hasMigrations) {
                     // Database was already initialized — allow proceeding
-                    this.logger.log(`Database already initialized (${tables.length} tables found) — skipping fresh setup`);
+                    this.logger.log(`Database already initialized (${String(tables.length)} tables found) — skipping fresh setup`);
                 } else {
                     // Tables exist but no migration tracking — this is a leftover database, block
                     throw new ConflictError(`Database is not empty. Found tables: ${tables.join(", ")}`);
