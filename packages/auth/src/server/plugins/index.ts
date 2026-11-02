@@ -94,6 +94,32 @@ export type AdminPlugin = ReturnType<typeof useAdmin>;
  * betterAuth({ plugins: [useApiKey()] })
  * ```
  */
+/**
+ * The key in a request's headers, or `null`.
+ *
+ * Two spellings are accepted because two clients already exist: the plugin's own `x-api-key`, and
+ * `Authorization: Bearer dk_…`, which is what this platform's ORPC link, CLI and devtools send. Without the second
+ * one, a minted key authenticated nowhere — the audit's "keys are unusable" finding.
+ */
+export function apiKeyFromHeaders(headers: { get(name: string): string | null } | undefined): string | null {
+  if (headers === undefined) return null
+
+  const direct = headers.get('x-api-key')
+  if (direct !== null && direct.length > 0) return direct
+
+  const authorization = headers.get('authorization')
+  if (authorization === null) return null
+
+  const [scheme, ...rest] = authorization.trim().split(/\s+/u)
+  if (scheme?.toLowerCase() !== 'bearer') return null
+
+  const token = rest.join(' ')
+  return token.startsWith(API_KEY_PREFIX) ? token : null
+}
+
+/** The prefix `apiKey({ defaultPrefix })` puts in front of every issued key. */
+export const API_KEY_PREFIX = 'dk'
+
 export function useApiKey(): ReturnType<typeof apiKey> {
   return apiKey({
     // A key resolves to a session, so every existing guard keeps working.
@@ -102,12 +128,14 @@ export function useApiKey(): ReturnType<typeof apiKey> {
     // short-lived devtools key from one bound to a deployment.
     enableMetadata: true,
     // Keys are prefixed so they are recognisable in logs and secret scanners.
-    defaultPrefix: 'dk',
+    defaultPrefix: API_KEY_PREFIX,
     rateLimit: {
       enabled: true,
       timeWindow: 60 * 60 * 1000, // 1 hour
       maxRequests: 1000,
     },
+    // Read the key from whichever header the caller used; the plugin's default reads `x-api-key` only.
+    customAPIKeyGetter: (ctx) => apiKeyFromHeaders(ctx.headers),
   });
 }
 

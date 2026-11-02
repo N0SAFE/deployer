@@ -18,10 +18,8 @@ import { makeDnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { ServiceClient } from "@deployer/shared/server";
 
 import { ProjectController } from "./controllers/project.controller";
-import { ApiKeyStore } from "./repositories/api-key.repository";
 import { ProjectStore } from "./repositories/project.repository";
 import { WebhookStore } from "./repositories/webhook.repository";
-import { ApiKeyService } from "./services/api-key.service";
 import { PROJECT_EVENT_REGISTRATION, registerProjectEventAdapter } from "./services/project-event-adapter";
 import { ProjectEventService, ProjectEventServiceImpl } from "./services/project-event.service";
 import { ProjectNetworkService } from "./services/project-network.service";
@@ -58,12 +56,10 @@ export class ProjectDomainModule extends createModuleContext({
 			inject: [CoreEventStreamPoolService],
 		},
 		{ provide: ProjectStore, useValue: ProjectStore.live },
-		{ provide: ApiKeyStore, useValue: ApiKeyStore.live },
 		{ provide: WebhookStore, useValue: WebhookStore.live },
 		{ provide: ProjectService, useValue: ProjectService.live },
 		{ provide: ProjectNetworkService, useValue: ProjectNetworkService.live },
 		{ provide: WebhookService, useValue: WebhookService.live },
-		{ provide: ApiKeyService, useValue: ApiKeyService.live },
 	],
 	exports: [DnsProvider, ProjectStore, ProjectDb],
 }, DatabasePort) {}

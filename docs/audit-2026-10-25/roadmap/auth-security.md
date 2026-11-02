@@ -147,25 +147,28 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (passkeys), auth.md#3 (9), auth.md#4 (9)
   - Design-impact (2026-10-26): prerequisite, not part of the model: passkey rpID/origin is required for step-up (`AUTH-062`, passkey UV = AAL3) and for the setup claim; the AAL used by guardrails (`requireStepUpForCritical`) assumes working passkeys.
 
-- [ ] `AUTH-019` **Fix API key transport and unify key systems** · FIX · P1 · M · Deps: none
+- [x] `AUTH-019` **Fix API key transport and unify key systems** · FIX · P1 · M · Deps: none
   - Why/Problem: apikey plugin reads only `x-api-key`; devtools/orpc client sends `Authorization: Bearer <key>` (`web/lib/orpc/plugins/masterTokenClient.ts`); BFF fan-out forwards only cookie/authorization/mesh key, not `x-api-key` (`bff/src/clients/service-auth-context.ts:~60`). Minted keys authenticate nowhere.
   - Do: `customAPIKeyGetter` accepting `Authorization: Bearer dk_...` and `x-api-key`; forward `x-api-key` in `service-auth-context.ts`; keys resolve to a session actor.
   - Done when: a key minted in UI authenticates a CLI/HTTP call through the BFF to a service; test AUTH-048.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (API keys), auth.md#4 (10)
+  - Status (2026-11-02): **done**. `useApiKey` passes `customAPIKeyGetter: (ctx) => apiKeyFromHeaders(ctx.headers)`, which reads the plugin's `x-api-key` and `Authorization: Bearer dk_…` (and refuses a session bearer, so an ordinary signed-in request is not mistaken for a key call). The BFF now forwards the caller's key as `x-api-key` on every fan-out leg (`ServiceAuthContext.apiKey`, seeded at the edge from either header), so a key minted for the CLI keeps working through the BFF. Specs: `api-key-getter.spec.ts` (6) and `service-auth-context.spec.ts` (6). The legacy hand-rolled store is deleted with AUTH-020, so there is one key system.
   - Design-impact (2026-10-26): this becomes `ApiTokenVerifier` (`AUTH-056`): `customAPIKeyGetter` accepting `Authorization: Bearer dk_…` and `x-api-key`; once the BFF forwards a signed actor claim instead of credentials (`AUTH-057`) the `x-api-key` forwarding in `service-auth-context.ts` is deleted, not fixed. Keys resolve to an Actor (principal = owner, credential = `api_token`, ceiling from `token_constraints`).
 
-- [ ] `AUTH-020` **Delete the legacy hand-rolled project `ApiKeyService`** · FIX · P2 · S · Deps: `AUTH-019`
+- [x] `AUTH-020` **Delete the legacy hand-rolled project `ApiKeyService`** · FIX · P2 · S · Deps: `AUTH-019`
   - Why/Problem: provided in `project.module.ts` (both apps) with no controller or verifier (`findByHash` never used); role check uses nonexistent `"admin"` (see SEC-007); competing key system.
   - Do: remove service/repo/tests; keep one key system (Better Auth apikey).
   - Done when: no `ApiKeyService` references remain.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (API keys), projects-services.md#1.1
+  - Status (2026-11-02): **done** (code). `apps/api/services/project/src/modules/project/services/api-key.service.ts`, its spec, its `ApiKeyStore` repository and both providers are deleted: nothing referenced them (no controller, no verifier). The `api_keys` table in `packages/nest/schema` now has no writer or reader — dropping it is a migration, and a table drop is irreversible on a deployed database, so it stays until the owner confirms the data is expendable.
   - Design-impact (2026-10-26): confirmed: legacy `api_keys` table + `ApiKeyService` deleted (also tracked in `SEC-086`); Better Auth `apikey` plugin is the only key store, with `token_constraints` as side table (`AUTH-051`).
 
-- [ ] `AUTH-021` **Align API key UI with behaviour** · FIX · P3 · S · Deps: none
+- [x] `AUTH-021` **Align API key UI with behaviour** · FIX · P3 · S · Deps: none
   - Why/Problem: `ApiKeysCard` comment says "disable, record kept" but code calls `apiKey.delete`.
   - Do: either implement disable (retain record) or fix the comment/UX copy.
   - Done when: UI wording matches behaviour.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (API key UI)
+  - Status (2026-11-02): **done**. The card calls `apiKey.delete`, which removes the row (the key stops authenticating at once), while the comment claimed "disable, record kept". The comment and the name now say what happens (`revokeApiKey`, final; `apiKey.update({ enabled: false })` is a different operation the UI does not offer).
 
 - [ ] `AUTH-022` **Scoped per-project API tokens (deploy-only CI token)** · NEW · P2 · L · Deps: `AUTH-019`,`SEC-033`
   - Why/Problem: no scopes enforcement; best-in-class #9: key metadata maps to `ResourceRule[]` enforced by the same engine, never ad-hoc scope checks.

@@ -342,7 +342,13 @@ export async function createApiKey(
     return { key: created.key, error: null }
 }
 
-/** Disable a key. The record is kept so the audit trail survives. */
+/**
+ * Revoke a key: the row is deleted, so the key stops authenticating immediately.
+ *
+ * The card said "disable, record kept", which is not what `apiKey.delete` does — and `apiKey.update({ enabled: false })`,
+ * which would keep the record, is a different operation the UI does not offer. The honest name and the comment match
+ * the call: revoking is final, and an audit trail of past keys is not something this store keeps (AUTH-021).
+ */
 export async function revokeApiKey(keyId: string): Promise<void> {
     await authClient.apiKey.delete({ keyId })
 }
