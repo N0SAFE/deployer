@@ -7,12 +7,9 @@ import { auditEventFromRequest, type AuthAuditSink } from "../audit";
 
 import { buildTrustedOrigins } from "./origins";
 import {
-    adminHierarchyPlugin,
-    adminSessionRevocationPlugin,
     masterTokenPlugin,
     loginAsPlugin,
     pushNotificationsPlugin,
-    useAdmin,
     useApiKey,
     useDeviceAuthorization,
     useInvite,
@@ -267,16 +264,8 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             },
         },
         plugins: [
-            useAdmin(),
-            // The hierarchy half of administration. The admin plugin checks a
-            // capability (`user:set-role`), which says the caller may administer
-            // users — not that it may act on THIS account or grant THIS role.
-            // Without this hook an `admin` could mint `superAdmin`, ban the
-            // superAdmin above it, or demote a peer.
-            adminHierarchyPlugin(),
-            // A ban or a role change must end the target's credentials, not wait for the session to expire: the session
-            // carries the role, and an api key resolves to a session of its own.
-            adminSessionRevocationPlugin(),
+            // No Better Auth admin plugin: user administration is the identity service's oRPC procedures, and the
+            // authorization decision is `authz`. The user shape (role/banned/…) stays in `user.additionalFields`.
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the

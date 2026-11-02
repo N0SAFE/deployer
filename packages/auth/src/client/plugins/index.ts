@@ -5,7 +5,6 @@
  * Use the `use*Client` functions for plugins that require access control configuration.
  */
 
-import { adminClient } from "better-auth/client/plugins";
 
 import {
   platformAc,
@@ -52,51 +51,6 @@ export type { MasterTokenSubscriber } from "./masterToken/state";
 
 // Export components
 export { MasterTokenProvider, useMasterToken } from "./masterToken/components/provider";
-
-// ============================================================================
-// Admin Client Plugin
-// ============================================================================
-
-/**
- * Client plugin wrapper for the admin plugin
- * 
- * Pre-configures adminClient with the project's access control and roles.
- * This ensures the client has the same AC configuration as the server.
- * 
- * Provides type-safe methods for:
- * - Creating/updating/deleting users
- * - Managing user roles and bans
- * - Impersonating users
- * - Checking permissions
- * 
- * @example
- * ```typescript
- * import { useAdminClient } from './index'
- * 
- * const authClient = createAuthClient({
- *   plugins: [useAdminClient()]
- * })
- * 
- * // Check permissions
- * const canCreate = await authClient.admin.hasPermission({
- *   permissions: { project: ['create'] }
- * })
- * 
- * // Set user role
- * await authClient.admin.setRole({
- *   userId: 'user-id',
- *   role: 'admin'
- * })
- * ```
- */
-export function useAdminClient() {
-  return adminClient({
-    ac: platformAc,
-    roles: platformRoles,
-  });
-}
-
-export type AdminClientPlugin = ReturnType<typeof useAdminClient>;
 
 // ============================================================================
 // Invite Client Plugin

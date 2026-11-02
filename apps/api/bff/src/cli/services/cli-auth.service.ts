@@ -115,10 +115,9 @@ export class CliAuthService {
         const session = await this.signInAsUser(defaultAdminEmail, adminPassword);
         if (session) {
           // Use the headers with Cookie request header (converted from Set-Cookie)
-          const plugins = this.authCoreService.getRegistry().getAll(session.headers);
-          
-          // Test if credentials work
-          await plugins.admin.listUsers();
+          // The sign-in already returned a session; re-resolving it proves the headers work.
+          const verified = await this.authCoreService.instance.api.getSession({ headers: session.headers });
+          if (verified === null) throw new Error('the sign-in session could not be resolved');
           
           return {
             headers: session.headers,

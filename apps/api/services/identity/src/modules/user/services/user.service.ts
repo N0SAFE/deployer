@@ -1,4 +1,5 @@
 import { Context, Effect } from 'effect'
+import { hashPassword } from 'better-auth/crypto'
 
 import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
 
@@ -143,12 +144,20 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             if (yield* users.emailExists(email))
                 return yield* new EmailTaken({ email })
 
-            return yield* users.insert({
+            const created = yield* users.insert({
                 name: input.name.trim(),
                 email,
                 ...(input.image === undefined ? {} : { image: input.image }),
                 ...(input.role === undefined ? {} : { role: input.role }),
             })
+
+            // A user with a password is created with a `credential` account row; Better Auth verifies against it.
+            if (input.password !== undefined && input.password.length > 0) {
+                const passwordHash = yield* Effect.promise(() => hashPassword(input.password as string))
+                yield* users.setPassword(created.id, passwordHash)
+            }
+
+            return created
         }),
 
         update: Effect.fn('UserService.update')(function* (id, patch, raw) {

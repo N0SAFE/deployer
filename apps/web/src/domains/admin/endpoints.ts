@@ -112,8 +112,15 @@ const customContracts = {
   createUser: custom({
     input: createUserSchema,
     keys: (i) => ['admin', 'createUser', i],
-    handler: authClient.admin.createUser,
-    map: mapBetterAuth(),
+    handler: async (input) => {
+      const role = Array.isArray(input.role) ? input.role[0] : input.role
+      return orpc.user.create.call({
+        name: input.name,
+        email: input.email,
+        password: input.password,
+        ...(role === undefined ? {} : { role: role as PlatformRole }),
+      })
+    },
   }),
 
   /**
@@ -122,8 +129,9 @@ const customContracts = {
   updateUser: custom({
     input: updateUserSchema,
     keys: (i) => ['admin', 'updateUser', i],
-    handler: authClient.admin.updateUser,
-    map: mapBetterAuth(),
+    // The identity update takes the patch as its body; the page passes a free-form record.
+    handler: async (input) =>
+      orpc.user.update.call({ ...input.data, id: input.userId } as never),
   }),
 
   /**

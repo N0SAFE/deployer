@@ -227,6 +227,7 @@
         "@orpc/effect": "catalog:orpc",
         "@orpc/nest": "catalog:orpc",
         "@orpc/server": "catalog:orpc",
+        "better-auth": "catalog:auth",
         "drizzle-orm": "catalog:database",
         "effect": "catalog:effect",
         "express": "catalog:api:nest",

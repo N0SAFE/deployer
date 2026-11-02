@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ForbiddenError, type ResourceRule } from '@deployer/auth/permissions'
+import { ForbiddenError, type ResourceRule } from '@deployer/auth'
 
 import { PermissionRepositoryFailure } from '../permission.failures'
 import { PermissionRepository } from '../repositories/permission.repository'
@@ -228,7 +228,7 @@ describe('PermissionService (Effect)', () => {
     })
 
     describe('ForbiddenError static re-export', () => {
-        it('exposes ForbiddenError from @deployer/auth/permissions', () => {
+        it('exposes ForbiddenError from @deployer/auth', () => {
             expect(PermissionService.ForbiddenError).toBe(ForbiddenError)
         })
     })

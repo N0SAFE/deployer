@@ -21,50 +21,12 @@ import { invitePlugin, type InvitePluginOptions } from "./invite";
 // Re-export existing plugins
 // ============================================================================
 
-export * from './adminHierarchy'
-export * from './adminSessionRevocation'
 export * from './loginAs'
 export * from './masterTokenAuth'
 export * from './invite'
 export * from './pushNotifications'
 export * from './agentAuth'
 export * from './securityPlugins'
-
-// ============================================================================
-// Admin Plugin
-// ============================================================================
-
-/**
- * Server plugin wrapper for the admin plugin
- * 
- * Pre-configures admin with the project's access control and roles.
- * This ensures the server has consistent AC configuration.
- * 
- * Provides:
- * - User management (create, update, delete)
- * - Role management
- * - Ban management
- * - Impersonation
- * 
- * @example
- * ```typescript
- * import { useAdmin } from './index'
- * 
- * betterAuth({
- *   plugins: [
- *     useAdmin({ defaultRole: 'user' })
- *   ]
- * })
- * ```
- */
-export function useAdmin() {
-  return admin({
-    ac: platformAc,
-    roles: platformRoles,
-  });
-}
-
-export type AdminPlugin = ReturnType<typeof useAdmin>;
 
 // ============================================================================
 // API Key Plugin

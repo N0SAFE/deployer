@@ -9,7 +9,7 @@ import {
     type PermissionCheckResult,
     type ColumnResolver,
     type FilterableScalar,
-} from '@deployer/auth/permissions'
+} from '@deployer/auth'
 import { serviceOver } from "@deployer/effect-core"
 
 import { DatabasePort } from '@identity/core/database/database.port'

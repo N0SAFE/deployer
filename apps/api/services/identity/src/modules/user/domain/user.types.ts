@@ -9,7 +9,11 @@ import type { z } from "zod/v4";
 export type User = z.output<typeof userSchema>;
 
 /** What `create` accepts — picked from the entity, never re-declared. */
-export type NewUser = Pick<User, "name" | "email"> & Partial<Pick<User, "image" | "role">>;
+export type NewUser = Pick<User, "name" | "email"> &
+  Partial<Pick<User, "image" | "role">> & {
+    /** A credential password. Hashed by Better Auth's crypto, stored on the credential account row. */
+    readonly password?: string;
+  };
 
 /** What `update` accepts; audit timestamps are intentionally absent. */
 export type UserPatch = Partial<

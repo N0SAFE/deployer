@@ -14,10 +14,9 @@ import {
     masterTokenClient,
     loginAsClientPlugin,
     useInviteClient,
-    useAdminClient,
-} from './plugins'
+  } from './plugins'
 
-import type { betterAuthFactory, useAdmin } from '../server'
+import type { betterAuthFactory } from '../server'
 import type { BetterAuthClientOptions } from 'better-auth/client'
 
 // Extract the actual auth type from the factory return type
@@ -41,7 +40,6 @@ const DEFAULT_PLUGINS = [
   loginAsClientPlugin(),
   useInviteClient(),
   multiSessionClient(),
-  useAdminClient(),
   apiKeyClient(),
   // --- Security & convenience plugins -------------------------------------
   // Each has a matching server wrapper in ../server/plugins/securityPlugins.ts
@@ -59,12 +57,9 @@ const DEFAULT_PLUGINS = [
 // tsc's instantiation depth) and silently drops the admin RPC methods
 // (listUsers, banUser, …). tsgo handles the types; tsc does not — this
 // marker fixes the client for both engines.
-// Only the ADMIN server plugin is carried here: including the invite /
-// server plugins made their server-side endpoint types overwrite
-// the client plugin methods (authClient.invite.* broke under TS2769).
 // `$InferAuth` is purely type-level: it does not exist anywhere in
 // better-auth's runtime, is never read, and is never sent to the server.
-type ServerPlugins = ReturnType<typeof useAdmin>[]
+type ServerPlugins = never[]
 
 interface InferredClientOptions {
   plugins: typeof DEFAULT_PLUGINS

@@ -1,23 +1,14 @@
 import { ConfigurableModuleBuilder } from "@nestjs/common";
 
-import type { ApiMethodsWithAdminPlugin, platformBuilder } from "@deployer/auth";
-
 import type { Auth } from "../../../../auth";
 
 /**
- * Preserve Better Auth API as source-of-truth, then add permission plugin APIs on top.
+ * The auth instance as the module receives it: Better Auth's own API.
  *
- * This keeps Better Auth method signatures intact (e.g. getSession) while exposing
- * admin permission APIs for DX.
+ * There is no admin-plugin API to graft on any more — user administration is the identity service's oRPC procedures, and
+ * permissions are checked against `authz`.
  */
-type PermissionApiExtras<TBaseApi extends object> =
-	& Omit<ApiMethodsWithAdminPlugin<typeof platformBuilder>["api"], keyof TBaseApi>;
-
-type WithPermissionApis<TAuth extends { api: object }> = Omit<TAuth, "api"> & {
-	api: TAuth["api"] & PermissionApiExtras<TAuth["api"]>;
-};
-
-export type AuthWithPlugins = WithPermissionApis<Auth>;
+export type AuthWithPlugins = Auth;
 
 export type AuthModuleOptions<A extends AuthWithPlugins = Auth> = {
 	auth: A;

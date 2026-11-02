@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto'
+
 import { asc, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
 import { serviceOver } from "@deployer/effect-core"
-import { apikey, session, user } from '@deployer/nest-schema/global/identity/auth'
+import { account, apikey, session, user } from '@deployer/nest-schema/global/identity/auth'
 
 import {
     DatabasePort,
@@ -56,6 +58,16 @@ export type UserRepositoryShape = {
      */
     readonly revokeCredentials: (
         id: string
+    ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
+    /**
+     * Store (or replace) the user's credential password.
+     *
+     * Better Auth keeps a password in the `credential` ACCOUNT row, not on `user`; the hash is produced by Better Auth's
+     * own crypto so its sign-in verification keeps working.
+     */
+    readonly setPassword: (
+        userId: string,
+        passwordHash: string
     ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
 }
 
@@ -196,6 +208,32 @@ function makeUserRepository(
         delete: (id: string) =>
             attempt(async () => {
                 await db.delete(user).where(eq(user.id, id))
+            }),
+
+        setPassword: (userId: string, passwordHash: string) =>
+            attempt(async () => {
+                const existing = await db
+                    .select({ id: account.id })
+                    .from(account)
+                    .where(eq(account.userId, userId))
+                    .limit(1)
+                const row = existing[0]
+                if (row === undefined) {
+                    await db.insert(account).values({
+                        id: randomUUID(),
+                        accountId: userId,
+                        providerId: 'credential',
+                        userId,
+                        password: passwordHash,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    })
+                    return
+                }
+                await db
+                    .update(account)
+                    .set({ password: passwordHash, updatedAt: new Date() })
+                    .where(eq(account.id, row.id))
             }),
 
         revokeCredentials: (id: string) =>
