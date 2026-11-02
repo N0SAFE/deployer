@@ -22,6 +22,7 @@ import {
 import { DatabasePortModule } from '@identity/core/database/database.module'
 
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
+import { AuditDomainModule } from './modules/audit/audit.module'
 import { PermissionDomainModule } from './modules/permission/permission.module'
 import { PushDomainModule } from './modules/push/push.module'
 import { UserDomainModule } from './modules/user/user.module'
@@ -89,6 +90,7 @@ export class IdentityServiceModule extends createModuleContext({
         UserDomainModule,
         PushDomainModule,
         AnalyticsDomainModule,
+        AuditDomainModule,
         PermissionDomainModule,
     ],
 }) {}

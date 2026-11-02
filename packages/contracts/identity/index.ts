@@ -5,6 +5,7 @@
 // composes this into its public router.
 
 export * from "./modules/analytics";
+export * from "./modules/audit";
 export * from "./modules/push";
 export * from "./modules/user";
 
@@ -14,6 +15,7 @@ export * from "./types";
 import { oc } from "@orpc/contract";
 
 import { analyticsContract } from "./modules/analytics";
+import { auditListContract } from "./modules/audit";
 import { pushContract } from "./modules/push";
 import { userContract } from "./modules/user";
 
@@ -31,6 +33,7 @@ import { userContract } from "./modules/user";
  */
 export const identityContract = oc.router({
 	analytics: analyticsContract,
+	auditList: auditListContract,
 	push: pushContract,
 	user: userContract,
 });
