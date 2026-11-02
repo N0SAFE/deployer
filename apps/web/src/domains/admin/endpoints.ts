@@ -28,7 +28,6 @@ import {
   createUserSchema,
   updateUserSchema,
   removeUserSchema,
-  hasPermissionSchema,
 } from './schemas'
 
 // ============================================================================
@@ -75,14 +74,6 @@ const customContracts = {
   /**
    * Check if user has specific permissions
    */
-  hasPermission: custom({
-    input: hasPermissionSchema,
-    keys: (i) => ['admin', 'hasPermission', i],
-    handler: authClient.admin.hasPermission,
-    map: mapBetterAuth(),
-    staleTime: STALE_TIME.SLOW,
-  }),
-
   /**
    * Ban a user
    */

@@ -78,10 +78,3 @@ export const updateUserSchema = z.object({
 export const removeUserSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
 });
-
-/**
- * Has permission schema
- */
-export const hasPermissionSchema = z.object({
-  permissions: z.record(z.string(), z.array(z.string())),
-});

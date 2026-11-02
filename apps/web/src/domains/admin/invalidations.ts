@@ -37,11 +37,6 @@ export const adminInvalidations = defineInvalidations(adminEndpoints, {
         query: {},
       },
     }),
-    keys.hasPermission({
-      input: {
-        permissions: {},
-      },
-    }),
   ],
   // Create user invalidates the users list
   createUser: ({ keys }) => [

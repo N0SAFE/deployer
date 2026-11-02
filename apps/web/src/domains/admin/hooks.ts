@@ -60,25 +60,6 @@ export function useAdminListUsers(options?: {
   );
 }
 
-/**
- * Check if user has permissions
- */
-export function useAdminHasPermission(
-  permissions: Record<string, string[]>,
-  options?: {
-    enabled?: boolean;
-  },
-) {
-  return useQuery(
-    enhancedAdmin.hasPermission.queryOptions({
-      input: { permissions },
-      enabled: options?.enabled ?? true,
-      staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 10,
-    }),
-  );
-}
-
 // ============================================================================
 // MUTATION HOOKS (Write Operations)
 // ============================================================================
