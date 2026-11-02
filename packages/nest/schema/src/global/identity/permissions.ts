@@ -22,7 +22,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import type { ResourceRule } from "@deployer/auth/permissions";
+import type { ResourceRule } from "@deployer/auth";
 
 /**
  * Stores fine-grained ResourceRule[] per role-name, mesh-wide.
