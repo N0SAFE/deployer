@@ -11,7 +11,7 @@ import { hostname, networkInterfaces, type NetworkInterfaceInfo } from "node:os"
 
 import { Effect } from "effect";
 
-import type { CreateContainerOptions, DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 /** Container name. One agent per host: it owns the host's `deployer-mesh` interface. */
@@ -136,7 +136,7 @@ export function nodeAgentContainerEnv(options: {
 		`MESH_WIREGUARD_ENABLED=${options.wireguard === false ? "false" : "true"}`,
 		`MESH_WIREGUARD_PORT=${String(options.port ?? NODE_AGENT_WIREGUARD_PORT)}`,
 		// The agent refuses a `node.doors` setting that names any other image, so this is what pins the doors.
-		`NODE_AGENT_DOOR_IMAGE=${options.doorImage ?? (process.env.DEPLOYER_DOOR_IMAGE || DEFAULT_DOOR_IMAGE)}`,
+		`NODE_AGENT_DOOR_IMAGE=${options.doorImage ?? configuredDoorImage()}`,
 	];
 }
 
@@ -190,8 +190,8 @@ export function makeNodeAgentEngine(engine: DockerEngineShape): NodeAgentEngine 
 						id: info.Id,
 						running: info.State.Running,
 						image: info.Config.Image,
-						managed: info.Config.Labels?.[NODE_AGENT_ROLE_LABEL] === NODE_AGENT_ROLE,
-						env: info.Config.Env ?? [],
+						managed: info.Config.Labels[NODE_AGENT_ROLE_LABEL] === NODE_AGENT_ROLE,
+						env: info.Config.Env,
 					})),
 					Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
 				),
@@ -268,4 +268,10 @@ export function primaryLanAddress(interfaces: NodeJS.Dict<NetworkInterfaceInfo[]
 /** The address peers reach this agent at: its host's LAN IP, or its host name. Never the container id. */
 function defaultAdvertiseUrl(): string {
 	return `ws://${primaryLanAddress() ?? hostname()}:${String(NODE_AGENT_PORT)}${NODE_AGENT_WEBSOCKET_PATH}`;
+}
+
+/** The door image the environment names, or the built-in one when it names none. */
+function configuredDoorImage(): string {
+	const fromEnv = process.env.DEPLOYER_DOOR_IMAGE ?? "";
+	return fromEnv.length > 0 ? fromEnv : DEFAULT_DOOR_IMAGE;
 }

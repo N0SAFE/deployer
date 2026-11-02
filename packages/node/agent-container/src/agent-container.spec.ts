@@ -26,7 +26,7 @@ it("keeps an explicit advertise URL", () => {
 it("pins the door image the deployment chose, so a setting cannot run another one", () => {
 	expect(nodeAgentContainerEnv({ doorImage: "nginx:1.27-alpine" })).toContain("NODE_AGENT_DOOR_IMAGE=nginx:1.27-alpine");
 	expect(nodeAgentContainerEnv({})).toContain(
-		`NODE_AGENT_DOOR_IMAGE=${process.env.DEPLOYER_DOOR_IMAGE || DEFAULT_DOOR_IMAGE}`,
+		`NODE_AGENT_DOOR_IMAGE=${process.env.DEPLOYER_DOOR_IMAGE ?? DEFAULT_DOOR_IMAGE}`,
 	);
 });
 
