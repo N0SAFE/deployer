@@ -10,8 +10,8 @@ import { adminClient } from "better-auth/client/plugins";
 import {
   platformAc,
   platformRoles,
-} from "@deployer/auth/permissions/index";
-import type { invitePlugin } from "@deployer/auth/server/plugins/invite";
+} from "../../index";
+import type { invitePlugin } from "../../server/plugins/invite";
 
 import type { BetterAuthClientPlugin } from "better-auth/client";
 
@@ -19,8 +19,8 @@ import type { BetterAuthClientPlugin } from "better-auth/client";
 // Re-export existing plugins
 // ============================================================================
 
-export { default as masterTokenClient } from "@deployer/auth/client/plugins/masterToken/index";
-export { loginAsClientPlugin } from "@deployer/auth/client/plugins/loginAs/index";
+export { default as masterTokenClient } from "./masterToken/index";
+export { loginAsClientPlugin } from "./loginAs/index";
 
 // Re-export guards.
 //
@@ -35,8 +35,8 @@ export { loginAsClientPlugin } from "@deployer/auth/client/plugins/loginAs/index
 // with "Export hasMasterTokenPlugin doesn't exist in target module".
 //
 // Keep these lists in sync with the source modules they mirror.
-export { hasMasterTokenPlugin } from "@deployer/auth/client/plugins/masterToken/guard";
-export type { MasterTokenActions } from "@deployer/auth/client/plugins/masterToken/guard";
+export { hasMasterTokenPlugin } from "./masterToken/guard";
+export type { MasterTokenActions } from "./masterToken/guard";
 
 // Re-export plugin utilities.
 export {
@@ -47,11 +47,11 @@ export {
   getMasterTokenEnabled,
   setDevtoolsApiKeyProvider,
   setMasterTokenEnabled,
-} from "@deployer/auth/client/plugins/masterToken/state";
-export type { MasterTokenSubscriber } from "@deployer/auth/client/plugins/masterToken/state";
+} from "./masterToken/state";
+export type { MasterTokenSubscriber } from "./masterToken/state";
 
 // Export components
-export { MasterTokenProvider, useMasterToken } from "@deployer/auth/client/plugins/masterToken/components/provider";
+export { MasterTokenProvider, useMasterToken } from "./masterToken/components/provider";
 
 // ============================================================================
 // Admin Client Plugin
@@ -71,7 +71,7 @@ export { MasterTokenProvider, useMasterToken } from "@deployer/auth/client/plugi
  * 
  * @example
  * ```typescript
- * import { useAdminClient } from '@deployer/auth/client/plugins/index'
+ * import { useAdminClient } from './index'
  * 
  * const authClient = createAuthClient({
  *   plugins: [useAdminClient()]
@@ -112,7 +112,7 @@ export type AdminClientPlugin = ReturnType<typeof useAdminClient>;
  * 
  * @example
  * ```typescript
- * import { useInviteClient } from '@deployer/auth/client/plugins/index'
+ * import { useInviteClient } from './index'
  * 
  * const authClient = createAuthClient({
  *   plugins: [useInviteClient()]

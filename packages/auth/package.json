@@ -65,36 +65,6 @@
                 "require": "./dist/production/cjs/client/index.js"
             }
         },
-        "./permissions": {
-            "types": "./dist/types/permissions/index.d.ts",
-            "development": {
-                "import": "./dist/development/esm/permissions/index.mjs",
-                "require": "./dist/development/cjs/permissions/index.js"
-            },
-            "production": {
-                "import": "./dist/production/esm/permissions/index.mjs",
-                "require": "./dist/production/cjs/permissions/index.js"
-            },
-            "default": {
-                "import": "./dist/production/esm/permissions/index.mjs",
-                "require": "./dist/production/cjs/permissions/index.js"
-            }
-        },
-        "./permissions/plugins": {
-            "types": "./dist/types/permissions/plugins/index.d.ts",
-            "development": {
-                "import": "./dist/development/esm/permissions/plugins/index.mjs",
-                "require": "./dist/development/cjs/permissions/plugins/index.js"
-            },
-            "production": {
-                "import": "./dist/production/esm/permissions/plugins/index.mjs",
-                "require": "./dist/production/cjs/permissions/plugins/index.js"
-            },
-            "default": {
-                "import": "./dist/production/esm/permissions/plugins/index.mjs",
-                "require": "./dist/production/cjs/permissions/plugins/index.js"
-            }
-        },
         "./react": {
             "types": "./dist/types/react/index.d.ts",
             "development": {
@@ -215,6 +185,51 @@
             "default": {
                 "import": "./dist/production/esm/audit/index.mjs",
                 "require": "./dist/production/cjs/audit/index.js"
+            }
+        },
+        "./rules": {
+            "types": "./dist/types/rules/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/rules/index.mjs",
+                "require": "./dist/development/cjs/rules/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/rules/index.mjs",
+                "require": "./dist/production/cjs/rules/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/rules/index.mjs",
+                "require": "./dist/production/cjs/rules/index.js"
+            }
+        },
+        "./adapters/better-auth": {
+            "types": "./dist/types/adapters/better-auth/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/adapters/better-auth/index.mjs",
+                "require": "./dist/development/cjs/adapters/better-auth/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/adapters/better-auth/index.mjs",
+                "require": "./dist/production/cjs/adapters/better-auth/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/adapters/better-auth/index.mjs",
+                "require": "./dist/production/cjs/adapters/better-auth/index.js"
+            }
+        },
+        "./adapters/better-auth/plugins": {
+            "types": "./dist/types/adapters/better-auth/plugins/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/adapters/better-auth/plugins/index.mjs",
+                "require": "./dist/development/cjs/adapters/better-auth/plugins/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/adapters/better-auth/plugins/index.mjs",
+                "require": "./dist/production/cjs/adapters/better-auth/plugins/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/adapters/better-auth/plugins/index.mjs",
+                "require": "./dist/production/cjs/adapters/better-auth/plugins/index.js"
             }
         }
     },

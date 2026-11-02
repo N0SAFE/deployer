@@ -1,4 +1,4 @@
-import type { MasterTokenManager as _MasterTokenManager } from '@deployer/auth/client/plugins/masterToken/state'
+import type { MasterTokenManager as _MasterTokenManager } from './state'
 
 // The runtime plugin exposes these actions on the auth client.
 export interface MasterTokenActions {

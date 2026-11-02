@@ -13,7 +13,7 @@ import {
 import type { ExecutionContext } from "@nestjs/common";
 
 // Mock the permissions module with complete types
-vi.mock("@deployer/auth/permissions", () => ({
+vi.mock("@deployer/auth", () => ({
     PermissionChecker: {
         getUserRoles: vi.fn((roleString: string) => roleString.split(",")),
     },
@@ -110,7 +110,7 @@ describe("Auth Decorators", () => {
 
             @decorator
             class TestHookProvider {
-                someMethod() {}
+                someMethod() { /* the decorator only needs a method to attach to */ }
             }
 
             expect(TestHookProvider).toBeDefined();
@@ -141,10 +141,10 @@ describe("Auth Decorators", () => {
             @Hook()
             class TestHookProvider {
                 @BeforeHook("/test")
-                beforeTest() {}
+                beforeTest() { /* the decorator only needs a method to attach to */ }
 
                 @AfterHook("/test")
-                afterTest() {}
+                afterTest() { /* the decorator only needs a method to attach to */ }
             }
 
             expect(TestHookProvider).toBeDefined();
@@ -157,7 +157,7 @@ describe("Auth Decorators", () => {
         it("should work with Reflector to check PUBLIC metadata", () => {
             @AllowAnonymous()
             class TestController {
-                testMethod() {}
+                testMethod() { /* the decorator only needs a method to attach to */ }
             }
 
             expect(TestController).toBeDefined();
@@ -167,7 +167,7 @@ describe("Auth Decorators", () => {
             class TestController {
                 @OptionalAuth()
                 @AllowAnonymous()
-                testMethod() {}
+                testMethod() { /* the decorator only needs a method to attach to */ }
             }
 
             expect(TestController.prototype.testMethod.bind(TestController.prototype)).toBeDefined();
@@ -320,7 +320,7 @@ describe("Auth Decorators", () => {
             class TestController {
                 @AllowAnonymous()
                 @OptionalAuth()
-                complexMethod() {}
+                complexMethod() { /* the decorator only needs a method to attach to */ }
             }
 
             expect(TestController.prototype.complexMethod.bind(TestController.prototype)).toBeDefined();

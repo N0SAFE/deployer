@@ -6,9 +6,9 @@ import { requireAuth, publicAccess } from './middlewares';
 import type { MiddlewareDone, MiddlewareOptions } from '@orpc/server';
 
 // Mock only validatePermission to avoid dependency on actual permission config
-vi.mock('@deployer/auth/permissions', async (importOriginal) => {
+vi.mock('@deployer/auth', async (importOriginal) => {
    
-  const actual = await importOriginal<typeof import('@deployer/auth/permissions')>();
+  const actual = await importOriginal<typeof import('@deployer/auth')>();
   
   // Override only validatePermission to always return true
   actual.PermissionChecker.validatePermission = vi.fn().mockReturnValue(true);

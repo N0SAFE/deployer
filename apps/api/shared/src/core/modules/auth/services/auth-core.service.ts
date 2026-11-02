@@ -5,7 +5,7 @@ import type {
 	InferStatementFromBuilder,
 	InferRoleNamesFromBuilder,
 
-} from "@deployer/auth/permissions/plugins";
+} from "@deployer/auth/adapters/better-auth/plugins";
 import { AppError } from "@deployer/errors";
 
 import {

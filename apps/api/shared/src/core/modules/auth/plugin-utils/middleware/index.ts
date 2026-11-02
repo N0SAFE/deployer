@@ -161,8 +161,8 @@ export {
 import type {
   AnyPermissionBuilder,
   AdminPermissionsPlugin,
-  InferRolesFromBuilder,
-} from '@deployer/auth/permissions/plugins';
+  InferRoleNamesFromBuilder,
+} from '@deployer/auth/adapters/better-auth/plugins';
 
 import { AdminMiddlewareDefinition } from './admin.middleware-definition';
 
@@ -176,7 +176,7 @@ export type CreateAdminMiddlewareOptions<TPermissionBuilder extends AnyPermissio
    * Roles considered as admin roles for requireAdminRole() check.
    * @default ['admin']
    */
-  adminRoles?: readonly InferRolesFromBuilder<TPermissionBuilder>[];
+  adminRoles?: readonly InferRoleNamesFromBuilder<TPermissionBuilder>[];
 }
 
 /**

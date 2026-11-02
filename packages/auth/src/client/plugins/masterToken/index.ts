@@ -5,7 +5,7 @@ import {
     clearMasterToken,
     getDevtoolsApiKey,
     MasterTokenManager,
-} from '@deployer/auth/client/plugins/masterToken/state'
+} from './state'
 
 import type { BetterAuthClientPlugin, BetterFetch, ClientStore, BetterAuthClientOptions } from 'better-auth/client'
 

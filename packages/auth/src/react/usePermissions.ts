@@ -23,14 +23,14 @@
 
 import { useMemo } from 'react'
 
-import { isPlatformAdministrator, platformRoleRank } from '@deployer/auth/authz'
+import { isPlatformAdministrator, platformRoleRank } from '../authz/index'
 import type {
   PlatformRole,
   PlatformResource,
-} from '@deployer/auth/permissions/index'
+} from '../index'
 import {
   platformRolesConfig,
-} from '@deployer/auth/permissions/index'
+} from '../index'
 
 // ============================================================================
 // TYPES

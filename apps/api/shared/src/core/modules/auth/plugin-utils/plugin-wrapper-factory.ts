@@ -21,7 +21,7 @@ import {
   platformBuilder,
   type InferSessionFromAuth,
   type ApiMethodsWithAdminPlugin,
-} from "@deployer/auth/permissions";
+} from "@deployer/auth";
 
 import { AdminMiddlewareDefinition } from "./middleware/admin.middleware-definition";
 

@@ -1,6 +1,6 @@
 import { ConfigurableModuleBuilder } from "@nestjs/common";
 
-import type { ApiMethodsWithAdminPlugin, platformBuilder } from "@deployer/auth/permissions";
+import type { ApiMethodsWithAdminPlugin, platformBuilder } from "@deployer/auth";
 
 import type { Auth } from "../../../../auth";
 

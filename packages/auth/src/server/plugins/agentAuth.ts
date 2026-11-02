@@ -75,7 +75,7 @@ export interface UseAgentAuthOptions {
  * @example
  * ```ts
  * import { generateSpec } from "@/openapi";
- * import { useAgentAuth } from "@deployer/auth/server";
+ * import { useAgentAuth } from "../index";
  *
  * betterAuth({ plugins: [ useAgentAuth({ spec: await generateSpec(), baseUrl: env.APP_URL }) ] })
  * ```

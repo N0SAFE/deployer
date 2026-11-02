@@ -22,7 +22,7 @@ import type {
   InferRoleNamesFromBuilder,
   ApiMethodsWithAdminPlugin,
   AdminPermissionsPlugin,
-} from '@deployer/auth/permissions/plugins';
+} from '@deployer/auth/adapters/better-auth/plugins';
 
 import {
   BaseMiddlewareDefinition,

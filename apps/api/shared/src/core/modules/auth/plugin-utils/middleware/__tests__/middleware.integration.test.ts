@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import type {
   AdminPermissionsPlugin,
   AnyPermissionBuilder,
-} from '@deployer/auth/permissions/plugins';
+} from '@deployer/auth/adapters/better-auth/plugins';
 
 import {
   AdminMiddlewareDefinition,
@@ -258,7 +258,7 @@ describe('AdminMiddlewareDefinition', () => {
 
       // Use a resolver function for permissions
       const check = middleware.hasPermission(
-        (ctx) => ({ user: [ctx.params.action ?? 'read'] } as any)
+        (ctx) => ({ user: [ctx.params?.action ?? 'read'] })
       );
 
       const ctxWithAction = { ...context, params: { action: 'delete' } };
@@ -504,7 +504,7 @@ describe('Check Metadata', () => {
     });
 
     it('should expose empty permissions for dynamic permissions', () => {
-      const check = middleware.hasPermission(() => ({ user: ['create'] } as any));
+      const check = middleware.hasPermission(() => ({ user: ['create'] }));
 
       // Dynamic permissions result in empty metadata object
       expect((check as any).permissions).toEqual({});
@@ -636,7 +636,7 @@ describe('Convenience Factory Functions', () => {
 
       const middleware = createAdminMiddleware(
         plugin as unknown as AdminPermissionsPlugin<MockPermissionBuilder, any>,
-        { adminRoles: ['superuser', 'admin'] }
+        { adminRoles: ['superuser', 'admin'] as never }
       );
 
       expect(middleware).toBeInstanceOf(AdminMiddlewareDefinition);

@@ -2,7 +2,7 @@
 import { createAuthMiddleware } from "better-auth/api";
 import { parseCookie } from 'cookie'
 
-import type { Session, User } from "@deployer/auth/types";
+import type { Session, User } from "../../types";
 
 import { secretsMatch } from "../secrets";
 

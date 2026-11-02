@@ -1,6 +1,6 @@
 import { type Auth as BetterAuthInstance } from 'better-auth';
 
-import { betterAuthFactory } from '@deployer/auth/server/auth';
+import { betterAuthFactory } from './server/auth';
 /**
  * Interface for environment service to be implemented by the API
  * This allows the auth package to remain decoupled from the API implementation

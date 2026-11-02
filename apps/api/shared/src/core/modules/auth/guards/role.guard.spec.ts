@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import { APIError } from 'better-auth/api';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { PermissionChecker } from '@deployer/auth/permissions';
+import { PermissionChecker } from '@deployer/auth';
 
 import { MODULE_OPTIONS_TOKEN } from '../definitions/auth-module-definition';
 
@@ -13,7 +13,7 @@ import type { ExecutionContext } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 
 // Mock the permissions module
-vi.mock('@deployer/auth/permissions', () => ({
+vi.mock('@deployer/auth', () => ({
   PermissionChecker: {
     hasRole: vi.fn(),
     getUserRoles: vi.fn(),

@@ -2,19 +2,15 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { APIError } from "better-auth/api";
 
-import {
-  type Permission,
-  type PlatformRole,
-  type RoleName,
-  PermissionChecker,
-} from "@deployer/auth/permissions";
+import { type RoleName, PermissionChecker } from "@deployer/auth";
+// Better Auth's permission MAP (`{ resource: actions[] }`), not the capability union the catalog defines.
+import type { Permission } from "@deployer/auth/authz/builder/types";
 
 import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/auth-module-definition";
 
 import type { Auth } from "../types/auth";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 
-type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & { role?: PlatformRole };
 
 /**
  * NestJS guard that handles role and permission-based access control

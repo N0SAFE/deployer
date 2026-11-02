@@ -13,7 +13,7 @@ import {
   platformAc,
   platformRoles,
   platformSchemas,
-} from "../../permissions/config";
+} from "../../adapters/better-auth/config";
 
 import { invitePlugin, type InvitePluginOptions } from "./invite";
 
@@ -48,7 +48,7 @@ export * from './securityPlugins'
  * 
  * @example
  * ```typescript
- * import { useAdmin } from '@deployer/auth/server/plugins/index'
+ * import { useAdmin } from './index'
  * 
  * betterAuth({
  *   plugins: [
@@ -154,7 +154,7 @@ type ConfiguredRoleNames = typeof platformSchemas.roleNames extends { _output: i
  * 
  * @example
  * ```typescript
- * import { useInvite } from '@deployer/auth/server/plugins/index'
+ * import { useInvite } from './index'
  * 
  * betterAuth({
  *   plugins: [

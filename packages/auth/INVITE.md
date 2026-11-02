@@ -297,7 +297,7 @@ export default function SignUpPage() {
 The plugin provides full type safety for roles:
 
 ```typescript
-import type { AllRoleNames } from "@deployer/auth/permissions";
+import type { AllRoleNames } from "@deployer/auth";
 
 // Roles are typed based on your permission configuration
 type Role = AllRoleNames; // "admin" | "sarah" | ...

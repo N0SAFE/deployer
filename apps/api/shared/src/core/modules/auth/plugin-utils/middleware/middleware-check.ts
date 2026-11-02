@@ -14,14 +14,15 @@ import type { InferSessionFromAuth } from '@deployer/auth';
 import {
   PermissionAssertionError,
   RoleAssertionError,
-} from '@deployer/auth/permissions/plugins';
+} from '@deployer/auth/adapters/better-auth/plugins';
 
 import type { Auth as BetterAuthInstance } from 'better-auth';
 
 /**
  * Permission object for error context
  */
-export type PermissionObject = Record<string, string[]>;
+/** A resource -> actions map. Readonly actions: nothing mutates a declared permission set. */
+export type PermissionObject = Record<string, readonly string[]>;
 
 // ============================================================================
 // Types

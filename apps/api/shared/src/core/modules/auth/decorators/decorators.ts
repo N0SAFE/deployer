@@ -1,7 +1,7 @@
 import { createParamDecorator, SetMetadata } from "@nestjs/common";
 
-import type { RoleName } from "@deployer/auth/permissions";
-import { PermissionChecker } from "@deployer/auth/permissions";
+import type { RoleName } from "@deployer/auth";
+import { PermissionChecker } from "@deployer/auth";
 
 import { AFTER_HOOK_KEY, BEFORE_HOOK_KEY, HOOK_KEY } from "../types/symbols";
 import { getRequestFromContext } from "../utils/context";

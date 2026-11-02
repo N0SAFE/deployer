@@ -14,7 +14,7 @@ import type {
   AnyPermissionBuilder,
   InferStatementFromBuilder,
   InferRolesFromBuilder,
-} from '@deployer/auth/permissions/plugins';
+} from '@deployer/auth/adapters/better-auth/plugins';
 
 import {
   BaseMiddlewareCheck,
