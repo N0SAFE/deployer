@@ -1,4 +1,4 @@
-import type { Permission } from "./catalog";
+import type { Permission } from "./definition";
 import type { CapabilitySet, Condition, Decision, Facts, Scope } from "./types";
 
 /**

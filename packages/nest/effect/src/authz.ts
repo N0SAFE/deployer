@@ -160,7 +160,9 @@ export function platformRoleStore(table: RoleTable = SYSTEM_ROLES_TABLE): Permis
 	return {
 		capabilities: (actor: Actor, scope: Scope): Promise<CapabilitySet> =>
 			Promise.resolve({
-				permissions: permissionsInRoles(table, actor.role, scope.kind),
+				// The table is seeded from the authz model, so these ARE catalog permissions; the projection widens them to
+				// strings because a `roles` row can only carry strings.
+				permissions: permissionsInRoles(table, actor.role, scope.kind) as readonly Permission[],
 				sources: scope.kind === "platform" ? [`role ${actor.role}`] : [],
 			}),
 	};

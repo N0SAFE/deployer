@@ -11,7 +11,7 @@ const access = new ProjectAccessService.live();
 /** The repository as a value: the service yields it, so a spec hands in its own lookups. */
 const repositoryOver = (
 	project: { id: string; ownerId: string } | null,
-	role: "owner" | "maintainer" | "deployer" | "viewer" | null,
+	role: "owner" | "maintainer" | "deployer" | "member" | null,
 ): ProjectAccessRepositoryShape => ({
 	findProjectById: () => Effect.succeed(project),
 	findCollaboratorByUserAndProject: () => Effect.succeed(role === null ? null : { role }),
@@ -20,7 +20,7 @@ const repositoryOver = (
 const check = (
 	repository: ProjectAccessRepositoryShape,
 	projectId = "proj-1",
-	roles: readonly ("owner" | "maintainer" | "deployer" | "viewer")[] = ["owner", "maintainer"],
+	roles: readonly ("owner" | "maintainer" | "deployer" | "member")[] = ["owner", "maintainer"],
 ) => access.assertProjectAccess(projectId, "user-1", roles).pipe(Effect.provideService(ProjectAccessRepository, repository));
 
 describe("ProjectAccessService", () => {
@@ -38,7 +38,7 @@ describe("ProjectAccessService", () => {
 
 	it("refuses a collaborator whose role is not allowed", async () => {
 		const exit = await Effect.runPromiseExit(
-			check(repositoryOver({ id: "proj-1", ownerId: "x" }, "viewer"), "proj-1", ["owner"]),
+			check(repositoryOver({ id: "proj-1", ownerId: "x" }, "member"), "proj-1", ["owner"]),
 		);
 
 		expect(Exit.isFailure(exit)).toBe(true);

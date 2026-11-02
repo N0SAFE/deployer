@@ -1,4 +1,4 @@
-import type { Permission, ScopeKind } from "./catalog";
+import type { Permission, ScopeKind } from "./definition";
 
 /** A place a permission is checked in: the platform, or one project and everything under it. */
 export interface Scope {

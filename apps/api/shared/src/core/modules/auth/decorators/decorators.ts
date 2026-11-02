@@ -85,7 +85,8 @@ export const UserRoles: ReturnType<typeof createParamDecorator> = createParamDec
         return [];
     }
 
-    return PermissionChecker.getUserRoles(user.role);
+    // The stored role is dynamic; `RoleName` is the union it may hold, validated where it is written.
+    return PermissionChecker.getUserRoles(user.role) as RoleName[];
 });
 
 /**

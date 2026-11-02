@@ -287,7 +287,7 @@ describe("ProjectService", () => {
 
 		it("should fail with ProjectForbidden when requester lacks permission", async () => {
 			// A viewer may read but not reconfigure the project.
-			const viewerCollab = { ...mockCollaborator, role: "viewer" };
+			const viewerCollab = { ...mockCollaborator, role: "member" };
 			repository.findById.mockReturnValue(
 				Effect.succeed({ ...mockProject, ownerId: "owner-x" }),
 			);
@@ -647,7 +647,7 @@ describe("ProjectService", () => {
 				Effect.succeed(
 					userId === "user-2"
 						? { ...mockCollaborator, role: "maintainer" }
-						: { ...mockCollaborator, userId: "user-3", role: "viewer" },
+						: { ...mockCollaborator, userId: "user-3", role: "member" },
 				),
 			);
 

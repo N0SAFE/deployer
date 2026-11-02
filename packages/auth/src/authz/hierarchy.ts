@@ -16,7 +16,7 @@
  * transport and of Effect.
  */
 
-import { SYSTEM_ROLES_TABLE } from "./catalog";
+import { SYSTEM_ROLES_TABLE } from "./definition";
 import { rankInRoles, type RoleTable } from "./roles";
 
 /**

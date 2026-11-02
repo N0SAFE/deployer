@@ -145,9 +145,6 @@ export type ApiKeyPlugin = ReturnType<typeof useApiKey>;
 // Invite Plugin
 // ============================================================================
 
-// Infer the actual role names type from the platformSchemas
-type ConfiguredRoleNames = typeof platformSchemas.roleNames extends { _output: infer T } ? T extends string ? T : string : string;
-
 /**
  * Type-safe helper to configure the invite plugin with your role system
  * Uses the generated role schema for validation
@@ -178,7 +175,7 @@ export function mayInvite(actorRole: string | null | undefined, invitedRole: str
 }
 
 export function useInvite(
-  options?: Omit<InvitePluginOptions<ConfiguredRoleNames>, "roleSchema" | "canCreateInvite" | "canInviteRole">
+  options?: Omit<InvitePluginOptions, "roleSchema" | "canCreateInvite" | "canInviteRole">
 ) {
   return invitePlugin({
     inviteDurationDays: options?.inviteDurationDays ?? 7,

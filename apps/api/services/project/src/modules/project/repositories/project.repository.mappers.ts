@@ -23,7 +23,7 @@ const LEGACY_TO_CANONICAL_ROLE: Partial<Record<CollaboratorRow["role"], ProjectR
 	owner: "owner",
 	maintainer: "maintainer",
 	deployer: "deployer",
-	viewer: "viewer",
+	viewer: "member",
 };
 
 /** DB project row → the entity shape (dates as ISO strings, network defaults filled). */
@@ -53,7 +53,7 @@ export function transformCollaborator(row: CollaboratorRow) {
 	// Every member of the legacy enum IS mapped above, so the fallback is unreachable
 	// for a well-formed row. `viewer` is the safe landing place: it is the column's own
 	// default and the least-privileged role, so an unexpected value fails closed.
-	const role: ProjectRole = LEGACY_TO_CANONICAL_ROLE[row.role] ?? "viewer";
+	const role: ProjectRole = LEGACY_TO_CANONICAL_ROLE[row.role] ?? "member";
 	return {
 		...row,
 		role,

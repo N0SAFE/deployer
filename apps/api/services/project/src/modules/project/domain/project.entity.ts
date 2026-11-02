@@ -37,7 +37,7 @@ export type ProjectRole = Collaborator["role"];
  *
  * ── WHY LEVELS ─────────────────────────────────────────────────────────────
  * The service asked 32 questions of the form "is the caller one of
- * `["owner","admin","developer","viewer"]`?", repeating the role list at every
+ * `["owner","admin","developer","member"]`?", repeating the role list at every
  * call site. That is the policy stated 32 times, and it drifted. A named level
  * says the intent ONCE ("this operation is a read"), so the matrix below is the
  * only place the answer lives — and a call site reads as what it means rather
@@ -56,7 +56,7 @@ export type ProjectAccess = "read" | "deploy" | "manage" | "admin";
  */
 const ACCESS_GRANTS: Readonly<Record<ProjectAccess, ReadonlySet<ProjectRole>>> = {
 	/** Reading the project and its resources. */
-	read: new Set<ProjectRole>(["owner", "maintainer", "deployer", "viewer"]),
+	read: new Set<ProjectRole>(["owner", "maintainer", "deployer", "member"]),
 	/** Changing what runs: services, environments, deployments. */
 	deploy: new Set<ProjectRole>(["owner", "maintainer", "deployer"]),
 	/** Changing how the project is configured. */
@@ -73,7 +73,7 @@ const RESERVED_ROLE: ProjectRole = "owner";
  * above their own — the same list `PROJECT_ROLES` publishes, read as an order.
  */
 const ROLE_RANK: Readonly<Record<ProjectRole, number>> = {
-	viewer: 1,
+	member: 1,
 	deployer: 2,
 	maintainer: 3,
 	owner: 4,
@@ -113,7 +113,7 @@ export const projectRules = {
 		"owner",
 		"maintainer",
 		"deployer",
-		"viewer",
+		"member",
 	] as const satisfies readonly ProjectRole[]),
 
 	/** Is `role` a role the platform actually defines? */

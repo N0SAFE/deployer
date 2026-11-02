@@ -20,7 +20,7 @@ export {
 	type Risk,
 	type ScopeKind,
 	type SystemRole,
-} from "./catalog";
+} from "./definition";
 export { can, conditionFailure, decide } from "./evaluate";
 export {
 	permissionsInRoles,

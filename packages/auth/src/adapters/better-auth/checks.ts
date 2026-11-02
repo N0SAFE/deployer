@@ -1,14 +1,20 @@
-import { platformPermissionConfig, platformSchemas, PLATFORM_ROLES, PLATFORM_RESOURCES, type PlatformRole, type PlatformResource, type PlatformActionsForResource } from "./config";
-import type { Resource, Permission } from "../../authz/builder/types";
+import { platformPermissionConfig, platformSchemas, PLATFORM_ROLES, PLATFORM_RESOURCES } from "./config";
+import type { Resource, Permission } from "../../authz/statement-types";
 
-const statement = platformPermissionConfig.statement;
-const roles = platformPermissionConfig.roles;
+/**
+ * The string-facing role/resource helpers a controller or guard calls.
+ *
+ * The precise union types live in the authz model and the oRPC `.access({ permission })` declaration; this facade accepts
+ * a dynamic name (a session's stored role, a route parameter) and validates it at runtime. Narrowing happens where the
+ * value is known, not here.
+ */
+const statement: Record<string, readonly string[]> = platformPermissionConfig.statement;
+const roles: Record<string, unknown> = platformPermissionConfig.roles;
 const schemas = platformSchemas;
-const ROLE_NAMES = PLATFORM_ROLES;
-const RESOURCE_NAMES = PLATFORM_RESOURCES;
-type RoleName = PlatformRole;
-type ResourceName = PlatformResource;
-type ActionsForResource<R extends ResourceName> = PlatformActionsForResource<R>;
+const ROLE_NAMES: readonly string[] = PLATFORM_ROLES;
+const RESOURCE_NAMES: readonly string[] = PLATFORM_RESOURCES;
+type RoleName = string;
+type ResourceName = string;
 
 /**
  * Error thrown when an invalid role name is accessed
@@ -179,10 +185,10 @@ type ResourceActionsAccessor<R extends ResourceName> = {
   /** The resource name */
   readonly name: R;
   /** Get all valid actions for this resource */
-  readonly actions: readonly ActionsForResource<R>[];
+  readonly actions: readonly string[];
 } & {
   /** Direct access to action names as properties - returns ResourcePermission object */
-  readonly [K in ActionsForResource<R>]: ResourcePermission<R, K>;
+  readonly [K in string]: ResourcePermission<R, K>;
 };
 
 /**
@@ -213,7 +219,7 @@ interface ResourcesAccessor {
    * @param resourceName - The resource to get actions for
    * @throws InvalidResourceError if the resource doesn't exist
    */
-  actionsFor<R extends ResourceName>(resourceName: R): readonly ActionsForResource<R>[];
+  actionsFor<R extends ResourceName>(resourceName: R): readonly string[];
   
   /**
    * Check if an action is valid for a resource.
@@ -236,7 +242,7 @@ interface ResourcesAccessor {
  * Create resource accessor for a specific resource
  */
 function createResourceActionsAccessor<R extends ResourceName>(resourceName: R): ResourceActionsAccessor<R> {
-  const resourceActions = statement[resourceName] as readonly ActionsForResource<R>[];
+  const resourceActions = statement[resourceName] ?? [];
   
   const accessor = {
     name: resourceName,
@@ -265,7 +271,7 @@ function createResourcesAccessor(): ResourcesAccessor & { [K in ResourceName]: R
   
   const accessor: ResourcesAccessor = {
     get<T extends string>(resourceName: T): T {
-      const statementTable = statement;
+      const statementTable: Record<string, readonly string[]> = statement;
     if (!Object.prototype.hasOwnProperty.call(statementTable, resourceName)) {
         throw new InvalidResourceError(resourceName);
       }
@@ -280,32 +286,29 @@ function createResourcesAccessor(): ResourcesAccessor & { [K in ResourceName]: R
       return [...resourceKeys];
     },
     
-    actionsFor<R extends ResourceName>(resourceName: R): readonly ActionsForResource<R>[] {
-      const statementTable = statement;
+    actionsFor<R extends ResourceName>(resourceName: R): readonly string[] {
+      const statementTable: Record<string, readonly string[]> = statement;
     if (!Object.prototype.hasOwnProperty.call(statementTable, resourceName)) {
         throw new InvalidResourceError(resourceName);
       }
-      return statement[resourceName];
+      return statementTable[resourceName] ?? [];
     },
     
     hasAction(resourceName: ResourceName, actionName: string): boolean {
-      const statementTable = statement;
-    if (!Object.prototype.hasOwnProperty.call(statementTable, resourceName)) {
-        return false;
-      }
-      const actions = statementTable[resourceName];
-      return actions.includes(actionName as never);
+      const statementTable: Record<string, readonly string[]> = statement;
+      if (!Object.prototype.hasOwnProperty.call(statementTable, resourceName)) return false;
+      return (statementTable[resourceName] ?? []).includes(actionName);
     },
     
     validateAction(resourceName: ResourceName, actionName: string): ResourcePermission {
-      const statementTable = statement;
+      const statementTable: Record<string, readonly string[]> = statement;
     if (!Object.prototype.hasOwnProperty.call(statementTable, resourceName)) {
         throw new InvalidResourceError(resourceName);
       }
       const validResource = resourceName;
       const actions = statement[validResource];
-      if (!actions.includes(actionName as never)) {
-        throw new InvalidActionError(resourceName, actionName, actions);
+      if (!(actions ?? []).includes(actionName)) {
+        throw new InvalidActionError(resourceName, actionName, actions ?? []);
       }
       return { resource: validResource, action: actionName };
     },
@@ -421,7 +424,7 @@ export function hasPermission(user: UserWithRole, requirement: PermissionRequire
   }
   
   // Get the role object from Better Auth roles (cast is safe after hasOwnProperty check)
-  const roleObj = roles[userRole as RoleName];
+  const roleObj: object = roles[userRole] ?? {};
   
   // Get the role's statements (permissions)
   const roleStatements = 'statements' in roleObj 
@@ -629,7 +632,7 @@ export class PermissionChecker {
    * @param resource - Resource name
    * @returns Array of valid actions
    */
-  static getActionsForResource<R extends ResourceName>(resource: R): readonly ActionsForResource<R>[] {
+  static getActionsForResource<R extends ResourceName>(resource: R): readonly string[] {
     if (!Resources.exists(resource)) return [];
     return Resources.actionsFor(resource);
   }

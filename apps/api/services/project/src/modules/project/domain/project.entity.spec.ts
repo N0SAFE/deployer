@@ -27,7 +27,7 @@ describe("projectRules — the role vocabulary", () => {
 			"owner",
 			"maintainer",
 			"deployer",
-			"viewer",
+			"member",
 		]);
 	});
 });
@@ -49,9 +49,9 @@ describe("projectRules.assertAccess", () => {
 
 	/** A viewer reads and nothing else. */
 	it("lets a viewer read only", () => {
-		expect(projectRules.assertAccess(project, actor, asCollaborator("viewer"), "read")).toBe("viewer");
+		expect(projectRules.assertAccess(project, actor, asCollaborator("member"), "read")).toBe("member");
 		for (const access of ["deploy", "manage", "admin"] as const) {
-			expect(() => projectRules.assertAccess(project, actor, asCollaborator("viewer"), access)).toThrow(ForbiddenError);
+			expect(() => projectRules.assertAccess(project, actor, asCollaborator("member"), access)).toThrow(ForbiddenError);
 		}
 	});
 

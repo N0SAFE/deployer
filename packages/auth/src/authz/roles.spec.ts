@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SYSTEM_ROLES_TABLE, capabilitiesOfRole } from "./catalog";
+import { SYSTEM_ROLES_TABLE, capabilitiesOfRole } from "./definition";
 import { permissionsInRoles, rankInRoles, roleTable } from "./roles";
 
 /**

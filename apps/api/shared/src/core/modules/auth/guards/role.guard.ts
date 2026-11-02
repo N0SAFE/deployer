@@ -4,7 +4,7 @@ import { APIError } from "better-auth/api";
 
 import { type RoleName, PermissionChecker } from "@deployer/auth";
 // Better Auth's permission MAP (`{ resource: actions[] }`), not the capability union the catalog defines.
-import type { Permission } from "@deployer/auth/authz/builder/types";
+import type { Permission } from "@deployer/auth/authz/statement-types";
 
 import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/auth-module-definition";
 
@@ -211,6 +211,6 @@ export class RoleGuard implements CanActivate {
    * Can be used in service methods for role inspection
    */
   static getUserRoles(userRole: string): RoleName[] {
-    return PermissionChecker.getUserRoles(userRole);
+    return PermissionChecker.getUserRoles(userRole) as RoleName[];
   }
 }

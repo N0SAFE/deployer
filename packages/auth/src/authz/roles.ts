@@ -1,4 +1,7 @@
-import type { Permission, ScopeKind } from "./catalog";
+import type { ScopeKind } from "./builder";
+
+/** A permission string; the model is the authority, this table is a projection of it. */
+type Permission = string;
 
 /**
  * One role, as data.
@@ -23,6 +26,8 @@ export interface RoleDefinition {
 	readonly system: boolean;
 	/** Shown by the role picker; the seed names them, a custom role carries its own. */
 	readonly label?: string;
+	readonly description?: string;
+	readonly color?: string;
 }
 
 /** Every role, by name. */
@@ -40,6 +45,8 @@ export interface RoleRow {
 	readonly rank: number;
 	readonly permissions: readonly Permission[];
 	readonly label?: string;
+	readonly description?: string;
+	readonly color?: string;
 }
 
 /** Build the table from rows, refusing a duplicate name instead of silently letting one win. */
@@ -56,6 +63,8 @@ export function roleTable(rows: readonly RoleRow[], options: { readonly system?:
 			permissions: row.permissions,
 			system: options.system ?? false,
 			...(row.label === undefined ? {} : { label: row.label }),
+			...(row.description === undefined ? {} : { description: row.description }),
+			...(row.color === undefined ? {} : { color: row.color }),
 		};
 	}
 	return table;

@@ -1,58 +1,95 @@
 import { createAccessControl } from "better-auth/plugins/access";
-
-import type { Role } from "better-auth/plugins/access";
+import z from "zod/v4";
 
 import {
-	PLATFORM_RESOURCES,
-	PLATFORM_ROLES,
-	PROJECT_RESOURCES,
-	PROJECT_ROLES,
-	platformPermissionConfig as platformModel,
-	platformRoleMeta,
-	platformRolesConfig,
-	platformSchemas,
-	projectPermissionConfig as projectModel,
-	projectRoleMeta,
-	projectRolesConfig,
-	projectSchemas,
-} from "../../authz/platform";
+	PERMISSIONS,
+	ROLE_RANK,
+	SYSTEM_ROLES,
+	SYSTEM_ROLES_TABLE,
+	authz,
+	type Permission,
+	type PlatformRole,
+	type ProjectRole,
+} from "../../authz/definition";
+
+import type { AccessControl, Role } from "better-auth/plugins/access";
 
 /**
- * The Better Auth view of the platform model.
+ * The Better Auth view of the authz model.
  *
- * `authz/platform.ts` declares the product's roles and permissions; this file CONVERTS that model into the objects Better
- * Auth consumes — an access-control instance and one `Role` per system role. Nothing is declared here: a role or a
- * permission that existed only in this file would be a second policy, which is exactly what this adapter avoids.
+ * `authz/definition.ts` declares resources, bundles and roles once; this file only CONVERTS that model into the objects
+ * Better Auth consumes — an access-control instance, one `Role` per platform role, and the role-name schema. Nothing is
+ * declared here: a role or a permission that existed only in this file would be a second policy.
  */
-function convert<TRoles extends Record<string, Record<string, readonly string[]>>>(
-	statement: Record<string, readonly string[]>,
-	roles: TRoles,
-) {
-	const ac = createAccessControl(statement);
-	const converted = Object.fromEntries(
-		Object.entries(roles).map(([name, permissions]) => [name, ac.newRole(permissions as never)]),
-	) as unknown as { readonly [K in keyof TRoles]: Role };
-	return { ac, roles: converted };
+const accessControl = createAccessControl(authz.statement);
+
+const rolePermissionsView = authz.rolePermissions as unknown as Record<string, Record<string, readonly string[]>>;
+
+function toRoles(names: readonly string[]): Record<string, Role> {
+	return Object.fromEntries(
+		names.map((name) => [name, accessControl.newRole((rolePermissionsView[name] ?? {}) as never)]),
+	);
 }
 
-/* ── platform ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+/** Better Auth access-control instance, built from the authz statement. */
+export const platformAc: AccessControl = accessControl;
+export const projectAc: AccessControl = accessControl;
 
-const platform = convert(platformModel.statement, platformModel.roles);
+/** One Better Auth `Role` per PLATFORM role. Project roles are membership, not a platform role. */
+export const platformRoles = toRoles(authz.platformRoles);
+export const projectRoles = toRoles(authz.projectRoles);
 
-/** Better Auth access-control instance, built from the authz platform statement. */
-export const platformAc = platform.ac;
+/** Role names as the API validates them. */
+export const PLATFORM_ROLES = authz.platformRoles;
+export const PROJECT_ROLES = authz.projectRoles;
 
-/** One Better Auth `Role` per platform role, built from the authz permission maps. */
-export const platformRoles = platform.roles;
+/** A union of literals, not an enum: Better Auth's `RoleSchemaType` is a union of literal schemas. */
+function roleNameSchema(names: readonly string[]) {
+	const literals = names.map((name) => z.literal(name));
+	return z.union(literals as [(typeof literals)[number], ...(typeof literals)[number][]]);
+}
 
-export { platformRoleMeta, platformRolesConfig, platformSchemas, PLATFORM_RESOURCES, PLATFORM_ROLES };
-export type { PlatformActionsForResource, PlatformResource, PlatformRole } from "../../authz/platform";
+export const platformSchemas = {
+	roleNames: roleNameSchema(authz.platformRoles),
+	permissions: authz.schemas.permissions,
+};
+export const projectSchemas = {
+	roleNames: roleNameSchema(authz.projectRoles),
+};
 
-/** Everything a caller may need about the platform model, in its Better Auth form. */
+/** Label/description/color, for the role picker. */
+const metaOf = (name: string) => {
+	const role = (authz.roles as Record<string, { label: string; description?: string; color?: string }>)[name];
+	return { label: role?.label ?? name, description: role?.description ?? "", color: role?.color ?? "slate" };
+};
+export const platformRoleMeta = Object.fromEntries(authz.platformRoles.map((name) => [name, metaOf(name)]));
+export const projectRoleMeta = Object.fromEntries(authz.projectRoles.map((name) => [name, metaOf(name)]));
+
+/** The role policy the web can evaluate optimistically (`useCan`); the server re-checks authoritatively. */
+export const platformRolesConfig = authz.rolesConfig;
+export const projectRolesConfig = authz.rolesConfig;
+
+/** Everything a caller may need, in its Better Auth form. */
 export const platformPermissionConfig = {
-	...platformModel,
+	statement: authz.statement,
 	ac: platformAc,
 	roles: platformRoles,
+	schemas: platformSchemas,
+	roleMeta: platformRoleMeta,
+	rolesConfig: platformRolesConfig,
+	permissions: PERMISSIONS,
+	ranks: ROLE_RANK,
+	systemRoles: SYSTEM_ROLES,
+	table: SYSTEM_ROLES_TABLE,
+} as const;
+
+export const projectPermissionConfig = {
+	statement: authz.statement,
+	ac: projectAc,
+	roles: projectRoles,
+	schemas: projectSchemas,
+	roleMeta: projectRoleMeta,
+	rolesConfig: projectRolesConfig,
 } as const;
 
 /**
@@ -65,39 +102,35 @@ export const platformPermissionConfig = {
 export const platformBuilder = {
 	getAc: () => platformAc,
 	getRoles: () => platformRoles,
-	getStatement: () => platformModel.statement,
-	getStatementNames: () => Object.keys(platformModel.statement),
-	getRoleNames: () => Object.keys(platformModel.roles),
+	getStatement: () => authz.statement,
+	getStatementNames: () => Object.keys(authz.statement),
+	getRoleNames: () => authz.platformRoles,
 	getRoleMeta: () => platformRoleMeta,
-	statement: platformModel.statement,
+	statement: authz.statement,
 	roles: platformRoles,
-} as const;
-
-/* ── project ──────────────────────────────────────────────────────────────────────────────────────────────────── */
-
-const project = convert(projectModel.statement, projectModel.roles);
-
-/** Better Auth access-control instance for project-scoped roles. */
-export const projectAc = project.ac;
-
-export const projectRoles = project.roles;
-
-export { projectRoleMeta, projectRolesConfig, projectSchemas, PROJECT_RESOURCES, PROJECT_ROLES };
-export type { ProjectActionsForResource, ProjectResource, ProjectRole } from "../../authz/platform";
-
-export const projectPermissionConfig = {
-	...projectModel,
-	ac: projectAc,
-	roles: projectRoles,
 } as const;
 
 export const projectBuilder = {
 	getAc: () => projectAc,
 	getRoles: () => projectRoles,
-	getStatement: () => projectModel.statement,
-	getStatementNames: () => Object.keys(projectModel.statement),
-	getRoleNames: () => Object.keys(projectModel.roles),
+	getStatement: () => authz.statement,
+	getStatementNames: () => Object.keys(authz.statement),
+	getRoleNames: () => authz.projectRoles,
 	getRoleMeta: () => projectRoleMeta,
-	statement: projectModel.statement,
+	statement: authz.statement,
 	roles: projectRoles,
 } as const;
+
+export type PlatformResource = keyof typeof authz.statement;
+export type PlatformActionsForResource<R extends PlatformResource> = (typeof authz.statement)[R][number];
+
+/** Role names as the API validates them. */
+export const PLATFORM_RESOURCES = Object.keys(authz.statement);
+
+/** Resources a PROJECT role can grant: the ones appearing in its permission set. */
+export const PROJECT_RESOURCES = [
+	...new Set(authz.projectRoles.flatMap((role) => Object.keys(authz.rolePermissions[role]))),
+] as PlatformResource[];
+export type ProjectActionsForResource<R extends PlatformResource> = (typeof authz.statement)[R][number];
+
+export type { Permission, PlatformRole, ProjectRole };

@@ -1,23 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import { BUNDLES, PERMISSIONS, SYSTEM_ROLES, capabilitiesOfRole, roleGrants, type Permission } from "./catalog";
+import { BUNDLES, PERMISSIONS, SYSTEM_ROLES, capabilitiesOfRole, roleGrants, type Permission } from "./definition";
+import { flattenGroups } from "./builder";
 import { can, decide } from "./evaluate";
 
 import type { CapabilitySet } from "./types";
 
-const ALL = Object.keys(PERMISSIONS) as Permission[];
+const ALL = Object.keys(PERMISSIONS);
 
 describe("catalog integrity", () => {
 	it("gives every permission a bundle, so the role editor can reach it", () => {
-		const bundled = new Set(Object.values(BUNDLES).flat());
+		const bundled = new Set(Object.values(BUNDLES).flatMap((group) => flattenGroups(group)));
 		const orphans = ALL.filter((permission) => !bundled.has(permission));
 
 		expect(orphans).toEqual([]);
 	});
 
 	it("only references permissions and bundles that exist", () => {
-		for (const [bundle, permissions] of Object.entries(BUNDLES)) {
-			for (const permission of permissions) {
+		for (const [bundle, group] of Object.entries(BUNDLES)) {
+			for (const permission of flattenGroups(group)) {
 				expect(ALL, `${bundle} → ${permission}`).toContain(permission);
 			}
 		}

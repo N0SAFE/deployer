@@ -36,7 +36,7 @@ export {
 
 // A role name as the builder sees it (a plain string) and the admin-plugin API surface. Both were part of the old
 // `permissions` barrel; they stay at the root because the Nest adapter imports them from here.
-export type { RoleName } from "./authz/builder/types";
+export type { RoleName } from "./authz/definition";
 export type { ApiMethodsWithAdminPlugin } from "./adapters/better-auth/plugins/admin.permissions.plugin";
 export { AdminPermissionsPlugin } from "./adapters/better-auth/plugins/admin.permissions.plugin";
 export { PluginWrapperRegistry } from "./adapters/better-auth/plugins/system/registry";
