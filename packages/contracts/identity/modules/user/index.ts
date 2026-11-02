@@ -10,6 +10,7 @@ import { userDeleteContract } from './delete';
 import { userFindByIdContract } from './findById';
 import { userListContract } from './list';
 import { userUpdateContract } from './update';
+import { userRevokeSessionsContract, userSetBannedContract, userSetRoleContract } from './admin';
 
 // Combine into main user contract
 export const userContract = oc.meta(openapi({ tags: ["User"], prefix: "/user" })).router({
@@ -20,6 +21,9 @@ export const userContract = oc.meta(openapi({ tags: ["User"], prefix: "/user" })
   delete: userDeleteContract,
   checkEmail: userCheckEmailContract,
   count: userCountContract,
+  setRole: userSetRoleContract,
+  setBanned: userSetBannedContract,
+  revokeSessions: userRevokeSessionsContract,
 });
 
 export type UserContract = typeof userContract;
@@ -32,3 +36,4 @@ export * from './update';
 export * from './delete';
 export * from './checkEmail';
 export * from './count';
+export * from './admin';

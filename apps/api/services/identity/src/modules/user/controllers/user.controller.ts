@@ -116,6 +116,38 @@ export class UserController {
             })
     }
 
+    @Implement(userContract.setRole)
+    setRole() {
+        return procedure(userContract.setRole)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const users = yield* UserService
+                const updated = yield* serve(context)(users.setRole(input.params.id, input.body.role))
+                return updated
+            })
+    }
+
+    @Implement(userContract.setBanned)
+    setBanned() {
+        return procedure(userContract.setBanned)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const users = yield* UserService
+                return yield* serve(context)(users.setBanned(input.params.id, input.body.banned))
+            })
+    }
+
+    @Implement(userContract.revokeSessions)
+    revokeSessions() {
+        return procedure(userContract.revokeSessions)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const users = yield* UserService
+                yield* serve(context)(users.revokeSessions(input.params.id))
+                return { revoked: true as const }
+            })
+    }
+
     /** Public by design: the signup form's "is this address taken" probe. */
     @Implement(userContract.checkEmail)
     checkEmail() {

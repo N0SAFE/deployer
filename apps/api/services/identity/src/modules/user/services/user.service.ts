@@ -60,6 +60,13 @@ export type UserServiceShape = {
         id: string,
         banned: boolean
     ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    readonly setRole: (
+        id: string,
+        role: NonNullable<User["role"]>
+    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    readonly revokeSessions: (
+        id: string
+    ) => Effect.Effect<void, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly delete: (id: string) => Effect.Effect<void, UserFailure, Ambient | UserRepository | DatabasePort>
 }
 
@@ -219,6 +226,7 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
         setBanned: Effect.fn('UserService.setBanned')(function* (id, banned) {
             const actor = yield* actingUser
             yield* rule(() => {
+                userRules.assertCapability(actor, banned ? 'user:ban' : 'user:unban')
                 userRules.assertCanAdminister(actor)
             })
 
@@ -241,6 +249,49 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             if (banned) yield* users.revokeCredentials(id)
 
             return updated
+        }),
+
+        setRole: Effect.fn('UserService.setRole')(function* (id, role) {
+            const actor = yield* actingUser
+            yield* rule(() => {
+                userRules.assertCapability(actor, 'user:set-role')
+                userRules.assertCanAdminister(actor)
+            })
+
+            const current = yield* users.findById(id)
+            if (current === null) return yield* new UserNotFound({ id })
+
+            yield* rule(() => {
+                userRules.assertNotSelfDestruct(actor, id, 'set-role')
+                userRules.assertOutranks(actor, current.role)
+                // Granting a role must not hand out a rank the actor does not hold.
+                userRules.assertOutranks(actor, role)
+            })
+
+            if (current.role === role) return current
+
+            const updated = yield* users.update(id, { role })
+            // The session carries the role, so a role change ends it rather than waiting for expiry.
+            yield* users.revokeCredentials(id)
+
+            return updated
+        }),
+
+        revokeSessions: Effect.fn('UserService.revokeSessions')(function* (id) {
+            const actor = yield* actingUser
+            yield* rule(() => {
+                userRules.assertCapability(actor, 'session:delete')
+                userRules.assertCanAdminister(actor)
+            })
+
+            const current = yield* users.findById(id)
+            if (current === null) return yield* new UserNotFound({ id })
+
+            yield* rule(() => {
+                userRules.assertOutranks(actor, current.role)
+            })
+
+            yield* users.revokeCredentials(id)
         }),
 
         delete: Effect.fn('UserService.delete')(function* (id) {

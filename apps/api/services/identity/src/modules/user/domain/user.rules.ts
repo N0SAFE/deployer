@@ -1,4 +1,6 @@
-import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator } from "@deployer/auth/authz";
+import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator, roleGrants } from "@deployer/auth/authz";
+
+import type { Permission } from "@deployer/auth/authz";
 import { ForbiddenError, ValidationError } from "@deployer/errors";
 
 import type { Actor, User, UserPatch } from "./user.types";
@@ -53,6 +55,18 @@ export const userRules = {
           },
         ]);
       }
+    }
+  },
+
+  /**
+   * The capability check: a role either holds the permission or it does not.
+   *
+   * `Permission` is the catalog union, so a misspelled or removed capability fails the build; the rank rules below are a
+   * separate question ("may this actor act on THAT account"), and both apply.
+   */
+  assertCapability(actor: Actor, permission: Permission): void {
+    if (!roleGrants(actor.role, permission)) {
+      throw new ForbiddenError(`actor lacks ${permission}`);
     }
   },
 
