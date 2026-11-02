@@ -86,6 +86,8 @@
         "@types/bun": "catalog:build",
         "@types/express": "catalog:api:nest",
         "@types/node": "catalog:build",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
         "unplugin-swc": "^1.5.9",

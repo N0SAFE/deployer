@@ -104,7 +104,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
   const [confirmRemoveTunnel, setConfirmRemoveTunnel] = useState(false);
 
   const state = data ?? ssrState;
-  const enabled = state?.enabled ?? false;
+  const enabled = state.enabled;
   const busy =
     toggle.isPending ||
     restart.isPending ||
@@ -112,18 +112,15 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
     enableTunnel.isPending ||
     disableTunnel.isPending;
 
-  const ledTone: LedTone =
-    state === undefined
-      ? "gray"
-      : state.external
-        ? "gray"
-        : !enabled
+  const ledTone: LedTone = state.external
+    ? "gray"
+    : !enabled
+      ? "red"
+      : state.supervisorState === "converging" || state.supervisorState === "pending"
+        ? "amber"
+        : state.healthy === false
           ? "red"
-          : state.supervisorState === "converging" || state.supervisorState === "pending"
-            ? "amber"
-            : state.healthy === false
-              ? "red"
-              : "green";
+          : "green";
 
   async function run<T>(fn: () => Promise<T>, success: string) {
     try {
@@ -136,7 +133,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
 
   // ── Origin form (TanStack Form — mirrors the web app's own console) ──────
   const originForm = useForm({
-    defaultValues: { origin: state?.customOrigin ?? "" },
+    defaultValues: { origin: state.customOrigin ?? "" },
     onSubmit: async ({ value }) => {
       await run(
         () => setOrigin.mutateAsync({ origin: value.origin.trim() === "" ? null : value.origin.trim() }),
@@ -158,9 +155,8 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
   });
   // Keep forms in sync with server state after mutations/refetch.
   useEffect(() => {
-    originForm.reset({ origin: state?.customOrigin ?? "" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.customOrigin]);
+    originForm.reset({ origin: state.customOrigin ?? "" });
+  }, [state.customOrigin]);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 pb-10">
@@ -171,8 +167,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
         </p>
         <div className="mt-2 flex items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Managed Web App</h1>
-          {state !== undefined && (
-            <Badge
+          <Badge
               variant="outline"
               className={
                 enabled
@@ -181,9 +176,8 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
               }
             >
               <Led tone={ledTone} />
-              <span className="ml-1.5">{enabled ? "Enabled" : "Disabled"}</span>
-            </Badge>
-          )}
+            <span className="ml-1.5">{enabled ? "Enabled" : "Disabled"}</span>
+          </Badge>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           Served by the API — this same URL shows the web app&apos;s own page while it runs and this
@@ -205,15 +199,14 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
           <AlertTitle>Console unreachable</AlertTitle>
           <AlertDescription>
             {getErrorMessage(error)}
-            <Button variant="outline" size="sm" className="ml-3" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" className="ml-3" onClick={() => { void refetch(); }}>
               Retry
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {state === undefined ? null : (
-        <>
+      <>
           {/* Status panel */}
           <Card>
             <CardHeader className="pb-2">
@@ -302,7 +295,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
                       type="button"
                       variant="ghost"
                       disabled={busy}
-                      onClick={() => run(() => setOrigin.mutateAsync({ origin: null }), "Origin cleared")}
+                      onClick={() => { void run(() => setOrigin.mutateAsync({ origin: null }), "Origin cleared"); }}
                     >
                       Clear
                     </Button>
@@ -361,11 +354,11 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
                       onClick={() => {
                         if (!confirmRemoveTunnel) {
                           setConfirmRemoveTunnel(true);
-                          setTimeout(() => setConfirmRemoveTunnel(false), 3000);
+                          setTimeout(() => { setConfirmRemoveTunnel(false); }, 3000);
                           return;
                         }
                         setConfirmRemoveTunnel(false);
-                        run(() => disableTunnel.mutateAsync({}), "Tunnel removed — app restarted");
+                        void run(() => disableTunnel.mutateAsync({}), "Tunnel removed — app restarted");
                       }}
                     >
                       {disableTunnel.isPending ? (
@@ -392,12 +385,12 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
               <Button
                 variant={enabled ? "destructive" : "default"}
                 disabled={busy || state.external}
-                onClick={() =>
-                  run(
+                onClick={() => {
+                  void run(
                     () => toggle.mutateAsync({}),
                     enabled ? "Managed web app disabled" : "Managed web app enabled",
-                  )
-                }
+                  );
+                }}
               >
                 {toggle.isPending ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />}
                 <span className="ml-1.5">{enabled ? "Disable managed web app" : "Enable managed web app"}</span>
@@ -405,7 +398,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
               <Button
                 variant="outline"
                 disabled={busy || state.external}
-                onClick={() => run(() => restart.mutateAsync({}), "Restart requested")}
+                onClick={() => { void run(() => restart.mutateAsync({}), "Restart requested"); }}
               >
                 {restart.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                 <span className="ml-1.5">Force restart container</span>
@@ -420,8 +413,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
             The node&apos;s global address (Network &amp; Reachability) serves the API via Traefik — this
             console is the web app&apos;s own surface.
           </p>
-        </>
-      )}
+      </>
     </main>
   );
 }

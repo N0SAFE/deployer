@@ -19,8 +19,26 @@ import { viewQueryClient } from './lib/query-client';
 
 import ThemeProvider from '@deployer/ui/components/theme-provider';
 
+/** What a page component receives: the server-rendered payload. */
+type PageProps = Record<string, unknown>;
+
+/** A component this entry can hydrate: a page or a layout. */
+type ViewComponent = React.ComponentType<PageProps>;
+
+/** One layout plus the props its decorator carried. */
+interface LayoutEntry {
+  layout: ViewComponent;
+  props?: Record<string, unknown>;
+}
+
+/** A view that carries its own layout chain (the `@Layout` decorator's shape). */
+type LayoutBearingView = ViewComponent & {
+  readonly layout: ViewComponent;
+  readonly layoutProps?: Record<string, unknown>;
+};
+
 const componentName = window.__COMPONENT_NAME__;
-const initialProps = window.__INITIAL_STATE__ || {};
+const initialProps = window.__INITIAL_STATE__;
 // Server-injected context; fall back to a client-derived shape (direct
 // navigation) instead of {} so PageContextProvider always receives a valid
 // RenderContext during hydration.
@@ -33,23 +51,20 @@ const renderContext: RenderContext = window.__CONTEXT__ ?? {
 };
 
 // Auto-discover root layout using Vite's glob import (must match server-side discovery)
-// @ts-ignore - Vite-specific API
-const layoutModules = import.meta.glob('@/views/layout.tsx', {
+const layoutModules = import.meta.glob<{ readonly default: ViewComponent }>('@/views/layout.tsx', {
   eager: true,
-}) as Record<string, { default: React.ComponentType<any> }>;
+});
 
-const layoutPath = Object.keys(layoutModules)[0];
-const RootLayout = layoutPath ? (layoutModules[layoutPath]?.default ?? null) : null;
+const RootLayout = Object.values(layoutModules).at(0)?.default ?? null;
 
 // Auto-import all view components using Vite's glob feature.
 // Match any `views` directory under the source root (`@`), so views colocated
 // inside feature modules (e.g. `@/products/views/list.tsx`) are discovered too,
 // not just the top-level `@/views` folder. Exclude entry-* files in any views dir.
-// @ts-ignore - Vite-specific API
-const modules: Record<string, { default: React.ComponentType<any> }> =
-  import.meta.glob(['@/**/views/**/*.tsx', '!@/**/views/entry-*.tsx'], {
-    eager: true,
-  });
+const modules = import.meta.glob<{ readonly default: ViewComponent }>(
+  ['@/**/views/**/*.tsx', '!@/**/views/entry-*.tsx'],
+  { eager: true },
+);
 
 // Export modules globally for segment hydration after client-side navigation
 window.__MODULES__ = modules;
@@ -66,8 +81,8 @@ if (!ViewComponent) {
   const availableComponents = Object.entries(modules)
     .map(([path, m]) => {
       const filename = path.split('/').pop()?.replace('.tsx', '');
-      const name = m.default.displayName || m.default.name;
-      return `${filename} (${name})`;
+      const name = m.default.displayName ?? m.default.name;
+      return `${filename ?? "unknown"} (${name})`;
     })
     .join(', ');
   throw new Error(
@@ -78,10 +93,13 @@ if (!ViewComponent) {
 /**
  * Check if a component has a layout property
  */
-function hasLayout(
-  component: any,
-): component is { layout: React.ComponentType<any>; layoutProps?: any } {
-  return component && typeof component.layout === 'function';
+function hasLayout(component: unknown): component is LayoutBearingView {
+  return (
+    typeof component === 'object' &&
+    component !== null &&
+    'layout' in component &&
+    typeof component.layout === 'function'
+  );
 }
 
 /**
@@ -96,21 +114,21 @@ function hasLayout(
  * - Finally wrap with RootLayout (outermost)
  */
 function composeWithLayout(
-  ViewComponent: React.ComponentType<any>,
-  props: any,
-  context?: any,
-  layouts: { layout: React.ComponentType<any>; props?: any }[] = [],
+  ViewComponent: ViewComponent,
+  props: PageProps,
+  context?: unknown,
+  layouts: LayoutEntry[] = [],
 ): React.ReactElement {
   // Start with the page component
   let result = <ViewComponent {...props} />;
 
   // If no layouts passed, check if component has its own layout chain
   if (layouts.length === 0 && hasLayout(ViewComponent)) {
-    let currentComponent: any = ViewComponent;
+    let currentComponent: ViewComponent = ViewComponent;
     while (hasLayout(currentComponent)) {
       layouts.push({
         layout: currentComponent.layout,
-        props: currentComponent.layoutProps || {},
+        props: currentComponent.layoutProps ?? {},
       });
       currentComponent = currentComponent.layout;
     }
@@ -121,7 +139,7 @@ function composeWithLayout(
   // Must match server-side wrapping with data-layout and data-outlet attributes
   for (const entry of [...layouts].reverse()) {
     const { layout: Layout, props: layoutProps } = entry;
-    const layoutName = Layout.displayName || Layout.name || 'Layout';
+    const layoutName = Layout.displayName ?? Layout.name;
     result = (
       <div data-layout={layoutName}>
         <Layout context={context} layoutProps={layoutProps}>
@@ -152,8 +170,8 @@ function composeWithLayout(
 //   Hydration failed because the server rendered HTML didn't match the client
 //
 // The server's array is the whole truth; this loop only maps names to components.
-const layoutsData = window.__LAYOUTS__ ?? [];
-const layouts: { layout: React.ComponentType<any>; props?: any }[] = [];
+const layoutsData = window.__LAYOUTS__;
+const layouts: LayoutEntry[] = [];
 
 for (const { name: layoutName, props: layoutProps } of layoutsData) {
   const layoutEntry = componentMap.find(
@@ -163,10 +181,10 @@ for (const { name: layoutName, props: layoutProps } of layoutsData) {
       c.filename === layoutName.toLowerCase(),
   );
   if (layoutEntry) {
-    layouts.push({ layout: layoutEntry.component, props: layoutProps || {} });
+    layouts.push({ layout: layoutEntry.component, props: layoutProps ?? {} });
   } else if (layoutName === 'RootLayout' && RootLayout) {
     // Fallback: if the auto-discovered root layout wasn't in componentMap by name
-    layouts.push({ layout: RootLayout, props: layoutProps || {} });
+    layouts.push({ layout: RootLayout, props: layoutProps ?? {} });
   }
 }
 
@@ -215,10 +233,12 @@ const wrappedElement = (
   </ThemeProvider>
 );
 
-hydrateRoot(
-  document.getElementById('root')!,
-  <StrictMode>{wrappedElement}</StrictMode>,
-);
+const rootElement = document.getElementById('root');
+if (rootElement === null) {
+  throw new Error('Cannot hydrate: the #root element is missing from the document.');
+}
+
+hydrateRoot(rootElement, <StrictMode>{wrappedElement}</StrictMode>);
 
 // Track if initial hydration is complete to ignore false popstate events
 let hydrationComplete = false;
@@ -227,7 +247,7 @@ requestAnimationFrame(() => {
 });
 
 // Handle browser back/forward navigation
-window.addEventListener('popstate', async () => {
+async function onPopState(): Promise<void> {
   // Ignore popstate events that fire before hydration is complete
   // (some browsers fire popstate on initial page load)
   if (!hydrationComplete) return;
@@ -235,5 +255,10 @@ window.addEventListener('popstate', async () => {
   // Dynamically import navigate to avoid circular dependency with hydrate-segment
   const { navigate } = await import('@nestjs-ssr/react/client');
   // Re-navigate to the current URL (browser already updated location)
-  navigate(location.href, { replace: true, scroll: false });
+  await navigate(location.href, { replace: true, scroll: false });
+}
+
+// `void`: the browser cannot await a listener; `onPopState` handles its own failure through navigate.
+window.addEventListener('popstate', () => {
+  void onPopState();
 });

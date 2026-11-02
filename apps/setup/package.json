@@ -77,6 +77,8 @@
     "zod": "catalog:utils"
   },
   "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@nestjs/cli": "catalog:api:nest",
     "@nestjs/schematics": "catalog:api:nest",
     "@nestjs/testing": "catalog:api:nest",

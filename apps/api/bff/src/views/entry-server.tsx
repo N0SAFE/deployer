@@ -5,6 +5,25 @@ import { renderToString, renderToPipeableStream } from 'react-dom/server';
 
 import ThemeProvider from '@deployer/ui/components/theme-provider';
 
+/** What a page component receives: the controller's payload, already validated. */
+export type SsrPageProps = Record<string, unknown>;
+
+/** A component this entry can render: a page or a layout. */
+export type SsrViewComponent = React.ComponentType<SsrPageProps>;
+
+/** One layout plus the props its decorator carried. */
+export interface SsrLayoutEntry {
+  readonly layout: SsrViewComponent;
+  readonly props?: Record<string, unknown>;
+}
+
+/** The payload the render interceptor hands to this entry. */
+export interface SsrRenderPayload {
+  readonly data?: SsrPageProps;
+  readonly __context?: unknown;
+  readonly __layouts?: readonly SsrLayoutEntry[];
+}
+
 /** Fresh React Query client per SSR render (no cross-request cache). */
 function createSsrQueryClient(): QueryClient {
   return new QueryClient({
@@ -18,21 +37,26 @@ function createSsrQueryClient(): QueryClient {
   });
 }
 
-// Auto-discover root layout using Vite's glob import
-// This eagerly loads layout if it exists, null otherwise
-// @ts-ignore - Vite-specific API
-const layoutModules = import.meta.glob('@/views/layout.tsx', {
-  eager: true,
-}) as Record<string, { default: React.ComponentType }>;
+/**
+ * Vite's eager `import.meta.glob`: a map from module path to its exports.
+ *
+ * The app does not depend on `vite` for types (it is a Nest app that renders React views), so the one call is narrowed
+ * here. `@ts-ignore` left the call — and everything it produced — an error type, which is what made the whole module
+ * `any`.
+ */
+interface ViteImportMeta extends ImportMeta {
+  readonly glob: (pattern: string, options: { readonly eager: true }) => Record<string, { readonly default: SsrViewComponent }>;
+}
 
-const layoutPath = Object.keys(layoutModules)[0];
-const RootLayout = layoutPath ? (layoutModules[layoutPath]?.default ?? null) : null;
+const { glob } = import.meta as ViteImportMeta;
+const layoutModules = glob('@/views/layout.tsx', { eager: true });
+const RootLayout = Object.values(layoutModules)[0]?.default ?? null;
 
 /**
  * Get the root layout component.
  * Used by RenderService in production when dynamic import isn't available.
  */
-export function getRootLayout(): React.ComponentType<any> | null {
+export function getRootLayout(): SsrViewComponent | null {
   return RootLayout;
 }
 
@@ -50,10 +74,10 @@ export function getRootLayout(): React.ComponentType<any> | null {
  * - Finally wrap with RootLayout (outermost)
  */
 function composeWithLayouts(
-  ViewComponent: React.ComponentType<any>,
-  props: any,
-  layouts: { layout: React.ComponentType<any>; props?: any }[] = [],
-  context?: any,
+  ViewComponent: SsrViewComponent,
+  props: SsrPageProps,
+  layouts: readonly SsrLayoutEntry[] = [],
+  context?: unknown,
 ): React.ReactElement {
   // Start with the page component
   let result = <ViewComponent {...props} />;
@@ -64,7 +88,7 @@ function composeWithLayouts(
   // Each layout gets data-layout attribute and children are wrapped in data-outlet
   for (const entry of [...layouts].reverse()) {
     const { layout: Layout, props: layoutProps } = entry;
-    const layoutName = Layout.displayName || Layout.name || 'Layout';
+    const layoutName = Layout.displayName ?? Layout.name;
     result = (
       <div data-layout={layoutName}>
         <Layout context={context} layoutProps={layoutProps}>
@@ -100,7 +124,7 @@ function ProviderStack({
   children,
 }: {
   client: QueryClient;
-  context: any;
+  context: unknown;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
@@ -126,8 +150,8 @@ function ProviderStack({
  * Simple, synchronous rendering
  */
 export function renderComponent(
-  ViewComponent: React.ComponentType<any>,
-  data: any,
+  ViewComponent: SsrViewComponent,
+  data: SsrRenderPayload,
 ) {
   const { data: pageData, __context: context, __layouts: layouts } = data;
   const composedElement = composeWithLayouts(
@@ -153,8 +177,8 @@ export function renderComponent(
  * The swap target's outlet will receive this rendered content.
  */
 export function renderSegment(
-  ViewComponent: React.ComponentType<any>,
-  data: any,
+  ViewComponent: SsrViewComponent,
+  data: SsrRenderPayload,
 ) {
   const { data: pageData, __context: context, __layouts: layouts } = data;
 
@@ -181,8 +205,8 @@ export function renderSegment(
  * Modern approach with progressive rendering and Suspense support
  */
 export function renderComponentStream(
-  ViewComponent: React.ComponentType<any>,
-  data: any,
+  ViewComponent: SsrViewComponent,
+  data: SsrRenderPayload,
   callbacks?: {
     nonce?: string;
     onShellReady?: () => void;
