@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { authClient } from "@/lib/auth";
-import { useDevtoolsResource } from "../use-devtools-resource";
+
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
 import { Badge } from "@deployer/ui/components/shadcn/badge";
 import { Button } from "@deployer/ui/components/shadcn/button";
+import { Separator } from "@deployer/ui/components/shadcn/separator";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
 import {
   Table,
   TableBody,
@@ -13,9 +15,11 @@ import {
   TableHeader,
   TableRow,
 } from "@deployer/ui/components/shadcn/table";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
-import { Separator } from "@deployer/ui/components/shadcn/separator";
+
+import { authClient } from "@/lib/auth";
+
+import { useDevtoolsResource } from "../use-devtools-resource";
+
 
 /**
  * DevTools panel: account security.
@@ -232,26 +236,6 @@ function TwoFactorSection() {
     (session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled,
   );
 
-  const handleEnable = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await authClient.twoFactor.enable({ password: "" });
-      if (result.error) {
-        setError(result.error.message ?? "Failed to enable two-factor");
-        return;
-      }
-      // The plugin returns TOTP URI + backup codes on enable; surface the codes
-      // once, since they are not retrievable afterwards by design.
-      const codes = (result.data as { backupCodes?: string[] } | undefined)?.backupCodes;
-      if (codes?.length) setBackupCodes(codes);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to enable two-factor");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleDisable = async () => {
     setBusy(true);
     setError(null);
@@ -316,9 +300,11 @@ function TwoFactorSection() {
             </Button>
           </>
         ) : (
-          <Button size="sm" disabled={busy} onClick={() => void handleEnable()}>
-            {busy ? "Working…" : "Enable two-factor"}
-          </Button>
+          // Enrolment needs the account password and a code confirmation, which only the Account card asks for;
+          // sending `password: ""` here was the call that could never succeed (AUTH-017).
+          <span className="text-muted-foreground text-xs">
+            Enrol from Account → Security: it asks for your password and the first code.
+          </span>
         )}
       </div>
 

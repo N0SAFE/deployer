@@ -134,11 +134,12 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Design-impact (2026-10-26): the claim token becomes the `SetupClaim` principal (`AUTH-059`): one-time, atomic consume, bound to passkey enrolment (AAL3 after enrolment), replacing default-admin bootstrap; no default credentials anywhere.
 
 ### Second factor, passkeys, API keys, device flow
-- [ ] `AUTH-017` **Finish TOTP 2FA end to end** · FIX · P1 · L · Deps: `AUTH-016` (recommended)
+- [x] `AUTH-017` **Finish TOTP 2FA end to end** · FIX · P1 · L · Deps: `AUTH-016` (recommended)
   - Why/Problem: enrol calls `twoFactor.enable({ password: '' })` (`domains/account/hooks.ts:263`, `devtools/plugins/security-panel.tsx:239`) which fails for credential accounts; no TOTP URI/QR, no `verifyTotp` in web; controls only in devtools; sign-in page has no `twoFactorRedirect` handling (`signin/page.tsx:~140-160`), so an enrolled user gets no challenge UI; no recovery path.
   - Do: prompt for password, show TOTP URI/QR + `verifyTotp`, handle `twoFactorRedirect` (TOTP, backup code, trusted device), move controls to Account settings, define recovery policy.
   - Done when: user enrols, signs out, signs in with TOTP and with a backup code; e2e test AUTH-047.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (TOTP), auth.md#3 (8), auth.md#4 (8)
+  - Status (2026-11-02): **done** end to end. Enrolment: `useTwoFactor.enable(password)` sends the account password (the old call sent `password: ""`, which Better Auth refuses for a credential account) and keeps the returned `totpURI` and backup codes; the Account → Security card shows the `otpauth://` URI (text + copy, no QR dependency), the one-time backup codes, and a code field that calls `verifyTotp`. The factor turns on only when that code is confirmed, so a mis-scanned secret cannot lock the account out. Sign-in: a `twoFactorRedirect: true` answer now switches the page to a code challenge (TOTP or backup code), instead of redirecting to the dashboard and bouncing back — the loop anyone with 2FA enabled was stuck in. The devtools panel no longer offers the impossible `password: ""` enrolment and points at Account → Security. Remaining from the design: trusted devices and an explicit recovery policy (AUTH-063).
 
 - [x] `AUTH-018` **Fix passkey rpID/origin** · FIX · P1 · M · Deps: none
   - Why/Problem: `usePasskey({rpName})` only; `PASSKEY_RPID/PASSKEY_ORIGIN` appear only in compose and are read by no code; plugin default rpID is `api.<domain>` while the browser origin is `web.<domain>`, so WebAuthn validation fails.

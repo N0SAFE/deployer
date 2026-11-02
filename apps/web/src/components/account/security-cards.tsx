@@ -12,7 +12,6 @@
  * Better Auth's transport directly.
  */
 
-import * as React from 'react'
 import {
     AlertTriangle,
     Bot,
@@ -30,7 +29,10 @@ import {
     ShieldOff,
     Trash2,
 } from 'lucide-react'
+import * as React from 'react'
 import { toast } from 'sonner'
+
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -43,7 +45,6 @@ import {
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import {
     Table,
     TableBody,
@@ -52,6 +53,7 @@ import {
     TableHeader,
     TableRow,
 } from '@deployer/ui/components/shadcn/table'
+
 import {
     addPasskey,
     createApiKey,
@@ -68,6 +70,7 @@ import {
     useApiKeys,
     useLinkedAccounts,
     usePasskeys,
+    useTwoFactor,
 } from '@/domains/account/hooks'
 
 /** Shown when a plugin endpoint fails, with the server's own explanation. */
@@ -800,42 +803,175 @@ export function AgentConnectionsCard() {
 // ---------------------------------------------------------------------------
 
 /** Read-only two-factor status, so the profile states the account's posture. */
+/** The codes an authenticator app cannot give back: shown once, copyable, never retrievable again. */
+function BackupCodeList({ codes }: { codes: string[] }) {
+    const [copied, setCopied] = React.useState(false)
+
+    return (
+        <Alert>
+            <KeyRound className="size-4" />
+            <AlertTitle>Backup codes — save them now</AlertTitle>
+            <AlertDescription className="space-y-2">
+                <p className="text-sm">
+                    Each one signs you in once if you lose the authenticator. They are not shown again.
+                </p>
+                <pre className="bg-muted overflow-x-auto rounded p-2 font-mono text-xs">
+                    {codes.join('\n')}
+                </pre>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                        void navigator.clipboard.writeText(codes.join('\n')).then(() => { setCopied(true); })
+                    }}
+                >
+                    {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                    <span className="ml-2">{copied ? 'Copied' : 'Copy codes'}</span>
+                </Button>
+            </AlertDescription>
+        </Alert>
+    )
+}
+
+/**
+ * Two-factor enrolment, end to end.
+ *
+ * The audit's finding was that enrolment could not complete: the hook sent `password: ''` (which Better Auth refuses for
+ * a credential account), the TOTP URI was never shown, and nothing verified the first code — so the only way to finish
+ * was through the API. The flow is now: password → show the `otpauth://` URI and the backup codes → confirm a code. The
+ * factor turns on only on confirmation, which is what keeps a mis-scanned secret from locking the account out.
+ */
 export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
+    const twoFactor = useTwoFactor(enabled)
+    const [password, setPassword] = React.useState('')
+    const [code, setCode] = React.useState('')
+    const [copied, setCopied] = React.useState(false)
+
+    const start = async () => {
+        const started = await twoFactor.enable(password)
+        if (started) setPassword('')
+    }
+
+    const confirm = async () => {
+        const confirmed = await twoFactor.verify(code)
+        if (confirmed) {
+            setCode('')
+            toast.success('Two-factor authentication is on')
+            window.location.reload()
+        }
+    }
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    {enabled ? (
-                        <ShieldCheck className="size-5" />
-                    ) : (
-                        <ShieldOff className="size-5" />
-                    )}
+                    {enabled ? <ShieldCheck className="size-5" /> : <ShieldOff className="size-5" />}
                     Two-factor authentication
                 </CardTitle>
                 <CardDescription>
                     A second factor on an account that controls production infrastructure.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap items-center gap-3">
-                {enabled ? (
-                    <Badge>enabled</Badge>
-                ) : (
+            <CardContent className="space-y-4">
+                {enabled && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Badge>enabled</Badge>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void twoFactor.disable()}
+                            disabled={twoFactor.isBusy}
+                        >
+                            {twoFactor.isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                            <span className="ml-2">Turn off</span>
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void twoFactor.regenerateBackupCodes()}
+                            disabled={twoFactor.isBusy}
+                        >
+                            New backup codes
+                        </Button>
+                    </div>
+                )}
+
+                {!enabled && twoFactor.totpURI === null && (
                     <>
-                        <Badge variant="secondary">disabled</Badge>
-                        <span className="text-muted-foreground text-sm">
-                            Enrol from the Security panel in the developer tools.
-                        </span>
+                        <p className="text-muted-foreground text-sm">
+                            Enrol an authenticator app. Your password is required to start.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Label htmlFor="two-factor-password" className="sr-only">
+                                Current password
+                            </Label>
+                            <Input
+                                id="two-factor-password"
+                                type="password"
+                                autoComplete="current-password"
+                                placeholder="Your password"
+                                className="max-w-xs"
+                                value={password}
+                                onChange={(event) => { setPassword(event.target.value); }}
+                            />
+                            <Button
+                                size="sm"
+                                onClick={() => void start()}
+                                disabled={twoFactor.isBusy || password.length === 0}
+                            >
+                                {twoFactor.isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                                <span className="ml-2">Start enrolment</span>
+                            </Button>
+                        </div>
                     </>
                 )}
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto"
-                    onClick={() => { window.location.reload() }}
-                >
-                    <RefreshCw className="size-4" />
-                    <span className="ml-2">Refresh</span>
-                </Button>
+
+                {twoFactor.totpURI !== null && (
+                    <>
+                        <div className="space-y-2">
+                            <Label>Add this account to your authenticator app</Label>
+                            <code className="bg-muted block break-all rounded p-2 font-mono text-xs">
+                                {twoFactor.totpURI}
+                            </code>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                    void navigator.clipboard.writeText(twoFactor.totpURI ?? '').then(() => { setCopied(true); })
+                                }}
+                            >
+                                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                                <span className="ml-2">{copied ? 'Copied' : 'Copy URI'}</span>
+                            </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Label htmlFor="two-factor-code" className="sr-only">
+                                Code from the app
+                            </Label>
+                            <Input
+                                id="two-factor-code"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                placeholder="6-digit code"
+                                className="max-w-40"
+                                value={code}
+                                onChange={(event) => { setCode(event.target.value); }}
+                            />
+                            <Button
+                                size="sm"
+                                onClick={() => void confirm()}
+                                disabled={twoFactor.isBusy || code.length < 6}
+                            >
+                                {twoFactor.isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                                <span className="ml-2">Confirm</span>
+                            </Button>
+                        </div>
+                    </>
+                )}
+
+                {twoFactor.backupCodes.length > 0 && <BackupCodeList codes={twoFactor.backupCodes} />}
+
+                {twoFactor.error !== null && <p className="text-destructive text-sm">{twoFactor.error}</p>}
             </CardContent>
         </Card>
     )

@@ -23,8 +23,10 @@
  */
 
 import * as React from 'react'
-import { authClient } from '@/lib/auth'
+
 import { logger } from '@deployer/logger'
+
+import { authClient } from '@/lib/auth'
 
 // ---------------------------------------------------------------------------
 // Shared shapes
@@ -212,9 +214,20 @@ export async function addPasskey(name?: string): Promise<void> {
 export interface TwoFactorActions {
     /** Codes shown once, right after enabling or regenerating. */
     backupCodes: string[]
+    /**
+     * The `otpauth://` URI a QR code encodes, present between `enable` and `verify`.
+     *
+     * Shown as text rather than a QR image: the URI is what an authenticator app reads, and rendering it needs no
+     * dependency, no network fetch and no image CDN — a QR component would be one more thing between the operator and
+     * their second factor.
+     */
+    totpURI: string | null
     isBusy: boolean
     error: string | null
-    enable: () => Promise<void>
+    /** Start enrolment. The password is required by Better Auth for a credential account. */
+    enable: (password: string) => Promise<boolean>
+    /** Confirm the first code from the app; only then is 2FA on. */
+    verify: (code: string) => Promise<boolean>
     disable: () => Promise<void>
     regenerateBackupCodes: () => Promise<void>
     clearBackupCodes: () => void
@@ -230,6 +243,7 @@ export interface TwoFactorActions {
  */
 export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
     const [backupCodes, setBackupCodes] = React.useState<string[]>([])
+    const [totpURI, setTotpURI] = React.useState<string | null>(null)
     const [isBusy, setIsBusy] = React.useState(false)
     const [error, setError] = React.useState<string | null>(null)
 
@@ -257,15 +271,46 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
         [],
     )
 
+    // `enable` returns `false` when the server refused, so the caller can keep the password field from clearing.
     const enable = React.useCallback(
-        () =>
-            run(
-                () => authClient.twoFactor.enable({ password: '' }),
+        async (password: string): Promise<boolean> => {
+            let started = false
+            await run(
+                () => authClient.twoFactor.enable({ password }),
                 (data) => {
-                    const codes = (data as { backupCodes?: string[] } | null)?.backupCodes
-                    if (codes?.length) setBackupCodes(codes)
+                    const payload = data as { totpURI?: string; backupCodes?: string[] } | null
+                    if (payload?.totpURI) {
+                        setTotpURI(payload.totpURI)
+                        started = true
+                    }
+                    if (payload?.backupCodes?.length) setBackupCodes(payload.backupCodes)
                 },
-            ),
+            )
+            return started
+        },
+        [run],
+    )
+
+    /**
+     * Confirm the first code.
+     *
+     * Better Auth turns the factor ON when this succeeds (and only then), which is why enrolment is a two-step flow:
+     * a mis-scanned secret must never lock the account out.
+     */
+    const verify = React.useCallback(
+        async (code: string): Promise<boolean> => {
+            let confirmed = false
+            await run(
+                // `verifyTotp` is the enrolment confirmation; the sign-in challenge uses `verifyTotp` too, but through
+                // the auth client's sign-in state, not this hook.
+                () => authClient.twoFactor.verifyTotp({ code }),
+                () => {
+                    confirmed = true
+                    setTotpURI(null)
+                },
+            )
+            return confirmed
+        },
         [run],
     )
 
@@ -290,12 +335,15 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
         [run],
     )
 
-    const clearBackupCodes = React.useCallback(() => { setBackupCodes([]); }, [])
+    const clearBackupCodes = React.useCallback(() => {
+        setBackupCodes([])
+        setTotpURI(null)
+    }, [])
 
     // `_enabledFromSession` is accepted but unused here: the caller already holds
     // the session, so reading it again would double the requests for one boolean.
 
-    return { backupCodes, isBusy, error, enable, disable, regenerateBackupCodes, clearBackupCodes }
+    return { backupCodes, totpURI, isBusy, error, enable, verify, disable, regenerateBackupCodes, clearBackupCodes }
 }
 
 // ---------------------------------------------------------------------------

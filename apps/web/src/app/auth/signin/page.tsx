@@ -3,11 +3,14 @@
 
 // Using typed routing: replace raw next/link with declarative routes
 
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
-import { Button } from '@deployer/ui/components/shadcn/button'
-import { Input } from '@deployer/ui/components/shadcn/input'
-import { Label } from '@deployer/ui/components/shadcn/label'
+import { useForm } from '@tanstack/react-form'
+import { Rocket } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import React, { Suspense } from 'react'
+
+import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
 import { Alert, AlertDescription } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
     Card,
     CardContent,
@@ -15,23 +18,24 @@ import {
     CardHeader,
     CardTitle,
 } from '@deployer/ui/components/shadcn/card'
-import { useForm } from '@tanstack/react-form'
-import React, { Suspense } from 'react'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+
 import redirect from '@/actions/redirect'
-import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
-import { loginSchema } from './schema'
-import { AuthSignup } from '@/routes'
-import { Rocket } from 'lucide-react'
-import { authClient } from '@/lib/auth'
-import { PageTimingLogger } from '@/lib/timing'
 import { useSetupState } from '@/domains/setup/hooks'
+import { authClient } from '@/lib/auth'
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { setupDestinationUrl } from '@/lib/setup-url'
-import { useRouter } from 'next/navigation'
+import { PageTimingLogger } from '@/lib/timing'
+import { AuthSignup } from '@/routes'
+
 import { PasswordInput } from '../_components/password-input'
 import { devConveniencesEnabled, signInErrorHint } from '../_utils/dev-only'
-import { PasskeySignInButton, LastUsedBadge } from './_components/passkey-button'
+
 import { DevDemoCredentials } from './_components/dev-demo-credentials'
+import { PasskeySignInButton, LastUsedBadge } from './_components/passkey-button'
 import { getPostSignInTarget, readUrlSearchParam } from './_utils/url'
+import { loginSchema } from './schema'
 
 /** Compile-time constant in production bundles (see `dev-only.ts`). */
 const DEV_CONVENIENCES = devConveniencesEnabled()
@@ -147,6 +151,16 @@ function SignUpLink() {
 export default function SignInPage() {
     // ─── Hooks (must always be called in the same order — no early return before) ───
     const [authError, setAuthError] = React.useState<string | null>(null)
+    /**
+     * Set when the password was accepted but a second factor is required.
+     *
+     * Better Auth answers `twoFactorRedirect: true` instead of a session; without this branch the page redirected to the
+     * dashboard, which bounced the user back to sign-in — a permanent loop for anyone who had enabled 2FA.
+     */
+    const [challenge, setChallenge] = React.useState(false)
+    const [code, setCode] = React.useState('')
+    const [useBackupCode, setUseBackupCode] = React.useState(false)
+    const [verifying, setVerifying] = React.useState(false)
 
     const form = useForm({
         defaultValues: {
@@ -173,6 +187,12 @@ export default function SignInPage() {
                     return
                 }
 
+                // No session yet: the account has a second factor.
+                if ((res.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect === true) {
+                    setChallenge(true)
+                    return
+                }
+
                 void redirect(getPostSignInTarget())
             } catch (error) {
                 // Network failure / unreachable API. Without this catch the
@@ -184,6 +204,27 @@ export default function SignInPage() {
             }
         },
     })
+
+    const submitCode = async () => {
+        setAuthError(null)
+        setVerifying(true)
+        try {
+            const result = useBackupCode
+                ? await authClient.twoFactor.verifyBackupCode({ code })
+                : await authClient.twoFactor.verifyTotp({ code })
+
+            if (result.error) {
+                setAuthError(result.error.message ?? 'That code was not accepted')
+                return
+            }
+
+            void redirect(getPostSignInTarget())
+        } catch (error) {
+            setAuthError(getErrorMessage(error, 'Unable to reach the authentication service'))
+        } finally {
+            setVerifying(false)
+        }
+    }
 
     return (
         <div className="flex flex-1 items-center justify-center">
@@ -209,6 +250,58 @@ export default function SignInPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
+                        {challenge ? (
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void submitCode()
+                                }}
+                                className="space-y-6"
+                            >
+                                <div className="space-y-4">
+                                    <p className="text-muted-foreground text-sm">
+                                        {useBackupCode
+                                            ? 'Enter one of the backup codes you saved when you enrolled.'
+                                            : 'Enter the 6-digit code from your authenticator app.'}
+                                    </p>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="two-factor-code">
+                                            {useBackupCode ? 'Backup code' : 'Authentication code'}
+                                        </Label>
+                                        <Input
+                                            id="two-factor-code"
+                                            autoFocus
+                                            autoComplete="one-time-code"
+                                            inputMode={useBackupCode ? 'text' : 'numeric'}
+                                            className="h-12"
+                                            value={code}
+                                            onChange={(event) => { setCode(event.target.value); }}
+                                        />
+                                    </div>
+
+                                    {authError && (
+                                        <Alert variant="destructive">
+                                            <AlertCircle className="h-4 w-4" />
+                                            <AlertDescription>{authError}</AlertDescription>
+                                        </Alert>
+                                    )}
+
+                                    <Button type="submit" className="h-12 w-full text-base" disabled={verifying || code.length === 0}>
+                                        {verifying && <Spinner />}
+                                        {verifying ? 'Checking…' : 'Verify'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="w-full"
+                                        onClick={() => { setUseBackupCode(!useBackupCode); setCode(''); }}
+                                    >
+                                        {useBackupCode ? 'Use an authenticator code' : 'Use a backup code'}
+                                    </Button>
+                                </div>
+                            </form>
+                        ) : (
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault()
@@ -310,6 +403,7 @@ export default function SignInPage() {
 
                             {DEV_CONVENIENCES ? <DevDemoCredentials /> : null}
                         </form>
+                        )}
                     </CardContent>
                 </Card>
                 {DEV_CONVENIENCES ? (
