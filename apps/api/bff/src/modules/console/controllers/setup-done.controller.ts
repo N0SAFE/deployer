@@ -1,7 +1,6 @@
 import { Controller, Get, Logger } from "@nestjs/common";
 import { Render as SsrRender } from "@nestjs-ssr/react";
 
-import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import SetupDoneView from "@/views/pages/setup-done";
 
@@ -22,7 +21,6 @@ import { ManagedWebClient } from "../clients/managed-web.client";
  * actually enabled AND healthy — which only the server can know. Deciding it in the
  * browser would flash the wrong button before the answer arrives.
  */
-@AllowAnonymous()
 @Controller()
 export class SetupDoneController {
 	private readonly logger = new Logger(SetupDoneController.name);

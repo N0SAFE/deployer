@@ -1,6 +1,5 @@
 import { Controller, Get, Header } from "@nestjs/common";
 
-import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { generateOpenApiSpec } from "@/orpc/openapi";
 
 /**
@@ -33,7 +32,6 @@ import { generateOpenApiSpec } from "@/orpc/openapi";
  * used to obtain a session, and the document exposes only shape — never data. The
  * procedures it describes still enforce their own auth when CALLED.
  */
-@AllowAnonymous()
 @Controller()
 export class OpenApiDocsController {
 	/**

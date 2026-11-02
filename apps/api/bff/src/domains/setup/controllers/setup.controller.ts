@@ -10,7 +10,6 @@ import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/
 import { domainErrorOptions } from "@deployer/orpc-utils";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
-import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import {  EgressService } from "@/core/modules/egress/egress.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
@@ -38,7 +37,6 @@ const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
  * applied: @AllowAnonymous() for the guard, publicAccess() for ORPC handlers
  * that read context.auth without requiring a session.
  */
-@AllowAnonymous()
 @Controller()
 export class SetupController {
     private readonly logger = new Logger(SetupController.name);

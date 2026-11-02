@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
-import { Roles } from '@deployer/auth/permissions';
+import { Roles } from '@deployer/auth';
 import * as schema from '@deployer/nest-schema/global';
 
 import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';

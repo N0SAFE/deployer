@@ -53,7 +53,6 @@ export class CLIModule extends createModuleContext({
       useFactory: createBetterAuth,
       inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
       disableBodyParser: true,
-      disableGlobalAuthGuard: true,
       disableTrustedOriginsCors: true,
     }),
   ],

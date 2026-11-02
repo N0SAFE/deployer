@@ -53,8 +53,8 @@
  * ```
  */
 
-import { Controller, Get, Logger, Param, UseGuards } from "@nestjs/common";
-import { ApiOperation, ApiResponse, ApiTags,  ApiBearerAuth } from "@nestjs/swagger";
+import { Controller, Logger } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { oc } from "@orpc/contract";
 import { Implement } from "@orpc/nest";
 import { openapi } from "@orpc/openapi";
@@ -62,15 +62,6 @@ import { implement } from "@orpc/server";
 import * as z from "zod/v4";
 
 // Auth Service (single source of truth)
-import type { RoleName } from "@deployer/auth/permissions";
-
-import {
-    AllowAnonymous,
-    OptionalAuth,
-    Session,
-    AuthenticatedUser,
-} from "@/core/modules/auth/decorators/decorators";
-import { AuthGuard } from "@/core/modules/auth/guards/auth.guard";
 
 // NestJS Guards
 
@@ -83,7 +74,6 @@ import { AuthService } from "@/core/modules/auth/services/auth.service";
 
 // Types
 
-import type { UserSession } from "@/core/modules/auth/utils/auth-utils";
 
 // =============================================================================
 // ORPC CONTRACTS
@@ -199,137 +189,12 @@ export class TestController {
   private readonly logger = new Logger(TestController.name)
 
     // =========================================================================
-    // NESTJS GUARD-BASED PATTERNS
-    // =========================================================================
-    
-    // -------------------------------------------------------------------------
-    // Public Access
-    // -------------------------------------------------------------------------
-    
-    @Get("test/public")
-    @AllowAnonymous()
-    @ApiOperation({ summary: "Public endpoint (no auth)" })
-    @ApiResponse({ status: 200, description: "Public data accessible to everyone" })
-    publicNestJS() {
-        return {
-            message: "Public endpoint - no authentication required",
-            approach: "NestJS @AllowAnonymous() decorator",
-        };
-    }
-    
-    // -------------------------------------------------------------------------
-    // Basic Authentication
-    // -------------------------------------------------------------------------
-    
-    @Get("test/authenticated")
-    @UseGuards(AuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: "Requires authentication" })
-    @ApiResponse({ status: 200, description: "Authenticated user data" })
-    @ApiResponse({ status: 401, description: "Unauthorized" })
-    authenticatedNestJS(@Session() session: UserSession) {
-        return {
-            message: "Authenticated endpoint - requires valid session",
-            approach: "NestJS @UseGuards(AuthGuard)",
-            userId: session.user.id,
-            userEmail: session.user.email,
-        };
-    }
-    
-    @Get("test/optional-auth")
-    @UseGuards(AuthGuard)
-    @OptionalAuth()
-    @ApiOperation({ summary: "Optional authentication" })
-    @ApiResponse({ status: 200, description: "Works with or without auth" })
-    optionalAuthNestJS(@Session() session: UserSession | null) {
-        return {
-            message: "Optional auth endpoint - session may be null",
-            approach: "NestJS @UseGuards(AuthGuard) + @OptionalAuth()",
-            isAuthenticated: session !== null,
-            userId: session?.user.id ?? null,
-        };
-    }
-    
-    // -------------------------------------------------------------------------
-    // Admin Role-Based Access Control (using AuthService guards)
-    // 
-    // NOTE: For NestJS guards from AuthService, you need to instantiate them
-    // in a module provider or use them dynamically. See ORPC patterns below
-    // for the cleanest dynamic usage with AuthService.
-    // -------------------------------------------------------------------------
-    
-    @Get("test/admin/role")
-    @UseGuards(AuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: "Requires admin role via AuthService" })
-    @ApiResponse({ status: 200, description: "User has admin role" })
-    @ApiResponse({ status: 403, description: "Forbidden - missing role" })
-    adminRoleNestJS(@Session() session: UserSession) {
-        // NOTE: In a real implementation, you'd use:
-        // @UseGuards(AuthGuard, this.authService.guards.admin.hasRole(['admin', 'superAdmin']))
-        // But decorators need class-level guard references.
-        // See ORPC patterns below for dynamic usage.
-        return {
-            message: "Admin role access (see ORPC patterns for AuthService usage)",
-            approach: "authService.guards.admin.hasRole(['admin', 'superAdmin'])",
-            userRole: session.user.role,
-        };
-    }
-    
-    @Get("test/admin/permission")
-    @UseGuards(AuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: "Requires admin permission via AuthService" })
-    @ApiResponse({ status: 200, description: "User has required permission" })
-    @ApiResponse({ status: 403, description: "Forbidden - missing permission" })
-    adminPermissionNestJS(@Session() session: UserSession) {
-        return {
-            message: "Admin permission access (see ORPC patterns for AuthService usage)",
-            approach: "authService.guards.admin.hasPermission({ user: ['read'] })",
-            userId: session.user.id,
-            userRole: session.user.role ?? "unknown",
-        };
-    }
-    
-    // -------------------------------------------------------------------------
-    // Combined Patterns (using AuthService composite guards)
-    // -------------------------------------------------------------------------
-    
-    @Get("test/composite/admin")
-    @UseGuards(AuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: "Composite guard - multiple checks combined" })
-    @ApiResponse({ status: 200, description: "All checks passed" })
-    @ApiResponse({ status: 403, description: "Forbidden" })
-    compositeAdminNestJS(
-        @Session() session: UserSession,
-        @AuthenticatedUser() user: { id: string; role: string; roles: RoleName[] }
-    ) {
-        // For composite guards:
-        // const checks = [
-        //   authService.checks.admin.requireSession(),
-        //   authService.checks.admin.hasRole(['admin']),
-        //   authService.checks.admin.hasPermission({ user: ['read'] }),
-        // ];
-        // const CompositeGuard = authService.guards.admin.composite(checks);
-        return {
-            message: "Composite admin access (see ORPC patterns for AuthService usage)",
-            approach: "authService.guards.admin.composite([checks])",
-            userId: user.id,
-            userRole: user.role,
-            allRoles: user.roles,
-        };
-    }
-    
-    // =========================================================================
     // ORPC MIDDLEWARE-BASED PATTERNS (using AuthService.middleware)
     // =========================================================================
     
     // -------------------------------------------------------------------------
     // Public Access
     // -------------------------------------------------------------------------
-    
-    @AllowAnonymous()
     @Implement(testContracts.publicEndpoint)
     publicOrpc() {
         return implement(testContracts.publicEndpoint)
@@ -360,7 +225,6 @@ export class TestController {
             });
     }
     
-    @OptionalAuth()
     @Implement(testContracts.optionalAuthEndpoint)
     optionalAuthOrpc() {
         return implement(testContracts.optionalAuthEndpoint)

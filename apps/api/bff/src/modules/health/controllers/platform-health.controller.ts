@@ -1,6 +1,5 @@
 import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 
-import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 
 import { PlatformHealthService } from "../services/platform-health.service";
 
@@ -25,7 +24,6 @@ import type { PlatformHealth } from "../platform-health.schema";
  * concluded the tier was down.
  */
 @Controller("health")
-@AllowAnonymous()
 export class PlatformHealthController {
 	constructor(private readonly health: PlatformHealthService) {}
 
