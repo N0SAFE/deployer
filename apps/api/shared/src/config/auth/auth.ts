@@ -1,10 +1,44 @@
+import { Logger } from "@nestjs/common";
 import { betterAuthFactory } from "@deployer/auth/server";
+
+import type { AuthAuditEvent, AuthAuditSink } from "@deployer/auth/audit";
+import type { EnvService } from "../env/env.module";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+
+import { authAuditEvents } from "@deployer/nest-schema/global/identity/audit";
+import { getErrorMessage } from "@deployer/errors";
 
 /** A string env value, or nothing: the schema's optional keys widen to a union through `EnvService`. */
 const optionalString = (value: unknown): string | undefined =>
     typeof value === "string" && value.length > 0 ? value : undefined;
-import type { EnvService } from "../env/env.module";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+
+const logger = new Logger("AuthAudit");
+
+/**
+ * Append auth audit events to `auth_audit_events`.
+ *
+ * Fire-and-forget by contract: the auth request has already succeeded by the time the hook runs, so failing it because
+ * the audit insert failed would turn an observability problem into an outage. The failure is logged instead, with the
+ * action so an operator can see what is missing.
+ */
+function drizzleAuditSink<TSchema extends Record<string, unknown>>(database: NodePgDatabase<TSchema>): AuthAuditSink {
+    const insert = (event: AuthAuditEvent): void => {
+        void database
+            .insert(authAuditEvents)
+            .values({
+                action: event.action,
+                actorId: event.actorId ?? null,
+                targetId: event.targetId ?? null,
+                ip: event.ip ?? null,
+                userAgent: event.userAgent ?? null,
+                detail: event.detail ?? {},
+            })
+            .catch((error: unknown) => {
+                logger.warn(`audit write failed for "${event.action}": ${getErrorMessage(error)}`);
+            });
+    };
+    return { record: insert };
+}
 
 export const createBetterAuth = <TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,
@@ -25,5 +59,5 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
         PASSKEY_ORIGIN: optionalString(envService.get('PASSKEY_ORIGIN')),
         GITHUB_CLIENT_ID: optionalString(envService.get('GITHUB_CLIENT_ID')),
         GITHUB_CLIENT_SECRET: optionalString(envService.get('GITHUB_CLIENT_SECRET')),
-    }: envService);
+    }: envService, { audit: drizzleAuditSink(database) });
 };

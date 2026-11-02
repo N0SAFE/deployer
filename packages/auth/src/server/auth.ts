@@ -1,6 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { multiSession, openAPI } from "better-auth/plugins";
+
+import { auditEventFromRequest, type AuthAuditSink } from "../audit";
 
 import { buildTrustedOrigins } from "./origins";
 import {
@@ -39,6 +42,15 @@ export interface AuthFactoryEnv {
     PASSKEY_RPID?: string;
     /** Pins the WebAuthn origin(s), comma-separated; defaults to `APP_URL`. */
     PASSKEY_ORIGIN?: string;
+}
+
+/** What a deployment may supply in addition to the database and the environment. */
+export interface AuthFactoryOptions {
+    /**
+     * Where auth audit events go (`AUTH-029`). Absent means audited actions are not recorded — the producer is opt-in so
+     * a package that builds an auth instance without a database of its own still works.
+     */
+    readonly audit?: AuthAuditSink;
 }
 
 /** Request-derived values the factory computes and the config builder consumes. */
@@ -96,6 +108,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,
     env: AuthFactoryEnv,
     { origins, isHttps, cookieDomain }: AuthConfigContext,
+    options: AuthFactoryOptions = {},
 ) {
     const {
         DEV_AUTH_KEY,
@@ -315,12 +328,41 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // which one the user used last.
             useLastLoginMethod(),
         ],
+        // ── AUDIT (AUTH-029) ────────────────────────────────────────────────
+        // One `after` hook for every endpoint: the mapping decides which requests are audited, so a new provider or a
+        // renamed admin route is one row in `audit/request.ts`, not a hook per path here. A sink that is absent leaves
+        // the auth config byte-identical to what it was.
+        ...(options.audit === undefined ? {} : { hooks: { after: authAuditHook(options.audit) } }),
     };
+}
+
+/**
+ * Translate a finished auth request into an audit event.
+ *
+ * The hook is deliberately silent about failures: an audit write must never fail the sign-in it describes (the sink
+ * owns reporting its own errors). `returned` is where Better Auth puts the endpoint's result — for a sign-in, the only
+ * place the authenticated user id exists.
+ */
+function authAuditHook(sink: AuthAuditSink) {
+    return createAuthMiddleware((ctx) => {
+        const event = auditEventFromRequest({
+            path: ctx.path,
+            sessionUserId: ctx.context.session?.user.id,
+            body: ctx.body,
+            returned: (ctx.context as { returned?: unknown }).returned,
+            ip: ctx.headers?.get("x-forwarded-for") ?? undefined,
+            userAgent: ctx.headers?.get("user-agent") ?? undefined,
+        });
+        if (event !== null) sink.record(event);
+        // `createAuthMiddleware` wants a Promise; the mapping itself is synchronous.
+        return Promise.resolve();
+    });
 }
 
 export const betterAuthFactory = <TSchema extends Record<string, unknown> = Record<string, never>>(
     database: NodePgDatabase<TSchema>,
     env: AuthFactoryEnv,
+    options: AuthFactoryOptions = {},
 ): BetterAuthFactoryResult => {
     const { BASE_URL, AUTH_BASE_DOMAIN } = env;
 
@@ -341,7 +383,7 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
     // the Secure flag: https-only.)
     const cookieDomain: string | undefined = AUTH_BASE_DOMAIN;
 
-    const config = buildAuthConfig(database, env, { origins, isHttps, cookieDomain });
+    const config = buildAuthConfig(database, env, { origins, isHttps, cookieDomain }, options);
     const auth = betterAuth(config);
 
     return { auth: { ...auth, config } };

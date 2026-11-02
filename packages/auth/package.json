@@ -201,6 +201,21 @@
                 "import": "./dist/production/esm/authz/index.mjs",
                 "require": "./dist/production/cjs/authz/index.js"
             }
+        },
+        "./audit": {
+            "types": "./dist/types/audit/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/audit/index.mjs",
+                "require": "./dist/development/cjs/audit/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/audit/index.mjs",
+                "require": "./dist/production/cjs/audit/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/audit/index.mjs",
+                "require": "./dist/production/cjs/audit/index.js"
+            }
         }
     },
     "scripts": {

@@ -107,6 +107,20 @@ describe('betterAuthFactory', () => {
     });
   });
 
+  describe('Auth audit (AUTH-029)', () => {
+    it('installs no hook when no sink is supplied', () => {
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(result.auth.config.hooks?.after).toBeUndefined();
+    });
+
+    it('installs the audit hook when a sink is supplied', () => {
+      const result = betterAuthFactory(mockDb, mockEnv, { audit: { record: vi.fn() } });
+
+      expect(result.auth.config.hooks?.after).toBeTypeOf('function');
+    });
+  });
+
   describe('Trusted Origins Configuration', () => {
     it('should include APP_URL in trusted origins', () => {
       const result = betterAuthFactory(mockDb, mockEnv);

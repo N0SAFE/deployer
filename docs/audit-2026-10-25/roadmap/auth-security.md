@@ -232,7 +232,16 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: `system:audit` permission exists with no producer; sign-in, role change, ban, invite, key mint, device approval are unrecorded (tamper-evident chain I-03 is an IDEA item).
   - Do: Better Auth hooks emit audit events to an append-only table/outbox.
   - Done when: listed auth events appear in an admin-viewable log.
-  - Status: todo · Verified-in-code: no · Source: auth.md#5
+  - Status: producer done (2026-11-02) · Verified-in-code: yes · Source: auth.md#5
+  - Progress (2026-11-02): **the producer is in**. `packages/auth/src/audit` defines the action catalog and one
+    `authAuditEventSchema` (`zod/v4`), the `AuthAuditSink` port, and `auditEventFromRequest` — a pure mapping from a
+    finished Better Auth request to an event (sign-in/out, admin create/remove/set-role/ban/unban/set-password,
+    two-factor, passkey, api-key, invite, device approval), with the actor, the subject, the IP/user-agent and no
+    secret. `betterAuthFactory(db, env, { audit })` installs ONE `after` hook when a sink is supplied; without a sink
+    the config is byte-identical. `apps/api/shared` supplies a drizzle sink that appends to `auth_audit_events`
+    (`bigserial` id, append-only, indexed by action/actor/target/created_at, migration `0042`), fire-and-forget so a
+    failed audit write cannot fail the request it describes. Remaining: the admin viewer (`audit:read` contract +
+    page), `audit:export`, and the tamper-evident chain (`IDEA` item).
   - Design-impact (2026-10-26): auth events are produced by the decision log (`SEC-068`, every decision) plus Better Auth hooks into `OBS-071`; the `audit:read`/`audit:export` permissions are catalog entries; coverage guard `OBS-085` is satisfied by the gate, not per controller.
 
 - [ ] `AUTH-030` **Step-up / session freshness prompts for destructive actions** · NEW · P2 · M · Deps: `AUTH-018`,`AUTH-012`
