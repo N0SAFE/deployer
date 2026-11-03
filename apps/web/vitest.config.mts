@@ -104,10 +104,13 @@ export default defineConfig({
                         '.next',
                         'src/**/*.e2e.spec.{ts,tsx}',
                     ],
-                    // Mock Next.js modules
+                    // `inline: true` (not just the two Next packages): `zod/v4` is a SUBPATH export that vite-node
+                    // externalises, so a dependency importing it at module scope got `undefined` back and died on
+                    // the first `z.object(...)` — naming the caller, never the resolution. Same reason the shared node
+                    // config inlines everything.
                     server: {
                         deps: {
-                            inline: ['next', '@next/font'],
+                            inline: true,
                         },
                     },
                 },
