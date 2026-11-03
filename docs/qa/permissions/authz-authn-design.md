@@ -144,10 +144,31 @@ Source of the questions: `docs/audit-2026-10-25/authz-authn-design.md` section 1
 
 ---
 
-## oRPC gate/meta mechanics (DEC-AUTH-26, D18, UNVERIFIED)
+## oRPC gate/meta mechanics (DEC-AUTH-26, D18, RESOLVED 2026-11-03)
 
 **Q**: Middleware reading `procedure["~orpc"].meta` after validation, or `implement(contract).use(authzGate(accessMapFromContract))` keyed by procedure path?
 
-**A**: Accepted as "resolve via spike `SEC-063`; fallback path-keyed access map". Resolved-pending-spike: `SEC-063` stays a todo spike and `SEC-061`, `SEC-062`, `SEC-064` and dependants remain gated on it. (Decided 2026-10-26, in chat.)
+**A**: Resolved by spike `SEC-063`, measured rather than assumed:
+
+1. **The declaration reaches the middleware.** `.meta(access(...))` on a contract is readable as
+   `procedure["~orpc"].meta.authz` inside an oRPC middleware, whether the handler is `.effect()` or `.handler()`. No
+   path-keyed access map is needed; the fallback is dead.
+2. **Middleware, not the HTTP interceptor.** `StandardHandler.interceptors` also receives `{ procedure, path,
+   decodeInput }`, so a global interceptor is possible — but it runs BEFORE the body is decoded, so a scope read from the
+   payload (`{ by: "input", path: "serviceId" }`) would force a second `decodeInput()`, i.e. two JSON+zod parses of an
+   attacker-controlled body (and it cannot work at all for stream bodies). The middleware runs on the validated input and
+   decodes once.
+3. **The cost is bypass.** A controller that calls `implement()` from `@orpc/server` instead of `procedure()` from
+   `@deployer/nest-effect` builds the same route WITHOUT the gate — silently, because it still compiles and boots. So the
+   gate is only as complete as the builder's use, and that is now enforced rather than reviewed:
+   `nestjsConfig.configs.controllersUseProcedure()` (each service's `eslint.config.ts`) refuses the `implement` import in
+   `src/**/*.controller.ts`. All five services' controllers are on `procedure()`; the gate covers `.effect()` and
+   `.handler()` alike.
+4. **What is still open** (the reason `SEC-062` is in progress, not done): no contract declares `access(...)` yet, so in
+   `enforce` every procedure is "undeclared" and therefore allowed; and the store is `platformRoleStore()` (the shipped
+   table) rather than the `roles` rows + project membership, so a custom role would be denied the moment it mattered.
+   Annotations are `SEC-064`, the store is `SEC-057`/`SEC-059`.
+
+(Decided 2026-11-03, measured in `packages/nest/effect/src/authz.spec.ts`.)
 
 ---

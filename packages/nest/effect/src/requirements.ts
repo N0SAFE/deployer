@@ -149,10 +149,11 @@ export type RequirementProcedure<
 /**
  * `implement(contract, config)`, with `.effect()` returning the requirements it inferred.
  *
- * When a host has called `configureAuthz` (`@deployer/nest-effect/authz`), every `.effect()` handler gets the authz gate
- * appended **after** the middlewares the controller declared — so it sees the authenticated actor, and a new procedure
- * cannot forget the check. `.handler()`-based procedures are not covered yet; they are the streaming/Promise surface the
- * audit still tracks (`AUTHZ-010..012`).
+ * When a host has called `configureAuthz` (`@deployer/nest-effect/authz`), every handler — `.effect()` and
+ * `.handler()` alike — gets the authz gate appended **after** the middlewares the controller declared. Two reasons for
+ * the middleware and not the HTTP interceptor: it runs on the VALIDATED input (so a scope read from the payload is a
+ * typed value), and it never decodes a body twice. The cost is that a controller bypassing this builder bypasses the
+ * gate, which is why `implement` is banned in `*.controller.ts` (see `tooling/eslint`).
  */
 export function procedure<
 	TContract extends RouterContract,
@@ -164,16 +165,18 @@ export function procedure<
 	const wrapped = wrap(implement(contract, config)) as unknown as Record<PropertyKey, unknown>;
 	const gated = new Proxy(wrapped, {
 		get(target, property, receiver) {
-			if (property !== "effect") return Reflect.get(target, property, receiver);
+			// `.use()` returns a fresh implementer, so the gate is applied at terminal time, after every middleware the
+			// controller declared: it must see the actor those middlewares resolved.
+			if (property !== "effect" && property !== "handler") return Reflect.get(target, property, receiver);
 			return (handler: unknown) => {
 				const options = authzConfigured();
 				// `authzGate` is structurally a middleware; oRPC types it against the implementer's context, which this
 				// generic wrapper cannot name.
 				const target = options === null || options.mode === "off" ? wrapped : (Reflect.get(wrapped, "use", receiver) as (m: unknown) => Record<PropertyKey, unknown>)(authzGate(options));
-				const effect = Reflect.get(target, "effect") as (h: unknown) => unknown;
+				const terminal = Reflect.get(target, property) as (h: unknown) => unknown;
 				// The whole implementer is cast at the end of this function: oRPC's handler type is generic in a context
 				// this wrapper cannot name, so the call is typed here rather than invented.
-				return effect.call(target, handler) as never;
+				return terminal.call(target, handler) as never;
 			};
 		},
 	});

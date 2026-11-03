@@ -1,6 +1,6 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+
 import { Effect } from "effect";
 import { map } from "rxjs";
 
@@ -25,14 +25,10 @@ import {
 } from "../domains/runtime/orchestration/docker-runtime-activity.service";
 import { DockerRuntimeOrchestratorService } from "../domains/runtime/orchestration/docker-runtime-orchestrator.service";
 
-
 import type { DockerCatalogPorts } from "../catalog/docker-catalog";
-
-
 
 /** The contracts carry dates as strings; the handlers answer with `Date`, as oRPC expects. */
 const timestampOf = (value: string | Date): Date => (value instanceof Date ? value : new Date(value));
-
 
 /** Container mutation is an operational act: a viewer keeps the reads, never the controls. */
 const DOCKER_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
@@ -132,14 +128,14 @@ export class DockerController {
 
   @Implement(dockerContract.containers.streams.inspect)
   streamInspectContainer() {
-    return implement(dockerContract.containers.streams.inspect)
+    return procedure(dockerContract.containers.streams.inspect)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.streamContainerInspect(input.query));
   }
 
   @Implement(dockerContract.containers.streams.logs)
   streamContainerLogs() {
-    return implement(dockerContract.containers.streams.logs)
+    return procedure(dockerContract.containers.streams.logs)
       .use(requireAuth())
       .handler(({ input }) => this.dockerContainersOrchestratorService.streamContainerLogs(input.query));
   }
@@ -176,7 +172,7 @@ export class DockerController {
 
   @Implement(dockerContract.containers.streams.processes)
   streamContainerProcesses() {
-    return implement(dockerContract.containers.streams.processes)
+    return procedure(dockerContract.containers.streams.processes)
       .use(requireAuth())
       .handler(({ input }) =>
         this.dockerContainersOrchestratorService.streamContainerProcesses(input.query).pipe(
@@ -189,7 +185,7 @@ export class DockerController {
 
   @Implement(dockerContract.containers.streams.processLogs)
   streamContainerProcessLogs() {
-    return implement(dockerContract.containers.streams.processLogs)
+    return procedure(dockerContract.containers.streams.processLogs)
       .use(requireAuth())
       .handler(({ input }) => this.dockerContainersOrchestratorService.streamContainerProcessLogs(input.query));
   }
@@ -326,7 +322,7 @@ export class DockerController {
 
   @Implement(dockerContract.containers.terminal.stream)
   streamContainerTerminalSession() {
-    return implement(dockerContract.containers.terminal.stream)
+    return procedure(dockerContract.containers.terminal.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerContainersOrchestratorService.streamContainerTerminalSession(input.query));
   }
@@ -371,14 +367,14 @@ export class DockerController {
 
   @Implement(dockerContract.images.streams.inspect)
   streamInspectImage() {
-    return implement(dockerContract.images.streams.inspect)
+    return procedure(dockerContract.images.streams.inspect)
       .use(requireAuth())
       .handler(({ input }) => this.dockerImagesOrchestratorService.streamImageInspect(input.query));
   }
 
   @Implement(dockerContract.images.security.scanning.stream)
   streamImageSecurityScan() {
-    return implement(dockerContract.images.security.scanning.stream)
+    return procedure(dockerContract.images.security.scanning.stream)
       .use(requireAuth())
       .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
       .handler(({ input }) => this.dockerImagesOrchestratorService.streamImageSecurityScan(input.query));
@@ -430,7 +426,7 @@ export class DockerController {
 
   @Implement(dockerContract.runtime.stream)
   stream() {
-    return implement(dockerContract.runtime.stream)
+    return procedure(dockerContract.runtime.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.stream(input.query ?? {}));
   }
@@ -459,7 +455,7 @@ export class DockerController {
 
   @Implement(dockerContract.runtime.activityStream)
   runtimeActivityStream() {
-    return implement(dockerContract.runtime.activityStream)
+    return procedure(dockerContract.runtime.activityStream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.streamRuntimeActivities(input.query ?? {}));
   }
@@ -518,11 +514,9 @@ export class DockerController {
 
   @Implement(dockerContract.entity.stream)
   entityStream() {
-    return implement(dockerContract.entity.stream)
+    return procedure(dockerContract.entity.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerEntityOrchestratorService.streamEntities(input.query ?? {}));
   }
-
-
 
 }

@@ -11,12 +11,11 @@
 
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
 import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
+import { procedure } from "@deployer/nest-effect";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import { rateLimit } from "@deployer/rate-limit";
-import { AllowAnonymous } from "@deployer/shared/core/modules/auth/decorators/decorators";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { AuthCoreService } from "@deployer/shared/core/modules/auth/services/auth-core.service";
 import {
@@ -35,11 +34,9 @@ export class PlatformController {
 		private readonly appInstances: AppInstanceService,
 		private readonly authCoreService: AuthCoreService,
 	) {}
-
-	@AllowAnonymous()
 	@Implement(registerAppInstanceContract)
 	register() {
-		return implement(registerAppInstanceContract)
+		return procedure(registerAppInstanceContract)
 			.use(rateLimit({
 				...REGISTER_RATE_LIMIT,
 				message: "Too many registration attempts — try again later",
@@ -79,14 +76,12 @@ export class PlatformController {
 				};
 			});
 	}
-
-	@AllowAnonymous()
 	@Implement(heartbeatAppInstanceContract)
 	heartbeat() {
 		// `requireAppInstance` resolves the token and narrows the context:
 		// after it, `context.appInstance` is guaranteed present — never
 		// null-checked in the handler.
-		return implement(heartbeatAppInstanceContract)
+		return procedure(heartbeatAppInstanceContract)
 			.use(requireAppInstance(this.appInstances))
 			.handler(async () => {
 				return {
@@ -98,7 +93,7 @@ export class PlatformController {
 
 	@Implement(listAppInstancesContract)
 	list() {
-		return implement(listAppInstancesContract)
+		return procedure(listAppInstancesContract)
 			.use(requireAuth())
 			.handler(async () => {
 				await this.appInstances.sweepStale();
@@ -118,7 +113,7 @@ export class PlatformController {
 
 	@Implement(revokeAppInstanceContract)
 	revoke() {
-		return implement(revokeAppInstanceContract)
+		return procedure(revokeAppInstanceContract)
 			.use(requireAuth())
 			.handler(async ({ input }) => {
 				// Delete verbs envelope the input: body + default params.

@@ -107,6 +107,34 @@ const serviceSchemaBoundary = (options: ServiceSchemaBoundaryOptions) =>
         },
     ]);
 
+/**
+ * Authorization is transport-wide (`SEC-062`): `procedure()` from `@deployer/nest-effect` is what appends the authz gate to
+ * a handler. `implement()` is the same builder without it, so a controller reaching for the library directly serves an
+ * ungated route that still compiles, still boots, and still answers. Refusing the import is the cheapest mechanism that
+ * cannot be forgotten: it is checked on every lint run, on every controller file, with no per-controller spec.
+ */
+const controllersUseProcedure = () =>
+    defineConfig([
+        {
+            files: ["src/**/*.controller.ts"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        paths: [
+                            {
+                                name: "@orpc/server",
+                                importNames: ["implement"],
+                                message:
+                                    "Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+    ]);
+
 export default {
     meta: {
         name: "@deployer/config-eslint/nestjs",
@@ -117,5 +145,6 @@ export default {
         test,
         all,
         serviceSchemaBoundary,
+        controllersUseProcedure,
     },
 } as const;

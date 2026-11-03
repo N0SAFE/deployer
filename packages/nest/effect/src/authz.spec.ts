@@ -138,6 +138,29 @@ describe("authz gate", () => {
 			}),
 		).toBeDefined();
 	});
+
+	it("gates a `.handler()` procedure too, which `implement()` alone would leave open (SEC-063)", async () => {
+		configureAuthz({ store, mode: "enforce" });
+
+		// The spike result, kept as a test: the gate reads the contract's meta whichever terminal the controller uses, and
+		// `implement()` without this builder is ungated — which is why controllers may not call it.
+		await expect(
+			call(
+				procedure(execContract).handler(() => ({ ok: true as const })),
+				undefined,
+				{ context: caller("viewer") },
+			),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+		// The allowed case must not refuse; what a Promise handler returns through `call` is not the point here.
+		await expect(
+			call(
+				procedure(execContract).handler(() => ({ ok: true as const })),
+				undefined,
+				{ context: caller("operator") },
+			),
+		).resolves.toSatisfy(() => true);
+	});
 });
 
 describe("Authz service", () => {

@@ -1,11 +1,10 @@
 import { Controller } from "@nestjs/common";
+import { ORPCError } from "@orpc/client";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
 import type { PlatformRole } from "@deployer/auth";
 import { procedure } from "@deployer/nest-effect";
 import { deploymentContract } from "@deployer/runtime-contracts";
-import { AllowAnonymous } from "@deployer/shared/core/modules/auth/decorators/decorators";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole, requireSystemActor } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "../../../core/orpc/serve";
@@ -47,7 +46,6 @@ export class DeploymentController {
     // has to be registered before any `/:param` route.
     // The global session guard would turn a peer's call into a 401 before the claim is read, so the
     // procedure opts out of it: `requireSystemActor` below is its only gate.
-    @AllowAnonymous()
     @Implement(deploymentContract.triggerFromEvent)
     triggerFromEvent() {
         // Not `requireAuth()`: the caller is a peer service relaying a provider event, vouched
@@ -62,7 +60,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.list)
     list() {
-        return implement(deploymentContract.list)
+        return procedure(deploymentContract.list)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
@@ -72,7 +70,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.listServicePreviews)
     listServicePreviews() {
-        return implement(deploymentContract.listServicePreviews)
+        return procedure(deploymentContract.listServicePreviews)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.listServicePreviews(input.params.serviceId);
@@ -81,10 +79,10 @@ export class DeploymentController {
 
     @Implement(deploymentContract.promoteServicePreview)
     promoteServicePreview() {
-        return implement(deploymentContract.promoteServicePreview)
+        return procedure(deploymentContract.promoteServicePreview)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
-                const userId = (context.auth as { user?: { id?: string } }).user?.id ?? "";
+                const userId = callerId(context);
                 const platformRole = this.resolvePlatformRole(context);
                 return this.deploymentService.promoteServicePreview(
                     input.params.serviceId,
@@ -97,7 +95,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.findById)
     findById() {
-        return implement(deploymentContract.findById)
+        return procedure(deploymentContract.findById)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
@@ -107,10 +105,10 @@ export class DeploymentController {
 
     @Implement(deploymentContract.trigger)
     trigger() {
-        return implement(deploymentContract.trigger)
+        return procedure(deploymentContract.trigger)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
-                const userId = context.auth.user.id;
+                const userId = callerId(context);
                 const actorPlatformRole = this.resolvePlatformRole(context);
                 const deployment = await this.deploymentService.triggerDeployment(
                     input,
@@ -127,7 +125,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.uploadBundle)
     uploadBundle() {
-        return implement(deploymentContract.uploadBundle)
+        return procedure(deploymentContract.uploadBundle)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const uploaded = await this.deploymentService.uploadBundle({
@@ -141,13 +139,13 @@ export class DeploymentController {
 
     @Implement(deploymentContract.cancel)
     cancel() {
-        return implement(deploymentContract.cancel)
+        return procedure(deploymentContract.cancel)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actorPlatformRole = this.resolvePlatformRole(context);
                 const result = await this.deploymentService.cancelDeployment(
                     input.params.id,
-                    context.auth.user.id,
+                    callerId(context),
                     input.body?.reason,
                     actorPlatformRole,
                 );
@@ -162,14 +160,14 @@ export class DeploymentController {
 
     @Implement(deploymentContract.rollback)
     rollback() {
-        return implement(deploymentContract.rollback)
+        return procedure(deploymentContract.rollback)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actorPlatformRole = this.resolvePlatformRole(context);
                 const rollback = await this.deploymentService.rollbackDeployment(
                     input.params.id,
                     input.body.targetDeploymentId,
-                    context.auth.user.id,
+                    callerId(context),
                     input.body.reason,
                     actorPlatformRole,
                 );
@@ -182,7 +180,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getLogs)
     getLogs() {
-        return implement(deploymentContract.getLogs)
+        return procedure(deploymentContract.getLogs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
@@ -204,10 +202,10 @@ export class DeploymentController {
 
     @Implement(deploymentContract.retry)
     retry() {
-        return implement(deploymentContract.retry)
+        return procedure(deploymentContract.retry)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
-                const userId = context.auth.user.id;
+                const userId = callerId(context);
                 const actorPlatformRole = this.resolvePlatformRole(context);
                 const retry = await this.deploymentService.retryDeployment(
                     input.params.id,
@@ -223,7 +221,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getRollbackHistory)
     getRollbackHistory() {
-        return implement(deploymentContract.getRollbackHistory)
+        return procedure(deploymentContract.getRollbackHistory)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.getRollbackHistory(input.params.id);
@@ -232,7 +230,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.stream)
     stream() {
-        return implement(deploymentContract.stream)
+        return procedure(deploymentContract.stream)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -248,7 +246,7 @@ export class DeploymentController {
     streamInternal() {
         const deploymentService = this.deploymentService;
 
-        return implement(deploymentContract.streamInternal)
+        return procedure(deploymentContract.streamInternal)
             .use(requireMesh())
             .use(requireAuth())
             .handler(({ input }) => {
@@ -264,7 +262,7 @@ export class DeploymentController {
     streamService() {
         const deploymentService = this.deploymentService;
 
-        return implement(deploymentContract.streamService)
+        return procedure(deploymentContract.streamService)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -280,7 +278,7 @@ export class DeploymentController {
     streamQuery() {
         const deploymentService = this.deploymentService;
 
-        return implement(deploymentContract.streamQuery)
+        return procedure(deploymentContract.streamQuery)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -300,7 +298,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.streamsList)
     streamsList() {
-        return implement(deploymentContract.streamsList)
+        return procedure(deploymentContract.streamsList)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.listStreamDefinitions(input.query);
@@ -309,7 +307,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.streamFindById)
     streamFindById() {
-        return implement(deploymentContract.streamFindById)
+        return procedure(deploymentContract.streamFindById)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.getStreamDefinitionById(input.params.id);
@@ -318,7 +316,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getTemplateProvenance)
     getTemplateProvenance() {
-        return implement(deploymentContract.getTemplateProvenance)
+        return procedure(deploymentContract.getTemplateProvenance)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getTemplateProvenance(input.params.id);
@@ -327,7 +325,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.upsertTemplateProvenance)
     upsertTemplateProvenance() {
-        return implement(deploymentContract.upsertTemplateProvenance)
+        return procedure(deploymentContract.upsertTemplateProvenance)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.upsertTemplateProvenance(input.params.id, input.body);
@@ -336,7 +334,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getTemplateProvenanceByRun)
     getTemplateProvenanceByRun() {
-        return implement(deploymentContract.getTemplateProvenanceByRun)
+        return procedure(deploymentContract.getTemplateProvenanceByRun)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getTemplateProvenanceByRun(input.params.runId);
@@ -345,7 +343,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.createCompiledPlanSnapshot)
     createCompiledPlanSnapshot() {
-        return implement(deploymentContract.createCompiledPlanSnapshot)
+        return procedure(deploymentContract.createCompiledPlanSnapshot)
             .use(authMiddleware())
             .use(requireAuth())
             .handler(({ input }) => {
@@ -355,7 +353,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.listCompiledPlanSnapshots)
     listCompiledPlanSnapshots() {
-        return implement(deploymentContract.listCompiledPlanSnapshots)
+        return procedure(deploymentContract.listCompiledPlanSnapshots)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listCompiledPlanSnapshots(input.params.id);
@@ -364,7 +362,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getCompiledPlanSnapshot)
     getCompiledPlanSnapshot() {
-        return implement(deploymentContract.getCompiledPlanSnapshot)
+        return procedure(deploymentContract.getCompiledPlanSnapshot)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getCompiledPlanSnapshot(input.params.snapshotId);
@@ -373,7 +371,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getCompiledPlanSnapshotByRun)
     getCompiledPlanSnapshotByRun() {
-        return implement(deploymentContract.getCompiledPlanSnapshotByRun)
+        return procedure(deploymentContract.getCompiledPlanSnapshotByRun)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getCompiledPlanSnapshotByRun(input.params.runId);
@@ -382,7 +380,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.compilePlan)
     compilePlan() {
-        return implement(deploymentContract.compilePlan)
+        return procedure(deploymentContract.compilePlan)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.compilePlan(input);
@@ -391,7 +389,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.compilePlanPreview)
     compilePlanPreview() {
-        return implement(deploymentContract.compilePlanPreview)
+        return procedure(deploymentContract.compilePlanPreview)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.compilePlan(input);
@@ -400,7 +398,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.compileRollbackEdges)
     compileRollbackEdges() {
-        return implement(deploymentContract.compileRollbackEdges)
+        return procedure(deploymentContract.compileRollbackEdges)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.compileRollbackEdges(input);
@@ -409,7 +407,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueEnqueueJob)
     queueEnqueueJob() {
-        return implement(deploymentContract.queueEnqueueJob)
+        return procedure(deploymentContract.queueEnqueueJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -419,7 +417,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueClaimJobs)
     queueClaimJobs() {
-        return implement(deploymentContract.queueClaimJobs)
+        return procedure(deploymentContract.queueClaimJobs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -429,7 +427,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueHeartbeatJob)
     queueHeartbeatJob() {
-        return implement(deploymentContract.queueHeartbeatJob)
+        return procedure(deploymentContract.queueHeartbeatJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -439,7 +437,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueCompleteJob)
     queueCompleteJob() {
-        return implement(deploymentContract.queueCompleteJob)
+        return procedure(deploymentContract.queueCompleteJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -449,7 +447,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueFailJob)
     queueFailJob() {
-        return implement(deploymentContract.queueFailJob)
+        return procedure(deploymentContract.queueFailJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -459,7 +457,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueFindJobById)
     queueFindJobById() {
-        return implement(deploymentContract.queueFindJobById)
+        return procedure(deploymentContract.queueFindJobById)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.findQueueJobById(input.params.jobId);
@@ -468,7 +466,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueListJobs)
     queueListJobs() {
-        return implement(deploymentContract.queueListJobs)
+        return procedure(deploymentContract.queueListJobs)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listQueueJobs(input.query);
@@ -477,7 +475,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueListDeadLetterJobs)
     queueListDeadLetterJobs() {
-        return implement(deploymentContract.queueListDeadLetterJobs)
+        return procedure(deploymentContract.queueListDeadLetterJobs)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listDeadLetterJobs(input.query);
@@ -486,7 +484,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueFindDeadLetterJobById)
     queueFindDeadLetterJobById() {
-        return implement(deploymentContract.queueFindDeadLetterJobById)
+        return procedure(deploymentContract.queueFindDeadLetterJobById)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.findDeadLetterJobById(input.params.deadLetterJobId);
@@ -495,7 +493,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.queueReplayDeadLetterJob)
     queueReplayDeadLetterJob() {
-        return implement(deploymentContract.queueReplayDeadLetterJob)
+        return procedure(deploymentContract.queueReplayDeadLetterJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -505,7 +503,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.listRetryPolicies)
     listRetryPolicies() {
-        return implement(deploymentContract.listRetryPolicies)
+        return procedure(deploymentContract.listRetryPolicies)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listRetryPolicies(input.query);
@@ -514,7 +512,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.resolveRetryPolicy)
     resolveRetryPolicy() {
-        return implement(deploymentContract.resolveRetryPolicy)
+        return procedure(deploymentContract.resolveRetryPolicy)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.resolveRetryPolicy(input);
@@ -523,7 +521,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.cancelExecution)
     cancelExecution() {
-        return implement(deploymentContract.cancelExecution)
+        return procedure(deploymentContract.cancelExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -533,7 +531,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.resumeExecution)
     resumeExecution() {
-        return implement(deploymentContract.resumeExecution)
+        return procedure(deploymentContract.resumeExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -543,7 +541,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getExecutionCheckpoint)
     getExecutionCheckpoint() {
-        return implement(deploymentContract.getExecutionCheckpoint)
+        return procedure(deploymentContract.getExecutionCheckpoint)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getExecutionCheckpoint(input.params.id);
@@ -552,7 +550,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.getExecutionCheckpointByRun)
     getExecutionCheckpointByRun() {
-        return implement(deploymentContract.getExecutionCheckpointByRun)
+        return procedure(deploymentContract.getExecutionCheckpointByRun)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getExecutionCheckpointByRun(input.params.runId);
@@ -561,7 +559,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.emitNodeLifecycleEvent)
     emitNodeLifecycleEvent() {
-        return implement(deploymentContract.emitNodeLifecycleEvent)
+        return procedure(deploymentContract.emitNodeLifecycleEvent)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -571,7 +569,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.listNodeLifecycleEvents)
     listNodeLifecycleEvents() {
-        return implement(deploymentContract.listNodeLifecycleEvents)
+        return procedure(deploymentContract.listNodeLifecycleEvents)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listNodeLifecycleEvents(input.params.runId, input.query);
@@ -580,7 +578,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.streamNodeLifecycleEvents)
     streamNodeLifecycleEvents() {
-        return implement(deploymentContract.streamNodeLifecycleEvents)
+        return procedure(deploymentContract.streamNodeLifecycleEvents)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.streamNodeLifecycleEvents({
@@ -594,7 +592,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.listPhaseTransitions)
     listPhaseTransitions() {
-        return implement(deploymentContract.listPhaseTransitions)
+        return procedure(deploymentContract.listPhaseTransitions)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listPhaseTransitions(input.query ?? {});
@@ -603,7 +601,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.validatePhaseTransition)
     validatePhaseTransition() {
-        return implement(deploymentContract.validatePhaseTransition)
+        return procedure(deploymentContract.validatePhaseTransition)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.validatePhaseTransition(input);
@@ -612,7 +610,7 @@ export class DeploymentController {
 
     @Implement(deploymentContract.applyPhaseTransition)
     applyPhaseTransition() {
-        return implement(deploymentContract.applyPhaseTransition)
+        return procedure(deploymentContract.applyPhaseTransition)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
@@ -622,16 +620,27 @@ export class DeploymentController {
 
     @Implement(deploymentContract.delete)
     delete() {
-        return implement(deploymentContract.delete)
+        return procedure(deploymentContract.delete)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actorPlatformRole = this.resolvePlatformRole(context);
                 await this.deploymentService.deleteDeployment(
                     input.params.id,
-                    context.auth.user.id,
+                    callerId(context),
                     actorPlatformRole,
                 );
                 return { success: true };
             });
     }
+}
+
+/**
+ * The authenticated caller of a Promise handler.
+ *
+ * `requireAuth()` has already refused a caller without a session; this restates it for the type system, because the
+ * `procedure()` wrapper does not carry that middleware's narrowing the way `implement()` did.
+ */
+function callerId(context: { readonly auth: { readonly user: { readonly id: string } | null } }): string {
+    if (context.auth.user === null) throw new ORPCError("UNAUTHORIZED", { message: "Authentication required" });
+    return context.auth.user.id;
 }

@@ -1,9 +1,9 @@
 import { Controller, Inject } from "@nestjs/common";
 import { ORPCError } from "@orpc/client";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
 import { meshContract } from "@deployer/fleet-contracts";
+import { procedure } from "@deployer/nest-effect";
 import { toAsyncIteratorFromObservable } from "@deployer/orpc-utils/utils/observable/contract";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
@@ -16,42 +16,42 @@ export class MeshViewController {
 
   @Implement(meshContract.getLocalNode)
   getLocalNode() {
-    return implement(meshContract.getLocalNode)
+    return procedure(meshContract.getLocalNode)
       .use(requireAuth())
       .handler(() => this.view.localNode());
   }
 
   @Implement(meshContract.listPeers)
   listPeers() {
-    return implement(meshContract.listPeers)
+    return procedure(meshContract.listPeers)
       .use(requireAuth())
       .handler(() => this.view.peers());
   }
 
   @Implement(meshContract.membershipSnapshot)
   membershipSnapshot() {
-    return implement(meshContract.membershipSnapshot)
+    return procedure(meshContract.membershipSnapshot)
       .use(requireAuth())
       .handler(() => this.view.snapshot());
   }
 
   @Implement(meshContract.streamTopology)
   streamTopology() {
-    return implement(meshContract.streamTopology)
+    return procedure(meshContract.streamTopology)
       .use(requireAuth())
       .handler(() => this.view.topology());
   }
 
   @Implement(meshContract.lookupResource)
   lookupResource() {
-    return implement(meshContract.lookupResource)
+    return procedure(meshContract.lookupResource)
       .use(requireAuth())
       .handler(({ input }) => this.view.lookup(input));
   }
 
   @Implement(meshContract.issueJoinToken)
   issueJoinToken() {
-    return implement(meshContract.issueJoinToken)
+    return procedure(meshContract.issueJoinToken)
       .use(requireAuth())
       .handler(async ({ input }) => {
         try {

@@ -16,6 +16,10 @@ export default defineConfig([
     {
         extends: [nestjsConfig.configs.serviceSchemaBoundary({ owner: "fleet" })],
     },
+    // Controllers must go through `procedure()` so the authz gate is always applied (`SEC-062`).
+    {
+        extends: [nestjsConfig.configs.controllersUseProcedure()],
+    },
     {
         extends: [libraryConfig.configs.test()],
         files: ["**/*.spec.{ts,tsx}", "**/*.test.{ts,tsx}"],
