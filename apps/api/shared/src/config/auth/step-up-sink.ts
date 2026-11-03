@@ -1,5 +1,8 @@
 import { Logger } from "@nestjs/common";
 
+import { and, eq, gte } from "drizzle-orm";
+
+import { STEP_UP_WINDOW_SECONDS } from "@deployer/auth/authz";
 import { getErrorMessage } from "@deployer/errors";
 import { stepUpEvents } from "@deployer/nest-schema/global/identity/step-up";
 
@@ -32,5 +35,24 @@ export function drizzleStepUpSink<TSchema extends Record<string, unknown>>(
 					logger.warn(`step-up write failed for session ${event.sessionId}: ${getErrorMessage(error)}`);
 				});
 		},
+	};
+}
+
+/**
+ * Whether THIS session holds a fresh passkey proof — what an impersonation requires (`AUTH-067`).
+ *
+ * Passkey only: a TOTP code can be phished in real time, which is why the design demands AAL3 to become someone else.
+ */
+export function makeHasStepUp<TSchema extends Record<string, unknown>>(
+	database: NodePgDatabase<TSchema>,
+): (sessionId: string) => Promise<boolean> {
+	return async (sessionId) => {
+		const since = new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000);
+		const [row] = await database
+			.select({ id: stepUpEvents.id })
+			.from(stepUpEvents)
+			.where(and(eq(stepUpEvents.sessionId, sessionId), gte(stepUpEvents.verifiedAt, since), eq(stepUpEvents.method, "passkey")))
+			.limit(1);
+		return row !== undefined;
 	};
 }

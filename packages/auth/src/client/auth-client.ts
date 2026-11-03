@@ -11,6 +11,7 @@ import { createAuthClient } from 'better-auth/react'
 
 import {
     deployerUserSchemaClient,
+    impersonationClient,
   masterTokenClient,
     loginAsClientPlugin,
     useInviteClient,
@@ -33,6 +34,7 @@ export type CreateAuthClientFactoryOptions = Pick<BetterAuthClientOptions, 'base
 // fully typed client.
 const DEFAULT_PLUGINS = [
   deployerUserSchemaClient(),
+  impersonationClient(),
   masterTokenClient(),
   loginAsClientPlugin(),
   useInviteClient(),

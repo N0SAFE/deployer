@@ -232,7 +232,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: `system:audit` permission exists with no producer; sign-in, role change, ban, invite, key mint, device approval are unrecorded (tamper-evident chain I-03 is an IDEA item).
   - Do: Better Auth hooks emit audit events to an append-only table/outbox.
   - Done when: listed auth events appear in an admin-viewable log.
-  - Status: producer done (2026-11-02) · Verified-in-code: yes · Source: auth.md#5
+  - Status: producer + viewer + UI done (2026-11-03) · Verified-in-code: yes · Source: auth.md#5
   - Progress (2026-11-02): **the producer is in**. `packages/auth/src/audit` defines the action catalog and one
     `authAuditEventSchema` (`zod/v4`), the `AuthAuditSink` port, and `auditEventFromRequest` — a pure mapping from a
     finished Better Auth request to an event (sign-in/out, admin create/remove/set-role/ban/unban/set-password,
@@ -248,14 +248,25 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: no re-auth for destructive actions; `require: fresh-passkey` primitive missing (I-18).
   - Do: freshAge policy + re-enter password/passkey prompt, usable as a policy `require`.
   - Done when: a destructive action older-than-fresh session triggers a prompt.
-  - Status: todo · Verified-in-code: no · Source: auth.md#6, ideas-security-resilience.md#I-18
+  - Status: backend done (2026-11-03) · Verified-in-code: yes · Source: auth.md#6, ideas-security-resilience.md#I-18
+  - Progress (2026-11-03): **record + read are in** (`AUTH-062`): `step_up_events` (migration `0044`), a Better Auth
+    `after` hook on passkey/TOTP verification writing a row for the CURRENT session, and `GET /authz/step-up` answering
+    `{ steppedUp, critical, method, verifiedAt, expiresAt, windowSeconds }`. `Actor` now carries `sessionId`, which is
+    what binds a proof to the session. Policy: `STEP_UP_WINDOW_SECONDS = 300`, passkey = AAL3 (critical), TOTP = AAL2.
+    Remaining: the `requireStepUpForCritical` guard and the UI prompt (`SEC-070`).
   - Design-impact (2026-10-26): owned by the design: `AUTH-062` (`POST /authz/step-up` wraps BA passkey verify, writes `step_up_events` for the CURRENT session; `session.freshAge` is NOT used for this) + `SEC-070` guardrail `requireStepUpForCritical` (AAL3 within 300 s) + `SEC-072` approvals with passkey assertions. Tokens cannot step up (AAL0).
 
 - [ ] `AUTH-031` **Admin impersonation with banner and audit** · NEW · P3 · M · Deps: `AUTH-029`
   - Why/Problem: Better Auth admin impersonate is superAdmin-only; no UI.
   - Do: UI + persistent banner + audit entries.
   - Done when: superAdmin can impersonate with a visible banner and an audit record.
-  - Status: todo · Verified-in-code: no · Source: auth.md#6
+  - Status: backend + banner done (2026-11-03) · Verified-in-code: yes · Source: auth.md#6
+  - Progress (2026-11-03): `impersonationPlugin` wraps Better Auth (`POST /impersonate`, `POST /stop-impersonating`),
+    never exposes a raw token, and refuses without `user:impersonate`, a strictly higher rank, a fresh passkey step-up
+    and a reason. The impersonated session is 1 h and READ-ONLY by construction: `actorFromContext` maps it to the
+    platform `viewer` role. The admin's own token is parked in a signed HttpOnly cookie and restored on stop; the
+    dashboard banner (`ImpersonationBanner`) keeps the operator aware. Start UI (a passkey step-up flow in the users
+    page) remains.
   - Design-impact (2026-10-26): owned by `AUTH-067`: read-only by default (`DEC-AUTH-25`), step-up + reason, never to an equal-or-higher principal, TTL 1 h, `onBehalfOf=[admin]` with effective permissions = target ∩ admin; BA `impersonate` wrapped via `AUTH-053`, not exposed raw. Priority raised only when `loginAs` removal needs a replacement (P2).
 
 - [ ] `AUTH-032` **Account lifecycle: self-delete/export, email change, recovery codes, new-device notifications** · NEW · P3 · L · Deps: `AUTH-015`

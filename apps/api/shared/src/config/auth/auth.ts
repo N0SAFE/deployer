@@ -8,7 +8,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { authAuditEvents } from "@deployer/nest-schema/global/identity/audit";
 import { getErrorMessage } from "@deployer/errors";
 
-import { drizzleStepUpSink } from "./step-up-sink";
+import { drizzleStepUpSink, makeHasStepUp } from "./step-up-sink";
 
 /** A string env value, or nothing: the schema's optional keys widen to a union through `EnvService`. */
 const optionalString = (value: unknown): string | undefined =>
@@ -61,5 +61,5 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
         PASSKEY_ORIGIN: optionalString(envService.get('PASSKEY_ORIGIN')),
         GITHUB_CLIENT_ID: optionalString(envService.get('GITHUB_CLIENT_ID')),
         GITHUB_CLIENT_SECRET: optionalString(envService.get('GITHUB_CLIENT_SECRET')),
-    }: envService, { audit: drizzleAuditSink(database), stepUp: drizzleStepUpSink(database) });
+    }: envService, { audit: drizzleAuditSink(database), stepUp: drizzleStepUpSink(database), hasStepUp: makeHasStepUp(database) });
 };

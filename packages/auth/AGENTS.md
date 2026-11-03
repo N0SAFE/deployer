@@ -52,19 +52,21 @@ question it answers. This file is the rule list.
 - **Self-imports are relative.** Inside this package use `./x`/`../x`; `@deployer/auth/...` resolves through `dist`, so
   a source edit would not type-check until after a build (and a renamed folder would not resolve at all).
 - **The audit hook never fails a request.** `AuthAuditSink.record` is fire-and-forget; the sink reports its own errors.
+- **Impersonation is read-only by construction.** `actorFromContext` maps a session with `impersonatedBy` to the
+  platform `viewer` role, so every capability check refuses a write. Do not add a per-handler `isImpersonating` check.
 
 ## Key exports
 
 ### Server (`@deployer/auth/server`)
 - `betterAuthFactory(db, env, { audit? })` — the instance; the third argument is the only opt-in.
-- Server plugins: `deployerUserSchemaPlugin`, `masterTokenPlugin`, `loginAsPlugin`, `pushNotificationsPlugin`,
-  `useInvite`, plus Better Auth's built-ins `openAPI` and `multiSession`. (`useOrganization` is **not** implemented — see
+- Server plugins: `deployerUserSchemaPlugin`, `stepUpPlugin`, `impersonationPlugin`, `masterTokenPlugin`,
+  `loginAsPlugin`, `pushNotificationsPlugin`, `useInvite`, plus Better Auth's built-ins `openAPI` and `multiSession`. (`useOrganization` is **not** implemented — see
   `apps/doc/content/docs/dev/better-auth-plugin-evaluation.mdx` §4.1. The Better Auth `admin` plugin is **removed**:
   user administration is the identity service's oRPC procedures.)
 
 ### Client (`@deployer/auth/client`)
-- `createAuthClientFactory`, plugins `deployerUserSchemaClient`, `masterTokenClient`, `loginAsClientPlugin`,
-  `useInviteClient`, guard `hasMasterTokenPlugin`.
+- `createAuthClientFactory`, plugins `deployerUserSchemaClient`, `impersonationClient`, `masterTokenClient`,
+  `loginAsClientPlugin`, `useInviteClient`, guard `hasMasterTokenPlugin`.
 
 ### Root
 - Types `Session`, `User`, `Auth`, `InferSessionFromAuth`, `IEnvService`; `authz`'s catalog and decision; the Better Auth

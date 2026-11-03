@@ -6,6 +6,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@deployer/ui/comp
 
 import { DashboardSidebar, DashboardLoadingSkeleton, SearchTrigger, HeaderLiveStatus, CommandPalette, KeyboardShortcutsProvider } from '@/components/dashboard'
 import { DashboardBreadcrumbs } from '@/components/dashboard/DashboardBreadcrumbs'
+import { ImpersonationBanner } from '@/components/dashboard/impersonation-banner'
 import { NodeScopePicker } from '@/components/dashboard/node-scope-picker'
 import { QueryErrorBoundary } from '@/components/error'
 import { PostSetupHints } from '@/components/setup/post-setup-hints'
@@ -62,6 +63,7 @@ export default createSessionLayout(({ children }) => {
           </a>
           <DashboardSidebar />
           <SidebarInset className="bg-linear-to-b from-primary/[0.06] via-background to-background">
+            <ImpersonationBanner />
             {/* Header with trigger, breadcrumbs, search and live status */}
             <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-background/85 px-4 backdrop-blur-xl">
               <div className="flex min-w-0 items-center gap-2">

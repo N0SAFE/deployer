@@ -15,6 +15,7 @@ import type { BetterAuthClientPlugin } from "better-auth/client";
 // ============================================================================
 
 export { deployerUserSchemaClient } from "./schema";
+export { impersonationClient } from "./impersonation";
 export { default as masterTokenClient } from "./masterToken/index";
 export { loginAsClientPlugin } from "./loginAs/index";
 

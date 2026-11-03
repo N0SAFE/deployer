@@ -23,6 +23,8 @@ export const AUTH_AUDIT_ACTIONS = [
 	"invite-created",
 	"invite-accepted",
 	"device-approved",
+	"impersonation-start",
+	"impersonation-stop",
 ] as const;
 
 export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[number];

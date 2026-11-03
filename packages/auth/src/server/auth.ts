@@ -10,6 +10,7 @@ import type { StepUpSink } from "./plugins/step-up";
 import { buildTrustedOrigins } from "./origins";
 import {
     deployerUserSchemaPlugin,
+    impersonationPlugin,
     masterTokenPlugin,
     loginAsPlugin,
     pushNotificationsPlugin,
@@ -57,6 +58,10 @@ export interface AuthFactoryOptions {
      * critical-action guard.
      */
     readonly stepUp?: StepUpSink;
+    /**
+     * Whether a session holds a fresh passkey proof (`AUTH-067`). Impersonation is refused without one.
+     */
+    readonly hasStepUp?: (sessionId: string) => Promise<boolean>;
 }
 
 /** Request-derived values the factory computes and the config builder consumes. */
@@ -244,6 +249,12 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // Records every completed factor verification as a step-up for the session that performed it (`AUTH-062`).
             // Absent sink = absent plugin: nothing can satisfy a step-up guard, which is the safe direction.
             ...(options.stepUp === undefined ? [] : [stepUpPlugin(options.stepUp)]),
+            // Impersonation (`AUTH-067`): the only writer of `session.impersonated_by`; the admin plugin that used to
+            // own a raw endpoint is gone. Registered only with a step-up port, so a deployment that cannot prove a
+            // passkey cannot impersonate at all.
+            ...(options.hasStepUp === undefined
+                ? []
+                : [impersonationPlugin({ hasStepUp: options.hasStepUp, ...(options.audit === undefined ? {} : { audit: options.audit }) })]),
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the

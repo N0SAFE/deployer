@@ -26,8 +26,11 @@ export type RequestContextInput = {
 	readonly request?: { readonly headers: HeadersLike };
 	readonly auth?: {
 		readonly user?: { readonly id: string; readonly role?: string | null } | null;
-		/** The verified session the request arrived on; its id is what a step-up is bound to. */
-		readonly session?: { readonly id: string } | null;
+		/**
+		 * The verified session the request arrived on. `id` is what a step-up is bound to; `impersonatedBy` is read to
+		 * DOWNGRADE the actor (see `actorFromContext`).
+		 */
+		readonly session?: { readonly id: string; readonly impersonatedBy?: string | null } | null;
 	};
 	readonly systemActor?: { readonly kind: "system"; readonly source: string } | null;
 };
@@ -36,7 +39,17 @@ export type RequestContextInput = {
 export function actorFromContext(context: RequestContextInput): Actor | null {
 	if (context.systemActor) return Actor.system(context.systemActor.source);
 	const user = context.auth?.user;
-	return user ? Actor.user(user.id, user.role ?? "user", context.auth.session?.id ?? null) : null;
+	if (!user) return null;
+
+	// An impersonated session is READ-ONLY by construction (`DEC-AUTH-25`): the platform `viewer` role grants the read
+	// capabilities and none of the writes, so no handler has to remember a flag. The web shows the banner from
+	// `session.impersonatedBy`; the API re-derives this on every request.
+	const impersonated = context.auth.session?.impersonatedBy;
+	return Actor.user(
+		user.id,
+		impersonated === null || impersonated === undefined ? (user.role ?? "user") : "viewer",
+		context.auth.session?.id ?? null,
+	);
 }
 
 /** The caller's correlation id, or a fresh one when it sent none. */

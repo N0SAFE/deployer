@@ -52,3 +52,4 @@ export {
 	type Scope,
 } from "./types";
 export { STEP_UP_WINDOW_SECONDS, isCriticalStepUp, type StepUpMethod } from "./step-up";
+export { IMPERSONATION_TTL_SECONDS, canImpersonate, type ImpersonationRefusal } from "./impersonation";
