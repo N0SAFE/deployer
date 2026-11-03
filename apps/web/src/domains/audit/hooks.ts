@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query'
 
 import type { AuthAuditEventRow } from '@deployer/identity-contracts'
 
@@ -17,23 +17,25 @@ export interface AuditFilters {
 }
 
 /**
- * One page of auth audit events, newest first.
+ * The audit log, newest first, paged with the id CURSOR the API exposes.
  *
- * The list is append-only, so it is cached for a moment rather than treated as live data: a viewer that needs the last
- * seconds refreshes.
+ * Append-only data is cached for a moment rather than treated as live. Paging by `beforeId` (not offset) is what keeps
+ * the pages stable while new events arrive at the head.
  */
 export function useAuditEvents(filters: AuditFilters, options: { enabled?: boolean } = {}) {
-  return useQuery(
-    auditEndpoints.list.queryOptions({
-      input: {
+  return useInfiniteQuery(
+    auditEndpoints.list.infiniteOptions({
+      input: (beforeId: number | undefined) => ({
         query: {
           ...(filters.action === undefined || filters.action === '' ? {} : { action: filters.action }),
           ...(filters.actorId === undefined || filters.actorId === '' ? {} : { actorId: filters.actorId }),
           ...(filters.targetId === undefined || filters.targetId === '' ? {} : { targetId: filters.targetId }),
           ...(filters.limit === undefined ? {} : { limit: filters.limit }),
-          ...(filters.beforeId === undefined ? {} : { beforeId: filters.beforeId }),
+          ...(beforeId === undefined ? {} : { beforeId }),
         },
-      },
+      }),
+      initialPageParam: undefined as number | undefined,
+      getNextPageParam: (last) => (last.meta.hasMore ? (last.data.at(-1)?.id ?? undefined) : undefined),
       enabled: options.enabled ?? true,
       staleTime: 15_000,
       gcTime: 60_000,

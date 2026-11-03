@@ -4,6 +4,7 @@ import { Download, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { AUTH_AUDIT_ACTIONS } from '@deployer/auth/audit'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
@@ -25,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@deployer/ui/components/shadcn/table'
+
 
 
 import { PageErrorState, PageHeader } from '@/components/dashboard'
@@ -56,11 +58,12 @@ export default function SettingsAuditPage() {
   const canExport = useCan('audit:export')
   const [action, setAction] = useState('')
   const [actorId, setActorId] = useState('')
+  const [targetId, setTargetId] = useState('')
   const [limit, setLimit] = useState<number>(50)
 
-  const query = useAuditEvents({ action, actorId, limit }, { enabled: canRead })
+  const query = useAuditEvents({ action, actorId, targetId, limit }, { enabled: canRead })
   const exportAudit = useAuditExport()
-  const rows = useMemo(() => query.data?.data ?? [], [query.data])
+  const rows = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data])
 
   if (!canRead) {
     return (
@@ -92,7 +95,7 @@ export default function SettingsAuditPage() {
         eyebrow="Settings"
         title="Audit log"
         description="Every authentication and administration action the platform recorded: who did it, to whom, from where. Newest first."
-        badge={query.data === undefined ? undefined : <Badge variant="secondary">{query.data.meta.hasMore ? `${String(limit)}+` : String(rows.length)}</Badge>}
+        badge={<Badge variant="secondary">{query.hasNextPage ? `${String(rows.length)}+` : String(rows.length)}</Badge>}
       />
 
       <Card>
@@ -109,16 +112,28 @@ export default function SettingsAuditPage() {
             </label>
             <Input
               id="audit-action"
-              placeholder="user.setRole"
+              list="audit-actions"
+              placeholder="role-change"
               value={action}
               onChange={(event) => { setAction(event.target.value) }}
             />
+            <datalist id="audit-actions">
+              {AUTH_AUDIT_ACTIONS.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </div>
           <div className="min-w-48 flex-1">
             <label className="mb-1 block text-sm font-medium" htmlFor="audit-actor">
               Actor id
             </label>
             <Input id="audit-actor" value={actorId} onChange={(event) => { setActorId(event.target.value) }} />
+          </div>
+          <div className="min-w-48 flex-1">
+            <label className="mb-1 block text-sm font-medium" htmlFor="audit-target">
+              Target id
+            </label>
+            <Input id="audit-target" value={targetId} onChange={(event) => { setTargetId(event.target.value) }} />
           </div>
           <div className="w-32">
             <label className="mb-1 block text-sm font-medium" htmlFor="audit-limit">
@@ -198,10 +213,16 @@ export default function SettingsAuditPage() {
         </Card>
       )}
 
-      {query.data?.meta.hasMore === true ? (
-        <p className="text-sm text-muted-foreground">
-          Older events exist. Narrow the filters or raise the limit to reach them.
-        </p>
+      {query.hasNextPage ? (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => void query.fetchNextPage()}
+            disabled={query.isFetchingNextPage}
+          >
+            {query.isFetchingNextPage ? 'Loading older events…' : 'Load older events'}
+          </Button>
+        </div>
       ) : null}
     </div>
   )
