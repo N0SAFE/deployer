@@ -277,8 +277,10 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Done when: each listed lifecycle action works.
   - Progress (2026-11-03): **self-export is in**. `GET /user/me/export` returns the caller's profile plus their sessions
     and API keys BY METADATA (no token, no key hash — the columns are not selected), scoped to the session so there is no
-    id to tamper with. Settings → Account has "Download your data". Remaining: self-delete (needs a last-admin guard),
-    email change, recovery codes, device notifications.
+    id to tamper with. Settings → Account has "Download your data". **Self-delete is in too**: `POST /user/me/delete`
+    requires a passkey step-up, refuses the last super admin (a lockout is not a deletion), revokes credentials and lets
+    the row cascade; the Account page gates it behind typing the confirmation phrase. Remaining: email change, recovery
+    codes, device notifications.
   - Status: todo · Verified-in-code: no · Source: auth.md#6
 
 - [ ] `AUTH-033` **IP allow-listing, login rate-limit dashboard, lockout notifications** · NEW · P3 · M · Deps: `SEC-024`

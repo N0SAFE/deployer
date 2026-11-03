@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 
+import { DangerZoneCard } from '@/components/account/danger-zone-card'
 import { DataExportCard } from '@/components/account/data-export-card'
 import {
   ActiveSessionsCard,
@@ -84,6 +85,8 @@ export default AuthDashboardSettingsAccount.SessionRoute(({ session }) => {
       <ConnectedAccountsCard />
 
       <DataExportCard />
+
+      <DangerZoneCard />
 
       {/* Timing Logger */}
       <PageTimingLogger pageName="Settings Account" />

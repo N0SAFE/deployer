@@ -34,6 +34,7 @@ function makeRepository() {
 		delete: vi.fn(),
 		revokeCredentials: vi.fn(),
 		exportFor: vi.fn(),
+		countByRole: vi.fn(),
 	};
 	for (const fn of Object.values(repo)) fn.mockImplementation(() => Effect.succeed(undefined));
 	return repo;
@@ -78,6 +79,43 @@ describe("UserService", () => {
 
 	/** The domain error a use case failed with. */
 	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
+
+	describe("deleteSelf", () => {
+		const asSystem = () =>
+			UserService.live.deleteSelf().pipe(
+				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+				Effect.provideService(CurrentActor, Actor.system("scheduler")),
+				Effect.provideService(Correlation, { id: "test" }),
+				Effect.provideService(DatabasePort, {} as never),
+				Effect.provideService(StepUpService, { assertCritical: () => Effect.void, status: () => Effect.die(new Error("unused")) } as unknown as StepUpService["Service"]),
+			);
+
+		it("refuses a system actor", async () => {
+			await expect(Effect.runPromise(Effect.flip(asSystem()))).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.delete).not.toHaveBeenCalled();
+		});
+
+		it("refuses the last super admin: that is a lockout, not a deletion", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "superAdmin" })));
+			repo.countByRole.mockReturnValue(Effect.succeed(1));
+
+			await expect(
+				Effect.runPromise(Effect.flip(service.deleteSelf({ userId: "root-1", role: "superAdmin" }))),
+			).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.countByRole).toHaveBeenCalledWith("superAdmin");
+			expect(repo.delete).not.toHaveBeenCalled();
+		});
+
+		it("deletes the account and its credentials when another super admin remains", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ id: "root-2", role: "superAdmin" })));
+			repo.countByRole.mockReturnValue(Effect.succeed(2));
+
+			await run(service.deleteSelf({ userId: "root-2", role: "superAdmin" }));
+
+			expect(repo.revokeCredentials).toHaveBeenCalledWith("root-2");
+			expect(repo.delete).toHaveBeenCalledWith("root-2");
+		});
+	});
 
 	describe("exportSelf", () => {
 		it("exports the caller's own data, including a session and a key", async () => {

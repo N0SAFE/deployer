@@ -3,15 +3,16 @@ import { openapi } from "@orpc/openapi";
 
 
 // Import all contract definitions
+import { userRevokeSessionsContract, userSetBannedContract, userSetRoleContract } from './admin';
 import { userCheckEmailContract } from './checkEmail';
 import { userCountContract } from './count';
 import { userCreateContract } from './create';
 import { userDeleteContract } from './delete';
 import { userFindByIdContract } from './findById';
 import { userListContract } from './list';
-import { userUpdateContract } from './update';
-import { userRevokeSessionsContract, userSetBannedContract, userSetRoleContract } from './admin';
 import { selfExportContract } from './self';
+import { selfDeleteContract } from './self-delete';
+import { userUpdateContract } from './update';
 
 // Combine into main user contract
 export const userContract = oc.meta(openapi({ tags: ["User"], prefix: "/user" })).router({
@@ -26,6 +27,7 @@ export const userContract = oc.meta(openapi({ tags: ["User"], prefix: "/user" })
   setBanned: userSetBannedContract,
   revokeSessions: userRevokeSessionsContract,
   exportSelf: selfExportContract,
+  deleteSelf: selfDeleteContract,
 });
 
 export type UserContract = typeof userContract;
@@ -40,3 +42,4 @@ export * from './checkEmail';
 export * from './count';
 export * from './admin';
 export * from './self';
+export * from './self-delete';

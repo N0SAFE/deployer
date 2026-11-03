@@ -1,7 +1,8 @@
-import { userSchema } from "@deployer/contracts-entities";
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
+
+import { userSchema } from "@deployer/contracts-entities";
 
 /**
  * Change a user's platform role.

@@ -97,4 +97,9 @@ export class UserDelegationController {
 	exportSelf() {
 		return implement(userContract.exportSelf).handler(({ input }) => this.client.exportSelf(input));
 	}
+
+	@Implement(userContract.deleteSelf)
+	deleteSelf() {
+		return implement(userContract.deleteSelf).handler(({ input }) => this.client.deleteSelf(input));
+	}
 }

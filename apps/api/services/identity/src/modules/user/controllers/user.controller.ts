@@ -63,6 +63,18 @@ export class UserController {
             })
     }
 
+    /** Delete the caller's own account (`AUTH-032`); the service owns the step-up and last-admin checks. */
+    @Implement(userContract.deleteSelf)
+    deleteSelf() {
+        return procedure(userContract.deleteSelf)
+            .use(requireAuth())
+            .effect(function* ({ context }) {
+                const users = yield* UserService
+                yield* serve(context)(users.deleteSelf())
+                return { deleted: true as const }
+            })
+    }
+
     /**
      * The caller's own data (`AUTH-032`).
      *

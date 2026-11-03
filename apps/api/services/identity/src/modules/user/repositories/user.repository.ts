@@ -62,6 +62,10 @@ export type UserRepositoryShape = {
      * Metadata only: `session.token` and `apikey.key` are credential material and are not selected at all, so no
      * serialization mistake can leak them.
      */
+    /** How many accounts hold `role` — the last-super-admin guard reads it before a self-delete. */
+    readonly countByRole: (
+        role: string
+    ) => Effect.Effect<number, UserRepositoryFailure, DatabasePort>
     readonly exportFor: (
         userId: string
     ) => Effect.Effect<SelfExportData, UserRepositoryFailure, DatabasePort>
@@ -95,6 +99,15 @@ function makeUserRepository(
     db: DatabaseShape['db']
 ): UserRepositoryShape {
     return {
+        countByRole: (role: string) =>
+            attempt(async () => {
+                const rows = await db
+                    .select({ value: count() })
+                    .from(user)
+                    .where(eq(user.role, role))
+                return rows[0]?.value ?? 0
+            }),
+
         exportFor: (userId: string) =>
             attempt(async () => {
                 const [sessions, apiKeys] = await Promise.all([

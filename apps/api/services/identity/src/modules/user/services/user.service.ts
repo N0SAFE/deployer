@@ -45,6 +45,12 @@ export type UserServiceShape = {
     readonly count: (
         filter: UserFilter
     ) => Effect.Effect<number, UserFailure, Ambient | UserRepository | DatabasePort>
+    /** Delete the caller's own account (`AUTH-032`): step-up, last-admin guard, then cascade. */
+    readonly deleteSelf: () => Effect.Effect<
+        void,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService
+    >
     /** The caller's own data (`AUTH-032`). Scoped by the session; no capability involved. */
     readonly exportSelf: () => Effect.Effect<
         SelfExportData & { readonly exportedAt: Date; readonly user: User },
@@ -136,6 +142,33 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 userRules.assertCanAdminister(actor)
             })
             return yield* users.count(filter)
+        }),
+
+        deleteSelf: Effect.fn('UserService.deleteSelf')(function* () {
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+
+            const actor = yield* CurrentActor
+            if (actor.kind !== 'user') {
+                return yield* new UserForbidden({ reason: 'only a signed-in account can delete itself' })
+            }
+
+            const self = yield* users.findById(actor.id)
+            if (self === null) return yield* new UserNotFound({ id: actor.id })
+
+            // Deleting the last super admin is a lockout, not a lifecycle action: nobody would be left to grant it back.
+            if (self.role === 'superAdmin') {
+                const remaining = yield* users.countByRole('superAdmin')
+                if (remaining <= 1) {
+                    return yield* new UserForbidden({
+                        reason: 'the last super admin cannot delete its own account',
+                    })
+                }
+            }
+
+            // Credentials first: the sessions and keys are cascaded by the row, but revoking makes the window explicit.
+            yield* users.revokeCredentials(actor.id)
+            yield* users.delete(actor.id)
         }),
 
         exportSelf: Effect.fn('UserService.exportSelf')(function* () {

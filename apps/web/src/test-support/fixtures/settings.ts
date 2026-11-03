@@ -88,5 +88,9 @@ export const settingsFixtures: FixtureMap = {
 			error: null,
 		}),
 	},
+	useDeleteSelf: {
+		empty: undefined,
+		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({ deleted: true }), isPending: false, error: null }),
+	},
 	useTwoFactor: { empty: undefined, raw: () => ({ backupCodes: [], isBusy: false, error: null, enable: () => Promise.resolve(), disable: () => Promise.resolve(), regenerateBackupCodes: () => Promise.resolve(), clearBackupCodes: () => undefined }) },
 }

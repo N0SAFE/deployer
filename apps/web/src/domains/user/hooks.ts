@@ -9,7 +9,10 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 
+import { AuthSignin } from '@/routes'
+
 import { wrapWithInvalidations } from "../shared/helpers";
+
 
 import { userEndpoints } from "./endpoints";
 import { userInvalidations } from "./invalidations";
@@ -141,4 +144,19 @@ export function useUserActions() {
  */
 export function useExportSelfData() {
   return useMutation(userEndpoints.exportSelf.mutationOptions({}))
+}
+
+/**
+ * Delete the caller's own account (`AUTH-032`).
+ *
+ * On success the session is gone with the row, so the page signs out and returns to the sign-in screen.
+ */
+export function useDeleteSelf() {
+  return useMutation(
+    userEndpoints.deleteSelf.mutationOptions({
+      onSuccess: () => {
+        window.location.assign(AuthSignin())
+      },
+    }),
+  )
 }
