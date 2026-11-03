@@ -526,7 +526,13 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: `bodyParser:false` and no explicit size limit anywhere (`app.config.ts:55`); uploadBundle has none.
   - Do: global and per-route limits.
   - Done when: oversize body returns 413.
-  - Status: todo · Verified-in-code: unverified · Source: ops.md#1 (input validation), ops.md#R-09
+  - Status: JSON ceiling done (2026-11-03); per-route/stream limits todo · Verified-in-code: yes
+  - Progress (2026-11-03): the shared gateway checks `content-length` on JSON requests BEFORE the body is read and answers
+    413 `PAYLOAD_TOO_LARGE` past `MAX_JSON_BODY_BYTES` (default 10 MiB). Multipart is deliberately exempt — `uploadBundle`
+    is legitimately large and a cap that had to carve it out would be the same cap everywhere else; a chunked body
+    without `content-length` is the streaming case and belongs to the route that consumes it. Spec covers the four
+    outcomes. Remaining: per-route limits for uploads/probes and a limit on the web's server actions.
+  - Source: ops.md#1 (input validation), ops.md#R-09
 
 - [ ] `SEC-027` **Mediate the Docker socket (proxy / capability broker) and verify non-root access** · FIX · P1 · XL · Deps: `DEC-SEC-1`
   - Why/Problem: socket mounted rw into setup, the API service (`api-service-provisioner.service.ts:323`), the BFF and every service-tier task (`services-tier-provisioner.service.ts:428` shared mount list) and the ingress (`:ro` does not restrict a socket), so any RCE/SSRF in the public BFF equals root on the swarm; `USER nestjs` (uid 1001) with the socket bind-mounted and no `user`/`groups` in specs (UNVERIFIED EACCES), `/app/data` not prepared for the named volume; scanner container also mounts the socket (`scanner-container-manager.service.ts:289`); builds run in the API process with the socket.

@@ -72,9 +72,44 @@ export function apiAppOptions(): NestApplicationOptions {
 	};
 }
 
+/**
+ * A ceiling on JSON bodies (`SEC-026`).
+ *
+ * The apps run with `bodyParser: false`, so nothing upstream reads a length: a caller can post a 500 MB JSON document and
+ * the process buffers it before validation ever sees a field. This checks `content-length` BEFORE the body is consumed,
+ * so the rejection costs a header read.
+ *
+ * JSON only, on purpose. `uploadBundle` is multipart and legitimately large, and a cap that had to exempt it would be
+ * the same cap everywhere else. A chunked body without `content-length` is not caught here — that is the streaming case,
+ * which belongs to the route that consumes it.
+ */
+export const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES ?? 10 * 1024 * 1024);
+
+export function jsonBodyLimit(maxBytes: number = MAX_JSON_BODY_BYTES): express.RequestHandler {
+	return (req, res, next) => {
+		const contentType = req.headers["content-type"] ?? "";
+		if (!contentType.includes("application/json")) {
+			next();
+			return;
+		}
+
+		const declared = Number(req.headers["content-length"] ?? "0");
+		if (Number.isFinite(declared) && declared > maxBytes) {
+			res.status(413).json({
+				statusCode: 413,
+				code: "PAYLOAD_TOO_LARGE",
+				message: `request body exceeds ${String(maxBytes)} bytes`,
+			});
+			return;
+		}
+		next();
+	};
+}
+
 /** The bare Express instance an app's middleware is attached to. */
 export function createGateway(): express.Express {
 	const gateway = express();
+	gateway.use(jsonBodyLimit());
 	gateway.use(createCorsMiddleware());
 	return gateway;
 }
