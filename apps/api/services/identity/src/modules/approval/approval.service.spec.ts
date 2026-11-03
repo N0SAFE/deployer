@@ -38,6 +38,7 @@ describe("ApprovalService", () => {
 		list: vi.fn(),
 		vote: vi.fn(),
 		expireStale: vi.fn(),
+		countApprovers: vi.fn(),
 		consume: vi.fn(),
 	};
 
@@ -48,6 +49,8 @@ describe("ApprovalService", () => {
 		repo.vote.mockImplementation(() => Effect.succeed(request({ status: "approved", approvals: 1 })));
 		repo.consume.mockImplementation(() => Effect.succeed(true));
 		repo.expireStale.mockImplementation(() => Effect.void);
+		// Two approvers by default: a real two-person rule, so `require` must consume an approval.
+		repo.countApprovers.mockImplementation(() => Effect.succeed(2));
 	});
 
 	const run = <A, E>(
@@ -209,6 +212,17 @@ describe("ApprovalService", () => {
 			);
 
 			expect(repo.consume).toHaveBeenCalledWith("admin-1", "h".repeat(64), expect.any(Date));
+		});
+
+		it("degrades to step-up when fewer than two people can approve (solo install)", async () => {
+			repo.countApprovers.mockImplementation(() => Effect.succeed(1));
+
+			await Effect.runPromise(
+				run(Actor.user("admin-1", "admin"), (a) => a.require("user:delete", "h".repeat(64))),
+			);
+
+			// No second person exists, so no approval is demanded; the caller's step-up is the gate.
+			expect(repo.consume).not.toHaveBeenCalled();
 		});
 
 		it("refuses when nothing was approved for that exact action", async () => {

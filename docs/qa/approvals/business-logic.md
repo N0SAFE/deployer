@@ -56,7 +56,9 @@ verdict `SEC-069` was missing, as data: adding a protected action is one entry, 
 
 ## Not done yet
 
-- Solo-mode degradation (`DEC-AUTH-16`): the policy is installation-agnostic today.
+- Solo mode is IMPLEMENTED (`DEC-AUTH-16`): when fewer than two accounts hold `approval:approve`, the guard stops demanding
+  a second person and relies on the caller's passkey step-up (which runs BEFORE the guard) plus the audit trail. As soon as
+  a second approver exists, the same call demands an approval again — the behaviour follows the installation, not a flag.
 - More entries: `secret:reveal` on production, prod deploys and `container:exec` live in other services and need the same
   guard wired there.
 - The raw passkey `assertionHash` is not stored: Better Auth verifies WebAuthn assertions at ITS endpoint, so binding the

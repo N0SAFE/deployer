@@ -3,7 +3,7 @@ import { Context, Effect } from "effect";
 import { isPermission } from "@deployer/auth/authz";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
-import { roleHasPermission } from "@identity/core/authz/role-catalog";
+import { roleHasPermission, roleNamesWithPermission } from "@identity/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actionHash } from "@identity/core/utils/action-hash";
 import { AuditService } from "@identity/modules/audit/audit.service";
@@ -209,6 +209,13 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 			if (approvalPolicyFor(permission) === null) {
 				return yield* Effect.fail(new ApprovalForbidden({ reason: `actor lacks ${permission}` }));
 			}
+
+			// SOLO MODE (`DEC-AUTH-16`): with fewer than two people able to approve, a second person cannot exist, so
+			// demanding one would lock the only administrator out. The caller has already demanded the passkey proof
+			// (`assertCritical` runs BEFORE this guard), and the action is audited — that is the solo degradation: step-up
+			// instead of a second human. Flip to `team` behaviour the moment a second approver exists.
+			const approvers = yield* repository.countApprovers(roleNamesWithPermission("approval:approve"));
+			if (approvers < 2) return;
 
 			const consumed = yield* repository.consume(actor.id, actionHash, new Date());
 			if (!consumed) {

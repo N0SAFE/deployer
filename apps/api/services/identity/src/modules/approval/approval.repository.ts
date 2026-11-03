@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import { Context, Data, Effect } from "effect";
 
 import { serviceOver } from "@deployer/effect-core";
@@ -66,6 +66,8 @@ export type ApprovalRepositoryShape = {
 	 * and a sweeper job for a column comparison would be more moving parts than the problem deserves.
 	 */
 	readonly expireStale: (now: Date) => Effect.Effect<void, ApprovalRepositoryFailure, DatabasePort>;
+	/** How many accounts hold any role that can approve — the solo-mode probe (`DEC-AUTH-16`). */
+	readonly countApprovers: (roleNames: readonly string[]) => Effect.Effect<number, ApprovalRepositoryFailure, DatabasePort>;
 	/**
 	 * Record one person's verdict and settle the request in the SAME transaction.
 	 *
@@ -143,6 +145,16 @@ function makeApprovalRepository(db: DatabaseShape["db"]): ApprovalRepositoryShap
 					.update(accessRequests)
 					.set({ status: "expired" })
 					.where(and(eq(accessRequests.status, "pending"), lt(accessRequests.expiresAt, now)));
+			}),
+
+		countApprovers: (roleNames) =>
+			attempt(async () => {
+				if (roleNames.length === 0) return 0;
+				const [row] = await db
+					.select({ value: count() })
+					.from(user)
+					.where(inArray(user.role, [...roleNames]));
+				return row?.value ?? 0;
 			}),
 
 		findById: (id) => attempt(() => readById(id)),

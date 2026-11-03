@@ -1,4 +1,4 @@
-import { roleGrants, type Permission } from "@deployer/auth/authz";
+import { SYSTEM_ROLES_TABLE, roleGrants, type Permission } from "@deployer/auth/authz";
 
 /**
  * The permission snapshot authorization reads (`SEC-055`).
@@ -36,6 +36,23 @@ export function clearRoleSnapshot(): void {
 /** The epoch the current snapshot was loaded at, or `null` when it is the code fallback. */
 export function roleSnapshotEpoch(): number | null {
 	return snapshot?.epoch ?? null;
+}
+
+/**
+ * Which role NAMES grant a permission.
+ *
+ * Used to answer "how many people can approve": the snapshot lists the roles, and the caller counts accounts holding
+ * them. The code table answers the same question when no snapshot exists.
+ */
+export function roleNamesWithPermission(permission: Permission): string[] {
+	if (snapshot === null || snapshot.permissions.size === 0) {
+		return Object.values(SYSTEM_ROLES_TABLE)
+			.filter((role) => role.permissions.includes(permission))
+			.map((role) => role.name);
+	}
+	return [...snapshot.permissions.entries()]
+		.filter(([, permissions]) => permissions.has(permission))
+		.map(([name]) => name);
 }
 
 /**
