@@ -171,6 +171,41 @@ describe("Identity routes e2e: an authenticated admin", () => {
 		expect(z.object({ message: z.string() }).parse(response.body).message).toContain("step-up");
 	});
 
+	it("shows the refusals this session received in the audit log", async () => {
+		// The delete and decide attempts above were refused by this admin; the boundary records them.
+		const response = await context.http.get("/audit").set("cookie", admin.cookie).expect(200);
+
+		const page = z
+			.object({
+				data: z.array(
+					z.object({
+						action: z.string(),
+						actorId: z.string().nullable(),
+						detail: z.record(z.string(), z.unknown()),
+					}),
+				),
+			})
+			.parse(response.body);
+
+		const denials = page.data.filter((row) => row.action === "access-denied");
+		expect(denials.length).toBeGreaterThanOrEqual(1);
+		expect(denials.map((row) => row.actorId)).toContain(admin.userId);
+	});
+
+	it("exports those rows as CSV under `audit:export`", async () => {
+		const response = await context.http
+			.get("/audit/export")
+			.set("cookie", admin.cookie)
+			.expect(200);
+
+		const body = z
+			.object({ csv: z.string(), rows: z.number().int(), truncated: z.boolean() })
+			.parse(response.body);
+
+		expect(body.csv.split("\n")[0]).toBe("id,createdAt,action,actorId,targetId,ip,userAgent,detail");
+		expect(body.rows).toBeGreaterThanOrEqual(1);
+	});
+
 	it("answers the analytics read with data, not an error", async () => {
 		const response = await context.http.get("/analytics/metrics/deployments").set("cookie", admin.cookie).expect(200);
 
