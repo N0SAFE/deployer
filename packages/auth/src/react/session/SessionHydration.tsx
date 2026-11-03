@@ -76,13 +76,13 @@ export async function SessionHydration<TSession>({
     const queryClient = new QueryClient();
 
     // Fetch session if we should
+    let session: TSession | null = null;
     if (shouldFetch) {
         const result = await fetchSession();
 
         // Handle both formats:
         // - Direct session: Session | null
         // - Wrapped session: { data: Session | null }
-        let session: TSession | null = null;
         if (result !== null && result !== undefined) {
             // Check if it's a wrapped response with 'data' property
             if (typeof result === "object" && "data" in result) {
@@ -92,13 +92,19 @@ export async function SessionHydration<TSession>({
                 session = result;
             }
         }
-
-        // ALWAYS set the session in the query cache, even if null
-        // This is critical: null means "fetched but user not logged in"
-        // undefined (no cache entry) means "not yet fetched"
-        // If we don't cache null, the client thinks it needs to fetch and shows loading
-        queryClient.setQueryData(sessionQueryKey, session);
     }
+
+    // ALWAYS set the session in the query cache, even if null — and even when
+    // `shouldFetch` is false. null means "known: not logged in"; a MISSING entry
+    // means "not yet fetched", which makes `useSession()` fall through to Better
+    // Auth's own client fetch and render a different branch than the server did.
+    //
+    // `updatedAt: 0` instead of the default `Date.now()`: a bare setQueryData
+    // stamps the current time, which is a prerender-time read and trips
+    // `blocking-prerender-current-time`. The value is irrelevant here — the
+    // session query is `staleTime: Infinity` — so pinning it keeps the write
+    // deterministic and prerender-safe.
+    queryClient.setQueryData(sessionQueryKey, session, { updatedAt: 0 });
 
     // Dehydrate the query client state
     const dehydratedState = dehydrate(queryClient);

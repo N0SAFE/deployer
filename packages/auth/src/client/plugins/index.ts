@@ -47,8 +47,12 @@ export {
 } from "./masterToken/state";
 export type { MasterTokenSubscriber } from "./masterToken/state";
 
-// Export components
-export { MasterTokenProvider, useMasterToken } from "./masterToken/components/provider";
+// NO React components in this barrel. `MasterTokenProvider`/`useMasterToken` used
+// to be re-exported here, which made `@deployer/auth/client` depend on
+// `react`/`createContext`. The web app loads this barrel from `proxy.ts` (Next.js
+// middleware), where that is a build error. Import them from:
+//   `@deployer/auth/client/plugins/masterToken/components/provider`
+// (the `./*` wildcard export resolves it, like `.../masterToken/state`).
 
 // ============================================================================
 // Invite Client Plugin

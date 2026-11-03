@@ -29,6 +29,14 @@ reads under impersonation are correspondingly narrower than the target's own vie
 
 ---
 
+## Enabling writes (`DEC-AUTH-25`)
+
+Read-only is the default and the toggle is explicit: `POST /enable-impersonation-writes` requires the session to be an
+impersonation AND a fresh passkey proof for THAT session, then sets `session.impersonation_writes`. `actorFromContext`
+keeps mapping an impersonated session to the platform `viewer` role until that flag is true; only then does the target's
+own role apply. The flag lives on the impersonated session, so stopping the impersonation ends the permission with it, and
+enabling it is audited (`impersonation-writes-enabled`). The banner flips from "read-only" to "Writes are ENABLED".
+
 ## Why the admin's token is parked in a cookie
 
 `stop-impersonating` must restore the admin's own session. The token waits in an HttpOnly, signed cookie

@@ -28,6 +28,11 @@ export const deployerUserSchemaPlugin = () => ({
 			fields: {
 				/** The admin a request is impersonating on behalf of; null for a normal session. */
 				impersonatedBy: { type: "string", required: false, input: false, defaultValue: null },
+				/**
+				 * Whether an impersonated session may WRITE (`DEC-AUTH-25`). Read-only until the admin re-proves a
+				 * passkey from inside the impersonation; never client-writable.
+				 */
+				impersonationWrites: { type: "boolean", required: false, input: false, defaultValue: false },
 			} as const,
 		},
 	},

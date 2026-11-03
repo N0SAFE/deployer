@@ -68,7 +68,9 @@ export const impersonationPlugin = (options: ImpersonationOptions = {}) => ({
 				}),
 			},
 			async (ctx) => {
-				const session = ctx.context.session;
+				// `sessionMiddleware` answers 401 in production; this guard keeps the handler honest when called directly
+				// (a plugin test, or a future mount that forgets the middleware).
+				const session = ctx.context.session as typeof ctx.context.session | null;
 				if (session === null) {
 					return ctx.json({ error: "Authentication required" }, { status: 401 });
 				}
@@ -138,17 +140,64 @@ export const impersonationPlugin = (options: ImpersonationOptions = {}) => ({
 			},
 		),
 
-		stopImpersonating: createAuthEndpoint(
-			"/stop-impersonating",
+		/**
+		 * Allow WRITES inside an impersonated session (`DEC-AUTH-25`).
+		 *
+		 * Read-only is the default; this is the explicit toggle, and it costs a fresh passkey proof from the admin who is
+		 * impersonating — not the target's password, which the admin does not have. The flag lives on the session row, so
+		 * ending the impersonation ends the permission with it.
+		 */
+		enableImpersonationWrites: createAuthEndpoint(
+			"/enable-impersonation-writes",
 			{ method: "POST", use: [sessionMiddleware] },
 			async (ctx) => {
-				const session = ctx.context.session;
+				const session = ctx.context.session as typeof ctx.context.session | null;
 				if (session === null) {
 					return ctx.json({ error: "Authentication required" }, { status: 401 });
 				}
 
 				const impersonated = session.session as SessionWithImpersonation;
-				if (impersonated.impersonatedBy === null || impersonated.impersonatedBy === undefined) {
+				const impersonatedBy = impersonated.impersonatedBy;
+				if (typeof impersonatedBy !== "string" || impersonatedBy.length === 0) {
+					return ctx.json({ error: "This session is not impersonating anyone" }, { status: 409 });
+				}
+
+				const steppedUp = options.hasStepUp === undefined ? false : await options.hasStepUp(session.session.id);
+				if (!steppedUp) {
+					return ctx.json({ error: "A passkey step-up is required to enable writes" }, { status: 403 });
+				}
+
+				await ctx.context.internalAdapter.updateSession(session.session.token, {
+					impersonationWrites: true,
+				});
+
+				options.audit?.record({
+					action: "impersonation-writes-enabled",
+					actorId: impersonatedBy,
+					targetId: session.user.id,
+				});
+
+				return ctx.json({ success: true });
+			},
+		),
+
+		stopImpersonating: createAuthEndpoint(
+			"/stop-impersonating",
+			{ method: "POST", use: [sessionMiddleware] },
+			async (ctx) => {
+				const session = ctx.context.session as typeof ctx.context.session | null;
+				if (session === null) {
+					return ctx.json({ error: "Authentication required" }, { status: 401 });
+				}
+
+				const impersonated = session.session as SessionWithImpersonation;
+				const impersonatedBy = impersonated.impersonatedBy;
+				if (typeof impersonatedBy !== "string" || impersonatedBy.length === 0) {
+					return ctx.json({ error: "This session is not impersonating anyone" }, { status: 409 });
+				}
+
+				const adminId = impersonated.impersonatedBy;
+				if (typeof adminId !== "string" || adminId.length === 0) {
 					return ctx.json({ error: "This session is not impersonating anyone" }, { status: 409 });
 				}
 
@@ -158,7 +207,7 @@ export const impersonationPlugin = (options: ImpersonationOptions = {}) => ({
 				}
 
 				const adminSession = await ctx.context.internalAdapter.findSession(parked);
-				if (adminSession === null || adminSession.user.id !== impersonated.impersonatedBy) {
+				if (adminSession?.user.id !== adminId) {
 					return ctx.json({ error: "The parked session does not match" }, { status: 400 });
 				}
 
@@ -169,7 +218,7 @@ export const impersonationPlugin = (options: ImpersonationOptions = {}) => ({
 
 				options.audit?.record({
 					action: "impersonation-stop",
-					actorId: impersonated.impersonatedBy,
+					actorId: adminId,
 					targetId: session.user.id,
 				});
 

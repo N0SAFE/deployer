@@ -1,3 +1,5 @@
+"use client"
+
 import { createContext } from 'react'
 
 import type { MasterTokenManager as MTManager, MasterTokenSubscriber } from '../state'

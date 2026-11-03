@@ -29,6 +29,7 @@ export const AUTH_AUDIT_ACTIONS = [
 	"device-approved",
 	"impersonation-start",
 	"impersonation-stop",
+	"impersonation-writes-enabled",
 	"approval-requested",
 	"approval-decided",
 	"approval-consumed",

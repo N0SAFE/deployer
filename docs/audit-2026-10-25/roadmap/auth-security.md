@@ -271,8 +271,9 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Status: backend + banner done (2026-11-03) · Verified-in-code: yes · Source: auth.md#6
   - Progress (2026-11-03): `impersonationPlugin` wraps Better Auth (`POST /impersonate`, `POST /stop-impersonating`),
     never exposes a raw token, and refuses without `user:impersonate`, a strictly higher rank, a fresh passkey step-up
-    and a reason. The impersonated session is 1 h and READ-ONLY by construction: `actorFromContext` maps it to the
-    platform `viewer` role. The admin's own token is parked in a signed HttpOnly cookie and restored on stop; the
+    and a reason. The impersonated session is 1 h and READ-ONLY by default: `actorFromContext` maps it to the
+    platform `viewer` role until `POST /enable-impersonation-writes` records a further passkey proof on the session
+    (`session.impersonation_writes`), which is the design's explicit toggle (`DEC-AUTH-25`). The admin's own token is parked in a signed HttpOnly cookie and restored on stop; the
     dashboard banner (`ImpersonationBanner`) keeps the operator aware. Start UI (a passkey step-up flow in the users
     page) remains.
   - Design-impact (2026-10-26): owned by `AUTH-067`: read-only by default (`DEC-AUTH-25`), step-up + reason, never to an equal-or-higher principal, TTL 1 h, `onBehalfOf=[admin]` with effective permissions = target ∩ admin; BA `impersonate` wrapped via `AUTH-053`, not exposed raw. Priority raised only when `loginAs` removal needs a replacement (P2).

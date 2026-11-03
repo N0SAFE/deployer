@@ -116,6 +116,8 @@ function createMasterSession(user: User, userAgent: string | null) {
             updatedAt: new Date(),
             token: `master-token-${String(Date.now())}`,
             ipAddress: null,
+            impersonatedBy: null,
+            impersonationWrites: false,
         },
         user,
     } satisfies Session

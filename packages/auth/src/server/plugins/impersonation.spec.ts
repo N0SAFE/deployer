@@ -15,8 +15,10 @@ vi.mock("better-auth/cookies", () => ({ setSessionCookie }));
 type Handler = (ctx: unknown) => Promise<{ body: Record<string, unknown>; status: number }>;
 
 /** The endpoint's handler, as the mocked `createAuthEndpoint` returns it. */
-const handlerOf = (plugin: ReturnType<typeof impersonationPlugin>, name: "impersonate" | "stopImpersonating"): Handler =>
-	(plugin.endpoints[name] as unknown as { handler: Handler }).handler;
+const handlerOf = (
+	plugin: ReturnType<typeof impersonationPlugin>,
+	name: "impersonate" | "stopImpersonating" | "enableImpersonationWrites",
+): Handler => (plugin.endpoints[name] as unknown as { handler: Handler }).handler;
 
 const target = { id: "target-1", name: "Ada", email: "ada@example.com", role: "user", banned: false };
 
@@ -37,6 +39,7 @@ function makeContext(overrides: { session?: unknown; stepUp?: boolean } = {}) {
 				createSession: vi.fn(() => Promise.resolve({ id: "session-impersonated", token: "imp-token" })),
 				findSession: vi.fn(),
 				deleteSession: vi.fn(() => Promise.resolve()),
+				updateSession: vi.fn(() => Promise.resolve({})),
 			},
 			secret: "test-secret",
 		},
@@ -145,6 +148,42 @@ describe("impersonationPlugin", () => {
 		expect(response.status).toBe(200);
 		expect(ctx.context.internalAdapter.deleteSession).toHaveBeenCalledWith("imp-token");
 		expect(ctx.setCookie).toHaveBeenCalledWith("deployer.admin_session", "", expect.objectContaining({ maxAge: 0 }));
+	});
+
+	describe("enableImpersonationWrites", () => {
+		const impersonatedSession = {
+			session: { id: "session-impersonated", token: "imp-token", impersonatedBy: "admin-1", impersonationWrites: false },
+			user: { id: "target-1", role: "user" },
+		};
+
+		it("refuses a session that is not impersonating anyone", async () => {
+			const plugin = impersonationPlugin({ hasStepUp: () => Promise.resolve(true), audit });
+			const response = await handlerOf(plugin, "enableImpersonationWrites")(makeContext());
+
+			expect(response.status).toBe(409);
+		});
+
+		it("refuses without a fresh passkey proof", async () => {
+			const plugin = impersonationPlugin({ hasStepUp: () => Promise.resolve(false), audit });
+			const ctx = makeContext({ session: impersonatedSession });
+
+			const response = await handlerOf(plugin, "enableImpersonationWrites")(ctx);
+
+			expect(response.status).toBe(403);
+		});
+
+		it("marks the session writable after the proof, and audits it", async () => {
+			const plugin = impersonationPlugin({ hasStepUp: () => Promise.resolve(true), audit });
+			const ctx = makeContext({ session: impersonatedSession });
+
+			const response = await handlerOf(plugin, "enableImpersonationWrites")(ctx);
+
+			expect(response.status).toBe(200);
+			expect(ctx.context.internalAdapter.updateSession).toHaveBeenCalledWith("imp-token", { impersonationWrites: true });
+			expect(audit.record).toHaveBeenCalledWith(
+				expect.objectContaining({ action: "impersonation-writes-enabled", actorId: "admin-1", targetId: "target-1" }),
+			);
+		});
 	});
 
 	it("refuses to restore a parked session that is a different user", async () => {

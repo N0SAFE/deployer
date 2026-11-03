@@ -30,7 +30,14 @@ export type RequestContextInput = {
 		 * The verified session the request arrived on. `id` is what a step-up is bound to; `impersonatedBy` is read to
 		 * DOWNGRADE the actor (see `actorFromContext`).
 		 */
-		readonly session?: { readonly id: string; readonly impersonatedBy?: string | null } | null;
+		readonly session?:
+			| {
+					readonly id: string;
+					readonly impersonatedBy?: string | null;
+					/** Set by the impersonating admin after a further passkey proof (`DEC-AUTH-25`). */
+					readonly impersonationWrites?: boolean | null;
+			  }
+			| null;
 	};
 	readonly systemActor?: { readonly kind: "system"; readonly source: string } | null;
 };
@@ -43,13 +50,12 @@ export function actorFromContext(context: RequestContextInput): Actor | null {
 
 	// An impersonated session is READ-ONLY by construction (`DEC-AUTH-25`): the platform `viewer` role grants the read
 	// capabilities and none of the writes, so no handler has to remember a flag. The web shows the banner from
-	// `session.impersonatedBy`; the API re-derives this on every request.
-	const impersonated = context.auth.session?.impersonatedBy;
-	return Actor.user(
-		user.id,
-		impersonated === null || impersonated === undefined ? (user.role ?? "user") : "viewer",
-		context.auth.session?.id ?? null,
-	);
+	// `session.impersonatedBy`; the API re-derives this on every request. Enabling writes is a further passkey proof,
+	// recorded on the session — only then does the target's own role apply.
+	const session = context.auth.session;
+	const impersonated = session?.impersonatedBy;
+	const readOnly = impersonated !== null && impersonated !== undefined && session?.impersonationWrites !== true;
+	return Actor.user(user.id, readOnly ? "viewer" : (user.role ?? "user"), session?.id ?? null);
 }
 
 /** The caller's correlation id, or a fresh one when it sent none. */

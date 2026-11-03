@@ -2,6 +2,7 @@
 
 import { ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@deployer/ui/components/shadcn/button'
 
@@ -20,6 +21,22 @@ export function ImpersonationBanner() {
   const impersonatedBy = session?.session.impersonatedBy
   if (session === null || impersonatedBy === null || impersonatedBy === undefined) return null
   const label = session.user.email
+  const writable = session.session.impersonationWrites === true
+
+  const enableWrites = async () => {
+    setStopping(true)
+    try {
+      const result = await authClient.enableImpersonationWrites({})
+      if (result.error) {
+        toast.error(result.error.message ?? 'A passkey verification is required')
+        return
+      }
+      // The flag lives on the session; reload so every request re-derives the actor with it.
+      window.location.reload()
+    } finally {
+      setStopping(false)
+    }
+  }
 
   const stop = async () => {
     setStopping(true)
@@ -38,14 +55,25 @@ export function ImpersonationBanner() {
       <div className="flex items-center gap-2">
         <ShieldAlert className="size-4 text-amber-600" />
         <span>
-          You are impersonating <strong>{label}</strong>. This session is read-only
-          and expires automatically.
+          You are impersonating <strong>{label}</strong>.{' '}
+          {writable ? (
+            <strong>Writes are ENABLED for this session.</strong>
+          ) : (
+            'This session is read-only and expires automatically.'
+          )}
         </span>
       </div>
-      <Button size="sm" variant="outline" onClick={() => void stop()} disabled={stopping}>
-        <X className="size-4" />
-        {stopping ? 'Stopping…' : 'Stop impersonating'}
-      </Button>
+      <div className="flex gap-2">
+        {writable ? null : (
+          <Button size="sm" variant="secondary" onClick={() => void enableWrites()} disabled={stopping}>
+            Allow writes
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={() => void stop()} disabled={stopping}>
+          <X className="size-4" />
+          {stopping ? 'Stopping…' : 'Stop impersonating'}
+        </Button>
+      </div>
     </div>
   )
 }
