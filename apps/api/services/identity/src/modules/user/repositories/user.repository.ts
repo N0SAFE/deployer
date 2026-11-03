@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { asc, count, desc, eq } from 'drizzle-orm'
+import { and, asc, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
 import { serviceOver } from "@deployer/effect-core"
@@ -22,7 +22,7 @@ import type {
     UserListFilter,
     UserPage,
 } from './user.repository.types'
-import type { NewUser, SelfExportData, User, UserPatch } from '../domain/user.types'
+import type { NewUser, SelfExportData, User, UserPatch, UserSessionRow } from '../domain/user.types'
 
 /** The repository contract, declared BEFORE the implementation. */
 export type UserRepositoryShape = {
@@ -80,6 +80,15 @@ export type UserRepositoryShape = {
     readonly exportFor: (
         userId: string
     ) => Effect.Effect<SelfExportData, UserRepositoryFailure, DatabasePort>
+    /** One user's sessions, newest first. No token: the row describes the credential, it is not it. */
+    readonly listSessions: (
+        userId: string
+    ) => Effect.Effect<UserSessionRow[], UserRepositoryFailure, DatabasePort>
+    /** End ONE session, scoped to its owner so a wrong id cannot reach somebody else's row. */
+    readonly revokeSession: (
+        userId: string,
+        sessionId: string
+    ) => Effect.Effect<boolean, UserRepositoryFailure, DatabasePort>
     readonly revokeCredentials: (
         id: string
     ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
@@ -321,6 +330,32 @@ function makeUserRepository(
                     return toUser(row)
                 }),
             ),
+
+        listSessions: (userId: string) =>
+            attempt(async () => {
+                const rows = await db
+                    .select({
+                        id: session.id,
+                        createdAt: session.createdAt,
+                        expiresAt: session.expiresAt,
+                        ipAddress: session.ipAddress,
+                        userAgent: session.userAgent,
+                        impersonatedBy: session.impersonatedBy,
+                    })
+                    .from(session)
+                    .where(eq(session.userId, userId))
+                    .orderBy(desc(session.createdAt))
+                return rows
+            }),
+
+        revokeSession: (userId: string, sessionId: string) =>
+            attempt(async () => {
+                const deleted = await db
+                    .delete(session)
+                    .where(and(eq(session.id, sessionId), eq(session.userId, userId)))
+                    .returning({ id: session.id })
+                return deleted.length > 0
+            }),
 
         revokeCredentials: (id: string) =>
             attempt(async () => {

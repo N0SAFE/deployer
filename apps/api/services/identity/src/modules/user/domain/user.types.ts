@@ -40,6 +40,9 @@ export type SelfApiKey = {
   readonly enabled: boolean
 }
 
+/** One session as an operator sees it. No token, by construction. */
+export type UserSessionRow = SelfSession
+
 export type SelfExportData = {
   readonly sessions: SelfSession[]
   readonly apiKeys: SelfApiKey[]

@@ -30,6 +30,8 @@ import {
   removeUserSchema,
   impersonateSchema,
   setPasswordSchema,
+  revokeUserSessionSchema,
+  userSessionsSchema,
 } from './schemas'
 
 // ============================================================================
@@ -159,6 +161,21 @@ const customContracts = {
     keys: (i) => ['admin', 'setPassword', i],
     handler: async (input) =>
       orpc.user.setPassword.call({ params: { id: input.userId }, body: { password: input.password } }),
+  }),
+
+  /** Every session an account holds (`session:list`). */
+  listSessions: custom({
+    input: userSessionsSchema,
+    keys: (i) => ['admin', 'listSessions', i],
+    handler: async (input) => orpc.user.listSessions.call({ params: { id: input.userId } }),
+  }),
+
+  /** End ONE session (`session:revoke`), with a passkey proof. */
+  revokeSession: custom({
+    input: revokeUserSessionSchema,
+    keys: (i) => ['admin', 'revokeSession', i],
+    handler: async (input) =>
+      orpc.user.revokeSession.call({ params: { id: input.userId, sessionId: input.sessionId } }),
   }),
 
   /**

@@ -166,6 +166,36 @@ export function useAdminRemoveUser() {
 }
 
 /**
+ * Every session an account holds (`session:list`).
+ *
+ * Enabled only while the dialog is open: it is not data the page needs, and listing sessions is itself auditable in the
+ * operator's mind even when the API does not log reads.
+ */
+export function useUserSessions(userId: string, options: { enabled?: boolean } = {}) {
+  return useQuery(
+    enhancedAdmin.listSessions.queryOptions({
+      input: { userId },
+      enabled: (options.enabled ?? true) && userId !== '',
+      staleTime: 15_000,
+    }),
+  )
+}
+
+/** End one session (`session:revoke`), with the passkey proof the API demands. */
+export function useRevokeUserSession() {
+  return useMutation(
+    enhancedAdmin.revokeSession.mutationOptions({
+      onSuccess: () => {
+        toast.success('Session revoked')
+      },
+      onError: (error) => {
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to revoke the session') : UNKNOWN_ORPC_ERROR_MESSAGE)
+      },
+    }),
+  )
+}
+
+/**
  * Set a temporary password (`AUTH-015`).
  *
  * The admin reads the temporary value to the person out of band; the flight is only for deployments with no mail

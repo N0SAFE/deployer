@@ -95,3 +95,13 @@ export const setPasswordSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   password: z.string().min(8, 'At least 8 characters').max(128),
 });
+
+/** Sessions of one account (`session:list` / `session:revoke`). */
+export const userSessionsSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+});
+
+export const revokeUserSessionSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  sessionId: z.string().min(1, 'Session ID is required'),
+});

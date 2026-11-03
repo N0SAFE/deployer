@@ -127,6 +127,18 @@ export const settingsFixtures: FixtureMap = {
 			],
 		},
 	},
+	useUserSessions: {
+		empty: { data: [] },
+		populated: {
+			data: [
+				{ id: 's-1', createdAt: daysAgo(1), expiresAt: daysAgo(-6), ipAddress: '10.0.0.2', userAgent: 'Mozilla/5.0', impersonatedBy: null },
+			],
+		},
+	},
+	useRevokeUserSession: {
+		empty: undefined,
+		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }),
+	},
 	useRequestApproval: {
 		empty: undefined,
 		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }),

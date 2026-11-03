@@ -91,6 +91,30 @@ export class UserController {
             })
     }
 
+    /** Every session a user holds (`session:list`). */
+    @Implement(userContract.listSessions)
+    listSessions() {
+        return procedure(userContract.listSessions)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const users = yield* UserService
+                const data = yield* serve(context)(users.listSessions(input.params.id))
+                return { data }
+            })
+    }
+
+    /** End one session (`session:revoke`), with a passkey proof. */
+    @Implement(userContract.revokeSession)
+    revokeSession() {
+        return procedure(userContract.revokeSession)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const users = yield* UserService
+                yield* serve(context)(users.revokeSession(input.params.id, input.params.sessionId))
+                return { revoked: true as const }
+            })
+    }
+
     /** Set a temporary password (`AUTH-015`); the service owns the step-up, rank and revocation rules. */
     @Implement(userContract.setPassword)
     setPassword() {

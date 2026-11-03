@@ -60,3 +60,35 @@ export const userSetPasswordContract = userOps
 	.tags("User")
 	.errors((e) => [...standardDomainErrorContracts(e)])
 	.build();
+
+/** One session of a user, as an operator sees it: no token — that is credential material. */
+export const userSessionSchema = z.object({
+	id: z.string(),
+	createdAt: z.coerce.date(),
+	expiresAt: z.coerce.date(),
+	ipAddress: z.string().nullable(),
+	userAgent: z.string().nullable(),
+	impersonatedBy: z.string().nullable(),
+});
+
+/** Every session a user holds, newest first (`session:list`). */
+export const userSessionsListContract = userOps
+	.read({ idFieldName: "id", idSchema: userSchema.shape.id })
+	.path("/{id}/sessions")
+	.input((b) => b.params(z.object({ id: userSchema.shape.id })))
+	.output(z.object({ data: z.array(userSessionSchema) }))
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
+
+/** End ONE session (`session:revoke`), with a passkey proof — it may be the session an intruder is using. */
+export const userSessionRevokeContract = userOps
+	.delete()
+	.path("/{id}/sessions/{sessionId}")
+	.input((b) =>
+		b.params(z.object({ id: userSchema.shape.id, sessionId: z.string().min(1) })),
+	)
+	.output(z.object({ revoked: z.literal(true) }))
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();

@@ -41,6 +41,7 @@ import { useSession } from '@/lib/auth'
 
 import { InviteUserDialog } from './_components/invite-user-dialog'
 import { RequestApprovalDialog } from './_components/request-approval-dialog'
+import { SessionsDialog } from './_components/sessions-dialog'
 import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog, SetPasswordDialog } from './_components/user-dialogs'
 
 
@@ -59,6 +60,7 @@ export default function SettingsUsersPage() {
   const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; name: string } | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<{ user: { id: string; name: string }; actionHash: string } | null>(null)
   const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null)
+  const [sessionsTarget, setSessionsTarget] = useState<{ id: string; name: string } | null>(null)
   
   const pageSize = 20
   
@@ -365,6 +367,14 @@ export default function SettingsUsersPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          title="Where this account is signed in"
+                          onClick={() => { setSessionsTarget({ id: user.id, name: user.name }) }}
+                        >
+                          Sessions
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           title="Set a temporary password (needs a fresh passkey verification)"
                           onClick={() => { setPasswordTarget({ id: user.id, name: user.name }) }}
                           disabled={actionLoading.setPassword}
@@ -457,6 +467,9 @@ export default function SettingsUsersPage() {
       ) : null}
       {removeTarget ? (
         <RemoveUserDialog user={removeTarget} pending={actionLoading.remove} onClose={() => { setRemoveTarget(null) }} onConfirm={() => { void confirmRemove() }} />
+      ) : null}
+      {sessionsTarget ? (
+        <SessionsDialog user={sessionsTarget} onClose={() => { setSessionsTarget(null) }} />
       ) : null}
       {passwordTarget ? (
         <SetPasswordDialog

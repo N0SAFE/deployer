@@ -21,6 +21,7 @@ export const AUTH_AUDIT_ACTIONS = [
 	"ban",
 	"unban",
 	"password-changed",
+	"session-revoked",
 	"two-factor-enabled",
 	"passkey-added",
 	"api-key-created",

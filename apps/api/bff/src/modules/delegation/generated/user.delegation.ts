@@ -98,6 +98,16 @@ export class UserDelegationController {
 		return implement(userContract.setPassword).handler(({ input }) => this.client.setPassword(input));
 	}
 
+	@Implement(userContract.listSessions)
+	listSessions() {
+		return implement(userContract.listSessions).handler(({ input }) => this.client.listSessions(input));
+	}
+
+	@Implement(userContract.revokeSession)
+	revokeSession() {
+		return implement(userContract.revokeSession).handler(({ input }) => this.client.revokeSession(input));
+	}
+
 	@Implement(userContract.exportSelf)
 	exportSelf() {
 		return implement(userContract.exportSelf).handler(({ input }) => this.client.exportSelf(input));

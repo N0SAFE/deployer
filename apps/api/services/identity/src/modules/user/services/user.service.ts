@@ -27,7 +27,7 @@ import {
 import { rule } from './user.service.utils'
 
 import type { UserQuery } from './user.service.types'
-import type { NewUser, SelfExportData, User, UserPatch } from '../domain/user.types'
+import type { NewUser, SelfExportData, User, UserPatch, UserSessionRow } from '../domain/user.types'
 import type {
     UserFilter,
     UserPage,
@@ -99,6 +99,19 @@ export type UserServiceShape = {
         User,
         UserFailure,
         Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService
+    >
+    /** Every session a user holds (`session:list`). */
+    readonly listSessions: (
+        id: string,
+    ) => Effect.Effect<UserSessionRow[], UserFailure, Ambient | UserRepository | DatabasePort>
+    /** End ONE session (`session:revoke`), with a passkey proof. */
+    readonly revokeSession: (
+        id: string,
+        sessionId: string,
+    ) => Effect.Effect<
+        void,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
     >
     /** Set a temporary password (`AUTH-015`) and end every session it would otherwise leave alive. */
     readonly setPassword: (
@@ -477,6 +490,53 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             })
 
             return updated
+        }),
+
+        listSessions: Effect.fn('UserService.listSessions')(function* (id) {
+            const actor = yield* actingUser
+            yield* rule(() => {
+                userRules.assertCapability(actor, 'session:list')
+            })
+
+            const target = yield* users.findById(id)
+            if (target === null) return yield* new UserNotFound({ id })
+
+            // Seeing where someone is signed in is as sensitive as the sessions themselves, so it follows the hierarchy.
+            yield* rule(() => {
+                userRules.assertOutranks(actor, target.role)
+            })
+
+            return yield* users.listSessions(id)
+        }),
+
+        revokeSession: Effect.fn('UserService.revokeSession')(function* (id, sessionId) {
+            const actor = yield* actingUser
+            yield* rule(() => {
+                userRules.assertCapability(actor, 'session:revoke')
+            })
+
+            const target = yield* users.findById(id)
+            if (target === null) return yield* new UserNotFound({ id })
+
+            yield* rule(() => {
+                userRules.assertOutranks(actor, target.role)
+            })
+
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+
+            const revoked = yield* users.revokeSession(id, sessionId)
+            if (!revoked) {
+                return yield* new UserInvalid({ reason: 'that session no longer exists' })
+            }
+
+            const audit = yield* AuditService
+            yield* audit.record({
+                action: 'session-revoked',
+                actorId: actor.userId,
+                targetId: id,
+                detail: { sessionId },
+            })
         }),
 
         setPassword: Effect.fn('UserService.setPassword')(function* (id, password) {

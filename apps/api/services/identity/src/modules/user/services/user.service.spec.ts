@@ -36,6 +36,8 @@ function makeRepository() {
 		update: vi.fn(),
 		applySecurityChange: vi.fn(),
 		setPassword: vi.fn(),
+		listSessions: vi.fn(),
+		revokeSession: vi.fn(),
 		delete: vi.fn(),
 		revokeCredentials: vi.fn(),
 		exportFor: vi.fn(),
@@ -43,6 +45,8 @@ function makeRepository() {
 	};
 	for (const fn of Object.values(repo)) fn.mockImplementation(() => Effect.succeed(undefined));
 	repo.applySecurityChange.mockImplementation((id: string, patch: object) => Effect.succeed(userRow({ id, ...patch })));
+	repo.listSessions.mockImplementation(() => Effect.succeed([]));
+	repo.revokeSession.mockImplementation(() => Effect.succeed(true));
 	return repo;
 }
 
@@ -100,6 +104,38 @@ describe("UserService", () => {
 
 	/** The domain error a use case failed with. */
 	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
+
+	describe("sessions", () => {
+		it("lists a weaker user's sessions for an actor holding `session:list`", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "viewer" })));
+
+			await run(service.listSessions(admin, "user-1"));
+
+			expect(repo.listSessions).toHaveBeenCalledWith("user-1");
+		});
+
+		it("refuses to list the sessions of an equal or higher principal", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "admin" })));
+
+			await expect(failureOf(service.listSessions(admin, "user-1"))).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.listSessions).not.toHaveBeenCalled();
+		});
+
+		it("revokes one session after the passkey proof, and audits it", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "viewer" })));
+
+			await run(service.revokeSession(admin, "user-1", "session-9"));
+
+			expect(repo.revokeSession).toHaveBeenCalledWith("user-1", "session-9");
+		});
+
+		it("refuses to revoke a session without `session:revoke`", async () => {
+			await expect(
+				failureOf(service.revokeSession(member, "user-1", "session-9")),
+			).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.revokeSession).not.toHaveBeenCalled();
+		});
+	});
 
 	describe("setPassword", () => {
 		it("sets a temporary password and ends the sessions it would otherwise leave alive", async () => {
