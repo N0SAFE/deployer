@@ -85,7 +85,13 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: no `authClient.invite.*` usage in web; sign-in page says "ask for an invitation" but there is no accept route.
   - Do: admin create/list/revoke invites in settings; public `/auth/invite?token=` accept page (set password, redirect to sign-in); show role chosen.
   - Done when: admin invites a user by email/link and the invitee can complete signup end to end in the UI.
-  - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (Invites)
+  - Status: create + accept done (2026-11-03); list/revoke pending · Verified-in-code: yes · Source: auth.md#1 (Invites)
+  - Progress (2026-11-03): **end to end in the UI, minus delivery.** Settings → Users has "Invite user": pick an email
+    and a role FROM THE SERVER'S CATALOGUE and the dialog returns the single-use link to copy (there is no mail transport
+    until `AUTH-015`, so it does not pretend one exists). `/invite?token=…` checks the token, shows the email and role
+    being accepted, sets name + password, signs in and lands on the dashboard; the token is spent by the plugin BEFORE
+    any account write. `invite.list` (pending/used) and revocation are not surfaced yet, and the role picker is capped by
+    `canInviteRole`, which the server enforces.
   - Design-impact (2026-10-26): the UI builds against the `invitations` service (`AUTH-065`) with a grant-template editor (platform role + optional project grants capped by the inviter's own grants); project collaborator invites become grants with `source='invite'`.
 
 - [ ] `AUTH-011` **Project collaborator invitations: pending/accepted flow** · ENHANCE · P2 · M · Deps: `AUTH-015`

@@ -39,14 +39,9 @@ import { isPlatformRole } from '@/lib/access/platform-role.rules'
 import { useSession } from '@/lib/auth'
 
 
+import { InviteUserDialog } from './_components/invite-user-dialog'
 import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog } from './_components/user-dialogs'
 
-const ROLE_HELP: { label: string; text: string }[] = [
-  { label: 'Super Admin', text: 'full access to everything, including system configuration.' },
-  { label: 'Admin', text: 'manages users (create, ban, change roles) and sees platform data, but has no system configuration access.' },
-  { label: 'Operator', text: 'runs and observes the platform (logs, analytics, domains, routing) without managing users.' },
-  { label: 'Viewer', text: 'read-only visibility.' },
-]
 
 export default function SettingsUsersPage() {
   const { data: session } = useSession()
@@ -56,6 +51,7 @@ export default function SettingsUsersPage() {
   const [roleFilter, setRoleFilter] = useState<'all' | PlatformRole>('all')
   // The role list comes from the server's catalogue (`GET /roles`), seeded from the same declaration the API checks.
   const { roles: platformRoles } = usePlatformRoles()
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
@@ -182,25 +178,31 @@ export default function SettingsUsersPage() {
           </>
         }
         actions={
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              void refetch()
-            }}
-            disabled={isLoading}
-            aria-label="Refresh users"
-          >
-            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
+          <>
+            <Button variant="default" onClick={() => { setInviteOpen(true) }}>
+              Invite user
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                void refetch()
+              }}
+              disabled={isLoading}
+              aria-label="Refresh users"
+            >
+              <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </>
         }
       />
 
+      {/* The role descriptions come from the SERVER's catalogue, so a re-seeded role updates this explainer too. */}
       <dl className="grid gap-x-6 gap-y-1 rounded-lg border border-border/60 px-4 py-3 text-sm text-muted-foreground sm:grid-cols-2">
-        {ROLE_HELP.map((role) => (
-          <div key={role.label}>
+        {platformRoles.map((role) => (
+          <div key={role.name}>
             <dt className="inline font-medium text-foreground">{role.label}: </dt>
-            <dd className="inline">{role.text}</dd>
+            <dd className="inline">{role.description ?? 'No description recorded for this role.'}</dd>
           </div>
         ))}
       </dl>
@@ -413,6 +415,9 @@ export default function SettingsUsersPage() {
             setSelectedUser(null)
           }}
         />
+      ) : null}
+      {inviteOpen ? (
+        <InviteUserDialog roles={platformRoles} onClose={() => { setInviteOpen(false) }} />
       ) : null}
       {impersonateTarget ? (
         <ImpersonateUserDialog
