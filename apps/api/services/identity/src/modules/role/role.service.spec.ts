@@ -2,9 +2,11 @@ import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, CurrentActor } from "@deployer/effect-core";
+import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
 import { AuditService } from "@identity/modules/audit/audit.service";
+import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 import { RoleForbidden, RoleInvalid } from "./role.errors";
 import { RoleRepository, type RoleRepositoryShape, type RoleRow } from "./role.repository";
@@ -51,8 +53,9 @@ describe("RoleService", () => {
 		use: (roles: RoleService["Service"]) => Effect.Effect<
 			A,
 			E,
-			RoleRepository | CurrentActor | DatabasePort | AuditService
+			RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
 		>,
+		stepUp: "ok" | "missing" = "ok",
 	): Effect.Effect<A, E> =>
 		Effect.gen(function* () {
 			const roles = yield* RoleService;
@@ -65,6 +68,11 @@ describe("RoleService", () => {
 					Layer.succeed(CurrentActor, actor),
 					Layer.succeed(DatabasePort, {} as never),
 					Layer.succeed(AuditService, { record: () => Effect.void } as unknown as AuditService["Service"]),
+					Layer.succeed(StepUpService, {
+						assertCritical: () =>
+							stepUp === "ok" ? Effect.void : Effect.fail(new ForbiddenError("step-up required")),
+						status: () => Effect.die(new Error("unused")),
+					} as unknown as StepUpService["Service"]),
 				),
 			),
 		);
@@ -124,6 +132,15 @@ describe("RoleService", () => {
 			const outcome = await Effect.runPromise(Effect.flip(run(Actor.user("a1", "admin"), (r) => r.create(body))));
 
 			expect(outcome).toBeInstanceOf(RoleInvalid);
+		});
+
+		it("refuses to create a role without a fresh passkey proof", async () => {
+			const outcome = await Effect.runPromise(
+				Effect.flip(run(Actor.user("a1", "admin"), (r) => r.create(body), "missing")),
+			);
+
+			expect(outcome).toBeInstanceOf(RoleForbidden);
+			expect(repo.create).not.toHaveBeenCalled();
 		});
 
 		it("creates a custom role below the creator's rank with permissions it holds", async () => {

@@ -8,6 +8,7 @@ import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 import { ApprovalForbidden, ApprovalInvalid, ApprovalNotFound, type ApprovalFailure } from "./approval.errors";
+import { approvalPolicyFor } from "./approval.policy";
 import {
 	ApprovalRepository,
 	type AccessRequestFilter,
@@ -80,7 +81,17 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 				return yield* Effect.fail(new ApprovalInvalid({ reason: `"${input.permission}" is not a permission this platform declares` }));
 			}
 
+			// Only a policied action is approvable. Otherwise the row would sit in a queue whose approval no guard reads,
+			// and the requester would wait for consent that changes nothing.
+			const policy = approvalPolicyFor(input.permission);
+			if (policy === null) {
+				return yield* Effect.fail(
+					new ApprovalInvalid({ reason: `"${input.permission}" cannot be approved; it is not a policied action` }),
+				);
+			}
+
 			const now = Date.now();
+			const ttlSec = Math.min(input.ttlSec, policy.ttlSec);
 			const created = yield* repository.create({
 				permission: input.permission,
 				requesterId: actor.id,
@@ -88,9 +99,11 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 				scope: input.scope,
 				actionHash: input.actionHash,
 				reason: input.reason,
-				requiredApprovals: input.requiredApprovals,
-				ttlSec: input.ttlSec,
-				expiresAt: new Date(now + input.ttlSec * 1000),
+				// The policy decides the quorum, never the requester's payload: asking for fewer approvers must not shorten
+				// the rule.
+				requiredApprovals: Math.max(input.requiredApprovals, policy.requiredApprovals),
+				ttlSec,
+				expiresAt: new Date(now + ttlSec * 1000),
 			});
 
 			const audit = yield* AuditService;
@@ -178,6 +191,11 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 
 			// Holding the capability is the normal path: an approval is only for what the caller cannot do alone.
 			if (roleGrants(actor.role, permission)) return;
+
+			// Without a policy there is no second-person route: the refusal is the ordinary one, not "approval required".
+			if (approvalPolicyFor(permission) === null) {
+				return yield* Effect.fail(new ApprovalForbidden({ reason: `actor lacks ${permission}` }));
+			}
 
 			const consumed = yield* repository.consume(actor.id, actionHash, new Date());
 			if (!consumed) {

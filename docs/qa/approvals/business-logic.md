@@ -42,10 +42,23 @@ First wired action: `user.delete`. `actionHash("user.delete", id)` binds the app
 deletion of account A cannot delete account B. The guard runs AFTER the passkey step-up and immediately before the write,
 so a failed ceremony never spends an approval.
 
+## The policy table
+
+`approval.policy.ts` lists the actions that may be done by proxy (`{ permission, requiredApprovals, ttlSec }`). It is the
+verdict `SEC-069` was missing, as data: adding a protected action is one entry, not an `if`.
+
+- Asking is refused for an action with no policy (`ApprovalInvalid`): a row nobody can legally satisfy is worse than a
+  clear "this is not approvable".
+- The row's quorum and TTL come from the POLICY (`Math.max` for approvers, `Math.min` for TTL), never from the requester's
+  payload — asking for one approver cannot shorten a two-person rule.
+- `require` allows a caller who holds the capability, refuses an action with no policy with the ordinary
+  "actor lacks X", and only then looks for an approval. `user:delete` is the current entry.
+
 ## Not done yet
 
-- The `Require Approval` VERDICT in the guardrail engine (`SEC-069`) — the guard exists, the policy that decides WHEN to
-  require it does not. Today `user.delete` is the only caller.
-- A UI that turns the refusal into a request/approve loop.
+- Solo-mode degradation (`DEC-AUTH-16`): the policy is installation-agnostic today.
+- More entries: `secret:reveal` on production, prod deploys and `container:exec` live in other services and need the same
+  guard wired there.
+- The passkey `assertionHash` over the request id.
 - Solo mode (`DEC-AUTH-16`) degrades approvals to step-up + reason + cooldown; not implemented.
 - The passkey `assertionHash` (non-repudiation over the request id) is not stored yet.

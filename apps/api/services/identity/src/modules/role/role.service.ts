@@ -6,6 +6,7 @@ import { CurrentActor, serviceOver } from "@deployer/effect-core";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actorFromCurrent } from "@identity/core/utils/actor.utils";
 import { AuditService } from "@identity/modules/audit/audit.service";
+import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 import { RoleForbidden, RoleInvalid, RoleNotFound, type RoleFailure } from "./role.errors";
 import { RoleRepository, type RolePatch, type RoleRow } from "./role.repository";
@@ -28,14 +29,26 @@ export type RoleServiceShape = {
 	) => Effect.Effect<RoleRow[], RoleFailure, RoleRepository | CurrentActor | DatabasePort>;
 	readonly create: (
 		role: NewRole,
-	) => Effect.Effect<RoleRow, RoleFailure, RoleRepository | CurrentActor | DatabasePort | AuditService>;
+	) => Effect.Effect<
+		RoleRow,
+		RoleFailure,
+		RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+	>;
 	readonly update: (
 		id: string,
 		patch: RolePatch,
-	) => Effect.Effect<RoleRow, RoleFailure, RoleRepository | CurrentActor | DatabasePort | AuditService>;
+	) => Effect.Effect<
+		RoleRow,
+		RoleFailure,
+		RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+	>;
 	readonly remove: (
 		id: string,
-	) => Effect.Effect<void, RoleFailure, RoleRepository | CurrentActor | DatabasePort | AuditService>;
+	) => Effect.Effect<
+		void,
+		RoleFailure,
+		RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+	>;
 };
 
 /**
@@ -96,6 +109,13 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 			Effect.gen(function* () {
 				const actor = actorFromCurrent(yield* CurrentActor);
 				yield* assertWriter(actor.role);
+
+				// Creating a role is privilege configuration: a passkey proof, like every other critical write (`SEC-070`).
+				const stepUp = yield* StepUpService;
+				yield* stepUp
+					.assertCritical()
+					.pipe(Effect.mapError(() => new RoleForbidden({ reason: "a fresh passkey proof is required to manage roles" })));
+
 				yield* assertGrantable(actor.role, role.rank, role.permissions);
 
 				if (yield* repository.isKnownPlatformRole(role.name)) {
@@ -127,6 +147,11 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 				const actor = actorFromCurrent(yield* CurrentActor);
 				yield* assertWriter(actor.role);
 
+				const stepUp = yield* StepUpService;
+				yield* stepUp
+					.assertCritical()
+					.pipe(Effect.mapError(() => new RoleForbidden({ reason: "a fresh passkey proof is required to manage roles" })));
+
 				const current = yield* repository.findById(id);
 				if (current === null) return yield* Effect.fail(new RoleNotFound({ id }));
 				if (current.isSystem) {
@@ -157,6 +182,11 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 			Effect.gen(function* () {
 				const actor = actorFromCurrent(yield* CurrentActor);
 				yield* assertWriter(actor.role);
+
+				const stepUp = yield* StepUpService;
+				yield* stepUp
+					.assertCritical()
+					.pipe(Effect.mapError(() => new RoleForbidden({ reason: "a fresh passkey proof is required to manage roles" })));
 
 				const current = yield* repository.findById(id);
 				if (current === null) return yield* Effect.fail(new RoleNotFound({ id }));

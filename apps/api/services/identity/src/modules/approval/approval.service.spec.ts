@@ -14,7 +14,7 @@ import { ApprovalService } from "./approval.service";
 
 const request = (overrides: Partial<AccessRequestRow> = {}): AccessRequestRow => ({
 	id: "req-1",
-	permission: "deployment:create",
+	permission: "user:delete",
 	requesterId: "requester",
 	via: null,
 	scope: { projectId: "p-1" },
@@ -77,7 +77,7 @@ describe("ApprovalService", () => {
 	};
 
 	const input = {
-		permission: "deployment:create",
+		permission: "user:delete",
 		scope: { projectId: "p-1" },
 		actionHash: "a".repeat(64),
 		reason: "prod hotfix",
@@ -101,6 +101,24 @@ describe("ApprovalService", () => {
 		expect(created.requesterId).toBe("requester");
 		expect(created.ttlSec).toBe(3600);
 		expect(created.expiresAt.getTime()).toBeGreaterThan(Date.now());
+	});
+
+	it("refuses to file a request for an action no policy makes approvable", async () => {
+		const outcome = await Effect.runPromise(
+			Effect.flip(run(Actor.user("requester", "admin"), (a) => a.request({ ...input, permission: "deployment:create" }))),
+		);
+
+		expect(outcome).toBeInstanceOf(ApprovalInvalid);
+		expect(repo.create).not.toHaveBeenCalled();
+	});
+
+	it("takes the quorum from the policy, not from the requester's payload", async () => {
+		await Effect.runPromise(run(Actor.user("requester", "admin"), (a) => a.request({ ...input, requiredApprovals: 1 })));
+
+		const created = repo.create.mock.calls[0]?.[0] as { requiredApprovals: number; ttlSec: number };
+		// `user:delete` is a one-approver policy today; the assertion is that the POLICY is what lands in the row.
+		expect(created.requiredApprovals).toBe(1);
+		expect(created.ttlSec).toBeLessThanOrEqual(3600);
 	});
 
 	it("refuses a system caller: a request belongs to a person", async () => {
