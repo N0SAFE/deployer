@@ -28,6 +28,13 @@ export type HandleOptions = {
 	 * Defaults to one `console.error` line with the tag and the correlation id.
 	 */
 	readonly onDomainCause?: (cause: unknown, tag: string, correlationId: string) => void;
+	/**
+	 * Every typed refusal the boundary answers, for the audit trail (`SEC-068`).
+	 *
+	 * The wire gets an oRPC error either way; this is where a DENIAL becomes a record ("who tried what, and was
+	 * refused"). Synchronous and fire-and-forget: an audit write must never change the answer.
+	 */
+	readonly onDomainFailure?: (error: DomainError, correlationId: string) => void;
 };
 
 const reportDomainCause = (error: DomainError, correlationId: string, options: HandleOptions): void => {
@@ -50,7 +57,10 @@ export const handle =
 	): Effect.Effect<A, ORPCError<string, unknown>, Exclude<R, Correlation> | Correlation> =>
 		Effect.gen(function* () {
 			const { id } = yield* Correlation;
-			return yield* catchDomainErrors(effect, (error) => { reportDomainCause(error, id, options); });
+			return yield* catchDomainErrors(effect, (error) => {
+				reportDomainCause(error, id, options);
+				options.onDomainFailure?.(error, id);
+			});
 		}).pipe(
 			Effect.catchCause((cause) =>
 				Cause.hasInterrupts(cause) && !Cause.hasFails(cause)

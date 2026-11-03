@@ -3,7 +3,7 @@ import { Cause, Effect } from "effect";
 import { Actor } from "@deployer/effect-core";
 import { standardErrorActions } from "@deployer/orpc-utils";
 
-import { handle, type DefectLogger } from "./handle";
+import { handle, type DefectLogger, type HandleOptions } from "./handle";
 import { provideRequest, type RequestContextInput } from "./request-context";
 
 export type ServeOptions = {
@@ -13,6 +13,8 @@ export type ServeOptions = {
 	readonly onDefect?: DefectLogger;
 	/** See `HandleOptions.passThroughFailures`. */
 	readonly passThroughFailures?: boolean;
+	/** Where every typed refusal is reported, for the audit trail (`SEC-068`). */
+	readonly onDomainFailure?: HandleOptions["onDomainFailure"];
 };
 
 /**
@@ -34,7 +36,10 @@ export function createServe(options: ServeOptions) {
 		(context: RequestContextInput) =>
 		<A, E, R>(effect: Effect.Effect<A, E, R>) =>
 			effect.pipe(
-				handle(onDefect, { passThroughFailures: options.passThroughFailures === true }),
+				handle(onDefect, {
+					passThroughFailures: options.passThroughFailures === true,
+					...(options.onDomainFailure === undefined ? {} : { onDomainFailure: options.onDomainFailure }),
+				}),
 				provideRequest(context, () => Effect.fail(standardErrorActions.UNAUTHORIZED("authentication required"))),
 			);
 
@@ -42,7 +47,10 @@ export function createServe(options: ServeOptions) {
 		(context: RequestContextInput) =>
 		<A, E, R>(effect: Effect.Effect<A, E, R>) =>
 			effect.pipe(
-				handle(onDefect, { passThroughFailures: options.passThroughFailures === true }),
+				handle(onDefect, {
+					passThroughFailures: options.passThroughFailures === true,
+					...(options.onDomainFailure === undefined ? {} : { onDomainFailure: options.onDomainFailure }),
+				}),
 				provideRequest(context, () => Effect.succeed(Actor.user("anonymous", "anonymous"))),
 			);
 

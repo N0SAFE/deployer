@@ -14,6 +14,7 @@ export const AUTH_AUDIT_ACTIONS = [
 	"user-deleted",
 	"email-change",
 	"role-change",
+	"access-denied",
 	"role-created",
 	"role-updated",
 	"role-deleted",

@@ -777,7 +777,12 @@ missing: a named `Grants` service (the seam is a repository method today), the r
   - Why/Problem: one event per decision with a fixed shape; never fails the request; replay corpus for simulate. Design §5.8, D12.
   - Do: event `ts, requestId, actor{principal, credential, aal, via, ip, nodeId, onBehalfOf}, permission, risk, resource, decision{effect, reason, grantIds, policyIds, requirements}, policyVersion, shadow, approvalId, inputDigest`; always log denies, challenges, every mutating allow and every `risk>=high` allow; sample low-risk reads at 1% (always for `audit:read`, `secret:list`); bounded async queue with drop-counter metric; hash chain per `OBS-071`; keep ≥30 days of decision summaries; satisfies `OBS-085` via the gate.
   - Done when: deny/challenge/mutation always logged; queue overflow increments the metric without failing the request.
-  - Status: todo · Verified-in-code: no (design) · Source: authz-authn-design.md §5.8
+  - Status: denials logged (2026-11-03); mutating allows/challenges pending · Verified-in-code: partial
+  - Progress (2026-11-03): **every refusal is a row.** The request boundary (`serve`) reports each typed DOMAIN failure to a
+    sink the audit module installs at boot, filtered to `forbidden`/`unauthorized` (a validation error is the caller's
+    typo, not an access attempt). The row carries the actor, forwarded IP, user agent, the error tag/kind, the public
+    message and the correlation id, and is written fire-and-forget: a failed audit write never turns a 403 into a 500.
+    Remaining: mutating ALLOWS and challenges, the risk-tier sampling, the hash chain (`OBS-071`) and the bounded queue.
   - Decision (2026-10-26): `DEC-AUTH-20` accepted: tiered logging (always denies/challenges/mutating and `risk>=high` allows; 1% sampled low-risk reads), hash-chained, 30 d decision summaries for simulate.
 - [ ] `SEC-069` **Guardrail engine (`Policy`, combination law, shadow mode, DFilter conditions, presets)** · NEW · P1 · L · Deps: `SEC-053`,`SEC-050`
   - Why/Problem: restrictive policies over decisions (deny / require step-up / approval / reason / elevation / quota). Design §3.6. Implements `SEC-037`/`IDEA-006` Layer B.
