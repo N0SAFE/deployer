@@ -28,6 +28,12 @@ export interface ApprovalPolicy {
 export const APPROVAL_POLICIES: readonly ApprovalPolicy[] = [
 	// Deleting an account destroys its data and cannot be reversed.
 	{ permission: "user:delete", requiredApprovals: 1, ttlSec: 3_600 },
+	// Deleting a project takes every service, environment and deployment under it.
+	{ permission: "project:delete", requiredApprovals: 1, ttlSec: 3_600 },
+	// Deploying to production puts unreviewed code in front of users.
+	{ permission: "deployment:create", requiredApprovals: 1, ttlSec: 3_600 },
+	// A shell in a container is a shell next to production data.
+	{ permission: "container:exec", requiredApprovals: 1, ttlSec: 3_600 },
 ];
 
 const BY_PERMISSION = new Map<string, ApprovalPolicy>(

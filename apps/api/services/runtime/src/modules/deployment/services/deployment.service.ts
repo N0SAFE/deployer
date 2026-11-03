@@ -20,6 +20,7 @@ import { isRecord } from "@deployer/type-guards"
 import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/deployment/list";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import type { PlatformRole, ProjectRole } from "@deployer/auth";
+import { ApprovalGuard, type ApprovalGuardShape } from "@deployer/shared/core/modules/approval/approval.guard";
 import type {
     DeploymentProgressEvent,
     DeploymentQueryEvent,
@@ -211,6 +212,8 @@ export class DeploymentService implements OnModuleInit {
         private readonly ingressRefresher: TraefikConfigRefresher,
         /** Boundary: the shared access checks are Effects, and this class still answers Promises. */
         @Inject(EffectHost) private readonly host: Pick<EffectHostShape, "runUnwrapped">,
+        /** Cross-service approval guard (`SEC-072`): a production deploy needs a second person without the capability. */
+        @Inject(ApprovalGuard) private readonly approvalGuard: ApprovalGuardShape,
     ) {}
 
     onModuleInit(): void {
@@ -375,6 +378,15 @@ export class DeploymentService implements OnModuleInit {
             "maintainer",
             "deployer",
         ], actorPlatformRole);
+
+        // Deploying to PRODUCTION is a protected action: whoever lacks `deployment:create` needs an approval for THIS
+        // service, consumed before anything is queued. Staging and previews keep their normal flow.
+        if (input.environment === "production") {
+            await this.host.runUnwrapped(
+                this.approvalGuard.require(userId, "deployment:create", "deployment.create", [input.serviceId]),
+            );
+        }
+
         return this.queueTriggeredDeployment(input, userId);
     }
 

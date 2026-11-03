@@ -2,6 +2,8 @@ import { Effect, Stream } from "effect";
 import { EMPTY } from "rxjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
+
 import { DatabasePort } from "@project/core/database/database.port";
 import { ProjectDb } from "@project/core/database/project-db";
 import type { CoreEventSyncShape } from "@project/core/ports/core-event-sync.port";
@@ -100,7 +102,8 @@ describe("ProjectService", () => {
 		| ProjectEventService
 		| CoreEventSync
 		| RuntimeConfigurationAccessor
-		| DatabasePort;
+		| DatabasePort
+		| ApprovalGuard;
 
 	/** Run a use case against the fakes, as the module's Effect context would. */
 	const run = <A, E>(effect: Effect.Effect<A, E, Deps>) =>
@@ -116,6 +119,10 @@ describe("ProjectService", () => {
 				Effect.provideService(DatabasePort, { db: {} as never }),
 				// The store is faked, so nothing reads the database; the type still names it.
 				Effect.provideService(ProjectDb, {} as never),
+				// Approval enforcement has its own spec; these use cases run as a caller who holds the capability.
+				Effect.provideService(ApprovalGuard, {
+					require: () => Effect.void,
+				} as unknown as ApprovalGuard["Service"]),
 			),
 		);
 

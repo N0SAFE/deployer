@@ -7,6 +7,8 @@ import { apiServiceUrl, type ApiServiceName } from "@deployer/env";
 import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 import { declareModule } from "@deployer/nest-effect";
 
+import { ApprovalGuard, makeApprovalGuard } from "../core/modules/approval/approval.guard";
+
 import { SYSTEM_ACTOR_HEADER } from "../core/modules/auth/system-actor/system-actor";
 
 import type { ContractRouterClient, RouterContract } from "@orpc/contract";
@@ -106,11 +108,14 @@ export class ServiceClientModule {
 			{
 				module: ServiceClientModule,
 				global: true,
-				providers: [ServiceClient],
-				exports: [ServiceClient],
+				providers: [
+					ServiceClient,
+					{ provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
+				],
+				exports: [ServiceClient, ApprovalGuard],
 			},
 			// `ServiceClient` is an ordinary Nest class: nothing Effect-shaped crosses this boundary.
-			{ provides: [], exports: [], global: true },
+			{ provides: [ApprovalGuard], exports: [ApprovalGuard], global: true },
 		);
 	}
 }

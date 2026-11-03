@@ -1,5 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
+import { ApprovalGuard, makeApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
+import { ServiceClient } from "@deployer/shared/server";
 
 import { DockerCatalogModule } from "./catalog/docker-catalog.module";
 import { DockerCommonModule } from "./common/docker-common.module";
@@ -22,6 +24,10 @@ export class DockerDomainModule extends createModuleContext({
     DockerEntityModule,
   ],
   controllers: [DockerController],
+  providers: [
+    // Opening a shell in a container is destructive-adjacent: `container:exec` may need a second person (`SEC-072`).
+    { provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
+  ],
   exports: [
     DockerCommonModule,
     DockerRepositoriesModule,
@@ -31,4 +37,4 @@ export class DockerDomainModule extends createModuleContext({
     DockerCatalogModule,
     DockerEntityModule,
   ],
-}) {}
+}, ApprovalGuard) {}

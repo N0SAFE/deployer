@@ -14,3 +14,4 @@ export { bearerToken, secretsMatch } from "./secrets";
 
 // Export server plugins
 export * from "./plugins/index";
+export { actionHash } from "./action-hash";

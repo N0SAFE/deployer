@@ -328,6 +328,8 @@ describe('DeploymentService', () => {
                             mockRuntimeConfigurationAccessor,
                             mockIngressRefresher,
                             { runUnwrapped: (effect: any) => Effect.runPromise(effect) },
+                            // Approval has its own spec; this suite's deploys are assumed approved.
+                            { require: () => Effect.void },
                         ),
                     inject: [
                         CodeProviderRegistryService,

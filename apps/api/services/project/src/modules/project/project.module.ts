@@ -1,4 +1,5 @@
 import { createModuleContext, EffectHost, effectHostProvider } from "@deployer/nest-effect";
+import { ApprovalGuard, makeApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
@@ -43,6 +44,7 @@ export class ProjectDomainModule extends createModuleContext({
 	providers: [
 		effectHostProvider(),
 		{ provide: DnsProvider, useFactory: makeDnsProviderGateway, inject: [ServiceClient] },
+		{ provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
@@ -65,7 +67,7 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: WebhookService, useValue: WebhookService.live },
 	],
 	exports: [DnsProvider, ProjectStore, ProjectDb],
-}, DatabasePort) {}
+}, DatabasePort, ApprovalGuard) {}
 
 // ── `ProjectDomainModule`, NOT `ProjectModule` ─────────────────────────────────
 // `app.module.ts` imports this by the `DomainModule` name, and every sibling

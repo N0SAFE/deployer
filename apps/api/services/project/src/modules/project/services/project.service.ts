@@ -7,6 +7,7 @@ import type {
 	ProjectStreamEvent,
 	ProjectStreamQueryInput,
 } from "@deployer/project-contracts/modules/project/stream";
+import { ApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
 import { isRecord } from "@deployer/type-guards";
 
 
@@ -156,6 +157,12 @@ export class ProjectServiceImpl {
 			// Ownership is not an access level: `maintainer` is defined as management
 			// WITHOUT deletion, so this cannot be folded into `assertProjectAccess`.
 			yield* rule(() => { projectRules.assertCanDelete(project, requesterId); });
+
+			// Deleting a project is destructive and irreversible: whoever lacks `project:delete` needs a second person's
+			// approval for THIS id, consumed atomically before the delete (`SEC-072`).
+			const guard = yield* ApprovalGuard;
+			yield* guard.require(requesterId, "project:delete", "project.delete", [id]);
+
 			yield* projects.delete(id);
 
 			yield* events.emitEffect(

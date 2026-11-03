@@ -39,6 +39,7 @@ describe("ApprovalService", () => {
 		vote: vi.fn(),
 		expireStale: vi.fn(),
 		countApprovers: vi.fn(),
+		roleOf: vi.fn(),
 		consume: vi.fn(),
 	};
 
@@ -51,6 +52,9 @@ describe("ApprovalService", () => {
 		repo.expireStale.mockImplementation(() => Effect.void);
 		// Two approvers by default: a real two-person rule, so `require` must consume an approval.
 		repo.countApprovers.mockImplementation(() => Effect.succeed(2));
+		repo.roleOf.mockImplementation((id: string) =>
+			Effect.succeed(id === "root" ? "superAdmin" : id === "admin-1" ? "admin" : "user"),
+		);
 	});
 
 	const run = <A, E>(
@@ -113,7 +117,7 @@ describe("ApprovalService", () => {
 
 	it("refuses to file a request for an action no policy makes approvable", async () => {
 		const outcome = await Effect.runPromise(
-			Effect.flip(run(Actor.user("requester", "admin"), (a) => a.request({ ...input, permission: "deployment:create" }))),
+			Effect.flip(run(Actor.user("requester", "admin"), (a) => a.request({ ...input, permission: "deployment:rollback" }))),
 		);
 
 		expect(outcome).toBeInstanceOf(ApprovalInvalid);
@@ -238,6 +242,37 @@ describe("ApprovalService", () => {
 		it("refuses a permission the catalog does not declare, even with an approval", async () => {
 			const outcome = await Effect.runPromise(
 				Effect.flip(run(Actor.user("admin-1", "admin"), (a) => a.require("nonsense:delete", "h".repeat(64)))),
+			);
+
+			expect(outcome).toBeInstanceOf(ApprovalForbidden);
+		});
+	});
+
+	describe("requireFor", () => {
+		it("answers for the peer-named actor, spending THAT actor's approval", async () => {
+			// The mesh call itself is a system actor; the permission belongs to the account the peer authenticated.
+			await Effect.runPromise(
+				run(Actor.system("mesh"), (a) => a.requireFor("admin-1", "project:delete", "h".repeat(64))),
+			);
+
+			expect(repo.consume).toHaveBeenCalledWith("admin-1", "h".repeat(64), expect.any(Date));
+		});
+
+		it("does not spend anything when the named actor already holds the capability", async () => {
+			await Effect.runPromise(
+				run(Actor.system("mesh"), (a) => a.requireFor("root", "project:delete", "h".repeat(64))),
+			);
+
+			expect(repo.consume).not.toHaveBeenCalled();
+		});
+
+		it("refuses when the named actor has no approval for that action", async () => {
+			repo.consume.mockImplementation(() => Effect.succeed(false));
+
+			const outcome = await Effect.runPromise(
+				Effect.flip(
+					run(Actor.system("mesh"), (a) => a.requireFor("admin-1", "project:delete", "h".repeat(64))),
+				),
 			);
 
 			expect(outcome).toBeInstanceOf(ApprovalForbidden);

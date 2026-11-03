@@ -12,6 +12,7 @@ import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/databa
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { NodeStateModule } from "@deployer/shared/core/modules/node-state/node-state.module";
+import { ServiceClientModule } from "@deployer/shared/server";
 import {
 	DEPENDENCIES,
 	HealthModule,
@@ -58,6 +59,8 @@ export class RuntimeServiceModule extends createModuleContext({
 		// `no such table: node_config`, from a module that names neither the table nor
 		// the missing registration.
 		NodeStateModule,
+		// Cross-service approval guard (`SEC-072`): reaching identity's ledger needs its client.
+		ServiceClientModule.forRoot(),
 		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
 		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
 		// populates `context.auth`, so the service it injects has to be in this app's

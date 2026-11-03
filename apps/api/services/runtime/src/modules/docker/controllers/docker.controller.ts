@@ -7,6 +7,7 @@ import { map } from "rxjs";
 import { procedure } from "@deployer/nest-effect";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import { dockerContract } from "@deployer/runtime-contracts";
+import { ApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "../../../core/orpc/serve";
@@ -305,6 +306,11 @@ export class DockerController {
       .use(requireAuth())
       .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
+        // A shell in a container is a shell next to production data: whoever lacks `container:exec` needs an approval
+        // for THIS container, consumed before the session opens.
+        const approvals = yield* ApprovalGuard;
+        yield* approvals.require(context.auth.user.id, "container:exec", "container.exec", [input.containerId]);
+
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
         const session = yield* serve(context)(containers.openTerminal(input).pipe(Effect.provideContext(ports)));

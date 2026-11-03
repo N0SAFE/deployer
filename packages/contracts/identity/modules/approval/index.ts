@@ -105,12 +105,38 @@ export const approvalConsumeContract = approvalOps
 	.errors((e) => [...standardDomainErrorContracts(e)])
 	.build();
 
+
+/**
+ * The guard a PEER service calls before a protected action (`SEC-069`).
+ *
+ * Internal: a service authenticates the caller, then asks identity whether that caller holds the capability or has an
+ * approval for exactly this action. The actor is named explicitly because a mesh call carries no browser session; the
+ * mesh peer is what makes the claim trustworthy.
+ */
+export const approvalRequireContract = approvalOps
+	.create()
+	.path("/require")
+	.input((b) =>
+		b.body(
+			z.object({
+				requesterId: z.string().min(1),
+				permission: z.string().min(3),
+				actionHash: z.string().min(16),
+			}),
+		),
+	)
+	.output(z.object({ allowed: z.literal(true) }))
+	.tags("Approvals")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
+
 /** The approval namespace the service exposes. */
 export const approvalContract = oc.router({
 	request: approvalRequestContract,
 	list: approvalListContract,
 	decide: approvalDecideContract,
 	consume: approvalConsumeContract,
+	require: approvalRequireContract,
 });
 
 export type ApprovalContract = typeof approvalContract;

@@ -68,6 +68,8 @@ export type ApprovalRepositoryShape = {
 	readonly expireStale: (now: Date) => Effect.Effect<void, ApprovalRepositoryFailure, DatabasePort>;
 	/** How many accounts hold any role that can approve — the solo-mode probe (`DEC-AUTH-16`). */
 	readonly countApprovers: (roleNames: readonly string[]) => Effect.Effect<number, ApprovalRepositoryFailure, DatabasePort>;
+	/** The role a requester holds, read from the account — a peer names the actor, not their role. */
+	readonly roleOf: (userId: string) => Effect.Effect<string | null, ApprovalRepositoryFailure, DatabasePort>;
 	/**
 	 * Record one person's verdict and settle the request in the SAME transaction.
 	 *
@@ -155,6 +157,12 @@ function makeApprovalRepository(db: DatabaseShape["db"]): ApprovalRepositoryShap
 					.from(user)
 					.where(inArray(user.role, [...roleNames]));
 				return row?.value ?? 0;
+			}),
+
+		roleOf: (userId) =>
+			attempt(async () => {
+				const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId)).limit(1);
+				return row?.role ?? null;
 			}),
 
 		findById: (id) => attempt(() => readById(id)),

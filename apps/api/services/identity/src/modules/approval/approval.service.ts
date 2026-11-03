@@ -56,6 +56,17 @@ export type ApprovalServiceShape = {
 		permission: string,
 		actionHash: string,
 	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort>;
+	/**
+	 * The same guard for a PEER service, which names the actor it authenticated (`SEC-069`).
+	 *
+	 * A mesh call carries no browser session, so the peer asserts who it verified; the mesh trust is what makes that
+	 * claim usable. Everything else — capability, policy, consume, refusal — is identical.
+	 */
+	readonly requireFor: (
+		requesterId: string,
+		permission: string,
+		actionHash: string,
+	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort>;
 	readonly consume: (
 		actionHash: string,
 	) => Effect.Effect<
@@ -71,7 +82,48 @@ export type ApprovalServiceShape = {
  * Asking is not a permission: an account that cannot do something is exactly the account that needs to ask. Deciding is
  * `approval:approve`, requires a fresh passkey proof, and is refused to the requester — one person cannot be two.
  */
-const makeApprovalService = (repository: ApprovalRepository["Service"]): ApprovalServiceShape => ({
+const makeApprovalService = (repository: ApprovalRepository["Service"]): ApprovalServiceShape => {
+	/**
+	 * The one guard, for both callers: an in-process actor and a peer that names the actor it authenticated.
+	 */
+	const guard = (
+		requesterId: string,
+		permission: string,
+		actionHash: string,
+	): Effect.Effect<void, ApprovalFailure, DatabasePort> =>
+		Effect.gen(function* () {
+			// The named capability must exist, or the guard would be protecting something nothing enforces.
+			if (!isPermission(permission)) {
+				return yield* Effect.fail(
+					new ApprovalForbidden({ reason: `"${permission}" is not a permission this platform declares` }),
+				);
+			}
+
+			// Holding the capability is the normal path: an approval is only for what the caller cannot do alone.
+			const role = yield* repository.roleOf(requesterId);
+			if (role !== null && roleHasPermission(role, permission)) return;
+
+			// Without a policy there is no second-person route: the refusal is the ordinary one, not "approval required".
+			if (approvalPolicyFor(permission) === null) {
+				return yield* Effect.fail(new ApprovalForbidden({ reason: `actor lacks ${permission}` }));
+			}
+
+			// SOLO MODE (`DEC-AUTH-16`): with fewer than two people able to approve, a second person cannot exist, so
+			// demanding one would lock the only administrator out. The caller has already demanded the passkey proof.
+			const approvers = yield* repository.countApprovers(roleNamesWithPermission("approval:approve"));
+			if (approvers < 2) return;
+
+			const consumed = yield* repository.consume(requesterId, actionHash, new Date());
+			if (!consumed) {
+				return yield* Effect.fail(
+					new ApprovalForbidden({
+						reason: `approval required: ask another admin to approve action ${actionHash}`,
+					}),
+				);
+			}
+		});
+
+	return {
 	request: (input): ReturnType<ApprovalServiceShape["request"]> =>
 		Effect.gen(function* () {
 			const actor = yield* CurrentActor;
@@ -194,41 +246,11 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 			if (actor.kind !== "user") {
 				return yield* Effect.fail(new ApprovalForbidden({ reason: "a system caller cannot be approved for this action" }));
 			}
-
-			// The named capability must exist, or the guard would be protecting something nothing enforces.
-			if (!isPermission(permission)) {
-				return yield* Effect.fail(
-					new ApprovalForbidden({ reason: `"${permission}" is not a permission this platform declares` }),
-				);
-			}
-
-			// Holding the capability is the normal path: an approval is only for what the caller cannot do alone.
-			if (roleHasPermission(actor.role, permission)) return;
-
-			// Without a policy there is no second-person route: the refusal is the ordinary one, not "approval required".
-			if (approvalPolicyFor(permission) === null) {
-				return yield* Effect.fail(new ApprovalForbidden({ reason: `actor lacks ${permission}` }));
-			}
-
-			// SOLO MODE (`DEC-AUTH-16`): with fewer than two people able to approve, a second person cannot exist, so
-			// demanding one would lock the only administrator out. The caller has already demanded the passkey proof
-			// (`assertCritical` runs BEFORE this guard), and the action is audited — that is the solo degradation: step-up
-			// instead of a second human. Flip to `team` behaviour the moment a second approver exists.
-			const approvers = yield* repository.countApprovers(roleNamesWithPermission("approval:approve"));
-			if (approvers < 2) return;
-
-			const consumed = yield* repository.consume(actor.id, actionHash, new Date());
-			if (!consumed) {
-				return yield* Effect.fail(
-					new ApprovalForbidden({
-						// The digest is not a secret — it is a hash of the action the caller is already attempting — and
-						// echoing it is what lets the caller FILE the matching request without a copy of the server's
-						// canonicalisation.
-						reason: `approval required: ask another admin to approve action ${actionHash}`, 
-					}),
-				);
-			}
+			return yield* guard(actor.id, permission, actionHash);
 		}),
+
+	requireFor: (requesterId, permission, actionHash): ReturnType<ApprovalServiceShape["requireFor"]> =>
+		guard(requesterId, permission, actionHash),
 
 	consume: (actionHash): ReturnType<ApprovalServiceShape["consume"]> =>
 		Effect.gen(function* () {
@@ -246,7 +268,8 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 			});
 			return { consumed };
 		}),
-});
+	};
+};
 
 /** The approval ledger's use cases (`SEC-072`). */
 export class ApprovalService extends Context.Service<ApprovalService, ApprovalServiceShape>()(

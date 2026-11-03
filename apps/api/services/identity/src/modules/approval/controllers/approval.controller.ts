@@ -6,11 +6,12 @@ import {
 	approvalDecideContract,
 	approvalListContract,
 	approvalRequestContract,
+	approvalRequireContract,
 } from "@deployer/identity-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requireMesh } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@identity/core/orpc/serve";
+import { serve, serveAnonymous } from "@identity/core/orpc/serve";
 
 import { ApprovalService } from "../approval.service";
 
@@ -49,6 +50,25 @@ export class ApprovalController {
 			.effect(function* ({ input, context }) {
 				const approvals = yield* ApprovalService;
 				return yield* serve(context)(approvals.decide(input.params.id, input.body.decision));
+			});
+	}
+
+	/**
+	 * The guard a PEER service calls (`SEC-069`): mesh-authenticated, and it names the actor the peer verified.
+	 *
+	 * A mesh call carries no browser session, so `serveAnonymous` is the honest boundary — the identity comes from the
+	 * body, and the MESH trust is what makes that claim usable.
+	 */
+	@Implement(approvalRequireContract)
+	requireApproval() {
+		return procedure(approvalRequireContract)
+			.use(requireMesh())
+			.effect(function* ({ input, context }) {
+				const approvals = yield* ApprovalService;
+				yield* serveAnonymous(context)(
+					approvals.requireFor(input.requesterId, input.permission, input.actionHash),
+				);
+				return { allowed: true as const };
 			});
 	}
 

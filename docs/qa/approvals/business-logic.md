@@ -59,8 +59,8 @@ verdict `SEC-069` was missing, as data: adding a protected action is one entry, 
 - Solo mode is IMPLEMENTED (`DEC-AUTH-16`): when fewer than two accounts hold `approval:approve`, the guard stops demanding
   a second person and relies on the caller's passkey step-up (which runs BEFORE the guard) plus the audit trail. As soon as
   a second approver exists, the same call demands an approval again — the behaviour follows the installation, not a flag.
-- More entries: `secret:reveal` on production, prod deploys and `container:exec` live in other services and need the same
-  guard wired there.
+- More entries: `secret:reveal` on production still needs the guard wired. Prod deploys (`deployment:create`) and
+  `container:exec` are wired — see `cross-service-guard.md`.
 - The raw passkey `assertionHash` is not stored: Better Auth verifies WebAuthn assertions at ITS endpoint, so binding the
   raw assertion here would mean re-implementing the ceremony. What IS stored is `proof_hash` on the vote — a digest of the
   verified step-up record, the request and the approver — which makes the vote non-repudiable and non-reusable without
