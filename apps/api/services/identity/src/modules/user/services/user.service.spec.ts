@@ -5,6 +5,7 @@ import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { RoleService } from "@identity/modules/role/role.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
@@ -61,7 +62,7 @@ describe("UserService", () => {
 			(actor: Acting, ...args: unknown[]) => {
 				const method = UserService.live[key] as (
 					...a: unknown[]
-				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation | StepUpService>;
+				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation | StepUpService | RoleService>;
 				return method(...args).pipe(
 					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
 					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
@@ -71,6 +72,11 @@ describe("UserService", () => {
 						assertCritical: () => Effect.void,
 						status: () => Effect.die(new Error("status is not used by UserService")),
 					} as unknown as StepUpService["Service"]),
+					// Role existence is a data question; this spec provides it as "every catalog role exists".
+					Effect.provideService(RoleService, {
+						isKnownPlatformRole: () => Effect.succeed(true),
+						list: () => Effect.succeed([]),
+					} as unknown as RoleService["Service"]),
 				);
 			},
 	});
@@ -88,6 +94,10 @@ describe("UserService", () => {
 				Effect.provideService(Correlation, { id: "test" }),
 				Effect.provideService(DatabasePort, {} as never),
 				Effect.provideService(StepUpService, { assertCritical: () => Effect.void, status: () => Effect.die(new Error("unused")) } as unknown as StepUpService["Service"]),
+				Effect.provideService(RoleService, {
+					isKnownPlatformRole: () => Effect.succeed(true),
+					list: () => Effect.succeed([]),
+				} as unknown as RoleService["Service"]),
 			);
 
 		it("refuses a system actor", async () => {
@@ -143,6 +153,10 @@ describe("UserService", () => {
 				Effect.provideService(Correlation, { id: "test" }),
 				Effect.provideService(DatabasePort, {} as never),
 				Effect.provideService(StepUpService, { assertCritical: () => Effect.void, status: () => Effect.die(new Error("unused")) } as unknown as StepUpService["Service"]),
+				Effect.provideService(RoleService, {
+					isKnownPlatformRole: () => Effect.succeed(true),
+					list: () => Effect.succeed([]),
+				} as unknown as RoleService["Service"]),
 			);
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
@@ -151,6 +165,29 @@ describe("UserService", () => {
 	});
 
 	describe("critical actions", () => {
+		it("refuses a role the roles table does not know", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "user" })));
+
+			const effect = UserService.live.setRole("user-1", "admin").pipe(
+				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+				Effect.provideService(CurrentActor, Actor.user("admin-1", "superAdmin")),
+				Effect.provideService(Correlation, { id: "test" }),
+				Effect.provideService(DatabasePort, {} as never),
+				Effect.provideService(StepUpService, {
+					assertCritical: () => Effect.void,
+					status: () => Effect.die(new Error("unused")),
+				} as unknown as StepUpService["Service"]),
+				// A deployment that renames a role in code but has not re-seeded must not write the old name.
+				Effect.provideService(RoleService, {
+					isKnownPlatformRole: () => Effect.succeed(false),
+					list: () => Effect.succeed([]),
+				} as unknown as RoleService["Service"]),
+			);
+
+			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserInvalid);
+			expect(repo.update).not.toHaveBeenCalled();
+		});
+
 		it("refuses a role change when the session has no fresh passkey proof", async () => {
 			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "user" })));
 
@@ -163,6 +200,10 @@ describe("UserService", () => {
 					assertCritical: () => Effect.fail(new ForbiddenError("step-up required")),
 					status: () => Effect.die(new Error("unused")),
 				} as unknown as StepUpService["Service"]),
+				Effect.provideService(RoleService, {
+					isKnownPlatformRole: () => Effect.succeed(true),
+					list: () => Effect.succeed([]),
+				} as unknown as RoleService["Service"]),
 			);
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);

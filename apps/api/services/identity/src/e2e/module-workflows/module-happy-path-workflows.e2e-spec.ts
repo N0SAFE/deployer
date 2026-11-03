@@ -22,6 +22,8 @@ import { UserService, type UserServiceShape } from "@/modules/user/services/user
 import type { UserFailure } from "@/modules/user/services/user.service";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+import { RoleRepository } from "@identity/modules/role/role.repository";
+import { RoleService } from "@identity/modules/role/role.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 
@@ -32,7 +34,7 @@ function runUsers<T>(
 	use: (users: UserServiceShape) => Effect.Effect<
 		T,
 		UserFailure,
-		Ambient | UserRepository | DatabasePort | StepUpService
+		Ambient | UserRepository | DatabasePort | StepUpService | RoleService
 	>,
 ): Promise<T> {
 	return Effect.runPromise(
@@ -50,6 +52,8 @@ function runUsers<T>(
 				assertCritical: () => Effect.void,
 				status: () => Effect.die(new Error("unused")),
 			} as unknown as StepUpService["Service"]),
+			Effect.provideService(RoleService, RoleService.live),
+			Effect.provideService(RoleRepository, RoleRepository.live),
 		),
 	);
 }

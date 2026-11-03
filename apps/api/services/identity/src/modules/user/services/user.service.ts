@@ -5,11 +5,13 @@ import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+import { RoleService } from '@identity/modules/role/role.service'
 import { StepUpService } from '@identity/modules/step-up/step-up.service'
 
 import {
     EmailTaken,
     UserForbidden,
+    UserInvalid,
     UserNotFound,
     type UserDomainFailure,
 } from '../domain/user.errors'
@@ -65,7 +67,11 @@ export type UserServiceShape = {
     ) => Effect.Effect<boolean, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly create: (
         input: NewUser
-    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        User,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | RoleService
+    >
     readonly update: (
         id: string,
         patch: UserPatch,
@@ -82,7 +88,11 @@ export type UserServiceShape = {
     readonly setRole: (
         id: string,
         role: NonNullable<User["role"]>
-    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort | StepUpService>
+    ) => Effect.Effect<
+        User,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService | RoleService
+    >
     readonly revokeSessions: (
         id: string
     ) => Effect.Effect<
@@ -203,6 +213,15 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 userRules.assertCanAdminister(actor)
                 userRules.assertRoleIsAssignable(actor, input.role)
             })
+
+            // The roles table is the source of truth for what exists; a name it does not know cannot be written into
+            // `user.role` as a string nothing can interpret.
+            if (input.role !== undefined) {
+                const roles = yield* RoleService
+                if (!(yield* roles.isKnownPlatformRole(input.role))) {
+                    return yield* new UserInvalid({ reason: `"${input.role}" is not a platform role` })
+                }
+            }
 
             const email = userRules.normaliseEmail(input.email)
             yield* rule(() => {
@@ -352,6 +371,11 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 userRules.assertCapability(actor, 'user:set-role')
                 userRules.assertCanAdminister(actor)
             })
+
+            const roles = yield* RoleService
+            if (!(yield* roles.isKnownPlatformRole(role))) {
+                return yield* new UserInvalid({ reason: `"${role}" is not a platform role` })
+            }
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })

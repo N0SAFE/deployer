@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { Context, Effect } from "effect";
 
 import type { ScopeKind } from "@deployer/auth/authz";
@@ -25,6 +25,13 @@ export type RoleSeedRow = Omit<RoleRow, "id">;
 
 export type RoleRepositoryShape = {
 	readonly list: (scope?: ScopeKind) => Effect.Effect<RoleRow[], never, DatabasePort>;
+	/**
+	 * Whether `name` is a platform role this deployment knows.
+	 *
+	 * The seed is the source of truth for what exists, so a request naming a role that was removed is refused here
+	 * rather than written into `user.role` as a string nothing can interpret.
+	 */
+	readonly isKnownPlatformRole: (name: string) => Effect.Effect<boolean, never, DatabasePort>;
 	/** Upsert on `(scope, name)`: re-seeding refreshes the built-in roles and never duplicates one. */
 	readonly seed: (rows: readonly RoleSeedRow[]) => Effect.Effect<void, never, DatabasePort>;
 };
@@ -52,6 +59,16 @@ export async function upsertRoles(db: DatabaseShape["db"], rows: readonly RoleSe
 }
 
 const makeRoleRepository = (database: DatabaseShape): RoleRepositoryShape => ({
+	isKnownPlatformRole: (name) =>
+		Effect.promise(async () => {
+			const rows = await database.db
+				.select({ id: roles.id })
+				.from(roles)
+				.where(and(eq(roles.scope, "platform"), eq(roles.name, name)))
+				.limit(1);
+			return rows.length > 0;
+		}),
+
 	list: (scope) =>
 		Effect.promise(async () => {
 			const rows = await database.db

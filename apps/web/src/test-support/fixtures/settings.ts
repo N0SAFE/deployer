@@ -88,6 +88,19 @@ export const settingsFixtures: FixtureMap = {
 			error: null,
 		}),
 	},
+	usePlatformRoles: {
+		empty: undefined,
+		raw: () => ({
+			isLoading: false,
+			roles: [
+				{ id: 'seeded-superAdmin', name: 'superAdmin', scope: 'platform', rank: 3, label: 'Super Admin', description: null, color: 'red', isSystem: true, permissions: [] },
+				{ id: 'seeded-admin', name: 'admin', scope: 'platform', rank: 2, label: 'Admin', description: null, color: 'orange', isSystem: true, permissions: [] },
+				{ id: 'seeded-operator', name: 'operator', scope: 'platform', rank: 1, label: 'Operator', description: null, color: 'cyan', isSystem: true, permissions: [] },
+				{ id: 'seeded-viewer', name: 'viewer', scope: 'platform', rank: 0, label: 'Viewer', description: null, color: 'slate', isSystem: true, permissions: [] },
+				{ id: 'seeded-user', name: 'user', scope: 'platform', rank: -1, label: 'User', description: null, color: 'slate', isSystem: true, permissions: [] },
+			],
+		}),
+	},
 	useStepUpStatus: {
 		empty: undefined,
 		raw: accountResource('useStepUpStatus', null, {

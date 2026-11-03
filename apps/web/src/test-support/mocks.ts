@@ -46,6 +46,7 @@ vi.mock('@/domains/mesh/hooks', async () => (await import('./domain-hooks')).dom
 vi.mock('@/domains/project/hooks', async () => (await import('./domain-hooks')).domainHooks())
 vi.mock('@/domains/provider-schema/hooks', async () => (await import('./domain-hooks')).domainHooks())
 vi.mock('@/domains/push/hooks', async () => (await import('./domain-hooks')).domainHooks())
+vi.mock('@/domains/role/hooks', async () => (await import('./domain-hooks')).domainHooks())
 vi.mock('@/domains/reachability/hooks', async () => (await import('./domain-hooks')).domainHooks())
 vi.mock('@/domains/service/hooks', async () => (await import('./domain-hooks')).domainHooks())
 vi.mock('@/domains/setup/hooks', async () => (await import('./domain-hooks')).domainHooks())

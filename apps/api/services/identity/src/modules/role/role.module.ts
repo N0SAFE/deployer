@@ -14,6 +14,7 @@ import { RoleService } from "./role.service";
 export class RoleDomainModule extends createModuleContext(
 	{
 		controllers: [RoleController],
+		exports: [RoleService, RoleRepository],
 		providers: [
 			{ provide: RoleService, useValue: RoleService.live },
 			{ provide: RoleRepository, useValue: RoleRepository.live },

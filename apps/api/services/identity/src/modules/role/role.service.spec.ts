@@ -2,9 +2,9 @@ import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, CurrentActor } from "@deployer/effect-core";
+import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
-import { ForbiddenError } from "@deployer/errors";
 
 import { RoleRepository, type RoleRepositoryShape, type RoleRow } from "./role.repository";
 import { RoleService } from "./role.service";

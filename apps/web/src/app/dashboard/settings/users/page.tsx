@@ -34,6 +34,8 @@ import {
 
 import { PageHeader, PageErrorState } from '@/components/dashboard'
 import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
+import { usePlatformRoles } from '@/domains/role/hooks'
+import { isPlatformRole } from '@/lib/access/platform-role.rules'
 import { useSession } from '@/lib/auth'
 
 
@@ -52,6 +54,8 @@ export default function SettingsUsersPage() {
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | PlatformRole>('all')
+  // The role list comes from the server's catalogue (`GET /roles`), seeded from the same declaration the API checks.
+  const { roles: platformRoles } = usePlatformRoles()
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
@@ -73,9 +77,14 @@ export default function SettingsUsersPage() {
     isLoading: actionLoading,
   } = useAdminActions()
 
-  const handleRoleChange = (userId: string, role: PlatformRole) => {
+  const handleRoleChange = (userId: string, role: string) => {
     if (userId === currentUserId) {
       toast.error('You cannot change your own role. Ask another admin.')
+      return
+    }
+    // The picker is table-driven; the contract still types `role` as the catalog union, so guard before narrowing.
+    if (!isPlatformRole(role)) {
+      toast.error(`"${role}" is not a role this platform can assign.`)
       return
     }
     setRole({ userId, role })
@@ -215,17 +224,18 @@ export default function SettingsUsersPage() {
                 }}
               />
               <Select value={roleFilter} onValueChange={(value) => {
-                setRoleFilter(value as 'all' | PlatformRole)
+                if (value === 'all' || isPlatformRole(value)) setRoleFilter(value)
               }}>
                 <SelectTrigger aria-label="Filter by role">
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All roles</SelectItem>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem value="operator">Operator</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="superAdmin">Super Admin</SelectItem>
+                  {platformRoles.map((role) => (
+                    <SelectItem key={role.name} value={role.name}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={(value) => {
@@ -271,9 +281,9 @@ export default function SettingsUsersPage() {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <Select
-                        value={user.role ?? 'viewer'}
+                        value={user.role ?? 'user'}
                         onValueChange={(role) => {
-                          handleRoleChange(user.id, role as PlatformRole)
+                          handleRoleChange(user.id, role)
                         }}
                         disabled={actionLoading.setRole || user.id === currentUserId}
                       >
@@ -281,10 +291,16 @@ export default function SettingsUsersPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="viewer">Viewer</SelectItem>
-                          <SelectItem value="operator">Operator</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="superAdmin">Super Admin</SelectItem>
+                          {platformRoles.map((role) => (
+                            <SelectItem key={role.name} value={role.name}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
+                          {/* A stored role the catalogue no longer lists still needs an option, or the select renders
+                              blank and the operator cannot tell what the account holds. */}
+                          {user.role !== undefined && !platformRoles.some((role) => role.name === user.role) ? (
+                            <SelectItem value={user.role}>{user.role}</SelectItem>
+                          ) : null}
                         </SelectContent>
                       </Select>
                     </TableCell>
