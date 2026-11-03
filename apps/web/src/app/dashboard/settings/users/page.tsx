@@ -35,6 +35,7 @@ import {
 import { PageHeader, PageErrorState } from '@/components/dashboard'
 import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
 import { usePlatformRoles } from '@/domains/role/hooks'
+import { useCan } from '@/lib/access/permissions'
 import { isPlatformRole } from '@/lib/access/platform-role.rules'
 import { useSession } from '@/lib/auth'
 
@@ -53,6 +54,13 @@ export default function SettingsUsersPage() {
   const [roleFilter, setRoleFilter] = useState<'all' | PlatformRole>('all')
   // The role list comes from the server's catalogue (`GET /roles`), seeded from the same declaration the API checks.
   const { roles: platformRoles } = usePlatformRoles()
+  // The UI hides what the role cannot do; the API still refuses it. `user:delete` is deliberately NOT used here: that
+  // action has an approval path, so the button stays and the refusal offers to file the request.
+  const canBan = useCan('user:ban')
+  const canSetRole = useCan('user:set-role')
+  const canSetPassword = useCan('user:set-password')
+  const canImpersonate = useCan('user:impersonate')
+  const canListSessions = useCan('session:list')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
@@ -305,7 +313,7 @@ export default function SettingsUsersPage() {
                         onValueChange={(role) => {
                           handleRoleChange(user.id, role)
                         }}
-                        disabled={actionLoading.setRole || user.id === currentUserId}
+                        disabled={actionLoading.setRole || user.id === currentUserId || !canSetRole}
                       >
                         <SelectTrigger className="w-36">
                           <SelectValue />
@@ -347,6 +355,7 @@ export default function SettingsUsersPage() {
                               handleUnban(user.id)
                             }}
                             disabled={actionLoading.unban}
+                            hidden={!canBan}
                           >
                             <ShieldCheck className="h-4 w-4 mr-1" />
                             Unban
@@ -359,34 +368,40 @@ export default function SettingsUsersPage() {
                               handleBanClick({ id: user.id, name: user.name })
                             }}
                             disabled={actionLoading.ban || user.id === currentUserId}
+                            hidden={!canBan}
                           >
                             <Ban className="h-4 w-4 mr-1" />
                             Ban
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Where this account is signed in"
-                          onClick={() => { setSessionsTarget({ id: user.id, name: user.name }) }}
-                        >
-                          Sessions
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Set a temporary password (needs a fresh passkey verification)"
-                          onClick={() => { setPasswordTarget({ id: user.id, name: user.name }) }}
-                          disabled={actionLoading.setPassword}
-                        >
-                          Password
-                        </Button>
+                        {canListSessions ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Where this account is signed in"
+                            onClick={() => { setSessionsTarget({ id: user.id, name: user.name }) }}
+                          >
+                            Sessions
+                          </Button>
+                        ) : null}
+                        {canSetPassword ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Set a temporary password (needs a fresh passkey verification)"
+                            onClick={() => { setPasswordTarget({ id: user.id, name: user.name }) }}
+                            disabled={actionLoading.setPassword}
+                          >
+                            Password
+                          </Button>
+                        ) : null}
                         <Button
                           size="sm"
                           variant="ghost"
                           title="Act as this user (read-only, needs a fresh passkey verification)"
                           onClick={() => { setImpersonateTarget({ id: user.id, name: user.name }) }}
                           disabled={actionLoading.impersonate || user.id === currentUserId}
+                        hidden={!canImpersonate}
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Impersonate
