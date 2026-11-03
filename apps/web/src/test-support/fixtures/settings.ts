@@ -111,6 +111,7 @@ export const settingsFixtures: FixtureMap = {
 					id: 'req-1',
 					permission: 'user:delete',
 					requesterId: 'admin-1',
+					requesterName: 'Test Operator',
 					via: null,
 					scope: {},
 					actionHash: 'a'.repeat(64),

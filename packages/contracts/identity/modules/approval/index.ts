@@ -11,6 +11,8 @@ export const accessRequestSchema = z.object({
 	/** The capability the requester wants to use. */
 	permission: z.string(),
 	requesterId: z.string(),
+	/** Display name of the requester, so an approver does not decide on an opaque id. */
+	requesterName: z.string().nullable(),
 	via: z.string().nullable(),
 	scope: z.record(z.string(), z.unknown()),
 	/** sha256 of the canonical action; an approval is single-use and bound to exactly this. */

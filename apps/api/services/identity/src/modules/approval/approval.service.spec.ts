@@ -16,6 +16,7 @@ const request = (overrides: Partial<AccessRequestRow> = {}): AccessRequestRow =>
 	id: "req-1",
 	permission: "user:delete",
 	requesterId: "requester",
+	requesterName: "Requester",
 	via: null,
 	scope: { projectId: "p-1" },
 	actionHash: "a".repeat(64),

@@ -2,7 +2,7 @@ import { and, count, desc, eq, gt, sql } from "drizzle-orm";
 import { Context, Data, Effect } from "effect";
 
 import { serviceOver } from "@deployer/effect-core";
-import { accessRequestVotes, accessRequests } from "@deployer/nest-schema/global/identity/index";
+import { accessRequestVotes, accessRequests, user } from "@deployer/nest-schema/global/identity/index";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 
@@ -15,6 +15,8 @@ export type AccessRequestRow = {
 	readonly id: string;
 	readonly permission: string;
 	readonly requesterId: string;
+	/** Joined for display: who asked, in words. */
+	readonly requesterName: string | null;
 	readonly via: string | null;
 	readonly scope: Record<string, unknown>;
 	readonly actionHash: string;
@@ -86,6 +88,8 @@ const rowSelection = {
 	id: accessRequests.id,
 	permission: accessRequests.permission,
 	requesterId: accessRequests.requesterId,
+	// Aggregated, not selected: the row is grouped by id and a plain joined column would need a second GROUP BY key.
+	requesterName: sql<string | null>`max(${user.name})`,
 	via: accessRequests.via,
 	scope: accessRequests.scope,
 	actionHash: accessRequests.actionHash,
@@ -109,6 +113,7 @@ function makeApprovalRepository(db: DatabaseShape["db"]): ApprovalRepositoryShap
 			.select(rowSelection)
 			.from(accessRequests)
 			.leftJoin(accessRequestVotes, eq(accessRequestVotes.requestId, accessRequests.id))
+			.leftJoin(user, eq(user.id, accessRequests.requesterId))
 			.where(eq(accessRequests.id, id))
 			.groupBy(accessRequests.id);
 		return (row as AccessRequestRow | undefined) ?? null;
@@ -132,6 +137,7 @@ function makeApprovalRepository(db: DatabaseShape["db"]): ApprovalRepositoryShap
 					.select(rowSelection)
 					.from(accessRequests)
 					.leftJoin(accessRequestVotes, eq(accessRequestVotes.requestId, accessRequests.id))
+					.leftJoin(user, eq(user.id, accessRequests.requesterId))
 					.where(eq(accessRequests.status, filter.status))
 					.groupBy(accessRequests.id)
 					.orderBy(desc(accessRequests.createdAt))

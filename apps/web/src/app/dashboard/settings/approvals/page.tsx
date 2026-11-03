@@ -102,6 +102,9 @@ export default function SettingsApprovalsPage() {
                   <div className="min-w-0 space-y-1">
                     <p className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-mono">{request.permission}</span>
+                      <span className="text-muted-foreground text-xs">
+                        asked by {request.requesterName ?? request.requesterId}
+                      </span>
                       <Badge variant="outline">
                         {request.approvals} of {request.requiredApprovals}
                       </Badge>

@@ -9,6 +9,7 @@ export interface ApprovalRequest {
   id: string
   permission: string
   requesterId: string
+  requesterName: string | null
   via: string | null
   scope: Record<string, unknown>
   actionHash: string
