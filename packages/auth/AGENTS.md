@@ -72,6 +72,10 @@ question it answers. This file is the rule list.
 - Types `Session`, `User`, `Auth`, `InferSessionFromAuth`, `IEnvService`; `authz`'s catalog and decision; the Better Auth
   AC surface; the row-rule engine (`ForbiddenError`, `PermissionEngine`, …).
 
+- **The authorization matrix is generated.** `bun run scripts/gen-authz-matrix.ts` derives
+  `apps/doc/content/docs/architecture/authz-matrix.mdx` from this package's declaration. Re-run it with any catalog or
+  role change; a hand-written matrix is the copy that drifts.
+
 ## Related docs
 
 - `docs/README.md` — the area map and how the pieces fit.
