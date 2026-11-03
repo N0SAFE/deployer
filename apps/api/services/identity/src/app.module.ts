@@ -24,6 +24,7 @@ import { DatabasePortModule } from '@identity/core/database/database.module'
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
 import { AuditDomainModule } from './modules/audit/audit.module'
 import { RoleSeedModule } from './modules/role/role-seed.module'
+import { StepUpDomainModule } from './modules/step-up/step-up.module'
 import { RoleDomainModule } from './modules/role/role.module'
 import { PermissionDomainModule } from './modules/permission/permission.module'
 import { PushDomainModule } from './modules/push/push.module'
@@ -95,6 +96,7 @@ export class IdentityServiceModule extends createModuleContext({
         AuditDomainModule,
         RoleDomainModule,
         RoleSeedModule,
+        StepUpDomainModule,
         PermissionDomainModule,
     ],
 }) {}

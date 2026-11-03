@@ -5,6 +5,8 @@ import { multiSession, openAPI } from "better-auth/plugins";
 
 import { auditEventFromRequest, type AuthAuditSink } from "../audit";
 
+import type { StepUpSink } from "./plugins/step-up";
+
 import { buildTrustedOrigins } from "./origins";
 import {
     deployerUserSchemaPlugin,
@@ -16,6 +18,7 @@ import {
     useInvite,
     useLastLoginMethod,
     usePasskey,
+    stepUpPlugin,
     useTwoFactor,
 } from "./plugins";
 import { passkeyCoordinates } from "./plugins/securityPlugins";
@@ -49,6 +52,11 @@ export interface AuthFactoryOptions {
      * a package that builds an auth instance without a database of its own still works.
      */
     readonly audit?: AuthAuditSink;
+    /**
+     * Where step-up proofs go (`AUTH-062`). Absent means verifications are not recorded, and nothing can satisfy a
+     * critical-action guard.
+     */
+    readonly stepUp?: StepUpSink;
 }
 
 /** Request-derived values the factory computes and the config builder consumes. */
@@ -233,6 +241,9 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // `deployerUserSchemaClient()` points at this plugin through `$InferServerPlugin`, which is what types them
             // on `session.user`.
             deployerUserSchemaPlugin(),
+            // Records every completed factor verification as a step-up for the session that performed it (`AUTH-062`).
+            // Absent sink = absent plugin: nothing can satisfy a step-up guard, which is the safe direction.
+            ...(options.stepUp === undefined ? [] : [stepUpPlugin(options.stepUp)]),
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the

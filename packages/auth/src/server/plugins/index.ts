@@ -19,6 +19,7 @@ import { invitePlugin, type InvitePluginOptions } from "./invite";
 export * from './loginAs'
 export * from './masterTokenAuth'
 export * from './schema'
+export * from './step-up'
 export * from './invite'
 export * from './pushNotifications'
 export * from './agentAuth'

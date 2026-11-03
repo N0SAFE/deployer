@@ -24,7 +24,11 @@ export const CORRELATION_HEADER = "x-correlation-id";
 export type RequestContextInput = {
 	/** Web `Headers` (fetch hosts) or a plain Node header record (Nest's HTTP adapter). */
 	readonly request?: { readonly headers: HeadersLike };
-	readonly auth?: { readonly user?: { readonly id: string; readonly role?: string | null } | null };
+	readonly auth?: {
+		readonly user?: { readonly id: string; readonly role?: string | null } | null;
+		/** The verified session the request arrived on; its id is what a step-up is bound to. */
+		readonly session?: { readonly id: string } | null;
+	};
 	readonly systemActor?: { readonly kind: "system"; readonly source: string } | null;
 };
 
@@ -32,7 +36,7 @@ export type RequestContextInput = {
 export function actorFromContext(context: RequestContextInput): Actor | null {
 	if (context.systemActor) return Actor.system(context.systemActor.source);
 	const user = context.auth?.user;
-	return user ? Actor.user(user.id, user.role ?? "user") : null;
+	return user ? Actor.user(user.id, user.role ?? "user", context.auth.session?.id ?? null) : null;
 }
 
 /** The caller's correlation id, or a fresh one when it sent none. */

@@ -51,3 +51,4 @@ export {
 	type Facts,
 	type Scope,
 } from "./types";
+export { STEP_UP_WINDOW_SECONDS, isCriticalStepUp, type StepUpMethod } from "./step-up";
