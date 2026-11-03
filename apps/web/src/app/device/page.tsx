@@ -67,6 +67,37 @@ function DeviceApprovalForm() {
     const [userCode, setUserCode] = React.useState(readInitialUserCode)
     const [busy, setBusy] = React.useState(false)
     const [outcome, setOutcome] = React.useState<Outcome>({ kind: 'idle' })
+    /**
+     * What the code would grant, fetched before approval (`AUTH-068`).
+     *
+     * A code alone must never be enough: the plugin's `GET /device` returns the requesting client and the exact scopes
+     * for the authenticated owner, so the page can show them and ask again. Cleared when the code changes, so a review
+     * can never approve a different request.
+     */
+    const [review, setReview] = React.useState<{ clientId: string | null; scopes: string[] } | null>(null)
+
+    const reviewCode = async (code: string): Promise<boolean> => {
+        const result = await authClient.$fetch<{ client_id?: string; scope?: string; status?: string }>(
+            `/device?user_code=${encodeURIComponent(code)}`,
+            { method: 'GET' },
+        )
+        if (result.error) {
+            setOutcome({ kind: 'error', message: result.error.message ?? 'The code was rejected' })
+            return false
+        }
+
+        const data = result.data
+        if (data.status !== 'pending') {
+            setOutcome({ kind: 'error', message: `This request was already ${data.status ?? 'processed'}.` })
+            return false
+        }
+
+        setReview({
+            clientId: data.client_id ?? null,
+            scopes: (data.scope ?? '').split(/\s+/).filter((scope) => scope.length > 0),
+        })
+        return true
+    }
 
     const submit = async (approve: boolean) => {
         const code = userCode.trim()
@@ -77,6 +108,12 @@ function DeviceApprovalForm() {
 
         setBusy(true)
         try {
+            // Approving is two steps: review what it grants, then confirm. Denying is one.
+            if (approve && review === null) {
+                await reviewCode(code)
+                return
+            }
+
             // `/device/approve` and `/device/deny` are the plugin's own
             // endpoints; a code that is unknown or expired is rejected there.
             const result = approve
@@ -156,7 +193,7 @@ function DeviceApprovalForm() {
                     spellCheck={false}
                     placeholder="ABCD-1234"
                     className="font-mono tracking-widest uppercase"
-                    onChange={(e) => { setUserCode(e.target.value); }}
+                    onChange={(e) => { setUserCode(e.target.value); setReview(null); }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') void submit(true)
                     }}
@@ -166,10 +203,30 @@ function DeviceApprovalForm() {
                 </p>
             </div>
 
+            {review !== null && (
+                <div className="rounded-md border p-3 text-sm">
+                    <p className="font-medium">This request will sign in:</p>
+                    <p className="text-muted-foreground mt-1 break-all font-mono text-xs">
+                        {review.clientId ?? 'an unnamed client'}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                        {review.scopes.length === 0 ? (
+                            <span className="text-muted-foreground text-xs">with your full account access</span>
+                        ) : (
+                            review.scopes.map((scope) => (
+                                <Badge key={scope} variant="secondary" className="font-mono text-xs">
+                                    {scope}
+                                </Badge>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="flex gap-2">
                 <Button disabled={busy} onClick={() => void submit(true)}>
                     {busy && <Loader2 className="size-4 animate-spin" />}
-                    <span className="ml-2">Approve</span>
+                    <span className="ml-2">{review === null ? 'Review request' : 'Approve device'}</span>
                 </Button>
                 <Button variant="outline" disabled={busy} onClick={() => void submit(false)}>
                     Deny

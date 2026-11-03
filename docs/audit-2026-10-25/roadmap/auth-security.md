@@ -1018,7 +1018,13 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: CLI uses master token/default creds today. Design §1.1, §2.2.
   - Do: RFC 8628 bearer session bound to a CLI device row; approval page lists client, exact scopes, maxRisk and expiry, passkey tap for sensitive scopes; `deployer login`.
   - Done when: CLI authenticates with no master token.
-  - Status: todo · Verified-in-code: no (design) · Source: authz-authn-design.md §1.1, §2.2
+  - Status: approval page shows the request (2026-11-03); CLI still absent · Verified-in-code: partial
+  - Progress (2026-11-03): `/device` now REVIEWS before it approves. `GET /device?user_code=…` (the plugin's own endpoint)
+    returns the requesting `client_id` and the exact `scope` for the authenticated owner, and the page renders both,
+    asking for a second click; a code whose status is not `pending` is refused. Editing the code clears the review, so a
+    reviewed request can never approve a different one. Remaining: a CLI to consume the flow (`deployer login`), and the
+    passkey tap for sensitive scopes.
+  - Source: authz-authn-design.md §1.1, §2.2
 - [ ] `AUTH-069` **Agent tokens: read-only default, propose/dispose approval, auto-approval for low risk, MCP from manifest** · NEW · P2 · M · Deps: `AUTH-061`,`SEC-072`,`FEAT-095`
   - Why/Problem: agents are principals only to make policy/audit expressive; never hold grants of their own. Design §6.11, D10. Concrete design for `FEAT-095`/`IDEA-062`/`IDEA-094`.
   - Do: `agent` token kind minted via device flow; default scope = all non-mutating permissions with `risk <= medium` minus `secret:*`, `container:*`, `audit:export`, `token:*`; mutating call not granted → `APPROVAL_REQUIRED` with a human-readable plan, passkey approval, retry, hash-bound; auto-approval per token for low risk, never `high+`; default TTL 8 h, `maxRisk=medium`, quota-limited, audited `via=mcp`; tool outputs (logs, env) flagged untrusted; MCP tool list generated from the manifest so an agent cannot see tools its token cannot call; delete `agentAuth.ts`.
