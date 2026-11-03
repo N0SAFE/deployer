@@ -241,7 +241,12 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: `settings/users/page.tsx` uses Better Auth admin directly; offers "Remove" to `admin` though `admin` lacks `user:delete`; client-side search over 20 rows, no total count; no create-user, per-user sessions, last login, 2FA status, role history; `domains/user/*` ORPC hooks imported by no page.
   - Do: server-side pagination/search with totals via `userHooks`, per-user sessions/2FA/last login, hide actions the role cannot perform.
   - Done when: users page uses ORPC hooks with server pagination and correct action visibility.
-  - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (users, ORPC hooks), auth.md#5
+  - Status: ORPC-only page with capability-gated actions (2026-11-03); server-side search pending · Verified-in-code: yes
+  - Progress (2026-11-03): every action on the page calls the identity contracts (`orpc.user.*`) and `authClient.admin.*`
+    is gone. Each control is gated by the SAME capability the API checks (`useCan`): ban/unban, set-role, set-password,
+    impersonate, session list. `Remove` stays visible on purpose — it has an approval path, and its refusal opens the
+    request dialog. Per-user sessions, role changes and a temporary password are part of the page. Remaining: server-side
+    search with a total count (the filter still narrows the loaded page) and 2FA/last-login columns.
   - Effect-impact (2026-10-26): web users page depends on identity-contracts behaviour that is currently incomplete: `user.create` cannot assign a role (contract and controller omit `role`), `user.update` does not apply the self-destruct guard for `banned`, `setBanned` is unexposed. Resolve before switching the page. Evidence: `effect-health-identity.md` §3, §4.3.
   - Design-impact (2026-10-26): the page consumes the capability set (`SEC-059`/`SEC-088`) to hide actions the actor cannot perform; role changes call `Grants.assign` (no `authClient.admin.set-role`); service accounts are filtered by `kind` (`AUTH-051`).
 
