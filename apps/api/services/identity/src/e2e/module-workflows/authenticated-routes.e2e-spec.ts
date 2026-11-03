@@ -173,13 +173,18 @@ describe("Identity routes e2e: an authenticated admin", () => {
 
 	it("shows the refusals this session received in the audit log", async () => {
 		// The delete and decide attempts above were refused by this admin; the boundary records them.
-		const response = await context.http.get("/audit").set("cookie", admin.cookie).expect(200);
+		// A GET's input is the URL query itself (`?action=…`); the typed client sends `{ query: … }` as JSON.
+		const response = await context.http
+			.get("/audit")
+			.query({ action: "access-denied" })
+			.set("cookie", admin.cookie)
+			.expect(200);
 
 		const page = z
 			.object({
 				data: z.array(
 					z.object({
-						action: z.string(),
+						action: z.literal("access-denied"),
 						actorId: z.string().nullable(),
 						detail: z.record(z.string(), z.unknown()),
 					}),
@@ -187,9 +192,8 @@ describe("Identity routes e2e: an authenticated admin", () => {
 			})
 			.parse(response.body);
 
-		const denials = page.data.filter((row) => row.action === "access-denied");
-		expect(denials.length).toBeGreaterThanOrEqual(1);
-		expect(denials.map((row) => row.actorId)).toContain(admin.userId);
+		expect(page.data.length).toBeGreaterThanOrEqual(1);
+		expect(page.data.map((row) => row.actorId)).toContain(admin.userId);
 	});
 
 	it("exports those rows as CSV under `audit:export`", async () => {
