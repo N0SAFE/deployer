@@ -337,6 +337,13 @@
       "when": 1793723685443,
       "tag": "0047_powerful_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793724210385,
+      "tag": "0048_slow_magma",
+      "breakpoints": true
     }
   ]
 }

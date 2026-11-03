@@ -5,6 +5,7 @@ import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
 import { roleHasPermission } from "@identity/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
+import { actionHash } from "@identity/core/utils/action-hash";
 import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
@@ -161,7 +162,14 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 				return yield* Effect.fail(new ApprovalInvalid({ reason: "request has expired" }));
 			}
 
-			const decided = yield* repository.vote(id, actor.id, decision);
+			// Bind the decision to the proof that passed `assertCritical`, so the vote cannot be re-attributed to another
+			// request or approver. A raw WebAuthn assertion would need the browser to send it HERE; this is the digest of the
+			// verified proof, which is the same guarantee without re-implementing the ceremony.
+			const proof = yield* stepUp.latestProof();
+			const proofHash =
+				proof === null ? null : actionHash("approval.decide", id, actor.id, proof.id);
+
+			const decided = yield* repository.vote(id, actor.id, decision, proofHash);
 			if (decided === null) return yield* Effect.fail(new ApprovalNotFound({ id }));
 
 			const audit = yield* AuditService;
@@ -174,6 +182,7 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 					permission: decided.permission,
 					decision,
 					status: decided.status,
+					proofHash,
 				},
 			});
 			return decided;

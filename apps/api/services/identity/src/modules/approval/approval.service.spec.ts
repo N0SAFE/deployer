@@ -69,6 +69,8 @@ describe("ApprovalService", () => {
 			Layer.succeed(StepUpService, {
 				assertCritical: () =>
 					stepUp === "ok" ? Effect.void : Effect.fail(new ForbiddenError("step-up required")),
+				latestProof: () =>
+					Effect.succeed({ id: "proof-1", method: "passkey" as const, verifiedAt: new Date() }),
 				status: () => Effect.die(new Error("unused")),
 			} as unknown as StepUpService["Service"]),
 		);
@@ -174,7 +176,7 @@ describe("ApprovalService", () => {
 		);
 
 		expect(decided.status).toBe("approved");
-		expect(repo.vote).toHaveBeenCalledWith("req-1", "approver", "approve");
+		expect(repo.vote).toHaveBeenCalledWith("req-1", "approver", "approve", expect.stringMatching(/^[a-f0-9]{64}$/));
 	});
 
 	it("lists only for an actor holding `approval:read`", async () => {

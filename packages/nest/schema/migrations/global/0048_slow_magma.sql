@@ -1,0 +1,1 @@
+ALTER TABLE "access_request_votes" ADD COLUMN "proof_hash" text;

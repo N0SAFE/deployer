@@ -76,6 +76,7 @@ export type ApprovalRepositoryShape = {
 		id: string,
 		approverId: string,
 		decision: AccessRequestVote,
+		proofHash: string | null,
 	) => Effect.Effect<AccessRequestRow | null, ApprovalRepositoryFailure, DatabasePort>;
 	/**
 	 * Spend an approval exactly once.
@@ -160,12 +161,12 @@ function makeApprovalRepository(db: DatabaseShape["db"]): ApprovalRepositoryShap
 				return rows as AccessRequestRow[];
 			}),
 
-		vote: (id, approverId, decision) =>
+		vote: (id, approverId, decision, proofHash) =>
 			attempt(() =>
 				db.transaction(async (tx) => {
 					await tx
 						.insert(accessRequestVotes)
-						.values({ requestId: id, approverId, decision })
+						.values({ requestId: id, approverId, decision, proofHash })
 						// A second click by the same person is not a second vote.
 						.onConflictDoNothing({ target: [accessRequestVotes.requestId, accessRequestVotes.approverId] });
 

@@ -59,6 +59,9 @@ verdict `SEC-069` was missing, as data: adding a protected action is one entry, 
 - Solo-mode degradation (`DEC-AUTH-16`): the policy is installation-agnostic today.
 - More entries: `secret:reveal` on production, prod deploys and `container:exec` live in other services and need the same
   guard wired there.
-- The passkey `assertionHash` over the request id.
+- The raw passkey `assertionHash` is not stored: Better Auth verifies WebAuthn assertions at ITS endpoint, so binding the
+  raw assertion here would mean re-implementing the ceremony. What IS stored is `proof_hash` on the vote — a digest of the
+  verified step-up record, the request and the approver — which makes the vote non-repudiable and non-reusable without
+  pretending to be the assertion.
 - Solo mode (`DEC-AUTH-16`) degrades approvals to step-up + reason + cooldown; not implemented.
 - The passkey `assertionHash` (non-repudiation over the request id) is not stored yet.

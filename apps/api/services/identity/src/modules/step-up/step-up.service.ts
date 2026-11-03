@@ -26,6 +26,17 @@ export type StepUpServiceShape = {
 	 * boundary answers a refusal, never a 500.
 	 */
 	readonly assertCritical: () => Effect.Effect<void, ForbiddenError, CurrentActor | DatabasePort>;
+	/**
+	 * The proof `assertCritical` just accepted, for callers that must bind a decision to it (`SEC-072`).
+	 *
+	 * `null` when the session has none — a caller that already passed `assertCritical` will not see null, but the value
+	 * stays nullable so the shape is honest.
+	 */
+	readonly latestProof: () => Effect.Effect<
+		{ readonly id: string; readonly method: StepUpMethod; readonly verifiedAt: Date } | null,
+		never,
+		CurrentActor | DatabasePort
+	>;
 };
 
 const makeStepUpService = (repository: StepUpRepository["Service"]): StepUpServiceShape => ({
@@ -61,6 +72,17 @@ const makeStepUpService = (repository: StepUpRepository["Service"]): StepUpServi
 				expiresAt: new Date(proof.verifiedAt.getTime() + STEP_UP_WINDOW_SECONDS * 1000),
 				windowSeconds: STEP_UP_WINDOW_SECONDS,
 			};
+		}),
+
+	latestProof: (): ReturnType<StepUpServiceShape["latestProof"]> =>
+		Effect.gen(function* () {
+			const actor = yield* CurrentActor;
+			if (actor.kind !== "user" || actor.sessionId === null) return null;
+			const proof = yield* repository.latestForSession(
+				actor.sessionId,
+				new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000),
+			);
+			return proof === null ? null : { id: proof.id, method: proof.method, verifiedAt: proof.verifiedAt };
 		}),
 
 	assertCritical: (): ReturnType<StepUpServiceShape["assertCritical"]> =>

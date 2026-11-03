@@ -46,6 +46,14 @@ export const accessRequestVotes = pgTable(
 		approverId: text("approver_id").notNull(),
 		/** `approve` or `deny`; a deny ends the request immediately. */
 		decision: text("decision").notNull(),
+		/**
+		 * A digest binding the passkey proof that authorised this vote to this request (`SEC-072`).
+		 *
+		 * It is the STEP-UP record's id, the request and the approver, hashed — not the raw WebAuthn assertion, which would
+		 * need the browser to send it to THIS endpoint (Better Auth verifies assertions at its own). It still makes a vote
+		 * non-repudiable: the same proof cannot be claimed for a different request or by a different approver.
+		 */
+		proofHash: text("proof_hash"),
 		at: timestamp("at").defaultNow().notNull(),
 	},
 	(table) => [primaryKey({ columns: [table.requestId, table.approverId] })],

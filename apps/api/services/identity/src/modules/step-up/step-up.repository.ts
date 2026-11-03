@@ -9,6 +9,7 @@ import { DatabasePort, type DatabaseShape } from "@identity/core/database/databa
 
 /** The newest proof one session holds, if any arrived after `since`. */
 export type StepUpProof = {
+	readonly id: string;
 	readonly method: StepUpMethod;
 	readonly verifiedAt: Date;
 };
@@ -24,14 +25,18 @@ const makeStepUpRepository = (database: DatabaseShape): StepUpRepositoryShape =>
 	latestForSession: (sessionId, since) =>
 		Effect.promise(async () => {
 			const [row] = await database.db
-				.select({ method: stepUpEvents.method, verifiedAt: stepUpEvents.verifiedAt })
+				.select({ id: stepUpEvents.id, method: stepUpEvents.method, verifiedAt: stepUpEvents.verifiedAt })
 				.from(stepUpEvents)
 				.where(and(eq(stepUpEvents.sessionId, sessionId), gte(stepUpEvents.verifiedAt, since)))
 				.orderBy(desc(stepUpEvents.verifiedAt))
 				.limit(1);
 
 			if (row === undefined) return null;
-			return { method: row.method === "totp" ? "totp" : "passkey", verifiedAt: row.verifiedAt };
+			return {
+				id: row.id,
+				method: row.method === "totp" ? "totp" : "passkey",
+				verifiedAt: row.verifiedAt,
+			};
 		}),
 });
 
