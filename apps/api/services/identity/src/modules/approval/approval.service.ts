@@ -1,8 +1,9 @@
 import { Context, Effect } from "effect";
 
-import { isPermission, roleGrants } from "@deployer/auth/authz";
+import { isPermission } from "@deployer/auth/authz";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
+import { roleHasPermission } from "@identity/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
@@ -123,7 +124,7 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 	list: (filter): ReturnType<ApprovalServiceShape["list"]> =>
 		Effect.gen(function* () {
 			const actor = yield* CurrentActor;
-			if (actor.kind !== "user" || !roleGrants(actor.role, "approval:read")) {
+			if (actor.kind !== "user" || !roleHasPermission(actor.role, "approval:read")) {
 				return yield* Effect.fail(new ApprovalForbidden({ reason: "actor lacks approval:read" }));
 			}
 
@@ -135,7 +136,7 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 	decide: (id, decision): ReturnType<ApprovalServiceShape["decide"]> =>
 		Effect.gen(function* () {
 			const actor = yield* CurrentActor;
-			if (actor.kind !== "user" || !roleGrants(actor.role, "approval:approve")) {
+			if (actor.kind !== "user" || !roleHasPermission(actor.role, "approval:approve")) {
 				return yield* Effect.fail(new ApprovalForbidden({ reason: "actor lacks approval:approve" }));
 			}
 
@@ -193,7 +194,7 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 			}
 
 			// Holding the capability is the normal path: an approval is only for what the caller cannot do alone.
-			if (roleGrants(actor.role, permission)) return;
+			if (roleHasPermission(actor.role, permission)) return;
 
 			// Without a policy there is no second-person route: the refusal is the ordinary one, not "approval required".
 			if (approvalPolicyFor(permission) === null) {

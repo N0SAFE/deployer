@@ -1,8 +1,9 @@
 import { Context, Effect } from "effect";
 
-import { capabilitiesOfRole, isPermission, platformRoleRank, roleGrants, type ScopeKind } from "@deployer/auth/authz";
+import { capabilitiesOfRole, isPermission, platformRoleRank, type ScopeKind } from "@deployer/auth/authz";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
+import { installRoleSnapshot, roleHasPermission } from "@identity/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actorFromCurrent } from "@identity/core/utils/actor.utils";
 import { AuditService } from "@identity/modules/audit/audit.service";
@@ -62,7 +63,7 @@ export type RoleServiceShape = {
  */
 const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShape => {
 	const assertWriter = (actorRole: string) => {
-		if (!roleGrants(actorRole, "role:write")) {
+		if (!roleHasPermission(actorRole, "role:write")) {
 			return Effect.fail(new RoleForbidden({ reason: "actor lacks role:write" }));
 		}
 		return Effect.void;
@@ -99,7 +100,7 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 		list: (scope): ReturnType<RoleServiceShape["list"]> =>
 			Effect.gen(function* () {
 				const actor = actorFromCurrent(yield* CurrentActor);
-				if (!roleGrants(actor.role, "role:read")) {
+				if (!roleHasPermission(actor.role, "role:read")) {
 					return yield* Effect.fail(new RoleForbidden({ reason: "actor lacks role:read" }));
 				}
 				return yield* repository.list(scope);
@@ -139,6 +140,10 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 					actorId: actor.userId,
 					detail: { role: created.name, rank: created.rank, permissions: created.permissions },
 				});
+				yield* repository.bumpEpoch();
+				const catalogue = yield* repository.loadCatalogue();
+				installRoleSnapshot(catalogue.epoch, catalogue.roles);
+
 				return created;
 			}),
 
@@ -175,6 +180,10 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 					actorId: actor.userId,
 					detail: { role: updated.name, from: current.permissions, to: updated.permissions },
 				});
+				yield* repository.bumpEpoch();
+				const catalogue = yield* repository.loadCatalogue();
+				installRoleSnapshot(catalogue.epoch, catalogue.roles);
+
 				return updated;
 			}),
 
@@ -213,6 +222,10 @@ const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShap
 					actorId: actor.userId,
 					detail: { role: current.name },
 				});
+
+				yield* repository.bumpEpoch();
+				const catalogue = yield* repository.loadCatalogue();
+				installRoleSnapshot(catalogue.epoch, catalogue.roles);
 			}),
 	};
 };

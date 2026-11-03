@@ -34,7 +34,11 @@ edit controls.
 
 ## What is still missing
 
-- `authz_epoch` (+ `LISTEN/NOTIFY`): a demotion is visible within the 60 s cookie-cache window today, not instantly.
+- `authz_epoch` exists and authorization now reads the ROWS: a process snapshot of `(role → permissions)` is loaded at
+  boot, refreshed every 30 s, and refreshed immediately after a role edit in the editing process. `authz_epoch` is what a
+  second replica compares against; `LISTEN/NOTIFY` (a push instead of the 30 s poll) is still missing. A role missing
+  from a NON-EMPTY catalogue grants nothing (fail closed); an EMPTY catalogue means "not ready yet" and falls back to the
+  declaration, so a boot that reads before the seed cannot deny everybody.
 - `Grants.assign/revoke` as a named service: the WRITE is now atomic (`applySecurityChange` commits the row and deletes
   the sessions/keys it invalidates in one transaction), but the role-table check is still a read in a separate statement
   and the seam is a repository method rather than a `Grants` service.

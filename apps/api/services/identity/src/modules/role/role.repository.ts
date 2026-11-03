@@ -3,7 +3,7 @@ import { Context, Effect } from "effect";
 
 import type { ScopeKind } from "@deployer/auth/authz";
 import { serviceOver } from "@deployer/effect-core";
-import { roles, user } from "@deployer/nest-schema/global/identity/index";
+import { authzEpoch, roles, user } from "@deployer/nest-schema/global/identity/index";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 
@@ -39,6 +39,14 @@ export type RoleRepositoryShape = {
 	/** Only the fields a custom role may change: the name is what `user.role` stores. */
 	readonly update: (id: string, patch: RolePatch) => Effect.Effect<RoleRow | null, never, DatabasePort>;
 	readonly delete: (id: string) => Effect.Effect<void, never, DatabasePort>;
+	/** Every platform role with its permissions, for the authorization snapshot (`SEC-055`). */
+	readonly loadCatalogue: () => Effect.Effect<
+		{ epoch: number; roles: { name: string; permissions: readonly string[] }[] },
+		never,
+		DatabasePort
+	>;
+	/** Bump the catalogue version; readers reload when it moves. */
+	readonly bumpEpoch: () => Effect.Effect<void, never, DatabasePort>;
 	/** How many accounts hold this role — a delete is refused while any does. */
 	readonly countUsersWithRole: (name: string) => Effect.Effect<number, never, DatabasePort>;
 };
@@ -153,6 +161,30 @@ const makeRoleRepository = (database: DatabaseShape): RoleRepositoryShape => ({
 	delete: (id) =>
 		Effect.promise(async () => {
 			await database.db.delete(roles).where(eq(roles.id, id));
+		}),
+
+	loadCatalogue: () =>
+		Effect.promise(async () => {
+			const [epochRow] = await database.db.select().from(authzEpoch).where(eq(authzEpoch.id, "global")).limit(1);
+			const rows = await database.db
+				.select({ name: roles.name, permissions: roles.permissions })
+				.from(roles)
+				.where(eq(roles.scope, "platform"));
+			return {
+				epoch: epochRow?.value ?? 1,
+				roles: rows.map((row) => ({ name: row.name, permissions: [...row.permissions] })),
+			};
+		}),
+
+	bumpEpoch: () =>
+		Effect.promise(async () => {
+			await database.db
+				.insert(authzEpoch)
+				.values({ id: "global", value: 1 })
+				.onConflictDoUpdate({
+					target: authzEpoch.id,
+					set: { value: sql`${authzEpoch.value} + 1`, updatedAt: new Date() },
+				});
 		}),
 
 	countUsersWithRole: (name) =>

@@ -1,9 +1,11 @@
 import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SYSTEM_ROLES_TABLE } from "@deployer/auth/authz";
 import { Actor, CurrentActor } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
+import { clearRoleSnapshot } from "@identity/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
@@ -33,18 +35,29 @@ describe("RoleService", () => {
 		update: vi.fn(),
 		delete: vi.fn(),
 		countUsersWithRole: vi.fn(),
+		loadCatalogue: vi.fn(),
+		bumpEpoch: vi.fn(),
 		isKnownPlatformRole: vi.fn(),
 		seed: vi.fn(),
 	};
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		// Each test starts from the code fallback; a write test installs its own snapshot.
+		clearRoleSnapshot();
 		repo.list.mockImplementation(() => Effect.succeed([roleRow()]));
 		repo.isKnownPlatformRole.mockImplementation(() => Effect.succeed(false));
 		repo.create.mockImplementation(() => Effect.succeed(roleRow({ id: "new", isSystem: false, name: "auditor" })));
 		repo.update.mockImplementation(() => Effect.succeed(roleRow({ id: "role-2", isSystem: false })));
 		repo.delete.mockImplementation(() => Effect.void);
 		repo.countUsersWithRole.mockImplementation(() => Effect.succeed(0));
+		repo.bumpEpoch.mockImplementation(() => Effect.void);
+		repo.loadCatalogue.mockImplementation(() =>
+			Effect.succeed({
+				epoch: 1,
+				roles: Object.values(SYSTEM_ROLES_TABLE).map((role) => ({ name: role.name, permissions: [...role.permissions] })),
+			}),
+		);
 	});
 
 	/** The service over a fake repository, run as one actor. */

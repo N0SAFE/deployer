@@ -330,6 +330,13 @@
       "when": 1793715832055,
       "tag": "0046_dry_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793723685443,
+      "tag": "0047_powerful_annihilus",
+      "breakpoints": true
     }
   ]
 }

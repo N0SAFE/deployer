@@ -1,5 +1,6 @@
 export * from "./approval";
 export * from "./audit";
+export * from "./authz-epoch";
 export * from "./role";
 export * from "./step-up";
 export * from "./analytics";

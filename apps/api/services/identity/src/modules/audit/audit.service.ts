@@ -1,9 +1,10 @@
 import { Context, Effect } from "effect";
 
-import { roleGrants } from "@deployer/auth/authz";
+
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
+import { roleHasPermission } from "@identity/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actorFromCurrent } from "@identity/core/utils/actor.utils";
 
@@ -88,7 +89,7 @@ const makeAuditService = (repository: AuditRepository["Service"]): AuditServiceS
 	list: (query): ReturnType<AuditServiceShape["list"]> =>
 		Effect.gen(function* () {
 			const actor = actorFromCurrent(yield* CurrentActor);
-			if (!roleGrants(actor.role, "audit:read")) {
+			if (!roleHasPermission(actor.role, "audit:read")) {
 				return yield* Effect.fail(new ForbiddenError("actor lacks audit:read"));
 			}
 			return yield* repository.list(query);
@@ -97,7 +98,7 @@ const makeAuditService = (repository: AuditRepository["Service"]): AuditServiceS
 	export: (query): ReturnType<AuditServiceShape["export"]> =>
 		Effect.gen(function* () {
 			const actor = actorFromCurrent(yield* CurrentActor);
-			if (!roleGrants(actor.role, "audit:export")) {
+			if (!roleHasPermission(actor.role, "audit:export")) {
 				return yield* Effect.fail(new ForbiddenError("actor lacks audit:export"));
 			}
 			const page = yield* repository.list(query);

@@ -1,6 +1,8 @@
-import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator, roleGrants } from "@deployer/auth/authz";
+import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator } from "@deployer/auth/authz";
 import type { Permission } from "@deployer/auth/authz";
 import { ForbiddenError, ValidationError } from "@deployer/errors";
+
+import { roleHasPermission } from "@identity/core/authz/role-catalog";
 
 import type { Actor, User, UserPatch } from "./user.types";
 
@@ -64,7 +66,7 @@ export const userRules = {
    * separate question ("may this actor act on THAT account"), and both apply.
    */
   assertCapability(actor: Actor, permission: Permission): void {
-    if (!roleGrants(actor.role, permission)) {
+    if (!roleHasPermission(actor.role, permission)) {
       throw new ForbiddenError(`actor lacks ${permission}`);
     }
   },
