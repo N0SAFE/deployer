@@ -1,6 +1,6 @@
 'use client'
 
-import { Ban, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
+import { Ban, Eye, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -37,7 +37,7 @@ import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
 import { useSession } from '@/lib/auth'
 
 
-import { BanUserDialog, RemoveUserDialog } from './_components/user-dialogs'
+import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog } from './_components/user-dialogs'
 
 const ROLE_HELP: { label: string; text: string }[] = [
   { label: 'Super Admin', text: 'full access to everything, including system configuration.' },
@@ -55,6 +55,7 @@ export default function SettingsUsersPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
+  const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; name: string } | null>(null)
   
   const pageSize = 20
   
@@ -68,6 +69,7 @@ export default function SettingsUsersPage() {
     unbanUser, 
     setRole, 
     removeUser,
+    impersonate,
     isLoading: actionLoading,
   } = useAdminActions()
 
@@ -328,6 +330,16 @@ export default function SettingsUsersPage() {
                         )}
                         <Button
                           size="sm"
+                          variant="ghost"
+                          title="Act as this user (read-only, needs a fresh passkey verification)"
+                          onClick={() => { setImpersonateTarget({ id: user.id, name: user.name }) }}
+                          disabled={actionLoading.impersonate || user.id === currentUserId}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Impersonate
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="destructive"
                           onClick={() => {
                             handleRemove(user.id)
@@ -383,6 +395,17 @@ export default function SettingsUsersPage() {
           onConfirm={({ reason, expiresInSeconds }) => {
             banUser({ userId: selectedUser.id, banReason: reason, banExpiresIn: expiresInSeconds })
             setSelectedUser(null)
+          }}
+        />
+      ) : null}
+      {impersonateTarget ? (
+        <ImpersonateUserDialog
+          user={impersonateTarget}
+          pending={actionLoading.impersonate}
+          onClose={() => { setImpersonateTarget(null) }}
+          onConfirm={({ reason }) => {
+            impersonate({ userId: impersonateTarget.id, reason })
+            setImpersonateTarget(null)
           }}
         />
       ) : null}

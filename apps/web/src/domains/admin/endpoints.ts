@@ -12,13 +12,13 @@
  * - .queryKey(input) - Cache key for invalidation
  */
 
+import type { PlatformRole } from '@deployer/auth'
+
 import { authClient } from '@/lib/auth'
 import { orpc } from '@/lib/orpc'
 
-import type { PlatformRole } from '@deployer/auth'
-
 import { STALE_TIME } from '../shared/config'
-import { custom, mapBetterAuth } from '../shared/helpers'
+import { custom } from '../shared/helpers'
 
 import {
   listUsersSchema,
@@ -28,6 +28,7 @@ import {
   createUserSchema,
   updateUserSchema,
   removeUserSchema,
+  impersonateSchema,
 } from './schemas'
 
 // ============================================================================
@@ -131,7 +132,22 @@ const customContracts = {
     keys: (i) => ['admin', 'updateUser', i],
     // The identity update takes the patch as its body; the page passes a free-form record.
     handler: async (input) =>
-      orpc.user.update.call({ ...input.data, id: input.userId } as never),
+      orpc.user.update.call({ ...input.data, id: input.userId }),
+  }),
+
+  /**
+   * Act as another user (read-only, one hour, after a passkey step-up).
+   *
+   * Better Auth's plugin endpoint, not a BFF procedure: it must replace the session cookie on the API origin.
+   */
+  impersonate: custom({
+    input: impersonateSchema,
+    keys: (i) => ['admin', 'impersonate', i],
+    handler: async (input) => {
+      const result = await authClient.impersonate({ userId: input.userId, reason: input.reason })
+      if (result.error) throw new Error(result.error.message ?? 'Impersonation refused')
+      return result.data
+    },
   }),
 
   /**

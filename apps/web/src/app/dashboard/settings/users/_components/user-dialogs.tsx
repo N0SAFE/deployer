@@ -84,3 +84,60 @@ export function RemoveUserDialog({ user, pending, onClose, onConfirm }: { user: 
     </Dialog>
   )
 }
+
+/**
+ * Start impersonating (`AUTH-067`).
+ *
+ * The reason is required: it is what the audit row says, and the API refuses anything shorter. The session is read-only
+ * and expires after an hour, so this is safe to leave open by accident.
+ */
+export function ImpersonateUserDialog({
+  user,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  user: UserRef
+  pending: boolean
+  onClose: () => void
+  onConfirm: (input: { reason: string }) => void
+}) {
+  const [reason, setReason] = useState('')
+  const reasonTrimmed = reason.trim()
+  const invalid = reasonTrimmed.length < 5
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Act as {user.name}?</DialogTitle>
+          <DialogDescription>
+            You will see the platform as they see it. This session is read-only, lasts one hour, and every action is
+            recorded against you. A passkey verification in the last five minutes is required.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="impersonationReason">Reason</Label>
+          <Input
+            id="impersonationReason"
+            placeholder="e.g. reproducing the report in ticket 123"
+            value={reason}
+            aria-invalid={invalid ? true : undefined}
+            onChange={(event) => { setReason(event.target.value) }}
+          />
+          {invalid ? (
+            <p role="alert" className="text-sm text-destructive">At least five characters — the audit log keeps this.</p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={pending || invalid} onClick={() => { onConfirm({ reason: reasonTrimmed }) }}>
+            {pending ? 'Starting…' : `Act as ${user.name}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

@@ -78,3 +78,14 @@ export const updateUserSchema = z.object({
 export const removeUserSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
 });
+
+/**
+ * Start impersonating a user (`AUTH-067`).
+ *
+ * The reason is required and reaches the audit trail; the API also demands a fresh passkey step-up and refuses an
+ * equal-or-stronger target.
+ */
+export const impersonateSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  reason: z.string().min(5, 'Say why — the audit log records it'),
+});

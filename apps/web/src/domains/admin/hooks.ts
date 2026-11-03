@@ -165,6 +165,29 @@ export function useAdminRemoveUser() {
   );
 }
 
+/**
+ * Impersonate a user (`AUTH-067`).
+ *
+ * On success the session cookie belongs to the target, so the page reloads rather than patching user-scoped state.
+ * A 403 means the caller lacks the capability, the target is not strictly weaker, or no passkey step-up is fresh.
+ */
+export function useAdminImpersonate() {
+  return useMutation(
+    enhancedAdmin.impersonate.mutationOptions({
+      onSuccess: () => {
+        toast.success('Now acting as that user (read-only).')
+        window.location.assign('/dashboard')
+      },
+      onError: (error) => {
+        toast.error(
+          'Impersonation refused. Check that you are a super admin and verified with a passkey in the last five minutes.',
+          { description: isDefinedORPCError(error) ? getErrorMessage(error) : undefined },
+        )
+      },
+    }),
+  )
+}
+
 // ============================================================================
 // COMPOSITE HOOKS
 // ============================================================================
@@ -179,6 +202,7 @@ export function useAdminActions() {
   const createUser = useAdminCreateUser();
   const updateUser = useAdminUpdateUser();
   const removeUser = useAdminRemoveUser();
+  const impersonate = useAdminImpersonate();
 
   return {
     banUser: banUser.mutate,
@@ -193,6 +217,8 @@ export function useAdminActions() {
     updateUserAsync: updateUser.mutateAsync,
     removeUser: removeUser.mutate,
     removeUserAsync: removeUser.mutateAsync,
+    impersonate: impersonate.mutate,
+    impersonateAsync: impersonate.mutateAsync,
 
     isLoading: {
       ban: banUser.isPending,
@@ -201,6 +227,7 @@ export function useAdminActions() {
       create: createUser.isPending,
       update: updateUser.isPending,
       remove: removeUser.isPending,
+      impersonate: impersonate.isPending,
     },
 
     errors: {
@@ -210,6 +237,7 @@ export function useAdminActions() {
       create: createUser.error,
       update: updateUser.error,
       remove: removeUser.error,
+      impersonate: impersonate.error,
     },
   };
 }
