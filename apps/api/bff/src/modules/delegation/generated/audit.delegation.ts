@@ -47,4 +47,9 @@ export class AuditDelegationController {
 	list() {
 		return implement(auditContract.list).handler(({ input }) => this.client.list(input));
 	}
+
+	@Implement(auditContract.export)
+	export() {
+		return implement(auditContract.export).handler(({ input }) => this.client.export(input));
+	}
 }

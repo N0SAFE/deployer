@@ -18,6 +18,9 @@ const builder = createAuthzBuilder()
 		}),
 		audit: actions({
 			read: { risk: "read", description: "Read the audit log." },
+			// Deliberately NOT in `platform-read`: exporting the whole trail is a wider disclosure than browsing a page
+			// of it, and the agent-token default excludes it for the same reason.
+			export: { risk: "read", description: "Export the audit log." },
 		}),
 		user: actions({
 			list: { risk: "read", description: "List platform users." },
@@ -148,6 +151,7 @@ const builder = createAuthzBuilder()
 			mesh: ["read"],
 		}),
 		"platform-admin": permissions({
+			audit: ["export"],
 			settings: ["manage"],
 			role: ["write", "assign"],
 			user: ["create", "update", "ban", "unban", "set-role", "set-password", "set-email"],

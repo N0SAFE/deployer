@@ -1,10 +1,11 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+
+import type { AuthAuditEventRow } from '@deployer/identity-contracts'
 
 import { auditEndpoints } from './endpoints'
 
-import type { AuthAuditEventRow } from '@deployer/identity-contracts'
 
 /** The filters the audit viewer sends; every one is optional and the server owns the defaults. */
 export interface AuditFilters {
@@ -43,3 +44,13 @@ export function useAuditEvents(filters: AuditFilters, options: { enabled?: boole
 
 /** The row the contract's schema describes; the page formats it, it does not redefine it. */
 export type AuditEvent = AuthAuditEventRow
+
+/**
+ * The filtered export (`audit:export`).
+ *
+ * Server-side on purpose: the page only holds a page of rows, and the export must cover what the filters select, not
+ * what has been scrolled into view. `truncated` means the 5000-row cap applied.
+ */
+export function useAuditExport() {
+  return useMutation(auditEndpoints.export.mutationOptions({}))
+}

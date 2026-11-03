@@ -2,6 +2,7 @@
 
 import { Download, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
@@ -25,28 +26,23 @@ import {
   TableRow,
 } from '@deployer/ui/components/shadcn/table'
 
+
 import { PageErrorState, PageHeader } from '@/components/dashboard'
-import { useAuditEvents, type AuditEvent } from '@/domains/audit/hooks'
+import { useAuditEvents, useAuditExport } from '@/domains/audit/hooks'
 import { useCan } from '@/lib/access/permissions'
 import { getErrorMessage } from '@/lib/orpc/typed-errors'
 
 const LIMITS = [50, 100, 200] as const
 
-/** One CSV cell: quotes doubled, the field wrapped when it carries a separator. */
-function csvCell(value: unknown): string {
-  const text = value === null || value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value)
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-}
-
-/** The loaded rows as CSV. Client-side on purpose: it exports what the viewer sees, with the same filters. */
-function toCsv(rows: readonly AuditEvent[]): string {
-  const header = ['id', 'createdAt', 'action', 'actorId', 'targetId', 'ip', 'userAgent', 'detail']
-  const lines = rows.map((row) =>
-    [row.id, row.createdAt.toISOString(), row.action, row.actorId, row.targetId, row.ip, row.userAgent, row.detail]
-      .map(csvCell)
-      .join(','),
-  )
-  return [header.join(','), ...lines].join('\n')
+/** Hand a CSV string to the browser as a download. */
+function downloadCsv(csv: string): void {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 /**
@@ -57,11 +53,13 @@ function toCsv(rows: readonly AuditEvent[]): string {
  */
 export default function SettingsAuditPage() {
   const canRead = useCan('audit:read')
+  const canExport = useCan('audit:export')
   const [action, setAction] = useState('')
   const [actorId, setActorId] = useState('')
   const [limit, setLimit] = useState<number>(50)
 
   const query = useAuditEvents({ action, actorId, limit }, { enabled: canRead })
+  const exportAudit = useAuditExport()
   const rows = useMemo(() => query.data?.data ?? [], [query.data])
 
   if (!canRead) {
@@ -76,14 +74,16 @@ export default function SettingsAuditPage() {
     )
   }
 
-  const download = () => {
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+  const download = async () => {
+    try {
+      const result = await exportAudit.mutateAsync({ query: { action, actorId, limit: 5000 } })
+      downloadCsv(result.csv)
+      if (result.truncated) {
+        toast.warning(`Exported ${String(result.rows)} rows — the 5000-row cap applied. Narrow the filters for the rest.`)
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+    }
   }
 
   return (
@@ -141,9 +141,9 @@ export default function SettingsAuditPage() {
             <RefreshCw className={query.isFetching ? 'size-4 animate-spin' : 'size-4'} />
             Refresh
           </Button>
-          <Button variant="outline" onClick={download} disabled={rows.length === 0}>
+          <Button variant="outline" onClick={() => void download()} disabled={exportAudit.isPending || !canExport}>
             <Download className="size-4" />
-            Export CSV
+            Export all matching
           </Button>
         </CardContent>
       </Card>

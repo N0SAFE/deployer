@@ -232,7 +232,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: `system:audit` permission exists with no producer; sign-in, role change, ban, invite, key mint, device approval are unrecorded (tamper-evident chain I-03 is an IDEA item).
   - Do: Better Auth hooks emit audit events to an append-only table/outbox.
   - Done when: listed auth events appear in an admin-viewable log.
-  - Status: producer + viewer + UI done (2026-11-03) · Verified-in-code: yes · Source: auth.md#5
+  - Status: producer + viewer + UI + export done (2026-11-03) · Verified-in-code: yes · Source: auth.md#5
   - Progress (2026-11-02): **the producer is in**. `packages/auth/src/audit` defines the action catalog and one
     `authAuditEventSchema` (`zod/v4`), the `AuthAuditSink` port, and `auditEventFromRequest` — a pure mapping from a
     finished Better Auth request to an event (sign-in/out, admin create/remove/set-role/ban/unban/set-password,
@@ -1170,3 +1170,8 @@ Counts: AUTH 73 (AUTH-001..040 + AUTH-041..049 tests + AUTH-050 + AUTH-051..073 
 | SEC-038 | partial | negative matrices exist for the docker and cluster controllers; the rest is unstarted |
 | SEC-080 | partial | interim coarse gates on docker/cluster/fleet/DNS/reachability/analytics/deployment |
 | SEC-048..057, SEC-061..064 | open | no authz catalog, builder, gate or `Authz` service exists |
+
+  - Export (2026-11-03): `GET /audit/export` renders the filtered rows as CSV under its own `audit:export` capability
+    (deliberately absent from `platform-read`, present in `platform-admin`), bounded at 5000 rows with a `truncated`
+    flag so a capped export never looks complete. The page's "Export all matching" uses it; the client-side copy of
+    the rows it used to download is gone.

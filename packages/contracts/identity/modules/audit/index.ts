@@ -16,6 +16,15 @@ export const authAuditEventRowSchema = z.object({
 
 export type AuthAuditEventRow = z.infer<typeof authAuditEventRowSchema>;
 
+/** The filters the audit surfaces share; every field is optional and the server owns the defaults. */
+export const auditFiltersSchema = z.object({
+	action: z.string().optional(),
+	actorId: z.string().optional(),
+	targetId: z.string().optional(),
+	/** Cursor: return rows strictly older than this id (the viewer's "load more"). */
+	beforeId: z.coerce.number().int().positive().optional(),
+});
+
 /**
  * The audit log, newest first.
  *
@@ -25,13 +34,8 @@ export const auditListContract = oc
 	.meta(openapi({ method: "GET", path: "/audit", tags: ["Audit"] }))
 	.input(
 		z.object({
-			query: z.object({
-				action: z.string().optional(),
-				actorId: z.string().optional(),
-				targetId: z.string().optional(),
+			query: auditFiltersSchema.extend({
 				limit: z.coerce.number().int().min(1).max(200).default(50),
-				/** Cursor: return rows strictly older than this id (the viewer's "load more"). */
-				beforeId: z.coerce.number().int().positive().optional(),
 			}),
 		}),
 	)
@@ -42,9 +46,33 @@ export const auditListContract = oc
 		}),
 	);
 
+/**
+ * The same rows as CSV (`AUTH-029`, `audit:export`).
+ *
+ * Bounded: 5000 rows per call, with `truncated` telling the caller to narrow the filters. A silent cap would make an
+ * export that looks complete while the oldest matching events are missing.
+ */
+export const auditExportContract = oc
+	.meta(openapi({ method: "GET", path: "/audit/export", tags: ["Audit"] }))
+	.input(
+		z.object({
+			query: auditFiltersSchema.extend({
+				limit: z.coerce.number().int().min(1).max(5000).default(1000),
+			}),
+		}),
+	)
+	.output(
+		z.object({
+			csv: z.string(),
+			rows: z.number().int(),
+			truncated: z.boolean(),
+		}),
+	);
+
 /** The audit namespace the BFF delegates to `identity`. */
 export const auditContract = oc.router({
 	list: auditListContract,
+	export: auditExportContract,
 });
 
 export type AuditContract = typeof auditContract;

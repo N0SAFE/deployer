@@ -8,4 +8,5 @@ import { orpc } from '@/lib/orpc'
  */
 export const auditEndpoints = {
   list: orpc.audit.list,
+  export: orpc.audit.export,
 } as const
