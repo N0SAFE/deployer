@@ -8,5 +8,6 @@ import { orpc } from '@/lib/orpc'
  */
 export const approvalEndpoints = {
   list: orpc.approval.list,
+  request: orpc.approval.request,
   decide: orpc.approval.decide,
 } as const

@@ -111,6 +111,10 @@ export const settingsFixtures: FixtureMap = {
 			],
 		},
 	},
+	useRequestApproval: {
+		empty: undefined,
+		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }),
+	},
 	useDecideApproval: {
 		empty: undefined,
 		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }),

@@ -40,6 +40,7 @@ import { useSession } from '@/lib/auth'
 
 
 import { InviteUserDialog } from './_components/invite-user-dialog'
+import { RequestApprovalDialog } from './_components/request-approval-dialog'
 import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog } from './_components/user-dialogs'
 
 
@@ -56,6 +57,7 @@ export default function SettingsUsersPage() {
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
   const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; name: string } | null>(null)
+  const [approvalRequest, setApprovalRequest] = useState<{ user: { id: string; name: string }; actionHash: string } | null>(null)
   
   const pageSize = 20
   
@@ -68,7 +70,7 @@ export default function SettingsUsersPage() {
     banUser, 
     unbanUser, 
     setRole, 
-    removeUser,
+    removeUserAsync,
     impersonate,
     isLoading: actionLoading,
   } = useAdminActions()
@@ -109,10 +111,22 @@ export default function SettingsUsersPage() {
     setRemoveTarget(usersData?.users.find((u) => u.id === userId) ?? { id: userId, name: userId })
   }
 
-  const confirmRemove = () => {
+  /**
+   * Removing an account is destructive, so the API answers "approval required" for anyone without the danger-bundle
+   * capability — and echoes the digest of the exact action. That digest is what the request dialog files, so the
+   * approval the approver grants covers this account and nothing else.
+   */
+  const confirmRemove = async () => {
     if (!removeTarget) return
-    removeUser({ userId: removeTarget.id })
+    const target = removeTarget
     setRemoveTarget(null)
+    try {
+      await removeUserAsync({ userId: target.id })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const actionHash = /([a-f0-9]{64})/.exec(message)?.[1]
+      if (actionHash !== undefined) setApprovalRequest({ user: target, actionHash })
+    }
   }
 
   const users = useMemo(() => usersData?.users ?? [], [usersData])
@@ -431,7 +445,16 @@ export default function SettingsUsersPage() {
         />
       ) : null}
       {removeTarget ? (
-        <RemoveUserDialog user={removeTarget} pending={actionLoading.remove} onClose={() => { setRemoveTarget(null) }} onConfirm={confirmRemove} />
+        <RemoveUserDialog user={removeTarget} pending={actionLoading.remove} onClose={() => { setRemoveTarget(null) }} onConfirm={() => { void confirmRemove() }} />
+      ) : null}
+      {approvalRequest ? (
+        <RequestApprovalDialog
+          subject={approvalRequest.user.name}
+          permission="user:delete"
+          actionHash={approvalRequest.actionHash}
+          scope={{ userId: approvalRequest.user.id }}
+          onClose={() => { setApprovalRequest(null) }}
+        />
       ) : null}
     </div>
   )

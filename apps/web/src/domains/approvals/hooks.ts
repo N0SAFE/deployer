@@ -37,3 +37,13 @@ export function usePendingApprovals(options: { enabled?: boolean } = {}) {
 export function useDecideApproval() {
   return useMutation(approvalEndpoints.decide.mutationOptions({}))
 }
+
+/**
+ * File a request for an action the caller cannot do alone.
+ *
+ * `actionHash` comes from the refusal the API returned — it is the digest of exactly that action, so the approval the
+ * approver grants is usable for that action and nothing else.
+ */
+export function useRequestApproval() {
+  return useMutation(approvalEndpoints.request.mutationOptions({}))
+}
