@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, lt, sql } from "drizzle-orm";
 import { Context, Data, Effect } from "effect";
 
 import { serviceOver } from "@deployer/effect-core";
@@ -59,6 +59,13 @@ export type ApprovalRepositoryShape = {
 	readonly list: (
 		filter: AccessRequestFilter,
 	) => Effect.Effect<AccessRequestRow[], ApprovalRepositoryFailure, DatabasePort>;
+	/**
+	 * Mark pending requests past their expiry as `expired`.
+	 *
+	 * Lazily, when the queue is read: a row that can no longer be approved must not sit in the inbox looking actionable,
+	 * and a sweeper job for a column comparison would be more moving parts than the problem deserves.
+	 */
+	readonly expireStale: (now: Date) => Effect.Effect<void, ApprovalRepositoryFailure, DatabasePort>;
 	/**
 	 * Record one person's verdict and settle the request in the SAME transaction.
 	 *
@@ -127,6 +134,14 @@ function makeApprovalRepository(db: DatabaseShape["db"]): ApprovalRepositoryShap
 				const row = await readById(created.id);
 				if (row === null) throw new Error("access request vanished after insert");
 				return row;
+			}),
+
+		expireStale: (now) =>
+			attempt(async () => {
+				await db
+					.update(accessRequests)
+					.set({ status: "expired" })
+					.where(and(eq(accessRequests.status, "pending"), lt(accessRequests.expiresAt, now)));
 			}),
 
 		findById: (id) => attempt(() => readById(id)),

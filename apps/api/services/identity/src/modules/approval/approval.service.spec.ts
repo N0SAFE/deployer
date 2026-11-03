@@ -37,6 +37,7 @@ describe("ApprovalService", () => {
 		findById: vi.fn(),
 		list: vi.fn(),
 		vote: vi.fn(),
+		expireStale: vi.fn(),
 		consume: vi.fn(),
 	};
 
@@ -46,6 +47,7 @@ describe("ApprovalService", () => {
 		repo.findById.mockImplementation(() => Effect.succeed(request()));
 		repo.vote.mockImplementation(() => Effect.succeed(request({ status: "approved", approvals: 1 })));
 		repo.consume.mockImplementation(() => Effect.succeed(true));
+		repo.expireStale.mockImplementation(() => Effect.void);
 	});
 
 	const run = <A, E>(
@@ -182,6 +184,8 @@ describe("ApprovalService", () => {
 			run(Actor.user("viewer-1", "viewer"), (a) => a.list({ status: "pending", limit: 50 })),
 		);
 		expect(rows).toHaveLength(1);
+		// The queue expires what it can no longer offer before it shows anything.
+		expect(repo.expireStale).toHaveBeenCalledWith(expect.any(Date));
 
 		const denied = await Effect.runPromise(
 			Effect.flip(run(Actor.user("u-1", "user"), (a) => a.list({ status: "pending", limit: 50 }))),

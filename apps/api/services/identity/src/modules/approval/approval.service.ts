@@ -126,6 +126,9 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 			if (actor.kind !== "user" || !roleGrants(actor.role, "approval:read")) {
 				return yield* Effect.fail(new ApprovalForbidden({ reason: "actor lacks approval:read" }));
 			}
+
+			// Expire before reading, so the queue never shows a request that can no longer be approved.
+			yield* repository.expireStale(new Date());
 			return yield* repository.list(filter);
 		}),
 
