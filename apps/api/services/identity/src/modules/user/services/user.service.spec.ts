@@ -115,10 +115,18 @@ describe("UserService", () => {
 		});
 
 		it("refuses to list the sessions of an equal or higher principal", async () => {
-			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "admin" })));
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ id: "someone-else", role: "admin" })));
 
-			await expect(failureOf(service.listSessions(admin, "user-1"))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(failureOf(service.listSessions(admin, "someone-else"))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.listSessions).not.toHaveBeenCalled();
+		});
+
+		it("lets an actor list their OWN sessions, whatever their rank", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ id: "admin-1", role: "admin" })));
+
+			await run(service.listSessions(admin, "admin-1"));
+
+			expect(repo.listSessions).toHaveBeenCalledWith("admin-1");
 		});
 
 		it("revokes one session after the passkey proof, and audits it", async () => {

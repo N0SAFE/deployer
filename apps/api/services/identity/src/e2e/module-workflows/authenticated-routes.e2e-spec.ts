@@ -129,6 +129,32 @@ describe("Identity routes e2e: an authenticated admin", () => {
 		expect(body.sessions.length).toBeGreaterThanOrEqual(1);
 	});
 
+	it("lists the caller's own sessions, without their tokens", async () => {
+		const response = await context.http
+			.get(`/user/${admin.userId}/sessions`)
+			.set("cookie", admin.cookie)
+			.expect(200);
+
+		const body = z
+			.object({
+				data: z.array(
+					z.object({
+						id: z.string(),
+						createdAt: z.string(),
+						expiresAt: z.string(),
+						ipAddress: z.string().nullable(),
+						userAgent: z.string().nullable(),
+						impersonatedBy: z.string().nullable(),
+					}),
+				),
+			})
+			.parse(response.body);
+
+		expect(body.data.length).toBeGreaterThanOrEqual(1);
+		// The row describes the credential; a token in it would be a credential handed to the operator.
+		expect(body.data[0]).not.toHaveProperty("token");
+	});
+
 	it("files an approval request and lists it, without deciding it", async () => {
 		const create = await context.http
 			.post("/approvals")

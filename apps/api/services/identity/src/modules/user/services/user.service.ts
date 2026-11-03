@@ -501,10 +501,13 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             const target = yield* users.findById(id)
             if (target === null) return yield* new UserNotFound({ id })
 
-            // Seeing where someone is signed in is as sensitive as the sessions themselves, so it follows the hierarchy.
-            yield* rule(() => {
-                userRules.assertOutranks(actor, target.role)
-            })
+            // Seeing where SOMEONE ELSE is signed in follows the hierarchy. Your own sessions are your own business —
+            // the same exception `findById` already makes.
+            if (id !== actor.userId) {
+                yield* rule(() => {
+                    userRules.assertOutranks(actor, target.role)
+                })
+            }
 
             return yield* users.listSessions(id)
         }),
@@ -518,9 +521,11 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             const target = yield* users.findById(id)
             if (target === null) return yield* new UserNotFound({ id })
 
-            yield* rule(() => {
-                userRules.assertOutranks(actor, target.role)
-            })
+            if (id !== actor.userId) {
+                yield* rule(() => {
+                    userRules.assertOutranks(actor, target.role)
+                })
+            }
 
             const stepUp = yield* StepUpService
             yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
