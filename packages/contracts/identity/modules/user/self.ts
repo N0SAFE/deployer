@@ -1,8 +1,7 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
 
 import { userSchema } from "@deployer/contracts-entities";
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** One session the caller holds, as they may see it: no token, no secrets. */
 export const selfSessionSchema = z.object({
@@ -25,6 +24,15 @@ export const selfApiKeySchema = z.object({
 	enabled: z.boolean(),
 });
 
+const selfExportSchema = z.object({
+	exportedAt: z.coerce.date(),
+	user: userSchema,
+	sessions: z.array(selfSessionSchema),
+	apiKeys: z.array(selfApiKeySchema),
+});
+
+const selfOps = standard.zod(selfExportSchema, "selfExport");
+
 /**
  * Everything the platform holds about the caller, in one document (`AUTH-032`).
  *
@@ -32,14 +40,11 @@ export const selfApiKeySchema = z.object({
  * would mean only admins could exercise a right every account has. The credential material is absent by construction —
  * there is no field for a password hash, a session token or an API key.
  */
-export const selfExportContract = oc
-	.meta(openapi({ method: "GET", path: "/me/export", tags: ["User"] }))
+export const selfExportContract = selfOps
+	.read()
+	.path("/me/export")
 	.input(z.object({}))
-	.output(
-		z.object({
-			exportedAt: z.coerce.date(),
-			user: userSchema,
-			sessions: z.array(selfSessionSchema),
-			apiKeys: z.array(selfApiKeySchema),
-		}),
-	);
+	.output(selfExportSchema)
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();

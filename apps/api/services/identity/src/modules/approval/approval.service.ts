@@ -4,6 +4,7 @@ import { isPermission, roleGrants } from "@deployer/auth/authz";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 import { ApprovalForbidden, ApprovalInvalid, ApprovalNotFound, type ApprovalFailure } from "./approval.errors";
@@ -26,7 +27,11 @@ export type ApprovalRequestInput = {
 export type ApprovalServiceShape = {
 	readonly request: (
 		input: ApprovalRequestInput,
-	) => Effect.Effect<AccessRequestRow, ApprovalFailure, ApprovalRepository | CurrentActor | DatabasePort>;
+	) => Effect.Effect<
+		AccessRequestRow,
+		ApprovalFailure,
+		ApprovalRepository | CurrentActor | DatabasePort | AuditService
+	>;
 	readonly list: (
 		filter: AccessRequestFilter,
 	) => Effect.Effect<AccessRequestRow[], ApprovalFailure, ApprovalRepository | CurrentActor | DatabasePort>;
@@ -36,14 +41,14 @@ export type ApprovalServiceShape = {
 	) => Effect.Effect<
 		AccessRequestRow,
 		ApprovalFailure,
-		ApprovalRepository | CurrentActor | DatabasePort | StepUpService
+		ApprovalRepository | CurrentActor | DatabasePort | StepUpService | AuditService
 	>;
 	readonly consume: (
 		actionHash: string,
 	) => Effect.Effect<
 		{ readonly consumed: boolean },
 		ApprovalFailure,
-		ApprovalRepository | CurrentActor | DatabasePort
+		ApprovalRepository | CurrentActor | DatabasePort | AuditService
 	>;
 };
 
@@ -66,7 +71,7 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 			}
 
 			const now = Date.now();
-			return yield* repository.create({
+			const created = yield* repository.create({
 				permission: input.permission,
 				requesterId: actor.id,
 				via: null,
@@ -77,6 +82,19 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 				ttlSec: input.ttlSec,
 				expiresAt: new Date(now + input.ttlSec * 1000),
 			});
+
+			const audit = yield* AuditService;
+			yield* audit.record({
+				action: "approval-requested",
+				actorId: actor.id,
+				detail: {
+					requestId: created.id,
+					permission: created.permission,
+					actionHash: created.actionHash,
+					requiredApprovals: created.requiredApprovals,
+				},
+			});
+			return created;
 		}),
 
 	list: (filter): ReturnType<ApprovalServiceShape["list"]> =>
@@ -118,6 +136,19 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 
 			const decided = yield* repository.vote(id, actor.id, decision);
 			if (decided === null) return yield* Effect.fail(new ApprovalNotFound({ id }));
+
+			const audit = yield* AuditService;
+			yield* audit.record({
+				action: "approval-decided",
+				actorId: actor.id,
+				targetId: decided.requesterId,
+				detail: {
+					requestId: decided.id,
+					permission: decided.permission,
+					decision,
+					status: decided.status,
+				},
+			});
 			return decided;
 		}),
 
@@ -128,6 +159,13 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 				return yield* Effect.fail(new ApprovalForbidden({ reason: "only the requester can spend an approval" }));
 			}
 			const consumed = yield* repository.consume(actor.id, actionHash, new Date());
+
+			const audit = yield* AuditService;
+			yield* audit.record({
+				action: "approval-consumed",
+				actorId: actor.id,
+				detail: { actionHash, consumed },
+			});
 			return { consumed };
 		}),
 });

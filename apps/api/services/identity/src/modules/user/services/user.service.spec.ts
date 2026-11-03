@@ -5,6 +5,7 @@ import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { AuditService } from "@identity/modules/audit/audit.service";
 import { RoleService } from "@identity/modules/role/role.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
@@ -62,7 +63,7 @@ describe("UserService", () => {
 			(actor: Acting, ...args: unknown[]) => {
 				const method = UserService.live[key] as (
 					...a: unknown[]
-				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation | StepUpService | RoleService>;
+				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation | StepUpService | RoleService | AuditService>;
 				return method(...args).pipe(
 					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
 					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
@@ -77,6 +78,9 @@ describe("UserService", () => {
 						isKnownPlatformRole: () => Effect.succeed(true),
 						list: () => Effect.succeed([]),
 					} as unknown as RoleService["Service"]),
+					Effect.provideService(AuditService, {
+						record: () => Effect.void,
+					} as unknown as AuditService["Service"]),
 				);
 			},
 	});
@@ -98,6 +102,9 @@ describe("UserService", () => {
 					isKnownPlatformRole: () => Effect.succeed(true),
 					list: () => Effect.succeed([]),
 				} as unknown as RoleService["Service"]),
+				Effect.provideService(AuditService, {
+					record: () => Effect.void,
+				} as unknown as AuditService["Service"]),
 			);
 
 		it("refuses a system actor", async () => {
@@ -157,6 +164,9 @@ describe("UserService", () => {
 					isKnownPlatformRole: () => Effect.succeed(true),
 					list: () => Effect.succeed([]),
 				} as unknown as RoleService["Service"]),
+				Effect.provideService(AuditService, {
+					record: () => Effect.void,
+				} as unknown as AuditService["Service"]),
 			);
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
@@ -182,9 +192,62 @@ describe("UserService", () => {
 					isKnownPlatformRole: () => Effect.succeed(false),
 					list: () => Effect.succeed([]),
 				} as unknown as RoleService["Service"]),
+				Effect.provideService(AuditService, {
+					record: () => Effect.void,
+				} as unknown as AuditService["Service"]),
 			);
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserInvalid);
+			expect(repo.update).not.toHaveBeenCalled();
+		});
+
+		it("refuses to create a privileged account without a fresh passkey proof", async () => {
+			const effect = UserService.live
+				.create({ name: "New Admin", email: "admin@example.com", role: "admin" })
+				.pipe(
+					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+					Effect.provideService(CurrentActor, Actor.user("admin-1", "superAdmin")),
+					Effect.provideService(Correlation, { id: "test" }),
+					Effect.provideService(DatabasePort, {} as never),
+					Effect.provideService(StepUpService, {
+						assertCritical: () => Effect.fail(new ForbiddenError("step-up required")),
+						status: () => Effect.die(new Error("unused")),
+					} as unknown as StepUpService["Service"]),
+					Effect.provideService(RoleService, {
+						isKnownPlatformRole: () => Effect.succeed(true),
+						list: () => Effect.succeed([]),
+					} as unknown as RoleService["Service"]),
+					Effect.provideService(AuditService, {
+						record: () => Effect.void,
+					} as unknown as AuditService["Service"]),
+				);
+
+			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.insert).not.toHaveBeenCalled();
+		});
+
+		it("refuses an email change without a fresh passkey proof", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ email: "old@example.com" })));
+
+			const effect = UserService.live.update("user-1", { email: "new@example.com" }, {}).pipe(
+				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+				Effect.provideService(CurrentActor, Actor.user("admin-1", "superAdmin")),
+				Effect.provideService(Correlation, { id: "test" }),
+				Effect.provideService(DatabasePort, {} as never),
+				Effect.provideService(StepUpService, {
+					assertCritical: () => Effect.fail(new ForbiddenError("step-up required")),
+					status: () => Effect.die(new Error("unused")),
+				} as unknown as StepUpService["Service"]),
+				Effect.provideService(RoleService, {
+					isKnownPlatformRole: () => Effect.succeed(true),
+					list: () => Effect.succeed([]),
+				} as unknown as RoleService["Service"]),
+				Effect.provideService(AuditService, {
+					record: () => Effect.void,
+				} as unknown as AuditService["Service"]),
+			);
+
+			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.update).not.toHaveBeenCalled();
 		});
 
@@ -204,6 +267,9 @@ describe("UserService", () => {
 					isKnownPlatformRole: () => Effect.succeed(true),
 					list: () => Effect.succeed([]),
 				} as unknown as RoleService["Service"]),
+				Effect.provideService(AuditService, {
+					record: () => Effect.void,
+				} as unknown as AuditService["Service"]),
 			);
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);

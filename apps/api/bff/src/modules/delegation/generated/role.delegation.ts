@@ -47,4 +47,19 @@ export class RoleDelegationController {
 	list() {
 		return implement(roleContract.list).handler(({ input }) => this.client.list(input));
 	}
+
+	@Implement(roleContract.create)
+	create() {
+		return implement(roleContract.create).handler(({ input }) => this.client.create(input));
+	}
+
+	@Implement(roleContract.update)
+	update() {
+		return implement(roleContract.update).handler(({ input }) => this.client.update(input));
+	}
+
+	@Implement(roleContract.delete)
+	delete() {
+		return implement(roleContract.delete).handler(({ input }) => this.client.delete(input));
+	}
 }

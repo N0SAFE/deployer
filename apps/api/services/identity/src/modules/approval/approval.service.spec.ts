@@ -5,6 +5,7 @@ import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 import { ApprovalForbidden, ApprovalInvalid } from "./approval.errors";
@@ -51,7 +52,7 @@ describe("ApprovalService", () => {
 		use: (approvals: ApprovalService["Service"]) => Effect.Effect<
 			A,
 			E,
-			ApprovalRepository | CurrentActor | DatabasePort | StepUpService
+			ApprovalRepository | CurrentActor | DatabasePort | StepUpService | AuditService
 		>,
 		stepUp: "ok" | "missing" = "ok",
 	): Effect.Effect<A, E> => {
@@ -61,6 +62,7 @@ describe("ApprovalService", () => {
 			Layer.succeed(CurrentActor, actor),
 			Layer.succeed(Correlation, { id: "test" }),
 			Layer.succeed(DatabasePort, {} as never),
+			Layer.succeed(AuditService, { record: () => Effect.void } as unknown as AuditService["Service"]),
 			Layer.succeed(StepUpService, {
 				assertCritical: () =>
 					stepUp === "ok" ? Effect.void : Effect.fail(new ForbiddenError("step-up required")),

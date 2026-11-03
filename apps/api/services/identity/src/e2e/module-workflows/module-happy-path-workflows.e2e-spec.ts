@@ -22,6 +22,7 @@ import { UserService, type UserServiceShape } from "@/modules/user/services/user
 import type { UserFailure } from "@/modules/user/services/user.service";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+import { AuditService } from "@identity/modules/audit/audit.service";
 import { RoleRepository } from "@identity/modules/role/role.repository";
 import { RoleService } from "@identity/modules/role/role.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
@@ -34,7 +35,7 @@ function runUsers<T>(
 	use: (users: UserServiceShape) => Effect.Effect<
 		T,
 		UserFailure,
-		Ambient | UserRepository | DatabasePort | StepUpService | RoleService
+		Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService
 	>,
 ): Promise<T> {
 	return Effect.runPromise(
@@ -53,6 +54,10 @@ function runUsers<T>(
 				status: () => Effect.die(new Error("unused")),
 			} as unknown as StepUpService["Service"]),
 			Effect.provideService(RoleService, RoleService.live),
+			// The trail is not what this e2e proves; the write is fire-and-forget by design.
+			Effect.provideService(AuditService, {
+				record: () => Effect.void,
+			} as unknown as AuditService["Service"]),
 			Effect.provideService(RoleRepository, RoleRepository.live),
 		),
 	);

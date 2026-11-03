@@ -2,6 +2,7 @@ import { createModuleContext } from '@deployer/nest-effect'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 
+import { AuditDomainModule } from '../audit/audit.module'
 import { RoleDomainModule } from '../role/role.module'
 import { StepUpDomainModule } from '../step-up/step-up.module'
 
@@ -18,7 +19,7 @@ import { UserService } from './services/user.service'
 export class UserDomainModule extends createModuleContext(
     {
         controllers: [UserController],
-        imports: [StepUpDomainModule, RoleDomainModule],
+        imports: [StepUpDomainModule, RoleDomainModule, AuditDomainModule],
         providers: [
             { provide: UserService, useValue: UserService.live },
             { provide: UserRepository, useValue: UserRepository.live },

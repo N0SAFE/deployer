@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { Context, Effect } from "effect";
 
 import type { ScopeKind } from "@deployer/auth/authz";
 import { serviceOver } from "@deployer/effect-core";
-import { roles } from "@deployer/nest-schema/global/identity/index";
+import { roles, user } from "@deployer/nest-schema/global/identity/index";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 
@@ -34,6 +34,13 @@ export type RoleRepositoryShape = {
 	readonly isKnownPlatformRole: (name: string) => Effect.Effect<boolean, never, DatabasePort>;
 	/** Upsert on `(scope, name)`: re-seeding refreshes the built-in roles and never duplicates one. */
 	readonly seed: (rows: readonly RoleSeedRow[]) => Effect.Effect<void, never, DatabasePort>;
+	readonly findById: (id: string) => Effect.Effect<RoleRow | null, never, DatabasePort>;
+	readonly create: (row: RoleSeedRow) => Effect.Effect<RoleRow, never, DatabasePort>;
+	/** Only the fields a custom role may change: the name is what `user.role` stores. */
+	readonly update: (id: string, patch: RolePatch) => Effect.Effect<RoleRow | null, never, DatabasePort>;
+	readonly delete: (id: string) => Effect.Effect<void, never, DatabasePort>;
+	/** How many accounts hold this role — a delete is refused while any does. */
+	readonly countUsersWithRole: (name: string) => Effect.Effect<number, never, DatabasePort>;
 };
 
 /** The upsert itself, over a database handle: the seeder and the repository share it, so there is one statement. */
@@ -56,6 +63,21 @@ export async function upsertRoles(db: DatabaseShape["db"], rows: readonly RoleSe
 				updatedAt: new Date(),
 			},
 		});
+}
+
+/** The table row as the domain reads it. */
+function toRoleRow(row: typeof roles.$inferSelect): RoleRow {
+	return {
+		id: row.id,
+		name: row.name,
+		scope: row.scope as ScopeKind,
+		rank: row.rank,
+		label: row.label,
+		description: row.description,
+		color: row.color,
+		isSystem: row.isSystem,
+		permissions: [...row.permissions],
+	};
 }
 
 const makeRoleRepository = (database: DatabaseShape): RoleRepositoryShape => ({
@@ -94,7 +116,60 @@ const makeRoleRepository = (database: DatabaseShape): RoleRepositoryShape => ({
 		}),
 
 	seed: (rows) => Effect.promise(() => upsertRoles(database.db, rows)),
+
+	findById: (id) =>
+		Effect.promise(async () => {
+			const [row] = await database.db.select().from(roles).where(eq(roles.id, id)).limit(1);
+			return row === undefined ? null : toRoleRow(row);
+		}),
+
+	create: (row) =>
+		Effect.promise(async () => {
+			const [created] = await database.db
+				.insert(roles)
+				.values({ ...row, permissions: [...row.permissions] })
+				.returning();
+			if (created === undefined) throw new Error("role insert returned no row");
+			return toRoleRow(created);
+		}),
+
+	update: (id, patch) =>
+		Effect.promise(async () => {
+			const [updated] = await database.db
+				.update(roles)
+				.set({
+					...(patch.rank === undefined ? {} : { rank: patch.rank }),
+					...(patch.label === undefined ? {} : { label: patch.label }),
+					...(patch.description === undefined ? {} : { description: patch.description }),
+					...(patch.color === undefined ? {} : { color: patch.color }),
+					...(patch.permissions === undefined ? {} : { permissions: [...patch.permissions] }),
+					updatedAt: new Date(),
+				})
+				.where(eq(roles.id, id))
+				.returning();
+			return updated === undefined ? null : toRoleRow(updated);
+		}),
+
+	delete: (id) =>
+		Effect.promise(async () => {
+			await database.db.delete(roles).where(eq(roles.id, id));
+		}),
+
+	countUsersWithRole: (name) =>
+		Effect.promise(async () => {
+			const [row] = await database.db.select({ value: count() }).from(user).where(eq(user.role, name));
+			return row?.value ?? 0;
+		}),
 });
+
+/** The fields an update may change. */
+export type RolePatch = {
+	readonly rank?: number;
+	readonly label?: string;
+	readonly description?: string | null;
+	readonly color?: string | null;
+	readonly permissions?: readonly string[];
+};
 
 /** The role catalogue: reads for the picker, and the idempotent seed that keeps the built-ins in sync. */
 export class RoleRepository extends Context.Service<RoleRepository, RoleRepositoryShape>()(

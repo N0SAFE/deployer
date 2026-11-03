@@ -12,7 +12,11 @@ export const AUTH_AUDIT_ACTIONS = [
 	"sign-out",
 	"user-created",
 	"user-deleted",
+	"email-change",
 	"role-change",
+	"role-created",
+	"role-updated",
+	"role-deleted",
 	"ban",
 	"unban",
 	"password-changed",
@@ -25,6 +29,9 @@ export const AUTH_AUDIT_ACTIONS = [
 	"device-approved",
 	"impersonation-start",
 	"impersonation-stop",
+	"approval-requested",
+	"approval-decided",
+	"approval-consumed",
 ] as const;
 
 export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[number];

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, CurrentActor } from "@deployer/effect-core";
@@ -44,11 +44,15 @@ describe("AuditService", () => {
 			const audit = yield* AuditService;
 			return yield* use(audit);
 		}).pipe(
-			Effect.provideService(AuditService, AuditService.live),
-			Effect.provideService(AuditRepository, { list } as unknown as AuditRepositoryShape),
-			Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
-			Effect.provideService(DatabasePort, {} as never),
-		) as Effect.Effect<A, E>;
+			Effect.provide(
+				Layer.mergeAll(
+					Layer.succeed(AuditService, AuditService.live as unknown as AuditService["Service"]),
+					Layer.succeed(AuditRepository, { list, append: () => Effect.void } as unknown as AuditRepositoryShape),
+					Layer.succeed(CurrentActor, Actor.user(actor.userId, actor.role)),
+					Layer.succeed(DatabasePort, {} as never),
+				),
+			),
+		);
 
 	it("lets a reader list the log", async () => {
 		const result = await Effect.runPromise(

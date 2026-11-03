@@ -18,6 +18,18 @@ on boot (idempotent upsert on `(scope, name)`), and every reader asks the table:
 
 A role row is editable only by re-seeding while `is_system` is true; custom roles are rows like any other.
 
+## Managing custom roles
+
+`POST/PATCH/DELETE /roles` require `role:write` and are capped twice, independently:
+
+- the rank must stay strictly BELOW the editor's (`platformRoleRank`), so a role can never reach the editor's own level;
+- every permission must already be the editor's own (`capabilitiesOfRole`), so "manage roles" cannot become "grant myself
+  the danger bundle"; a permission the catalog does not declare is refused too.
+
+A built-in (`is_system`) role cannot be edited or deleted — re-seed the code. A custom role cannot be deleted while any
+account holds it, because `user.role` would then name a role nothing can interpret, and every capability check for those
+accounts would silently deny. Role writes are audited (`role-created/updated/deleted`).
+
 ## What is still missing
 
 - `authz_epoch` (+ `LISTEN/NOTIFY`): a demotion is visible within the 60 s cookie-cache window today, not instantly.

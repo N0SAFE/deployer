@@ -31,11 +31,35 @@ export type AuditPage = {
 	readonly meta: { readonly limit: number; readonly hasMore: boolean };
 };
 
+/** One event to append. `action` comes from the catalog in `@deployer/auth/audit`. */
+export type NewAuditEvent = {
+	readonly action: string;
+	readonly actorId?: string | undefined;
+	readonly targetId?: string | undefined;
+	readonly ip?: string | undefined;
+	readonly userAgent?: string | undefined;
+	readonly detail?: Record<string, unknown> | undefined;
+};
+
 export type AuditRepositoryShape = {
 	readonly list: (query: AuditQuery) => Effect.Effect<AuditPage, never, DatabasePort>;
+	/** Append one event. Writes never read back; the trail is append-only by construction. */
+	readonly append: (event: NewAuditEvent) => Effect.Effect<void, never, DatabasePort>;
 };
 
 const makeAuditRepository = (database: DatabaseShape): AuditRepositoryShape => ({
+	append: (event) =>
+		Effect.promise(async () => {
+			await database.db.insert(authAuditEvents).values({
+				action: event.action,
+				actorId: event.actorId ?? null,
+				targetId: event.targetId ?? null,
+				ip: event.ip ?? null,
+				userAgent: event.userAgent ?? null,
+				detail: event.detail ?? {},
+			});
+		}),
+
 	list: (query) =>
 		Effect.promise(async () => {
 			const conditions = [

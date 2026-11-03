@@ -1,6 +1,10 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
+
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+
+const selfDeleteResultSchema = z.object({ deleted: z.literal(true) });
+
+const selfOps = standard.zod(selfDeleteResultSchema, "selfDelete");
 
 /**
  * Delete the CALLER'S account (`AUTH-032`).
@@ -11,7 +15,11 @@ import z from "zod/v4";
  *
  * The user row cascades to its sessions, accounts and keys, so a later sign-in cannot resurrect any of them.
  */
-export const selfDeleteContract = oc
-	.meta(openapi({ method: "POST", path: "/me/delete", tags: ["User"] }))
+export const selfDeleteContract = selfOps
+	.create()
+	.path("/me/delete")
 	.input(z.object({}))
-	.output(z.object({ deleted: z.literal(true) }));
+	.output(selfDeleteResultSchema)
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();

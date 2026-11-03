@@ -5,6 +5,7 @@ import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+import { AuditService } from '@identity/modules/audit/audit.service'
 import { RoleService } from '@identity/modules/role/role.service'
 import { StepUpService } from '@identity/modules/step-up/step-up.service'
 
@@ -51,7 +52,7 @@ export type UserServiceShape = {
     readonly deleteSelf: () => Effect.Effect<
         void,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
     >
     /** The caller's own data (`AUTH-032`). Scoped by the session; no capability involved. */
     readonly exportSelf: () => Effect.Effect<
@@ -70,7 +71,7 @@ export type UserServiceShape = {
     ) => Effect.Effect<
         User,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | RoleService
+        Ambient | UserRepository | DatabasePort | RoleService | AuditService | StepUpService
     >
     readonly update: (
         id: string,
@@ -79,19 +80,23 @@ export type UserServiceShape = {
     ) => Effect.Effect<
         User,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
     >
     readonly setBanned: (
         id: string,
         banned: boolean
-    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort | StepUpService>
+    ) => Effect.Effect<
+        User,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
+    >
     readonly setRole: (
         id: string,
         role: NonNullable<User["role"]>
     ) => Effect.Effect<
         User,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService | RoleService
+        Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService
     >
     readonly revokeSessions: (
         id: string
@@ -105,7 +110,7 @@ export type UserServiceShape = {
     ) => Effect.Effect<
         void,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
     >
 }
 
@@ -179,6 +184,14 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // Credentials first: the sessions and keys are cascaded by the row, but revoking makes the window explicit.
             yield* users.revokeCredentials(actor.id)
             yield* users.delete(actor.id)
+
+            const audit = yield* AuditService
+            yield* audit.record({
+                action: 'user-deleted',
+                actorId: actor.id,
+                targetId: actor.id,
+                detail: { self: true, role: self.role ?? 'user' },
+            })
         }),
 
         exportSelf: Effect.fn('UserService.exportSelf')(function* () {
@@ -214,6 +227,13 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 userRules.assertRoleIsAssignable(actor, input.role)
             })
 
+            // Creating a PRIVILEGED account is a grant, not a profile edit: the same passkey proof that guards
+            // `setRole` guards minting an admin. A default `user` account does not need one.
+            if (input.role !== undefined && input.role !== 'user') {
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            }
+
             // The roles table is the source of truth for what exists; a name it does not know cannot be written into
             // `user.role` as a string nothing can interpret.
             if (input.role !== undefined) {
@@ -246,6 +266,14 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 yield* users.setPassword(created.id, passwordHash)
             }
 
+            const audit = yield* AuditService
+            yield* audit.record({
+                action: 'user-created',
+                actorId: actor.userId,
+                targetId: created.id,
+                detail: { role: created.role ?? 'user' },
+            })
+
             return created
         }),
 
@@ -260,9 +288,12 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             // An update that moves `role` or `banned` is the same critical action as `setRole`/`setBanned` reached
             // through the profile form; guarding only those two procedures would leave a second door open.
+            // Changing the EMAIL is in the same class: whoever controls it can start a password reset and take the
+            // account over, so it is a critical action even though the row it writes is only one column.
             const changesPrivilege =
                 (patch.role !== undefined && patch.role !== current.role) ||
-                (patch.banned !== undefined && patch.banned !== (current.banned ?? false))
+                (patch.banned !== undefined && patch.banned !== (current.banned ?? false)) ||
+                (patch.email !== undefined && patch.email !== current.email)
             if (changesPrivilege) {
                 const stepUp = yield* StepUpService
                 yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
@@ -328,18 +359,45 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 yield* users.revokeCredentials(id)
             }
 
+            const audit = yield* AuditService
+            if (roleChanged) {
+                yield* audit.record({
+                    action: 'role-change',
+                    actorId: actor.userId,
+                    targetId: id,
+                    detail: { from: current.role ?? 'user', to: next.role },
+                })
+            }
+            if (banChanged) {
+                yield* audit.record({
+                    action: next.banned === true ? 'ban' : 'unban',
+                    actorId: actor.userId,
+                    targetId: id,
+                })
+            }
+            if (next.email !== undefined && next.email !== current.email) {
+                yield* audit.record({
+                    action: 'email-change',
+                    actorId: actor.userId,
+                    targetId: id,
+                })
+            }
+
             return updated
         }),
 
         setBanned: Effect.fn('UserService.setBanned')(function* (id, banned) {
-            const stepUp = yield* StepUpService
-            // A ban ends credentials; it is a critical action, so it needs a fresh passkey proof (`AUTH-062`).
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
+            // The capability is checked FIRST: asking a caller who will be refused for a passkey leaks that the action
+            // exists and wastes a ceremony on nothing.
             yield* rule(() => {
                 userRules.assertCapability(actor, banned ? 'user:ban' : 'user:unban')
                 userRules.assertCanAdminister(actor)
             })
+
+            const stepUp = yield* StepUpService
+            // A ban ends credentials; it is a critical action, so it needs a fresh passkey proof (`AUTH-062`).
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
@@ -359,18 +417,26 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // Banning ends the credentials; unbanning leaves none to end.
             if (banned) yield* users.revokeCredentials(id)
 
+            const audit = yield* AuditService
+            yield* audit.record({
+                action: banned ? 'ban' : 'unban',
+                actorId: actor.userId,
+                targetId: id,
+            })
+
             return updated
         }),
 
         setRole: Effect.fn('UserService.setRole')(function* (id, role) {
-            const stepUp = yield* StepUpService
-            // Granting a platform role is privilege; a fresh passkey proof is the price (`AUTH-062`, `SEC-070`).
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCapability(actor, 'user:set-role')
                 userRules.assertCanAdminister(actor)
             })
+
+            const stepUp = yield* StepUpService
+            // Granting a platform role is privilege; a fresh passkey proof is the price (`AUTH-062`, `SEC-070`).
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
 
             const roles = yield* RoleService
             if (!(yield* roles.isKnownPlatformRole(role))) {
@@ -393,17 +459,26 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // The session carries the role, so a role change ends it rather than waiting for expiry.
             yield* users.revokeCredentials(id)
 
+            const audit = yield* AuditService
+            yield* audit.record({
+                action: 'role-change',
+                actorId: actor.userId,
+                targetId: id,
+                detail: { from: current.role ?? 'user', to: role },
+            })
+
             return updated
         }),
 
         revokeSessions: Effect.fn('UserService.revokeSessions')(function* (id) {
-            const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCapability(actor, 'session:delete')
                 userRules.assertCanAdminister(actor)
             })
+
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
@@ -416,12 +491,13 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
         }),
 
         delete: Effect.fn('UserService.delete')(function* (id) {
-            const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
             })
+
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
@@ -432,6 +508,14 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             })
 
             yield* users.delete(id)
+
+            const audit = yield* AuditService
+            yield* audit.record({
+                action: 'user-deleted',
+                actorId: actor.userId,
+                targetId: id,
+                detail: { role: current.role ?? 'user' },
+            })
         }),
     }
 }

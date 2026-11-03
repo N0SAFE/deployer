@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
+
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** One recorded auth audit event, as the admin viewer reads it. */
 export const authAuditEventRowSchema = z.object({
@@ -25,41 +26,44 @@ export const auditFiltersSchema = z.object({
 	beforeId: z.coerce.number().int().positive().optional(),
 });
 
+const auditOps = standard.zod(authAuditEventRowSchema, "auditEvent");
+
+/** The page the viewer renders: a bounded slice plus whether older rows exist. */
+const auditPageSchema = z.object({
+	data: z.array(authAuditEventRowSchema),
+	meta: z.object({ limit: z.number().int(), hasMore: z.boolean() }),
+});
+
 /**
  * The audit log, newest first.
  *
  * `audit:read` guards it: the rows are what an operator needs after an incident, and they name actors and targets.
  */
-export const auditListContract = oc
-	.meta(openapi({ method: "GET", path: "/audit", tags: ["Audit"] }))
-	.input(
-		z.object({
-			query: auditFiltersSchema.extend({
+export const auditListContract = auditOps
+	.list()
+	.path("/audit")
+	.input((b) =>
+		b.query(
+			auditFiltersSchema.extend({
 				limit: z.coerce.number().int().min(1).max(200).default(50),
 			}),
-		}),
+		),
 	)
-	.output(
-		z.object({
-			data: z.array(authAuditEventRowSchema),
-			meta: z.object({ limit: z.number().int(), hasMore: z.boolean() }),
-		}),
-	);
+	.output(auditPageSchema)
+	.tags("Audit")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
 
-/**
- * The same rows as CSV (`AUTH-029`, `audit:export`).
- *
- * Bounded: 5000 rows per call, with `truncated` telling the caller to narrow the filters. A silent cap would make an
- * export that looks complete while the oldest matching events are missing.
- */
-export const auditExportContract = oc
-	.meta(openapi({ method: "GET", path: "/audit/export", tags: ["Audit"] }))
-	.input(
-		z.object({
-			query: auditFiltersSchema.extend({
+/** The same rows as CSV, bounded at 5000 with a `truncated` flag so a capped export never looks complete. */
+export const auditExportContract = auditOps
+	.list()
+	.path("/audit/export")
+	.input((b) =>
+		b.query(
+			auditFiltersSchema.extend({
 				limit: z.coerce.number().int().min(1).max(5000).default(1000),
 			}),
-		}),
+		),
 	)
 	.output(
 		z.object({
@@ -67,7 +71,10 @@ export const auditExportContract = oc
 			rows: z.number().int(),
 			truncated: z.boolean(),
 		}),
-	);
+	)
+	.tags("Audit")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
 
 /** The audit namespace the BFF delegates to `identity`. */
 export const auditContract = oc.router({

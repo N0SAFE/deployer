@@ -1,11 +1,12 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, CurrentActor } from "@deployer/effect-core";
-import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { AuditService } from "@identity/modules/audit/audit.service";
 
+import { RoleForbidden, RoleInvalid } from "./role.errors";
 import { RoleRepository, type RoleRepositoryShape, type RoleRow } from "./role.repository";
 import { RoleService } from "./role.service";
 
@@ -23,40 +24,143 @@ const roleRow = (overrides: Partial<RoleRow> = {}): RoleRow => ({
 });
 
 describe("RoleService", () => {
-	const list = vi.fn();
+	const repo = {
+		list: vi.fn(),
+		findById: vi.fn(),
+		create: vi.fn(),
+		update: vi.fn(),
+		delete: vi.fn(),
+		countUsersWithRole: vi.fn(),
+		isKnownPlatformRole: vi.fn(),
+		seed: vi.fn(),
+	};
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		list.mockImplementation(() => Effect.succeed([roleRow()]));
+		repo.list.mockImplementation(() => Effect.succeed([roleRow()]));
+		repo.isKnownPlatformRole.mockImplementation(() => Effect.succeed(false));
+		repo.create.mockImplementation(() => Effect.succeed(roleRow({ id: "new", isSystem: false, name: "auditor" })));
+		repo.update.mockImplementation(() => Effect.succeed(roleRow({ id: "role-2", isSystem: false })));
+		repo.delete.mockImplementation(() => Effect.void);
+		repo.countUsersWithRole.mockImplementation(() => Effect.succeed(0));
 	});
 
 	/** The service over a fake repository, run as one actor. */
-	const run = (actor: { userId: string; role: string }, scope?: "platform" | "project") =>
-		RoleService.live.list(scope).pipe(
-			Effect.provideService(RoleRepository, { list } as unknown as RoleRepositoryShape),
-			Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
-			// The port is in the service shape; this spec is about the permission gate, not the query.
-			Effect.provideService(DatabasePort, {} as never),
+	const run = <A, E>(
+		actor: Actor,
+		use: (roles: RoleService["Service"]) => Effect.Effect<
+			A,
+			E,
+			RoleRepository | CurrentActor | DatabasePort | AuditService
+		>,
+	): Effect.Effect<A, E> =>
+		Effect.gen(function* () {
+			const roles = yield* RoleService;
+			return yield* use(roles);
+		}).pipe(
+			Effect.provide(
+				Layer.mergeAll(
+					Layer.succeed(RoleService, RoleService.live as unknown as RoleService["Service"]),
+					Layer.succeed(RoleRepository, repo as unknown as RoleRepositoryShape),
+					Layer.succeed(CurrentActor, actor),
+					Layer.succeed(DatabasePort, {} as never),
+					Layer.succeed(AuditService, { record: () => Effect.void } as unknown as AuditService["Service"]),
+				),
+			),
 		);
 
 	it("refuses an actor without `role:read`", async () => {
-		const outcome = await Effect.runPromise(Effect.flip(run({ userId: "u1", role: "user" })));
+		const outcome = await Effect.runPromise(Effect.flip(run(Actor.user("u1", "user"), (r) => r.list(undefined))));
 
-		expect(outcome).toBeInstanceOf(ForbiddenError);
-		expect(list).not.toHaveBeenCalled();
+		expect(outcome).toBeInstanceOf(RoleForbidden);
+		expect(repo.list).not.toHaveBeenCalled();
 	});
 
 	it("returns the catalogue for an actor holding `role:read`, scoped when asked", async () => {
-		const rows = await Effect.runPromise(run({ userId: "u2", role: "viewer" }, "platform"));
+		const rows = await Effect.runPromise(run(Actor.user("u2", "viewer"), (r) => r.list("platform")));
 
 		expect(rows).toEqual([roleRow()]);
-		expect(list).toHaveBeenCalledWith("platform");
+		expect(repo.list).toHaveBeenCalledWith("platform");
 	});
 
-	it("asks for every scope when none is named", async () => {
-		await Effect.runPromise(run({ userId: "u3", role: "superAdmin" }));
+	describe("create", () => {
+		const body = {
+			name: "auditor",
+			rank: 1,
+			label: "Auditor",
+			description: null,
+			color: null,
+			permissions: ["audit:read"],
+		};
 
-		expect(list).toHaveBeenCalledWith(undefined);
+		it("refuses an actor without `role:write`", async () => {
+			const outcome = await Effect.runPromise(Effect.flip(run(Actor.user("u1", "operator"), (r) => r.create(body))));
+
+			expect(outcome).toBeInstanceOf(RoleForbidden);
+			expect(repo.create).not.toHaveBeenCalled();
+		});
+
+		it("refuses a rank at or above the creator's", async () => {
+			const outcome = await Effect.runPromise(
+				Effect.flip(run(Actor.user("a1", "admin"), (r) => r.create({ ...body, rank: 2 }))),
+			);
+
+			expect(outcome).toBeInstanceOf(RoleForbidden);
+		});
+
+		it("refuses a permission the creator does not hold", async () => {
+			// `admin` holds platform-admin but not the danger bundle, so a reveal permission is outside its capabilities.
+			const outcome = await Effect.runPromise(
+				Effect.flip(run(Actor.user("a1", "admin"), (r) => r.create({ ...body, permissions: ["platform.secret:reveal"] }))),
+			);
+
+			expect(outcome).toBeInstanceOf(RoleForbidden);
+			expect(repo.create).not.toHaveBeenCalled();
+		});
+
+		it("refuses a name that already exists", async () => {
+			repo.isKnownPlatformRole.mockImplementation(() => Effect.succeed(true));
+
+			const outcome = await Effect.runPromise(Effect.flip(run(Actor.user("a1", "admin"), (r) => r.create(body))));
+
+			expect(outcome).toBeInstanceOf(RoleInvalid);
+		});
+
+		it("creates a custom role below the creator's rank with permissions it holds", async () => {
+			const created = await Effect.runPromise(run(Actor.user("a1", "admin"), (r) => r.create(body)));
+
+			expect(created.name).toBe("auditor");
+			expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ name: "auditor", isSystem: false, scope: "platform" }));
+		});
+	});
+
+	it("refuses to edit a built-in role", async () => {
+		repo.findById.mockImplementation(() => Effect.succeed(roleRow({ isSystem: true })));
+
+		const outcome = await Effect.runPromise(
+			Effect.flip(run(Actor.user("a1", "superAdmin"), (r) => r.update("role-1", { label: "Nope" }))),
+		);
+
+		expect(outcome).toBeInstanceOf(RoleForbidden);
+	});
+
+	it("refuses to delete a role an account still holds", async () => {
+		repo.findById.mockImplementation(() => Effect.succeed(roleRow({ id: "role-2", isSystem: false, name: "auditor" })));
+		repo.countUsersWithRole.mockImplementation(() => Effect.succeed(2));
+
+		const outcome = await Effect.runPromise(
+			Effect.flip(run(Actor.user("a1", "admin"), (r) => r.remove("role-2"))),
+		);
+
+		expect(outcome).toBeInstanceOf(RoleInvalid);
+		expect(repo.delete).not.toHaveBeenCalled();
+	});
+
+	it("deletes an unused custom role", async () => {
+		repo.findById.mockImplementation(() => Effect.succeed(roleRow({ id: "role-2", isSystem: false, name: "auditor" })));
+
+		await Effect.runPromise(run(Actor.user("a1", "admin"), (r) => r.remove("role-2")));
+
+		expect(repo.delete).toHaveBeenCalledWith("role-2");
 	});
 });
-

@@ -1,13 +1,19 @@
 import { Context, Effect } from "effect";
 
 import { roleGrants } from "@deployer/auth/authz";
-import { ForbiddenError } from "@deployer/errors";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
+import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actorFromCurrent } from "@identity/core/utils/actor.utils";
 
-import { AuditRepository, type AuditPage, type AuditQuery, type AuditRow } from "./audit.repository";
+import {
+	AuditRepository,
+	type AuditPage,
+	type AuditQuery,
+	type AuditRow,
+	type NewAuditEvent,
+} from "./audit.repository";
 
 export type AuditExport = {
 	readonly csv: string;
@@ -16,6 +22,15 @@ export type AuditExport = {
 };
 
 export type AuditServiceShape = {
+	/**
+	 * Append one event from a use case.
+	 *
+	 * Not a capability: the producer is inside the service, not a caller. Failures are SWALLOWED — an audit write that
+	 * fails must not turn a successful role change into a 500, which would invite retrying the change (and write twice).
+	 */
+	readonly record: (
+		event: NewAuditEvent,
+	) => Effect.Effect<void, never, DatabasePort>;
 	readonly list: (
 		query: AuditQuery,
 	) => Effect.Effect<AuditPage, ForbiddenError, AuditRepository | CurrentActor | DatabasePort>;
@@ -29,7 +44,14 @@ const CSV_HEADER = ["id", "createdAt", "action", "actorId", "targetId", "ip", "u
 
 /** One CSV cell: quotes doubled, the field wrapped only when it carries a separator. */
 function cell(value: unknown): string {
-	const text = value === null || value === undefined ? "" : value instanceof Date ? value.toISOString() : String(value);
+	const text =
+		value === null || value === undefined
+			? ""
+			: value instanceof Date
+				? value.toISOString()
+				: typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+					? String(value)
+					: JSON.stringify(value);
 	return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
@@ -58,6 +80,11 @@ export function auditRowsToCsv(rows: readonly AuditRow[]): string {
  * taking the whole trail away is a wider disclosure than browsing a page of it.
  */
 const makeAuditService = (repository: AuditRepository["Service"]): AuditServiceShape => ({
+	record: (event): ReturnType<AuditServiceShape["record"]> =>
+		repository
+			.append(event)
+			.pipe(Effect.catchCause(() => Effect.logWarning(`audit write failed for "${event.action}"`))),
+
 	list: (query): ReturnType<AuditServiceShape["list"]> =>
 		Effect.gen(function* () {
 			const actor = actorFromCurrent(yield* CurrentActor);

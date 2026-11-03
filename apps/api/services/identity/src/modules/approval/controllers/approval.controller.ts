@@ -27,7 +27,7 @@ export class ApprovalController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const approvals = yield* ApprovalService;
-				return yield* serve(context)(approvals.request(input.body));
+				return yield* serve(context)(approvals.request(input));
 			});
 	}
 
@@ -58,7 +58,7 @@ export class ApprovalController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const approvals = yield* ApprovalService;
-				return yield* serve(context)(approvals.consume(input.body.actionHash));
+				return yield* serve(context)(approvals.consume(input.actionHash));
 			});
 	}
 }

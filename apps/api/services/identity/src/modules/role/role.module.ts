@@ -1,6 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { AuditDomainModule } from "@identity/modules/audit/audit.module";
 
 import { RoleController } from "./controllers/role.controller";
 import { RoleRepository } from "./role.repository";
@@ -14,6 +15,7 @@ import { RoleService } from "./role.service";
 export class RoleDomainModule extends createModuleContext(
 	{
 		controllers: [RoleController],
+		imports: [AuditDomainModule],
 		exports: [RoleService, RoleRepository],
 		providers: [
 			{ provide: RoleService, useValue: RoleService.live },

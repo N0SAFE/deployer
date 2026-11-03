@@ -1,6 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { AuditDomainModule } from "@identity/modules/audit/audit.module";
 import { StepUpDomainModule } from "@identity/modules/step-up/step-up.module";
 
 import { ApprovalRepository } from "./approval.repository";
@@ -11,7 +12,7 @@ import { ApprovalController } from "./controllers/approval.controller";
 export class ApprovalDomainModule extends createModuleContext(
 	{
 		controllers: [ApprovalController],
-		imports: [StepUpDomainModule],
+		imports: [StepUpDomainModule, AuditDomainModule],
 		providers: [
 			{ provide: ApprovalService, useValue: ApprovalService.live },
 			{ provide: ApprovalRepository, useValue: ApprovalRepository.live },
