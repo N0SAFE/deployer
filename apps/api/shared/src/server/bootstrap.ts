@@ -108,10 +108,29 @@ export async function createApiServerApp(rootModule: Type<unknown>): Promise<INe
 	mountLiveness(gateway);
 
 	const app = await NestFactory.create(rootModule, new ExpressAdapter(gateway), apiAppOptions());
+	applySecurityHeaders(app);
 	app.enableShutdownHooks();
 	await app.init();
 
 	return app;
+}
+
+/**
+ * Baseline response headers (`SEC-025`).
+ *
+ * The API answers JSON and the occasional auth HTML page, so these are the headers that are true for both:
+ * no MIME sniffing, no framing, and no referrer leaking a signed URL to a third party. There is deliberately no
+ * Content-Security-Policy here — the auth handler serves an interactive reference page, and a policy that permits it
+ * would be a policy in name only. HSTS belongs to the edge that terminates TLS, not to a process that also runs on
+ * plain HTTP in dev.
+ */
+function applySecurityHeaders(app: INestApplication): void {
+	app.use((_req: unknown, res: { setHeader: (name: string, value: string) => void }, next: () => void) => {
+		res.setHeader("X-Content-Type-Options", "nosniff");
+		res.setHeader("X-Frame-Options", "DENY");
+		res.setHeader("Referrer-Policy", "no-referrer");
+		next();
+	});
 }
 
 /** Build the graph WITHOUT an HTTP adapter, for a boot check. */

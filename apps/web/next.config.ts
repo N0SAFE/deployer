@@ -136,6 +136,29 @@ const apiUrl = new URL(envSchema.shape.API_URL.parse(process.env.API_URL));
 const noCheck = process.env.CHECK_ON_BUILD !== "true";
 
 const nextConfig: NextConfig = {
+  /**
+   * Baseline response headers (`SEC-025`).
+   *
+   * Deliberately NOT a Content-Security-Policy: Next injects inline bootstrap scripts, so a policy without per-request
+   * nonces either breaks the app or says `'unsafe-inline'` and protects nothing. CSP needs the nonce plumbing as its own
+   * change; these four headers are correct today and cannot break a page.
+   *
+   * HSTS is left to the edge (Traefik terminates TLS); asserting it from the app would be wrong on the HTTP dev stack.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
   experimental: {
     serverComponentsHmrCache: true,
     turbopackRustReactCompiler: true,

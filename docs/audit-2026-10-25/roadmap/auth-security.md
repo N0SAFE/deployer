@@ -512,7 +512,15 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: no helmet/`headers()`/CSP/HSTS/frame-ancestors/nosniff/Referrer-Policy; `images.dangerouslyAllowSVG: true` (`next.config.ts:193`); `/api/nest/:path*` rewrite forwards arbitrary paths to the API root (`next.config.ts:126-135`); `typescript.ignoreBuildErrors` defaults true unless `CHECK_ON_BUILD=true` (`:105,139`); web middleware debug-logs request headers incl. cookies (`WithHeaders.ts`); Traefik header middleware not applied to platform routes (preset I-13 is IDEA).
   - Do: Next `headers()` + API middleware + Traefik middleware on platform routes; disable `dangerouslyAllowSVG`; restrict rewrite; `CHECK_ON_BUILD` default true for prod; stop logging cookies.
   - Done when: response headers asserted by test SEC-041; prod build fails on type errors.
-  - Status: todo · Verified-in-code: unverified · Source: ops.md#R-10, ops.md#4 (P1-8), ops.md#1 (logging)
+  - Status: baseline headers done (2026-11-03); the rest todo · Verified-in-code: partial
+  - Progress (2026-11-03): the web app sets `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+    strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, a `Permissions-Policy` and `Cross-Origin-Opener-Policy:
+    same-origin` on every path; every API app sets `nosniff`, `DENY` and `Referrer-Policy: no-referrer` at the shared
+    bootstrap. CSP is deliberately NOT included: Next injects inline bootstrap scripts, so it needs per-request nonces
+    or it either breaks the app or permits `'unsafe-inline'` and protects nothing — its own change. HSTS stays with the
+    edge that terminates TLS. Remaining: CSP with nonces, `dangerouslyAllowSVG`, the `/api/nest` rewrite,
+    `ignoreBuildErrors`, the middleware's header debug log, and Traefik header middleware on platform routes.
+  - Source: ops.md#R-10, ops.md#4 (P1-8), ops.md#1 (logging)
 
 - [ ] `SEC-026` **Global request body-size limits** · FIX · P2 · S · Deps: none
   - Why/Problem: `bodyParser:false` and no explicit size limit anywhere (`app.config.ts:55`); uploadBundle has none.
