@@ -22,7 +22,7 @@ import {
 import { rule } from './user.service.utils'
 
 import type { UserQuery } from './user.service.types'
-import type { NewUser, User, UserPatch } from '../domain/user.types'
+import type { NewUser, SelfExportData, User, UserPatch } from '../domain/user.types'
 import type {
     UserFilter,
     UserPage,
@@ -45,6 +45,12 @@ export type UserServiceShape = {
     readonly count: (
         filter: UserFilter
     ) => Effect.Effect<number, UserFailure, Ambient | UserRepository | DatabasePort>
+    /** The caller's own data (`AUTH-032`). Scoped by the session; no capability involved. */
+    readonly exportSelf: () => Effect.Effect<
+        SelfExportData & { readonly exportedAt: Date; readonly user: User },
+        UserFailure,
+        Ambient | UserRepository | DatabasePort
+    >
     readonly findById: (
         id: string
     ) => Effect.Effect<User | null, UserFailure, Ambient | UserRepository | DatabasePort>
@@ -130,6 +136,20 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 userRules.assertCanAdminister(actor)
             })
             return yield* users.count(filter)
+        }),
+
+        exportSelf: Effect.fn('UserService.exportSelf')(function* () {
+            const actor = yield* CurrentActor
+            // A system actor has no "own data"; answering would mean picking someone else's.
+            if (actor.kind !== 'user') {
+                return yield* new UserForbidden({ reason: 'only a signed-in account can export its data' })
+            }
+
+            const self = yield* users.findById(actor.id)
+            if (self === null) return yield* new UserNotFound({ id: actor.id })
+
+            const data = yield* users.exportFor(actor.id)
+            return { exportedAt: new Date(), user: self, ...data }
         }),
 
         findById: Effect.fn('UserService.findById')(function* (id) {

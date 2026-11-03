@@ -33,6 +33,7 @@ function makeRepository() {
 		update: vi.fn(),
 		delete: vi.fn(),
 		revokeCredentials: vi.fn(),
+		exportFor: vi.fn(),
 	};
 	for (const fn of Object.values(repo)) fn.mockImplementation(() => Effect.succeed(undefined));
 	return repo;
@@ -77,6 +78,39 @@ describe("UserService", () => {
 
 	/** The domain error a use case failed with. */
 	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
+
+	describe("exportSelf", () => {
+		it("exports the caller's own data, including a session and a key", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow()));
+			repo.exportFor.mockReturnValue(
+				Effect.succeed({
+					sessions: [{ id: "s1", createdAt: new Date(), expiresAt: new Date(), ipAddress: null, userAgent: null, impersonatedBy: null }],
+					apiKeys: [{ id: "k1", name: "cli", createdAt: new Date(), expiresAt: null, lastUsedAt: null, enabled: true }],
+				}),
+			);
+
+			const result = await run(service.exportSelf(member));
+
+			expect(result.user.id).toBe("user-1");
+			expect(result.sessions).toHaveLength(1);
+			expect(result.apiKeys).toHaveLength(1);
+			// Scoped to the session's user: there is no id parameter to point elsewhere.
+			expect(repo.exportFor).toHaveBeenCalledWith("user-1");
+		});
+
+		it("refuses a system actor: it has no data of its own", async () => {
+			const effect = UserService.live.exportSelf().pipe(
+				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+				Effect.provideService(CurrentActor, Actor.system("scheduler")),
+				Effect.provideService(Correlation, { id: "test" }),
+				Effect.provideService(DatabasePort, {} as never),
+				Effect.provideService(StepUpService, { assertCritical: () => Effect.void, status: () => Effect.die(new Error("unused")) } as unknown as StepUpService["Service"]),
+			);
+
+			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.exportFor).not.toHaveBeenCalled();
+		});
+	});
 
 	describe("critical actions", () => {
 		it("refuses a role change when the session has no fresh passkey proof", async () => {

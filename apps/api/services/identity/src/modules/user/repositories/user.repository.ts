@@ -22,7 +22,7 @@ import type {
     UserListFilter,
     UserPage,
 } from './user.repository.types'
-import type { NewUser, User, UserPatch } from '../domain/user.types'
+import type { NewUser, SelfExportData, User, UserPatch } from '../domain/user.types'
 
 /** The repository contract, declared BEFORE the implementation. */
 export type UserRepositoryShape = {
@@ -56,6 +56,15 @@ export type UserRepositoryShape = {
      * A session carries the platform role, and an API key resolves to a session of its own, so neither can outlive a ban
      * or a role change — otherwise the change waits for the credential to expire.
      */
+    /**
+     * The caller's own sessions and API keys, for a data export (`AUTH-032`).
+     *
+     * Metadata only: `session.token` and `apikey.key` are credential material and are not selected at all, so no
+     * serialization mistake can leak them.
+     */
+    readonly exportFor: (
+        userId: string
+    ) => Effect.Effect<SelfExportData, UserRepositoryFailure, DatabasePort>
     readonly revokeCredentials: (
         id: string
     ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
@@ -86,6 +95,41 @@ function makeUserRepository(
     db: DatabaseShape['db']
 ): UserRepositoryShape {
     return {
+        exportFor: (userId: string) =>
+            attempt(async () => {
+                const [sessions, apiKeys] = await Promise.all([
+                    db
+                        .select({
+                            id: session.id,
+                            createdAt: session.createdAt,
+                            expiresAt: session.expiresAt,
+                            ipAddress: session.ipAddress,
+                            userAgent: session.userAgent,
+                            impersonatedBy: session.impersonatedBy,
+                        })
+                        .from(session)
+                        .where(eq(session.userId, userId))
+                        .orderBy(desc(session.createdAt)),
+                    db
+                        .select({
+                            id: apikey.id,
+                            name: apikey.name,
+                            createdAt: apikey.createdAt,
+                            expiresAt: apikey.expiresAt,
+                            lastUsedAt: apikey.lastRequest,
+                            enabled: apikey.enabled,
+                        })
+                        .from(apikey)
+                        .where(eq(apikey.referenceId, userId))
+                        .orderBy(desc(apikey.createdAt)),
+                ])
+
+                return {
+                    sessions,
+                    apiKeys: apiKeys.map((key) => ({ ...key, enabled: key.enabled ?? true })),
+                }
+            }),
+
         findById: (id: string) =>
             attempt(async () => {
                 const rows = await db

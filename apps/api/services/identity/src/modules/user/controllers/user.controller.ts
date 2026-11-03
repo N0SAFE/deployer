@@ -63,6 +63,22 @@ export class UserController {
             })
     }
 
+    /**
+     * The caller's own data (`AUTH-032`).
+     *
+     * `requireAuth()` is the whole authorization: the service scopes the read to the session's user, so there is no id
+     * to tamper with and no role that could widen it.
+     */
+    @Implement(userContract.exportSelf)
+    exportSelf() {
+        return procedure(userContract.exportSelf)
+            .use(requireAuth())
+            .effect(function* ({ context }) {
+                const users = yield* UserService
+                return yield* serve(context)(users.exportSelf())
+            })
+    }
+
     @Implement(userContract.create)
     create() {
         return procedure(userContract.create)

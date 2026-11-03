@@ -13,6 +13,11 @@ export const userEndpoints = {
   list: orpc.user.list,
   
   /**
+   * Export the CALLER's own data (`AUTH-032`). No id: the server scopes it to the session.
+   */
+  exportSelf: orpc.user.exportSelf,
+
+  /**
    * Find a single user by ID
    */
   findById: orpc.user.findById,

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 
+import { DataExportCard } from '@/components/account/data-export-card'
 import {
   ActiveSessionsCard,
   ApiKeysCard,
@@ -81,6 +82,8 @@ export default AuthDashboardSettingsAccount.SessionRoute(({ session }) => {
       <ApiKeysCard />
 
       <ConnectedAccountsCard />
+
+      <DataExportCard />
 
       {/* Timing Logger */}
       <PageTimingLogger pageName="Settings Account" />

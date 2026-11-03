@@ -92,4 +92,9 @@ export class UserDelegationController {
 	revokeSessions() {
 		return implement(userContract.revokeSessions).handler(({ input }) => this.client.revokeSessions(input));
 	}
+
+	@Implement(userContract.exportSelf)
+	exportSelf() {
+		return implement(userContract.exportSelf).handler(({ input }) => this.client.exportSelf(input));
+	}
 }

@@ -20,4 +20,29 @@ export type UserPatch = Partial<
   Pick<User, "name" | "email" | "emailVerified" | "role" | "banned">
 >;
 
+/** One session in a self-export. No token: this is a description of the credential, not the credential. */
+export type SelfSession = {
+  readonly id: string
+  readonly createdAt: Date
+  readonly expiresAt: Date
+  readonly ipAddress: string | null
+  readonly userAgent: string | null
+  readonly impersonatedBy: string | null
+}
+
+/** One API key in a self-export. No key material, no hash. */
+export type SelfApiKey = {
+  readonly id: string
+  readonly name: string | null
+  readonly createdAt: Date
+  readonly expiresAt: Date | null
+  readonly lastUsedAt: Date | null
+  readonly enabled: boolean
+}
+
+export type SelfExportData = {
+  readonly sessions: SelfSession[]
+  readonly apiKeys: SelfApiKey[]
+}
+
 export type { Actor } from "@identity/core/utils/actor.utils";

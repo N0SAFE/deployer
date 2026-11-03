@@ -72,5 +72,21 @@ export const settingsFixtures: FixtureMap = {
 	useLinkedAccounts: { empty: undefined, raw: accountResource('useLinkedAccounts', [], []) },
 	useAgents: { empty: undefined, raw: accountResource('useAgents', [], []) },
 	useAgentHosts: { empty: undefined, raw: accountResource('useAgentHosts', [], []) },
+	// A mutation hook: `mutate` is fire-and-forget, `mutateAsync` is what the download awaits.
+	useExportSelfData: {
+		empty: undefined,
+		raw: () => ({
+			mutate: () => undefined,
+			mutateAsync: () =>
+				Promise.resolve({
+					exportedAt: daysAgo(0),
+					user: adminUser(),
+					sessions: [],
+					apiKeys: [],
+				}),
+			isPending: false,
+			error: null,
+		}),
+	},
 	useTwoFactor: { empty: undefined, raw: () => ({ backupCodes: [], isBusy: false, error: null, enable: () => Promise.resolve(), disable: () => Promise.resolve(), regenerateBackupCodes: () => Promise.resolve(), clearBackupCodes: () => undefined }) },
 }

@@ -133,3 +133,12 @@ export function useUserActions() {
     },
   };
 }
+
+/**
+ * Download the caller's own data (`AUTH-032`).
+ *
+ * A mutation rather than a query because the response is a document to save, not state to cache.
+ */
+export function useExportSelfData() {
+  return useMutation(userEndpoints.exportSelf.mutationOptions({}))
+}
