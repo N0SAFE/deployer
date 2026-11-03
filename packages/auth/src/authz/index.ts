@@ -13,6 +13,7 @@ export {
 	SYSTEM_ROLES,
 	SYSTEM_ROLES_TABLE,
 	capabilitiesOfRole,
+	isPermission,
 	roleGrants,
 	type BundleName,
 	type Permission,

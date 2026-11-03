@@ -36,6 +36,7 @@ import {
 import { healthContract } from "@deployer/health-contracts";
 import {
 	analyticsContract,
+	approvalContract,
 	auditContract,
 	pushContract,
 	roleContract,
@@ -80,6 +81,7 @@ export function serviceSurface() {
 		user: userContract,
 		push: pushContract,
 		analytics: analyticsContract,
+		approval: approvalContract,
 		audit: auditContract,
 		role: roleContract,
 		stepUp: stepUpContract,

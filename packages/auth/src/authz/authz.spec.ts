@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { BUNDLES, PERMISSIONS, SYSTEM_ROLES, capabilitiesOfRole, roleGrants, type Permission } from "./definition";
 import { flattenGroups } from "./builder";
+import { BUNDLES, PERMISSIONS, SYSTEM_ROLES, capabilitiesOfRole, roleGrants, type Permission } from "./definition";
 import { can, decide } from "./evaluate";
 
 import type { CapabilitySet } from "./types";

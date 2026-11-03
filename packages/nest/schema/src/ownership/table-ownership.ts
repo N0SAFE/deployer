@@ -97,6 +97,8 @@ export const TABLE_OWNERSHIP: Readonly<Record<string, TableOwner>> = {
 	user_vapid_keys: "identity",
 	push_subscription: "identity",
 	role_rules: "identity",
+	access_requests: "identity",
+	access_request_votes: "identity",
 	auth_audit_events: "identity",
 	roles: "identity",
 	step_up_events: "identity",

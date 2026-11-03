@@ -39,7 +39,7 @@ export type PermissionOf<R extends ResourceMap> = {
 }[keyof R & string];
 
 /** `{ service: ["read", "deploy"], … }` — a set of declared permissions. */
-// eslint-disable-next-line @typescript-eslint/consistent-indexed-object-style -- mapped by the resource keys: each value's
+ 
 // actions are that resource's own union, which `Record` cannot express.
 export type PermissionGroupOf<R extends ResourceMap> = {
 	readonly [K in keyof R]?: readonly Extract<keyof R[K], string>[];
@@ -166,7 +166,7 @@ function defineActions(
 const actionsHelper: ActionsHelper = { actions: defineActions };
 
 /** The empty map a builder starts from: no index signature, so merging keeps the literal keys. */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-generated-empty-object-type -- `Record<string, never>` would erase merged keys
+// eslint-disable-next-line @typescript-eslint/no-generated-empty-object-type -- `Record<string, never>` would erase merged keys
 type EmptyMap = Record<never, never>;
 
 export class AuthzBuilder<

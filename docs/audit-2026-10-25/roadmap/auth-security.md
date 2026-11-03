@@ -782,7 +782,18 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: an approval for "deploy v1.2 to prod" must not be reusable for "deploy v9 to prod". Design §6.1, D8. Concrete design for `IDEA-023`/`IDEA-042`/I-18.
   - Do: `Require Approval{count, approverRole, excludeRequester, ttl}`; gate returns `ApprovalRequired{requestId}` and creates `access_requests(kind='approval', actionHash=sha256(procedure,resource,inputDigest))`; approvers hold `approval:decide` for the scope, never the requester, approve with a passkey assertion (`assertionHash` stored); requester retries (web retries automatically); `evaluate` finds a matching approval and consumes it atomically, single use, TTL 15 min; solo mode degrades to StepUp(passkey) + Reason + Cooldown(60 s); preset auto-suggests `team` at ≥2 humans; applied to prod deploy, prod exec, `secret:reveal`, `node:revoke`, `project:delete`.
   - Done when: P-APPROVAL (SEC-097) green; a replayed approval is rejected.
-  - Status: todo · Verified-in-code: no (design) · Source: authz-authn-design.md §6.1
+  - Status: ledger + decide/consume done (2026-11-03); not yet wired into guards · Verified-in-code: partial
+  - Progress (2026-11-03): **the ledger exists.** `access_requests` + `access_request_votes` (migration `0045`), with
+    `POST /approvals` (any signed-in account may ASK; the capability is checked against the catalog so consent is never
+    recorded for a permission nothing enforces), `GET /approvals` (`approval:read`), `POST /approvals/{id}/decide`
+    (`approval:approve` + fresh passkey + never the requester + still pending + unexpired; a deny closes immediately, an
+    approve closes at quorum counted over DISTINCT approvers via the vote primary key) and `POST /approvals/consume`
+    (one `UPDATE … WHERE status='approved' AND action_hash=$h AND expires_at>now RETURNING`, so a replayed approval is
+    rejected by the database, not by a read-then-write). New catalog resource `approval {request, read, approve}`;
+    `platform-admin` decides, `platform-read` sees the queue. Remaining: the `Require Approval` verdict in the guardrail
+    engine (`SEC-069`) that creates these rows and consumes them inside the action, the passkey `assertionHash`, and the
+    solo-mode degradation.
+  - Source: authz-authn-design.md §6.1
   - Decision (2026-10-26): `DEC-AUTH-16` accepted: one-person installs use preset `solo` (step-up + reason + cooldown instead of a second approver); suggest `team` at >= 2 humans.
 - [ ] `SEC-073` **Break-glass / just-in-time elevation** · NEW · P2 · L · Deps: `SEC-072`,`SEC-054`
   - Why/Problem: standing powerful roles should be minimal; elevation is a recorded, expiring grant. Design §6.2. Concrete design for `IDEA-025`/I-06.

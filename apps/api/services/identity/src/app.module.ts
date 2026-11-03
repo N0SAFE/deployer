@@ -22,6 +22,7 @@ import {
 import { DatabasePortModule } from '@identity/core/database/database.module'
 
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
+import { ApprovalDomainModule } from './modules/approval/approval.module'
 import { AuditDomainModule } from './modules/audit/audit.module'
 import { RoleSeedModule } from './modules/role/role-seed.module'
 import { StepUpDomainModule } from './modules/step-up/step-up.module'
@@ -93,6 +94,7 @@ export class IdentityServiceModule extends createModuleContext({
         UserDomainModule,
         PushDomainModule,
         AnalyticsDomainModule,
+        ApprovalDomainModule,
         AuditDomainModule,
         RoleDomainModule,
         RoleSeedModule,

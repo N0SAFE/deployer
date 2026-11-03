@@ -20,6 +20,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { AnalyticsDelegationController } from "./generated/analytics.delegation";
+import { ApprovalDelegationController } from "./generated/approval.delegation";
 import { AuditDelegationController } from "./generated/audit.delegation";
 import { ClusterDelegationController } from "./generated/cluster.delegation";
 import { DeploymentDelegationController } from "./generated/deployment.delegation";
@@ -43,6 +44,7 @@ import { UserDelegationController } from "./generated/user.delegation";
 export class DelegationModule extends createModuleContext({
 	controllers: [
 		AnalyticsDelegationController,
+		ApprovalDelegationController,
 		AuditDelegationController,
 		ClusterDelegationController,
 		DeploymentDelegationController,

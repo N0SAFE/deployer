@@ -16,6 +16,11 @@ const builder = createAuthzBuilder()
 			read: { risk: "read", description: "See platform settings." },
 			manage: { risk: "admin", description: "Change platform settings." },
 		}),
+		// Asking for approval is deliberately NOT a capability: every signed-in account may ask for what it cannot do.
+		approval: actions({
+			read: { risk: "read", description: "See pending approval requests." },
+			approve: { risk: "admin", description: "Approve or deny someone else's request." },
+		}),
 		audit: actions({
 			read: { risk: "read", description: "Read the audit log." },
 			// Deliberately NOT in `platform-read`: exporting the whole trail is a wider disclosure than browsing a page
@@ -139,6 +144,7 @@ const builder = createAuthzBuilder()
 	}))
 	.bundles(({ permissions }) => ({
 		"platform-read": permissions({
+			approval: ["read"],
 			settings: ["read"],
 			audit: ["read"],
 			user: ["list", "get"],
@@ -151,6 +157,7 @@ const builder = createAuthzBuilder()
 			mesh: ["read"],
 		}),
 		"platform-admin": permissions({
+			approval: ["read", "approve"],
 			audit: ["export"],
 			settings: ["manage"],
 			role: ["write", "assign"],
@@ -296,6 +303,14 @@ export const ROLE_RANK = authz.ranks;
 export const SYSTEM_ROLES_TABLE = authz.roleTable;
 /** The transport view Better Auth (and the admin middleware) receive. */
 export const STATEMENT = authz.statement;
+
+/**
+ * Whether a string names a declared permission.
+ *
+ * The union is compile-time; a permission that arrives as data (an approval request names the capability it is for) has
+ * to be checked against the same declaration, or the ledger would record grants to a capability nothing can enforce.
+ */
+export const isPermission = (value: string): value is Permission => Object.hasOwn(PERMISSIONS, value);
 
 // `role` is dynamic (a stored `user.role`): an unknown name must answer "no capabilities", not fail to type-check.
 export const capabilitiesOfRole = (role: string): readonly Permission[] =>
