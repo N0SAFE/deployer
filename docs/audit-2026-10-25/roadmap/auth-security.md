@@ -682,8 +682,10 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Progress (2026-11-03): **the storage half is in and used**. `roles` (migration `0043`, scoped unique index, permission array, `is_system`) is seeded idempotently at boot from `SYSTEM_ROLES_TABLE`; `GET /roles` serves it; the users page's role picker and filter render the SERVER's catalogue instead of a hardcoded list; and `user.setRole` / `user.create` refuse a role the table does not know (`UserInvalid`), so a renamed role cannot be written as a string nothing interprets. The catalogue is now MANAGED, not just read: `POST/PATCH/DELETE /roles` (`role:write`) create, edit and delete custom
 roles, capped independently by rank (`<` the editor's) and by permission subset (`⊆` the editor's capabilities) so
 "manage roles" never becomes "grant myself"; built-ins are immutable and a role with holders cannot be deleted. Role
-writes are audited. Still missing: `authz_epoch` + `NOTIFY` (`SEC-055`), the one-transaction `Grants.assign/revoke`, and
-deleting the last-owner path.
+writes are audited. The write is now ATOMIC: `applySecurityChange` updates the row and deletes the sessions/keys the change invalidates in
+one transaction, so a demotion or a ban can never commit while a credential with the old authority survives. Still
+missing: a named `Grants` service (the seam is a repository method today), the role-table check in the same transaction,
+`authz_epoch` + `NOTIFY` (`SEC-055`), and the last-owner path.
 
 #### Resolvers, `Authz` service, gate, annotation
 - [ ] `SEC-055` **`PermissionResolver`: grant resolution, per-request memo, process cache with epoch + NOTIFY, fail closed** · NEW · P0 · M · Deps: `SEC-050`,`SEC-053`
@@ -973,8 +975,10 @@ deleting the last-owner path.
   - Progress (2026-11-03): **the storage half is in and used**. `roles` (migration `0043`, scoped unique index, permission array, `is_system`) is seeded idempotently at boot from `SYSTEM_ROLES_TABLE`; `GET /roles` serves it; the users page's role picker and filter render the SERVER's catalogue instead of a hardcoded list; and `user.setRole` / `user.create` refuse a role the table does not know (`UserInvalid`), so a renamed role cannot be written as a string nothing interprets. The catalogue is now MANAGED, not just read: `POST/PATCH/DELETE /roles` (`role:write`) create, edit and delete custom
 roles, capped independently by rank (`<` the editor's) and by permission subset (`⊆` the editor's capabilities) so
 "manage roles" never becomes "grant myself"; built-ins are immutable and a role with holders cannot be deleted. Role
-writes are audited. Still missing: `authz_epoch` + `NOTIFY` (`SEC-055`), the one-transaction `Grants.assign/revoke`, and
-deleting the last-owner path.
+writes are audited. The write is now ATOMIC: `applySecurityChange` updates the row and deletes the sessions/keys the change invalidates in
+one transaction, so a demotion or a ban can never commit while a credential with the old authority survives. Still
+missing: a named `Grants` service (the seam is a repository method today), the role-table check in the same transaction,
+`authz_epoch` + `NOTIFY` (`SEC-055`), and the last-owner path.
 - [ ] `AUTH-053` **Front the Better Auth admin plugin: `before` hook delegating to `Authz.require`; remove raw `set-role`** · FIX · P1 · M · Deps: `SEC-054`,`SEC-057`
   - Priority-review (2026-10-26): demoted P0 -> P1: AUTH-006 (P0) closes the admin->superAdmin hole interim; this is the final design route via Authz.require. Do it after SEC-054/057 land; AUTH-044 tests AUTH-006 meanwhile.
   - Why/Problem: BA `set-role` has no hierarchy; admin can self-promote or act on superAdmin. Design §4.1, §7. Closes `AUTH-006` by consequence.

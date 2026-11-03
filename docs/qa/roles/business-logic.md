@@ -33,6 +33,7 @@ accounts would silently deny. Role writes are audited (`role-created/updated/del
 ## What is still missing
 
 - `authz_epoch` (+ `LISTEN/NOTIFY`): a demotion is visible within the 60 s cookie-cache window today, not instantly.
-- `Grants.assign/revoke` writing `roles` + `user.role` in ONE transaction: today `user.setRole` writes the projection and
-  the role check reads the table, in two statements.
+- `Grants.assign/revoke` as a named service: the WRITE is now atomic (`applySecurityChange` commits the row and deletes
+  the sessions/keys it invalidates in one transaction), but the role-table check is still a read in a separate statement
+  and the seam is a repository method rather than a `Grants` service.
 - The last-owner guard for project owners (`SEC-081`); the last-`superAdmin` guard exists for self-delete.

@@ -348,18 +348,18 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             if (Object.keys(next).length === 0) return current
 
-            const updated = yield* users.update(id, next)
-
             // A role or a ban lives in the session as well as the row: end the credentials, or the change waits for
-            // them to expire (AUTH-013). A self-service edit never reaches here with either field.
+            // them to expire (AUTH-013). A self-service edit never reaches here with either field, and the row plus its
+            // credentials commit in one transaction.
             const roleChanged =
                 next.role !== undefined && next.role !== current.role
             const banChanged =
                 next.banned !== undefined &&
                 next.banned !== (current.banned ?? false)
-            if (roleChanged || banChanged) {
-                yield* users.revokeCredentials(id)
-            }
+            const updated =
+                roleChanged || banChanged
+                    ? yield* users.applySecurityChange(id, next)
+                    : yield* users.update(id, next)
 
             const audit = yield* AuditService
             if (roleChanged) {
@@ -415,9 +415,8 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             if ((current.banned ?? false) === banned) return current
 
-            const updated = yield* users.update(id, { banned })
-            // Banning ends the credentials; unbanning leaves none to end.
-            if (banned) yield* users.revokeCredentials(id)
+            // Banning ends the credentials in the SAME transaction as the row; unbanning re-enables sign-in.
+            const updated = yield* users.applySecurityChange(id, { banned })
 
             const audit = yield* AuditService
             yield* audit.record({
@@ -457,9 +456,8 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             if (current.role === role) return current
 
-            const updated = yield* users.update(id, { role })
-            // The session carries the role, so a role change ends it rather than waiting for expiry.
-            yield* users.revokeCredentials(id)
+            // One transaction: the row and the credentials it invalidates commit together (`SEC-054`).
+            const updated = yield* users.applySecurityChange(id, { role })
 
             const audit = yield* AuditService
             yield* audit.record({

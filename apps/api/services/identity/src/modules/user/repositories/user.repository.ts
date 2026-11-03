@@ -49,6 +49,17 @@ export type UserRepositoryShape = {
         id: string,
         patch: UserPatch
     ) => Effect.Effect<User, UserRepositoryFailure, DatabasePort>
+    /**
+     * Update a row AND end the credentials the change invalidates, in ONE transaction (`SEC-054`).
+     *
+     * A session carries the role and a key resolves to one, so a demotion or a ban that commits while its credentials
+     * survive leaves a live credential with the OLD authority. Two statements would leave exactly that window; one
+     * transaction closes it.
+     */
+    readonly applySecurityChange: (
+        id: string,
+        patch: UserPatch
+    ) => Effect.Effect<User, UserRepositoryFailure, DatabasePort>
     readonly delete: (id: string) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
     /**
      * Ends every credential a user holds: their sessions and their API keys.
@@ -92,6 +103,18 @@ export class UserRepository extends Context.Service<
     /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
     static readonly live = serviceOver(DatabasePort, ({ db }) => makeUserRepository(db));
 
+}
+
+/** The column set one patch maps to. Shared by `update` and the atomic `applySecurityChange`. */
+function userPatchSet(patch: UserPatch) {
+    return {
+        ...(patch.name === undefined ? {} : { name: patch.name }),
+        ...(patch.email === undefined ? {} : { email: patch.email }),
+        ...(patch.emailVerified === undefined ? {} : { emailVerified: patch.emailVerified }),
+        ...(patch.role === undefined ? {} : { role: patch.role }),
+        ...(patch.banned === undefined ? {} : { banned: patch.banned }),
+        updatedAt: new Date(),
+    }
 }
 
 /** Drizzle implementation over one database handle. */
@@ -233,24 +256,7 @@ function makeUserRepository(
             attempt(async () => {
                 const rows = await db
                     .update(user)
-                    .set({
-                        ...(patch.name === undefined
-                            ? {}
-                            : { name: patch.name }),
-                        ...(patch.email === undefined
-                            ? {}
-                            : { email: patch.email }),
-                        ...(patch.emailVerified === undefined
-                            ? {}
-                            : { emailVerified: patch.emailVerified }),
-                        ...(patch.role === undefined
-                            ? {}
-                            : { role: patch.role }),
-                        ...(patch.banned === undefined
-                            ? {}
-                            : { banned: patch.banned }),
-                        updatedAt: new Date(),
-                    })
+                    .set(userPatchSet(patch))
                     .where(eq(user.id, id))
                     .returning()
 
@@ -292,6 +298,29 @@ function makeUserRepository(
                     .set({ password: passwordHash, updatedAt: new Date() })
                     .where(eq(account.id, row.id))
             }),
+
+        applySecurityChange: (id: string, patch: UserPatch) =>
+            attempt(() =>
+                db.transaction(async (tx) => {
+                    const rows = await tx
+                        .update(user)
+                        .set(userPatchSet(patch))
+                        .where(eq(user.id, id))
+                        .returning()
+
+                    const row = rows[0]
+                    if (row === undefined) throw new Error(`user "${id}" was not found`)
+
+                    // A role change invalidates every session; a ban additionally invalidates every key. An unban
+                    // invalidates nothing, so signing back in still works.
+                    if (patch.role !== undefined || patch.banned === true) {
+                        await tx.delete(session).where(eq(session.userId, id))
+                        await tx.delete(apikey).where(eq(apikey.referenceId, id))
+                    }
+
+                    return toUser(row)
+                }),
+            ),
 
         revokeCredentials: (id: string) =>
             attempt(async () => {

@@ -34,12 +34,14 @@ function makeRepository() {
 		count: vi.fn(),
 		insert: vi.fn(),
 		update: vi.fn(),
+		applySecurityChange: vi.fn(),
 		delete: vi.fn(),
 		revokeCredentials: vi.fn(),
 		exportFor: vi.fn(),
 		countByRole: vi.fn(),
 	};
 	for (const fn of Object.values(repo)) fn.mockImplementation(() => Effect.succeed(undefined));
+	repo.applySecurityChange.mockImplementation((id: string, patch: object) => Effect.succeed(userRow({ id, ...patch })));
 	return repo;
 }
 
@@ -502,9 +504,9 @@ describe("UserService", () => {
 
 		it("lets a superAdmin grant any role, including its own", async () => {
 			await run(service.update(root, "user-1", { role: "admin" }, {}));
-			expect(repo.update).toHaveBeenCalledWith("user-1", { role: "admin" });
+			expect(repo.applySecurityChange).toHaveBeenCalledWith("user-1", expect.objectContaining({ role: "admin" }));
 
-			expect(repo.update).toHaveBeenCalledTimes(1);
+			expect(repo.update).not.toHaveBeenCalled();
 			await run(service.update(root, "user-2", { role: "superAdmin" }, {}));
 		});
 
@@ -513,7 +515,8 @@ describe("UserService", () => {
 
 			await run(service.update(admin, "user-1", { role: "operator" }, {}));
 
-			expect(repo.revokeCredentials).toHaveBeenCalledWith("user-1");
+			// Row + credentials in one transaction (`SEC-054`).
+			expect(repo.applySecurityChange).toHaveBeenCalledWith("user-1", expect.objectContaining({ role: "operator" }));
 		});
 
 		it("leaves the sessions alone when the patch changes no credential", async () => {
@@ -521,7 +524,7 @@ describe("UserService", () => {
 
 			await run(service.update(root, "user-1", { name: "Ada Lovelace" }, {}));
 
-			expect(repo.revokeCredentials).not.toHaveBeenCalled();
+			expect(repo.applySecurityChange).not.toHaveBeenCalled();
 		});
 
 		it("conflicts on an email another account holds, checking it excluding this user", async () => {
@@ -544,11 +547,10 @@ describe("UserService", () => {
 	describe("setBanned", () => {
 		it("bans another user", async () => {
 			repo.findById.mockReturnValue(Effect.succeed(userRow()));
-			repo.update.mockReturnValue(Effect.succeed(userRow({ banned: true })));
 
 			await run(service.setBanned(admin, "user-1", true));
 
-			expect(repo.update).toHaveBeenCalledWith("user-1", { banned: true });
+			expect(repo.applySecurityChange).toHaveBeenCalledWith("user-1", { banned: true });
 		});
 
 		it("does not write when the user is already in the requested state", async () => {
@@ -559,18 +561,20 @@ describe("UserService", () => {
 			expect(repo.update).not.toHaveBeenCalled();
 		});
 
-		it("ends the target's sessions and keys when banning, and leaves them alone when unbanning", async () => {
+		it("revokes credentials inside the same transaction when banning, and not when unbanning", async () => {
 			repo.findById.mockReturnValue(Effect.succeed(userRow()));
-			repo.update.mockReturnValue(Effect.succeed(userRow({ banned: true })));
 
 			await run(service.setBanned(admin, "user-1", true));
-			expect(repo.revokeCredentials).toHaveBeenCalledWith("user-1");
+			// The repository decides whether the transaction also deletes sessions/keys; the service must not do it in a
+			// second statement.
+			expect(repo.applySecurityChange).toHaveBeenCalledWith("user-1", { banned: true });
+			expect(repo.revokeCredentials).not.toHaveBeenCalled();
 
-			repo.revokeCredentials.mockClear();
+			repo.applySecurityChange.mockClear();
 			repo.findById.mockReturnValue(Effect.succeed(userRow({ banned: true })));
-			repo.update.mockReturnValue(Effect.succeed(userRow({ banned: false })));
 
 			await run(service.setBanned(admin, "user-1", false));
+			expect(repo.applySecurityChange).toHaveBeenCalledWith("user-1", { banned: false });
 			expect(repo.revokeCredentials).not.toHaveBeenCalled();
 		});
 
@@ -632,7 +636,8 @@ describe("UserService", () => {
 				name: "ban",
 				call: (actor: Acting, id: string) => service.setBanned(actor, id, true),
 				written: () => {
-					expect(repo.update).toHaveBeenCalledWith("target-1", { banned: true });
+					// Row and credentials commit together (`SEC-054`).
+					expect(repo.applySecurityChange).toHaveBeenCalledWith("target-1", { banned: true });
 				},
 			},
 			{
