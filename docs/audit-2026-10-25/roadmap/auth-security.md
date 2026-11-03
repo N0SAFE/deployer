@@ -129,7 +129,16 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Why/Problem: no change-password, forgot/reset, email verification or change-email (`sendResetPassword`/`sendVerificationEmail` absent); no mail transport. Needs a "mail not configured" operator path.
   - Do: SMTP/Resend adapter (pluggable), change-password (fresh session), reset, verify email; admin-set temporary password when no mail transport.
   - Done when: a user can reset a forgotten password end to end; without mail, an admin can set a temporary password.
-  - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (core), auth.md#4 (11)
+  - Status: reset + transport done (2026-11-03); verification/change-email pending · Verified-in-code: partial
+  - Progress (2026-11-03): **forgot → reset works end to end, without a provider dependency.** `MAIL_WEBHOOK_URL` is one
+    JSON relay (`{to, subject, text, kind}`), so Resend/Postmark/a sidecar plug in without this package knowing their API;
+    without it, development logs the message (a reset link nobody can read is a dead end) and production returns NO sink,
+    which keeps the endpoint's answer identical (no account enumeration) while nobody is told an email was sent.
+    `emailAndPassword.sendResetPassword` uses Better Auth's own token/redirect; `/auth/forgot-password` and
+    `/auth/reset-password` are the pages, and sign-in links to them. Remaining: email verification and change-email (both
+    need the same sink plus `emailVerification` wiring), and the admin-set temporary password path for deployments with no
+    mail at all (`user.setPassword` already exists behind `user:set-password`).
+  - Source: auth.md#1 (core), auth.md#4 (11)
 
 - [ ] `AUTH-016` **Setup claim token bound to a passkey (replace default-admin bootstrap)** · NEW · P1 · L · Deps: `AUTH-005`,`AUTH-018`
   - Why/Problem: bootstrap relies on default admin/password; best-in-class #12 proposes a one-time claim token printed in the operator terminal, consumed at first superadmin creation, with immediate passkey enrolment and recovery kit (SETUP owns the wizard; recovery kit I-08 in IDEA).

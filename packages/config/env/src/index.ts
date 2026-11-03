@@ -190,6 +190,8 @@ export const apiEnvSchema = zod
         AUTH_BASE_DOMAIN: zod.string().optional(),
         // WebAuthn relying-party coordinates. The RP ID must be the PARENT domain (the page runs on the web origin,
         // the API answers on `api.<domain>`); pin both when the public hostnames do not follow AUTH_BASE_DOMAIN.
+        // HTTP relay for outbound mail (`AUTH-015`). Absent means no transport: production sends nothing.
+        MAIL_WEBHOOK_URL: zod.string().url().optional(),
         PASSKEY_RPID: zod.string().optional(),
         PASSKEY_ORIGIN: zod.string().optional(),
         // GitHub sign-in. The factory only registers the provider when both are present.

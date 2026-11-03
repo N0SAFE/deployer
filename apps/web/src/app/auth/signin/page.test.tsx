@@ -94,6 +94,9 @@ vi.mock("@/routes", () => ({
       Link: ({ children }: { children: React.ReactNode }) => <a href="/auth/signup">{children}</a>,
     },
   ),
+  AuthForgotPassword: Object.assign(vi.fn(() => "/auth/forgot-password"), {
+    Link: ({ children }: { children: React.ReactNode }) => <a href="/auth/forgot-password">{children}</a>,
+  }),
   AuthSignin: Object.assign(
     vi.fn((_params: unknown = {}, search: Record<string, string | undefined> = {}) => {
       const qs = new URLSearchParams();

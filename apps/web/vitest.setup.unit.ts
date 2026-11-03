@@ -228,6 +228,12 @@ vi.mock('@/routes', () => {
         AuthDashboardOrganizationsNew: createRouteMock('AuthDashboardOrganizationsNew'),
         AuthDashboardOrganizationsOrganizationId: createRouteMock('AuthDashboardOrganizationsOrganizationId'),
         Home: createRouteMock('Home'),
+        AuthForgotPassword: createRouteMock('/auth/forgot-password'),
+        AuthResetPassword: createRouteMock('/auth/reset-password'),
+        AuthDashboardSettingsApprovals: createRouteMock('/dashboard/settings/approvals'),
+        AuthDashboardSettingsRoles: createRouteMock('/dashboard/settings/roles'),
+        AuthDashboardSettingsAudit: createRouteMock('/dashboard/settings/audit'),
+        Invite: createRouteMock('/invite'),
         
         // API route functions
         getApiServerHealth: vi.fn().mockReturnValue('/api/server/health'),

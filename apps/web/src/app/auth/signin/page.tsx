@@ -28,6 +28,7 @@ import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { setupDestinationUrl } from '@/lib/setup-url'
 import { PageTimingLogger } from '@/lib/timing'
 import { AuthSignup } from '@/routes'
+import { AuthForgotPassword } from '@/routes'
 
 import { PasswordInput } from '../_components/password-input'
 import { devConveniencesEnabled, signInErrorHint } from '../_utils/dev-only'
@@ -339,6 +340,12 @@ export default function SignInPage() {
                                         </div>
                                     )}
                                 </form.Field>
+
+                                <div className="flex justify-end">
+                                    <AuthForgotPassword.Link className="text-muted-foreground text-sm hover:underline">
+                                        Forgot password?
+                                    </AuthForgotPassword.Link>
+                                </div>
 
                                 <form.Field name="password">
                                     {(field) => (

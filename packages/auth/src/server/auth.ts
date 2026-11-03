@@ -7,6 +7,8 @@ import { auditEventFromRequest, type AuthAuditSink } from "../audit";
 
 import type { StepUpSink } from "./plugins/step-up";
 
+import type { MailSink } from "../mail";
+
 import { buildTrustedOrigins } from "./origins";
 import {
     deployerUserSchemaPlugin,
@@ -41,6 +43,8 @@ export interface AuthFactoryEnv {
     GITHUB_CLIENT_ID?: string;
     GITHUB_CLIENT_SECRET?: string;
     /** Pins the WebAuthn relying-party ID; defaults to `AUTH_BASE_DOMAIN` without its leading dot. */
+    /** HTTP relay for outbound mail (`AUTH-015`); absent means no transport. */
+    MAIL_WEBHOOK_URL?: string;
     PASSKEY_RPID?: string;
     /** Pins the WebAuthn origin(s), comma-separated; defaults to `APP_URL`. */
     PASSKEY_ORIGIN?: string;
@@ -62,6 +66,11 @@ export interface AuthFactoryOptions {
      * Whether a session holds a fresh passkey proof (`AUTH-067`). Impersonation is refused without one.
      */
     readonly hasStepUp?: (sessionId: string) => Promise<boolean>;
+    /**
+     * Outbound mail (`AUTH-015`). Absent means the deployment has no transport: password reset is still callable, but the
+     * message goes nowhere, so a caller must not tell the user "check your inbox".
+     */
+    readonly mail?: MailSink;
 }
 
 /** Request-derived values the factory computes and the config builder consumes. */
@@ -193,6 +202,22 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // mint a user, and `role` below was writable by anyone.
             enabled: true,
             disableSignUp: true,
+            ...(options.mail === undefined
+                ? {}
+                : {
+                      /**
+                       * The link is Better Auth's own, so the token, expiry and redirect handling stay theirs. We only
+                       * decide the wording and the transport.
+                       */
+                      sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
+                          await options.mail?.send({
+                              to: user.email,
+                              subject: "Reset your Deployer password",
+                              text: `Someone asked to reset the password for this account.\n\n${url}\n\nIf it was not you, ignore this message; the link expires on its own.`,
+                              kind: "password-reset",
+                          });
+                      },
+                  }),
         },
         // User columns live in `deployerUserSchemaPlugin` (a server plugin, linked to the client by
         // `deployerUserSchemaClient`): the DB schema file is GENERATED, so the plugin is what keeps the columns across a

@@ -231,6 +231,11 @@
                 "import": "./dist/production/esm/adapters/better-auth/plugins/index.mjs",
                 "require": "./dist/production/cjs/adapters/better-auth/plugins/index.js"
             }
+        },
+        "./mail": {
+            "types": "./dist/types/mail/index.d.ts",
+            "import": "./dist/esm/mail/index.mjs",
+            "require": "./dist/cjs/mail/index.js"
         }
     },
     "scripts": {
