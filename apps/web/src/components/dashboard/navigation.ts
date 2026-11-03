@@ -54,6 +54,7 @@ import {
   AuthDashboardSettings,
   AuthDashboardSettingsAccount,
   AuthDashboardSettingsApprovals,
+  AuthDashboardSettingsRoles,
   AuthDashboardSettingsAudit,
   AuthDashboardSettingsNode,
   AuthDashboardSettingsUsers,
@@ -352,6 +353,14 @@ export const NAV_GROUPS: NavGroup[] = [
         adminOnly: true,
         hint: 'Platform users & roles',
         keywords: 'users accounts roles permissions ban invite access admin',
+      },
+      {
+        title: 'Roles',
+        url: AuthDashboardSettingsRoles(),
+        icon: Users,
+        adminOnly: true,
+        hint: 'Built-in and custom roles',
+        keywords: 'roles permissions catalogue custom access',
       },
       {
         title: 'Approvals',

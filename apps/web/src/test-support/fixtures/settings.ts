@@ -88,6 +88,19 @@ export const settingsFixtures: FixtureMap = {
 			error: null,
 		}),
 	},
+	useManagedRoles: {
+		empty: { data: [] },
+		populated: {
+			data: [
+				{ id: 'seeded-superAdmin', name: 'superAdmin', scope: 'platform', rank: 3, label: 'Super Admin', description: null, color: 'red', isSystem: true, permissions: ['role:read'] },
+				{ id: 'seeded-admin', name: 'admin', scope: 'platform', rank: 2, label: 'Admin', description: null, color: 'orange', isSystem: true, permissions: ['role:read'] },
+				{ id: 'custom-auditor', name: 'auditor', scope: 'platform', rank: 1, label: 'Auditor', description: 'Reads the log', color: null, isSystem: false, permissions: ['audit:read'] },
+			],
+		},
+	},
+	useCreateRole: { empty: undefined, raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }) },
+	useUpdateRole: { empty: undefined, raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }) },
+	useDeleteRole: { empty: undefined, raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }) },
 	usePendingApprovals: {
 		empty: { data: [] },
 		populated: {

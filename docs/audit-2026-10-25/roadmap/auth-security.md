@@ -683,7 +683,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Progress (2026-11-03): **the storage half is in and used**. `roles` (migration `0043`, scoped unique index, permission array, `is_system`) is seeded idempotently at boot from `SYSTEM_ROLES_TABLE`; `GET /roles` serves it; the users page's role picker and filter render the SERVER's catalogue instead of a hardcoded list; and `user.setRole` / `user.create` refuse a role the table does not know (`UserInvalid`), so a renamed role cannot be written as a string nothing interprets. The catalogue is now MANAGED, not just read: `POST/PATCH/DELETE /roles` (`role:write`) create, edit and delete custom
 roles, capped independently by rank (`<` the editor's) and by permission subset (`⊆` the editor's capabilities) so
 "manage roles" never becomes "grant myself"; built-ins are immutable and a role with holders cannot be deleted. Role
-writes are audited. The write is now ATOMIC: `applySecurityChange` updates the row and deletes the sessions/keys the change invalidates in
+writes are audited, and Settings → Roles edits them with a permission picker over the same catalog. The write is now ATOMIC: `applySecurityChange` updates the row and deletes the sessions/keys the change invalidates in
 one transaction, so a demotion or a ban can never commit while a credential with the old authority survives. Still
 missing: a named `Grants` service (the seam is a repository method today), the role-table check in the same transaction,
 `authz_epoch` + `NOTIFY` (`SEC-055`), and the last-owner path.
@@ -976,7 +976,7 @@ missing: a named `Grants` service (the seam is a repository method today), the r
   - Progress (2026-11-03): **the storage half is in and used**. `roles` (migration `0043`, scoped unique index, permission array, `is_system`) is seeded idempotently at boot from `SYSTEM_ROLES_TABLE`; `GET /roles` serves it; the users page's role picker and filter render the SERVER's catalogue instead of a hardcoded list; and `user.setRole` / `user.create` refuse a role the table does not know (`UserInvalid`), so a renamed role cannot be written as a string nothing interprets. The catalogue is now MANAGED, not just read: `POST/PATCH/DELETE /roles` (`role:write`) create, edit and delete custom
 roles, capped independently by rank (`<` the editor's) and by permission subset (`⊆` the editor's capabilities) so
 "manage roles" never becomes "grant myself"; built-ins are immutable and a role with holders cannot be deleted. Role
-writes are audited. The write is now ATOMIC: `applySecurityChange` updates the row and deletes the sessions/keys the change invalidates in
+writes are audited, and Settings → Roles edits them with a permission picker over the same catalog. The write is now ATOMIC: `applySecurityChange` updates the row and deletes the sessions/keys the change invalidates in
 one transaction, so a demotion or a ban can never commit while a credential with the old authority survives. Still
 missing: a named `Grants` service (the seam is a repository method today), the role-table check in the same transaction,
 `authz_epoch` + `NOTIFY` (`SEC-055`), and the last-owner path.

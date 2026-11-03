@@ -28,7 +28,9 @@ A role row is editable only by re-seeding while `is_system` is true; custom role
 
 A built-in (`is_system`) role cannot be edited or deleted — re-seed the code. A custom role cannot be deleted while any
 account holds it, because `user.role` would then name a role nothing can interpret, and every capability check for those
-accounts would silently deny. Role writes are audited (`role-created/updated/deleted`).
+accounts would silently deny. Role writes are audited (`role-created/updated/deleted`), and Settings → Roles edits custom roles with a permission
+picker built from the same catalog (`PERMISSIONS`), grouped by resource. Built-in rows show "re-seeded from code" and no
+edit controls.
 
 ## What is still missing
 
