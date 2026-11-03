@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 
+import { useStepUpStatus } from '@/domains/account/hooks'
 import { authClient } from '@/lib/auth'
 
 /**
@@ -18,6 +19,13 @@ import { authClient } from '@/lib/auth'
  */
 export function StepUpCard() {
   const [verifying, setVerifying] = useState(false)
+  const status = useStepUpStatus()
+  const open = status.data?.critical === true
+  const expiresAt = status.data?.expiresAt
+  // The contract types these as `Date`, but the value crossed HTTP as JSON: normalise before formatting so the card
+  // works with both the server's Date and the browser's string.
+  const expiresLabel =
+    expiresAt === null || expiresAt === undefined ? null : new Date(String(expiresAt)).toLocaleTimeString()
 
   const verify = async () => {
     setVerifying(true)
@@ -48,9 +56,24 @@ export function StepUpCard() {
           tap within the last five minutes. A TOTP code is not enough: it can be phished in real time.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <p className="text-sm">
+          {status.isLoading ? (
+            <span className="text-muted-foreground">Checking this session…</span>
+          ) : open && expiresLabel !== null ? (
+            <span className="text-emerald-600">
+              Verified — critical actions are unlocked until {expiresLabel}.
+            </span>
+          ) : status.data?.steppedUp === true ? (
+            <span className="text-amber-600">
+              A TOTP code was used. That is not phishing-resistant, so critical actions still need a passkey.
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Not verified in the last five minutes.</span>
+          )}
+        </p>
         <Button variant="outline" onClick={() => void verify()} disabled={verifying}>
-          {verifying ? 'Waiting for your passkey…' : 'Verify with a passkey'}
+          {verifying ? 'Waiting for your passkey…' : open ? 'Verify again' : 'Verify with a passkey'}
         </Button>
       </CardContent>
     </Card>

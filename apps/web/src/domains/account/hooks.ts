@@ -27,6 +27,7 @@ import * as React from 'react'
 import { logger } from '@deployer/logger'
 
 import { authClient } from '@/lib/auth'
+import { orpc } from '@/lib/orpc'
 
 // ---------------------------------------------------------------------------
 // Shared shapes
@@ -548,4 +549,33 @@ export function describeUserAgent(userAgent: string | null | undefined): string 
         : ''
 
     return os ? `${browser} on ${os}` : browser
+}
+
+// ---------------------------------------------------------------------------
+// Step-up (`AUTH-062`)
+// ---------------------------------------------------------------------------
+
+/** What the caller's session proved, and when it stops counting (`GET /authz/step-up`). */
+export interface StepUpStatus {
+    steppedUp: boolean
+    critical: boolean
+    method: 'passkey' | 'totp' | null
+    verifiedAt: Date | null
+    expiresAt: Date | null
+    windowSeconds: number
+}
+
+/**
+ * The step-up state of the CALLER'S SESSION.
+ *
+ * Read, not a gate: critical actions re-answer server-side. The card uses it to show whether the five-minute window is
+ * open and what it would take to open it.
+ */
+export function useStepUpStatus(): AccountResource<StepUpStatus> {
+    const loader = React.useCallback(async () => {
+        const status = await orpc.stepUp.status.call({})
+        return { data: status, error: null }
+    }, [])
+
+    return useAccountResource(loader, 'step-up status')
 }

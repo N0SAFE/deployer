@@ -88,6 +88,17 @@ export const settingsFixtures: FixtureMap = {
 			error: null,
 		}),
 	},
+	useStepUpStatus: {
+		empty: undefined,
+		raw: accountResource('useStepUpStatus', null, {
+			steppedUp: true,
+			critical: true,
+			method: 'passkey',
+			verifiedAt: daysAgo(0),
+			expiresAt: minutesAgo(-4),
+			windowSeconds: 300,
+		}),
+	},
 	useDeleteSelf: {
 		empty: undefined,
 		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({ deleted: true }), isPending: false, error: null }),

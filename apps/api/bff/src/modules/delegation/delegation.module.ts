@@ -37,6 +37,7 @@ import { ReachabilityDelegationController } from "./generated/reachability.deleg
 import { RoleDelegationController } from "./generated/role.delegation";
 import { ServiceDelegationController } from "./generated/service.delegation";
 import { ServicePreviewTopologyDelegationController } from "./generated/servicePreviewTopology.delegation";
+import { StepUpDelegationController } from "./generated/stepUp.delegation";
 import { UserDelegationController } from "./generated/user.delegation";
 
 export class DelegationModule extends createModuleContext({
@@ -59,6 +60,7 @@ export class DelegationModule extends createModuleContext({
 		ReachabilityDelegationController,
 		ServiceDelegationController,
 		ServicePreviewTopologyDelegationController,
+		StepUpDelegationController,
 		UserDelegationController,
 	],
 }) {}
