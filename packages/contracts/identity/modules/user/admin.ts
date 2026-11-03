@@ -1,8 +1,9 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
 
 import { userSchema } from "@deployer/contracts-entities";
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+
+const userOps = standard.zod(userSchema, "user");
 
 /**
  * Change a user's platform role.
@@ -10,29 +11,35 @@ import { userSchema } from "@deployer/contracts-entities";
  * The role is the CATALOG's union (`PLATFORM_ROLES` via `userSchema.role`), not a free string, and the service ends the
  * target's sessions: a session carries the role, so it cannot outlive a role change.
  */
-export const userSetRoleContract = oc
-	.meta(openapi({ method: "POST", path: "/{id}/role", tags: ["User"] }))
-	.input(
-		z.object({
-			params: z.object({ id: userSchema.shape.id }),
-			body: z.object({ role: userSchema.shape.role.unwrap() }),
-		}),
+export const userSetRoleContract = userOps
+	.create()
+	.path("/{id}/role")
+	.input((b) =>
+		b.params(z.object({ id: userSchema.shape.id })).body(z.object({ role: userSchema.shape.role.unwrap() })),
 	)
-	.output(userSchema);
+	.output(userSchema)
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
 
 /** Ban or unban a user. Banning ends their credentials. */
-export const userSetBannedContract = oc
-	.meta(openapi({ method: "POST", path: "/{id}/ban", tags: ["User"] }))
-	.input(
-		z.object({
-			params: z.object({ id: userSchema.shape.id }),
-			body: z.object({ banned: z.boolean() }),
-		}),
+export const userSetBannedContract = userOps
+	.create()
+	.path("/{id}/ban")
+	.input((b) =>
+		b.params(z.object({ id: userSchema.shape.id })).body(z.object({ banned: z.boolean() })),
 	)
-	.output(userSchema);
+	.output(userSchema)
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
 
 /** End every credential (sessions and API keys) a user holds. */
-export const userRevokeSessionsContract = oc
-	.meta(openapi({ method: "POST", path: "/{id}/revoke-sessions", tags: ["User"] }))
-	.input(z.object({ params: z.object({ id: userSchema.shape.id }) }))
-	.output(z.object({ revoked: z.literal(true) }));
+export const userRevokeSessionsContract = userOps
+	.create()
+	.path("/{id}/revoke-sessions")
+	.input((b) => b.params(z.object({ id: userSchema.shape.id })))
+	.output(z.object({ revoked: z.literal(true) }))
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();
