@@ -58,7 +58,11 @@ export type UserServiceShape = {
         id: string,
         patch: UserPatch,
         raw: Record<string, unknown>
-    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        User,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService
+    >
     readonly setBanned: (
         id: string,
         banned: boolean
@@ -69,8 +73,18 @@ export type UserServiceShape = {
     ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort | StepUpService>
     readonly revokeSessions: (
         id: string
-    ) => Effect.Effect<void, UserFailure, Ambient | UserRepository | DatabasePort>
-    readonly delete: (id: string) => Effect.Effect<void, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        void,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService
+    >
+    readonly delete: (
+        id: string
+    ) => Effect.Effect<
+        void,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService
+    >
 }
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
@@ -171,6 +185,16 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
+
+            // An update that moves `role` or `banned` is the same critical action as `setRole`/`setBanned` reached
+            // through the profile form; guarding only those two procedures would leave a second door open.
+            const changesPrivilege =
+                (patch.role !== undefined && patch.role !== current.role) ||
+                (patch.banned !== undefined && patch.banned !== (current.banned ?? false))
+            if (changesPrivilege) {
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            }
 
             const isSelf = actor.userId === id
             yield* rule(() => {
@@ -296,6 +320,8 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
         }),
 
         revokeSessions: Effect.fn('UserService.revokeSessions')(function* (id) {
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCapability(actor, 'session:delete')
@@ -313,6 +339,8 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
         }),
 
         delete: Effect.fn('UserService.delete')(function* (id) {
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)

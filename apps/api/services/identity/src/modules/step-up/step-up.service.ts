@@ -1,8 +1,8 @@
 import { Context, Effect } from "effect";
 
 import { STEP_UP_WINDOW_SECONDS, isCriticalStepUp, type StepUpMethod } from "@deployer/auth/authz";
-import { ForbiddenError } from "@deployer/errors";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
+import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
 

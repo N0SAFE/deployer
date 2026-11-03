@@ -253,9 +253,9 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
     `after` hook on passkey/TOTP verification writing a row for the CURRENT session, and `GET /authz/step-up` answering
     `{ steppedUp, critical, method, verifiedAt, expiresAt, windowSeconds }`. `Actor` now carries `sessionId`, which is
     what binds a proof to the session. Policy: `STEP_UP_WINDOW_SECONDS = 300`, passkey = AAL3 (critical), TOTP = AAL2.
-    Guard: `StepUpService.assertCritical()` now gates `user.setRole` and `user.setBanned`; `StepUpCard` (Settings →
-    Account) runs the passkey ceremony. Remaining: `SEC-070`'s guardrail pack (`delete`/`revokeSessions`, freeze windows,
-    approvals) and a re-auth affordance on the pages whose actions fail.
+    Guard: `StepUpService.assertCritical()` gates `user.setRole`, `setBanned`, `revokeSessions`, `delete` and an `update`
+    that moves role/ban; `StepUpCard` (Settings → Account) runs the passkey ceremony. Remaining: `SEC-070`'s guardrail
+    pack (freeze windows, approvals) and re-auth affordances on pages whose actions fail.
   - Design-impact (2026-10-26): owned by the design: `AUTH-062` (`POST /authz/step-up` wraps BA passkey verify, writes `step_up_events` for the CURRENT session; `session.freshAge` is NOT used for this) + `SEC-070` guardrail `requireStepUpForCritical` (AAL3 within 300 s) + `SEC-072` approvals with passkey assertions. Tokens cannot step up (AAL0).
 
 - [ ] `AUTH-031` **Admin impersonation with banner and audit** · NEW · P3 · M · Deps: `AUTH-029`

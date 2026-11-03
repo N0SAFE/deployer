@@ -1,5 +1,4 @@
 import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator, roleGrants } from "@deployer/auth/authz";
-
 import type { Permission } from "@deployer/auth/authz";
 import { ForbiddenError, ValidationError } from "@deployer/errors";
 

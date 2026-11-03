@@ -2,13 +2,12 @@ import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
-
-import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
+import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
 import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
 
 import { UserService, type UserFailure, type UserServiceShape } from "./user.service";

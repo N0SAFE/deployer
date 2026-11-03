@@ -22,13 +22,18 @@ import { UserService, type UserServiceShape } from "@/modules/user/services/user
 import type { UserFailure } from "@/modules/user/services/user.service";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+import { StepUpService } from "@identity/modules/step-up/step-up.service";
 
 
 /** Run a user use case as `actor` against the real repository, outside the oRPC context. */
 function runUsers<T>(
 	database: DatabaseShape,
 	actor: { userId: string; role: string },
-	use: (users: UserServiceShape) => Effect.Effect<T, UserFailure, Ambient | UserRepository | DatabasePort>,
+	use: (users: UserServiceShape) => Effect.Effect<
+		T,
+		UserFailure,
+		Ambient | UserRepository | DatabasePort | StepUpService
+	>,
 ): Promise<T> {
 	return Effect.runPromise(
 		Effect.gen(function* () {
@@ -40,6 +45,11 @@ function runUsers<T>(
 			Effect.provideService(DatabasePort, database),
 			Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
 			Effect.provideService(Correlation, { id: "e2e" }),
+			// Critical actions (delete, role change, ban) require a passkey proof; this e2e is about the data layer.
+			Effect.provideService(StepUpService, {
+				assertCritical: () => Effect.void,
+				status: () => Effect.die(new Error("unused")),
+			} as unknown as StepUpService["Service"]),
 		),
 	);
 }
