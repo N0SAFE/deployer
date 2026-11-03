@@ -4,7 +4,9 @@ import { Context, Effect } from 'effect'
 import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
+import { actionHash } from '@identity/core/utils/action-hash'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+import { ApprovalService } from '@identity/modules/approval/approval.service'
 import { AuditService } from '@identity/modules/audit/audit.service'
 import { RoleService } from '@identity/modules/role/role.service'
 import { StepUpService } from '@identity/modules/step-up/step-up.service'
@@ -110,7 +112,7 @@ export type UserServiceShape = {
     ) => Effect.Effect<
         void,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService | ApprovalService
     >
 }
 
@@ -506,6 +508,21 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
                 userRules.assertNotSelfDestruct(actor, id, 'delete')
                 userRules.assertOutranks(actor, current.role)
             })
+
+            // Deleting an account destroys its data. Whoever holds `user:delete` (the danger bundle) may do it; anyone
+            // else needs a second person's approval for THIS id, consumed atomically at the moment of the write.
+            const approvals = yield* ApprovalService
+            yield* approvals.require('user:delete', actionHash('user.delete', id)).pipe(
+                Effect.mapError(
+                    (error) =>
+                        new UserForbidden({
+                            reason:
+                                error._tag === 'ApprovalForbidden'
+                                    ? 'approval required: ask another admin to approve this exact action'
+                                    : 'the approval check failed',
+                        })
+                )
+            )
 
             yield* users.delete(id)
 

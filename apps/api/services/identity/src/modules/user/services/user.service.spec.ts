@@ -5,6 +5,7 @@ import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
+import { ApprovalService } from "@identity/modules/approval/approval.service";
 import { AuditService } from "@identity/modules/audit/audit.service";
 import { RoleService } from "@identity/modules/role/role.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";
@@ -63,7 +64,11 @@ describe("UserService", () => {
 			(actor: Acting, ...args: unknown[]) => {
 				const method = UserService.live[key] as (
 					...a: unknown[]
-				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation | StepUpService | RoleService | AuditService>;
+				) => Effect.Effect<
+					unknown,
+					UserFailure,
+					UserRepository | CurrentActor | Correlation | StepUpService | RoleService | AuditService | ApprovalService
+				>;
 				return method(...args).pipe(
 					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
 					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
@@ -81,6 +86,9 @@ describe("UserService", () => {
 					Effect.provideService(AuditService, {
 						record: () => Effect.void,
 					} as unknown as AuditService["Service"]),
+					Effect.provideService(ApprovalService, {
+						require: () => Effect.void,
+					} as unknown as ApprovalService["Service"]),
 				);
 			},
 	});
@@ -220,6 +228,9 @@ describe("UserService", () => {
 					Effect.provideService(AuditService, {
 						record: () => Effect.void,
 					} as unknown as AuditService["Service"]),
+					Effect.provideService(ApprovalService, {
+						require: () => Effect.void,
+					} as unknown as ApprovalService["Service"]),
 				);
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
@@ -249,6 +260,38 @@ describe("UserService", () => {
 
 			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.update).not.toHaveBeenCalled();
+		});
+
+		it("refuses to delete an account nobody approved", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "viewer" })));
+
+			const effect = UserService.live.delete("user-1").pipe(
+				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+				Effect.provideService(CurrentActor, Actor.user("admin-1", "admin")),
+				Effect.provideService(Correlation, { id: "test" }),
+				Effect.provideService(DatabasePort, {} as never),
+				Effect.provideService(StepUpService, {
+					assertCritical: () => Effect.void,
+					status: () => Effect.die(new Error("unused")),
+				} as unknown as StepUpService["Service"]),
+				Effect.provideService(RoleService, {
+					isKnownPlatformRole: () => Effect.succeed(true),
+					list: () => Effect.succeed([]),
+				} as unknown as RoleService["Service"]),
+				Effect.provideService(AuditService, {
+					record: () => Effect.void,
+				} as unknown as AuditService["Service"]),
+				Effect.provideService(ApprovalService, {
+					// The guard's refusal is its tagged domain error; the service maps it to the user domain's.
+					require: () => Effect.fail({ _tag: "ApprovalForbidden" }),
+				} as unknown as ApprovalService["Service"]),
+			);
+
+			const outcome = await Effect.runPromise(Effect.flip(effect));
+
+			expect(outcome).toBeInstanceOf(UserForbidden);
+			expect(outcome).toMatchObject({ reason: expect.stringContaining("approval required") });
+			expect(repo.delete).not.toHaveBeenCalled();
 		});
 
 		it("refuses a role change when the session has no fresh passkey proof", async () => {

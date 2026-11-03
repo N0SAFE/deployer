@@ -43,6 +43,16 @@ export type ApprovalServiceShape = {
 		ApprovalFailure,
 		ApprovalRepository | CurrentActor | DatabasePort | StepUpService | AuditService
 	>;
+	/**
+	 * The guard a protected action calls (`SEC-072`).
+	 *
+	 * Allowed when the actor's role already grants `permission`; otherwise an approved, unexpired, matching request is
+	 * consumed atomically. Anything else is a refusal, which the caller maps to its own domain error.
+	 */
+	readonly require: (
+		permission: string,
+		actionHash: string,
+	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort>;
 	readonly consume: (
 		actionHash: string,
 	) => Effect.Effect<
@@ -150,6 +160,36 @@ const makeApprovalService = (repository: ApprovalRepository["Service"]): Approva
 				},
 			});
 			return decided;
+		}),
+
+	require: (permission, actionHash): ReturnType<ApprovalServiceShape["require"]> =>
+		Effect.gen(function* () {
+			const actor = yield* CurrentActor;
+			if (actor.kind !== "user") {
+				return yield* Effect.fail(new ApprovalForbidden({ reason: "a system caller cannot be approved for this action" }));
+			}
+
+			// The named capability must exist, or the guard would be protecting something nothing enforces.
+			if (!isPermission(permission)) {
+				return yield* Effect.fail(
+					new ApprovalForbidden({ reason: `"${permission}" is not a permission this platform declares` }),
+				);
+			}
+
+			// Holding the capability is the normal path: an approval is only for what the caller cannot do alone.
+			if (roleGrants(actor.role, permission)) return;
+
+			const consumed = yield* repository.consume(actor.id, actionHash, new Date());
+			if (!consumed) {
+				return yield* Effect.fail(
+					new ApprovalForbidden({
+						// The digest is not a secret — it is a hash of the action the caller is already attempting — and
+						// echoing it is what lets the caller FILE the matching request without a copy of the server's
+						// canonicalisation.
+						reason: `approval required: ask another admin to approve action ${actionHash}`, 
+					}),
+				);
+			}
 		}),
 
 	consume: (actionHash): ReturnType<ApprovalServiceShape["consume"]> =>

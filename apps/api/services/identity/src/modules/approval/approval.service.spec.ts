@@ -57,7 +57,7 @@ describe("ApprovalService", () => {
 		stepUp: "ok" | "missing" = "ok",
 	): Effect.Effect<A, E> => {
 		const layer = Layer.mergeAll(
-			Layer.succeed(ApprovalService, ApprovalService.live),
+			Layer.succeed(ApprovalService, ApprovalService.live as unknown as ApprovalService["Service"]),
 			Layer.succeed(ApprovalRepository, repo as unknown as ApprovalRepositoryShape),
 			Layer.succeed(CurrentActor, actor),
 			Layer.succeed(Correlation, { id: "test" }),
@@ -168,6 +168,41 @@ describe("ApprovalService", () => {
 			Effect.flip(run(Actor.user("u-1", "user"), (a) => a.list({ status: "pending", limit: 50 }))),
 		);
 		expect(denied).toBeInstanceOf(ApprovalForbidden);
+	});
+
+	describe("require", () => {
+		it("allows an actor whose role already grants the permission, without spending an approval", async () => {
+			// `superAdmin` holds `user:delete`; the guard is for callers who do not.
+			await Effect.runPromise(run(Actor.user("root", "superAdmin"), (a) => a.require("user:delete", "h".repeat(64))));
+
+			expect(repo.consume).not.toHaveBeenCalled();
+		});
+
+		it("allows a caller without the permission when a matching approval is consumed", async () => {
+			await Effect.runPromise(
+				run(Actor.user("admin-1", "admin"), (a) => a.require("user:delete", "h".repeat(64))),
+			);
+
+			expect(repo.consume).toHaveBeenCalledWith("admin-1", "h".repeat(64), expect.any(Date));
+		});
+
+		it("refuses when nothing was approved for that exact action", async () => {
+			repo.consume.mockImplementation(() => Effect.succeed(false));
+
+			const outcome = await Effect.runPromise(
+				Effect.flip(run(Actor.user("admin-1", "admin"), (a) => a.require("user:delete", "h".repeat(64)))),
+			);
+
+			expect(outcome).toBeInstanceOf(ApprovalForbidden);
+		});
+
+		it("refuses a permission the catalog does not declare, even with an approval", async () => {
+			const outcome = await Effect.runPromise(
+				Effect.flip(run(Actor.user("admin-1", "admin"), (a) => a.require("nonsense:delete", "h".repeat(64)))),
+			);
+
+			expect(outcome).toBeInstanceOf(ApprovalForbidden);
+		});
 	});
 
 	it("spends the approval of the requester", async () => {

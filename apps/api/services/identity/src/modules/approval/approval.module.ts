@@ -12,6 +12,7 @@ import { ApprovalController } from "./controllers/approval.controller";
 export class ApprovalDomainModule extends createModuleContext(
 	{
 		controllers: [ApprovalController],
+		exports: [ApprovalService, ApprovalRepository],
 		imports: [StepUpDomainModule, AuditDomainModule],
 		providers: [
 			{ provide: ApprovalService, useValue: ApprovalService.live },

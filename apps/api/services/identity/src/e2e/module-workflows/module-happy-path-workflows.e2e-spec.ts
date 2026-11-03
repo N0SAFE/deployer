@@ -22,6 +22,7 @@ import { UserService, type UserServiceShape } from "@/modules/user/services/user
 import type { UserFailure } from "@/modules/user/services/user.service";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+import { ApprovalService } from "@identity/modules/approval/approval.service";
 import { AuditService } from "@identity/modules/audit/audit.service";
 import { RoleRepository } from "@identity/modules/role/role.repository";
 import { RoleService } from "@identity/modules/role/role.service";
@@ -35,7 +36,7 @@ function runUsers<T>(
 	use: (users: UserServiceShape) => Effect.Effect<
 		T,
 		UserFailure,
-		Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService
+		Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService | ApprovalService
 	>,
 ): Promise<T> {
 	return Effect.runPromise(
@@ -58,6 +59,10 @@ function runUsers<T>(
 			Effect.provideService(AuditService, {
 				record: () => Effect.void,
 			} as unknown as AuditService["Service"]),
+			// Approval enforcement is checked in its own spec; this e2e runs as an actor that holds the capability.
+			Effect.provideService(ApprovalService, {
+				require: () => Effect.void,
+			} as unknown as ApprovalService["Service"]),
 			Effect.provideService(RoleRepository, RoleRepository.live),
 		),
 	);
