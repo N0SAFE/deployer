@@ -135,9 +135,10 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
     without it, development logs the message (a reset link nobody can read is a dead end) and production returns NO sink,
     which keeps the endpoint's answer identical (no account enumeration) while nobody is told an email was sent.
     `emailAndPassword.sendResetPassword` uses Better Auth's own token/redirect; `/auth/forgot-password` and
-    `/auth/reset-password` are the pages, and sign-in links to them. Remaining: email verification and change-email (both
-    need the same sink plus `emailVerification` wiring), and the admin-set temporary password path for deployments with no
-    mail at all (`user.setPassword` already exists behind `user:set-password`).
+    `/auth/reset-password` are the pages, and sign-in links to them. **Change-email is wired too**: `changeEmail` is enabled ONLY when a transport exists, and it confirms the new address
+    while warning the old one; Settings → Account requests it, and the change applies when the link is followed. Remaining:
+    email verification on sign-up (sign-up is closed, so it is invite-driven) and the admin-set temporary password path
+    for deployments with no mail at all (`user.setPassword` already exists behind `user:set-password`).
   - Source: auth.md#1 (core), auth.md#4 (11)
 
 - [ ] `AUTH-016` **Setup claim token bound to a passkey (replace default-admin bootstrap)** · NEW · P1 · L · Deps: `AUTH-005`,`AUTH-018`

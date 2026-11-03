@@ -5,9 +5,7 @@ import { multiSession, openAPI } from "better-auth/plugins";
 
 import { auditEventFromRequest, type AuthAuditSink } from "../audit";
 
-import type { StepUpSink } from "./plugins/step-up";
 
-import type { MailSink } from "../mail";
 
 import { buildTrustedOrigins } from "./origins";
 import {
@@ -26,6 +24,8 @@ import {
 } from "./plugins";
 import { passkeyCoordinates } from "./plugins/securityPlugins";
 
+import type { MailSink } from "../mail";
+import type { StepUpSink } from "./plugins/step-up";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 /** The environment the factory reads. One named shape, shared by every helper. */
@@ -219,6 +219,41 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
                       },
                   }),
         },
+        // Changing an email address (`AUTH-015`). Only offered when a transport exists: without one the flow would send
+        // the person to an inbox that never receives the link, so the feature is absent rather than broken.
+        ...(options.mail === undefined
+            ? {}
+            : {
+                  changeEmail: {
+                      enabled: true,
+                      /**
+                       * Confirmations go to BOTH addresses: the new one proves control of it, the old one is the alarm if
+                       * somebody else started the change.
+                       */
+                      sendChangeEmailConfirmation: async ({
+                          user,
+                          newEmail,
+                          url,
+                      }: {
+                          user: { email: string };
+                          newEmail: string;
+                          url: string;
+                      }) => {
+                          await options.mail?.send({
+                              to: newEmail,
+                              subject: "Confirm your new Deployer email",
+                              text: `Confirm this address for your account:\n\n${url}\n\nIf you did not ask for this, ignore the message.`,
+                              kind: "email-change",
+                          });
+                          await options.mail?.send({
+                              to: user.email,
+                              subject: "Your Deployer email is changing",
+                              text: `A change to ${newEmail} was requested. If it was not you, contact an administrator immediately.`,
+                              kind: "email-change",
+                          });
+                      },
+                  },
+              }),
         // User columns live in `deployerUserSchemaPlugin` (a server plugin, linked to the client by
         // `deployerUserSchemaClient`): the DB schema file is GENERATED, so the plugin is what keeps the columns across a
         // regen, and `$InferServerPlugin` is what puts them on the client's session type.

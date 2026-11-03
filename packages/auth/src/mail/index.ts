@@ -5,7 +5,7 @@
  * sidecar), and the auth package only decides WHAT to say. Absent means "this deployment has no mail" — the callers
  * degrade explicitly instead of silently claiming a message was sent.
  */
-export type MailKind = "password-reset" | "invite" | "other";
+export type MailKind = "password-reset" | "email-change" | "invite" | "other";
 
 export interface MailMessage {
 	readonly to: string;

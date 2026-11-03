@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 
+import { ChangeEmailCard } from '@/components/account/change-email-card'
 import { DangerZoneCard } from '@/components/account/danger-zone-card'
 import { DataExportCard } from '@/components/account/data-export-card'
 import {
@@ -73,6 +74,8 @@ export default AuthDashboardSettingsAccount.SessionRoute(({ session }) => {
 
       {/* Security posture at a glance, before the detail cards */}
       <SecurityPostureCard enabled={twoFactorEnabled} />
+
+      <ChangeEmailCard />
 
       <StepUpCard />
 
