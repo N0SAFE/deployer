@@ -35,6 +35,7 @@ function makeRepository() {
 		insert: vi.fn(),
 		update: vi.fn(),
 		applySecurityChange: vi.fn(),
+		setPassword: vi.fn(),
 		delete: vi.fn(),
 		revokeCredentials: vi.fn(),
 		exportFor: vi.fn(),
@@ -99,6 +100,32 @@ describe("UserService", () => {
 
 	/** The domain error a use case failed with. */
 	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
+
+	describe("setPassword", () => {
+		it("sets a temporary password and ends the sessions it would otherwise leave alive", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "viewer" })));
+
+			await run(service.setPassword(admin, "user-1", "temporary-password"));
+
+			expect(repo.setPassword).toHaveBeenCalledWith("user-1", expect.any(String));
+			expect(repo.revokeCredentials).toHaveBeenCalledWith("user-1");
+		});
+
+		it("refuses a target that outranks the actor", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "superAdmin" })));
+
+			await expect(
+				failureOf(service.setPassword(admin, "user-1", "temporary-password")),
+			).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.setPassword).not.toHaveBeenCalled();
+		});
+
+		it("refuses an actor without `user:set-password`", async () => {
+			await expect(
+				failureOf(service.setPassword(member, "user-1", "temporary-password")),
+			).resolves.toBeInstanceOf(UserForbidden);
+		});
+	});
 
 	describe("deleteSelf", () => {
 		const asSystem = () =>

@@ -100,6 +100,15 @@ export type UserServiceShape = {
         UserFailure,
         Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService
     >
+    /** Set a temporary password (`AUTH-015`) and end every session it would otherwise leave alive. */
+    readonly setPassword: (
+        id: string,
+        password: string
+    ) => Effect.Effect<
+        void,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort | StepUpService | AuditService
+    >
     readonly revokeSessions: (
         id: string
     ) => Effect.Effect<
@@ -468,6 +477,33 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             })
 
             return updated
+        }),
+
+        setPassword: Effect.fn('UserService.setPassword')(function* (id, password) {
+            const actor = yield* actingUser
+            yield* rule(() => {
+                userRules.assertCapability(actor, 'user:set-password')
+                userRules.assertCanAdminister(actor)
+            })
+
+            const stepUp = yield* StepUpService
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+
+            const current = yield* users.findById(id)
+            if (current === null) return yield* new UserNotFound({ id })
+
+            yield* rule(() => {
+                userRules.assertOutranks(actor, current.role)
+            })
+
+            // Better Auth verifies against the `credential` account row; its own crypto produces the hash.
+            const passwordHash = yield* Effect.promise(() => hashPassword(password))
+            yield* users.setPassword(id, passwordHash)
+            // A password change that leaves a session alive is not a change: whoever had the old one keeps access.
+            yield* users.revokeCredentials(id)
+
+            const audit = yield* AuditService
+            yield* audit.record({ action: 'password-changed', actorId: actor.userId, targetId: id })
         }),
 
         revokeSessions: Effect.fn('UserService.revokeSessions')(function* (id) {

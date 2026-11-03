@@ -91,6 +91,18 @@ export class UserController {
             })
     }
 
+    /** Set a temporary password (`AUTH-015`); the service owns the step-up, rank and revocation rules. */
+    @Implement(userContract.setPassword)
+    setPassword() {
+        return procedure(userContract.setPassword)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const users = yield* UserService
+                yield* serve(context)(users.setPassword(input.params.id, input.body.password))
+                return { updated: true as const }
+            })
+    }
+
     @Implement(userContract.create)
     create() {
         return procedure(userContract.create)

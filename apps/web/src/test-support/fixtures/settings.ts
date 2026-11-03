@@ -31,8 +31,10 @@ const adminActions = () => ({
 	updateUserAsync: () => Promise.resolve({}),
 	removeUser: () => undefined,
 	removeUserAsync: () => Promise.resolve({}),
-	isLoading: { ban: false, unban: false, setRole: false, create: false, update: false, remove: false },
-	errors: { ban: null, unban: null, setRole: null, create: null, update: null, remove: null },
+	setPassword: () => undefined,
+	setPasswordAsync: () => Promise.resolve({}),
+	isLoading: { ban: false, unban: false, setRole: false, create: false, update: false, remove: false, impersonate: false, setPassword: false },
+	errors: { ban: null, unban: null, setRole: null, create: null, update: null, remove: null, impersonate: null, setPassword: null },
 })
 
 /** Account hooks return `{ data, error, isLoading, reload }`, not a query. */

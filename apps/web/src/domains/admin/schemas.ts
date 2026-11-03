@@ -89,3 +89,9 @@ export const impersonateSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   reason: z.string().min(5, 'Say why — the audit log records it'),
 });
+
+/** Set a temporary password for another account (`AUTH-015`). */
+export const setPasswordSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  password: z.string().min(8, 'At least 8 characters').max(128),
+});

@@ -166,6 +166,25 @@ export function useAdminRemoveUser() {
 }
 
 /**
+ * Set a temporary password (`AUTH-015`).
+ *
+ * The admin reads the temporary value to the person out of band; the flight is only for deployments with no mail
+ * transport, so the toast tells them the sessions were ended.
+ */
+export function useAdminSetPassword() {
+  return useMutation(
+    enhancedAdmin.setPassword.mutationOptions({
+      onSuccess: () => {
+        toast.success('Password set. The target has been signed out everywhere.')
+      },
+      onError: (error) => {
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to set the password') : UNKNOWN_ORPC_ERROR_MESSAGE)
+      },
+    }),
+  )
+}
+
+/**
  * Impersonate a user (`AUTH-067`).
  *
  * On success the session cookie belongs to the target, so the page reloads rather than patching user-scoped state.
@@ -203,6 +222,7 @@ export function useAdminActions() {
   const updateUser = useAdminUpdateUser();
   const removeUser = useAdminRemoveUser();
   const impersonate = useAdminImpersonate();
+  const setPassword = useAdminSetPassword();
 
   return {
     banUser: banUser.mutate,
@@ -219,6 +239,8 @@ export function useAdminActions() {
     removeUserAsync: removeUser.mutateAsync,
     impersonate: impersonate.mutate,
     impersonateAsync: impersonate.mutateAsync,
+    setPassword: setPassword.mutate,
+    setPasswordAsync: setPassword.mutateAsync,
 
     isLoading: {
       ban: banUser.isPending,
@@ -228,6 +250,7 @@ export function useAdminActions() {
       update: updateUser.isPending,
       remove: removeUser.isPending,
       impersonate: impersonate.isPending,
+      setPassword: setPassword.isPending,
     },
 
     errors: {
@@ -238,6 +261,7 @@ export function useAdminActions() {
       update: updateUser.error,
       remove: removeUser.error,
       impersonate: impersonate.error,
+      setPassword: setPassword.error,
     },
   };
 }

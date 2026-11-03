@@ -41,7 +41,7 @@ import { useSession } from '@/lib/auth'
 
 import { InviteUserDialog } from './_components/invite-user-dialog'
 import { RequestApprovalDialog } from './_components/request-approval-dialog'
-import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog } from './_components/user-dialogs'
+import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog, SetPasswordDialog } from './_components/user-dialogs'
 
 
 export default function SettingsUsersPage() {
@@ -58,6 +58,7 @@ export default function SettingsUsersPage() {
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
   const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; name: string } | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<{ user: { id: string; name: string }; actionHash: string } | null>(null)
+  const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null)
   
   const pageSize = 20
   
@@ -71,6 +72,7 @@ export default function SettingsUsersPage() {
     unbanUser, 
     setRole, 
     removeUserAsync,
+    setPassword,
     impersonate,
     isLoading: actionLoading,
   } = useAdminActions()
@@ -363,6 +365,15 @@ export default function SettingsUsersPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          title="Set a temporary password (needs a fresh passkey verification)"
+                          onClick={() => { setPasswordTarget({ id: user.id, name: user.name }) }}
+                          disabled={actionLoading.setPassword}
+                        >
+                          Password
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           title="Act as this user (read-only, needs a fresh passkey verification)"
                           onClick={() => { setImpersonateTarget({ id: user.id, name: user.name }) }}
                           disabled={actionLoading.impersonate || user.id === currentUserId}
@@ -446,6 +457,17 @@ export default function SettingsUsersPage() {
       ) : null}
       {removeTarget ? (
         <RemoveUserDialog user={removeTarget} pending={actionLoading.remove} onClose={() => { setRemoveTarget(null) }} onConfirm={() => { void confirmRemove() }} />
+      ) : null}
+      {passwordTarget ? (
+        <SetPasswordDialog
+          user={passwordTarget}
+          pending={actionLoading.setPassword}
+          onClose={() => { setPasswordTarget(null) }}
+          onConfirm={({ password }) => {
+            setPassword({ userId: passwordTarget.id, password })
+            setPasswordTarget(null)
+          }}
+        />
       ) : null}
       {approvalRequest ? (
         <RequestApprovalDialog

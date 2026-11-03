@@ -43,3 +43,20 @@ export const userRevokeSessionsContract = userOps
 	.tags("User")
 	.errors((e) => [...standardDomainErrorContracts(e)])
 	.build();
+
+/**
+ * Set a temporary password for another account (`AUTH-015`).
+ *
+ * The path for a deployment with no mail transport: an administrator hands the person a password out of band. It ends
+ * every session the target holds — a password change that leaves a live session is not a change.
+ */
+export const userSetPasswordContract = userOps
+	.create()
+	.path("/{id}/password")
+	.input((b) =>
+		b.params(z.object({ id: userSchema.shape.id })).body(z.object({ password: z.string().min(8).max(128) })),
+	)
+	.output(z.object({ updated: z.literal(true) }))
+	.tags("User")
+	.errors((e) => [...standardDomainErrorContracts(e)])
+	.build();

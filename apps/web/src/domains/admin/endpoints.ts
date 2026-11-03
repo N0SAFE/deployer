@@ -29,6 +29,7 @@ import {
   updateUserSchema,
   removeUserSchema,
   impersonateSchema,
+  setPasswordSchema,
 } from './schemas'
 
 // ============================================================================
@@ -148,6 +149,16 @@ const customContracts = {
       if (result.error) throw new Error(result.error.message ?? 'Impersonation refused')
       return result.data
     },
+  }),
+
+  /**
+   * Set a temporary password (`AUTH-015`). Ends the target's sessions: a password change must not leave one alive.
+   */
+  setPassword: custom({
+    input: setPasswordSchema,
+    keys: (i) => ['admin', 'setPassword', i],
+    handler: async (input) =>
+      orpc.user.setPassword.call({ params: { id: input.userId }, body: { password: input.password } }),
   }),
 
   /**

@@ -136,9 +136,10 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
     which keeps the endpoint's answer identical (no account enumeration) while nobody is told an email was sent.
     `emailAndPassword.sendResetPassword` uses Better Auth's own token/redirect; `/auth/forgot-password` and
     `/auth/reset-password` are the pages, and sign-in links to them. **Change-email is wired too**: `changeEmail` is enabled ONLY when a transport exists, and it confirms the new address
-    while warning the old one; Settings → Account requests it, and the change applies when the link is followed. Remaining:
-    email verification on sign-up (sign-up is closed, so it is invite-driven) and the admin-set temporary password path
-    for deployments with no mail at all (`user.setPassword` already exists behind `user:set-password`).
+    while warning the old one; Settings → Account requests it, and the change applies when the link is followed. **The no-mail path exists too**: `POST /user/{id}/password`
+    sits behind `user:set-password`, a rank check and a passkey step-up, ends the target's sessions and is audited;
+    Settings → Users has a Password action that generates a value to read out of band. Remaining: email verification on
+    sign-up (sign-up is closed, so accounts arrive through invites).
   - Source: auth.md#1 (core), auth.md#4 (11)
 
 - [ ] `AUTH-016` **Setup claim token bound to a passkey (replace default-admin bootstrap)** · NEW · P1 · L · Deps: `AUTH-005`,`AUTH-018`

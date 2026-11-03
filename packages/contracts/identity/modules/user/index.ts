@@ -3,7 +3,12 @@ import { openapi } from "@orpc/openapi";
 
 
 // Import all contract definitions
-import { userRevokeSessionsContract, userSetBannedContract, userSetRoleContract } from './admin';
+import {
+  userRevokeSessionsContract,
+  userSetBannedContract,
+  userSetPasswordContract,
+  userSetRoleContract,
+} from './admin';
 import { userCheckEmailContract } from './checkEmail';
 import { userCountContract } from './count';
 import { userCreateContract } from './create';
@@ -26,6 +31,7 @@ export const userContract = oc.meta(openapi({ tags: ["User"], prefix: "/user" })
   setRole: userSetRoleContract,
   setBanned: userSetBannedContract,
   revokeSessions: userRevokeSessionsContract,
+  setPassword: userSetPasswordContract,
   exportSelf: selfExportContract,
   deleteSelf: selfDeleteContract,
 });

@@ -141,3 +141,63 @@ export function ImpersonateUserDialog({
     </Dialog>
   )
 }
+
+/**
+ * Set a temporary password (`AUTH-015`).
+ *
+ * The admin reads it to the person out of band — this is the path for deployments with no mail transport. The server
+ * ends every session the target holds, so the old password cannot keep a device signed in.
+ */
+export function SetPasswordDialog({
+  user,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  user: UserRef
+  pending: boolean
+  onClose: () => void
+  onConfirm: (input: { password: string }) => void
+}) {
+  const [password, setPassword] = useState(() => crypto.randomUUID().replaceAll('-', '').slice(0, 20))
+  const invalid = password.length < 8
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Set a temporary password for {user.name}</DialogTitle>
+          <DialogDescription>
+            Give them the value below out of band. It replaces the current password and signs them out everywhere; they
+            should change it after signing in.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="temporaryPassword">Temporary password</Label>
+          <div className="flex gap-2">
+            <Input
+              id="temporaryPassword"
+              className="font-mono"
+              value={password}
+              aria-invalid={invalid ? true : undefined}
+              onChange={(event) => { setPassword(event.target.value) }}
+            />
+            <Button
+              variant="outline"
+              onClick={() => { void navigator.clipboard.writeText(password) }}
+            >
+              Copy
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-xs">At least eight characters. Generate a new one if this looks guessable.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={pending || invalid} onClick={() => { onConfirm({ password }) }}>
+            {pending ? 'Setting…' : 'Set password'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
