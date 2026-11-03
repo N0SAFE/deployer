@@ -88,6 +88,33 @@ export const settingsFixtures: FixtureMap = {
 			error: null,
 		}),
 	},
+	usePendingApprovals: {
+		empty: { data: [] },
+		populated: {
+			data: [
+				{
+					id: 'req-1',
+					permission: 'user:delete',
+					requesterId: 'admin-1',
+					via: null,
+					scope: {},
+					actionHash: 'a'.repeat(64),
+					reason: 'remove the duplicate account',
+					requiredApprovals: 1,
+					status: 'pending',
+					ttlSec: 3600,
+					expiresAt: minutesAgo(-30),
+					consumedAt: null,
+					createdAt: minutesAgo(5),
+					approvals: 0,
+				},
+			],
+		},
+	},
+	useDecideApproval: {
+		empty: undefined,
+		raw: () => ({ mutate: () => undefined, mutateAsync: () => Promise.resolve({}), isPending: false, error: null }),
+	},
 	usePlatformRoles: {
 		empty: undefined,
 		raw: () => ({
