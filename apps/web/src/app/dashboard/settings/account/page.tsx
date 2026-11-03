@@ -8,6 +8,7 @@ import {
   PasskeysCard,
   SecurityPostureCard,
 } from '@/components/account/security-cards'
+import { StepUpCard } from '@/components/account/step-up-card'
 import { PageHeader } from '@/components/dashboard'
 import { PageTimingLogger } from '@/lib/timing'
 import { AuthDashboardSettingsAccount } from '@/routes'
@@ -70,6 +71,8 @@ export default AuthDashboardSettingsAccount.SessionRoute(({ session }) => {
 
       {/* Security posture at a glance, before the detail cards */}
       <SecurityPostureCard enabled={twoFactorEnabled} />
+
+      <StepUpCard />
 
       <PasskeysCard />
 

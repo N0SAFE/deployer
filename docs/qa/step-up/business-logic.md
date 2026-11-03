@@ -22,6 +22,19 @@ has lived (24 h here) and is used only by Better Auth's own sensitive endpoints.
 
 ---
 
+## Which actions require a proof
+
+`StepUpService.assertCritical()` is called by `UserService.setRole` and `UserService.setBanned` — the two mutations that
+change privilege or end a session. The failure is the domain's `UserForbidden`, so the boundary answers a refusal and the
+web can tell the operator to verify with a passkey (`StepUpCard` on Settings → Account) and retry.
+
+- The proof is recorded by the Better Auth `after` hook against the session `/passkey/verify-authentication` MINTED: that
+  endpoint creates a fresh session and replaces the cookie, so reading the pre-existing session would bind the proof to a
+  session the browser no longer holds.
+- A TOTP row satisfies `steppedUp` but never `critical`; `assertCritical` refuses it.
+- `delete` and `revokeSessions` are not wired yet: they are destructive but their UI has no step-up affordance, and a
+  guard nobody can satisfy is a lockout. They are the next wiring once the flow is proven in use.
+
 ## What the read surface answers
 
 **Q**: Does `GET /authz/step-up` gate anything?

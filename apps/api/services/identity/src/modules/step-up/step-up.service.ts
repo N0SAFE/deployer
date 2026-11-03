@@ -18,11 +18,14 @@ export type StepUpStatus = {
 };
 
 export type StepUpServiceShape = {
-	readonly status: () => Effect.Effect<
-		StepUpStatus,
-		ForbiddenError,
-		StepUpRepository | CurrentActor | DatabasePort
-	>;
+	readonly status: () => Effect.Effect<StepUpStatus, ForbiddenError, CurrentActor | DatabasePort>;
+	/**
+	 * The guard a destructive action calls first (`AUTH-062`, `SEC-070`).
+	 *
+	 * Passkey only: a TOTP proof is a step-up but not a CRITICAL one. Failure is the typed `ForbiddenError`, so the
+	 * boundary answers a refusal, never a 500.
+	 */
+	readonly assertCritical: () => Effect.Effect<void, ForbiddenError, CurrentActor | DatabasePort>;
 };
 
 const makeStepUpService = (repository: StepUpRepository["Service"]): StepUpServiceShape => ({
@@ -58,6 +61,22 @@ const makeStepUpService = (repository: StepUpRepository["Service"]): StepUpServi
 				expiresAt: new Date(proof.verifiedAt.getTime() + STEP_UP_WINDOW_SECONDS * 1000),
 				windowSeconds: STEP_UP_WINDOW_SECONDS,
 			};
+		}),
+
+	assertCritical: (): ReturnType<StepUpServiceShape["assertCritical"]> =>
+		Effect.gen(function* () {
+			const actor = yield* CurrentActor;
+			if (actor.kind !== "user" || actor.sessionId === null) {
+				return yield* Effect.fail(new ForbiddenError("step-up needs a user session"));
+			}
+
+			const since = new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000);
+			const proof = yield* repository.latestForSession(actor.sessionId, since);
+			if (proof === null || !isCriticalStepUp(proof.method)) {
+				return yield* Effect.fail(
+					new ForbiddenError("step-up required: verify with a passkey and retry"),
+				);
+			}
 		}),
 });
 

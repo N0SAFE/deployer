@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 
 import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
+import { ForbiddenError } from "@deployer/errors";
+
+import { DatabasePort } from "@identity/core/database/database.port";
+import { StepUpService } from "@identity/modules/step-up/step-up.service";
+
 import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
 
 import { UserService, type UserFailure, type UserServiceShape } from "./user.service";
@@ -55,11 +60,16 @@ describe("UserService", () => {
 			(actor: Acting, ...args: unknown[]) => {
 				const method = UserService.live[key] as (
 					...a: unknown[]
-				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation>;
+				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation | StepUpService>;
 				return method(...args).pipe(
 					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
 					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
 					Effect.provideService(Correlation, { id: "test" }),
+					// The passkey proof is AUTH-062's concern and has its own spec; here every call is stepped up.
+					Effect.provideService(StepUpService, {
+						assertCritical: () => Effect.void,
+						status: () => Effect.die(new Error("status is not used by UserService")),
+					} as unknown as StepUpService["Service"]),
 				);
 			},
 	});
@@ -68,6 +78,26 @@ describe("UserService", () => {
 
 	/** The domain error a use case failed with. */
 	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
+
+	describe("critical actions", () => {
+		it("refuses a role change when the session has no fresh passkey proof", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "user" })));
+
+			const effect = UserService.live.setRole("user-1", "admin").pipe(
+				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
+				Effect.provideService(CurrentActor, Actor.user("admin-1", "superAdmin")),
+				Effect.provideService(Correlation, { id: "test" }),
+				Effect.provideService(DatabasePort, {} as never),
+				Effect.provideService(StepUpService, {
+					assertCritical: () => Effect.fail(new ForbiddenError("step-up required")),
+					status: () => Effect.die(new Error("unused")),
+				} as unknown as StepUpService["Service"]),
+			);
+
+			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			expect(repo.update).not.toHaveBeenCalled();
+		});
+	});
 
 	describe("list / count", () => {
 		it("forbids an ordinary user", async () => {

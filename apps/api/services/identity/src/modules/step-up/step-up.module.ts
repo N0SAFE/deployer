@@ -14,6 +14,7 @@ export class StepUpDomainModule extends createModuleContext(
 			{ provide: StepUpService, useValue: StepUpService.live },
 			{ provide: StepUpRepository, useValue: StepUpRepository.live },
 		],
+		exports: [StepUpService, StepUpRepository],
 	},
 	DatabasePort,
 ) {}

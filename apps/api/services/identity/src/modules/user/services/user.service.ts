@@ -1,13 +1,15 @@
-import { Context, Effect } from 'effect'
 import { hashPassword } from 'better-auth/crypto'
+import { Context, Effect } from 'effect'
 
 import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+import { StepUpService } from '@identity/modules/step-up/step-up.service'
 
 import {
     EmailTaken,
+    UserForbidden,
     UserNotFound,
     type UserDomainFailure,
 } from '../domain/user.errors'
@@ -60,11 +62,11 @@ export type UserServiceShape = {
     readonly setBanned: (
         id: string,
         banned: boolean
-    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort | StepUpService>
     readonly setRole: (
         id: string,
         role: NonNullable<User["role"]>
-    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort | StepUpService>
     readonly revokeSessions: (
         id: string
     ) => Effect.Effect<void, UserFailure, Ambient | UserRepository | DatabasePort>
@@ -152,8 +154,9 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             })
 
             // A user with a password is created with a `credential` account row; Better Auth verifies against it.
-            if (input.password !== undefined && input.password.length > 0) {
-                const passwordHash = yield* Effect.promise(() => hashPassword(input.password as string))
+            const password = input.password
+            if (password !== undefined && password.length > 0) {
+                const passwordHash = yield* Effect.promise(() => hashPassword(password))
                 yield* users.setPassword(created.id, passwordHash)
             }
 
@@ -233,6 +236,9 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
         }),
 
         setBanned: Effect.fn('UserService.setBanned')(function* (id, banned) {
+            const stepUp = yield* StepUpService
+            // A ban ends credentials; it is a critical action, so it needs a fresh passkey proof (`AUTH-062`).
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCapability(actor, banned ? 'user:ban' : 'user:unban')
@@ -261,6 +267,9 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
         }),
 
         setRole: Effect.fn('UserService.setRole')(function* (id, role) {
+            const stepUp = yield* StepUpService
+            // Granting a platform role is privilege; a fresh passkey proof is the price (`AUTH-062`, `SEC-070`).
+            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCapability(actor, 'user:set-role')
