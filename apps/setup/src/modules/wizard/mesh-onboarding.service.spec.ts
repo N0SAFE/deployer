@@ -4,7 +4,8 @@ import type { NodeDoorClient } from "@deployer/mesh-client";
 
 import { makeEnvService } from "@/test-support/env";
 
-import { MeshOnboardingService } from "./mesh-onboarding.service";
+import { makeMeshOnboardingService } from "./mesh-onboarding.service";
+import type { MeshOnboardingService } from "./mesh-onboarding.service";
 
 /**
  * The mesh card's answers. The node door NEVER throws — it resolves `null` when
@@ -31,8 +32,8 @@ function makeDoor(overrides: Partial<NodeDoorClient>): NodeDoorClient {
   return { ...silentDoor, ...overrides };
 }
 
-function makeService(door: NodeDoorClient = silentDoor): MeshOnboardingService {
-  return new MeshOnboardingService(makeEnvService(), door);
+function makeService(door: NodeDoorClient = silentDoor): MeshOnboardingService["Service"] {
+  return makeMeshOnboardingService(makeEnvService(), door);
 }
 
 const status = {

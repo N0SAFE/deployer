@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WizardUpstreamService } from "@/modules/wizard/wizard-upstream.service";
 
-import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
+import { makeApiReadinessWatcherService } from "./api-readiness-watcher.service";
+import type { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 
 /**
  * The watcher is the GATE: nothing touches the ingress until it reports ready.
@@ -32,7 +33,7 @@ function makeWatcher(
   responses: Array<{ status: number }>,
   options: { tiers?: Array<{ status: number; body?: unknown } | "repeat" | "absent"> } = {},
 ): {
-  watcher: ApiReadinessWatcherService;
+  watcher: ApiReadinessWatcherService["Service"];
   calls: () => number;
   paths: () => string[];
 } {
@@ -66,10 +67,10 @@ function makeWatcher(
       index += 1;
       return Promise.resolve(new Response(null, { status: response?.status ?? 503 }));
     },
-  } as unknown as WizardUpstreamService;
+  } as unknown as WizardUpstreamService["Service"];
 
   return {
-    watcher: new ApiReadinessWatcherService(upstream),
+    watcher: makeApiReadinessWatcherService(upstream),
     calls: () => calls,
     paths: () => paths,
   };
@@ -203,8 +204,8 @@ describe("ApiReadinessWatcherService", () => {
     it("treats a probe EXCEPTION as not-ready rather than a fatal error", async () => {
       const upstream = {
         forward: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
-      } as unknown as WizardUpstreamService;
-      const watcher = new ApiReadinessWatcherService(upstream);
+      } as unknown as WizardUpstreamService["Service"];
+      const watcher = makeApiReadinessWatcherService(upstream);
 
       // A connection refusal is what the API looks like BEFORE it starts, which
       // in prod is the normal first state. The error channel would abort the

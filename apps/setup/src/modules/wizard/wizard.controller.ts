@@ -1,4 +1,4 @@
-import { Controller, Logger } from "@nestjs/common";
+import { Controller, Inject, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { ORPCError } from "@orpc/server";
 
@@ -62,13 +62,13 @@ export class WizardController {
   private readonly logger = new Logger(WizardController.name);
 
   constructor(
-    private readonly upstream: WizardUpstreamService,
-    private readonly stream: WizardStreamService,
-    private readonly gate: SetupGateService,
-    private readonly state: WizardStateService,
-    private readonly orchestration: OrchestrationStreamService,
-    private readonly phase: SetupPhaseService,
-    private readonly mesh: MeshOnboardingService,
+    @Inject(WizardUpstreamService) private readonly upstream: WizardUpstreamService["Service"],
+    @Inject(WizardStreamService) private readonly stream: WizardStreamService["Service"],
+    @Inject(SetupGateService) private readonly gate: SetupGateService["Service"],
+    @Inject(WizardStateService) private readonly state: WizardStateService["Service"],
+    @Inject(OrchestrationStreamService) private readonly orchestration: OrchestrationStreamService["Service"],
+    @Inject(SetupPhaseService) private readonly phase: SetupPhaseService["Service"],
+    @Inject(MeshOnboardingService) private readonly mesh: MeshOnboardingService["Service"],
   ) {}
 
   // ─── State (answered LOCALLY — the API does not exist yet) ──────────────

@@ -1,22 +1,25 @@
 import { RenderModule } from "@nestjs-ssr/react";
 
-import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository } from "@deployer/node-state"
+import { createModuleContext, serviceLifecycle } from "@deployer/nest-effect";
+import { NodeConfigRepository } from "@deployer/node-state";
 
 import { NodeStateModule } from "@/config/database/node-state.module";
-import { EnvModule } from "@/config/env/env.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
+import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 
-import { MeshOnboardingService } from "./mesh-onboarding.service";
+import { makeMeshOnboardingService, MeshOnboardingService } from "./mesh-onboarding.service";
 import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
-import { SetupGateService } from "./setup-gate.service";
+import { makeSetupGateService, SetupGateService } from "./setup-gate.service";
 import { WizardOrpcModule } from "./wizard-orpc.module";
 import { WizardPageController } from "./wizard-page.controller";
-import { WizardStateService } from "./wizard-state.service";
-import { WizardStreamService } from "./wizard-stream.service";
-import { WizardUpstreamService } from "./wizard-upstream.service";
+import { makeWizardStateService, WizardStateService } from "./wizard-state.service";
+import { makeWizardStreamService, WizardStreamService } from "./wizard-stream.service";
+import { makeWizardUpstreamService, WizardUpstreamService } from "./wizard-upstream.service";
 import { WizardController } from "./wizard.controller";
 
 
@@ -88,11 +91,16 @@ export class WizardModule extends createModuleContext({
       provide: NODE_CONFIG_READER,
       useExisting: NodeConfigRepository,
     },
-    SetupGateService,
-    MeshOnboardingService,
-    WizardStateService,
-    WizardUpstreamService,
-    WizardStreamService,
+    {
+      provide: SetupGateService,
+      useFactory: makeSetupGateService,
+      inject: [SetupPhaseService, NODE_CONFIG_STORE, EnvService, ClusterOrchestratorService, OrchestrationStreamService],
+    },
+    serviceLifecycle(SetupGateService),
+    { provide: MeshOnboardingService, useFactory: (env: EnvService) => makeMeshOnboardingService(env), inject: [EnvService] },
+    { provide: WizardStateService, useFactory: makeWizardStateService, inject: [NODE_CONFIG_READER] },
+    { provide: WizardUpstreamService, useFactory: makeWizardUpstreamService, inject: [EnvService] },
+    { provide: WizardStreamService, useFactory: makeWizardStreamService, inject: [WizardUpstreamService, SetupPhaseService] },
   ],
   exports: [
     SetupGateService,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SetupPhaseService } from "./setup-phase.service";
+import { makeSetupPhase, type SetupPhaseShape } from "./setup-phase.service";
 
 /**
  * `SetupPhaseService` is the single source of truth the compose gate reads, so
@@ -8,8 +8,8 @@ import { SetupPhaseService } from "./setup-phase.service";
  * dashboard on a half-built platform (a false `ready`) or deadlocks the boot
  * (a `ready` that never arrives).
  */
-function makeService(): SetupPhaseService {
-  return new SetupPhaseService();
+function makeService(): SetupPhaseShape {
+  return makeSetupPhase();
 }
 
 describe("SetupPhaseService", () => {

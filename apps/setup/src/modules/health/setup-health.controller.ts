@@ -1,9 +1,9 @@
-import { Controller, Get, HttpCode, Res } from "@nestjs/common";
+import { Controller, Get, HttpCode, Inject, Res } from "@nestjs/common";
 import { HealthCheckService } from "@nestjs/terminus";
 
 
-import { SetupPhaseService } from "./setup-phase.service";
-import { SetupReadinessIndicator } from "./setup-readiness.indicator";
+import { SetupPhaseService, type SetupPhaseShape } from "./setup-phase.service";
+import { SetupReadinessIndicator, type SetupReadinessIndicatorShape } from "./setup-readiness.indicator";
 
 import type { Response } from "express";
 
@@ -26,8 +26,8 @@ import type { Response } from "express";
 export class SetupHealthController {
   constructor(
     private readonly health: HealthCheckService,
-    private readonly indicator: SetupReadinessIndicator,
-    private readonly phases: SetupPhaseService,
+    @Inject(SetupReadinessIndicator) private readonly indicator: SetupReadinessIndicatorShape,
+    @Inject(SetupPhaseService) private readonly phases: SetupPhaseShape,
   ) {}
 
   /**

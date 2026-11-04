@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { makeEnvService } from "@/test-support/env";
 
-import { IngressHandoverService } from "./ingress-handover.service";
+import { makeIngressHandoverService } from "./ingress-handover.service";
+import type { IngressHandoverService } from "./ingress-handover.service";
 
 /**
  * The handover writes the two files that decide who owns each hostname. Both
@@ -23,11 +24,11 @@ import { IngressHandoverService } from "./ingress-handover.service";
  */
 describe("IngressHandoverService", () => {
   let dir: string;
-  let ingress: IngressHandoverService;
+  let ingress: IngressHandoverService["Service"];
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "setup-ingress-"));
-    ingress = new IngressHandoverService(makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir }));
+    ingress = makeIngressHandoverService(makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir }));
   });
 
   afterEach(async () => {
@@ -50,7 +51,7 @@ describe("IngressHandoverService", () => {
     });
 
     it("inserts the prefix after the service label", () => {
-      const prefixed = new IngressHandoverService(
+      const prefixed = makeIngressHandoverService(
         makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir, DEPLOYER_PREFIX: "acme" }),
       );
 
@@ -109,7 +110,7 @@ describe("IngressHandoverService", () => {
     });
 
     it("uses the CONFIGURED port rather than a hardcoded one", async () => {
-      const custom = new IngressHandoverService(
+      const custom = makeIngressHandoverService(
         makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir, SETUP_APP_PORT: "4444" }),
       );
 
@@ -137,11 +138,11 @@ describe("IngressHandoverService", () => {
       // A failure here must not restart-loop the container: the process still
       // serves on its internal port, where the healthcheck and the handover
       // reach it, and the handover retries the same write later.
-      const broken = new IngressHandoverService(
+      const broken = makeIngressHandoverService(
         makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: "/proc/nonexistent/read-only" }),
       );
 
-      await expect(broken.onApplicationBootstrap()).resolves.toBeUndefined();
+      await expect(broken.bootstrap()).resolves.toBeUndefined();
     });
   });
 

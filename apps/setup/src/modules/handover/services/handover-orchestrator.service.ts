@@ -1,6 +1,7 @@
 import { request as httpRequest } from "node:http";
 
-import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import {
   Observable,
   Subject,
@@ -15,17 +16,17 @@ import {
   tap,
 } from "rxjs";
 
-import { EnvService } from "@/config/env/env.module";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
-import { SetupGateService } from "@/modules/wizard/setup-gate.service";
-import { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
+import type { EnvService } from "@/config/env/env.module";
+import type { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import type { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
+import type { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import type { SetupGateService } from "@/modules/wizard/setup-gate.service";
+import type { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
 
 
-import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
-import { ApiServiceProvisioner } from "./api-service-provisioner.service";
-import { IngressHandoverService } from "./ingress-handover.service";
+import type { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
+import type { ApiServiceProvisioner } from "./api-service-provisioner.service";
+import type { IngressHandoverService } from "./ingress-handover.service";
 
 import type { HandoverResult } from "../handover.types";
 
@@ -69,9 +70,8 @@ import type { HandoverResult } from "../handover.types";
  * provisioner reuses an existing service, the file writes are atomic
  * overwrites), so a retry converges instead of colliding.
  */
-@Injectable()
-export class HandoverOrchestratorService implements OnApplicationBootstrap, OnModuleDestroy {
-  private readonly logger = new Logger(HandoverOrchestratorService.name);
+export class HandoverOrchestratorServiceImpl {
+  private readonly logger = new Logger("HandoverOrchestratorService");
 
   /**
    * Retry trigger. A plain `Subject` for the same reason as the cluster's: a
@@ -97,20 +97,20 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
   private readonly results$: Observable<HandoverResult>;
 
   constructor(
-    private readonly provisioner: ApiServiceProvisioner,
-    private readonly readiness: ApiReadinessWatcherService,
-    private readonly ingress: IngressHandoverService,
-    private readonly phase: SetupPhaseService,
-    private readonly gate: SetupGateService,
-    private readonly bootstrapIngress: BootstrapIngressService,
-    private readonly orchestration: OrchestrationStreamService,
-    private readonly stream: WizardStreamService,
+    private readonly provisioner: ApiServiceProvisioner["Service"],
+    private readonly readiness: ApiReadinessWatcherService["Service"],
+    private readonly ingress: IngressHandoverService["Service"],
+    private readonly phase: SetupPhaseService["Service"],
+    private readonly gate: SetupGateService["Service"],
+    private readonly bootstrapIngress: BootstrapIngressService["Service"],
+    private readonly orchestration: OrchestrationStreamService["Service"],
+    private readonly stream: WizardStreamService["Service"],
     private readonly env: EnvService,
   ) {
     this.results$ = this.attempts$.pipe(
       // Serialised: see the class note. A retry clicked mid-handover QUEUES.
       concatMap(() =>
-        from(this.run()).pipe(
+        from(this.execute()).pipe(
           catchError((error: unknown) => {
             // `run()` already converts throwable failures to data; reaching here
             // means an unexpected fault, so it is converted to the same shape to
@@ -171,23 +171,25 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    * filters on the target phase and de-duplicates by timestamp, and the gate is
    * published at most once per `launching` transition.
    */
-  onApplicationBootstrap(): void {
-    this.gateSubscription = this.phase
-      .onEnter("launching")
-      .pipe(takeUntil(this.destroyed$))
-      .subscribe(() => {
-        this.logger.log("Gate is open — starting the handover pipeline");
-        this.attempt();
-      });
-  }
+  readonly onStart = (): Effect.Effect<void> =>
+    Effect.sync(() => {
+      this.gateSubscription = this.phase
+        .onEnter("launching")
+        .pipe(takeUntil(this.destroyed$))
+        .subscribe(() => {
+          this.logger.log("Gate is open — starting the handover pipeline");
+          this.attempt();
+        });
+    });
 
   /** Release the gate subscription. */
-  onModuleDestroy(): void {
-    this.destroyed$.next();
-    this.destroyed$.complete();
-    this.gateSubscription?.unsubscribe();
-    this.gateSubscription = null;
-  }
+  readonly onStop = (): Effect.Effect<void> =>
+    Effect.sync(() => {
+      this.destroyed$.next();
+      this.destroyed$.complete();
+      this.gateSubscription?.unsubscribe();
+      this.gateSubscription = null;
+    });
 
   /** Start (or retry) the handover. Safe while one is running (it queues). */
   attempt(): void {
@@ -213,7 +215,7 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    * reason and a retry, not a dead process. The failure is returned as data so
    * the pipeline above decides what to publish.
    */
-  private async run(): Promise<HandoverResult> {
+  private async execute(): Promise<HandoverResult> {
     try {
       this.phase.record("provisioning", "Resolving where the API is served…");
 
@@ -674,3 +676,9 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
     return 300_000;
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`HandoverOrchestratorService["Service"]` is its type). */
+export class HandoverOrchestratorService extends Context.Service<HandoverOrchestratorService, HandoverOrchestratorServiceImpl>()("setup/HandoverOrchestratorService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeHandoverOrchestratorService = (...args: ConstructorParameters<typeof HandoverOrchestratorServiceImpl>): HandoverOrchestratorServiceImpl => new HandoverOrchestratorServiceImpl(...args);

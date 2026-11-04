@@ -1,15 +1,16 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { runSyncUnwrapped } from "@deployer/effect-core";
 
 
-import { EnvService } from "@/config/env/env.module";
+import type { EnvService } from "@/config/env/env.module";
 import type { ClusterEntryMode } from "@/modules/cluster/cluster.types";
-import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import type { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import type { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 
-import { NODE_CONFIG_STORE, type NodeConfigStore } from "./node-config.port";
+import type { NodeConfigStore } from "./node-config.port";
 
 /**
  * The gate that decides when the API may start.
@@ -49,16 +50,15 @@ import { NODE_CONFIG_STORE, type NodeConfigStore } from "./node-config.port";
  * was never written on a modern boot — and none of it is needed once setup owns
  * the decision: there is no pre-setup API to feed.
  */
-@Injectable()
-export class SetupGateService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(SetupGateService.name);
+export class SetupGateServiceImpl {
+  private readonly logger = new Logger("SetupGateService");
 
   constructor(
-    private readonly phases: SetupPhaseService,
-    @Inject(NODE_CONFIG_STORE) private readonly nodeConfig: NodeConfigStore,
+    private readonly phases: SetupPhaseService["Service"],
+    private readonly nodeConfig: NodeConfigStore,
     private readonly env: EnvService,
-    private readonly cluster: ClusterOrchestratorService,
-    private readonly orchestration: OrchestrationStreamService,
+    private readonly cluster: ClusterOrchestratorService["Service"],
+    private readonly orchestration: OrchestrationStreamService["Service"],
   ) {}
 
   /**
@@ -121,7 +121,9 @@ export class SetupGateService implements OnApplicationBootstrap {
    * `databaseUrl` does not qualify — that is an unprovisioned candidate, and
    * skipping the wizard there would leave an empty schema with no one to fix it.
    */
-  onApplicationBootstrap(): void {
+  readonly onStart = (): Effect.Effect<void> => Effect.sync(() => { this.bootstrap(); });
+
+  private bootstrap(): void {
     const existing = runSyncUnwrapped(this.nodeConfig.find());
 
     if (existing?.setupState !== "setup_done") {
@@ -390,3 +392,9 @@ export class SetupGateService implements OnApplicationBootstrap {
     return typeof url === "string" && url.trim().length > 0 ? url.trim() : null;
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`SetupGateService["Service"]` is its type). */
+export class SetupGateService extends Context.Service<SetupGateService, SetupGateServiceImpl>()("setup/SetupGateService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeSetupGateService = (...args: ConstructorParameters<typeof SetupGateServiceImpl>): SetupGateServiceImpl => new SetupGateServiceImpl(...args);

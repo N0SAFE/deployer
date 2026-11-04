@@ -1,10 +1,10 @@
-import { TerminusModule } from "@nestjs/terminus";
+import { HealthIndicatorService, TerminusModule } from "@nestjs/terminus";
 
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { SetupHealthController } from "./setup-health.controller";
-import { SetupPhaseService } from "./setup-phase.service";
-import { SetupReadinessIndicator } from "./setup-readiness.indicator";
+import { makeSetupPhase, SetupPhaseService, type SetupPhaseShape } from "./setup-phase.service";
+import { makeSetupReadinessIndicator, SetupReadinessIndicator } from "./setup-readiness.indicator";
 
 /**
  * Health and lifecycle-phase ownership for the setup app.
@@ -30,6 +30,13 @@ import { SetupReadinessIndicator } from "./setup-readiness.indicator";
 export class SetupHealthModule extends createModuleContext({
   imports: [TerminusModule.forRoot({ logger: false })],
   controllers: [SetupHealthController],
-  providers: [SetupPhaseService, SetupReadinessIndicator],
+  providers: [
+    { provide: SetupPhaseService, useFactory: makeSetupPhase },
+    {
+      provide: SetupReadinessIndicator,
+      useFactory: (health: HealthIndicatorService, phases: SetupPhaseShape) => makeSetupReadinessIndicator(health, phases),
+      inject: [HealthIndicatorService, SetupPhaseService],
+    },
+  ],
   exports: [SetupPhaseService],
 }) {}

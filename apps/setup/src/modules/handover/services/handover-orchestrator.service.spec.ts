@@ -1,14 +1,16 @@
 import { firstValueFrom, of } from "rxjs";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import { makeSetupPhase } from "@/modules/health/setup-phase.service";
 import type { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { makeOrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import type { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import type { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
 import { makeEnvService } from "@/test-support/env";
 
-import { HandoverOrchestratorService } from "./handover-orchestrator.service";
+import { makeHandoverOrchestratorService } from "./handover-orchestrator.service";
+import type { HandoverOrchestratorService } from "./handover-orchestrator.service";
 
 import type { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 import type { ApiServiceProvisioner } from "./api-service-provisioner.service";
@@ -28,8 +30,8 @@ import type { IngressHandoverService } from "./ingress-handover.service";
  */
 describe("HandoverOrchestratorService", () => {
   let effects: string[];
-  let phases: SetupPhaseService;
-  let orchestration: OrchestrationStreamService;
+  let phases: ReturnType<typeof makeSetupPhase>;
+  let orchestration: OrchestrationStreamService["Service"];
 
   function makeOrchestrator(
     options: {
@@ -56,7 +58,7 @@ describe("HandoverOrchestratorService", () => {
        */
       managedWeb?: boolean;
     } = {},
-  ): HandoverOrchestratorService {
+  ): HandoverOrchestratorService["Service"] {
     const isReady = options.ready ?? true;
     const portReleased = options.portReleased ?? true;
     const serving = options.serving ?? true;
@@ -71,7 +73,7 @@ describe("HandoverOrchestratorService", () => {
           detail: "dev",
         });
       },
-    } as unknown as ApiServiceProvisioner;
+    } as unknown as ApiServiceProvisioner["Service"];
 
     const readiness = {
       waitUntilReady: () => {
@@ -82,7 +84,7 @@ describe("HandoverOrchestratorService", () => {
             : { ready: false as const, reason: "503" },
         );
       },
-    } as unknown as ApiReadinessWatcherService;
+    } as unknown as ApiReadinessWatcherService["Service"];
 
     const ingress = {
       pointApiAt: (url: string) => {
@@ -101,7 +103,7 @@ describe("HandoverOrchestratorService", () => {
       // The API's public hostname — the subject of the promote-ingress probe.
       // Present on the real service for the same reason as `webHostname`.
       apiHostname: () => "api.deployer.localhost",
-    } as unknown as IngressHandoverService;
+    } as unknown as IngressHandoverService["Service"];
 
     // The gate is stubbed: its own spec covers persistence and the gate decision.
     // Here it only has to REPORT whether it holds a payload to deliver (which
@@ -110,7 +112,7 @@ describe("HandoverOrchestratorService", () => {
     const gate = {
       triggerPayload: () => (options.trigger === undefined ? { strategy: "local" } : options.trigger),
       managedWebEnabled: () => options.managedWeb === true,
-    } as unknown as SetupGateService;
+    } as unknown as SetupGateService["Service"];
 
     // The bootstrap ingress is stubbed because it drives the docker engine. What
     // matters here is WHERE its release lands in the sequence — after the API is
@@ -129,13 +131,13 @@ describe("HandoverOrchestratorService", () => {
         effects.push(`waitForEntryPointToServe:${hostname}`);
         return Promise.resolve(serving);
       },
-    } as unknown as BootstrapIngressService;
+    } as unknown as BootstrapIngressService["Service"];
 
     // The gate edge is subscribed in `onApplicationBootstrap`, which is not
     // called here — these tests drive the pipeline through `attempt()`, the same
     // entry point the subscription uses.
     const envService = makeEnvService({ SETUP_MODE: "dev" });
-    orchestration = new OrchestrationStreamService(envService);
+    orchestration = makeOrchestrationStreamService(envService);
 
     // The API stream is stubbed: attaching it is a long-running subscription
     // against a process that does not exist in a unit test. What matters here is
@@ -146,9 +148,9 @@ describe("HandoverOrchestratorService", () => {
         effects.push("attachStream");
         return Promise.resolve();
       },
-    } as unknown as WizardStreamService;
+    } as unknown as WizardStreamService["Service"];
 
-    const orchestrator = new HandoverOrchestratorService(
+    const orchestrator = makeHandoverOrchestratorService(
       provisioner,
       readiness,
       ingress,
@@ -172,7 +174,7 @@ describe("HandoverOrchestratorService", () => {
   }
 
   /** Trigger once and await the single emitted result. */
-  function run(orchestrator: HandoverOrchestratorService) {
+  function run(orchestrator: HandoverOrchestratorService["Service"]) {
     const result = firstValueFrom(orchestrator.stream$);
     orchestrator.attempt();
     return result;
@@ -180,7 +182,7 @@ describe("HandoverOrchestratorService", () => {
 
   beforeEach(() => {
     effects = [];
-    phases = new SetupPhaseService();
+    phases = makeSetupPhase();
   });
 
   describe("successful handover", () => {

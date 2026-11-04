@@ -8,10 +8,9 @@
  * package, and the app booted against an UNMIGRATED schema. The migrations create the tables
  * `@deployer/nest-schema/local` defines, so they ship with that package and this app imports the path.
  */
-import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
-import { Cause, Effect, Exit, Scope } from "effect";
+import { Cause, Context, Effect, Exit, Scope } from "effect";
 
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule, serviceLifecycle } from "@deployer/nest-effect";
 import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 import {
 	LocalDatabase,
@@ -24,40 +23,34 @@ import {
 import { EnvModule, EnvService } from "@/config/env/env.module";
 
 const LOCAL_DATABASE_OPTIONS = "LOCAL_DATABASE_OPTIONS" as const;
+const LOCAL_DATABASE_HANDLE = "LOCAL_DATABASE_HANDLE" as const;
 
-/** Opening and migrating are synchronous Effects; this runs one and throws its original failure. */
+/** Opening is a synchronous Effect; this runs one and throws its original failure. */
 const runUnwrapped = <A, E>(effect: Effect.Effect<A, E>): A => {
 	const exit = Effect.runSyncExit(effect);
 	if (Exit.isSuccess(exit)) return exit.value;
 	throw Cause.squash(exit.cause);
 };
 
-/**
- * Ties the Effect `LocalDatabase` to this Nest context: each context opens its OWN handle (the API
- * runs several contexts in one process), so each closes the one it opened. The connection is opened at
- * construction so providers can inject the Drizzle handle; the schema is migrated at `onModuleInit`,
- * after the graph resolves and before any consumer's own init hook, and closed at shutdown, after the
- * container is disposed, so no repository can still be using it.
- */
-@Injectable()
-class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
-	private readonly logger = new Logger(LocalDatabaseLifecycle.name);
-	private readonly scope = Effect.runSync(Scope.make());
+/** The connection and the scope that owns it: each context opens its OWN handle, so each closes the one it opened. */
+interface LocalDatabaseHandle {
 	readonly database: LocalDatabaseShape;
-
-	constructor(@Inject(LOCAL_DATABASE_OPTIONS) private readonly options: LocalDatabaseOptions) {
-		this.database = runUnwrapped(openLocalDatabase(options).pipe(Scope.provide(this.scope)));
-	}
-
-	onModuleInit(): void {
-		runUnwrapped(migrateLocalDatabase(this.database, this.options.migrationsDir));
-	}
-
-	onApplicationShutdown(): void {
-		const exit = Effect.runSyncExit(Scope.close(this.scope, Exit.void));
-		if (Exit.isFailure(exit)) this.logger.warn(`Local SQLite close failed: ${Cause.pretty(exit.cause)}`);
-	}
+	readonly scope: Scope.Closeable;
+	readonly options: LocalDatabaseOptions;
 }
+
+/**
+ * The database's lifetime, declared as a lifecycle: the schema is migrated in `onStart` (after the graph resolves
+ * and before any consumer's own start), and the handle is closed in `onStop`, after the work that uses it.
+ */
+export type LocalDatabaseLifecycleShape = {
+	readonly onStart: () => Effect.Effect<void, unknown>;
+	readonly onStop: () => Effect.Effect<void, unknown>;
+};
+
+export class LocalDatabaseLifecycle extends Context.Service<LocalDatabaseLifecycle, LocalDatabaseLifecycleShape>()(
+	"setup/LocalDatabaseLifecycle",
+) {}
 
 export const LocalDatabaseModule = createGlobalModule({
 	imports: [EnvModule],
@@ -70,8 +63,25 @@ export const LocalDatabaseModule = createGlobalModule({
 			}),
 			inject: [EnvService],
 		},
-		LocalDatabaseLifecycle,
-		{ provide: LocalDatabase, useFactory: (host: LocalDatabaseLifecycle) => host.database, inject: [LocalDatabaseLifecycle] },
+		{
+			// Opened at construction so providers can inject the Drizzle handle.
+			provide: LOCAL_DATABASE_HANDLE,
+			useFactory: (options: LocalDatabaseOptions): LocalDatabaseHandle => {
+				const scope = Effect.runSync(Scope.make());
+				return { database: runUnwrapped(openLocalDatabase(options).pipe(Scope.provide(scope))), scope, options };
+			},
+			inject: [LOCAL_DATABASE_OPTIONS],
+		},
+		{ provide: LocalDatabase, useFactory: (handle: LocalDatabaseHandle) => handle.database, inject: [LOCAL_DATABASE_HANDLE] },
+		{
+			provide: LocalDatabaseLifecycle,
+			useFactory: (handle: LocalDatabaseHandle): LocalDatabaseLifecycleShape => ({
+				onStart: () => migrateLocalDatabase(handle.database, handle.options.migrationsDir).pipe(Effect.asVoid),
+				onStop: () => Scope.close(handle.scope, Exit.void),
+			}),
+			inject: [LOCAL_DATABASE_HANDLE],
+		},
+		serviceLifecycle(LocalDatabaseLifecycle),
 	],
 	exports: [LocalDatabase],
 });

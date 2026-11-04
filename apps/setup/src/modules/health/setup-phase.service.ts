@@ -1,7 +1,28 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 import { BehaviorSubject, Observable, Subject, filter, map, distinctUntilChanged } from "rxjs";
 
 import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-phase.types";
+
+/** What the rest of the app can do with the phase. A plain shape: a spec fakes it, a module provides it. */
+export type SetupPhaseShape = {
+  /** Current phase, for synchronous reads (the Terminus indicator). */
+  current(): SetupPhaseSnapshot;
+  /** Current phase as a stream. Replays the current value to new subscribers. */
+  readonly snapshot$: Observable<SetupPhaseSnapshot>;
+  /** Every transition, for consumers reacting to edges. */
+  readonly events$: Observable<SetupPhaseEvent>;
+  /** Transitions INTO a specific phase. */
+  onEnter(phase: SetupPhase): Observable<SetupPhaseEvent>;
+  /** The phase as a stream of phase names (ignores detail/flag churn). */
+  readonly phase$: Observable<SetupPhase>;
+  record(phase: Exclude<SetupPhase, "failed">, detail: string, flags?: { apiUp?: boolean; apiReady?: boolean }): void;
+  fail(reason: string, flags?: { apiUp?: boolean; apiReady?: boolean }): void;
+  reset(): void;
+  isReady(): boolean;
+};
+
+export class SetupPhaseService extends Context.Service<SetupPhaseService, SetupPhaseShape>()("setup/SetupPhaseService") {}
 
 /**
  * Single source of truth for the setup app's lifecycle phase, published as an
@@ -33,11 +54,9 @@ import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-ph
  * app's public readiness contract (compose parses only this one's phase), and
  * would couple the app being retired to the app that outlives it.
  */
-@Injectable()
-export class SetupPhaseService {
-  private readonly logger = new Logger(SetupPhaseService.name);
-
-  private static readonly INITIAL: SetupPhaseSnapshot = {
+export function makeSetupPhase(): SetupPhaseShape {
+  const logger = new Logger("SetupPhaseService");
+  const INITIAL: SetupPhaseSnapshot = {
     phase: "awaiting",
     detail: "Setup has not started yet",
     apiUp: false,
@@ -50,10 +69,7 @@ export class SetupPhaseService {
    * transition has occurred, and a plain Subject would make that first read
    * block forever waiting for an event that already "happened" at construction.
    */
-  private readonly state$ = new BehaviorSubject<SetupPhaseSnapshot>({
-    ...SetupPhaseService.INITIAL,
-    updatedAt: new Date().toISOString(),
-  });
+  const state$ = new BehaviorSubject<SetupPhaseSnapshot>({ ...INITIAL, updatedAt: new Date().toISOString() });
 
   /**
    * Transitions only — for consumers that react to EDGES, not to state.
@@ -63,109 +79,8 @@ export class SetupPhaseService {
    * recovery" running again for a failure already handled). State replays via
    * `snapshot$`; edges are consumed once, by whoever is listening.
    */
-  private readonly transitions$ = new Subject<SetupPhaseEvent>();
-
-  /** Current phase, for synchronous reads (the Terminus indicator). */
-  current(): SetupPhaseSnapshot {
-    return { ...this.state$.value };
-  }
-
-  /** Current phase as a stream. Replays the current value to new subscribers. */
-  get snapshot$(): Observable<SetupPhaseSnapshot> {
-    return this.state$.asObservable();
-  }
-
-  /** Every transition, for consumers reacting to edges. */
-  get events$(): Observable<SetupPhaseEvent> {
-    return this.transitions$.asObservable();
-  }
-
-  /** Transitions INTO a specific phase. */
-  onEnter(phase: SetupPhase): Observable<SetupPhaseEvent> {
-    return this.events$.pipe(
-      filter((event) => event.to === phase),
-      distinctUntilChanged((a, b) => a.at === b.at),
-    );
-  }
-
-  /** The phase as a stream of phase names (ignores detail/flag churn). */
-  get phase$(): Observable<SetupPhase> {
-    return this.state$.pipe(
-      map((snapshot) => snapshot.phase),
-      distinctUntilChanged(),
-    );
-  }
-
-  /**
-   * Record a progress signal.
-   *
-   * `failed` is sticky on purpose: a phase that later looks "provisioning" again
-   * must not silently erase an error the operator has not seen yet. Clearing it
-   * is an explicit act (a retry), never a side effect of progress.
-   */
-  record(
-    phase: Exclude<SetupPhase, "failed">,
-    detail: string,
-    flags: { apiUp?: boolean; apiReady?: boolean } = {},
-  ): void {
-    if (this.state$.value.phase === "failed") {
-      this.logger.warn(`Ignoring "${phase}" — still in the failed state until the operator retries`);
-      return;
-    }
-    this.publish(phase, detail, flags);
-  }
-
-  /** Record a terminal failure with the reason that caused it. */
-  fail(reason: string, flags: { apiUp?: boolean; apiReady?: boolean } = {}): void {
-    // ERROR, not WARN: a failed setup blocks the whole platform, and the
-    // operator needs to find it in the logs without grepping for WARN too.
-    this.publish("failed", reason, flags, true);
-  }
-
-  /**
-   * Clear a previous failure so the flow can run again.
-   *
-   * Re-running must be safe (the plan's requirement): the swarm init is
-   * idempotent and the DB provisioner skips work already done, so resetting the
-   * PHASE is all that is needed — there is no half-built state to unwind.
-   */
-  reset(): void {
-    this.publish("awaiting", "Setup was reset and is waiting to start again", { apiReady: false });
-    this.logger.log("Setup phase reset — ready to re-run");
-  }
-
-  /**
-   * The GATE, as compose consumes it.
-   *
-   * Open from `launching` onward — NOT only at `ready`.
-   *
-   * ── WHY THE GATE OPENS AT `launching` AND NOT AT `ready` ────────────────────
-   * This is the single most consequential line in the app. An earlier design
-   * treated `ready` (i.e. "the API is green and the ingress is retargeted") as
-   * the gate, which made setup's health a statement about the API. Since compose
-   * starts the API *behind* this healthcheck, that is a cycle: each side waits
-   * for the other, and the only escape is starting the API early in a degraded
-   * mode — the arrangement this refactor exists to delete.
-   *
-   * `launching` is a fact about THIS process: the wizard finished collecting and
-   * persisted its choices. Nothing about the API is consulted, so the dependency
-   * graph stays a straight line (`setup → api → web`).
-   *
-   * The phases AFTER `launching` therefore still report ready. Setup keeps
-   * watching the API and rewriting the ingress, and compose re-probes this
-   * throughout — a `503` there would tear the API back down mid-provision.
-   */
-  isReady(): boolean {
-    switch (this.state$.value.phase) {
-      case "launching":
-      case "provisioning":
-      case "handover":
-      case "ready":
-        return true;
-      default:
-        return false;
-    }
-  }
+  const transitions$ = new Subject<SetupPhaseEvent>();
+  const events$ = transitions$.asObservable();
 
   /**
    * Publish one transition: update state, then notify.
@@ -174,13 +89,13 @@ export class SetupPhaseService {
    * that reads `current()` inside its `events$` handler sees the new value, not
    * the one it just replaced.
    */
-  private publish(
+  const publish = (
     phase: SetupPhase,
     detail: string,
     flags: { apiUp?: boolean; apiReady?: boolean },
     isFailure = false,
-  ): void {
-    const previous = this.state$.value;
+  ): void => {
+    const previous = state$.value;
     const snapshot: SetupPhaseSnapshot = {
       phase,
       detail,
@@ -189,13 +104,78 @@ export class SetupPhaseService {
       updatedAt: new Date().toISOString(),
     };
 
-    this.state$.next(snapshot);
-    this.transitions$.next({ from: previous.phase, to: phase, snapshot, at: snapshot.updatedAt });
+    state$.next(snapshot);
+    transitions$.next({ from: previous.phase, to: phase, snapshot, at: snapshot.updatedAt });
 
     if (isFailure) {
-      this.logger.error(`Setup FAILED: ${detail}`);
+      // ERROR, not WARN: a failed setup blocks the whole platform.
+      logger.error(`Setup FAILED: ${detail}`);
     } else {
-      this.logger.log(`Setup phase ${previous.phase} → ${phase}: ${detail}`);
+      logger.log(`Setup phase ${previous.phase} → ${phase}: ${detail}`);
     }
-  }
+  };
+
+  return {
+    current: () => ({ ...state$.value }),
+    snapshot$: state$.asObservable(),
+    events$,
+    onEnter: (phase) =>
+      events$.pipe(
+        filter((event) => event.to === phase),
+        distinctUntilChanged((a, b) => a.at === b.at),
+      ),
+    phase$: state$.pipe(
+      map((snapshot) => snapshot.phase),
+      distinctUntilChanged(),
+    ),
+
+    /**
+     * Record a progress signal.
+     *
+     * `failed` is sticky on purpose: a phase that later looks "provisioning" again
+     * must not silently erase an error the operator has not seen yet. Clearing it
+     * is an explicit act (a retry), never a side effect of progress.
+     */
+    record: (phase, detail, flags = {}) => {
+      if (state$.value.phase === "failed") {
+        logger.warn(`Ignoring "${phase}" — still in the failed state until the operator retries`);
+        return;
+      }
+      publish(phase, detail, flags);
+    },
+
+    /** Record a terminal failure with the reason that caused it. */
+    fail: (reason, flags = {}) => {
+      publish("failed", reason, flags, true);
+    },
+
+    /**
+     * Clear a previous failure so the flow can run again. Re-running is safe: the swarm init is idempotent and
+     * the DB provisioner skips work already done, so resetting the PHASE is all that is needed.
+     */
+    reset: () => {
+      publish("awaiting", "Setup was reset and is waiting to start again", { apiReady: false });
+      logger.log("Setup phase reset — ready to re-run");
+    },
+
+    /**
+     * The GATE, as compose consumes it. Open from `launching` onward — NOT only at `ready`.
+     *
+     * An earlier design treated `ready` (the API is green and the ingress retargeted) as the gate, which made
+     * setup's health a statement about the API. Compose starts the API *behind* this healthcheck, so that is a
+     * cycle. `launching` is a fact about THIS process: the wizard finished collecting and persisted its choices.
+     * The phases AFTER `launching` still report ready: a `503` there would tear the API back down mid-provision.
+     */
+    isReady: () => {
+      switch (state$.value.phase) {
+        case "launching":
+        case "provisioning":
+        case "handover":
+        case "ready":
+          return true;
+        default:
+          return false;
+      }
+    },
+  };
 }

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 import { Observable, timer, from, of, catchError, map, switchMap, takeWhile,  last } from "rxjs";
 
 import { WizardUpstreamService } from "@/modules/wizard/wizard-upstream.service";
@@ -33,11 +34,10 @@ import type { ApiProbeResult } from "../handover.types";
  * `setInterval` with an async body, where a degraded API accumulates unbounded
  * concurrent connections exactly when it can least afford them.
  */
-@Injectable()
-export class ApiReadinessWatcherService {
-  private readonly logger = new Logger(ApiReadinessWatcherService.name);
+export class ApiReadinessWatcherServiceImpl {
+  private readonly logger = new Logger("ApiReadinessWatcherService");
 
-  constructor(private readonly upstream: WizardUpstreamService) {}
+  constructor(private readonly upstream: WizardUpstreamService["Service"]) {}
 
   /**
    * Poll `/health/ready` until it answers 200.
@@ -169,3 +169,9 @@ export class ApiReadinessWatcherService {
     }
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`ApiReadinessWatcherService["Service"]` is its type). */
+export class ApiReadinessWatcherService extends Context.Service<ApiReadinessWatcherService, ApiReadinessWatcherServiceImpl>()("setup/ApiReadinessWatcherService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeApiReadinessWatcherService = (...args: ConstructorParameters<typeof ApiReadinessWatcherServiceImpl>): ApiReadinessWatcherServiceImpl => new ApiReadinessWatcherServiceImpl(...args);

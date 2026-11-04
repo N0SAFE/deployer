@@ -1,8 +1,8 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { EnvModule } from "@/config/env/env.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
-import { OrchestrationStreamService } from "./services/orchestration-stream.service";
+import { makeOrchestrationStreamService, OrchestrationStreamService } from "./services/orchestration-stream.service";
 
 /**
  * The setup app's progress timeline — the steps the operator watches.
@@ -25,6 +25,6 @@ import { OrchestrationStreamService } from "./services/orchestration-stream.serv
  */
 export class SetupProgressModule extends createModuleContext({
   imports: [EnvModule],
-  providers: [OrchestrationStreamService],
+  providers: [{ provide: OrchestrationStreamService, useFactory: makeOrchestrationStreamService, inject: [EnvService] }],
   exports: [OrchestrationStreamService],
 }) {}

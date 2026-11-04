@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { NodeConfigRow } from "@deployer/node-state";
 
-import { WizardStateService } from "./wizard-state.service";
+import { makeWizardStateService } from "./wizard-state.service";
+import type { WizardStateService } from "./wizard-state.service";
 
 import type { NodeConfigReader } from "./node-config.port";
 
@@ -35,7 +36,7 @@ function makeService(row: Record<string, unknown> | null) {
   const repo: NodeConfigReader = {
     find: () => Effect.succeed(row === null ? null : (row as NodeConfigRow)),
   };
-  return new WizardStateService(repo);
+  return makeWizardStateService(repo);
 }
 
 describe("WizardStateService", () => {

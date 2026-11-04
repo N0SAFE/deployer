@@ -1,7 +1,13 @@
-import { Injectable } from "@nestjs/common";
-import { HealthIndicatorService } from "@nestjs/terminus";
+import type { HealthIndicatorResult, HealthIndicatorService } from "@nestjs/terminus";
+import { Context } from "effect";
 
-import { SetupPhaseService } from "./setup-phase.service";
+import type { SetupPhaseShape } from "./setup-phase.service";
+
+export type SetupReadinessIndicatorShape = { check(): HealthIndicatorResult };
+
+export class SetupReadinessIndicator extends Context.Service<SetupReadinessIndicator, SetupReadinessIndicatorShape>()(
+  "setup/SetupReadinessIndicator",
+) {}
 
 /**
  * The setup app's readiness indicator — the compose gate.
@@ -20,41 +26,27 @@ import { SetupPhaseService } from "./setup-phase.service";
  * picture — phase, apiUp, apiReady, detail — lives in `GET /setup/state`, which
  * the wizard reads. Compose must never have to interpret nuance.
  */
-@Injectable()
-export class SetupReadinessIndicator {
-  constructor(
-    private readonly healthIndicator: HealthIndicatorService,
-    private readonly phases: SetupPhaseService,
-  ) {}
+export function makeSetupReadinessIndicator(
+  healthIndicator: HealthIndicatorService,
+  phases: SetupPhaseShape,
+): SetupReadinessIndicatorShape {
+  return {
+    check() {
+      const indicator = healthIndicator.check("setup");
+      const snapshot = phases.current();
 
-  check() {
-    const indicator = this.healthIndicator.check("setup");
-    const snapshot = this.phases.current();
-
-    // ── THE VERDICT COMES FROM THE GATE, NOT FROM A PHASE NAME ───────────────
-    // Delegating to `phases.isReady()` is load-bearing. An earlier version
-    // hardcoded `snapshot.phase === "ready"`, which silently disagreed with the
-    // gate once the gate moved to `launching`: the service would have reported
-    // ready while this endpoint kept answering 503, and compose would have
-    // waited forever for an API it was refusing to start.
-    //
-    // One predicate, one meaning: "the API may start".
-    if (this.phases.isReady()) {
-      return indicator.up({
+      // ── THE VERDICT COMES FROM THE GATE, NOT FROM A PHASE NAME ───────────────
+      // Delegating to `phases.isReady()` is load-bearing: a hardcoded `phase === "ready"` silently disagreed with
+      // the gate once it moved to `launching`, and compose would have waited forever for an API it was refusing to
+      // start. One predicate, one meaning: "the API may start".
+      const detail = {
         phase: snapshot.phase,
         detail: snapshot.detail,
         apiUp: snapshot.apiUp,
         apiReady: snapshot.apiReady,
-      });
-    }
-
-    // A failure reports the REASON as the detail so the operator sees the
-    // actionable cause in the probe body, not just a 503.
-    return indicator.down({
-      phase: snapshot.phase,
-      detail: snapshot.detail,
-      apiUp: snapshot.apiUp,
-      apiReady: snapshot.apiReady,
-    });
-  }
+      };
+      // A failure reports the REASON as the detail so the operator sees the actionable cause in the probe body.
+      return phases.isReady() ? indicator.up(detail) : indicator.down(detail);
+    },
+  };
 }

@@ -1,7 +1,8 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { SwarmCluster, type SwarmClusterShape, SwarmParticipation, type SwarmParticipationShape } from "@deployer/swarm"
+import type { SwarmClusterShape, SwarmParticipationShape } from "@deployer/swarm";
 
 import { NodeAgentLauncherService } from "./node-agent-launcher.service";
 
@@ -21,14 +22,13 @@ import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types"
  * active node, and `SwarmParticipation.converge()` re-reads the persisted
  * decision. Re-running setup therefore converges instead of failing.
  */
-@Injectable()
-export class SwarmBootstrapService {
-  private readonly logger = new Logger(SwarmBootstrapService.name);
+export class SwarmBootstrapServiceImpl {
+  private readonly logger = new Logger("SwarmBootstrapService");
 
   constructor(
-    @Inject(SwarmCluster) private readonly cluster: SwarmClusterShape,
-    @Inject(SwarmParticipation) private readonly participation: SwarmParticipationShape,
-    private readonly nodeAgent: NodeAgentLauncherService,
+    private readonly cluster: SwarmClusterShape,
+    private readonly participation: SwarmParticipationShape,
+    private readonly nodeAgent: NodeAgentLauncherService["Service"],
   ) {}
 
   /**
@@ -303,3 +303,9 @@ async function ipv4OfInterface(iface: string): Promise<string | undefined> {
   const match = /inet (\d+\.\d+\.\d+\.\d+)\//.exec(out);
   return match?.[1];
 }
+
+/** The tag: what a module provides and a consumer asks for (`SwarmBootstrapService["Service"]` is its type). */
+export class SwarmBootstrapService extends Context.Service<SwarmBootstrapService, SwarmBootstrapServiceImpl>()("setup/SwarmBootstrapService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeSwarmBootstrapService = (...args: ConstructorParameters<typeof SwarmBootstrapServiceImpl>): SwarmBootstrapServiceImpl => new SwarmBootstrapServiceImpl(...args);

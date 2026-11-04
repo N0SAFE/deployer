@@ -5,7 +5,7 @@ import type { SetupStreamEvent } from "@deployer/contracts-entities";
 
 import type { EnvService } from "@/config/env/env.module";
 
-import { OrchestrationStreamService } from "./orchestration-stream.service";
+import { makeOrchestrationStreamService } from "./orchestration-stream.service";
 
 /**
  * `OrchestrationStreamService` is the re-sync source for the setup stream.
@@ -27,12 +27,12 @@ import { OrchestrationStreamService } from "./orchestration-stream.service";
  *      replayed history is not applied on top of that snapshot.
  */
 
-function makeService(mode: "dev" | "prod" = "prod"): OrchestrationStreamService {
+function makeService(mode: "dev" | "prod" = "prod") {
 	const env = {
 		get: (key: string) => (key === "SETUP_MODE" ? mode : undefined),
 	} as unknown as EnvService;
 
-	return new OrchestrationStreamService(env);
+	return makeOrchestrationStreamService(env);
 }
 
 describe("OrchestrationStreamService — reconnect re-sync", () => {

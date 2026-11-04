@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 import {
   Observable,
   Subject,
@@ -40,9 +41,8 @@ import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types"
  * subscribed after it completed). Replay makes the stream a hot read-model with
  * one execution.
  */
-@Injectable()
-export class ClusterOrchestratorService {
-  private readonly logger = new Logger(ClusterOrchestratorService.name);
+export class ClusterOrchestratorServiceImpl {
+  private readonly logger = new Logger("ClusterOrchestratorService");
 
   /**
    * Retry trigger. A `Subject` (not a `BehaviorSubject`): an intent to
@@ -54,9 +54,9 @@ export class ClusterOrchestratorService {
   private readonly results$: Observable<ClusterBootstrapResult>;
 
   constructor(
-    private readonly bootstrap: SwarmBootstrapService,
-    private readonly phase: SetupPhaseService,
-    private readonly orchestration: OrchestrationStreamService,
+    private readonly bootstrap: SwarmBootstrapService["Service"],
+    private readonly phase: SetupPhaseService["Service"],
+    private readonly orchestration: OrchestrationStreamService["Service"],
   ) {
     this.results$ = this.attempts$.pipe(
       // Announce BEFORE the work: the wizard needs a phase the moment the
@@ -182,3 +182,9 @@ export class ClusterOrchestratorService {
     return this.results$;
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`ClusterOrchestratorService["Service"]` is its type). */
+export class ClusterOrchestratorService extends Context.Service<ClusterOrchestratorService, ClusterOrchestratorServiceImpl>()("setup/ClusterOrchestratorService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeClusterOrchestratorService = (...args: ConstructorParameters<typeof ClusterOrchestratorServiceImpl>): ClusterOrchestratorServiceImpl => new ClusterOrchestratorServiceImpl(...args);

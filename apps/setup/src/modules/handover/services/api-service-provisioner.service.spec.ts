@@ -9,7 +9,9 @@ import { DockerUnavailable } from "@deployer/docker";
 
 import { makeEnvService } from "@/test-support/env";
 
-import { ApiServiceProvisioner } from "./api-service-provisioner.service";
+import { makeApiServiceProvisioner } from "./api-service-provisioner.service";
+import { ApiServiceProvisionerImpl } from "./api-service-provisioner.service";
+import type { ApiServiceProvisioner } from "./api-service-provisioner.service";
 
 import type { Mock } from "vitest";
 
@@ -37,7 +39,7 @@ function makeProvisioner(
   docker: Partial<DockerEngineShape> = {},
   tierApps: TierApp[] | null = null,
 ): {
-  provisioner: ApiServiceProvisioner;
+  provisioner: ApiServiceProvisioner["Service"];
   docker: { ensureOverlayNetwork: Mock; createSwarmService: Mock };
   tier: { ensureTier: Mock };
 } {
@@ -57,11 +59,11 @@ function makeProvisioner(
       tierApps ?? [{ name: bffName, image: envOverrides.DEPLOYER_BFF_IMAGE ?? "svc-bff:local", port: 3005 }],
     ),
   };
-  const provisioner = new ApiServiceProvisioner(
+  const provisioner = makeApiServiceProvisioner(
     makeEnvService(envOverrides),
     // Partial double: the provisioner uses only a handful of the engine's methods.
     service as unknown as DockerEngineShape,
-    tier as unknown as ConstructorParameters<typeof ApiServiceProvisioner>[2],
+    tier as unknown as ConstructorParameters<typeof ApiServiceProvisionerImpl>[2],
   );
   return { provisioner, docker: { ensureOverlayNetwork, createSwarmService }, tier };
 }
@@ -200,7 +202,7 @@ describe("ApiServiceProvisioner", () => {
               },
             }) as unknown as Partial<DockerEngineShape>,
         );
-        const statics = ApiServiceProvisioner as unknown as { ATTACH_POLL_MS: number };
+        const statics = ApiServiceProvisionerImpl as unknown as { ATTACH_POLL_MS: number };
         const previousPoll = statics.ATTACH_POLL_MS;
         statics.ATTACH_POLL_MS = 0;
         // HOSTNAME must look like a container id or the attach is skipped entirely.
@@ -247,7 +249,7 @@ describe("ApiServiceProvisioner", () => {
       it("stops after a bounded number of rebuilds and reports the engine's words", async () => {
         const connect = vi.fn().mockRejectedValue(datapathError());
         // Collapse the 60s attach budget so exhaustion is reachable in a unit test.
-        const statics = ApiServiceProvisioner as unknown as { ATTACH_TIMEOUT_MS: number };
+        const statics = ApiServiceProvisionerImpl as unknown as { ATTACH_TIMEOUT_MS: number };
         const previousTimeout = statics.ATTACH_TIMEOUT_MS;
         statics.ATTACH_TIMEOUT_MS = 50;
         try {

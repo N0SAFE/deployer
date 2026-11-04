@@ -1,7 +1,10 @@
-import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
 import { resolveApiBaseUrl } from "@/config/api-address";
-import { EnvService } from "@/config/env/env.module";
+import type { EnvService } from "@/config/env/env.module";
+
+import { ApiNotConfigured, ApiUnreachable } from "./wizard.errors";
 
 /**
  * Deadline for one forward to the platform API.
@@ -25,9 +28,8 @@ const UPSTREAM_TIMEOUT_MS = 30_000;
  * That keeps a single implementation of the wizard contract and means the
  * CLIENT needs no change: it calls `/setup/*` on whichever host is serving it.
  */
-@Injectable()
-export class WizardUpstreamService {
-  private readonly logger = new Logger(WizardUpstreamService.name);
+export class WizardUpstreamServiceImpl {
+  private readonly logger = new Logger("WizardUpstreamService");
 
   constructor(private readonly env: EnvService) {}
 
@@ -58,9 +60,7 @@ export class WizardUpstreamService {
       DEPLOYER_PREFIX: this.env.get("DEPLOYER_PREFIX"),
     });
     if (resolved === null) {
-      throw new ServiceUnavailableException(
-        "SETUP_API_URL is not configured — the setup app cannot reach the full API",
-      );
+      throw new ApiNotConfigured({});
     }
     return resolved;
   }
@@ -107,7 +107,13 @@ export class WizardUpstreamService {
       // not a server fault.
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Upstream ${url} unreachable: ${reason}`);
-      throw new ServiceUnavailableException(`The platform API is not reachable yet (${url})`);
+      throw new ApiUnreachable({ url, cause: error });
     }
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`WizardUpstreamService["Service"]` is its type). */
+export class WizardUpstreamService extends Context.Service<WizardUpstreamService, WizardUpstreamServiceImpl>()("setup/WizardUpstreamService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeWizardUpstreamService = (...args: ConstructorParameters<typeof WizardUpstreamServiceImpl>): WizardUpstreamServiceImpl => new WizardUpstreamServiceImpl(...args);

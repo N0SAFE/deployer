@@ -7,7 +7,7 @@ import type { NodeDoorClient, NodeDoorStatus } from "@deployer/mesh-client";
 
 import { makeEnvService } from "@/test-support/env";
 
-import { ServicesTierProvisioner } from "./services-tier-provisioner.service";
+import { ServicesTierProvisionerImpl } from "./services-tier-provisioner.service";
 
 const IMAGES = {
   DEPLOYER_BFF_IMAGE: "svc-bff:t",
@@ -25,11 +25,11 @@ const doorWith = (status: NodeDoorStatus | null): NodeDoorClient =>
   ({ status: async () => status }) as unknown as NodeDoorClient;
 
 /** The provisioner with its door replaced: a test has no agent socket to dial. */
-class TestTier extends ServicesTierProvisioner {
+class TestTier extends ServicesTierProvisionerImpl {
   constructor(
-    env: ConstructorParameters<typeof ServicesTierProvisioner>[0],
+    env: ConstructorParameters<typeof ServicesTierProvisionerImpl>[0],
     docker: DockerEngineShape,
-    gate: ConstructorParameters<typeof ServicesTierProvisioner>[2],
+    gate: ConstructorParameters<typeof ServicesTierProvisionerImpl>[2],
     private readonly door_: NodeDoorClient,
   ) {
     super(env, docker, gate);
@@ -57,11 +57,11 @@ async function schedule(env: Record<string, string>, managedWeb: boolean | null 
   const tier = new TestTier(
     makeEnvService({ SETUP_MODE: "prod", AUTH_SECRET: "s3cret-s3cret-s3cret-s3cret-s3cret", ...IMAGES, ...env }),
     docker as unknown as DockerEngineShape,
-    gate as unknown as ConstructorParameters<typeof ServicesTierProvisioner>[2],
+    gate as unknown as ConstructorParameters<typeof ServicesTierProvisionerImpl>[2],
     doorWith(status),
   );
   // Nest calls this before the app runs; the address is resolved once, there.
-  await tier.onModuleInit();
+  await tier.bootstrap();
   const apps = await tier.ensureTier();
   const envOf = (name: string): string[] => {
     const spec = created.find((s) => s.Name === name);

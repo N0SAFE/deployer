@@ -1,10 +1,11 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { nodeDoorFromEnv, type NodeDoorClient, type NodeDoorStatus } from "@deployer/mesh-client";
 import { ensureNodeAgentContainer, isNodeAgentSwarmMode, makeNodeAgentEngine } from "@deployer/node-agent-container";
 
-import { EnvService } from "@/config/env/env.module";
+import type { EnvService } from "@/config/env/env.module";
 
 /**
  * Starts this node's mesh agent before anything else touches the cluster.
@@ -19,15 +20,14 @@ import { EnvService } from "@/config/env/env.module";
  * The agent founds its mesh itself and a node that joins enters it by redeeming
  * a join token (the API's remote join); setup never coordinates that handshake.
  */
-@Injectable()
-export class NodeAgentLauncherService {
-  private readonly logger = new Logger(NodeAgentLauncherService.name);
+export class NodeAgentLauncherServiceImpl {
+  private readonly logger = new Logger("NodeAgentLauncherService");
   private static readonly INTERFACE_WAIT_MS = 20_000;
   /** One line explains why no container is created; this runs on every bootstrap pass. */
   private warnedSwarmMode = false;
 
   constructor(
-    @Inject(DockerEngine) private readonly docker: DockerEngineShape,
+    private readonly docker: DockerEngineShape,
     private readonly env: EnvService,
   ) {}
 
@@ -42,7 +42,7 @@ export class NodeAgentLauncherService {
     // would give the socket and the `deployer-mesh` interface a second owner. Wait for the task's door instead.
     if (isNodeAgentSwarmMode(this.env.get("NODE_AGENT_SWARM_MODE"))) {
       this.warnSwarmModeOnce();
-      return await this.status(NodeAgentLauncherService.INTERFACE_WAIT_MS);
+      return await this.status(NodeAgentLauncherServiceImpl.INTERFACE_WAIT_MS);
     }
     const image = this.env.get("NODE_AGENT_IMAGE");
     if (image === undefined || image === "") {
@@ -51,7 +51,7 @@ export class NodeAgentLauncherService {
     }
     const outcome = await ensureNodeAgentContainer(makeNodeAgentEngine(this.docker), { image });
     if (outcome !== "running") this.logger.log(`Mesh agent ${outcome}`);
-    const status = await this.status(NodeAgentLauncherService.INTERFACE_WAIT_MS);
+    const status = await this.status(NodeAgentLauncherServiceImpl.INTERFACE_WAIT_MS);
     if (status === null) this.logger.warn("Mesh agent started but its node door does not answer yet");
     return status;
   }
@@ -72,7 +72,7 @@ export class NodeAgentLauncherService {
    */
   async foundAndResolveAddress(): Promise<string | null> {
     await this.ensureRunning();
-    return await this.meshAddress(NodeAgentLauncherService.INTERFACE_WAIT_MS);
+    return await this.meshAddress(NodeAgentLauncherServiceImpl.INTERFACE_WAIT_MS);
   }
 
   /** This node's mesh address once its interface is up, waiting up to `waitMs`. */
@@ -101,3 +101,9 @@ export class NodeAgentLauncherService {
     return null;
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`NodeAgentLauncherService["Service"]` is its type). */
+export class NodeAgentLauncherService extends Context.Service<NodeAgentLauncherService, NodeAgentLauncherServiceImpl>()("setup/NodeAgentLauncherService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeNodeAgentLauncherService = (...args: ConstructorParameters<typeof NodeAgentLauncherServiceImpl>): NodeAgentLauncherServiceImpl => new NodeAgentLauncherServiceImpl(...args);

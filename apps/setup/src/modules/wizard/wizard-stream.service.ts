@@ -1,16 +1,19 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 import { Observable, from, interval, map, merge, takeUntil, Subject, share, concat, type Subscription } from "rxjs";
 
 import type { SetupStreamEvent } from "@deployer/contracts-entities";
 
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import type { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import {
-  OrchestrationStreamService,
   isOrchestrationStepId,
   type OrchestrationStepId,
+  type OrchestrationStreamService,
 } from "@/modules/progress/services/orchestration-stream.service";
 
-import { WizardUpstreamService } from "./wizard-upstream.service";
+import { ApiStreamUnreachable } from "./wizard.errors";
+
+import type { WizardUpstreamService } from "./wizard-upstream.service";
 
 /**
  * The setup progress stream: setup's own orchestration, then the API's.
@@ -37,9 +40,8 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
  * keeps teardown in one place (`takeUntil`) rather than spread across try/finally
  * blocks in a request handler.
  */
-@Injectable()
-export class WizardStreamService {
-  private readonly logger = new Logger(WizardStreamService.name);
+export class WizardStreamServiceImpl {
+  private readonly logger = new Logger("WizardStreamService");
 
   /**
    * Live upstream subscriptions, so a shutdown can cancel them.
@@ -50,8 +52,8 @@ export class WizardStreamService {
   private readonly upstreamSubscriptions = new Set<Subscription>();
 
   constructor(
-    private readonly upstream: WizardUpstreamService,
-    private readonly phase: SetupPhaseService,
+    private readonly upstream: WizardUpstreamService["Service"],
+    private readonly phase: SetupPhaseService["Service"],
   ) {}
 
   /**
@@ -202,7 +204,7 @@ export class WizardStreamService {
    * both truthful and exactly what the operator needs to see.
    */
   orchestratedStream(
-    orchestration: OrchestrationStreamService,
+    orchestration: OrchestrationStreamService["Service"],
   ): Observable<SetupStreamEvent> {
     // Announce the pipeline. IDEMPOTENT on the service, so a reconnecting client
     // gets the SAME definitions rather than a second set appended to the replay
@@ -257,7 +259,7 @@ export class WizardStreamService {
     const terminal = orchestration.terminalEvent();
     return merge(
       concat(from([...details, initial, ...(terminal === null ? [] : [terminal])]), orchestration.liveAfter(checkpoint)),
-      interval(WizardStreamService.HEARTBEAT_INTERVAL_MS).pipe(
+      interval(WizardStreamServiceImpl.HEARTBEAT_INTERVAL_MS).pipe(
         map(() => ({
           type: "heartbeat" as const,
           seq: 0,
@@ -278,7 +280,7 @@ export class WizardStreamService {
    * payload unchanged — the events themselves are still the API's, so this is a
    * transport adaptation, not a second producer.
    */
-  attachUpstream(orchestration: OrchestrationStreamService, lastEventId?: string): void {
+  attachUpstream(orchestration: OrchestrationStreamService["Service"], lastEventId?: string): void {
     const subscription = this.stream(lastEventId).subscribe({
       next: (frame) => {
         for (const event of parseFrames(frame)) {
@@ -302,7 +304,7 @@ export class WizardStreamService {
    * fails onboarding instead of retrying forever.
    */
   async attachWhenReachable(
-    orchestration: OrchestrationStreamService,
+    orchestration: OrchestrationStreamService["Service"],
     lastEventId?: string,
     timeoutMs = 300_000,
   ): Promise<void> {
@@ -335,7 +337,7 @@ export class WizardStreamService {
       }
 
       if (Date.now() >= deadline) {
-        throw new Error("the platform API's stream never became reachable");
+        throw new ApiStreamUnreachable({});
       }
 
       await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs()));
@@ -381,3 +383,9 @@ function parseFrames(chunk: string): SetupStreamEvent[] {
 
   return events;
 }
+
+/** The tag: what a module provides and a consumer asks for (`WizardStreamService["Service"]` is its type). */
+export class WizardStreamService extends Context.Service<WizardStreamService, WizardStreamServiceImpl>()("setup/WizardStreamService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeWizardStreamService = (...args: ConstructorParameters<typeof WizardStreamServiceImpl>): WizardStreamServiceImpl => new WizardStreamServiceImpl(...args);

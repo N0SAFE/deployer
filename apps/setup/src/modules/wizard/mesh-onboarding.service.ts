@@ -1,4 +1,5 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
 import type {
   SetupMeshJoinInput,
@@ -24,13 +25,12 @@ import { EnvService } from "@/config/env/env.module";
  * Every method is a read or a one-shot action; the wizard asks when it renders
  * or when the operator clicks. Nothing here schedules a timer.
  */
-@Injectable()
-export class MeshOnboardingService {
-  private readonly logger = new Logger(MeshOnboardingService.name);
+export class MeshOnboardingServiceImpl {
+  private readonly logger = new Logger("MeshOnboardingService");
   private readonly door: NodeDoorClient;
 
   /** `door` is the test seam; production resolves it from `NODE_AGENT_SOCKET`. */
-  constructor(env: EnvService, @Optional() door?: NodeDoorClient) {
+  constructor(env: EnvService, door?: NodeDoorClient) {
     this.door = door ?? nodeDoorFromEnv(env);
   }
 
@@ -115,3 +115,9 @@ export class MeshOnboardingService {
     return { token: issued?.token ?? null };
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`MeshOnboardingService["Service"]` is its type). */
+export class MeshOnboardingService extends Context.Service<MeshOnboardingService, MeshOnboardingServiceImpl>()("setup/MeshOnboardingService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeMeshOnboardingService = (...args: ConstructorParameters<typeof MeshOnboardingServiceImpl>): MeshOnboardingServiceImpl => new MeshOnboardingServiceImpl(...args);

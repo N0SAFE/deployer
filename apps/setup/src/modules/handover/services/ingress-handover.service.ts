@@ -1,7 +1,8 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { EnvService } from "@/config/env/env.module";
 
@@ -50,9 +51,11 @@ const SETUP_SERVICE_ALIAS = "setup";
  * the hostname is CONTINUOUSLY answerable — plan §9.2's
  * "never let a URL change owner by disappearing" rule.
  */
-@Injectable()
-export class IngressHandoverService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(IngressHandoverService.name);
+export class IngressHandoverServiceImpl {
+  /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
+  readonly onStart = (): Effect.Effect<void, unknown> => Effect.tryPromise({ try: () => this.bootstrap(), catch: (error) => error });
+
+  private readonly logger = new Logger("IngressHandoverService");
 
   /**
    * Traefik's router priority for the setup hostname.
@@ -146,7 +149,7 @@ export class IngressHandoverService implements OnApplicationBootstrap {
       return;
     }
 
-    const backend = `http://${target}:${String(IngressHandoverService.WEB_INTERNAL_PORT)}`;
+    const backend = `http://${target}:${String(IngressHandoverServiceImpl.WEB_INTERNAL_PORT)}`;
     const file = path.join(this.configDir(), "dynamic-web.yml");
     await this.write(
       file,
@@ -214,7 +217,7 @@ export class IngressHandoverService implements OnApplicationBootstrap {
    * The handover rewrites the same file later, so a transient failure here is
    * also self-healing in the common case.
    */
-  async onApplicationBootstrap(): Promise<void> {
+  async bootstrap(): Promise<void> {
     try {
       await this.pointSetupAtSelf();
     } catch (error: unknown) {
@@ -269,7 +272,7 @@ export class IngressHandoverService implements OnApplicationBootstrap {
           rule: `Host(\`${this.setupHostname()}\`)`,
           service: "platform-setup-svc",
           backend: this.selfBackendUrl(),
-          priority: IngressHandoverService.SETUP_ROUTER_PRIORITY,
+          priority: IngressHandoverServiceImpl.SETUP_ROUTER_PRIORITY,
         },
       ]),
       `setup → this app (${this.selfBackendUrl()})`,
@@ -308,7 +311,7 @@ export class IngressHandoverService implements OnApplicationBootstrap {
           rule: `Host(\`${this.setupHostname()}\`)`,
           service: "platform-setup-svc",
           backend: `${apiBackendUrl}/setup/done`,
-          priority: IngressHandoverService.SETUP_ROUTER_PRIORITY,
+          priority: IngressHandoverServiceImpl.SETUP_ROUTER_PRIORITY,
         },
       ]),
       `setup → ${apiBackendUrl}/setup/done`,
@@ -386,3 +389,9 @@ export class IngressHandoverService implements OnApplicationBootstrap {
     this.logger.log(`Ingress retargeted: ${describe} (${file})`);
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`IngressHandoverService["Service"]` is its type). */
+export class IngressHandoverService extends Context.Service<IngressHandoverService, IngressHandoverServiceImpl>()("setup/IngressHandoverService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeIngressHandoverService = (...args: ConstructorParameters<typeof IngressHandoverServiceImpl>): IngressHandoverServiceImpl => new IngressHandoverServiceImpl(...args);
