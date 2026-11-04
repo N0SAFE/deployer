@@ -19,7 +19,7 @@ export default defineConfig([
     // The Effect conventions (C1/C3/C5/C9/C10 of the migration inventory) — the whole gate for this app. `controllersUseProcedure` is part of it.
     // `nest-roles.ledger.json` is the migration's to-do list (the boot-time installers (`OnModuleInit`) are still Nest classes). Delete an entry as its file migrates.
     {
-        extends: [nestjsConfig.configs.effectConventions({ ledger: "./nest-roles.ledger.json" })],
+        extends: [nestjsConfig.configs.effectConventions({ ledger: `${import.meta.dirname}/nest-roles.ledger.json` })],
     },
     {
         extends: [libraryConfig.configs.test()],

@@ -1,12 +1,10 @@
 import eslintNestJs from "@darraghor/eslint-plugin-nestjs-typed";
 import { defineConfig } from "eslint/config";
 import { Linter } from "eslint"
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import z from "zod/v4";
 import coreConfig, { type BaseConfigOptions } from "./base";
 import { createModuleContextRule } from "./rules/module-context";
-import { createNestRoleRules, NEST_ROLE_RULE_NAMES } from "./rules/nest-roles";
+import { createNestRoleRules } from "./rules/nest-roles";
+import { readLedger, ROLE_RULE_NAMES } from "./rules/nest-roles-ledger";
 import { createNoInjectableServiceRule } from "./rules/no-injectable-service";
 import { createSchemaBoundaryRule } from "./rules/schema-boundary";
 const coreBaseFactory = coreConfig.configs.base;
@@ -154,36 +152,7 @@ const deployerEffect = {
 };
 
 /** Every rule that forbids a Nest role, `noInjectableService` included — the rules a ledger may list files under. */
-const ROLE_RULES = ["noInjectableService", ...NEST_ROLE_RULE_NAMES] as const;
-
-const ledgerSchema = z.partialRecord(z.enum(ROLE_RULES), z.array(z.string().min(1)));
-type Ledger = z.infer<typeof ledgerSchema>;
-
-/**
- * An app's migration ledger: `{ rule: [files that still violate it] }`, read from a JSON file next to its eslint config.
- *
- * It is the visible, shrinking to-do list: a rule is ON for the whole app, and the files listed are the ones not migrated yet.
- * Parsed with one schema (an unknown rule name or a non-array is an error, not a silently ignored key), and an entry whose
- * file no longer exists FAILS the config load — a migrated or deleted file must leave the list, or the list stops being true.
- */
-function readLedger(path: string | undefined): Ledger {
-    if (path === undefined) return {};
-    const file = resolve(process.cwd(), path);
-    if (!existsSync(file)) throw new Error(`nestRoles: the ledger ${path} does not exist (looked in ${process.cwd()}).`);
-
-    const parsed = ledgerSchema.safeParse(JSON.parse(readFileSync(file, "utf8")));
-    if (!parsed.success) {
-        throw new Error(`nestRoles: ${path} is not a valid ledger — ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
-    }
-    for (const [rule, files] of Object.entries(parsed.data)) {
-        for (const entry of files ?? []) {
-            if (!existsSync(resolve(process.cwd(), entry))) {
-                throw new Error(`nestRoles: ${path} lists ${entry} under ${rule}, which no longer exists. Delete the entry.`);
-            }
-        }
-    }
-    return parsed.data;
-}
+const ROLE_RULES = ROLE_RULE_NAMES;
 
 /**
  * Every Nest role the Effect + oRPC integration replaces, banned (`docs/architecture/effect-orpc-conventions.md`): `@Injectable`

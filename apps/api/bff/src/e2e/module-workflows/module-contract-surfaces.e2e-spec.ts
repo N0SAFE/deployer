@@ -1,22 +1,59 @@
 import { randomUUID } from "node:crypto";
+import { createServer, type Server } from "node:http";
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
+import { getSharedApiRuntimeContext, stopSharedApiRuntime, type SharedApiRuntimeContext } from "@/e2e/runtime";
+
+import type { AddressInfo } from "node:net";
+
+/** Every service the BFF delegates to (`modules/delegation/generated`). */
+const SERVICES = ["fleet", "health", "identity", "project", "runtime"] as const;
+const INSTANCE = "contract-surfaces";
 
 /**
  * The public / authenticated boundary of the API surface, as the BFF serves it.
  *
- * The BFF is the one entry point, so this is where "who may call what" is pinned: one
- * public probe, and one anonymous call per namespace that must be refused. Each case checks
- * BOTH that the call is rejected AND that the rejection is the auth one (`401`) on the route
- * the contract declares, so a missing route (404) or a crash (500) cannot pass as "protected".
+ * The BFF is the one entry point, so this is where "who may call what" is pinned: one public probe, and one anonymous
+ * call per namespace that must be refused. Each case checks BOTH that the call is rejected AND that the rejection is the
+ * auth one (`401`) on the route the contract declares, so a missing route (404), a dependency failure (424) or a crash
+ * (500) cannot pass as "protected".
+ *
+ * ── WHO REFUSES ─────────────────────────────────────────────────────────────
+ * Not the BFF. A delegated procedure carries no `requireAuth()` (see the generated controllers): authorization is a
+ * property of the PROCEDURE, and the SERVICE enforces it on the leg it receives, with the caller's credentials in hand —
+ * re-applying a blanket session requirement at the BFF would break the procedures that are legitimately public. So an
+ * anonymous call is refused by the service and the BFF must carry that refusal to the caller as a `401`.
+ *
+ * The upstream below stands in for those services: it answers what a real one answers an anonymous caller, a plain-text
+ * `401`. Without it the fan-out reaches no service at all and fails as a dependency error, which says nothing about
+ * auth. What is pinned is the BFF's side of the contract: the route exists, the call is delegated with the caller's
+ * (absent) credentials, and the service's refusal comes back as a 401 rather than a 5xx.
  */
 describe("Module contract surfaces e2e: public + auth boundaries", () => {
   let context: SharedApiRuntimeContext;
+  let upstream: Server;
+  let previousUrls: string | undefined;
 
   beforeAll(async () => {
-    context = await getSharedApiRuntimeContext();
+    // Refuses everything, as a service does an anonymous caller.
+    upstream = createServer((_request, response) => {
+      response.writeHead(401, { "content-type": "text/plain" }).end("Unauthorized");
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${String((upstream.address() as AddressInfo).port)}`;
+
+    // Set BEFORE the BFF boots: the registry resolves and caches a service's origin on first use.
+    previousUrls = process.env.API_SERVICE_URLS;
+    process.env.API_SERVICE_URLS = JSON.stringify(Object.fromEntries(SERVICES.map((service) => [service, origin])));
+    context = await getSharedApiRuntimeContext({ instanceKey: INSTANCE });
+  }, 180_000);
+
+  afterAll(async () => {
+    await stopSharedApiRuntime({ instanceKey: INSTANCE });
+    if (previousUrls === undefined) delete process.env.API_SERVICE_URLS;
+    else process.env.API_SERVICE_URLS = previousUrls;
+    await new Promise<void>((resolve) => upstream.close(() => { resolve(); }));
   });
 
   const expectAnonymousRejected = async (
@@ -101,7 +138,8 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
 
   it("deployment.triggerFromEvent, a peer-only procedure on the composed surface, rejects an anonymous caller", async () => {
     // It is reachable through the BFF because the BFF composes every service contract, so the
-    // only thing keeping the public off it is the system-actor claim runtime demands.
+    // only thing keeping the public off it is the system-actor claim the runtime SERVICE demands
+    // (the upstream stub answers 401 as that service would).
     await expectAnonymousRejected(
       () =>
         context.orpc.deployment.triggerFromEvent({
