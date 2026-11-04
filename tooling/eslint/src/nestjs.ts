@@ -1,7 +1,13 @@
 import eslintNestJs from "@darraghor/eslint-plugin-nestjs-typed";
 import { defineConfig } from "eslint/config";
 import { Linter } from "eslint"
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import z from "zod/v4";
 import coreConfig, { type BaseConfigOptions } from "./base";
+import { createModuleContextRule } from "./rules/module-context";
+import { createNestRoleRules, NEST_ROLE_RULE_NAMES } from "./rules/nest-roles";
+import { createNoInjectableServiceRule } from "./rules/no-injectable-service";
 import { createSchemaBoundaryRule } from "./rules/schema-boundary";
 const coreBaseFactory = coreConfig.configs.base;
 const coreTestFactory = coreConfig.configs.test;
@@ -136,6 +142,75 @@ const controllersUseProcedure = () =>
     ]);
 
 /**
+ * ONE `deployer-effect` plugin object for every config in this file. Flat config refuses to redefine a plugin name with a
+ * different object, so an app that extends both `effectConventions` and `moduleContext` would fail if each built its own.
+ */
+const deployerEffect = {
+    rules: {
+        moduleContext: createModuleContextRule(),
+        noInjectableService: createNoInjectableServiceRule(),
+        ...createNestRoleRules(),
+    },
+};
+
+/** Every rule that forbids a Nest role, `noInjectableService` included — the rules a ledger may list files under. */
+const ROLE_RULES = ["noInjectableService", ...NEST_ROLE_RULE_NAMES] as const;
+
+const ledgerSchema = z.partialRecord(z.enum(ROLE_RULES), z.array(z.string().min(1)));
+type Ledger = z.infer<typeof ledgerSchema>;
+
+/**
+ * An app's migration ledger: `{ rule: [files that still violate it] }`, read from a JSON file next to its eslint config.
+ *
+ * It is the visible, shrinking to-do list: a rule is ON for the whole app, and the files listed are the ones not migrated yet.
+ * Parsed with one schema (an unknown rule name or a non-array is an error, not a silently ignored key), and an entry whose
+ * file no longer exists FAILS the config load — a migrated or deleted file must leave the list, or the list stops being true.
+ */
+function readLedger(path: string | undefined): Ledger {
+    if (path === undefined) return {};
+    const file = resolve(process.cwd(), path);
+    if (!existsSync(file)) throw new Error(`nestRoles: the ledger ${path} does not exist (looked in ${process.cwd()}).`);
+
+    const parsed = ledgerSchema.safeParse(JSON.parse(readFileSync(file, "utf8")));
+    if (!parsed.success) {
+        throw new Error(`nestRoles: ${path} is not a valid ledger — ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
+    }
+    for (const [rule, files] of Object.entries(parsed.data)) {
+        for (const entry of files ?? []) {
+            if (!existsSync(resolve(process.cwd(), entry))) {
+                throw new Error(`nestRoles: ${path} lists ${entry} under ${rule}, which no longer exists. Delete the entry.`);
+            }
+        }
+    }
+    return parsed.data;
+}
+
+/**
+ * Every Nest role the Effect + oRPC integration replaces, banned (`docs/architecture/effect-orpc-conventions.md`): `@Injectable`
+ * services, lifecycle hooks, guards, Passport strategies, pipes, interceptors, exception filters, middleware, request scope,
+ * gateways. One rule each, all syntactic, all native under `bun lint`.
+ *
+ * `ledger` is the path of the app's JSON ledger (see `readLedger`): the rules are ON everywhere and the listed files are exempt
+ * until they are migrated. An app with no ledger has nothing left to migrate.
+ */
+const nestRoles = (options: { ledger?: string; severity?: "error" | "warn" } = {}) => {
+    const severity = options.severity ?? "error";
+    const ledger = readLedger(options.ledger);
+    return defineConfig([
+        {
+            files: ["src/**/*.ts"],
+            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            plugins: { "deployer-effect": deployerEffect },
+            rules: Object.fromEntries(ROLE_RULES.map((rule) => [`deployer-effect/${rule}`, severity])),
+        },
+        // The ledger, last so it wins: each rule is switched off for exactly the files that have not migrated.
+        ...Object.entries(ledger).flatMap(([rule, files]) =>
+            files === undefined || files.length === 0 ? [] : [{ files, rules: { [`deployer-effect/${rule}`]: "off" as const } }],
+        ),
+    ]);
+};
+
+/**
  * The Effect conventions, as a gate instead of a code review (`docs/architecture/effect-migration-gap-inventory.md` §12).
  *
  * The rubric's checks C1, C3, C5, C9 and C10 are the ones a machine can answer from one file's AST. Enabling this config
@@ -157,8 +232,11 @@ const controllersUseProcedure = () =>
  * wants the concrete service) where the honest fix is a better port type, not a lint suppression — that is a design task,
  * not a sweep, and a rule now would only teach the next author to reach for `as never`.
  */
-const effectConventions = () =>
+const effectConventions = (options: { ledger?: string } = {}) =>
     defineConfig([
+        // C1 and every other Nest role: the tag IS the service, and a guard/pipe/interceptor/filter/middleware/gateway is code, not a
+        // decorator. Judged per concept, per FILE (the ledger), not per folder.
+        ...nestRoles(options),
         {
             files: ["src/**/*.controller.ts"],
             rules: {
@@ -171,26 +249,6 @@ const effectConventions = () =>
                                 importNames: ["implement"],
                                 message:
                                     "Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).",
-                            },
-                        ],
-                    },
-                ],
-            },
-        },
-        {
-            files: ["src/**/services/**/*.ts", "src/**/repositories/**/*.ts"],
-            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
-            rules: {
-                // C1: the tag IS the service. `@Injectable` puts the lifetime back in Nest's hands.
-                "no-restricted-imports": [
-                    "error",
-                    {
-                        paths: [
-                            {
-                                name: "@nestjs/common",
-                                importNames: ["Injectable", "Scope"],
-                                message:
-                                    "A domain service is a Context.Service tag with a `live` (useValue: X.live), not a Nest provider.",
                             },
                         ],
                     },
@@ -233,6 +291,26 @@ const effectConventions = () =>
         },
     ]);
 
+/**
+ * The module graph's imports and exports, gated on the file that decides them (`docs/architecture/effect-migration-gap-inventory.md` C4).
+ *
+ * Importing a plain `@Module` into `createModuleContext` contributes no Effect services: the type flow sees `never`, so
+ * `[UnmetRequirementsOf]` grows and the failure appears at the root, three files away from the import. This rule reads the
+ * imported FILE (a wrapper?) instead of its type, so it does not need a TypeScript program — `bun lint` provides parser
+ * services with `program: null`, which is why the type-aware half stays with the compile-time root gate.
+ */
+const moduleContext = () =>
+    defineConfig([
+        {
+            files: ["src/**/*.ts"],
+            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            plugins: { "deployer-effect": deployerEffect },
+            rules: {
+                "deployer-effect/moduleContext": "error",
+            },
+        },
+    ]);
+
 export default {
     meta: {
         name: "@deployer/config-eslint/nestjs",
@@ -245,5 +323,7 @@ export default {
         serviceSchemaBoundary,
         controllersUseProcedure,
         effectConventions,
+        moduleContext,
+        nestRoles,
     },
 } as const;
