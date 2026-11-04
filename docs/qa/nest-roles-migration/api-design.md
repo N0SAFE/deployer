@@ -37,3 +37,11 @@
 **A**: No. `AuthModule` installs no guard; the comments claiming one were stale. Three of the four Express middlewares and the
 exception filter were never registered. The live Nest HTTP code was two `configure(consumer)` hooks (`AuthModule`, `BffModule`),
 both now mounted through `mountHttpEdge`. See `docs/architecture/effect-orpc-conventions.md` §14.
+
+---
+
+## Depth of the api/shared migration
+
+**Q**: How should the remaining 108 api/shared classes be migrated off `@Injectable`? Most take other still-class services in their constructor and return Promises with `this`-based bodies. Options: mechanical (drop `@Injectable`, keep the plain class behind `useFactory`), hybrid (mechanical for infrastructure leaves, full Effect for domain logic), or the full Effect rewrite (§2.6 literally).
+
+**A**: Full Effect rewrite (2026-11-04). Every remaining class gets a real shape, ports, a `Context.Service` tag with `live`, precise tagged errors and lifecycle in the shape. Roughly 24k lines, many sessions, one at a time (the machine already ran out of memory once). Sequenced from the directories with few consumers (domain first) to the infrastructure leaves every app consumes (database, config/env, hostname, events) last, each leaf together with all its consumers in one change set. The runtime and setup+bff branches took the plain-class-behind-`useFactory` shape for their own classes; they need follow-up edits when shared's surface changes (tracked in `shared-surface-changes.md` in the shared worktree).
