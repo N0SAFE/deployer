@@ -8,9 +8,9 @@ import { harness, testBus } from "../supervisor-test-harness";
 import { makeManagedWebRegistration } from "./managed-web.supervisor";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import type { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
+import type { AppInstanceServiceShape } from "../../platform-ingress/services/app-instance.service";
 import type { HostnameService } from "../../platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
 
 /**
  * The host's job is wiring: the environment, hostnames, platform flag and app-instance service reach
@@ -24,11 +24,11 @@ function makeSupervisor(options: { flag?: boolean; prefix?: string; managed?: { 
 		webOrigin: () => "http://web.deployer.localhost",
 		webHostname: () => "web.deployer.localhost",
 	} as unknown as HostnameService;
-	const platformConfig = { isManagedWebAppEnabled: vi.fn(() => Promise.resolve(options.flag ?? true)) } as unknown as PlatformConfigService;
+	const platformConfig = { isManagedWebAppEnabled: vi.fn(() => Effect.succeed(options.flag ?? true)) } as unknown as PlatformConfigServiceShape;
 	const appInstances = {
-		create: vi.fn(() => Promise.resolve({ instanceId: "inst-1", appToken: "a-minted-token" })),
-		findManaged: vi.fn(() => Promise.resolve(options.managed ?? null)),
-		revoke: vi.fn(() => Promise.resolve(true)),
+		create: vi.fn(() => Effect.succeed({ instanceId: "inst-1", appToken: "a-minted-token" })),
+		findManaged: vi.fn(() => Effect.succeed(options.managed ?? null)),
+		revoke: vi.fn(() => Effect.succeed(true)),
 	};
 
 	const reconciled: { name: string; env: string[] }[] = [];
@@ -49,7 +49,7 @@ function makeSupervisor(options: { flag?: boolean; prefix?: string; managed?: { 
 			hostnameService: hostnames,
 			env,
 			platformConfig,
-			appInstances: appInstances as unknown as AppInstanceService,
+			appInstances: appInstances as unknown as AppInstanceServiceShape,
 			bus: testBus(),
 		}),
 	);

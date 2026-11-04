@@ -8,7 +8,7 @@ import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provid
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "@deployer/shared/core/modules/edge/testing/edge-registry.fixture";
 import { EnvHostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
-import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
+import type { IngressLanesServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { NodeNetworkConfigRepositoryShape } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
 import { makePublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
@@ -73,13 +73,13 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 	let lanes = initial;
 	const order: string[] = [];
 	const lanesService = {
-		getLanes: vi.fn(() => Promise.resolve(lanes)),
+		getLanes: vi.fn(() => Effect.succeed(lanes)),
 		setLanes: vi.fn((next: IngressLanes) => {
 			order.push(`setLanes:${next.public?.provider ?? "none"}`);
 			lanes = next;
-			return Promise.resolve(next);
+			return Effect.succeed(next);
 		}),
-	} as unknown as IngressLanesService;
+	} as unknown as IngressLanesServiceShape;
 	const { registry, tunnel } = testEdgeRegistry();
 	tunnel.provisioned = true;
 	vi.spyOn(tunnel, "provision").mockImplementation((ctx: EdgeContext) => {

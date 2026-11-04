@@ -1,6 +1,7 @@
 import type { Context } from "effect";
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { createModuleContext, effectHostProvider } from "@deployer/nest-effect";
 import { SupervisorOrchestrator } from "@deployer/supervision";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
@@ -8,8 +9,14 @@ import { DatabaseModule } from '../database/database.module';
 import { DatabasePort } from '../database/storage';
 import { CoreDockerModule } from '../docker/docker.module';
 import { CoreEdgeModule } from '../edge/edge.module';
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from '../edge/edge-provider.registry';
 import { EventsModule } from '../events/events.module';
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
+import { HostnameService } from '../platform-ingress/services/hostname.service';
+import { IngressLanesService, type IngressLanesServiceShape } from '../platform-ingress/services/ingress-lanes.service';
+import { PlatformConfigService, type PlatformConfigServiceShape } from '../platform-ingress/services/platform-config.service';
+import { PlatformRoutesSource, type PlatformRoutesSourceShape } from '../platform-ingress/services/platform-routes-source.service';
+import { PlatformWebTargetService, type PlatformWebTargetServiceShape } from '../platform-ingress/services/platform-web-target.service';
 import { SupervisorsModule } from "../supervision/index";
 
 import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
@@ -18,7 +25,7 @@ import { makeTraefikTemplateRepository, TraefikTemplateRepository } from './repo
 import { makeTraefikRepository, TraefikRepository } from './repositories/traefik.repository';
 import { TraefikConfigRefresher, makeTraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { makeTraefikFileSystem, TraefikFileSystemService } from './services/traefik-file-system.service';
-import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
+import { makeTraefikIngressConfigService, TraefikIngressConfigService } from './services/traefik-ingress-config.service';
 import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
 import { makeTraefikSync, TraefikSyncService } from './services/traefik-sync.service';
 import { makeTraefikTemplateService, TraefikTemplateService } from './services/traefik-template.service';
@@ -75,6 +82,7 @@ export class TraefikCoreModule extends createModuleContext({
   ],
   controllers: [TraefikIngressConfigController],
   providers: [
+    effectHostProvider(),
     // Services
     {
       provide: TraefikTemplateService,
@@ -106,7 +114,21 @@ export class TraefikCoreModule extends createModuleContext({
     { provide: TraefikMiddlewareLibraryService, useValue: TraefikMiddlewareLibraryService.live },
     TraefikEventService,
     // Live-ingress config (served to Traefik's HTTP provider).
-    TraefikIngressConfigService,
+    {
+      provide: TraefikIngressConfigService,
+      useFactory: (
+        env: EnvService,
+        dockerEngine: DockerEngineShape,
+        hostnames: HostnameService,
+        lanes: IngressLanesServiceShape,
+        webTarget: PlatformWebTargetServiceShape,
+        routesSource: PlatformRoutesSourceShape,
+        traefikRepository: Context.Service.Shape<typeof TraefikRepository>,
+        platformConfig: PlatformConfigServiceShape,
+        edges: EdgeProviderRegistryShape,
+      ) => makeTraefikIngressConfigService({ env, dockerEngine, hostnames, lanes, webTarget, routesSource, traefikRepository, platformConfig, edges }),
+      inject: [EnvService, DockerEngine, HostnameService, IngressLanesService, PlatformWebTargetService, PlatformRoutesSource, TraefikRepository, PlatformConfigService, EdgeProviderRegistry],
+    },
     {
       provide: TraefikConfigRefresher,
       useFactory: makeTraefikConfigRefresher,

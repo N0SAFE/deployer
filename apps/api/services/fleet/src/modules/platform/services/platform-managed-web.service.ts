@@ -6,7 +6,7 @@ import { type ManagedWebState } from "@deployer/fleet-contracts";
 import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@deployer/shared/core/modules/platform-ingress/services/platform-names";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
@@ -88,7 +88,7 @@ type PlatformManagedWebRequirements =
 type Ports = {
 	readonly env: EnvService;
 	readonly hostnameService: HostnameService;
-	readonly platformConfig: PlatformConfigService;
+	readonly platformConfig: PlatformConfigServiceShape;
 	readonly orchestrator: SupervisorOrchestratorShape;
 	readonly tunnelService: SettledTunnels;
 	readonly cloudflareApps: SettledApps;
@@ -132,11 +132,11 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 		const health = current !== undefined ? yield* current.getHealth : null;
 
 		return {
-			enabled: yield* attempt(() => platformConfig.isManagedWebAppEnabled()),
+			enabled: yield* platformConfig.isManagedWebAppEnabled(),
 			external: Boolean(env.get("MANAGED_WEB_APP_EXTERNAL")),
 			webHostname: hostnameService.webHostname(),
-			customOrigin: yield* attempt(() => platformConfig.getManagedWebOrigin()),
-			tunnel: yield* attempt(() => platformConfig.getManagedWebTunnel()),
+			customOrigin: yield* platformConfig.getManagedWebOrigin(),
+			tunnel: yield* platformConfig.getManagedWebTunnel(),
 			supervisorState: snapshot?.state ?? null,
 			healthy: health?.healthy ?? null,
 			detail: health?.detail ?? null,
@@ -177,20 +177,20 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 		state,
 
 		toggle: Effect.fn("PlatformManagedWebService.toggle")(function* () {
-			const current = yield* attempt(() => platformConfig.isManagedWebAppEnabled());
-			yield* attempt(() => platformConfig.setManagedWebAppEnabled(!current));
+			const current = yield* platformConfig.isManagedWebAppEnabled();
+			yield* platformConfig.setManagedWebAppEnabled(!current);
 			yield* converge();
 			return yield* state();
 		}),
 
 		restart: Effect.fn("PlatformManagedWebService.restart")(function* () {
-			yield* attempt(() => platformConfig.setManagedWebAppEnabled(true));
+			yield* platformConfig.setManagedWebAppEnabled(true);
 			yield* converge();
 			return yield* state();
 		}),
 
 		setOrigin: Effect.fn("PlatformManagedWebService.setOrigin")(function* (origin) {
-			yield* attempt(() => platformConfig.setManagedWebOrigin(origin));
+			yield* platformConfig.setManagedWebOrigin(origin);
 			yield* converge();
 			yield* Effect.logInfo(`Managed web origin set to ${origin === null ? "<platform default>" : origin}`);
 			return yield* state();
@@ -232,27 +232,25 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 				),
 			);
 
-			yield* attempt(() =>
-				platformConfig.setManagedWebTunnel({
+			yield* platformConfig.setManagedWebTunnel({
 					tunnelId: created.tunnel.id,
 					hostname: tunnelHostname,
 					providerId: provider.providerId,
-				}),
-			);
+				});
 			yield* converge();
 			yield* Effect.logInfo(`Managed web tunnel provisioned: ${tunnelHostname} → ${service}`);
 			return yield* state();
 		}),
 
 		disableTunnel: Effect.fn("PlatformManagedWebService.disableTunnel")(function* () {
-			const tunnel = yield* attempt(() => platformConfig.getManagedWebTunnel());
+			const tunnel = yield* platformConfig.getManagedWebTunnel();
 			if (tunnel !== null) {
 				yield* tunnelService.deleteTunnel(tunnel.providerId, tunnel.tunnelId, { hostname: tunnel.hostname }).pipe(
 					Effect.catch((err) =>
 						Effect.logWarning(`Web tunnel removal best-effort failed (${tunnel.tunnelId}): ${describe(err)}`),
 					),
 				);
-				yield* attempt(() => platformConfig.clearManagedWebTunnel());
+				yield* platformConfig.clearManagedWebTunnel();
 				yield* converge();
 				yield* Effect.logInfo(`Managed web tunnel removed: ${tunnel.hostname}`);
 			}

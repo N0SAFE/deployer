@@ -45,6 +45,7 @@
         "@deployer/bff-contracts": "*",
         "@deployer/contracts-entities": "*",
         "@deployer/effect-core": "*",
+        "effect": "catalog:effect",
         "@deployer/environment": "*",
         "@deployer/env": "*",
         "@deployer/fleet-contracts": "*",

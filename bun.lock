@@ -71,6 +71,7 @@
         "@tanstack/react-query": "catalog:tanstack",
         "better-auth": "catalog:auth",
         "drizzle-orm": "catalog:database",
+        "effect": "catalog:effect",
         "express": "catalog:api:nest",
         "lucide-react": "catalog:ui",
         "nanoid": "catalog:database",

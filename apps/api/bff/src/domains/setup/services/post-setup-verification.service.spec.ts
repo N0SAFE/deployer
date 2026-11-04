@@ -1,8 +1,9 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 import { classifyIngressAnswer, PostSetupVerificationService, type IngressTransport } from "./post-setup-verification.service";
 
@@ -39,9 +40,9 @@ function make(options: { webEnabled: boolean; webOrigin?: string | null; transpo
 		webOrigin: () => "http://web.deployer.localhost",
 	} as unknown as HostnameService;
 	const config = {
-		isManagedWebAppEnabled: vi.fn(() => Promise.resolve(options.webEnabled)),
-		getManagedWebOrigin: vi.fn(() => Promise.resolve(options.webOrigin ?? null)),
-	} as unknown as PlatformConfigService;
+		isManagedWebAppEnabled: vi.fn(() => Effect.succeed(options.webEnabled)),
+		getManagedWebOrigin: vi.fn(() => Effect.succeed(options.webOrigin ?? null)),
+	} as unknown as PlatformConfigServiceShape;
 	const service = new PostSetupVerificationService(env, hostnames, config);
 	service.transport = options.transport;
 	return service;

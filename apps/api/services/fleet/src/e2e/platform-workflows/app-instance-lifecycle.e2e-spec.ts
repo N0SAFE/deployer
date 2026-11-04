@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 /**
  * E2E — App-instance lifecycle (api-centric deployment, BYO flow).
  *
@@ -19,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // previous `../utils/shared-api-runtime` path does not exist in a service — the
 // harness lives in `shared`, where `@/app.module` resolves to nothing, so it must be
 // reached through the wrapper that supplies `nest.rootModuleLoader`.
-import { AppInstanceService } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
+import { AppInstanceService, type AppInstanceServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
 
 import {
 	getSharedApiRuntimeContext,
@@ -31,7 +32,7 @@ const INSTANCE_LABEL = "e2e-byo-web";
 
 describe("Platform: app-instance lifecycle (BYO)", () => {
 	let context: SharedApiRuntimeContext;
-	let instances: AppInstanceService;
+	let instances: AppInstanceServiceShape;
 	const account = {
 		email: `byo-web-${Date.now()}@e2e.deployer.test`,
 		password: "e2e-byo-pass-123",
@@ -42,7 +43,7 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 
 	beforeAll(async () => {
 		context = await getSharedApiRuntimeContext({ instanceKey: "platform-app-instance" });
-		instances = context.serviceMapper.get(AppInstanceService);
+		instances = context.serviceMapper.get(AppInstanceService) as unknown as AppInstanceServiceShape;
 
 		// Consumer account on THIS API — the anti-abuse boundary for registration.
 		// Fail LOUDLY with the provider's own error body — silent signup
@@ -129,7 +130,7 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 		instanceId = body.instanceId;
 
 		// The instance exists server-side in active state.
-		const stored = await instances.list();
+		const stored = await Effect.runPromise(instances.list());
 		const mine = stored.find((row) => row.id === instanceId);
 		expect(mine?.status).toBe("active");
 		expect(mine?.kind).toBe("external");
@@ -170,7 +171,7 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 	});
 
 	it("revocation is immediate: heartbeat dies after operator revoke", async () => {
-		const revoked = await instances.revoke(instanceId);
+		const revoked = await Effect.runPromise(instances.revoke(instanceId));
 		expect(revoked).toBe(true);
 
 		await context.http
@@ -182,11 +183,11 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 	});
 
 	it("revoking twice is idempotent", async () => {
-		const second = await instances.revoke(instanceId);
+		const second = await Effect.runPromise(instances.revoke(instanceId));
 		// Second call finds no live (non-revoked) row to transition — either a
 		// false or a no-op true is acceptable, but the store must stay revoked.
 		second;
-		const stored = await instances.list();
+		const stored = await Effect.runPromise(instances.list());
 		const mine = stored.find((row) => row.id === instanceId);
 		expect(mine?.status).toBe("revoked");
 	});

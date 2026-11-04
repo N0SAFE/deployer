@@ -1,8 +1,9 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 import { PostSetupDestinationService } from "./post-setup-destination.service";
 
@@ -18,11 +19,10 @@ function makeService(options: {
 	enabledThrows?: boolean;
 	origin?: string | null;
 }) {
-	const isManagedWebAppEnabled = vi.fn(async () => {
-		if (options.enabledThrows === true) throw new Error("relation does not exist");
-		return options.enabled ?? false;
-	});
-	const getManagedWebOrigin = vi.fn(async () => options.origin ?? null);
+	const isManagedWebAppEnabled = vi.fn(() =>
+		options.enabledThrows === true ? Effect.die(new Error("relation does not exist")) : Effect.succeed(options.enabled ?? false),
+	);
+	const getManagedWebOrigin = vi.fn(() => Effect.succeed(options.origin ?? null));
 
 	const service = new PostSetupDestinationService(
 		// `EnvService` is a full parsed-env provider, not just a `get()` accessor. The
@@ -34,7 +34,7 @@ function makeService(options: {
 			webOrigin: () => "http://web.deployer.localhost",
 			apiOrigin: () => "http://api.deployer.localhost",
 		} as unknown as HostnameService,
-		{ isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigService,
+		{ isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigServiceShape,
 	);
 	return { service, isManagedWebAppEnabled, getManagedWebOrigin };
 }

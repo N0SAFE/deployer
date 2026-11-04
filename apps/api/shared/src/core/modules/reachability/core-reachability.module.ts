@@ -7,7 +7,7 @@ import { EnvModule, EnvService } from '../../../config/env/env.module';
 import { DatabasePort } from '../database/storage';
 import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from '../edge/edge-provider.registry';
 import { EgressService } from '../egress/egress.service';
-import { IngressLanesService } from '../platform-ingress/services/ingress-lanes.service';
+import { IngressLanesService, type IngressLanesServiceShape } from '../platform-ingress/services/ingress-lanes.service';
 import { GlobalDatabaseModule } from '../database/global/global-database.module';
 import { CoreEdgeModule } from '../edge/edge.module';
 import { CoreEgressModule } from '../egress/egress.module';
@@ -51,7 +51,7 @@ export const CoreReachabilityModule = createGlobalModule({
       useFactory: (
         nodeNetworkConfigs: NodeNetworkConfigRepositoryShape,
         nodeConfig: NodeConfigRepositoryShape,
-        lanes: IngressLanesService,
+        lanes: IngressLanesServiceShape,
         edges: EdgeProviderRegistryShape,
         publicEdge: PublicEdgeServiceShape,
         egress: EgressService,

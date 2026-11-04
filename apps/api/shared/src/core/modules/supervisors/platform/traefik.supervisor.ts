@@ -19,7 +19,7 @@ import type { EdgeProviderRegistryShape } from "../../edge/edge-provider.registr
 import { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { buildNodeDoors } from "../../platform-ingress/services/ingress-doors";
-import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
+import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
 import {
 	deriveIngressProviderToken,
 	INGRESS_TOKEN_HEADER,
@@ -32,7 +32,7 @@ import {
 	platformApiServiceName,
 	platformTraefikContainerName,
 } from "../../platform-ingress/services/platform-names";
-import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import type { PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
 import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
 export { PLATFORM_INGRESS_SUPERVISOR_ID };
@@ -41,9 +41,9 @@ export type TraefikSupervisorDeps = {
 	readonly engine: DockerEngineShape;
 	readonly hostnameService: HostnameService;
 	readonly env: EnvService;
-	readonly lanes: IngressLanesService;
+	readonly lanes: IngressLanesServiceShape;
 	readonly settings: ClusterSettings;
-	readonly webTarget: PlatformWebTargetService;
+	readonly webTarget: PlatformWebTargetServiceShape;
 	readonly edges: EdgeProviderRegistryShape;
 	readonly bus: SupervisorEventBus;
 };
@@ -69,7 +69,7 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
 	/** The console hosts the local door serves directly when Traefik does not answer. */
 	const rescueRoutes = async (target: string): Promise<DoorRescueRoute[]> => {
 		const routes: DoorRescueRoute[] = [{ host: hostnameService.apiHostname(), target, port: env.get("API_PORT") }];
-		const web = await webTarget.resolveWebTarget().catch(() => null);
+		const web = await runPromiseUnwrapped(webTarget.resolveWebTarget());
 		if (web !== null) routes.push({ host: hostnameService.webHostname(), target: web, port: PLATFORM_WEB_INTERNAL_PORT });
 		return routes;
 	};
@@ -99,7 +99,7 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
 			externallyManaged: isExternallyManaged,
 			runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
 			selfHostname: () => process.env.HOSTNAME,
-			lanes: Effect.tryPromise(() => lanesService.getLanes()),
+			lanes: lanesService.getLanes(),
 			edgePlan: (lanes) => edges.ingressPlan(lanes),
 			publishNodeDoors: ({ lanes, traefikService }) =>
 				Effect.tryPromise(async () => {

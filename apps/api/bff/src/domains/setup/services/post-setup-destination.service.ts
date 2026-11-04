@@ -1,10 +1,11 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Effect } from "effect";
 
 import type { SetupPostSetupDestination } from "@deployer/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import { PlatformConfigService, type PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 /**
  * Decides where the wizard's final "continue to dashboard" click lands.
@@ -40,7 +41,7 @@ export class PostSetupDestinationService {
   constructor(
     private readonly env: EnvService,
     private readonly hostnameService: HostnameService,
-    private readonly platformConfig: PlatformConfigService,
+    @Inject(PlatformConfigService) private readonly platformConfig: PlatformConfigServiceShape,
   ) {}
 
   async resolve(): Promise<SetupPostSetupDestination> {
@@ -68,7 +69,7 @@ export class PostSetupDestinationService {
 
   private async readManagedWebEnabled(): Promise<boolean> {
     try {
-      return await this.platformConfig.isManagedWebAppEnabled();
+      return await Effect.runPromise(this.platformConfig.isManagedWebAppEnabled());
     } catch (error: unknown) {
       // The flag lives in the global DB, which is provisioned DURING setup. A
       // read can legitimately fail if this is called before that finished — the
@@ -82,7 +83,7 @@ export class PostSetupDestinationService {
 
   private async readManagedWebOrigin(): Promise<string | null> {
     try {
-      const origin = await this.platformConfig.getManagedWebOrigin();
+      const origin = await Effect.runPromise(this.platformConfig.getManagedWebOrigin());
       if (origin === null || origin.trim().length === 0) return null;
       // `getManagedWebOrigin` stores a bare host (scheme stripped when set), so
       // it must be given one back before it can be navigated to.

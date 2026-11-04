@@ -9,7 +9,8 @@
  * The HTML management console lives in PlatformConsoleController.
  */
 
-import { Controller, Logger } from "@nestjs/common";
+import { Controller, Inject, Logger } from "@nestjs/common";
+import { Effect } from "effect";
 import { Implement } from "@orpc/nest";
 
 import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
@@ -21,6 +22,7 @@ import { AuthCoreService } from "@deployer/shared/core/modules/auth/services/aut
 import {
 	AppInstanceService,
 	STALE_AFTER_MS,
+	type AppInstanceServiceShape,
 } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
 
 import { requireAppInstance } from "../orpc/middlewares";
@@ -31,7 +33,7 @@ const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;
 @Controller()
 export class PlatformController {
 	constructor(
-		private readonly appInstances: AppInstanceService,
+		@Inject(AppInstanceService) private readonly appInstances: AppInstanceServiceShape,
 		private readonly authCoreService: AuthCoreService,
 	) {}
 	@Implement(registerAppInstanceContract)
@@ -61,10 +63,9 @@ export class PlatformController {
 					);
 				}
 
-				const minted = await this.appInstances.create({
-					label: input.instanceLabel,
-					kind: "external",
-				});
+				const minted = await Effect.runPromise(
+					this.appInstances.create({ label: input.instanceLabel, kind: "external" }),
+				);
 
 				return {
 					status: 201,
@@ -96,8 +97,8 @@ export class PlatformController {
 		return procedure(listAppInstancesContract)
 			.use(requireAuth())
 			.handler(async () => {
-				await this.appInstances.sweepStale();
-				const instances = await this.appInstances.list();
+				await Effect.runPromise(this.appInstances.sweepStale());
+				const instances = await Effect.runPromise(this.appInstances.list());
 				return {
 					instances: instances.map((row) => ({
 						id: row.id,
@@ -117,7 +118,7 @@ export class PlatformController {
 			.use(requireAuth())
 			.handler(async ({ input }) => {
 				// Delete verbs envelope the input: body + default params.
-				return { revoked: await this.appInstances.revoke(input.body.instanceId) };
+				return { revoked: await Effect.runPromise(this.appInstances.revoke(input.body.instanceId)) };
 			});
 	}
 }

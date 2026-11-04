@@ -33,12 +33,7 @@
     "src/core/modules/mesh/services/system-mesh-config.service.ts",
     "src/core/modules/mesh/version/mesh-version.service.ts",
     "src/core/modules/node-state/node-config.snapshot.ts",
-    "src/core/modules/platform-ingress/services/app-instance.service.ts",
     "src/core/modules/platform-ingress/services/hostname.service.ts",
-    "src/core/modules/platform-ingress/services/ingress-lanes.service.ts",
-    "src/core/modules/platform-ingress/services/platform-config.service.ts",
-    "src/core/modules/platform-ingress/services/platform-routes-source.service.ts",
-    "src/core/modules/platform-ingress/services/platform-web-target.service.ts",
     "src/core/modules/reachability/events/public-access-point-event.service.ts",
     "src/core/modules/setup/services/initialization.service.ts",
     "src/core/modules/setup/services/local-initialization.service.ts",
@@ -51,7 +46,6 @@
     "src/core/modules/swarm/services/node-inventory.service.ts",
     "src/core/modules/swarm/swarm.module.ts",
     "src/core/modules/traefik/events/traefik-event.service.ts",
-    "src/core/modules/traefik/services/traefik-ingress-config.service.ts",
     "src/core/utils/migration-journal.service.ts",
     "src/server/preflight/preflight.service.ts",
     "src/server/service-client.ts"
@@ -59,8 +53,7 @@
   "noNestExceptionFilter": [
     "src/core/middlewares/internal-error/internal-error-insight.service.ts",
     "src/core/modules/auth/orpc/interceptors.ts",
-    "src/core/modules/events/services/core-event-sync.service.ts",
-    "src/core/modules/traefik/controllers/traefik-ingress-config.controller.ts"
+    "src/core/modules/events/services/core-event-sync.service.ts"
   ],
   "noNestLifecycleHook": [
     "src/core/authz/role-catalogue.module.ts",

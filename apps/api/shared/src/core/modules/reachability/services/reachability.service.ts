@@ -17,7 +17,7 @@ import type { PublicAccessPointState } from "./public-access-point.state";
 import type { PublicEdgeServiceShape } from "./public-edge.service";
 import type { EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import type { EgressService } from "../../egress/egress.service";
-import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
+import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
 import type { NodeNetworkConfigRepositoryShape } from "../repositories/node-network-config.repository";
 
 /**
@@ -102,8 +102,7 @@ export type ReachabilityServiceShape = {
 type Ports = {
   readonly nodeNetworkConfigs: NodeNetworkConfigRepositoryShape;
   readonly nodeConfig: NodeConfigRepositoryShape;
-  /** Still a Promise-based provider of the platform-ingress module. */
-  readonly lanes: Pick<IngressLanesService, "getLanes">;
+  readonly lanes: Pick<IngressLanesServiceShape, "getLanes">;
   readonly edges: EdgeProviderRegistryShape;
   readonly publicEdge: PublicEdgeServiceShape;
   /** Still a Promise-based provider of the egress module. */
@@ -135,7 +134,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
 
   const getNodePublicUrl: ReachabilityServiceShape["getNodePublicUrl"] = () =>
     Effect.gen(function* () {
-      const current = yield* dependency("read the ingress lanes", () => lanes.getLanes());
+      const current = yield* storage("read the ingress lanes", lanes.getLanes());
       const lane = current.public;
       if (lane === null || current.consoleVisibility !== "public") return null;
       const scheme = edges.ingressPlan(current).tls === "none" ? "http" : "https";
@@ -175,7 +174,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
 
   const resolveAccessPointState: ReachabilityServiceShape["resolveAccessPointState"] = () =>
     Effect.gen(function* () {
-      const current = yield* dependency("read the ingress lanes", () => lanes.getLanes());
+      const current = yield* storage("read the ingress lanes", lanes.getLanes());
       const edge = edges.active(current)?.descriptor ?? null;
       const tunnelEnabled = edge?.kind === "tunnel";
       const [account = null] = edges.accountsInUse(current);
@@ -264,7 +263,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
     checkDomainGate: () =>
       Effect.gen(function* () {
         const config = yield* getNodeNetworkConfig();
-        const current = yield* dependency("read the ingress lanes", () => lanes.getLanes());
+        const current = yield* storage("read the ingress lanes", lanes.getLanes());
         const base = { publicAddress: config.publicAddress, addressKind: config.addressKind };
         const edge = yield* publicEdge.view(current);
         if (edge === null || edge.status.provisioned) return { allowed: true, reason: null, ...base };

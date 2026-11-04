@@ -52,7 +52,7 @@ describe('ReachabilityService', () => {
       makeReachabilityService({
         nodeNetworkConfigs,
         nodeConfig: { find: vi.fn(() => Effect.succeed({ nodeId: '00000000-0000-0000-0000-000000000001' })) } as never,
-        lanes: { getLanes: vi.fn(() => Promise.resolve(lanes)) },
+        lanes: { getLanes: vi.fn(() => Effect.succeed(lanes)) },
         edges: edges.registry,
         publicEdge,
         egress: egress as never,

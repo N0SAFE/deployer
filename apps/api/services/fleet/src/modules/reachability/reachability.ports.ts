@@ -4,7 +4,7 @@ import type { NodeDoorClient } from '@deployer/mesh-client'
 import type { EdgeProviderRegistryShape } from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
-import type { IngressLanesService } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
+import type { IngressLanesServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
 import type { PublicAccessPointServiceShape } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
 import type { PublicEdgeServiceShape } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
 import type { ReachabilityServiceShape } from '@deployer/shared/core/modules/reachability/services/reachability.service'
@@ -19,7 +19,7 @@ import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/
  */
 export class IngressLanesPort extends Context.Service<
     IngressLanesPort,
-    IngressLanesService
+    IngressLanesServiceShape
 >()('fleet/IngressLanesPort') {}
 export class EdgeProvidersPort extends Context.Service<
     EdgeProvidersPort,

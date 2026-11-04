@@ -12,13 +12,13 @@ import type { DockerEngineShape } from "@deployer/docker";
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
 import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
 
-import { TraefikIngressConfigService } from "./traefik-ingress-config.service";
+import { makeTraefikIngressConfigService } from "./traefik-ingress-config.service";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
-import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import type { PlatformRoutesSource, SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
-import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
+import type { PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
+import type { PlatformRoutesSourceShape, SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
+import type { PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
 import type { TraefikRepositoryShape } from "../repositories/traefik.repository";
 
 
@@ -27,19 +27,24 @@ async function makeService(options: { lanes?: IngressLanes; routes?: SupervisedR
 	if (options.setupFile !== undefined) await writeFile(join(dir, "dynamic-setup.yml"), options.setupFile);
 	const values: Record<string, unknown> = { DEPLOYER_PREFIX: "", API_PORT: 3005, DEPLOYER_API_TARGET: "deployer-api", TRAEFIK_CONFIG_BASE_PATH: dir };
 	const env = { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
-	return new TraefikIngressConfigService(
+	const service = makeTraefikIngressConfigService({
 		env,
 		// `DEPLOYER_API_TARGET` is set, so the self-resolver never inspects a container; the tests
 		// touch no Docker API and an empty engine is asserted to the interface.
-		({ containers: {} }) as unknown as DockerEngineShape,
-		new EnvHostnameService(env),
-		{ getLanes: () => Promise.resolve(options.lanes ?? defaultIngressLanes()) } as unknown as IngressLanesService,
-		{ resolveWebTarget: () => Promise.resolve(options.webTarget === undefined ? "deployer-managed-web" : options.webTarget) } as unknown as PlatformWebTargetService,
-		{ listSupervisedRoutes: () => Promise.resolve(options.routes ?? []) } as unknown as PlatformRoutesSource,
-		{ getAllServiceConfigs: () => Effect.succeed([]), getServiceTargetsByConfigId: () => Effect.succeed([]) } as unknown as TraefikRepositoryShape,
-		{ getManagedWebOrigin: () => Promise.resolve(null), getManagedWebTunnel: () => Promise.resolve(null) } as unknown as PlatformConfigService,
-		testEdgeRegistry().registry,
-	);
+		dockerEngine: { containers: {} } as unknown as DockerEngineShape,
+		hostnames: new EnvHostnameService(env),
+		lanes: { getLanes: () => Effect.succeed(options.lanes ?? defaultIngressLanes()), setLanes: () => Effect.die("unused") } as IngressLanesServiceShape,
+		webTarget: { resolveWebTarget: () => Effect.succeed(options.webTarget === undefined ? "deployer-managed-web" : options.webTarget) } as PlatformWebTargetServiceShape,
+		routesSource: { listSupervisedRoutes: () => Effect.succeed(options.routes ?? []) } as PlatformRoutesSourceShape,
+		traefikRepository: { getAllServiceConfigs: () => Effect.succeed([]), getServiceTargetsByConfigId: () => Effect.succeed([]) } as unknown as TraefikRepositoryShape,
+		platformConfig: { getManagedWebOrigin: () => Effect.succeed(null), getManagedWebTunnel: () => Effect.succeed(null) } as unknown as PlatformConfigServiceShape,
+		edges: testEdgeRegistry().registry,
+	});
+	// The service's Effects, run to Promises: the assertions below read like the calls they check.
+	return {
+		buildDynamicConfig: () => Effect.runPromise(service.buildDynamicConfig()),
+		setupRouteTarget: (apiBackend: string) => Effect.runPromise(service.setupRouteTarget(apiBackend)),
+	};
 }
 
 describe("TraefikIngressConfigService", () => {

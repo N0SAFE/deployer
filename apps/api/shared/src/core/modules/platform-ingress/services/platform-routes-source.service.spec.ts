@@ -1,7 +1,8 @@
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
-	PlatformRoutesSource,
+	makePlatformRoutesSource,
 	dedupeRoutes,
 	dnsLabel,
 	hostnameOf,
@@ -47,9 +48,9 @@ describe("PlatformRoutesSource", () => {
 			[],
 			[],
 		]);
-		const source = new PlatformRoutesSource(db);
+		const source = makePlatformRoutesSource({ db });
 
-		const routes = await source.listSupervisedRoutes();
+		const routes = await Effect.runPromise(source.listSupervisedRoutes());
 
 		expect(routes).toHaveLength(1);
 		const global = routes[0];
@@ -73,9 +74,9 @@ describe("PlatformRoutesSource", () => {
 			[],
 			[],
 		]);
-		const source = new PlatformRoutesSource(db);
+		const source = makePlatformRoutesSource({ db });
 
-		const routes = await source.listSupervisedRoutes();
+		const routes = await Effect.runPromise(source.listSupervisedRoutes());
 
 		expect(routes).toHaveLength(1);
 		expect(routes[0]).toMatchObject({
@@ -102,9 +103,9 @@ describe("PlatformRoutesSource", () => {
 			],
 			[],
 		]);
-		const source = new PlatformRoutesSource(db);
+		const source = makePlatformRoutesSource({ db });
 
-		const routes = await source.listSupervisedRoutes();
+		const routes = await Effect.runPromise(source.listSupervisedRoutes());
 
 		expect(routes).toHaveLength(1);
 		expect(routes[0]).toMatchObject({
@@ -128,7 +129,7 @@ describe("PlatformRoutesSource", () => {
 			],
 			[],
 		]);
-		const routes = await new PlatformRoutesSource(db).listSupervisedRoutes();
+		const routes = await Effect.runPromise(makePlatformRoutesSource({ db }).listSupervisedRoutes());
 		expect(routes[0]).toMatchObject({ label: "api-shop", hosts: [], visibility: "public" });
 	});
 
@@ -144,9 +145,9 @@ describe("PlatformRoutesSource", () => {
 				},
 			],
 		]);
-		const source = new PlatformRoutesSource(db);
+		const source = makePlatformRoutesSource({ db });
 
-		const routes = await source.listSupervisedRoutes();
+		const routes = await Effect.runPromise(source.listSupervisedRoutes());
 
 		expect(routes).toHaveLength(1);
 		expect(routes[0]).toMatchObject({
@@ -166,9 +167,9 @@ describe("PlatformRoutesSource", () => {
 			],
 			[],
 		]);
-		const source = new PlatformRoutesSource(db);
+		const source = makePlatformRoutesSource({ db });
 
-		const routes = await source.listSupervisedRoutes();
+		const routes = await Effect.runPromise(source.listSupervisedRoutes());
 		expect(routes).toEqual([]);
 	});
 });

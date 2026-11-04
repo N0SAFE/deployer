@@ -37,7 +37,7 @@ import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts
 import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
 import type { EdgeProviderRegistryShape } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
-import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
+import type { IngressLanesServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeServiceShape } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
@@ -102,7 +102,7 @@ export type IngressEdgeServiceShape = {
 };
 
 type Ports = {
-	readonly lanes: IngressLanesService;
+	readonly lanes: IngressLanesServiceShape;
 	readonly edges: EdgeProviderRegistryShape;
 	readonly publicEdge: PublicEdgeServiceShape;
 	readonly mesh: NodeDoorClient;
@@ -225,7 +225,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 	);
 
 	const getState = Effect.fn("IngressEdgeService.getState")(function* () {
-		const lanes = yield* attempt(() => lanesPort.getLanes());
+		const lanes = yield* lanesPort.getLanes();
 		const [mesh_, edge, publicPath] = yield* Effect.all(
 			[meshView, publicEdge.view(lanes), publicEdge.joinPath(lanes)],
 			{ concurrency: "unbounded" },
@@ -294,7 +294,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 
 	const reconcileDns = Effect.fn("IngressEdgeService.reconcileDns")(function* (retired: readonly RetiredDnsName[] = []) {
 		yield* Effect.gen(function* () {
-			const lanes = yield* attempt(() => lanesPort.getLanes());
+			const lanes = yield* lanesPort.getLanes();
 			const [, view] = yield* readDoor().pipe(
 				Effect.orElseSucceed((): readonly [NodeDoorStatus | null, NodeDoorView | null] => [null, null]),
 			);
@@ -317,7 +317,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 		reconcileDns,
 
 		update: Effect.fn("IngressEdgeService.update")(function* (input) {
-			const current = yield* attempt(() => lanesPort.getLanes());
+			const current = yield* lanesPort.getLanes();
 			const next: IngressLanes = {
 				entryPort: input.entryPort ?? current.entryPort,
 				private:
@@ -346,7 +346,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 				yield* attempt(() => resolved.provider.provision(resolved.ctx));
 			}
 			// 2. The switch.
-			yield* attempt(() => lanesPort.setLanes(lanes));
+			yield* lanesPort.setLanes(lanes);
 			// 3. The old edge carries nothing any more; clean it up.
 			if (current.public !== null && current.public.provider !== lanes.public?.provider) {
 				yield* teardownProvider(current.public.provider, false);
@@ -358,12 +358,12 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 		}),
 
 		teardownPublicEdge: Effect.fn("IngressEdgeService.teardownPublicEdge")(function* () {
-			const lanes = yield* attempt(() => lanesPort.getLanes());
+			const lanes = yield* lanesPort.getLanes();
 			if (lanes.public === null) return yield* getState();
 			const retired = yield* retiredNames(lanes);
 			// Explicit request: a provider failure is reported, not swallowed.
 			yield* teardownProvider(lanes.public.provider, true);
-			yield* attempt(() => lanesPort.setLanes({ ...lanes, public: null }));
+			yield* lanesPort.setLanes({ ...lanes, public: null });
 			yield* reconcileDns(retired);
 			refresher.refresh();
 			return yield* getState();

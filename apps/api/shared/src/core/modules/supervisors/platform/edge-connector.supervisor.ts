@@ -12,7 +12,7 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
+import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
 import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 
@@ -21,7 +21,7 @@ export { EDGE_CONNECTOR_SUPERVISOR_ID };
 export type EdgeConnectorSupervisorDeps = {
 	readonly engine: DockerEngineShape;
 	readonly env: EnvService;
-	readonly lanes: IngressLanesService;
+	readonly lanes: IngressLanesServiceShape;
 	readonly edge: PublicEdgeServiceShape;
 	readonly bus: SupervisorEventBus;
 };
@@ -38,7 +38,7 @@ export function makeEdgeConnectorRegistration({ engine, env, lanes, edge, bus }:
 		logger,
 		config: {
 			prefix: () => env.get("DEPLOYER_PREFIX"),
-			desired: Effect.tryPromise(() => lanes.getLanes()).pipe(Effect.flatMap((current) => edge.connector(current))),
+			desired: lanes.getLanes().pipe(Effect.flatMap((current) => edge.connector(current))),
 			routeTarget: () => edge.ingressTarget(),
 			runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
 		},
