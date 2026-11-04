@@ -1,161 +1,73 @@
 import { standardErrorActions } from "@deployer/orpc-utils";
 
-import { createPluginRegistry, type AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
-
 import type { Auth } from "../../../../auth";
 
 export type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
-  // `role` comes from Better Auth's `user.additionalFields.role` (DB text).
-  // It is NOT a `PlatformRole` at the type level; the permission engine
-  // validates/adopts it into `PlatformRole` at the trust boundary.
+  /**
+   * The platform role, from the `user.role` column.
+   *
+   * A `string`, not a `PlatformRole`: roles are ROWS now, so a value read from the database cannot be the union the
+   * declaration was compiled from. It is checked where it is used (`roleHasPermission` answers `false` for a name the
+   * catalogue does not list), not asserted here.
+   */
   role?: string;
-  // Admin plugin fields — nullable at runtime (not banned yet).
+  // Better Auth's user columns, nullable at runtime.
   banned?: boolean | null;
   banReason?: string | null;
   banExpires?: Date | string | null;
   [key: string]: unknown;
 };
 
-/**
- * User session type from Better Auth
- */
+/** A resolved session, as every handler boundary receives it. */
 export type UserSession = {
   session: Auth["$Infer"]["Session"]["session"];
   user: SessionUserWithRole;
-}
-
-/**
- * Request type extended with Better Auth session
- * Used in NestJS guards and controllers for typed access to authentication context
- */
-export type RequestWithSession = Request & {
-  session?: UserSession | null;
 };
 
 /**
- * Global auth utilities class that provides authentication context
- * Used in ORPC handlers via context.auth
- * 
- * For access control, use plugin-based middlewares:
- * - `adminMiddlewares.requireRole(role)` - Require specific role
- * - `adminMiddlewares.requirePermission(permission)` - Permission-based access
- * - `adminMiddlewares.requireAccess({ roles, permissions })` - Complex access control
- * - `meshMiddlewares.requireRole(role)` - Mesh-wide role-based access
- * 
- * @example
- * ```ts
- * // In ORPC handler
- * implement(contract)
- *   .use(adminMiddlewares.requireRole(['admin']))
- *   .handler(({ context }) => {
- *     const { auth } = context;
- *     // Access plugins
- *     await auth.admin.listUsers();
- *   })
- * ```
+ * The auth face an oRPC handler sees.
+ *
+ * Deliberately small: the session, the user, and `requireAuth()`. Authorization is NOT here — it runs at the transport
+ * (`authzGate`) or through `Authz`, so there is no second place to check a permission and no Better Auth plugin surface
+ * to call. That surface (`auth.api.*`, the admin plugin wrappers, the Nest guard converters) was how a handler could
+ * authorize itself differently from every other route.
  */
 export class AuthUtils {
-  private readonly _adminUtils: AdminPluginWrapper;
-
-  constructor(
-    private readonly _session: UserSession | null,
-    private readonly auth: Auth,
-    private readonly headers?: Headers
-  ) {
-    // Create plugin wrappers using the registry with getAll()
-    const registry = createPluginRegistry(auth as never);
-    const plugins = registry.getAll(headers ?? new Headers());
-    this._adminUtils = plugins.admin;
-  }
+  constructor(private readonly _session: UserSession | null) {}
 
   get isLoggedIn(): boolean {
     return this._session !== null;
   }
 
-  get session(): Auth["$Infer"]["Session"]["session"] | null {
+  get session(): UserSession["session"] | null {
     return this._session?.session ?? null;
   }
 
-  get user(): UserSession["user"] | null {
+  get user(): SessionUserWithRole | null {
     return this._session?.user ?? null;
   }
 
   /**
-   * Access admin plugin utilities with auto-injected headers
-   * 
-   * @example
-   * ```typescript
-   * // In ORPC handler
-   * const user = await context.auth.admin.createUser({
-   *   email: 'user@example.com',
-   *   password: 'secure123',
-   *   name: 'John Doe',
-   *   role: 'user'
-   * });
-   * ```
-   */
-  get admin(): AdminPluginWrapper {
-    return this._adminUtils;
-  }
-
-  /**
-   * Require authentication - throws if user is not logged in
-   * 
-   * Use this for programmatic auth checks after middleware processing,
-   * or as a type guard to narrow the session type.
-   * 
-   * @throws ORPCError with UNAUTHORIZED code if not authenticated
-   * @returns The authenticated user session (guaranteed non-null)
-   * 
-   * @example
-   * ```typescript
-   * // Programmatic check in handler
-   * const session = context.auth.requireAuth();
-   * // session.user and session.session are guaranteed non-null
-   * ```
+   * The authenticated session, or a refusal.
+   *
+   * `UNAUTHORIZED` is declared on every contract (`standardDomainErrorContracts`), so oRPC keeps it a typed error on the
+   * client rather than a 500.
    */
   requireAuth(): UserSession {
-    if (!this._session) {
-      // Contract-closed error: UNAUTHORIZED is declared on every contract
-      // via standardDomainErrorContracts, so ORPC upgrades this to a DEFINED
-      // error on the client. No hand-built ORPCError with an off-contract
-      // code can be produced.
-      throw standardErrorActions.UNAUTHORIZED('Authentication required');
+    if (this._session === null) {
+      throw standardErrorActions.UNAUTHORIZED("Authentication required");
     }
     return this._session;
   }
 }
 
-/**
- * Empty auth utilities for unauthenticated contexts
- * Used as placeholder before authentication middleware runs
- */
+/** The same face for a caller with no session: every read is `null`/`false`, and `requireAuth()` refuses. */
 export class AuthUtilsEmpty {
   readonly isLoggedIn = false;
   readonly session = null;
   readonly user = null;
-  
-  // Admin utilities (available even when not logged in)
-  private readonly _admin: AdminPluginWrapper;
 
-  constructor(auth: Auth) {
-    // Create utilities using registry with getAll()
-    const registry = createPluginRegistry(auth as never);
-    const plugins = registry.getAll(new Headers());
-    this._admin = plugins.admin;
-  }
-
-  get admin(): AdminPluginWrapper {
-    return this._admin;
-  }
-
-  /**
-   * Always throws UNAUTHORIZED since this is an unauthenticated context
-   * @throws ORPCError with UNAUTHORIZED code
-   */
   requireAuth(): never {
-    // Contract-closed error: UNAUTHORIZED is declared on every contract via
-    // standardDomainErrorContracts.
-    throw standardErrorActions.UNAUTHORIZED('Authentication required');
+    throw standardErrorActions.UNAUTHORIZED("Authentication required");
   }
 }

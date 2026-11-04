@@ -83,7 +83,6 @@ export class AuthPlugin<TContext extends AuthPluginContext>
   }
 
   init(options: StandardHandlerOptions<TContext>): StandardHandlerOptions<TContext> {
-    const auth = this.auth;
     const sessions = this.sessions;
 
     // v2 contract: `init` RETURNS the transformed options (`OrderablePlugin`),
@@ -109,7 +108,7 @@ export class AuthPlugin<TContext extends AuthPluginContext>
       );
 
       // Create auth utilities with session AND headers for plugin utilities
-      const authUtils = new AuthUtils(sessionData, auth, webHeaders);
+      const authUtils = new AuthUtils(sessionData);
 
       // Continue with enriched context
       return next({

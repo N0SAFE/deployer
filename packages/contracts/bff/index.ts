@@ -11,7 +11,6 @@
 
 export * from "./modules/setup";
 export * from "./modules/template";
-export * from "./modules/test";
 
 // The BFF's screen contract: the composed, screen-shaped procedures the FRONT
 // calls. Distinct from the three above, which are procedures the BFF implements
@@ -28,4 +27,3 @@ export * from "./modules/orchestration";
 // kept identical by `scripts/check-service-surface-parity.py`.
 
 // Convenience input/output aliases for the test surface.
-export * from "./types";

@@ -54,16 +54,10 @@ function createOutputFn(): MiddlewareDone<unknown> {
 }
 
 describe('ORPC Auth Middlewares', () => {
-  let mockAuth: any;
   let mockSession: any;
   let mockContext: any;
 
   beforeEach(() => {
-    mockAuth = {
-      api: {
-        userHasPermission: vi.fn(),
-      },
-    };
 
     mockSession = {
       session: {
@@ -91,7 +85,7 @@ describe('ORPC Auth Middlewares', () => {
 
     mockContext = {
       request: {} as Request,
-      auth: new AuthUtils(mockSession, mockAuth),
+      auth: new AuthUtils(mockSession),
     };
   });
 
@@ -103,10 +97,6 @@ describe('ORPC Auth Middlewares', () => {
       expect(typeof middleware).toBe('function');
     });
   });
-
-  // NOTE: accessControl has been removed in favor of plugin-based middlewares
-  // Use adminMiddlewares.requireRole() or adminMiddlewares.requireAccess() instead
-  // See plugin-factory.ts for the new implementation
 
   describe('publicAccess', () => {
     it('should always pass for authenticated users', async () => {
@@ -122,7 +112,7 @@ describe('ORPC Auth Middlewares', () => {
     it('should always pass for unauthenticated users', async () => {
       const unauthContext = {
         ...mockContext,
-        auth: new AuthUtilsEmpty(mockAuth),
+        auth: new AuthUtilsEmpty(),
       };
       const middleware = publicAccess();
       const nextFn = vi.fn().mockImplementation(() => Promise.resolve({ output: 'success', context: {} }));

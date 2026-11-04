@@ -1,7 +1,6 @@
 import { AppError } from "@deployer/errors";
 
 import type { Auth } from "../../../../auth";
-import type { AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
 import type { SessionUserWithRole } from "../utils/auth-utils";
 
 /**
@@ -131,12 +130,6 @@ export type ORPCAuthContext<TLoggedIn extends boolean = boolean> = {
     : TLoggedIn extends false 
       ? null 
       : SessionUserWithRole | null;
-
-  /**
-   * Admin plugin utilities with auto-injected headers
-   * Provides platform-level user management operations
-   */
-  readonly admin: AdminPluginWrapper;
 
   /**
    * Require authentication - throws if user is not logged in

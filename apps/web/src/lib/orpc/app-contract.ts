@@ -34,7 +34,6 @@ import {
 	bffOrchestrationContract,
 	setupContract,
 	templateContract,
-	testContract,
 } from "@deployer/bff-contracts";
 
 import { serviceSurface } from "./service-surface";
@@ -57,7 +56,6 @@ export const appContract = oc.router({
 	// BFF-owned domains: the wizard answers BEFORE auth exists, and the test surface
 	// exists to probe the transport itself.
 	setup: setupContract,
-	test: testContract,
 	template: templateContract,
 });
 

@@ -11,7 +11,7 @@
 
 import { oc } from "@orpc/contract";
 
-import { testContract, templateContract, setupAppContract } from "@deployer/bff-contracts";
+import { templateContract, setupAppContract } from "@deployer/bff-contracts";
 import { providerSchemaContract, nodesContract, reachabilityContract, providersContract, meshContract, clusterContract, platformContract } from "@deployer/fleet-contracts";
 import { healthContract } from "@deployer/health-contracts";
 import { userContract, pushContract, analyticsContract } from "@deployer/identity-contracts";
@@ -22,7 +22,6 @@ export const appContract = oc.router({
     user: userContract,
     health: healthContract,
     push: pushContract,
-    test: testContract,
     domain: domainContract,
     project: projectContract,
     service: serviceContract,

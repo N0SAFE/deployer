@@ -27,7 +27,6 @@ import { AuditDomainModule } from './modules/audit/audit.module'
 import { RoleSeedModule } from './modules/role/role-seed.module'
 import { StepUpDomainModule } from './modules/step-up/step-up.module'
 import { RoleDomainModule } from './modules/role/role.module'
-import { PermissionDomainModule } from './modules/permission/permission.module'
 import { PushDomainModule } from './modules/push/push.module'
 import { UserDomainModule } from './modules/user/user.module'
 
@@ -99,6 +98,5 @@ export class IdentityServiceModule extends createModuleContext({
         RoleDomainModule,
         RoleSeedModule,
         StepUpDomainModule,
-        PermissionDomainModule,
     ],
 }) {}

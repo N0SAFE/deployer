@@ -12,7 +12,6 @@ import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@deployer/orpc
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
 
 import { AuthUtils } from './auth-utils'
-import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
 
 import type { ORPCGlobalContext } from './orpc-context'
 import type {
@@ -108,7 +107,7 @@ export function createAuthMiddleware(auth: Auth) {
             })
 
             // Create auth utilities with session AND headers for plugin utilities
-            const authUtils = new AuthUtils(session, auth, webHeaders)
+            const authUtils = new AuthUtils(session)
 
             // Pass context with auth to next middleware/handler
             return opts.next({
@@ -300,7 +299,6 @@ function makeAuthenticatedAuth(
         isLoggedIn: true,
         session: auth.session,
         user: auth.user,
-        admin: auth.admin,
         requireAuth: () => auth.requireAuth(),
     }
 }

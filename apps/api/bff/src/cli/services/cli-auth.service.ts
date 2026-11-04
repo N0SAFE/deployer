@@ -90,10 +90,10 @@ export class CliAuthService {
           'Content-Type': 'application/json',
         });
 
-        const plugins = this.authCoreService.getRegistry().getAll(authHeaders);
-        
-        // Test if master token works by trying to list users
-        await plugins.admin.listUsers();
+        // Prove the token reaches the auth API at all. There is no admin plugin to call (`SEC-062` removed it), so the
+        // probe is the session endpoint: it answers `null` for a master token (it is not a session), and throws when the
+        // request cannot be authenticated. A bad token therefore fails here instead of on the first real command.
+        await this.authCoreService.instance.api.getSession({ headers: authHeaders });
         
         return {
           headers: authHeaders,

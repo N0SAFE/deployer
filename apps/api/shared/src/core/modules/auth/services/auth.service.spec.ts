@@ -115,14 +115,6 @@ describe('AuthService', () => {
     });
   });
 
-  describe('createOrpcAuthMiddleware', () => {
-    it('should create ORPC auth middleware', () => {
-      const middleware = service.createOrpcAuthMiddleware();
-      
-      expect(mockAuthCoreService.createOrpcAuthMiddleware).toHaveBeenCalled();
-      expect(middleware).toHaveProperty('use');
-    });
-  });
 
   describe('createEmptyAuthUtils', () => {
     it('should create empty auth utils', () => {

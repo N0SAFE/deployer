@@ -35,9 +35,6 @@ const meshAuthContext: ORPCAuthContext<false> = {
 	isLoggedIn: false,
 	session: null,
 	user: null,
-	get admin(): never {
-		throw new ORPCError("UNAUTHORIZED", { message: "A mesh peer has no user session" });
-	},
 	requireAuth(): never {
 		throw new ORPCError("UNAUTHORIZED", { message: "A mesh peer has no user session" });
 	},

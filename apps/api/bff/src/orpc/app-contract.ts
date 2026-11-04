@@ -28,7 +28,6 @@ import {
 	bffOrchestrationContract,
 	setupContract,
 	templateContract,
-	testContract,
 } from "@deployer/bff-contracts";
 
 import { serviceSurface } from "./service-surface";
@@ -55,7 +54,6 @@ export const appContract = oc.router({
 	// The setup wizard must answer BEFORE auth and ORPC are up, and the test surface
 	// exists to probe the transport itself — so both are the BFF's and nothing else's.
 	setup: setupContract,
-	test: testContract,
 	template: templateContract,
 });
 

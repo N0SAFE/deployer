@@ -28,7 +28,6 @@ import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 import { ServiceAuthContextMiddleware } from "./clients/service-auth-context.middleware";
 import { ServiceClientModule } from "./clients/service-client.module";
 import { SetupDomainModule } from "./domains/setup/setup.module";
-import { TestDomainModule } from "./domains/test/test.module";
 import { PlatformConsoleModule } from "./modules/console/platform-console.module";
 import { OrchestrationModule } from "./modules/dashboard/orchestration.module";
 import { DelegationModule } from "./modules/delegation/delegation.module";
@@ -167,7 +166,6 @@ export class BffModule extends createModuleContext({
 		// exists to probe the transport itself. Both are therefore the BFF's, and this is the
 		// only place they are served.
 		SetupDomainModule,
-		TestDomainModule,
 		// ── THE PUBLISHED API DOCUMENT ───────────────────────────────────
 		// Serves `/openapi.json` and `/reference`. Nothing in this tier served a
 		// spec (blocker 7 in the cutover status), and the monolith only ever wrote
