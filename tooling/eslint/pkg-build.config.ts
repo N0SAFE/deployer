@@ -31,6 +31,9 @@ export default build({
         'nestjs.ts',
         'react.ts',
         'mdx.ts',
+        // The module-graph gate: the rules, and the child process that computes their facts with the TS 7.1 API.
+        'architecture.ts',
+        'architecture-facts.ts',
     ],
     formats: ['esm'],
     flat: true,

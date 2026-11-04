@@ -32,6 +32,11 @@
             "import": "./dist/react.mjs",
             "default": "./dist/react.mjs"
         },
+        "./architecture": {
+            "types": "./dist/types/architecture.d.ts",
+            "import": "./dist/architecture.mjs",
+            "default": "./dist/architecture.mjs"
+        },
         "./mdx": {
             "types": "./dist/types/mdx.d.ts",
             "import": "./dist/mdx.mjs",
@@ -66,7 +71,7 @@
         "@vercel/style-guide": "^6.0.0",
         "babel-plugin-macros": "^3.1.0",
         "chokidar": "catalog:build",
-        "eslint": "catalog:linting",
+        "eslint": "^10",
         "eslint-config-nestjs": "^0.8.0",
         "eslint-config-next": "catalog:next",
         "eslint-config-prettier": "^10.1.8",
@@ -83,8 +88,10 @@
         "rimraf": "catalog:build",
         "tailwindcss": "catalog:styling",
         "typescript": "^6",
+        "typescript-7-1": "npm:typescript@7.1.0-beta",
         "typescript-eslint": "^8.61.1",
-        "vitest": "catalog:testing"
+        "vitest": "catalog:testing",
+        "zod": "catalog:utils"
     },
     "main": "./dist/index.mjs",
     "types": "./dist/types/index.d.ts",

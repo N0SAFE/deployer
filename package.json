@@ -321,7 +321,8 @@
         "@deployer/config-typescript": "dotenv -e .env -- bun --bun --cwd=./tooling/typescript run --",
         "@deployer/config-tailwind": "dotenv -e .env -- bun --bun --cwd=./tooling/tailwind run --",
         "@deployer/config-eslint": "dotenv -e .env -- bun --bun --cwd=./tooling/eslint run --",
-        "@deployer/cli-declarative-routing": "dotenv -e .env -- bun --bun --cwd=./tooling/bin-declarative-routing run --"
+        "@deployer/cli-declarative-routing": "dotenv -e .env -- bun --bun --cwd=./tooling/bin-declarative-routing run --",
+        "lint:architecture": "bun lint --no-script --no-config-lookup --no-inline-config --threads=1 -c tooling/eslint/architecture.config.ts apps packages/nest"
     },
     "devDependencies": {
         "@deployer/config-vitest": "*",
@@ -335,6 +336,7 @@
         "concurrently": "catalog:dev",
         "cross-env": "^10.1.0",
         "dotenv-cli": "catalog:dev",
+        "eslint": "^10",
         "knip": "^6.17.1",
         "nyc": "^18.0.0",
         "rimraf": "catalog:build",
