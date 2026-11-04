@@ -224,3 +224,27 @@ denied everything the moment enforcement came on.
 
 Two things follow for whoever flips it: watch the shadow log for a day first, and start with one service
 (`AUTHZ_MODE=enforce` on `svc-identity`), because the gate is per process.
+
+---
+
+## Conformance review of the auth code (2026-11-04)
+
+A pass over everything the auth work touched, against the repository's current standards (`createModuleContext`, Effect
+services, `procedure()`, `standard.zod`, roles-as-data). What it found, and what was done:
+
+| Finding | Where | Outcome |
+|---|---|---|
+| A second authorization surface: Better Auth plugin registry, `AuthUtils.admin`, the Nest-guard/oRPC middleware converter (`plugin-utils`, ~2.5k lines) | `apps/api/shared/src/core/modules/auth` | deleted; the auth face is the session, the user and `requireAuth()` |
+| The same layer inside the package: `AdminPermissionsPlugin`, `PluginWrapperRegistry`, role assertions, permission hooks | `packages/auth/src/adapters`, `src/react` | deleted (2.6k lines); nothing outside the package imported them |
+| A demo controller + e2e built on `authService.middleware.admin.*`, whose routes 500'd once `auth.api.userHasPermission` was gone | `apps/api/bff/src/domains/test`, its contract, `test-auth-patterns.e2e-spec.ts` | deleted |
+| A parallel ResourceRule engine (`PermissionService`) with no consumer | `apps/api/services/identity/src/modules/permission` | deleted; the role catalogue is the only resolver |
+| Controllers calling `implement()` (bypassing the gate): BFF setup/console/orchestration, shared mesh | those four files | migrated to `procedure()`; `controllersUseProcedure()` now enabled for the BFF and shared too |
+| `userSchema.role` as `z.enum(PLATFORM_ROLES)` — the schema was what forbade a custom role | `packages/contracts/entities` | `z.string().min(1)`; the catalogue answers what a name grants |
+| Analytics read gate hardcoded to `["superAdmin","admin","operator"]` while the contract declares `analytics:read` | `analytics.controller.ts` | derived from `roleNamesWithPermission("analytics:read")` |
+| Role filter accepted only the shipped five | `user.repository.sql.ts` | `roleExists()` from the catalogue, so a custom role survives a read |
+| CLI probed the master token by listing users through the admin plugin | `cli-auth.service.ts` | probes the session endpoint (what the token can reach) |
+
+Left as-is, deliberately: `requirePlatformRole()` at 45 runtime/fleet call sites (they need the same permission mapping
+as the annotation sweep — `SEC-064`), and the ~20 `any`s in `shared/auth/orpc/interceptors.ts` (transport error mapping,
+unrelated to authorization).
+
