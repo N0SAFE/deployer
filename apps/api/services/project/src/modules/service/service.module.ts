@@ -14,9 +14,7 @@ import { ProjectDomainModule } from "@/modules/project/project.module";
 
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
-import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
 
 import { ServiceController } from "./controllers/service.controller";
 import { ServiceStore } from "./repositories/service.repository";
@@ -50,14 +48,14 @@ export class ServiceDomainModule extends createModuleContext({
 	controllers: [ServiceController],
 	providers: [
 		effectHostProvider(),
-		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
+		{ provide: ProjectDomainRepository, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,
 		},
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
 		{
-			provide: ServiceDomainMappingLookup,
+			provide: ServiceDomainMappingRepository,
 			useExisting: ServiceDomainMappingRepository,
 		},
 		// Registers the service namespace on the core event bus when the module is built.

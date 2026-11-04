@@ -104,10 +104,10 @@ describe("DeploymentExecutionWorkflow", () => {
         };
 
         domainRoutingService = {
-            resolveServiceUrls: vi.fn().mockResolvedValue([]),
-            resolvePrimaryUrl: vi.fn().mockResolvedValue(null),
-            syncServiceRoutes: vi.fn().mockResolvedValue({ success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null }),
-            buildVariableMap: vi.fn().mockReturnValue({}),
+            resolveServiceUrls: vi.fn(() => Effect.succeed([])),
+            resolvePrimaryUrl: vi.fn(() => Effect.succeed(null)),
+            syncServiceRoutes: vi.fn(() => Effect.succeed({ success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null })),
+            buildVariableMap: vi.fn(() => Effect.succeed({})),
         };
 
         const workflow = makeDeploymentExecutionWorkflow({

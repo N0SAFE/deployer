@@ -277,7 +277,7 @@ describe('DeploymentService', () => {
         };
 
         mockDomainRoutingService = {
-            promotePreviewToStable: vi.fn().mockResolvedValue(undefined),
+            promotePreviewToStable: vi.fn(() => Effect.succeed({ promoted: true, host: null })),
         };
 
         mockRuntimeConfigurationAccessor = {

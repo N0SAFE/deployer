@@ -8,10 +8,6 @@ import { DomainVerificationService } from "@deployer/shared/core/modules/domain/
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
 import { CoreReachabilityModule } from "@deployer/shared/core/modules/reachability/core-reachability.module";
 
-import { DomainConflict } from "@project/core/ports/domain-conflict.port";
-import { DomainVerification } from "@project/core/ports/domain-verification.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
-import { ServiceDomainMappingRepo } from "@project/core/ports/service-domain-mapping-repository.port";
 
 import { ProjectDomainController } from "./controllers/project-domain.controller";
 import { ServiceDomainController } from "./controllers/service-domain.controller";
@@ -34,11 +30,11 @@ export class DomainModule extends createModuleContext({
 	],
 	controllers: [ProjectDomainController, ServiceDomainController],
 	providers: [
-		{ provide: DomainConflict, useExisting: DomainConflictService },
-		{ provide: DomainVerification, useExisting: DomainVerificationService },
-		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
+		{ provide: DomainConflictService, useExisting: DomainConflictService },
+		{ provide: DomainVerificationService, useExisting: DomainVerificationService },
+		{ provide: ProjectDomainRepository, useExisting: ProjectDomainRepository },
 		{
-			provide: ServiceDomainMappingRepo,
+			provide: ServiceDomainMappingRepository,
 			useExisting: ServiceDomainMappingRepository,
 		},
 		{ provide: DomainProjectService, useValue: DomainProjectService.live },

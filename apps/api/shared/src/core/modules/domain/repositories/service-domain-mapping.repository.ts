@@ -1,351 +1,254 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { eq, and, ne, isNull } from 'drizzle-orm';
+import { and, eq, isNull, ne } from "drizzle-orm";
+import { Context, Effect } from "effect";
 
-import { AppError } from "@deployer/errors";
+import { serviceOver, type Over } from "@deployer/effect-core";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
+import { services } from "@deployer/nest-schema/global/project/deployment";
 import { serviceDomainMappings, projectDomains } from "@deployer/nest-schema/global/project/domain";
 
-import { GlobalDatabaseService } from '../../database/services/global-database.service';
+import { DomainDatabase, storage } from "../domain.ports";
+import { DomainStorageFailure } from "../errors";
 
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
 
-@Injectable()
-export class ServiceDomainMappingRepository {
-  private readonly logger = new Logger(ServiceDomainMappingRepository.name);
+/** Joined mapping + project-domain row, used by URL resolution. */
+export type ServiceUrlRow = {
+  mappingId: string;
+  subdomain: string | null;
+  basePath: string | null;
+  isPrimary: boolean;
+  sslEnabled: boolean;
+  sslProvider: ServiceDomainMapping["sslProvider"];
+  orgDomain: string;
+};
 
-  constructor(private readonly databaseService: GlobalDatabaseService) {}
+export type MappingWithServiceName = {
+  serviceId: string;
+  serviceName: string;
+  subdomain: string | null;
+  basePath: string | null;
+};
 
-  /**
-   * Create a new service domain mapping
-   */
-  async create(data: InsertServiceDomainMapping): Promise<ServiceDomainMapping> {
-    const [mapping] = await this.databaseService.db
-      .insert(serviceDomainMappings)
-      .values(data)
-      .returning();
-    
-    if (!mapping) {
-      throw new AppError('Failed to create service domain mapping', 'INTERNAL_ERROR');
-    }
-    
-    this.logger.debug(
-      `Created service domain mapping for service ${mapping.serviceId}: ` +
-      `${mapping.subdomain ?? ''}${mapping.subdomain ? '.' : ''}[project-domain]${mapping.basePath ?? ''}`
-    );
-    return mapping;
-  }
+type Failure = DomainStorageFailure;
 
-  /**
-   * Find service domain mapping by ID
-   */
-  async findById(id: string): Promise<ServiceDomainMapping | null> {
-    const [mapping] = await this.databaseService.db
-      .select()
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.id, id))
-      .limit(1);
-    
-    return mapping ?? null;
-  }
-
-  /**
-   * Find all mappings for a service
-   */
-  async findByServiceId(serviceId: string): Promise<ServiceDomainMapping[]> {
-    return await this.databaseService.db
-      .select()
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.serviceId, serviceId));
-  }
-
-  /**
-   * Find all mappings for a project domain
-   */
-  async findByProjectDomainId(projectDomainId: string): Promise<ServiceDomainMapping[]> {
-    return await this.databaseService.db
-      .select()
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.projectDomainId, projectDomainId));
-  }
-
-  /**
-   * Find mapping by service and project domain
-   */
-  async findByServiceAndProjectDomain(
-    serviceId: string,
-    projectDomainId: string
-  ): Promise<ServiceDomainMapping | null> {
-    const [mapping] = await this.databaseService.db
-      .select()
-      .from(serviceDomainMappings)
-      .where(
-        and(
-          eq(serviceDomainMappings.serviceId, serviceId),
-          eq(serviceDomainMappings.projectDomainId, projectDomainId)
-        )
-      )
-      .limit(1);
-    
-    return mapping ?? null;
-  }
-
-  /**
-   * Check if subdomain+basePath combination is available
-   */
-  async isCombinationAvailable(
+export type ServiceDomainMappingRepositoryShape = {
+  readonly create: (data: InsertServiceDomainMapping) => Effect.Effect<ServiceDomainMapping, Failure>;
+  readonly findById: (id: string) => Effect.Effect<ServiceDomainMapping | null, Failure>;
+  readonly findByServiceId: (serviceId: string) => Effect.Effect<ServiceDomainMapping[], Failure>;
+  readonly findByProjectDomainId: (projectDomainId: string) => Effect.Effect<ServiceDomainMapping[], Failure>;
+  readonly findByServiceAndProjectDomain: (serviceId: string, projectDomainId: string) => Effect.Effect<ServiceDomainMapping | null, Failure>;
+  /** True when no other row uses this subdomain + base path on the project domain. */
+  readonly isCombinationAvailable: (
     projectDomainId: string,
     subdomain: string | null,
     basePath: string,
-    excludeId?: string
-  ): Promise<boolean> {
-    const baseConditions = [
-      eq(serviceDomainMappings.projectDomainId, projectDomainId),
-      subdomain === null 
-        ? isNull(serviceDomainMappings.subdomain) 
-        : eq(serviceDomainMappings.subdomain, subdomain),
-      eq(serviceDomainMappings.basePath, basePath),
-    ];
-
-    if (excludeId) {
-      baseConditions.push(ne(serviceDomainMappings.id, excludeId));
-    }
-
-    const [result] = await this.databaseService.db
-      .select({ id: serviceDomainMappings.id })
-      .from(serviceDomainMappings)
-      .where(and(...baseConditions))
-      .limit(1);
-    
-    return !result; // Available if no result found
-  }
-
+    excludeId?: string,
+  ) => Effect.Effect<boolean, Failure>;
+  readonly hasProjectDomainMappings: (projectDomainId: string) => Effect.Effect<boolean, Failure>;
+  /** `null` when the mapping is gone. */
+  readonly getFullUrl: (mappingId: string) => Effect.Effect<string | null, Failure>;
+  readonly findByServiceIdWithUrls: (serviceId: string) => Effect.Effect<(ServiceDomainMapping & { fullUrl: string })[], Failure>;
+  readonly update: (id: string, data: Partial<ServiceDomainMapping>) => Effect.Effect<ServiceDomainMapping | null, Failure>;
+  /** Whether a row was deleted. */
+  readonly delete: (id: string) => Effect.Effect<boolean, Failure>;
+  readonly countByServiceId: (serviceId: string) => Effect.Effect<number, Failure>;
+  readonly countByProjectDomainId: (projectDomainId: string) => Effect.Effect<number, Failure>;
+  readonly findBySubdomain: (projectDomainId: string, subdomain: string | null) => Effect.Effect<ServiceDomainMapping[], Failure>;
+  /** Mapping + project-domain rows of a service, oldest first. */
+  readonly findServiceUrlRows: (serviceId: string) => Effect.Effect<ServiceUrlRow[], Failure>;
+  /** The project-domain id a mapping belongs to (`null` when the mapping is gone). */
+  readonly findProjectDomainIdByMappingId: (mappingId: string) => Effect.Effect<string | null, Failure>;
   /**
-   * True when the project domain has at least one service mapping
+   * Mark every preview-environment row pointing at `fullDomain` inactive (promote-preview-to-stable flow).
+   * Writes the global schema directly: this repository is the routing domain's data-access layer.
    */
-  async hasProjectDomainMappings(projectDomainId: string): Promise<boolean> {
-    const [result] = await this.databaseService.db
-      .select({ id: serviceDomainMappings.id })
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.projectDomainId, projectDomainId))
-      .limit(1);
-    return !!result;
-  }
-
-  /**
-   * Get full URL for a service domain mapping
-   */
-  async getFullUrl(mappingId: string): Promise<string | null> {
-    const result = await this.databaseService.db
-      .select({
-        subdomain: serviceDomainMappings.subdomain,
-        basePath: serviceDomainMappings.basePath,
-        orgDomain: projectDomains.domain,
-      })
-      .from(serviceDomainMappings)
-      .innerJoin(projectDomains, eq(serviceDomainMappings.projectDomainId, projectDomains.id))
-      .where(eq(serviceDomainMappings.id, mappingId))
-      .limit(1);
-
-    const row = result[0];
-    if (!row) {
-      return null;
-    }
-    
-    const { subdomain, basePath, orgDomain } = row;
-    
-    // Default to HTTPS for security
-    const protocol = 'https';
-    const serviceSubdomain = subdomain ?? '';
-    
-    // Build domain: [service-subdomain].org-domain.com
-    const domain = serviceSubdomain 
-      ? `${serviceSubdomain}.${orgDomain}`
-      : orgDomain;
-    
-    return `${protocol}://${domain}${basePath ?? ''}`;
-  }
-
-  /**
-   * Get all mappings for a service with full URLs
-   */
-  async findByServiceIdWithUrls(serviceId: string): Promise<(ServiceDomainMapping & { fullUrl: string })[]> {
-    const mappings = await this.findByServiceId(serviceId);
-    
-    const mappingsWithUrls = await Promise.all(
-      mappings.map(async (mapping) => {
-        const fullUrl = await this.getFullUrl(mapping.id);
-        return {
-          ...mapping,
-          fullUrl: fullUrl ?? '',
-        };
-      })
-    );
-
-    return mappingsWithUrls;
-  }
-
-  /**
-   * Update service domain mapping
-   */
-  async update(
-    id: string,
-    data: Partial<ServiceDomainMapping>
-  ): Promise<ServiceDomainMapping | null> {
-    const [updated] = await this.databaseService.db
-      .update(serviceDomainMappings)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(serviceDomainMappings.id, id))
-      .returning();
-    
-    if (updated) {
-      this.logger.debug(`Updated service domain mapping: ${id}`);
-    }
-    
-    return updated ?? null;
-  }
-
-  /**
-   * Delete service domain mapping
-   */
-  async delete(id: string): Promise<boolean> {
-    const result = await this.databaseService.db
-      .delete(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.id, id));
-    
-    const deleted = (result.rowCount ?? 0) > 0;
-    if (deleted) {
-      this.logger.debug(`Deleted service domain mapping: ${id}`);
-    }
-    
-    return deleted;
-  }
-
-  /**
-   * Count mappings for a service
-   */
-  async countByServiceId(serviceId: string): Promise<number> {
-    const result = await this.databaseService.db
-      .select({ count: serviceDomainMappings.id })
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.serviceId, serviceId));
-    
-    return result.length;
-  }
-
-  /**
-   * Count mappings for a project domain
-   */
-  async countByProjectDomainId(projectDomainId: string): Promise<number> {
-    const result = await this.databaseService.db
-      .select({ count: serviceDomainMappings.id })
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.projectDomainId, projectDomainId));
-    
-    return result.length;
-  }
-
-  /**
-   * Find mappings by subdomain (useful for conflict detection)
-   */
-  async findBySubdomain(
-    projectDomainId: string,
-    subdomain: string | null
-  ): Promise<ServiceDomainMapping[]> {
-    return await this.databaseService.db
-      .select()
-      .from(serviceDomainMappings)
-      .where(
-        and(
-          eq(serviceDomainMappings.projectDomainId, projectDomainId),
-          subdomain === null 
-            ? isNull(serviceDomainMappings.subdomain) 
-            : eq(serviceDomainMappings.subdomain, subdomain)
-        )
-      );
-  }
-
-  /**
-   * Joined mapping + project-domain rows for a service,
-   * ordered by mapping creation (oldest first). Used by URL resolution.
-   */
-  async findServiceUrlRows(serviceId: string) {
-    return this.databaseService.db
-      .select({
-        mappingId: serviceDomainMappings.id,
-        subdomain: serviceDomainMappings.subdomain,
-        basePath: serviceDomainMappings.basePath,
-        isPrimary: serviceDomainMappings.isPrimary,
-        sslEnabled: serviceDomainMappings.sslEnabled,
-        sslProvider: serviceDomainMappings.sslProvider,
-        orgDomain: projectDomains.domain,
-      })
-      .from(serviceDomainMappings)
-      .innerJoin(projectDomains, eq(serviceDomainMappings.projectDomainId, projectDomains.id))
-      .where(eq(serviceDomainMappings.serviceId, serviceId))
-      .orderBy(serviceDomainMappings.createdAt);
-  }
-
-  /** The project-domain id a mapping belongs to (or null when the mapping is gone). */
-  async findProjectDomainIdByMappingId(mappingId: string): Promise<string | null> {
-    const [row] = await this.databaseService.db
-      .select({ projectDomainId: serviceDomainMappings.projectDomainId })
-      .from(serviceDomainMappings)
-      .where(eq(serviceDomainMappings.id, mappingId))
-      .limit(1);
-    return row?.projectDomainId ?? null;
-  }
-
-  /**
-   * Mark every preview-environment row pointing at `fullDomain` inactive.
-   * Part of the promote-preview-to-stable flow: once a stable mapping exists,
-   * the superseded preview row must not linger as active. Reads/writes the
-   * global schema directly — this repository is the routing domain's
-   * data-access layer and must not import product modules.
-   */
-  async deactivatePreviewEnvironmentsByFullDomain(fullDomain: string): Promise<void> {
-    await this.databaseService.db
-      .update(previewEnvironments)
-      .set({ isActive: false, updatedAt: new Date() })
-      .where(eq(previewEnvironments.fullDomain, fullDomain));
-  }
-
-  /**
-   * Find mappings by project domain with subdomain and optional basePath (with service names)
-   */
-  async findByProjectDomainAndPathWithServiceNames(
+  readonly deactivatePreviewEnvironmentsByFullDomain: (fullDomain: string) => Effect.Effect<void, Failure>;
+  readonly findByProjectDomainAndPathWithServiceNames: (
     projectDomainId: string,
     subdomain: string | null,
     basePath?: string | null,
-    excludeServiceId?: string
-  ): Promise<{
-    serviceId: string;
-    serviceName: string;
-    subdomain: string | null;
-    basePath: string | null;
-  }[]> {
-    const { services } = await import('@deployer/nest-schema/global');
-    
-    const conditions = [
-      eq(serviceDomainMappings.projectDomainId, projectDomainId),
-      subdomain === null 
-        ? isNull(serviceDomainMappings.subdomain)
-        : eq(serviceDomainMappings.subdomain, subdomain),
-    ];
+    excludeServiceId?: string,
+  ) => Effect.Effect<MappingWithServiceName[], Failure>;
+};
 
-    if (excludeServiceId) {
-      conditions.push(ne(serviceDomainMappings.serviceId, excludeServiceId));
-    }
+type Ports = { readonly database: Context.Service.Shape<typeof DomainDatabase> };
 
-    return await this.databaseService.db
-      .select({
-        serviceId: serviceDomainMappings.serviceId,
-        serviceName: services.name,
+const subdomainIs = (subdomain: string | null) =>
+  subdomain === null ? isNull(serviceDomainMappings.subdomain) : eq(serviceDomainMappings.subdomain, subdomain);
+
+function makeServiceDomainMappingRepository({ database }: Ports): ServiceDomainMappingRepositoryShape {
+  const first = <A>(rows: A[]): A | null => rows[0] ?? null;
+
+  const getFullUrl: ServiceDomainMappingRepositoryShape["getFullUrl"] = (mappingId) =>
+    storage(database, (db) =>
+      db.select({
         subdomain: serviceDomainMappings.subdomain,
         basePath: serviceDomainMappings.basePath,
+        orgDomain: projectDomains.domain,
       })
-      .from(serviceDomainMappings)
-      .innerJoin(services, eq(services.id, serviceDomainMappings.serviceId))
-      .where(and(...conditions));
-  }
+        .from(serviceDomainMappings)
+        .innerJoin(projectDomains, eq(serviceDomainMappings.projectDomainId, projectDomains.id))
+        .where(eq(serviceDomainMappings.id, mappingId))
+        .limit(1),
+    ).pipe(
+      Effect.map((rows) => {
+        const row = rows[0];
+        if (!row) return null;
+        const domain = row.subdomain ? `${row.subdomain}.${row.orgDomain}` : row.orgDomain;
+        return `https://${domain}${row.basePath ?? ""}`; // HTTPS by default, for security
+      }),
+    );
+
+  const findByServiceId: ServiceDomainMappingRepositoryShape["findByServiceId"] = (serviceId) =>
+    storage(database, (db) => db.select().from(serviceDomainMappings).where(eq(serviceDomainMappings.serviceId, serviceId)));
+
+  const existsAny = (run: (db: Parameters<Parameters<typeof storage>[1]>[0]) => Promise<unknown[]>) =>
+    storage(database, run).pipe(Effect.map((rows) => rows.length > 0));
+
+  return {
+    create: (data) =>
+      storage(database, (db) => db.insert(serviceDomainMappings).values(data).returning()).pipe(
+        Effect.flatMap(([mapping]) =>
+          mapping
+            ? Effect.logDebug(`Created service domain mapping for service ${mapping.serviceId}`).pipe(Effect.as(mapping))
+            : Effect.fail(new DomainStorageFailure({ cause: new Error("insert returned no row") })),
+        ),
+      ),
+
+    findById: (id) =>
+      storage(database, (db) => db.select().from(serviceDomainMappings).where(eq(serviceDomainMappings.id, id)).limit(1)).pipe(Effect.map(first)),
+
+    findByServiceId,
+
+    findByProjectDomainId: (projectDomainId) =>
+      storage(database, (db) =>
+        db.select().from(serviceDomainMappings).where(eq(serviceDomainMappings.projectDomainId, projectDomainId)),
+      ),
+
+    findByServiceAndProjectDomain: (serviceId, projectDomainId) =>
+      storage(database, (db) =>
+        db.select().from(serviceDomainMappings)
+          .where(and(eq(serviceDomainMappings.serviceId, serviceId), eq(serviceDomainMappings.projectDomainId, projectDomainId)))
+          .limit(1),
+      ).pipe(Effect.map(first)),
+
+    isCombinationAvailable: (projectDomainId, subdomain, basePath, excludeId) =>
+      existsAny((db) =>
+        db.select({ id: serviceDomainMappings.id }).from(serviceDomainMappings)
+          .where(and(
+            eq(serviceDomainMappings.projectDomainId, projectDomainId),
+            subdomainIs(subdomain),
+            eq(serviceDomainMappings.basePath, basePath),
+            ...(excludeId ? [ne(serviceDomainMappings.id, excludeId)] : []),
+          ))
+          .limit(1),
+      ).pipe(Effect.map((taken) => !taken)),
+
+    hasProjectDomainMappings: (projectDomainId) =>
+      existsAny((db) =>
+        db.select({ id: serviceDomainMappings.id }).from(serviceDomainMappings)
+          .where(eq(serviceDomainMappings.projectDomainId, projectDomainId))
+          .limit(1),
+      ),
+
+    getFullUrl,
+
+    findByServiceIdWithUrls: (serviceId) =>
+      findByServiceId(serviceId).pipe(
+        Effect.flatMap((mappings) =>
+          Effect.all(
+            mappings.map((mapping) =>
+              getFullUrl(mapping.id).pipe(Effect.map((fullUrl) => ({ ...mapping, fullUrl: fullUrl ?? "" }))),
+            ),
+          ),
+        ),
+      ),
+
+    update: (id, data) =>
+      storage(database, (db) =>
+        db.update(serviceDomainMappings).set({ ...data, updatedAt: new Date() }).where(eq(serviceDomainMappings.id, id)).returning(),
+      ).pipe(
+        Effect.map(first),
+        Effect.tap((updated) => (updated ? Effect.logDebug(`Updated service domain mapping: ${id}`) : Effect.void)),
+      ),
+
+    delete: (id) =>
+      storage(database, (db) => db.delete(serviceDomainMappings).where(eq(serviceDomainMappings.id, id))).pipe(
+        Effect.map((result) => (result.rowCount ?? 0) > 0),
+        Effect.tap((deleted) => (deleted ? Effect.logDebug(`Deleted service domain mapping: ${id}`) : Effect.void)),
+      ),
+
+    countByServiceId: (serviceId) =>
+      storage(database, (db) =>
+        db.select({ count: serviceDomainMappings.id }).from(serviceDomainMappings).where(eq(serviceDomainMappings.serviceId, serviceId)),
+      ).pipe(Effect.map((rows) => rows.length)),
+
+    countByProjectDomainId: (projectDomainId) =>
+      storage(database, (db) =>
+        db.select({ count: serviceDomainMappings.id }).from(serviceDomainMappings)
+          .where(eq(serviceDomainMappings.projectDomainId, projectDomainId)),
+      ).pipe(Effect.map((rows) => rows.length)),
+
+    findBySubdomain: (projectDomainId, subdomain) =>
+      storage(database, (db) =>
+        db.select().from(serviceDomainMappings)
+          .where(and(eq(serviceDomainMappings.projectDomainId, projectDomainId), subdomainIs(subdomain))),
+      ),
+
+    findServiceUrlRows: (serviceId) =>
+      storage(database, (db) =>
+        db.select({
+          mappingId: serviceDomainMappings.id,
+          subdomain: serviceDomainMappings.subdomain,
+          basePath: serviceDomainMappings.basePath,
+          isPrimary: serviceDomainMappings.isPrimary,
+          sslEnabled: serviceDomainMappings.sslEnabled,
+          sslProvider: serviceDomainMappings.sslProvider,
+          orgDomain: projectDomains.domain,
+        })
+          .from(serviceDomainMappings)
+          .innerJoin(projectDomains, eq(serviceDomainMappings.projectDomainId, projectDomains.id))
+          .where(eq(serviceDomainMappings.serviceId, serviceId))
+          .orderBy(serviceDomainMappings.createdAt),
+      ),
+
+    findProjectDomainIdByMappingId: (mappingId) =>
+      storage(database, (db) =>
+        db.select({ projectDomainId: serviceDomainMappings.projectDomainId }).from(serviceDomainMappings)
+          .where(eq(serviceDomainMappings.id, mappingId))
+          .limit(1),
+      ).pipe(Effect.map((rows) => rows[0]?.projectDomainId ?? null)),
+
+    deactivatePreviewEnvironmentsByFullDomain: (fullDomain) =>
+      storage(database, (db) =>
+        db.update(previewEnvironments)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(eq(previewEnvironments.fullDomain, fullDomain)),
+      ).pipe(Effect.asVoid),
+
+    findByProjectDomainAndPathWithServiceNames: (projectDomainId, subdomain, _basePath, excludeServiceId) =>
+      storage(database, (db) =>
+        db.select({
+          serviceId: serviceDomainMappings.serviceId,
+          serviceName: services.name,
+          subdomain: serviceDomainMappings.subdomain,
+          basePath: serviceDomainMappings.basePath,
+        })
+          .from(serviceDomainMappings)
+          .innerJoin(services, eq(services.id, serviceDomainMappings.serviceId))
+          .where(and(
+            eq(serviceDomainMappings.projectDomainId, projectDomainId),
+            subdomainIs(subdomain),
+            ...(excludeServiceId ? [ne(serviceDomainMappings.serviceId, excludeServiceId)] : []),
+          )),
+      ),
+  };
+}
+
+export class ServiceDomainMappingRepository extends Context.Service<
+  ServiceDomainMappingRepository,
+  Over<ServiceDomainMappingRepositoryShape, DomainDatabase>
+>()("shared/ServiceDomainMappingRepository") {
+  static readonly live = serviceOver(Effect.all({ database: DomainDatabase }), makeServiceDomainMappingRepository);
 }

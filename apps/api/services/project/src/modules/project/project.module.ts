@@ -16,7 +16,6 @@ import { DatabasePort } from "@project/core/database/database.port";
 import { ProjectDb } from "@project/core/database/project-db";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 
 
@@ -45,7 +44,7 @@ export class ProjectDomainModule extends createModuleContext({
 		effectHostProvider(),
 		{ provide: DnsProvider, useFactory: makeDnsProviderGateway, inject: [ServiceClient] },
 		{ provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
-		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
+		{ provide: ProjectDomainRepository, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,

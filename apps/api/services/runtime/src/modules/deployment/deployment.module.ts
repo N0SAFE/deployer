@@ -146,7 +146,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 runtimeRunnerRegistry: Context.Service.Shape<typeof RuntimeRunnerRegistry>,
                 host: EffectHostShape,
                 deploymentEventService: DeploymentEventService,
-                domainRoutingService: DomainRoutingService,
+                domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>,
                 egress: EgressService,
             ) =>
                 makeDeploymentExecutionWorkflow({
@@ -180,7 +180,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 deploymentStateMachineService: DeploymentStateMachineShape,
                 uploadBundles: Context.Service.Shape<typeof UploadBundleRegistry>,
                 projectAccessService: Context.Service.Shape<typeof ProjectAccessService>,
-                domainRoutingService: DomainRoutingService,
+                domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>,
                 runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
                 ingressRefresher: TraefikConfigRefresherShape,
                 host: EffectHostShape,

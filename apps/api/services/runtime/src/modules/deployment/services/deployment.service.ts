@@ -186,7 +186,7 @@ export type DeploymentServicePorts = {
     readonly deploymentStateMachineService: DeploymentStateMachineShape;
     readonly uploadBundles: UploadBundleRegistryShape;
     readonly projectAccessService: ProjectAccessService["Service"];
-    readonly domainRoutingService: DomainRoutingService;
+    readonly domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>;
     readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService;
     /** Fires a re-converge of the platform ingress when the route table may
      *  have changed (a deployment/preview became live, a rollback moved
@@ -319,7 +319,7 @@ export function makeDeploymentService(ports: DeploymentServicePorts) {
             "deployer",
         ], actorPlatformRole);
 
-        const result = await domainRoutingService.promotePreviewToStable(serviceId, previewName);
+        const result = await host.runUnwrapped(domainRoutingService.promotePreviewToStable(serviceId, previewName));
         if (!result.promoted) {
             throw new RuntimeInvalid({ reason: result.reason === "subdomain_already_stable"
                     ? `Preview '${previewName}' is already promoted to a stable domain`

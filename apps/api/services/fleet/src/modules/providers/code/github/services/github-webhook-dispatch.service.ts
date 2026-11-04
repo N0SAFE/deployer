@@ -71,7 +71,7 @@ function makeGithubWebhookDispatchService({ naming, cleanupPolicy, lifecycle, pr
         Effect.gen(function* () {
             // B2: derive the preview base domain from the service's primary domain
             // mapping (data-driven — never env vars, never a `.local` fallback).
-            const urls = yield* attempt(() => routing.resolveServiceUrls(input.serviceId));
+            const urls = yield* routing.resolveServiceUrls(input.serviceId);
             const primary = urls.find((u) => u.isPrimary) ?? urls[0];
             const baseDomain = primary?.domain;
             const urlPattern = input.previewUrlPattern

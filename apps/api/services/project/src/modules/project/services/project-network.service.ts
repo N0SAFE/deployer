@@ -1,3 +1,4 @@
+import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { Logger } from "@nestjs/common";
 import { Context, Effect } from "effect";
 import z from "zod/v4";
@@ -11,10 +12,9 @@ import { type ProjectNetworkView } from "@deployer/project-contracts";
 
 
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 
 import { ResourceNotFound } from "../domain/project.errors";
-import { attempt } from "../project-effects";
+import { attempt, refuse } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
 
 /** Validate a provider record type against the contract's full enum. */
@@ -52,7 +52,7 @@ function loadNetworkView(projectId: string) {
 	return Effect.gen(function* () {
 		const projects = yield* ProjectStore;
 		const dns = yield* DnsProvider;
-		const projectDomainsRepository = yield* ProjectDomainRepo;
+		const projectDomainsRepository = yield* ProjectDomainRepository;
 
 		const project = yield* projects.findById(projectId);
 		if (!project) {
@@ -103,7 +103,7 @@ function loadNetworkView(projectId: string) {
 		}
 
 		// This project's verified domains (direct-domain model — candidates for base domain).
-		const projectDomainsRaw = yield* attempt(() =>
+		const projectDomainsRaw = yield* refuse(
 			projectDomainsRepository.findByProjectId(projectId),
 		);
 		const projectDomains = projectDomainsRaw.map((pd) => ({

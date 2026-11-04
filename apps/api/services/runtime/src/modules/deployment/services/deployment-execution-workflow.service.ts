@@ -48,7 +48,7 @@ export type DeploymentExecutionWorkflowPorts = {
     readonly runtimeRunnerRegistry: RuntimeRunnerRegistryShape;
     readonly host: Pick<EffectHostShape, "run">;
     readonly deploymentEventService: DeploymentEventService;
-    readonly domainRoutingService: DomainRoutingService;
+    readonly domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>;
     readonly egress: EgressService;
 };
 
@@ -499,9 +499,9 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
             // Pure data-driven (domain mappings) — never env vars.
             let routeSync: RouteSyncResult | null = null;
             try {
-                routeSync = await domainRoutingService.syncServiceRoutes(deployment.serviceId, {
+                routeSync = await host.run(domainRoutingService.syncServiceRoutes(deployment.serviceId, {
                     healthCheckPath: "/health",
-                });
+                }));
             } catch (error) {
                 // Non-fatal: deployment continues; the runner will fall back to
                 // its default (localhost) routing when no mappings resolve.
@@ -520,9 +520,9 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
 
             // A5: provision TLS certificate for the primary mapped domain
             // (idempotent, data-driven from the mapping's ssl fields).
-            let tlsProvision: Awaited<ReturnType<typeof domainRoutingService.provisionTlsCertificate>>;
+            let tlsProvision: { provisioned: boolean; host: string | null; reason?: string };
             try {
-                tlsProvision = await domainRoutingService.provisionTlsCertificate(deployment.serviceId);
+                tlsProvision = await host.run(domainRoutingService.provisionTlsCertificate(deployment.serviceId));
                 if (tlsProvision.provisioned && tlsProvision.reason !== "already_provisioned") {
                     await deploymentRepository.insertLog(deploymentId, {
                         level: "info",

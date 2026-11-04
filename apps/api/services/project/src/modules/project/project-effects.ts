@@ -41,6 +41,11 @@ export function attempt<A>(run: () => Promise<A>): Effect.Effect<A, AttemptFailu
 	return Effect.tryPromise({ try: run, catch: (cause): AttemptFailure => toFailure(cause) });
 }
 
+/** Lift an Effect from a shared service: its tagged failures become this service's domain failures. */
+export function refuse<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, AttemptFailure, R> {
+	return Effect.mapError(effect, (cause): AttemptFailure => toFailure(cause));
+}
+
 /**
  * Translate a refusal from a promise-shaped collaborator (a Nest exception, or one of the shared
  * domain error classes) into this service's domain failure; anything else is infrastructure.
