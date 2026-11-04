@@ -1,343 +1,195 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { nanoid } from 'nanoid';
+import { Context, Effect } from "effect";
+import { nanoid } from "nanoid";
 
 import {
   type ProviderTraefikTemplate,
   type ServiceTraefikTemplate,
   type CreateProviderTraefikTemplate,
   type CreateServiceTraefikTemplate,
-} from '@deployer/nest-schema/global';
+} from "@deployer/nest-schema/global";
 
-import {
-  TemplateRenderError,
-  TemplateNotFoundError,
-  TemplateVariableError,
-} from '../errors';
-import { TraefikTemplateRepository } from '../repositories/traefik-template.repository';
+import { TraefikTemplateCreateFailure, TraefikTemplateNotFound, TraefikTemplateVariablesMissing } from "../errors";
 
-// Import types from centralized interfaces
-import type {
-  TemplateVariable,
-  TemplateVariables,
-} from '../interfaces';
+import type { StorageFailure } from "../../database/storage";
+import type { TemplateVariable, TemplateVariables } from "../interfaces";
+import type { TraefikTemplateRepositoryShape } from "../repositories/traefik-template.repository";
 
-/**
- * Type for template variable values
- */
 type TemplateVariableValue = string | number | boolean | null | undefined;
 
-@Injectable()
-export class TraefikTemplateService {
-  private readonly logger = new Logger(TraefikTemplateService.name);
+// ── pure template helpers ─────────────────────────────────────────────────────────────────────────────────────────────
 
-  constructor(
-    private readonly traefikTemplateRepository: TraefikTemplateRepository,
-  ) {}
-
-  /**
-   * Parse template and replace variables with actual values
-   */
-  parseTemplate(template: string, variables: Record<string, TemplateVariableValue>): string {
-    let result = template;
-    
-    // Replace ~##variable##~ with actual value
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(`~##\\s*${key}\\s*##~`, 'g');
-      result = result.replace(regex, String(value ?? ''));
-    }
-    
-    // Check for unreplaced variables
-    const unreplacedVars = result.match(/~##[^#]+##~/g);
-    if (unreplacedVars && unreplacedVars.length > 0) {
-      this.logger.warn(`Unreplaced variables found: ${unreplacedVars.join(', ')}`);
-    }
-    
-    return result;
+/** Replace `~##variable##~` with the provided values; unreplaced placeholders are left in place. */
+export function parseTemplate(template: string, variables: Record<string, TemplateVariableValue>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`~##\\s*${key}\\s*##~`, "g"), String(value ?? ""));
   }
+  return result;
+}
 
-  /**
-   * Extract variable names from template
-   */
-  extractVariables(template: string): string[] {
-    const regex = /~##\\s*([^#\\s]+)\\s*##~/g;
-    const variables: string[] = [];
-    let match: RegExpExecArray | null = null;
-    
-    while ((match = regex.exec(template)) !== null) {
-      if (!match[1]) continue;
-      if (!variables.includes(match[1])) {
-        variables.push(match[1]);
-      }
-    }
-    
-    return variables;
+/** Variable names in a template, in first-seen order. */
+export function extractVariables(template: string): string[] {
+  const variables: string[] = [];
+  for (const match of template.matchAll(/~##\s*([^#\s]+)\s*##~/g)) {
+    const name = match[1];
+    if (name && !variables.includes(name)) variables.push(name);
   }
+  return variables;
+}
 
-  /**
-   * Validate that all required variables are provided
-   */
-  validateVariables(
-    requiredVariables: TemplateVariables,
-    providedVariables: Record<string, TemplateVariableValue>,
-  ): { valid: boolean; missing: string[] } {
-    const missing: string[] = [];
-    
-    for (const [key, varDef] of Object.entries(requiredVariables)) {
-      if (varDef.required && !providedVariables[key]) {
-        missing.push(key);
-      }
-    }
-    
-    return {
-      valid: missing.length === 0,
-      missing,
+/** Which required variables are missing from the provided ones. */
+export function validateVariables(
+  requiredVariables: TemplateVariables,
+  providedVariables: Record<string, TemplateVariableValue>,
+): { valid: boolean; missing: string[] } {
+  const missing = Object.entries(requiredVariables)
+    .filter(([key, definition]) => definition.required && !providedVariables[key])
+    .map(([key]) => key);
+  return { valid: missing.length === 0, missing };
+}
+
+const KNOWN_VARIABLES: Record<string, Partial<TemplateVariable>> = {
+  domain: { description: "Full domain name", required: true, example: "example.com" },
+  subdomain: { description: "Subdomain (optional)", required: false, example: "api" },
+  host: { description: "Complete host (subdomain.domain or just domain)", required: true, example: "api.example.com" },
+  projectId: { description: "Project UUID", required: true },
+  serviceId: { description: "Service ID", required: true },
+  serviceName: { description: "Service name", required: true, example: "api-service" },
+  containerName: { description: "Container name", required: true, example: "project-http-abc123" },
+  containerPort: { description: "Container port", required: true, defaultValue: "80", example: "80" },
+  routerName: { description: "Traefik router name", required: true },
+  middlewareName: { description: "Traefik middleware name", required: false },
+  pathPrefix: { description: "Path prefix for the service", required: false, example: "/api" },
+};
+
+/** Variable metadata for the names found in a template. */
+export function buildVariablesMetadata(variableNames: string[]): TemplateVariables {
+  const metadata: TemplateVariables = {};
+  for (const name of variableNames) {
+    const known = KNOWN_VARIABLES[name];
+    metadata[name] = {
+      name,
+      description: known?.description ?? `Variable ${name}`,
+      required: known?.required ?? false,
+      defaultValue: known?.defaultValue,
+      example: known?.example,
     };
   }
+  return metadata;
+}
 
-  /**
-   * Get provider template by type
-   */
-  async getProviderTemplate(providerType: string): Promise<ProviderTraefikTemplate | null> {
-    return this.traefikTemplateRepository.findProviderByType(providerType);
-  }
+// ── the service ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Get service template
-   */
-  async getServiceTemplate(serviceId: string): Promise<ServiceTraefikTemplate | null> {
-    return this.traefikTemplateRepository.findActiveByServiceId(serviceId);
-  }
-
-  /**
-   * Create provider template
-   */
-  async createProviderTemplate(data: CreateProviderTraefikTemplate): Promise<ProviderTraefikTemplate> {
-    const id = data.id ?? nanoid();
-    const extractedVars = this.extractVariables(data.templateContent);
-    
-    // Build variables metadata if not provided
-    const variables = data.variables ?? this.buildVariablesMetadata(extractedVars);
-    
-    const template = await this.traefikTemplateRepository.createProviderTemplate({
-      id,
-      providerType: data.providerType,
-      templateName: data.templateName,
-      templateContent: data.templateContent,
-      description: data.description ?? null,
-      variables,
-      isDefault: data.isDefault ?? true,
-    });
-    
-    if (!template) {
-      throw new TemplateRenderError(
-        `Failed to create provider template for ${data.providerType}`,
-        data.templateContent
-      );
-    }
-    
-    this.logger.log(`Created provider template for ${data.providerType}`);
-    return template;
-  }
-
-  /**
-   * Create service template
-   */
-  async createServiceTemplate(data: CreateServiceTraefikTemplate): Promise<ServiceTraefikTemplate> {
-    const id = data.id ?? nanoid();
-    const extractedVars = this.extractVariables(data.templateContent);
-    
-    // Build variables metadata if not provided
-    const variables = data.variables ?? this.buildVariablesMetadata(extractedVars);
-    
-    const template = await this.traefikTemplateRepository.createServiceTemplate({
-      id,
-      serviceId: data.serviceId,
-      templateContent: data.templateContent,
-      variables,
-      isActive: data.isActive ?? true,
-    });
-    
-    if (!template) {
-      throw new TemplateRenderError(
-        `Failed to create service template for service ${data.serviceId}`,
-        data.templateContent
-      );
-    }
-    
-    this.logger.log(`Created service template for service ${data.serviceId}`);
-    return template;
-  }
-
-  /**
-   * Update service template
-   */
-  async updateServiceTemplate(
+export type TraefikTemplateServiceShape = {
+  readonly getProviderTemplate: (providerType: string) => Effect.Effect<ProviderTraefikTemplate | null, StorageFailure>;
+  readonly getServiceTemplate: (serviceId: string) => Effect.Effect<ServiceTraefikTemplate | null, StorageFailure>;
+  readonly createProviderTemplate: (
+    data: CreateProviderTraefikTemplate,
+  ) => Effect.Effect<ProviderTraefikTemplate, StorageFailure | TraefikTemplateCreateFailure>;
+  readonly createServiceTemplate: (
+    data: CreateServiceTraefikTemplate,
+  ) => Effect.Effect<ServiceTraefikTemplate, StorageFailure | TraefikTemplateCreateFailure>;
+  readonly updateServiceTemplate: (
     id: string,
     updates: Partial<CreateServiceTraefikTemplate>,
-  ): Promise<ServiceTraefikTemplate> {
-    const updateData: {
-      updatedAt: Date;
-      templateContent?: string;
-      variables?: TemplateVariables;
-      isActive?: boolean;
-    } = {
-      updatedAt: new Date(),
-    };
-    
-    if (updates.templateContent) {
-      updateData.templateContent = updates.templateContent;
-      updateData.variables = this.buildVariablesMetadata(
-        this.extractVariables(updates.templateContent),
-      );
-    }
-    
-    if (updates.isActive !== undefined && updates.isActive !== null) {
-      updateData.isActive = updates.isActive;
-    }
-    
-    const template = await this.traefikTemplateRepository.updateServiceTemplate(id, updateData);
-    
-    if (!template) {
-      throw new TemplateNotFoundError(id);
-    }
-    
-    this.logger.log(`Updated service template ${id}`);
-    return template;
-  }
-
-  /**
-   * Build variables metadata from extracted variable names
-   */
-  private buildVariablesMetadata(variableNames: string[]): TemplateVariables {
-    const metadata: TemplateVariables = {};
-    
-    const knownVariables: Record<string, Partial<TemplateVariable>> = {
-      domain: {
-        description: 'Full domain name',
-        required: true,
-        example: 'example.com',
-      },
-      subdomain: {
-        description: 'Subdomain (optional)',
-        required: false,
-        example: 'api',
-      },
-      host: {
-        description: 'Complete host (subdomain.domain or just domain)',
-        required: true,
-        example: 'api.example.com',
-      },
-      projectId: {
-        description: 'Project UUID',
-        required: true,
-      },
-      serviceId: {
-        description: 'Service ID',
-        required: true,
-      },
-      serviceName: {
-        description: 'Service name',
-        required: true,
-        example: 'api-service',
-      },
-      containerName: {
-        description: 'Container name',
-        required: true,
-        example: 'project-http-abc123',
-      },
-      containerPort: {
-        description: 'Container port',
-        required: true,
-        defaultValue: '80',
-        example: '80',
-      },
-      routerName: {
-        description: 'Traefik router name',
-        required: true,
-      },
-      middlewareName: {
-        description: 'Traefik middleware name',
-        required: false,
-      },
-      pathPrefix: {
-        description: 'Path prefix for the service',
-        required: false,
-        example: '/api',
-      },
-    };
-    
-    for (const varName of variableNames) {
-      const known = knownVariables[varName];
-      metadata[varName] = {
-        name: varName,
-        description: known?.description ?? `Variable ${varName}`,
-        required: known?.required ?? false,
-        defaultValue: known?.defaultValue,
-        example: known?.example,
-      };
-    }
-    
-    return metadata;
-  }
-
-  /**
-   * Get template for deployment (service-specific or provider default)
-   */
-  async getTemplateForDeployment(
+  ) => Effect.Effect<ServiceTraefikTemplate, StorageFailure | TraefikTemplateNotFound>;
+  /** The service's own template, else the provider's default; `null` when neither exists. */
+  readonly getTemplateForDeployment: (
     serviceId: string,
     providerType: string,
-  ): Promise<{ template: string; variables: TemplateVariables } | null> {
-    // Try service-specific template first
-    const serviceTemplate = await this.getServiceTemplate(serviceId);
-    if (serviceTemplate) {
-      return {
-        template: serviceTemplate.templateContent,
-        variables: serviceTemplate.variables as TemplateVariables,
-      };
-    }
-    
-    // Fallback to provider default template
-    const providerTemplate = await this.getProviderTemplate(providerType);
-    if (providerTemplate) {
-      return {
-        template: providerTemplate.templateContent,
-        variables: providerTemplate.variables as TemplateVariables,
-      };
-    }
-    
-    this.logger.warn(
-      `No template found for service ${serviceId} or provider ${providerType}`,
-    );
-    return null;
-  }
-
-  /**
-   * Render template for deployment
-   */
-  async renderTemplateForDeployment(
+  ) => Effect.Effect<{ template: string; variables: TemplateVariables } | null, StorageFailure>;
+  /** The rendered template, `null` when there is none, or `TraefikTemplateVariablesMissing`. */
+  readonly renderTemplateForDeployment: (
     serviceId: string,
     providerType: string,
     variables: Record<string, TemplateVariableValue>,
-  ): Promise<string | null> {
-    const templateData = await this.getTemplateForDeployment(serviceId, providerType);
-    if (!templateData) {
+  ) => Effect.Effect<string | null, StorageFailure | TraefikTemplateVariablesMissing>;
+};
+
+export function makeTraefikTemplateService(repository: TraefikTemplateRepositoryShape): TraefikTemplateServiceShape {
+  const getTemplateForDeployment: TraefikTemplateServiceShape["getTemplateForDeployment"] = (serviceId, providerType) =>
+    Effect.gen(function* () {
+      const serviceTemplate = yield* repository.findActiveByServiceId(serviceId);
+      if (serviceTemplate) {
+        return { template: serviceTemplate.templateContent, variables: serviceTemplate.variables as TemplateVariables };
+      }
+      const providerTemplate = yield* repository.findProviderByType(providerType);
+      if (providerTemplate) {
+        return { template: providerTemplate.templateContent, variables: providerTemplate.variables as TemplateVariables };
+      }
+      yield* Effect.logWarning(`No template found for service ${serviceId} or provider ${providerType}`);
       return null;
-    }
-    
-    // Validate variables
-    const validation = this.validateVariables(templateData.variables, variables);
-    if (!validation.valid) {
-      this.logger.error(
-        `Missing required variables for template: ${validation.missing.join(', ')}`,
-      );
-      throw new TemplateVariableError(
-        validation.missing[0] ?? 'unknown',
-        'missing',
-        `Missing required variables: ${validation.missing.join(', ')}`
-      );
-    }
-    
-    // Parse and return rendered template
-    return this.parseTemplate(templateData.template, variables);
-  }
+    });
+
+  return {
+    getProviderTemplate: (providerType) => repository.findProviderByType(providerType),
+    getServiceTemplate: (serviceId) => repository.findActiveByServiceId(serviceId),
+
+    createProviderTemplate: (data) =>
+      Effect.gen(function* () {
+        const variables = data.variables ?? buildVariablesMetadata(extractVariables(data.templateContent));
+        const template = yield* repository.createProviderTemplate({
+          id: data.id ?? nanoid(),
+          providerType: data.providerType,
+          templateName: data.templateName,
+          templateContent: data.templateContent,
+          description: data.description ?? null,
+          variables,
+          isDefault: data.isDefault ?? true,
+        });
+        if (!template) return yield* new TraefikTemplateCreateFailure({ subject: `provider ${data.providerType}` });
+        yield* Effect.logInfo(`Created provider template for ${data.providerType}`);
+        return template;
+      }),
+
+    createServiceTemplate: (data) =>
+      Effect.gen(function* () {
+        const variables = data.variables ?? buildVariablesMetadata(extractVariables(data.templateContent));
+        const template = yield* repository.createServiceTemplate({
+          id: data.id ?? nanoid(),
+          serviceId: data.serviceId,
+          templateContent: data.templateContent,
+          variables,
+          isActive: data.isActive ?? true,
+        });
+        if (!template) return yield* new TraefikTemplateCreateFailure({ subject: `service ${data.serviceId}` });
+        yield* Effect.logInfo(`Created service template for service ${data.serviceId}`);
+        return template;
+      }),
+
+    updateServiceTemplate: (id, updates) =>
+      Effect.gen(function* () {
+        const updateData: { updatedAt: Date; templateContent?: string; variables?: TemplateVariables; isActive?: boolean } = {
+          updatedAt: new Date(),
+        };
+        if (updates.templateContent) {
+          updateData.templateContent = updates.templateContent;
+          updateData.variables = buildVariablesMetadata(extractVariables(updates.templateContent));
+        }
+        if (updates.isActive !== undefined && updates.isActive !== null) updateData.isActive = updates.isActive;
+
+        const template = yield* repository.updateServiceTemplate(id, updateData);
+        if (!template) return yield* new TraefikTemplateNotFound({ templateId: id });
+        yield* Effect.logInfo(`Updated service template ${id}`);
+        return template;
+      }),
+
+    getTemplateForDeployment,
+
+    renderTemplateForDeployment: (serviceId, providerType, variables) =>
+      Effect.gen(function* () {
+        const templateData = yield* getTemplateForDeployment(serviceId, providerType);
+        if (!templateData) return null;
+        const validation = validateVariables(templateData.variables, variables);
+        if (!validation.valid) {
+          yield* Effect.logError(`Missing required variables for template: ${validation.missing.join(", ")}`);
+          return yield* new TraefikTemplateVariablesMissing({ missing: validation.missing });
+        }
+        return parseTemplate(templateData.template, variables);
+      }),
+  };
 }
+
+export class TraefikTemplateService extends Context.Service<TraefikTemplateService, TraefikTemplateServiceShape>()(
+  "shared/TraefikTemplateService",
+) {}

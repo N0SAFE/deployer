@@ -14,14 +14,14 @@ import { SupervisorsModule } from "../supervision/index";
 
 import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
 import { TraefikEventService } from './events/traefik-event.service';
-import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
+import { makeTraefikTemplateRepository, TraefikTemplateRepository } from './repositories/traefik-template.repository';
 import { makeTraefikRepository, TraefikRepository } from './repositories/traefik.repository';
 import { TraefikConfigRefresher, makeTraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { makeTraefikFileSystem, TraefikFileSystemService } from './services/traefik-file-system.service';
 import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
 import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
 import { makeTraefikSync, TraefikSyncService } from './services/traefik-sync.service';
-import { TraefikTemplateService } from './services/traefik-template.service';
+import { makeTraefikTemplateService, TraefikTemplateService } from './services/traefik-template.service';
 import { TraefikValidationService } from './services/traefik-validation.service';
 import { TraefikVariableResolverService } from './services/traefik-variable-resolver.service';
 import { makeTraefikService, TraefikService } from './services/traefik.service';
@@ -76,7 +76,11 @@ export class TraefikCoreModule extends createModuleContext({
   controllers: [TraefikIngressConfigController],
   providers: [
     // Services
-    TraefikTemplateService,
+    {
+      provide: TraefikTemplateService,
+      useFactory: makeTraefikTemplateService,
+      inject: [TraefikTemplateRepository],
+    },
     { provide: TraefikVariableResolverService, useValue: TraefikVariableResolverService.live },
     {
       provide: TraefikFileSystemService,
@@ -98,8 +102,8 @@ export class TraefikCoreModule extends createModuleContext({
       ) => makeTraefikService({ repository, fileSystem, sync }),
       inject: [TraefikRepository, TraefikFileSystemService, TraefikSyncService],
     },
-    TraefikValidationService,
-    TraefikMiddlewareLibraryService,
+    { provide: TraefikValidationService, useValue: TraefikValidationService.live },
+    { provide: TraefikMiddlewareLibraryService, useValue: TraefikMiddlewareLibraryService.live },
     TraefikEventService,
     // Live-ingress config (served to Traefik's HTTP provider).
     TraefikIngressConfigService,
@@ -114,7 +118,11 @@ export class TraefikCoreModule extends createModuleContext({
       useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeTraefikRepository({ database }),
       inject: [DatabasePort],
     },
-    TraefikTemplateRepository,
+    {
+      provide: TraefikTemplateRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeTraefikTemplateRepository({ database }),
+      inject: [DatabasePort],
+    },
   ],
   exports: [
     // Services

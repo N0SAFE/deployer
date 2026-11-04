@@ -64,6 +64,9 @@ export {
   TemplateVariableError,
   TemplateNotFoundError,
   TemplateRenderError,
+  TraefikTemplateNotFound,
+  TraefikTemplateCreateFailure,
+  TraefikTemplateVariablesMissing,
 } from './template.error';
 
 // Middleware errors
@@ -71,6 +74,8 @@ export {
   MiddlewareError,
   MiddlewareNotFoundError,
   MiddlewareConfigurationError,
+  MiddlewareOptionsInvalid,
+  MiddlewareConfigurationInvalid,
 } from './middleware.error';
 
 // SSL/TLS errors
