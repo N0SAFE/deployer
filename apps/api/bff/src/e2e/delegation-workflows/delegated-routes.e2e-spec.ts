@@ -43,8 +43,8 @@ describe("BFF delegated routes e2e: the service's wire format reaches the caller
 	let context: SharedApiRuntimeContext;
 	let previousUrls: string | undefined;
 	const seen: { path: string; cookie: string | undefined }[] = [];
-	// Two REAL sessions on the BFF (it refuses callers without one before delegating). The stub
-	// stands in for a service that honours the first and refuses the second.
+	// Three REAL sessions, so the BFF has credentials to forward. The BFF does not judge them (the service does): the stub
+	// stands in for a service that honours the first and refuses the other two.
 	let accepted = "";
 	let refused = "";
 	let refusedAsJson = "";
