@@ -107,7 +107,7 @@ ENV NODE_ENV=development \
 # `bunfig.toml` is part of the install layer because it IS install policy:
 # `linker`, `globalStore` and `prefere = "offline"`. Leaving it out installed the
 # image with bun's defaults while the host used the repository's.
-COPY package.json bun.lock* turbo.json bunfig.toml ./
+COPY package.json bun.lock* turbo.json bunfig.toml .gitignore ./
 COPY --parents apps/**/package.json packages/**/package.json tooling/**/package.json ./
 # The root `postinstall` (`scripts/link-workspace-self-references.ts`) runs during
 # `bun install` below. It is not a dependency of anything, so nothing else brings it
@@ -130,6 +130,9 @@ COPY apps/doc/source.config.ts ./apps/doc/source.config.ts
 # is still built by the bake, in dependency order, from the source COPY below.
 COPY tooling/bin-pkg-build/bin ./tooling/bin-pkg-build/bin
 
+# `patchedDependencies` in the root package.json: bun refuses to install when
+# the patch file it names is not in the build context.
+COPY patches ./patches
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache,sharing=shared \
     bun install --frozen-lockfile
@@ -174,6 +177,21 @@ COPY packages ./packages
 # `@deployer/eslint`, ...) its build depends on. Copying it wholesale is what makes
 # the tool's own imports resolvable.
 COPY tooling ./tooling
+
+# ── A GIT BASELINE, SO TURBO HASHES WHAT GIT TRACKS AND NOTHING ELSE ─────────
+# Without a repository Turbo falls back to walking the filesystem, so
+# `$TURBO_DEFAULT$` hashes every file in a package, including the ones
+# `.gitignore` excludes. Measured on `@deployer/errors`: `.eslintcache` and
+# `.pkg-build-types.<pid>.tsconfig.json` were hash inputs, and the second is a
+# per-process temp file, so the hash changed on every build and the cache never
+# hit (317 misses for 52 packages across one run, 0 of 52 cached at start).
+#
+# With this repository the same dry run lists only the sources, and the hash does
+# not move when an ignored file appears. `.gitignore` (root and nested) is the only
+# policy: no `inputs` deny rules in `turbo.json`. Commit AFTER the manifest strip
+# above, so `package.json` is not a perceived modification.
+RUN git init -q && git add -A && \
+    git -c user.name=dependency-builder -c user.email=dependency-builder@localhost commit -q -m baseline
 
 # ── Build EVERY internal package, and keep the cache ─────────────────────────
 #

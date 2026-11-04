@@ -67,9 +67,14 @@ test.txt
 Thumbs.db
 
 # Git
+# `.gitignore` is NOT ignored: the dependency-builder image builds a repository from it so
+# Turbo skips the same untracked files git does.
 .git
-.gitignore
 .github
+
+# Build leftovers: per-process temp files / caches that differ on every run
+**/.pkg-build-types.*
+**/.eslintcache
 
 # Docker
 .dockerignore

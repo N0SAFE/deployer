@@ -49,6 +49,7 @@ x-watch-ignore: &watch-ignore
   - "**/vitest.config.*"
   - "**/*.tsbuildinfo"
   - "**/*.eslintcache"
+  - "**/.pkg-build-types.*"
   - "**/README.md"
   - "**/CHANGELOG.md"
   - "**/docs/"
