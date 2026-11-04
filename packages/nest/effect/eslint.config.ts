@@ -1,7 +1,14 @@
 import libraryConfig from '@deployer/config-eslint/library'
 import { defineConfig } from "@deployer/config-eslint"
+import nestjsConfig from '@deployer/config-eslint/nestjs'
 
 export default defineConfig([
+    // This package IS the bridge between Nest and Effect: `EffectRuntime` is the one @Injectable that owns the runtime, and
+    // `ServiceLifecycleRunner` the one class that implements Nest's hooks FOR every service. They stay, by design;
+    // everything else is banned. The ledger lists exactly them.
+    {
+        extends: [nestjsConfig.configs.nestRoles({ ledger: "./nest-roles.ledger.json" })],
+    },
     {extends:[libraryConfig.configs.base()],
         files: ["src/**/*.{ts,tsx}"],
         rules: {

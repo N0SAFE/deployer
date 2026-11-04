@@ -1,0 +1,41 @@
+{
+  "noInjectableService": [
+    "src/config/database/local-database.module.ts",
+    "src/modules/cluster/cluster.module.ts",
+    "src/modules/cluster/services/cluster-orchestrator.service.ts",
+    "src/modules/cluster/services/node-agent-launcher.service.ts",
+    "src/modules/cluster/services/swarm-bootstrap.service.ts",
+    "src/modules/handover/services/api-readiness-watcher.service.ts",
+    "src/modules/handover/services/api-service-provisioner.service.ts",
+    "src/modules/handover/services/handover-orchestrator.service.ts",
+    "src/modules/handover/services/ingress-handover.service.ts",
+    "src/modules/handover/services/services-tier-provisioner.service.ts",
+    "src/modules/handover/services/setup-exit.service.ts",
+    "src/modules/health/setup-phase.service.ts",
+    "src/modules/health/setup-readiness.indicator.ts",
+    "src/modules/ingress/services/bootstrap-ingress.service.ts",
+    "src/modules/progress/services/orchestration-stream.service.ts",
+    "src/modules/wizard/mesh-onboarding.service.ts",
+    "src/modules/wizard/setup-gate.service.ts",
+    "src/modules/wizard/wizard-state.service.ts",
+    "src/modules/wizard/wizard-stream.service.ts",
+    "src/modules/wizard/wizard-upstream.service.ts"
+  ],
+  "noNestExceptionFilter": [
+    "src/modules/wizard/wizard-orpc.module.ts",
+    "src/modules/wizard/wizard-upstream.service.ts"
+  ],
+  "noNestLifecycleHook": [
+    "src/config/database/local-database.module.ts",
+    "src/modules/cluster/cluster.module.ts",
+    "src/modules/handover/services/handover-orchestrator.service.ts",
+    "src/modules/handover/services/ingress-handover.service.ts",
+    "src/modules/handover/services/services-tier-provisioner.service.ts",
+    "src/modules/handover/services/setup-exit.service.ts",
+    "src/modules/ingress/services/bootstrap-ingress.service.ts",
+    "src/modules/wizard/setup-gate.service.ts"
+  ],
+  "noNestRequestScope": [
+    "src/modules/wizard/wizard-orpc.module.ts"
+  ]
+}

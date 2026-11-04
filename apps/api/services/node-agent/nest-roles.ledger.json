@@ -1,0 +1,8 @@
+{
+  "noInjectableService": [
+    "src/transport/mesh-transport.service.ts"
+  ],
+  "noNestLifecycleHook": [
+    "src/transport/mesh-transport.service.ts"
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "noNestExceptionFilter": [
+    "src/modules/project/project-effects.ts"
+  ]
+}

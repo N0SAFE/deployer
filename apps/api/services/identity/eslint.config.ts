@@ -16,10 +16,10 @@ export default defineConfig([
     {
         extends: [nestjsConfig.configs.serviceSchemaBoundary({ owner: "identity" })],
     },
-    // The Effect conventions (C1/C3/C5/C9/C10 of the migration inventory) — the whole gate for this app, since
-    // its last `@Injectable` domain service is gone. `controllersUseProcedure` is part of it.
+    // The Effect conventions (C1/C3/C5/C9/C10 of the migration inventory) — the whole gate for this app. `controllersUseProcedure` is part of it.
+    // `nest-roles.ledger.json` is the migration's to-do list (the boot-time installers (`OnModuleInit`) are still Nest classes). Delete an entry as its file migrates.
     {
-        extends: [nestjsConfig.configs.effectConventions()],
+        extends: [nestjsConfig.configs.effectConventions({ ledger: "./nest-roles.ledger.json" })],
     },
     {
         extends: [libraryConfig.configs.test()],

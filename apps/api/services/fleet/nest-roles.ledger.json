@@ -1,0 +1,12 @@
+{
+  "noInjectableService": [
+    "src/modules/cluster/events/cluster-swarm-events.service.ts",
+    "src/modules/providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider.ts"
+  ],
+  "noNestExceptionFilter": [
+    "src/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service.ts"
+  ],
+  "noNestLifecycleHook": [
+    "src/modules/cluster/events/cluster-swarm-events.service.ts"
+  ]
+}
