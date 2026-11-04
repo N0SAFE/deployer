@@ -16,9 +16,10 @@ export default defineConfig([
     {
         extends: [nestjsConfig.configs.serviceSchemaBoundary({ owner: "fleet" })],
     },
-    // Controllers must go through `procedure()` so the authz gate is always applied (`SEC-062`).
+    // The Effect conventions (C1/C3/C5/C9/C10 of the migration inventory) — the whole gate for this app, since
+    // its last `@Injectable` domain service is gone. `controllersUseProcedure` is part of it.
     {
-        extends: [nestjsConfig.configs.controllersUseProcedure()],
+        extends: [nestjsConfig.configs.effectConventions()],
     },
     {
         extends: [libraryConfig.configs.test()],

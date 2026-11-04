@@ -1,8 +1,9 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement, ORPCError } from "@orpc/server";
+import { ORPCError } from "@orpc/server";
 
 import { setupAppContract } from "@deployer/bff-contracts";
+import { procedure } from "@deployer/nest-effect";
 import type {
   SetupPostSetupDestination,
   SetupPostSetupVerification,
@@ -74,12 +75,12 @@ export class WizardController {
 
   @Implement(setupAppContract.getState)
   getState() {
-    return implement(setupAppContract.getState).handler(() => this.state.getState());
+    return procedure(setupAppContract.getState).handler(() => this.state.getState());
   }
 
   @Implement(setupAppContract.getNodeStatus)
   getNodeStatus() {
-    return implement(setupAppContract.getNodeStatus).handler(() => this.state.getNodeStatus());
+    return procedure(setupAppContract.getNodeStatus).handler(() => this.state.getNodeStatus());
   }
 
   // ─── Mesh onboarding (answered LOCALLY, through the node door) ──────────
@@ -87,13 +88,13 @@ export class WizardController {
   /** This node's mesh state. The agent's socket is local, so the API is not involved. */
   @Implement(setupAppContract.getMeshStatus)
   getMeshStatus() {
-    return implement(setupAppContract.getMeshStatus).handler(() => this.mesh.getStatus());
+    return procedure(setupAppContract.getMeshStatus).handler(() => this.mesh.getStatus());
   }
 
   /** Redeem an invite token. A refusal is an answer, not an error. */
   @Implement(setupAppContract.joinMesh)
   joinMesh() {
-    return implement(setupAppContract.joinMesh).handler(async ({ input }) => ({
+    return procedure(setupAppContract.joinMesh).handler(async ({ input }) => ({
       status: 201 as const,
       headers: {},
       body: await this.mesh.join(input),
@@ -103,7 +104,7 @@ export class WizardController {
   /** Issue a one-time invite for another node. */
   @Implement(setupAppContract.issueMeshToken)
   issueMeshToken() {
-    return implement(setupAppContract.issueMeshToken).handler(async ({ input }) => ({
+    return procedure(setupAppContract.issueMeshToken).handler(async ({ input }) => ({
       status: 201 as const,
       headers: {},
       body: await this.mesh.issueToken(input),
@@ -114,7 +115,7 @@ export class WizardController {
 
   @Implement(setupAppContract.probeDatabase)
   probeDatabase() {
-    return implement(setupAppContract.probeDatabase).handler(async ({ input }) => ({
+    return procedure(setupAppContract.probeDatabase).handler(async ({ input }) => ({
       status: 201 as const,
       headers: {},
       body: await this.forwardJson<ProbeDbBody>("/setup/probe/database", "POST", input),
@@ -159,7 +160,7 @@ export class WizardController {
    */
   @Implement(setupAppContract.triggerInitialize)
   triggerInitialize() {
-    return implement(setupAppContract.triggerInitialize).handler(async ({ input }) => {
+    return procedure(setupAppContract.triggerInitialize).handler(async ({ input }) => {
       await this.gate.open(input);
       const delivered = await this.tryForwardTrigger(input);
       return {
@@ -212,7 +213,7 @@ export class WizardController {
    */
   @Implement(setupAppContract.getInitializeStream)
   getInitializeStream() {
-    return implement(setupAppContract.getInitializeStream).handler(() =>
+    return procedure(setupAppContract.getInitializeStream).handler(() =>
       this.stream.orchestratedStream(this.orchestration),
     );
   }
@@ -221,14 +222,14 @@ export class WizardController {
 
   @Implement(setupAppContract.listPostSetupHints)
   listPostSetupHints() {
-    return implement(setupAppContract.listPostSetupHints).handler(() =>
+    return procedure(setupAppContract.listPostSetupHints).handler(() =>
       this.forwardJson("/setup/post-setup/hints", "GET", undefined),
     );
   }
 
   @Implement(setupAppContract.dismissPostSetupHint)
   dismissPostSetupHint() {
-    return implement(setupAppContract.dismissPostSetupHint).handler(async ({ input }) => ({
+    return procedure(setupAppContract.dismissPostSetupHint).handler(async ({ input }) => ({
       status: 201 as const,
       headers: {},
       body: await this.forwardJson<{ ok: boolean }>("/setup/post-setup/hints/dismiss", "POST", input),
@@ -251,7 +252,7 @@ export class WizardController {
    */
   @Implement(setupAppContract.getPostSetupDestination)
   getPostSetupDestination() {
-    return implement(setupAppContract.getPostSetupDestination).handler(async () => {
+    return procedure(setupAppContract.getPostSetupDestination).handler(async () => {
       try {
         return await this.forwardJson<SetupPostSetupDestination>(
           "/setup/post-setup/destination",
@@ -285,7 +286,7 @@ export class WizardController {
    */
   @Implement(setupAppContract.getPostSetupVerification)
   getPostSetupVerification() {
-    return implement(setupAppContract.getPostSetupVerification).handler(async () =>
+    return procedure(setupAppContract.getPostSetupVerification).handler(async () =>
       await this.forwardJson<SetupPostSetupVerification>("/setup/post-setup/verification", "GET", undefined),
     );
   }
@@ -305,7 +306,7 @@ export class WizardController {
    */
   @Implement(setupAppContract.retryHandover)
   retryHandover() {
-    return implement(setupAppContract.retryHandover).handler(() => {
+    return procedure(setupAppContract.retryHandover).handler(() => {
       if (this.phase.current().phase !== "failed") {
         return { status: 201 as const, headers: {}, body: { accepted: false } };
       }

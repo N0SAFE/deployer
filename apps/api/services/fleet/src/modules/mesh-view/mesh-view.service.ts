@@ -1,5 +1,6 @@
 import { Observable } from "rxjs";
 
+import { FleetInvalid } from "../../core/fleet.errors";
 import type {
   NodeAgentJoinTokenInput,
   NodeAgentJoinTokenResult,
@@ -115,7 +116,7 @@ export class MeshViewService {
   async issueToken(input: NodeAgentJoinTokenInput): Promise<NodeAgentJoinTokenResult> {
     const link = this.agent();
     if (link === undefined) {
-      throw new Error("This node has no mesh agent, so it cannot issue a join token");
+      throw new FleetInvalid({ reason: "This node has no mesh agent, so it cannot issue a join token" });
     }
     return (await link.call(["roster", "token"], input, CALL)) as NodeAgentJoinTokenResult;
   }

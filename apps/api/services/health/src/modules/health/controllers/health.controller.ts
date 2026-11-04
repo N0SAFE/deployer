@@ -1,4 +1,4 @@
-import { Controller } from "@nestjs/common";
+import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { Cause, Effect } from "effect";
 
@@ -25,7 +25,7 @@ function report(context: RequestContextInput) {
   }).pipe(
     // `handle` reads the correlation id, so the request provider wraps it.
     handle((cause, correlationId) => {
-      console.error(`[svc-health] defect ${correlationId}`, Cause.pretty(cause));
+      new Logger("svc-health").error(`defect ${correlationId}`, Cause.pretty(cause));
     }),
     // `check` is public: an anonymous caller acts as a named anonymous user.
     provideRequest(context, () => Effect.succeed(Actor.user("anonymous", "anonymous"))),

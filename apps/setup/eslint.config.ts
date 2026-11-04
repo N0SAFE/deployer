@@ -23,4 +23,8 @@ export default defineConfig([
             "src/**/*.test.*",
         ],
     },
+    // Controllers go through `procedure()` so the authz gate is applied wherever authz is configured (`SEC-062`).
+    {
+        extends: [nestjsConfig.configs.controllersUseProcedure()],
+    },
 ]);

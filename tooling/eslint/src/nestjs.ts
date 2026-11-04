@@ -135,6 +135,104 @@ const controllersUseProcedure = () =>
         },
     ]);
 
+/**
+ * The Effect conventions, as a gate instead of a code review (`docs/architecture/effect-migration-gap-inventory.md` §12).
+ *
+ * The rubric's checks C1, C3, C5, C9 and C10 are the ones a machine can answer from one file's AST. Enabling this config
+ * is per APP, because a migration is per app: a package that still has 45 `@Injectable` services turns it on the day the
+ * last one is a tag, and until then the absence of the rule is the visible TODO.
+ *
+ * What each block enforces, and why from THAT scope:
+ *
+ * - `**.controller.ts` may not import `implement()`: the authz gate is appended by `procedure()` (`SEC-062`).
+ * - a `services/` or `repositories/` file may not declare `@Injectable()` (C1): a domain service is a `Context.Service`
+ *   tag with a `live`, so the runtime owns its lifetime and a spec can swap it with a `Layer`.
+ * - the same directories may not `throw new Error(...)` (C5): a failure is a tagged `domainError`, which the transport
+ *   maps. A repository's own boundary (`throw` inside `Effect.tryPromise` that becomes `RepositoryFailure`) is exempt by
+ *   scope — it is the one place a defect is the honest answer.
+ * - ordinary source may not use `console.*` (C9) outside `main.ts` (the boot path has no logger yet) or a test.
+ * - ordinary source may not silence the compiler (`@ts-ignore` / `@ts-expect-error`) (C10).
+ *
+ * Deliberately NOT gated yet: `as unknown as` (C10's other half). The remaining sites are typed ports (`CoreEventSync`
+ * wants the concrete service) where the honest fix is a better port type, not a lint suppression — that is a design task,
+ * not a sweep, and a rule now would only teach the next author to reach for `as never`.
+ */
+const effectConventions = () =>
+    defineConfig([
+        {
+            files: ["src/**/*.controller.ts"],
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        paths: [
+                            {
+                                name: "@orpc/server",
+                                importNames: ["implement"],
+                                message:
+                                    "Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+        {
+            files: ["src/**/services/**/*.ts", "src/**/repositories/**/*.ts"],
+            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            rules: {
+                // C1: the tag IS the service. `@Injectable` puts the lifetime back in Nest's hands.
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        paths: [
+                            {
+                                name: "@nestjs/common",
+                                importNames: ["Injectable", "Scope"],
+                                message:
+                                    "A domain service is a Context.Service tag with a `live` (useValue: X.live), not a Nest provider.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+        {
+            // C5 is scoped to SERVICES on purpose: a repository's `throw` sits inside the `Effect.tryPromise` that turns it
+            // into a typed `RepositoryFailure`, so the throw IS the boundary. A service has no such excuse.
+            files: ["src/**/services/**/*.ts"],
+            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            rules: {
+                "no-restricted-syntax": [
+                    "error",
+                    {
+                        selector: "ThrowStatement > NewExpression[callee.name='Error']",
+                        message:
+                            "Throw a tagged domainError (or an AppError subclass), so the transport maps a STATUS instead of a 500.",
+                    },
+                    {
+                        selector: "ThrowStatement > NewExpression[callee.name='TypeError']",
+                        message:
+                            "Throw a tagged domainError (or an AppError subclass), so the transport maps a STATUS instead of a 500.",
+                    },
+                ],
+            },
+        },
+        {
+            files: ["src/**/*.ts"],
+            ignores: ["src/main.ts", "src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            rules: {
+                // C9: the Logger carries the context and the level; `console` carries neither.
+                "no-console": "error",
+                // C10: a suppression hides the type error the architecture is built on.
+                "@typescript-eslint/ban-ts-comment": [
+                    "error",
+                    { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true },
+                ],
+            },
+        },
+    ]);
+
 export default {
     meta: {
         name: "@deployer/config-eslint/nestjs",
@@ -146,5 +244,6 @@ export default {
         all,
         serviceSchemaBoundary,
         controllersUseProcedure,
+        effectConventions,
     },
 } as const;

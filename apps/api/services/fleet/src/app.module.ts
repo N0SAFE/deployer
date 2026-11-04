@@ -111,12 +111,15 @@ export class FleetServiceModule extends createModuleContext({
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.database }),
 		ServiceHealthModule,
 		HealthModule.forRoot({ indicators: "database" }),
-		// `.effect()` handlers resolve services from `effect/context`; the host contributes that
-		// context per request without changing the shared transport policy.
+		// `.effect()` handlers resolve services from `effect/context`. `contextFor(controller)` — not the flat
+		// `host.context()` — is what makes the requirement gate honest: a handler sees its own module's providers, its
+		// imports' exports and the global modules, which is exactly what `UnmetOf` claimed at compile time. Reading the
+		// whole container here let a handler reach a service its module never imported, and the type audit could not see it.
 		createOrpcModule({
 			extraContext: {
 				inject: [EffectHost],
-				resolve: async (_executionContext, host) => ({ "effect/context": await host.context() }),
+				resolve: (_executionContext, host) =>
+					({ "effect/context": host.contextFor(_executionContext.getClass()) }),
 			},
 		}),
 		// The Effect services of the modules already migrated (see `app.layers.ts`).

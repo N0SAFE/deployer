@@ -9,7 +9,7 @@
  * The HTML management console lives in PlatformConsoleController.
  */
 
-import { Controller } from "@nestjs/common";
+import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 
 import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
@@ -53,8 +53,8 @@ export class PlatformController {
 					// swallow infrastructure failures as "bad credentials".
 					const detail =
 						error instanceof Error ? error.message : String(error);
-					console.error(
-						`[registerAppInstance] credential verification failed: ${detail}`,
+					new Logger(PlatformController.name).error(
+						`credential verification failed: ${detail}`,
 					);
 					throw errors.UNAUTHORIZED(
 						standardErrorOptions("unauthorized", "Invalid account credentials"),
