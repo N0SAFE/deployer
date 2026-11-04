@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common'
+import { Logger, Inject } from '@nestjs/common'
 import { sql } from 'drizzle-orm'
 import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import { Command, CommandRunner } from 'nest-commander'
@@ -16,7 +16,6 @@ import { GlobalDatabaseService } from '@/core/modules/database/global/global-dat
  *  2  Global Postgres migration failed
  */
 
-@Injectable()
 @Command({
     name: 'migrate',
     description: 'Run database migrations (SQLite + Postgres)',
@@ -26,7 +25,7 @@ export class MigrateCommand extends CommandRunner {
 
     constructor(
         @Inject(LocalDatabase) private readonly localDatabase: LocalDatabaseShape,
-        private readonly globalDatabaseService: GlobalDatabaseService,
+        @Inject(GlobalDatabaseService) private readonly globalDatabaseService: GlobalDatabaseService,
     ) {
         super();
     }
@@ -41,7 +40,7 @@ export class MigrateCommand extends CommandRunner {
             const localTableCount = this.localDatabase.db
                 .all("SELECT name FROM sqlite_master WHERE type='table'")
                 .length;
-            this.logger.log(`✅ SQLite database: ${localTableCount} tables present (migrated at module init)`);
+            this.logger.log(`✅ SQLite database: ${String(localTableCount)} tables present (migrated at module init)`);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.logger.error(`❌ Local SQLite check failed: ${message}`);

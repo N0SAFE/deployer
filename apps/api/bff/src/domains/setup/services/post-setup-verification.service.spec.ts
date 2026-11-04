@@ -1,10 +1,13 @@
+import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 
-import { classifyIngressAnswer, PostSetupVerificationService, type IngressTransport } from "./post-setup-verification.service";
+import { ManagedWebFlagUnreadable } from "../setup.errors";
+
+import { classifyIngressAnswer, makePostSetupVerificationService, type IngressTransport } from "./post-setup-verification.service";
 
 /**
  * The wizard's last step trusts these verdicts to unlock "Continue", so the cases
@@ -28,7 +31,7 @@ describe("classifyIngressAnswer", () => {
 	});
 });
 
-function make(options: { webEnabled: boolean; webOrigin?: string | null; transport: IngressTransport }) {
+function make(options: { webEnabled: boolean; webOrigin?: string | null; transport: IngressTransport; flagThrows?: boolean }) {
 	const env = {
 		get: vi.fn((key: string) => ({ DEPLOYER_PREFIX: "", MANAGED_TRAEFIK_HOST: "traefik", MANAGED_TRAEFIK_HTTP_PORT: 80 })[key]),
 	} as unknown as EnvService;
@@ -39,17 +42,24 @@ function make(options: { webEnabled: boolean; webOrigin?: string | null; transpo
 		webOrigin: () => "http://web.deployer.localhost",
 	} as unknown as HostnameService;
 	const config = {
-		isManagedWebAppEnabled: vi.fn(() => Promise.resolve(options.webEnabled)),
+		isManagedWebAppEnabled: vi.fn(() =>
+			options.flagThrows === true ? Promise.reject(new Error("relation does not exist")) : Promise.resolve(options.webEnabled),
+		),
 		getManagedWebOrigin: vi.fn(() => Promise.resolve(options.webOrigin ?? null)),
 	} as unknown as PlatformConfigService;
-	const service = new PostSetupVerificationService(env, hostnames, config);
-	service.transport = options.transport;
-	return service;
+	const shape = makePostSetupVerificationService({ env, hostnames, platformConfig: config, transport: options.transport });
+	return { verify: () => Effect.runPromise(shape.verify()), verifyExit: () => Effect.runPromiseExit(shape.verify()) };
 }
 
 const routed: IngressTransport = () => Promise.resolve({ status: 200, contentType: "application/json" });
 
 describe("PostSetupVerificationService", () => {
+	it("fails with a typed error, not an exception, when it cannot tell whether a dashboard is expected", async () => {
+		const exit = await make({ webEnabled: true, transport: routed, flagThrows: true }).verifyExit();
+		expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toBeInstanceOf(ManagedWebFlagUnreadable);
+	});
+
+
 	it("verifies the API and the dashboard through the ingress with the browser's Host header", async () => {
 		const transport = vi.fn(routed);
 		const result = await make({ webEnabled: true, transport }).verify();

@@ -1,12 +1,15 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { EnvModule } from "@/config/env/env.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
+import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
+import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
 import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
 
 import { SetupController } from "./controllers/setup.controller";
 import { PostSetupDestinationService } from "./services/post-setup-destination.service";
-import { PostSetupVerificationService } from "./services/post-setup-verification.service";
+import { nodeTransport, PostSetupVerificationService } from "./services/post-setup-verification.service";
+import { SetupEnvPort, SetupHostnamePort, SetupPlatformConfigPort, SetupTransportPort } from "./setup.ports";
 
 /**
  * Public Setup Module
@@ -40,6 +43,15 @@ export class SetupDomainModule extends createModuleContext({
     // `CorePlatformIngressModule` IS `@Global()`.)
     imports: [CoreInitializationModule, CoreReachabilityModule, EnvModule],
     controllers: [SetupController],
-    providers: [PostSetupDestinationService, PostSetupVerificationService],
+    // Each port is bound to the Promise provider that owns it (`HostnameService`/`PlatformConfigService` come from the
+    // @Global `CorePlatformIngressModule`); the two services are stateless constants over those ports.
+    providers: [
+        { provide: SetupEnvPort, useExisting: EnvService },
+        { provide: SetupHostnamePort, useExisting: HostnameService },
+        { provide: SetupPlatformConfigPort, useExisting: PlatformConfigService },
+        { provide: SetupTransportPort, useValue: nodeTransport },
+        { provide: PostSetupDestinationService, useValue: PostSetupDestinationService.live },
+        { provide: PostSetupVerificationService, useValue: PostSetupVerificationService.live },
+    ],
     exports: [CoreInitializationModule, PostSetupDestinationService, PostSetupVerificationService],
 }) {}

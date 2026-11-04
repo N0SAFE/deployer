@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging -- the interface/class merge below is how the flattened procedures get their types */
-import { Injectable } from "@nestjs/common";
 
 import { runtimeContract } from "@deployer/runtime-contracts";
 import { BaseClient, type FlatLeaves } from "@deployer/service-client";
@@ -34,7 +33,6 @@ import type { ContractRouterClient } from "@orpc/contract";
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface RuntimeClient extends Omit<FlatLeaves<ContractRouterClient<typeof runtimeContract>>, "list"> {}
 
-@Injectable()
 export class RuntimeClient extends BaseClient<typeof runtimeContract> {
 	constructor(binder: ServiceClientRegistry) {
 		super(binder, { service: "runtime", contract: runtimeContract });

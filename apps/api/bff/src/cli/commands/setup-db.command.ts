@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger, Inject } from "@nestjs/common";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 /**
@@ -22,7 +22,6 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 import { Command, CommandRunner, Option } from "nest-commander";
 
-import type { SetupState } from "@deployer/nest-schema/local/node-config";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 type SetupDbOptions = {
@@ -33,7 +32,6 @@ type SetupDbOptions = {
   name: "setup-db",
   description: "Save the Postgres database URL to local node config",
 })
-@Injectable()
 export class SetupDbCommand extends CommandRunner {
   private readonly logger = new Logger(SetupDbCommand.name);
 

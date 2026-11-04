@@ -1,24 +1,6 @@
-import {  Injectable } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
-
-import {
-	
-	
-	
-	
-	
-	
-	
-} from "@deployer/bff-contracts";
 import { analyticsContract } from "@deployer/identity-contracts";
 
-import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
-
 import { ServiceClientRegistry } from "../../../clients/service-registry";
-import { ServiceNotFoundError } from "../../shared/errors/service-not-found.error";
-import { OverviewComposerService } from "../../shared/services/overview-composer.service";
-import { ScreenReadService } from "../../shared/services/screen-read.service";
 
 /**
  * Reads a service's own contract, so the BFF never re-implements a query it can call.
@@ -28,7 +10,6 @@ import { ScreenReadService } from "../../shared/services/screen-read.service";
  * its own clients would put the `clientFor(name, contract)` pairing in every screen,
  * and with it the chance of naming the wrong contract for a service.
  */
-@Injectable()
 export class AnalyticsReadService {
 	constructor(private readonly clients: ServiceClientRegistry) {}
 

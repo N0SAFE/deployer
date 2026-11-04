@@ -1,9 +1,10 @@
-import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
+import { Controller, Get, Inject, Res } from "@nestjs/common";
+import { Effect } from "effect";
 
-
-import { PlatformHealthService } from "../services/platform-health.service";
+import { PlatformHealthService, type PlatformHealthServiceShape } from "../services/platform-health.service";
 
 import type { PlatformHealth } from "../platform-health.schema";
+import type { Response } from "express";
 
 /**
  * Front-facing health endpoint.
@@ -24,11 +25,11 @@ import type { PlatformHealth } from "../platform-health.schema";
  */
 @Controller("health")
 export class PlatformHealthController {
-	constructor(private readonly health: PlatformHealthService) {}
+	constructor(@Inject(PlatformHealthService) private readonly health: PlatformHealthServiceShape) {}
 
 	@Get("platform")
 	async platform(): Promise<PlatformHealth> {
-		return this.health.getHealth();
+		return Effect.runPromise(this.health.getHealth());
 	}
 
 	/**
@@ -44,13 +45,11 @@ export class PlatformHealthController {
 	 * `/health/ready` already uses.
 	 */
 	@Get("platform/ready")
-	async ready(): Promise<PlatformHealth> {
-		const health = await this.health.getHealth();
+	async ready(@Res({ passthrough: true }) res: Response): Promise<PlatformHealth | { message: string; platform: PlatformHealth }> {
+		const health = await Effect.runPromise(this.health.getHealth());
 		if (health.state !== "healthy") {
-			throw new ServiceUnavailableException({
-				message: "The platform tier is not ready",
-				platform: health,
-			});
+			res.status(503);
+			return { message: "The platform tier is not ready", platform: health };
 		}
 		return health;
 	}

@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-
 import { ServiceNotFoundError } from "../errors/service-not-found.error";
 
 import { optional, ScreenReadService, type Section } from "./screen-read.service";
@@ -32,7 +30,6 @@ const STAT_LABELS: Record<string, string> = {
  * That is the cost of the boundary — and the reason the fan-outs below are issued in
  * PARALLEL and scoped to the page rather than per row.
  */
-@Injectable()
 export class OverviewComposerService {
 	constructor(private readonly reads: ScreenReadService) {}
 

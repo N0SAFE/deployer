@@ -1,14 +1,15 @@
-import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository } from "@deployer/node-state"
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 
 import { createBetterAuth } from '@/config/auth/auth';
 import { EnvModule } from "@/config/env/env.module";
 import { EnvService } from "@/config/env/env.module";
 import { AuthModule } from '@/core/modules/auth/auth.module';
+import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
 import { DatabaseModule } from "@/core/modules/database/database.module";
+import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 import { MigrationJournalService } from '@/core/utils/migration-journal.service';
@@ -58,7 +59,13 @@ export class CLIModule extends createModuleContext({
   ],
   providers: [
     // ── CLI Commands ────────────────────────────────────────────────────
-    CliAuthService,
+    // A plain class over its collaborators (the CLI has no request and nothing to scope): the module builds it.
+    {
+      provide: CliAuthService,
+      useFactory: (database: GlobalDatabaseService, auth: AuthCoreService, config: ConfigService) =>
+        new CliAuthService(database, auth, config),
+      inject: [GlobalDatabaseService, AuthCoreService, ConfigService],
+    },
     SetupDbCommand,
     SeedCommand,
     MigrateCommand,

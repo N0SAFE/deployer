@@ -1,13 +1,18 @@
 import { request as httpRequest } from "node:http";
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
+
+import { serviceOver, type Over } from "@deployer/effect-core";
+
+import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
+
+import { ManagedWebFlagUnreadable } from "../setup.errors";
+import { SetupEnvPort, SetupHostnamePort, SetupPlatformConfigPort, SetupTransportPort } from "../setup.ports";
 
 import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities";
-
-import { EnvService } from "@/config/env/env.module";
-import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
-import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
+import type { EnvService } from "@/config/env/env.module";
+import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
+import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 /** One answer from an ingress for one request, before it is judged. */
 export type IngressAnswer = {
@@ -45,7 +50,7 @@ export function classifyIngressAnswer(answer: IngressAnswer): RoutedVerdict {
 
 const PROBE_TIMEOUT_MS = 4_000;
 
-const nodeTransport: IngressTransport = ({ address, port, host, path }) =>
+export const nodeTransport: IngressTransport = ({ address, port, host, path }) =>
 	new Promise((resolve, reject) => {
 		const req = httpRequest({ host: address, port, path, method: "GET", headers: { host } }, (response) => {
 			response.resume();
@@ -75,69 +80,45 @@ const nodeTransport: IngressTransport = ({ address, port, host, path }) =>
  * dashboard is expected — guessing would either hide a missing dashboard or fail
  * an "API only" install forever.
  */
-@Injectable()
-export class PostSetupVerificationService {
-	private readonly logger = new Logger(PostSetupVerificationService.name);
+export class PostSetupVerificationService extends Context.Service<
+	PostSetupVerificationService,
+	Over<PostSetupVerificationServiceShape, PostSetupVerificationPorts>
+>()("bff/PostSetupVerificationService") {
+	static readonly live = serviceOver(
+		Effect.all({ env: SetupEnvPort, hostnames: SetupHostnamePort, platformConfig: SetupPlatformConfigPort, transport: SetupTransportPort }),
+		makePostSetupVerificationService,
+	);
+}
 
-	/** Seam for specs; production uses the node `http` transport. */
-	transport: IngressTransport = nodeTransport;
+/** What the verification reads from the Effect context while it runs. */
+export type PostSetupVerificationPorts = SetupEnvPort | SetupHostnamePort | SetupPlatformConfigPort | SetupTransportPort;
 
-	constructor(
-		private readonly env: EnvService,
-		private readonly hostnames: HostnameService,
-		private readonly platformConfig: PlatformConfigService,
-	) {}
+type Ports = {
+	readonly env: EnvService;
+	readonly hostnames: HostnameService;
+	readonly platformConfig: PlatformConfigService;
+	readonly transport: IngressTransport;
+};
 
-	async verify(): Promise<SetupPostSetupVerification> {
-		const webExpected = await this.platformConfig.isManagedWebAppEnabled();
-		const webOrigin = webExpected ? await this.webOrigin() : null;
+export type PostSetupVerificationServiceShape = {
+	/** Fails only with `ManagedWebFlagUnreadable`: a failed probe is the answer, not an error. */
+	readonly verify: () => Effect.Effect<SetupPostSetupVerification, ManagedWebFlagUnreadable>;
+};
 
-		const [api, web] = await Promise.all([
-			this.verifyTarget({
-				id: "api",
-				expected: true,
-				host: this.hostnames.apiHostname(),
-				path: "/health/ready",
-				probeUrl: `${this.hostnames.apiOrigin()}/health`,
-			}),
-			this.verifyTarget({
-				id: "web",
-				expected: webExpected,
-				host: this.hostnames.webHostname(),
-				path: "/",
-				probeUrl: webOrigin,
-			}),
-		]);
-		return { checkedAt: new Date().toISOString(), targets: [api, web] };
-	}
-
+export function makePostSetupVerificationService({ env, hostnames, platformConfig, transport }: Ports): PostSetupVerificationServiceShape {
 	/** The dashboard's browser-facing origin: an operator-set origin wins over the generated hostname. */
-	private async webOrigin(): Promise<string> {
-		const configured = (await this.platformConfig.getManagedWebOrigin().catch(() => null))?.trim() ?? "";
-		if (configured.length === 0) return this.hostnames.webOrigin();
+	const webOrigin = async (): Promise<string> => {
+		const configured = (await platformConfig.getManagedWebOrigin().catch(() => null))?.trim() ?? "";
+		if (configured.length === 0) return hostnames.webOrigin();
 		return /^https?:\/\//i.test(configured) ? configured : `http://${configured}`;
-	}
-
-	private async verifyTarget(input: {
-		id: SetupVerificationTarget["id"];
-		expected: boolean;
-		host: string;
-		path: string;
-		probeUrl: string | null;
-	}): Promise<SetupVerificationTarget> {
-		const base = { id: input.id, expected: input.expected, host: input.host, probeUrl: input.probeUrl };
-		if (!input.expected) {
-			return { ...base, routed: { ok: true, status: null, detail: "not part of this installation" } };
-		}
-		return { ...base, routed: await this.askIngress(input.host, input.path) };
-	}
+	};
 
 	/** Ingress addresses to try: the platform's swarm service, then a compose-managed one. */
-	private ingressAddresses(): { address: string; port: number }[] {
-		const port = this.env.get("MANAGED_TRAEFIK_HTTP_PORT");
+	const ingressAddresses = (): { address: string; port: number }[] => {
+		const port = env.get("MANAGED_TRAEFIK_HTTP_PORT");
 		const candidates = [
-			{ address: platformTraefikContainerName(this.env.get("DEPLOYER_PREFIX")), port: 80 },
-			{ address: this.env.get("MANAGED_TRAEFIK_HOST"), port },
+			{ address: platformTraefikContainerName(env.get("DEPLOYER_PREFIX")), port: 80 },
+			{ address: env.get("MANAGED_TRAEFIK_HOST"), port },
 		];
 		const seen = new Set<string>();
 		return candidates.filter(({ address, port: candidatePort }) => {
@@ -146,30 +127,70 @@ export class PostSetupVerificationService {
 			seen.add(key);
 			return true;
 		});
-	}
+	};
 
-	private async askIngress(host: string, path: string): Promise<RoutedVerdict> {
-		let last: RoutedVerdict = { ok: false, status: null, detail: "the cluster ingress did not answer" };
-		// The FIRST candidate is the platform's own ingress; a later fallback must
-		// not overwrite its failure with its own (an unset compose `traefik` host
-		// reported "ENOTFOUND traefik" for an ingress that was merely still starting).
-		let reported = false;
-		for (const { address, port } of this.ingressAddresses()) {
-			try {
-				const verdict = classifyIngressAnswer(await this.transport({ address, port, host, path }));
-				if (verdict.ok) return verdict;
-				last = verdict;
-			} catch (error: unknown) {
-				const reason = error instanceof Error ? error.message : String(error);
-				this.logger.debug(`Ingress ${address}:${String(port)} did not answer for ${host}: ${reason}`);
-				// Keep a routed verdict from an earlier candidate: "no route yet" is
-				// more informative than "connection refused" from a second address.
-				if (last.status === null && !reported) {
-					last = { ok: false, status: null, detail: `the cluster ingress is not reachable (${reason})` };
-					reported = true;
+	const askIngress = (host: string, path: string): Effect.Effect<RoutedVerdict> =>
+		Effect.promise(async () => {
+			let last: RoutedVerdict = { ok: false, status: null, detail: "the cluster ingress did not answer" };
+			// The FIRST candidate is the platform's own ingress; a later fallback must
+			// not overwrite its failure with its own (an unset compose `traefik` host
+			// reported "ENOTFOUND traefik" for an ingress that was merely still starting).
+			let reported = false;
+			for (const { address, port } of ingressAddresses()) {
+				try {
+					const verdict = classifyIngressAnswer(await transport({ address, port, host, path }));
+					if (verdict.ok) return verdict;
+					last = verdict;
+				} catch (error: unknown) {
+					const reason = error instanceof Error ? error.message : String(error);
+					// Keep a routed verdict from an earlier candidate: "no route yet" is
+					// more informative than "connection refused" from a second address.
+					if (last.status === null && !reported) {
+						last = { ok: false, status: null, detail: `the cluster ingress is not reachable (${reason})` };
+						reported = true;
+					}
 				}
 			}
+			return last;
+		});
+
+	const verifyTarget = (input: {
+		id: SetupVerificationTarget["id"];
+		expected: boolean;
+		host: string;
+		path: string;
+		probeUrl: string | null;
+	}): Effect.Effect<SetupVerificationTarget> => {
+		const base = { id: input.id, expected: input.expected, host: input.host, probeUrl: input.probeUrl };
+		if (!input.expected) {
+			return Effect.succeed({ ...base, routed: { ok: true, status: null, detail: "not part of this installation" } });
 		}
-		return last;
-	}
+		return askIngress(input.host, input.path).pipe(Effect.map((routed) => ({ ...base, routed })));
+	};
+
+	return {
+		verify: () =>
+			Effect.gen(function* () {
+				const webExpected = yield* Effect.tryPromise({
+					try: () => platformConfig.isManagedWebAppEnabled(),
+					catch: (cause) => new ManagedWebFlagUnreadable({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+				});
+				const web = webExpected ? yield* Effect.promise(webOrigin) : null;
+
+				const [apiTarget, webTarget] = yield* Effect.all(
+					[
+						verifyTarget({
+							id: "api",
+							expected: true,
+							host: hostnames.apiHostname(),
+							path: "/health/ready",
+							probeUrl: `${hostnames.apiOrigin()}/health`,
+						}),
+						verifyTarget({ id: "web", expected: webExpected, host: hostnames.webHostname(), path: "/", probeUrl: web }),
+					],
+					{ concurrency: "unbounded" },
+				);
+				return { checkedAt: new Date().toISOString(), targets: [apiTarget, webTarget] };
+			}),
+	};
 }

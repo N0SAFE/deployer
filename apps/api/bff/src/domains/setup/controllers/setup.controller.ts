@@ -1,10 +1,10 @@
 import { Controller, Logger, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { ORPCError } from "@orpc/server";
+import { Effect } from "effect";
 import { Pool } from "pg";
 
-import { procedure } from "@deployer/nest-effect";
 import { setupContract } from "@deployer/bff-contracts";
+import { procedure } from "@deployer/nest-effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { domainErrorOptions } from "@deployer/orpc-utils";
@@ -15,8 +15,10 @@ import {  EgressService } from "@/core/modules/egress/egress.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 
+import { serveAnonymous } from "@/orpc/serve";
+
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
-import { PostSetupVerificationService } from "../services/post-setup-verification.service";
+import { PostSetupVerificationService, type PostSetupVerificationPorts } from "../services/post-setup-verification.service";
 
 
 
@@ -41,8 +43,6 @@ export class SetupController {
         private readonly initializationService: InitializationService,
         private readonly reachabilityService: ReachabilityService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-        private readonly postSetupDestination: PostSetupDestinationService,
-        private readonly postSetupVerification: PostSetupVerificationService,
         private readonly egress: EgressService,
     ) {}
 
@@ -206,7 +206,10 @@ export class SetupController {
     getPostSetupDestination() {
         return procedure(setupContract.getPostSetupDestination)
             .use(publicAccess())
-            .handler(async () => this.postSetupDestination.resolve());
+            .effect(function* ({ context }) {
+                const destination = yield* PostSetupDestinationService;
+                return yield* serveAnonymous(context)(destination.resolve());
+            });
     }
 
     /**
@@ -220,47 +223,24 @@ export class SetupController {
     getPostSetupVerification() {
         return procedure(setupContract.getPostSetupVerification)
             .use(publicAccess())
-            .handler(async () => this.postSetupVerification.verify());
+            .effect(function* ({ context }) {
+                const verification = yield* PostSetupVerificationService;
+                return yield* serveAnonymous(context)(verification.verify());
+            });
     }
 
     @Implement(setupContract.getPostSetupVerificationStream)
     getPostSetupVerificationStream() {
         return procedure(setupContract.getPostSetupVerificationStream)
             .use(publicAccess())
-            .handler(() =>
-                liveSnapshot(() => this.postSetupVerification.verify(), {
-                    intervalMs: POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS,
-                }),
-            );
+            .effect(function* ({ context }) {
+                const verification = yield* PostSetupVerificationService;
+                // The ports are captured once; each tick runs the probe over them at the request boundary.
+                const ports = yield* Effect.context<PostSetupVerificationPorts>();
+                return liveSnapshot(
+                    () => Effect.runPromise(serveAnonymous(context)(verification.verify()).pipe(Effect.provide(ports))),
+                    { intervalMs: POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS },
+                );
+            });
     }
-}
-
-/** The JSON body of a response, or null when it is empty or not JSON. */
-
-/**
- * Best-effort extraction of a session token from a `Set-Cookie` header
- * returned by Better Auth.
- */
-function extractSessionCookie(setCookieHeader: string): string | null {
-    if (!setCookieHeader) return null;
-
-    const cookies = setCookieHeader
-        // `Headers` joins several cookies with ", "; a comma inside `Expires=Wed, 21 Oct ...` is not followed by `name=`.
-        .split(/,\s*(?=[^\s;,=]+=)/g)
-        .map((c) => c.trim())
-        .filter(Boolean);
-
-    for (const raw of cookies) {
-        const [pair] = raw.split(";");
-        if (!pair) continue;
-        const eq = pair.indexOf("=");
-        if (eq <= 0) continue;
-        const name = pair.slice(0, eq).trim();
-        const value = pair.slice(eq + 1).trim();
-        if (name.toLowerCase().includes("session_token") && value.length > 0) {
-            return `${name}=${value}`;
-        }
-    }
-
-    return null;
 }

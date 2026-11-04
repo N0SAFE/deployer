@@ -1,5 +1,10 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
+import { IdentityClient } from "@/clients/identity/identity.client";
+import { ProjectClient } from "@/clients/project/project.client";
+import { RuntimeClient } from "@/clients/runtime/runtime.client";
+import { ServiceClientRegistry } from "@/clients/service-registry";
+
 import { OverviewComposerService } from "../shared/services/overview-composer.service";
 import { ScreenReadService } from "../shared/services/screen-read.service";
 
@@ -20,6 +25,25 @@ import { AnalyticsReadService } from "./services/analytics-read.service";
  */
 export class OrchestrationModule extends createModuleContext({
 	controllers: [OrchestrationController],
-	providers: [ScreenReadService, OverviewComposerService, AnalyticsReadService],
+	// Plain classes over the Promise clients (whose credentials come from the request's `service-auth-context`), built by the
+	// module: nothing here has a lifetime or a Nest role.
+	providers: [
+		{
+			provide: ScreenReadService,
+			useFactory: (identity: IdentityClient, projects: ProjectClient, runtime: RuntimeClient) =>
+				new ScreenReadService(identity, projects, runtime),
+			inject: [IdentityClient, ProjectClient, RuntimeClient],
+		},
+		{
+			provide: OverviewComposerService,
+			useFactory: (reads: ScreenReadService) => new OverviewComposerService(reads),
+			inject: [ScreenReadService],
+		},
+		{
+			provide: AnalyticsReadService,
+			useFactory: (registry: ServiceClientRegistry) => new AnalyticsReadService(registry),
+			inject: [ServiceClientRegistry],
+		},
+	],
 	exports: [OverviewComposerService],
 }) {}

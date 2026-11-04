@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging -- the interface/class merge below is how the flattened procedures get their types */
-import { Injectable } from "@nestjs/common";
 
 
 import { healthContract } from "@deployer/health-contracts";
@@ -22,11 +21,9 @@ import type { ContractRouterClient } from "@orpc/contract";
 export interface HealthClient
 	extends FlatLeaves<ContractRouterClient<typeof healthContract>> {}
 
-@Injectable()
 export class HealthClient extends BaseClient<typeof healthContract> {
 	constructor(binder: ServiceClientRegistry) {
 		super(binder, { service: "health", contract: healthContract });
 	}
 }
 
-const healthClient = new HealthClient(new ServiceClientRegistry());

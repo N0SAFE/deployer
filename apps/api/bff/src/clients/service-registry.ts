@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 
 import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
 import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
@@ -62,7 +61,6 @@ export const bffServiceClientOptions: ServiceClientOptions = {
  * Injection is unchanged: a client injects the package's registry token and receives
  * this, because it extends it.
  */
-@Injectable()
 export class ServiceClientRegistry extends PackageRegistry {
 	constructor() {
 		super(bffServiceClientOptions);

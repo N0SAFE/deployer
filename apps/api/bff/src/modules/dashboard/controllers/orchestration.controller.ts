@@ -11,11 +11,9 @@ import {
 	bffServiceDetailContract,
 } from "@deployer/bff-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { analyticsContract } from "@deployer/identity-contracts";
 
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
 import { ServiceNotFoundError } from "../../shared/errors/service-not-found.error";
 import { OverviewComposerService } from "../../shared/services/overview-composer.service";
 import { ScreenReadService, type Section, optional } from "../../shared/services/screen-read.service";
@@ -109,8 +107,6 @@ export class OrchestrationController {
 					status: deployment.status,
 					at: deployment.createdAt,
 				}));
-
-				const succeeded = deploymentRows.filter((d) => d.status === "success").length;
 
 				return {
 					operator: {

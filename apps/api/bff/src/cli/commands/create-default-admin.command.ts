@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { Command, CommandRunner } from 'nest-commander';
 import zod from 'zod/v4';
 
@@ -26,14 +26,13 @@ type CreateDefaultAdminEnv = zod.infer<typeof createDefaultAdminEnvSchema>;
   name: 'create-default-admin',
   description: 'Create a default admin user if it does not exist',
 })
-@Injectable()
 export class CreateDefaultAdminCommand extends CommandRunner {
   private readonly logger = new Logger(CreateDefaultAdminCommand.name);
   private readonly commandEnvService: EnvironmentShape<CreateDefaultAdminEnv>;
   
   constructor(
-    private readonly cliAuthService: CliAuthService,
-    private readonly envService: EnvService,
+    @Inject(CliAuthService) private readonly cliAuthService: CliAuthService,
+    @Inject(EnvService) private readonly envService: EnvService,
   ) {
     super();
     this.commandEnvService = runSyncUnwrapped(this.envService.use(createDefaultAdminEnvSchema));

@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger, Inject } from "@nestjs/common";
 import { Command, CommandRunner } from "nest-commander";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
@@ -36,7 +36,7 @@ const PKG_PATH = join(__dirname, "..", "..", "..", "..", "package.json");
 function resolveDeployerVersion(): string {
   try {
     const raw = readFileSync(PKG_PATH, "utf-8");
-    return JSON.parse(raw).version ?? "0.0.0";
+    return (JSON.parse(raw) as { version?: string }).version ?? "0.0.0";
   } catch {
     return "0.0.0";
   }
@@ -69,7 +69,6 @@ export type StartupCheckOutput = {
   name: "node-startup-check",
   description: "Check the node's setup state and version before starting",
 })
-@Injectable()
 export class NodeStartupCheckCommand extends CommandRunner {
   private readonly logger = new Logger(NodeStartupCheckCommand.name);
 
@@ -107,7 +106,7 @@ export class NodeStartupCheckCommand extends CommandRunner {
         };
       }
 
-      const setupState = (config.setupState ?? "not_started");
+      const setupState = config.setupState;
       const configuredAt = config.configuredAt ?? null;
 
       switch (setupState) {

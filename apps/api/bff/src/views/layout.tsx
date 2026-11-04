@@ -7,7 +7,7 @@ import type { LayoutProps } from "@nestjs-ssr/react";
  * `@nestjs-ssr/react` page system). Renders the same design language as the
  * web app via `@deployer/ui` + the shared Tailwind globals.
  */
-export default function RootLayout({ children, layoutProps }: LayoutProps<{ title?: string }>) {
+export default function RootLayout({ children }: LayoutProps<{ title?: string }>) {
 	return (
 		<div className="min-h-dvh bg-background text-foreground antialiased">
 			<header className="border-b border-border bg-card/60">
