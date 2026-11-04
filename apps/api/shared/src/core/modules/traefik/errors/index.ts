@@ -39,6 +39,7 @@ export {
   ConfigSyncError,
   ConfigValidationError,
   ConfigNotFoundError,
+  ConfigFileWriteFailure,
 } from './config.error';
 
 // File system errors

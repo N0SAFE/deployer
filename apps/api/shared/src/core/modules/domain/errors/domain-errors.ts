@@ -15,11 +15,6 @@ export class DomainNotVerifiedError extends domainError("DomainNotVerifiedError"
   override publicMessage() { return `Domain '${this.domain}' is not verified`; }
 }
 
-/** The database (or another dependency of the domain module) failed; the cause stays server-side. */
-export class DomainStorageFailure extends domainError("DomainStorageFailure", "dependency_missing")() {
-  override publicMessage() { return "The domain store is unavailable."; }
-}
-
 /** The Traefik side of route sync (config store, file sync, certificates) refused; the cause stays server-side. */
 export class DomainRoutingFailure extends domainError("DomainRoutingFailure", "dependency_missing")<{
   readonly operation: string;

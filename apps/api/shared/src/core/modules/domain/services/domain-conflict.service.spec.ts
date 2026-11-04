@@ -3,16 +3,16 @@ import { describe, expect, it } from "vitest";
 
 import { provideTo } from "@deployer/effect-core";
 
-import { DomainStorageFailure } from "../errors";
+import { StorageFailure } from "../../database/storage";
 
 import { DomainConflictService, validateBasePath, validateSubdomain } from "./domain-conflict.service";
 import { ServiceDomainMappingService } from "./service-domain-mapping.service";
 
 const row = (basePath: string | null) => ({ serviceId: "s1", serviceName: "web", subdomain: "api", basePath });
 
-function conflicts(rows: ReturnType<typeof row>[] | DomainStorageFailure) {
+function conflicts(rows: ReturnType<typeof row>[] | StorageFailure) {
   const mappings = {
-    findByProjectDomainAndPathWithServiceNames: () => (rows instanceof DomainStorageFailure ? Effect.fail(rows) : Effect.succeed(rows)),
+    findByProjectDomainAndPathWithServiceNames: () => (rows instanceof StorageFailure ? Effect.fail(rows) : Effect.succeed(rows)),
   };
   return provideTo(DomainConflictService.live, (effect) =>
     effect.pipe(Effect.provideService(ServiceDomainMappingService, mappings as never)) as Effect.Effect<unknown>,
@@ -41,9 +41,9 @@ describe("DomainConflictService", () => {
   });
 
   it("fails with the typed storage failure", async () => {
-    const failure = new DomainStorageFailure({});
+    const failure = new StorageFailure({});
     const error = await Effect.runPromise(Effect.flip(conflicts(failure).checkSubdomainAvailability("pd", "api", null)));
-    expect(error).toBeInstanceOf(DomainStorageFailure);
+    expect(error).toBeInstanceOf(StorageFailure);
   });
 
   it("validates subdomain labels and base paths", () => {

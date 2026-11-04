@@ -6,8 +6,7 @@ import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployme
 import { services } from "@deployer/nest-schema/global/project/deployment";
 import { serviceDomainMappings, projectDomains } from "@deployer/nest-schema/global/project/domain";
 
-import { DomainDatabase, storage } from "../domain.ports";
-import { DomainStorageFailure } from "../errors";
+import { DatabasePort, StorageFailure, storage } from "../../database/storage";
 
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
@@ -30,7 +29,7 @@ export type MappingWithServiceName = {
   basePath: string | null;
 };
 
-type Failure = DomainStorageFailure;
+type Failure = StorageFailure;
 
 export type ServiceDomainMappingRepositoryShape = {
   readonly create: (data: InsertServiceDomainMapping) => Effect.Effect<ServiceDomainMapping, Failure>;
@@ -72,7 +71,7 @@ export type ServiceDomainMappingRepositoryShape = {
   ) => Effect.Effect<MappingWithServiceName[], Failure>;
 };
 
-type Ports = { readonly database: Context.Service.Shape<typeof DomainDatabase> };
+type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> };
 
 const subdomainIs = (subdomain: string | null) =>
   subdomain === null ? isNull(serviceDomainMappings.subdomain) : eq(serviceDomainMappings.subdomain, subdomain);
@@ -112,7 +111,7 @@ function makeServiceDomainMappingRepository({ database }: Ports): ServiceDomainM
         Effect.flatMap(([mapping]) =>
           mapping
             ? Effect.logDebug(`Created service domain mapping for service ${mapping.serviceId}`).pipe(Effect.as(mapping))
-            : Effect.fail(new DomainStorageFailure({ cause: new Error("insert returned no row") })),
+            : Effect.fail(new StorageFailure({ cause: new Error("insert returned no row") })),
         ),
       ),
 
@@ -248,7 +247,7 @@ function makeServiceDomainMappingRepository({ database }: Ports): ServiceDomainM
 
 export class ServiceDomainMappingRepository extends Context.Service<
   ServiceDomainMappingRepository,
-  Over<ServiceDomainMappingRepositoryShape, DomainDatabase>
+  Over<ServiceDomainMappingRepositoryShape, DatabasePort>
 >()("shared/ServiceDomainMappingRepository") {
-  static readonly live = serviceOver(Effect.all({ database: DomainDatabase }), makeServiceDomainMappingRepository);
+  static readonly live = serviceOver(Effect.all({ database: DatabasePort }), makeServiceDomainMappingRepository);
 }

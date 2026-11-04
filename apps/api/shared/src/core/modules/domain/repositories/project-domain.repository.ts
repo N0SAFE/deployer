@@ -4,36 +4,35 @@ import { Context, Effect } from "effect";
 import { serviceOver, type Over } from "@deployer/effect-core";
 import { projectDomains } from "@deployer/nest-schema/global/project/domain";
 
-import { DomainDatabase, storage } from "../domain.ports";
+import { DatabasePort, StorageFailure, storage } from "../../database/storage";
 
-import { DomainStorageFailure } from "../errors";
 
 type ProjectDomain = typeof projectDomains.$inferSelect;
 type InsertProjectDomain = typeof projectDomains.$inferInsert;
 
 export type ProjectDomainRepositoryShape = {
   /** Domains attach directly to a project. */
-  readonly create: (data: InsertProjectDomain) => Effect.Effect<ProjectDomain, DomainStorageFailure>;
-  readonly findById: (id: string) => Effect.Effect<ProjectDomain | null, DomainStorageFailure>;
-  readonly findByProjectId: (projectId: string) => Effect.Effect<ProjectDomain[], DomainStorageFailure>;
-  readonly findByProjectAndDomain: (projectId: string, domain: string) => Effect.Effect<ProjectDomain | null, DomainStorageFailure>;
+  readonly create: (data: InsertProjectDomain) => Effect.Effect<ProjectDomain, StorageFailure>;
+  readonly findById: (id: string) => Effect.Effect<ProjectDomain | null, StorageFailure>;
+  readonly findByProjectId: (projectId: string) => Effect.Effect<ProjectDomain[], StorageFailure>;
+  readonly findByProjectAndDomain: (projectId: string, domain: string) => Effect.Effect<ProjectDomain | null, StorageFailure>;
   /** Whether the project already has this domain name (optionally ignoring one row). */
-  readonly hasProjectDomain: (projectId: string, domain: string, excludeId?: string) => Effect.Effect<boolean, DomainStorageFailure>;
+  readonly hasProjectDomain: (projectId: string, domain: string, excludeId?: string) => Effect.Effect<boolean, StorageFailure>;
   /** Pending domains, for the auto-verification sweep. */
-  readonly findPending: () => Effect.Effect<ProjectDomain[], DomainStorageFailure>;
+  readonly findPending: () => Effect.Effect<ProjectDomain[], StorageFailure>;
   /** The project's own verified domains (direct-domain model, no org). */
   readonly getAvailableDomainsForProject: (
     projectId: string,
-  ) => Effect.Effect<{ id: string; domain: string; verifiedAt: Date }[], DomainStorageFailure>;
+  ) => Effect.Effect<{ id: string; domain: string; verifiedAt: Date }[], StorageFailure>;
   /** `null` when the row does not exist. */
-  readonly update: (id: string, data: Partial<ProjectDomain>) => Effect.Effect<ProjectDomain | null, DomainStorageFailure>;
-  readonly updateAllowedSubdomains: (id: string, allowedSubdomains: string[]) => Effect.Effect<ProjectDomain | null, DomainStorageFailure>;
+  readonly update: (id: string, data: Partial<ProjectDomain>) => Effect.Effect<ProjectDomain | null, StorageFailure>;
+  readonly updateAllowedSubdomains: (id: string, allowedSubdomains: string[]) => Effect.Effect<ProjectDomain | null, StorageFailure>;
   /** Whether a row was deleted. */
-  readonly delete: (id: string) => Effect.Effect<boolean, DomainStorageFailure>;
-  readonly countByProjectId: (projectId: string) => Effect.Effect<number, DomainStorageFailure>;
+  readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>;
+  readonly countByProjectId: (projectId: string) => Effect.Effect<number, StorageFailure>;
 };
 
-type Ports = { readonly database: Context.Service.Shape<typeof DomainDatabase> };
+type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> };
 
 export function makeProjectDomainRepository({ database }: Ports): ProjectDomainRepositoryShape {
   const first = <A>(rows: A[]): A | null => rows[0] ?? null;
@@ -43,7 +42,7 @@ export function makeProjectDomainRepository({ database }: Ports): ProjectDomainR
         Effect.flatMap(([domain]) =>
           domain
             ? Effect.logDebug(`Created project domain ${domain.domain} for project ${domain.projectId}`).pipe(Effect.as(domain))
-            : Effect.fail(new DomainStorageFailure({ cause: new Error("insert returned no row") })),
+            : Effect.fail(new StorageFailure({ cause: new Error("insert returned no row") })),
         ),
       ),
 
@@ -114,7 +113,7 @@ export function makeProjectDomainRepository({ database }: Ports): ProjectDomainR
 
 export class ProjectDomainRepository extends Context.Service<
   ProjectDomainRepository,
-  Over<ProjectDomainRepositoryShape, DomainDatabase>
+  Over<ProjectDomainRepositoryShape, DatabasePort>
 >()("shared/ProjectDomainRepository") {
-  static readonly live = serviceOver(Effect.all({ database: DomainDatabase }), makeProjectDomainRepository);
+  static readonly live = serviceOver(Effect.all({ database: DatabasePort }), makeProjectDomainRepository);
 }

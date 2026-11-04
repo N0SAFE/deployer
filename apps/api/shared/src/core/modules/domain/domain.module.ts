@@ -1,20 +1,11 @@
+import type { Context } from "effect";
+
 import { createGlobalModule, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
 
 import { DatabaseModule } from "../database/database.module";
-import { GlobalDatabaseService } from "../database/services/global-database.service";
-import { TraefikRepository } from "../traefik/repositories/traefik.repository";
-import { TraefikSyncService } from "../traefik/services/traefik-sync.service";
-import { TraefikVariableResolverService } from "../traefik/services/traefik-variable-resolver.service";
-import { TraefikService } from "../traefik/services/traefik.service";
+import { DatabasePort } from "../database/storage";
 import { TraefikCoreModule } from "../traefik/traefik.module";
 
-import {
-  DomainDatabase,
-  RoutingTraefikCertificates,
-  RoutingTraefikRepository,
-  RoutingTraefikSync,
-  RoutingTraefikVariables,
-} from "./domain.ports";
 import { makeProjectDomainRepository, ProjectDomainRepository } from "./repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "./repositories/service-domain-mapping.repository";
 import { DomainConflictService } from "./services/domain-conflict.service";
@@ -39,12 +30,6 @@ export const CoreDomainModule = createGlobalModule({
   controllers: [],
   providers: [
     effectHostProvider(),
-    // Ports
-    { provide: DomainDatabase, useExisting: GlobalDatabaseService },
-    { provide: RoutingTraefikRepository, useExisting: TraefikRepository },
-    { provide: RoutingTraefikSync, useExisting: TraefikSyncService },
-    { provide: RoutingTraefikCertificates, useExisting: TraefikService },
-    { provide: RoutingTraefikVariables, useExisting: TraefikVariableResolverService },
     // Repositories
     { provide: ProjectDomainRepository, useValue: ProjectDomainRepository.live },
     { provide: ServiceDomainMappingRepository, useValue: ServiceDomainMappingRepository.live },
@@ -54,19 +39,13 @@ export const CoreDomainModule = createGlobalModule({
     { provide: DomainRoutingService, useValue: DomainRoutingService.live },
     {
       provide: DomainVerificationService,
-      useFactory: (database: { readonly db: GlobalDatabaseService["db"] }) =>
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) =>
         makeDomainVerificationService(makeProjectDomainRepository({ database })),
-      inject: [DomainDatabase],
+      inject: [DatabasePort],
     },
     serviceLifecycle(DomainVerificationService),
   ],
-  // The ports are exported too: a service's requirements name them, and a consumer's module must be able to resolve them.
   exports: [
-    DomainDatabase,
-    RoutingTraefikRepository,
-    RoutingTraefikSync,
-    RoutingTraefikCertificates,
-    RoutingTraefikVariables,
     DomainVerificationService,
     DomainConflictService,
     ServiceDomainMappingService,

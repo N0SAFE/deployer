@@ -1,8 +1,11 @@
+import type { Context } from "effect";
+
 import { createModuleContext } from "@deployer/nest-effect";
 import { SupervisorOrchestrator } from "@deployer/supervision";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { DatabaseModule } from '../database/database.module';
+import { DatabasePort } from '../database/storage';
 import { CoreDockerModule } from '../docker/docker.module';
 import { CoreEdgeModule } from '../edge/edge.module';
 import { EventsModule } from '../events/events.module';
@@ -12,16 +15,16 @@ import { SupervisorsModule } from "../supervision/index";
 import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
 import { TraefikEventService } from './events/traefik-event.service';
 import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
-import { TraefikRepository } from './repositories/traefik.repository';
+import { makeTraefikRepository, TraefikRepository } from './repositories/traefik.repository';
 import { TraefikConfigRefresher, makeTraefikConfigRefresher } from './services/traefik-config-refresher.service';
-import { TraefikFileSystemService } from './services/traefik-file-system.service';
+import { makeTraefikFileSystem, TraefikFileSystemService } from './services/traefik-file-system.service';
 import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
 import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
-import { TraefikSyncService } from './services/traefik-sync.service';
+import { makeTraefikSync, TraefikSyncService } from './services/traefik-sync.service';
 import { TraefikTemplateService } from './services/traefik-template.service';
 import { TraefikValidationService } from './services/traefik-validation.service';
 import { TraefikVariableResolverService } from './services/traefik-variable-resolver.service';
-import { TraefikService } from './services/traefik.service';
+import { makeTraefikService, TraefikService } from './services/traefik.service';
 
 
 /**
@@ -41,6 +44,11 @@ import { TraefikService } from './services/traefik.service';
  *
  * Services exported: ...
  */
+const makeTraefikSyncFromPorts = (
+  repository: Context.Service.Shape<typeof TraefikRepository>,
+  fileSystem: Context.Service.Shape<typeof TraefikFileSystemService>,
+) => makeTraefikSync({ repository, fileSystem });
+
 export class TraefikCoreModule extends createModuleContext({
   imports: [
     DatabaseModule,
@@ -69,14 +77,23 @@ export class TraefikCoreModule extends createModuleContext({
   providers: [
     // Services
     TraefikTemplateService,
-    TraefikVariableResolverService,
-    TraefikService,
-    TraefikSyncService,
+    { provide: TraefikVariableResolverService, useValue: TraefikVariableResolverService.live },
     {
       provide: TraefikFileSystemService,
-      useFactory: (envService: EnvService, traefikRepository: TraefikRepository) =>
-        new TraefikFileSystemService(envService, traefikRepository),
-      inject: [EnvService, TraefikRepository],
+      useFactory: (env: EnvService) =>
+        makeTraefikFileSystem({ basePath: env.get('TRAEFIK_CONFIG_BASE_PATH'), backupPath: env.get('TRAEFIK_BACKUP_PATH') }),
+      inject: [EnvService],
+    },
+    {
+      provide: TraefikSyncService,
+      useFactory: makeTraefikSyncFromPorts,
+      inject: [TraefikRepository, TraefikFileSystemService],
+    },
+    {
+      provide: TraefikService,
+      useFactory: (repository: Context.Service.Shape<typeof TraefikRepository>, sync: Context.Service.Shape<typeof TraefikSyncService>) =>
+        makeTraefikService({ repository, sync }),
+      inject: [TraefikRepository, TraefikSyncService],
     },
     TraefikValidationService,
     TraefikMiddlewareLibraryService,
@@ -89,7 +106,11 @@ export class TraefikCoreModule extends createModuleContext({
       inject: [SupervisorOrchestrator],
     },
     // Repositories
-    TraefikRepository,
+    {
+      provide: TraefikRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeTraefikRepository({ database }),
+      inject: [DatabasePort],
+    },
     TraefikTemplateRepository,
   ],
   exports: [

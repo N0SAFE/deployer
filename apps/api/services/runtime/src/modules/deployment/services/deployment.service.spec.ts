@@ -1,3 +1,4 @@
+import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 import { Effect } from 'effect';
 import { firstValueFrom, take, toArray } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -21,7 +22,7 @@ import { makeGithubSourceProvider } from "@/modules/providers/code/github/servic
 import { makeCodeProviderRegistry } from "@/modules/providers/code/shared/code-provider-registry.service";
 import { makeUploadSourceProvider } from "@/modules/providers/code/upload/services/upload-source-provider.service";
 import { DockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
-import { RunnerEnvPort, RunnerTraefikPort } from "@/modules/runners/runners.ports";
+import { RunnerEnvPort } from "@/modules/runners/runners.ports";
 import { RuntimeRunnerRegistry } from "@/modules/runners/runtime-runner-registry.service";
 import { SwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
 import { run as runEffect } from "@/modules/runners/testing";
@@ -318,7 +319,7 @@ describe('DeploymentService', () => {
                             swarmServices: {},
                             networks: {},
                         } as never),
-                        Effect.provideService(RunnerTraefikPort, mockTraefikService as never),
+                        Effect.provideService(TraefikService, mockTraefikService as never),
                         Effect.provideService(SwarmCluster, {
                             getSwarmState: vi.fn().mockResolvedValue({ active: false }),
                         } as never),
@@ -417,14 +418,14 @@ describe('DeploymentService', () => {
         mockContainers.create.mockReturnValue(Effect.succeed({ id: 'container-1' }));
         mockContainers.start.mockReturnValue(Effect.succeed(undefined));
         mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
-        mockTraefikService.syncServiceConfiguration.mockResolvedValue({
+        mockTraefikService.syncServiceConfiguration.mockReturnValue(Effect.succeed({
             configId: 'cfg-1',
             configName: 'service-route',
             success: true,
             action: 'updated',
             message: 'ok',
-        });
-        mockTraefikService.getHealthStatus.mockResolvedValue({ healthy: true });
+        }));
+        mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true }));
     });
 
     it('should be defined', () => {
@@ -1160,7 +1161,7 @@ describe('DeploymentService', () => {
             mockRepository.findById.mockResolvedValue(queuedDeployment);
             mockGitService.validateRepository.mockResolvedValue(true);
             mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
-            mockTraefikService.getHealthStatus.mockResolvedValue({ healthy: true, route: 'https://app.example.com' });
+            mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true, route: 'https://app.example.com' }));
 
             const triggered = await service.triggerDeployment(
                 {

@@ -20,7 +20,9 @@ import { LocalDatabaseModule } from "./local/local-database.module";
 import { BootstrapAdvisoryLockService } from './services/bootstrap-advisory-lock.service'
 import { DatabaseFailureTracker } from './services/database-failure-tracker.service'
 import { DatabaseProbeService } from './services/database-probe.service'
+import { GlobalDatabaseService } from './services/global-database.service'
 import { DatabaseStartupGuard } from './services/database-startup-guard.service'
+import { DatabasePort } from './storage'
 
 export const DatabaseModule = createGlobalModule({
     imports: [
@@ -38,6 +40,8 @@ export const DatabaseModule = createGlobalModule({
         AppLifecycleModule.forRoot(),
     ],
     providers: [
+        // The Effect view of the global database, for services that query it as a port.
+        { provide: DatabasePort, useExisting: GlobalDatabaseService },
         DatabaseProbeService,
         DatabaseStartupGuard,
         DatabaseFailureTracker,
@@ -46,6 +50,7 @@ export const DatabaseModule = createGlobalModule({
         BootstrapAdvisoryLockService,
     ],
     exports: [
+        DatabasePort,
         LocalDatabaseModule,
         GlobalDatabaseModule,
         DatabaseProbeService,

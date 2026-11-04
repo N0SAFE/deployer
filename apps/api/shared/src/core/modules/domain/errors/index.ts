@@ -1,7 +1,7 @@
 /** Tagged domain errors of the domain module (`domainError`): each is an Effect failure with a kind and a client-safe message. */
 
 // Domain errors (project-owned, mesh-wide tenant)
-export { DomainAlreadyExistsError, DomainNotVerifiedError, DomainRoutingFailure, DomainStorageFailure } from "./domain-errors";
+export { DomainAlreadyExistsError, DomainNotVerifiedError, DomainRoutingFailure } from "./domain-errors";
 
 // Verification errors
 export { VerificationAttemptError } from "./verification-errors";

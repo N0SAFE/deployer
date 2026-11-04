@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -18,7 +19,7 @@ import type { IngressLanesService } from "../../platform-ingress/services/ingres
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import type { PlatformRoutesSource, SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
 import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
-import type { TraefikRepository } from "../repositories/traefik.repository";
+import type { TraefikRepositoryShape } from "../repositories/traefik.repository";
 
 
 async function makeService(options: { lanes?: IngressLanes; routes?: SupervisedRoute[]; setupFile?: string; webTarget?: string | null } = {}) {
@@ -35,7 +36,7 @@ async function makeService(options: { lanes?: IngressLanes; routes?: SupervisedR
 		{ getLanes: () => Promise.resolve(options.lanes ?? defaultIngressLanes()) } as unknown as IngressLanesService,
 		{ resolveWebTarget: () => Promise.resolve(options.webTarget === undefined ? "deployer-managed-web" : options.webTarget) } as unknown as PlatformWebTargetService,
 		{ listSupervisedRoutes: () => Promise.resolve(options.routes ?? []) } as unknown as PlatformRoutesSource,
-		{ getAllServiceConfigs: () => Promise.resolve([]), getServiceTargetsByConfigId: () => Promise.resolve([]) } as unknown as TraefikRepository,
+		{ getAllServiceConfigs: () => Effect.succeed([]), getServiceTargetsByConfigId: () => Effect.succeed([]) } as unknown as TraefikRepositoryShape,
 		{ getManagedWebOrigin: () => Promise.resolve(null), getManagedWebTunnel: () => Promise.resolve(null) } as unknown as PlatformConfigService,
 		testEdgeRegistry().registry,
 	);

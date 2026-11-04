@@ -2,15 +2,14 @@ import { Context, Effect } from "effect";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
 
-import { DomainDatabase } from "../domain.ports";
+import { DatabasePort, type StorageFailure } from "../../database/storage";
 import { ServiceDomainMappingRepository, type MappingWithServiceName } from "../repositories/service-domain-mapping.repository";
 
-import type { DomainStorageFailure } from "../errors";
 import type { ServiceDomainMapping, InsertServiceDomainMapping, ServiceDomainMappingWithUrls } from "../interfaces";
 
-type Failure = DomainStorageFailure;
+type Failure = StorageFailure;
 /** What the repository the service forwards to needs from the container. */
-type Needs = DomainDatabase;
+type Needs = DatabasePort;
 
 export type ServiceDomainMappingServiceShape = {
   readonly create: (data: InsertServiceDomainMapping) => Effect.Effect<ServiceDomainMapping, Failure, Needs>;

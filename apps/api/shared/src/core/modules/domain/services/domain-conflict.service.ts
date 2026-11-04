@@ -2,16 +2,15 @@ import { Context, Effect } from "effect";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
 
-import { DomainDatabase } from "../domain.ports";
+import { DatabasePort, type StorageFailure } from "../../database/storage";
 import { ServiceDomainMappingRepository } from "../repositories/service-domain-mapping.repository";
 
 import { ServiceDomainMappingService } from "./service-domain-mapping.service";
 
-import type { DomainStorageFailure } from "../errors";
 import type { SubdomainAvailabilityResult, SubdomainValidationResult, BasePathValidationResult } from "../interfaces";
 
 /** The mapping service forwards to the repository, which reads the database: all three are left to the container. */
-type Needs = DomainDatabase | ServiceDomainMappingRepository;
+type Needs = DatabasePort | ServiceDomainMappingRepository;
 
 export type DomainConflictServiceShape = {
   /** Whether a subdomain + base path combination is free on a project domain. */
@@ -20,7 +19,7 @@ export type DomainConflictServiceShape = {
     subdomain: string | null,
     basePath: string | null,
     excludeServiceId?: string,
-  ) => Effect.Effect<SubdomainAvailabilityResult, DomainStorageFailure, Needs>;
+  ) => Effect.Effect<SubdomainAvailabilityResult, StorageFailure, Needs>;
 };
 
 type Ports = { readonly mappings: Context.Service.Shape<typeof ServiceDomainMappingService> };

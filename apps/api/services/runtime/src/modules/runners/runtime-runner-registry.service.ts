@@ -1,3 +1,4 @@
+import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 import { Context, Effect } from "effect";
 
 import { DockerEngine } from "@deployer/docker";
@@ -13,7 +14,7 @@ import { prepareDockerComposeExecutionInput } from "./docker-compose/docker-comp
 import { prepareDockerfileExecutionInput } from "./dockerfile/dockerfile-runtime-runner.service";
 import { prepareNixpacksExecutionInput } from "./nixpacks/nixpacks-runtime-runner.service";
 import { prepareRailpackExecutionInput } from "./railpack/railpack-runtime-runner.service";
-import { RunnerEnvPort, RunnerTraefikPort } from "./runners.ports";
+import { RunnerEnvPort } from "./runners.ports";
 import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
 
 import type { DeploymentRuntimeRunner, RuntimeExecutionInput, RuntimeExecutionResult } from "./runtime-runner.interface";
@@ -35,7 +36,7 @@ export type RunnerRegistryServices =
     | DockerRuntimeRunner
     | SwarmRuntimeRunner
     | DockerEngine
-    | RunnerTraefikPort
+    | TraefikService
     | SwarmCluster
     | RunnerEnvPort;
 

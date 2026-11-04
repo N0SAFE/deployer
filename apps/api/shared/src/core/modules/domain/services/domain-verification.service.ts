@@ -5,7 +5,8 @@ import { Context, Effect } from "effect";
 
 import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 
-import { ProjectDomainNotFoundError, VerificationAttemptError, type DomainStorageFailure } from "../errors";
+import type { StorageFailure } from "../../database/storage";
+import { ProjectDomainNotFoundError, VerificationAttemptError } from "../errors";
 
 import type { VerificationInstructions, VerifyDomainResult } from "../interfaces";
 import type { ProjectDomainRepositoryShape } from "../repositories/project-domain.repository";
@@ -25,13 +26,13 @@ export type DomainVerificationServiceShape = ServiceLifecycleShape & {
   readonly verifyProjectDomain: (
     projectId: string,
     domainId: string,
-  ) => Effect.Effect<VerifyDomainResult, ProjectDomainNotFoundError | VerificationAttemptError | DomainStorageFailure>;
-  readonly getPendingDomainsCount: (projectId: string) => Effect.Effect<number, DomainStorageFailure>;
+  ) => Effect.Effect<VerifyDomainResult, ProjectDomainNotFoundError | VerificationAttemptError | StorageFailure>;
+  readonly getPendingDomainsCount: (projectId: string) => Effect.Effect<number, StorageFailure>;
   /** Reset to pending, then verify again. */
   readonly retryVerification: (
     projectId: string,
     domainId: string,
-  ) => Effect.Effect<VerifyDomainResult, ProjectDomainNotFoundError | VerificationAttemptError | DomainStorageFailure>;
+  ) => Effect.Effect<VerifyDomainResult, ProjectDomainNotFoundError | VerificationAttemptError | StorageFailure>;
   /** One sweep over every pending domain. Never fails: a domain that errors is logged and skipped. */
   readonly autoVerifyPendingDomains: () => Effect.Effect<void>;
   /** The hourly sweep. Never completes; `serviceLifecycle` forks it and interrupts it on stop. */

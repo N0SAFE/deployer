@@ -17,7 +17,7 @@ import { Logger } from "@nestjs/common";
 import { Context } from "effect";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { type SupervisorOrchestratorShape } from "@deployer/supervision";
 
 import { EDGE_CONNECTOR_SUPERVISOR_ID } from "../../supervisors/platform/edge-connector.supervisor";
 import { PLATFORM_INGRESS_SUPERVISOR_ID } from "../../supervisors/platform/traefik.supervisor";

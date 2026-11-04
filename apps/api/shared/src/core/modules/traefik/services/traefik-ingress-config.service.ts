@@ -23,6 +23,7 @@
 import { readFile } from "node:fs/promises";
 
 import { Injectable, Logger, Inject } from "@nestjs/common";
+import type { Effect } from "effect";
 
 import type { RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
@@ -44,7 +45,7 @@ import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
 import { PlatformRoutesSource, type SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
 import { resolveSelfContainerName } from "../../platform-ingress/services/platform-self-resolver";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
-import { TraefikRepository } from "../repositories/traefik.repository";
+import { TraefikRepository, type TraefikRepositoryShape } from "../repositories/traefik.repository";
 
 /** The router that answers the console's single URL on the platform's own hosts. */
 export const PLATFORM_WEB_CONSOLE_PATH = "/manage/web-app";
@@ -81,7 +82,7 @@ export class TraefikIngressConfigService {
 		private readonly lanes: IngressLanesService,
 		private readonly webTarget: PlatformWebTargetService,
 		private readonly routesSource: PlatformRoutesSource,
-		private readonly traefikRepository: TraefikRepository,
+		@Inject(TraefikRepository) private readonly traefikRepository: TraefikRepositoryShape,
 		private readonly platformConfig: PlatformConfigService,
 		private readonly edges: EdgeProviderRegistry,
 	) {}
@@ -235,9 +236,9 @@ export class TraefikIngressConfigService {
 
 	/** Per-service domains registered in the traefik tables, skipping hosts already routed. */
 	private async serviceConfigRoutes(claimed: ReadonlySet<string>, services: Record<string, string>): Promise<LaneRoute[]> {
-		let configs: Awaited<ReturnType<TraefikRepository["getAllServiceConfigs"]>>;
+		let configs: Effect.Success<ReturnType<TraefikRepositoryShape["getAllServiceConfigs"]>>;
 		try {
-			configs = await this.traefikRepository.getAllServiceConfigs(true);
+			configs = await runPromiseUnwrapped(this.traefikRepository.getAllServiceConfigs(true));
 		} catch {
 			return [];
 		}
@@ -247,7 +248,7 @@ export class TraefikIngressConfigService {
 			const host = extractHost(config.fullDomain);
 			if (host === null || config.port < 1 || seen.has(host.toLowerCase())) continue;
 			seen.add(host.toLowerCase());
-			const targets = await this.traefikRepository.getServiceTargetsByConfigId(config.id, true).catch(() => []);
+			const targets = await runPromiseUnwrapped(this.traefikRepository.getServiceTargetsByConfigId(config.id, true)).catch(() => []);
 			const active = (targets as { url?: string | null; isActive?: boolean | null }[]).find((t) => t.isActive !== false && Boolean(t.url));
 			const name = `svc-${config.id.slice(0, 8)}`;
 			services[`${name}-svc`] = active?.url ?? `http://${host}:${String(config.port)}`;

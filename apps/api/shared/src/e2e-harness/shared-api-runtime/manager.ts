@@ -22,7 +22,7 @@ import {
     GLOBAL_DATABASE_POOL,
 } from "../../core/modules/database/database-connection"
 import { GlobalDatabaseService } from '../../core/modules/database/global/global-database.service'
-import { TraefikFileSystemService } from '../../core/modules/traefik/services/traefik-file-system.service'
+import { TraefikFileSystemService, type TraefikFileSystemShape } from '../../core/modules/traefik/services/traefik-file-system.service'
 
 import { defaultRequestOverride, sharedRequestOverride } from './request-override'
 import {
@@ -370,39 +370,7 @@ async function configureTraefikPathsForE2E(
         fs.writeFile(join(backupPath, '.e2e-writable-check'), ''),
     ])
 
-    const mutableService = traefikFileSystemService as {
-        paths?: {
-            basePath: string
-            dynamicPath: string
-            staticPath: string
-            projectsPath: string
-            standalonePath: string
-            sslPath: string
-            certsPath: string
-            middlewarePath: string
-            pluginsPath: string
-            backupPath: string
-        }
-    }
-
-    if (!mutableService.paths) {
-        return
-    }
-
-    mutableService.paths.basePath = basePath
-    mutableService.paths.dynamicPath = join(basePath, 'dynamic')
-    mutableService.paths.staticPath = join(basePath, 'static')
-    mutableService.paths.projectsPath = join(basePath, 'dynamic', 'projects')
-    mutableService.paths.standalonePath = join(
-        basePath,
-        'dynamic',
-        'standalone'
-    )
-    mutableService.paths.sslPath = join(basePath, 'ssl')
-    mutableService.paths.certsPath = join(basePath, 'certs')
-    mutableService.paths.middlewarePath = join(basePath, 'middleware')
-    mutableService.paths.pluginsPath = join(basePath, 'plugins')
-    mutableService.paths.backupPath = backupPath
+    ;(traefikFileSystemService as TraefikFileSystemShape).setBasePaths({ basePath, backupPath })
 }
 
 function resolveDefaultRuntimeKey(): string {

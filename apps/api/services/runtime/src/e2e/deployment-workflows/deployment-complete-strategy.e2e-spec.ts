@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { Effect } from "effect";
+import { type Context, Effect } from "effect";
 import { beforeAll, describe, expect, it } from "vitest";
 
 // The app-local wrapper, not the raw harness: the harness REQUIRES
@@ -39,7 +39,7 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 	const runtimeScope = useDescribeSharedApiRuntime(withDeploymentQueueWorkerDisabled());
 	let context: DeploymentCompleteStrategyContext;
 	let deployment: { [K in "triggerDeployment" | "listQueueJobs" | "claimQueueJobByIdempotencyKey" | "completeQueueJob"]: (...args: Parameters<DeploymentServiceShape[K]>) => Promise<Effect.Success<ReturnType<DeploymentServiceShape[K]>>> };
-	let traefik: TraefikService;
+	let traefik: Context.Service.Shape<typeof TraefikService>;
 
 	beforeAll(async () => {
 		context = await createDeploymentCompleteStrategyContext(runtimeScope.getContext());
@@ -50,7 +50,7 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 			claimQueueJobByIdempotencyKey: (...args) => Effect.runPromise(service.claimQueueJobByIdempotencyKey(...args)),
 			completeQueueJob: (...args) => Effect.runPromise(service.completeQueueJob(...args)),
 		};
-		traefik = runtimeScope.getContext().serviceMapper.get(TraefikService);
+		traefik = runtimeScope.getContext().serviceMapper.get(TraefikService) as unknown as Context.Service.Shape<typeof TraefikService>;
 	});
 
 	it("projects a seeded service into a valid Traefik routing configuration", async () => {
@@ -62,7 +62,7 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 			port: 3000,
 		});
 
-		const serviceConfig = await traefik.createServiceConfiguration(service.id, {
+		const serviceConfig = await Effect.runPromise(traefik.createServiceConfiguration(service.id, {
 			domain: "services.e2e.example.test",
 			subdomain: `svc-${service.id.slice(0, 8)}`,
 			port: 3000,
@@ -70,13 +70,13 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 			sslProvider: "letsencrypt",
 			pathPrefix: "/",
 			healthCheck: { enabled: true, path: "/health" },
-		});
+		}));
 
 		if (serviceConfig === null || serviceConfig === undefined) {
 			throw new Error("Expected the Traefik service configuration to be created");
 		}
 
-		const validation = await traefik.validateConfiguration(serviceConfig.id);
+		const validation = await Effect.runPromise(traefik.validateConfiguration(serviceConfig.id));
 
 		expect(service.projectId).toBe(project.id);
 		// The fixture pins the upload source and the manual runner — the premise the
