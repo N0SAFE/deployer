@@ -129,6 +129,8 @@ describe("ClusterService", () => {
                     // NodeSpec.Labels is the authoritative map: the engine REPLACES it.
                     Spec: { Name: "n1", Labels: { ...engineLabels }, Role: "manager", Availability: "active" },
                     Description: { Hostname: "h1", Resources: { NanoCPUs: 4_000_000_000, MemoryBytes: 8_589_934_592 } },
+                    // The engine always reports a node's state, and the service reads it without a fallback.
+                    Status: { State: "ready" },
                     ManagerStatus: { Leader: true, Reachability: "reachable" },
                 }),
             ),
