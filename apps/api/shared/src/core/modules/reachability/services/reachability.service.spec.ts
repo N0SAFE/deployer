@@ -1,26 +1,26 @@
-import { Test } from '@nestjs/testing';
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { defaultIngressLanes, type IngressLanes } from '@deployer/contracts-entities/entities/ingress/index';
-import { NodeConfigRepository } from "@deployer/node-state"
 
-import { EdgeProviderRegistry } from '../../edge/edge-provider.registry';
 import { TEST_TUNNEL_ID, testEdgeRegistry, type TestTunnelEdgeProvider } from '../../edge/testing/edge-registry.fixture';
-import { EgressRequestError, EgressService } from '../../egress/egress.service';
-import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service';
-import { NodeNetworkConfigRepository } from '../repositories/node-network-config.repository';
+import { EgressRequestError } from '../../egress/egress.service';
 
-import { PublicEdgeService } from './public-edge.service';
-import { ReachabilityService } from './reachability.service';
-
-import type { TestingModule } from '@nestjs/testing';
+import { makePublicEdgeService } from './public-edge.service';
+import { makeReachabilityService, type ReachabilityServiceShape } from './reachability.service';
 
 const tunnelLane = { provider: TEST_TUNNEL_ID, domain: 'apps.example.com', acknowledgedInboundPorts: false, options: { account: 'acc-1' } };
 const directLane = (tls: boolean) => ({ provider: 'direct', domain: 'apps.example.com', acknowledgedInboundPorts: true, options: { tls } });
 
+/** The service's Effects, run to Promises: the assertions below read like the calls they check. */
+type Promised<S> = { [K in keyof S]: S[K] extends (...args: infer A) => Effect.Effect<infer R, unknown> ? (...args: A) => Promise<R> : S[K] };
+const promised = <S extends object>(service: S): Promised<S> =>
+  new Proxy(service, {
+    get: (target, key) => (...args: unknown[]) => Effect.runPromise((Reflect.get(target, key) as (...a: unknown[]) => Effect.Effect<unknown>)(...args)),
+  }) as Promised<S>;
+
 describe('ReachabilityService', () => {
-  let service: ReachabilityService;
+  let service: Promised<ReachabilityServiceShape>;
   let lanes: IngressLanes;
   let tunnel: TestTunnelEdgeProvider;
   let egress: {
@@ -31,11 +31,10 @@ describe('ReachabilityService', () => {
     probeOperatorPeer: Mock;
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     lanes = defaultIngressLanes();
     const edges = testEdgeRegistry();
     tunnel = edges.tunnel;
-    const env = { get: vi.fn(() => '') };
     egress = {
       external: vi.fn(),
       operator: vi.fn(),
@@ -43,27 +42,22 @@ describe('ReachabilityService', () => {
       probeUserAddress: vi.fn().mockResolvedValue({ valid: false }),
       probeOperatorPeer: vi.fn().mockResolvedValue({ url: '', reachable: false, probeUrl: '', latencyMs: 0 }),
     };
-    const nodeConfigs = {
-      findByNodeId: vi.fn().mockResolvedValue(null),
-      list: vi.fn().mockResolvedValue([]),
-      upsert: vi.fn().mockResolvedValue(undefined),
+    const nodeNetworkConfigs = {
+      findByNodeId: vi.fn(() => Effect.succeed(null)),
+      list: vi.fn(() => Effect.succeed([])),
+      upsert: vi.fn(() => Effect.void),
     };
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ReachabilityService,
-        { provide: NodeNetworkConfigRepository, useValue: nodeConfigs },
-        { provide: NodeConfigRepository, useValue: { find: vi.fn(() => Effect.succeed({ nodeId: '00000000-0000-0000-0000-000000000001' })) } },
-        { provide: IngressLanesService, useValue: { getLanes: vi.fn(() => Promise.resolve(lanes)) } },
-        { provide: EdgeProviderRegistry, useValue: edges.registry },
-        { provide: EgressService, useValue: egress },
-        {
-          provide: PublicEdgeService,
-          useFactory: () => new PublicEdgeService(edges.registry, nodeConfigs as unknown as NodeNetworkConfigRepository, env as never),
-        },
-      ],
-    }).compile();
-
-    service = module.get<ReachabilityService>(ReachabilityService);
+    const publicEdge = makePublicEdgeService({ registry: edges.registry, nodeConfigs: nodeNetworkConfigs, prefix: '' });
+    service = promised(
+      makeReachabilityService({
+        nodeNetworkConfigs,
+        nodeConfig: { find: vi.fn(() => Effect.succeed({ nodeId: '00000000-0000-0000-0000-000000000001' })) } as never,
+        lanes: { getLanes: vi.fn(() => Promise.resolve(lanes)) },
+        edges: edges.registry,
+        publicEdge,
+        egress: egress as never,
+      }),
+    );
   });
 
   describe('getNodePublicUrl', () => {

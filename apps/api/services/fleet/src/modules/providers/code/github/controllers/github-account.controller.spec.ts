@@ -52,7 +52,7 @@ describe("GitHubAppsController", () => {
         listInstallationRepositories: vi.fn(),
         listRepositoryBranches: vi.fn(),
     };
-    const accessPoint = { getAccessPoint: vi.fn() };
+    const accessPoint = { getAccessPoint: vi.fn((): Effect.Effect<unknown> => Effect.succeed({ configured: false })) };
     const context = {
         ...effectContext(
             Context.make(GithubAppsStore, store as unknown as GithubAppsStoreShape).pipe(
@@ -139,7 +139,7 @@ describe("GitHubAppsController", () => {
     });
 
     it("refuses an OAuth start when the node has no public access point", async () => {
-        accessPoint.getAccessPoint.mockResolvedValue({ configured: false, error: "No access point" });
+        accessPoint.getAccessPoint.mockReturnValue(Effect.succeed({ configured: false, error: "No access point" }));
 
         await expect(call(controller.oauthInit(), { params: { appId: "a1" }, body: { url: "x", state: "y" } })).rejects.toMatchObject({
             code: "BAD_REQUEST",
@@ -148,7 +148,7 @@ describe("GitHubAppsController", () => {
     });
 
     it("starts an OAuth flow towards the node's public URL", async () => {
-        accessPoint.getAccessPoint.mockResolvedValue({ configured: true, reachable: true, publicUrl: "https://deploy.example.com" });
+        accessPoint.getAccessPoint.mockReturnValue(Effect.succeed({ configured: true, reachable: true, publicUrl: "https://deploy.example.com" }));
 
         const result = await call<{ url: string; state: string }>(controller.oauthInit(), { params: { appId: "a1" }, body: { url: "x", state: "y" } });
 

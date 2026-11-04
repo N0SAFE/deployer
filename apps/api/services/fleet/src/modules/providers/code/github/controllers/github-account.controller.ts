@@ -213,7 +213,7 @@ export class GitHubAppsController {
                 const accessPoint = yield* PublicAccessPoint;
                 // The public access point comes from the CORE service (global
                 // relay) — requested on demand, live-checked, then returned.
-                const state = yield* serve(context)(attempt(() => accessPoint.getAccessPoint()));
+                const state = yield* serve(context)(accessPoint.getAccessPoint());
                 if (!state.configured || !state.publicUrl) {
                     return {
                         reachable: false,
@@ -245,7 +245,7 @@ export class GitHubAppsController {
                 // node — requires a configured AND reachable public access point.
                 const state = yield* serve(context)(
                     Effect.gen(function* () {
-                        const point = yield* attempt(() => accessPoint.getAccessPoint());
+                        const point = yield* accessPoint.getAccessPoint();
                         if (!point.configured || !point.publicUrl) {
                             return yield* new FleetInvalid({
                                 reason: point.error ?? "GitHub App manifest registration requires a configured public access point for this node.",
@@ -427,7 +427,7 @@ export class GitHubAppsController {
                         const state = `${app.id}:${crypto.randomUUID()}`;
                         // The OAuth redirect URI must point at THIS node's public access
                         // point (core service, global relay) — never env vars.
-                        const point = yield* attempt(() => accessPoint.getAccessPoint());
+                        const point = yield* accessPoint.getAccessPoint();
                         if (!point.configured || !point.publicUrl) {
                             return yield* new FleetInvalid({
                                 reason: point.error ?? "GitHub OAuth requires a configured public access point for this node.",

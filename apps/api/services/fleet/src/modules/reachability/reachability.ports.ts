@@ -5,9 +5,9 @@ import type { EdgeProviderRegistryShape } from '@deployer/shared/core/modules/ed
 import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
 import type { IngressLanesService } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
-import type { PublicAccessPointService } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
-import type { PublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
-import type { ReachabilityService } from '@deployer/shared/core/modules/reachability/services/reachability.service'
+import type { PublicAccessPointServiceShape } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
+import type { PublicEdgeServiceShape } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
+import type { ReachabilityServiceShape } from '@deployer/shared/core/modules/reachability/services/reachability.service'
 import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 /**
@@ -27,7 +27,7 @@ export class EdgeProvidersPort extends Context.Service<
 >()('fleet/EdgeProvidersPort') {}
 export class PublicEdgePort extends Context.Service<
     PublicEdgePort,
-    PublicEdgeService
+    PublicEdgeServiceShape
 >()('fleet/PublicEdgePort') {}
 /** This node's NEW mesh agent, asked over its node door (local socket only). Null answer = no agent. */
 export class NodeAgentPort extends Context.Service<
@@ -44,11 +44,11 @@ export class TraefikRefresherPort extends Context.Service<
 >()('fleet/TraefikRefresherPort') {}
 export class ReachabilityCorePort extends Context.Service<
     ReachabilityCorePort,
-    ReachabilityService
+    ReachabilityServiceShape
 >()('fleet/ReachabilityCorePort') {}
 export class PublicAccessPointPort extends Context.Service<
     PublicAccessPointPort,
-    PublicAccessPointService
+    PublicAccessPointServiceShape
 >()('fleet/PublicAccessPointPort') {}
 export class EgressPort extends Context.Service<EgressPort, EgressService>()(
     'fleet/EgressPort'

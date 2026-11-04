@@ -29,7 +29,7 @@ function setup() {
         removePreviewRoute: vi.fn((): Effect.Effect<boolean, DomainRoutingFailure> => Effect.succeed(true)),
     };
     const accessPoint = {
-        getAccessPoint: vi.fn(() => Promise.resolve({ kind: "tunnel", address: "tun.cfargotunnel.com", configured: true })),
+        getAccessPoint: vi.fn(() => Effect.succeed({ kind: "tunnel", address: "tun.cfargotunnel.com", configured: true })),
     };
     const dns = {
         findFirstActiveProvider: vi.fn(() => Effect.succeed<typeof account | null>(account)),
@@ -85,7 +85,7 @@ describe("PreviewProvisioningService", () => {
         });
 
         it("points an IP access point at an A record", async () => {
-            t.accessPoint.getAccessPoint.mockResolvedValue({ kind: "ip", address: "203.0.113.9", configured: true });
+            t.accessPoint.getAccessPoint.mockReturnValue(Effect.succeed({ kind: "ip", address: "203.0.113.9", configured: true }));
 
             const result = await Effect.runPromise(t.service.provisionPreview(input));
 

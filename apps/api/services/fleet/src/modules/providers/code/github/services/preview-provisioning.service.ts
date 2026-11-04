@@ -79,7 +79,7 @@ function makePreviewProvisioningService({ store, routing, accessPoint, dns }: Po
      * hostname (CNAME), detected with node:net isIP. Never from env vars.
      */
     const resolveDnsTarget = Effect.fn("PreviewProvisioningService.resolveDnsTarget")(function* () {
-        const point = yield* attempt(() => accessPoint.getAccessPoint());
+        const point = yield* accessPoint.getAccessPoint();
         if (point.kind === "tunnel" && point.address) {
             return { kind: "hostname" as const, value: point.address };
         }

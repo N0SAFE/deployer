@@ -40,10 +40,6 @@
     "src/core/modules/platform-ingress/services/platform-routes-source.service.ts",
     "src/core/modules/platform-ingress/services/platform-web-target.service.ts",
     "src/core/modules/reachability/events/public-access-point-event.service.ts",
-    "src/core/modules/reachability/repositories/node-network-config.repository.ts",
-    "src/core/modules/reachability/services/public-access-point.service.ts",
-    "src/core/modules/reachability/services/public-edge.service.ts",
-    "src/core/modules/reachability/services/reachability.service.ts",
     "src/core/modules/setup/services/initialization.service.ts",
     "src/core/modules/setup/services/local-initialization.service.ts",
     "src/core/modules/setup/services/remote-initialization.service.ts",
@@ -64,7 +60,6 @@
     "src/core/middlewares/internal-error/internal-error-insight.service.ts",
     "src/core/modules/auth/orpc/interceptors.ts",
     "src/core/modules/events/services/core-event-sync.service.ts",
-    "src/core/modules/reachability/services/reachability.service.ts",
     "src/core/modules/traefik/controllers/traefik-ingress-config.controller.ts"
   ],
   "noNestLifecycleHook": [

@@ -35,7 +35,7 @@ import { IngressLanesService } from "../../platform-ingress/services/ingress-lan
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
 import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
-import { PublicEdgeService } from "../../reachability/services/public-edge.service";
+import { PublicEdgeService, type PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
 import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
 import { makeNodeAgentSwarmRegistration } from "../node-agent/node-agent.supervisor";
 
@@ -75,7 +75,7 @@ export const SupervisorsPlatformModule = createGlobalModule({
 			edges: EdgeProviderRegistryShape,
 			platformConfig: PlatformConfigService,
 			appInstances: AppInstanceService,
-			edge: PublicEdgeService,
+			edge: PublicEdgeServiceShape,
 		) => [
 			makeTraefikRegistration({ engine, hostnameService, env, lanes, settings, webTarget, edges, bus }).registration,
 			makeManagedWebRegistration({ engine, env, hostnameService, platformConfig, appInstances, bus }),

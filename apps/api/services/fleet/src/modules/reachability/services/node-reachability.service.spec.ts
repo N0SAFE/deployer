@@ -18,7 +18,7 @@ describe("NodeReachabilityService outbound probes", () => {
 
     beforeEach(() => {
         egress = { operator: vi.fn() };
-        reachability = { getNodePublicUrl: vi.fn(), updateNodeNetworkConfig: vi.fn() };
+        reachability = { getNodePublicUrl: vi.fn(() => Effect.succeed(null)), updateNodeNetworkConfig: vi.fn() };
         refresher = { refresh: vi.fn() };
         service = provideTo(NodeReachabilityService.live, (effect) =>
             effect.pipe(
@@ -61,7 +61,7 @@ describe("NodeReachabilityService outbound probes", () => {
 
     describe("probePublicUrl (the node's own public URL)", () => {
         it("probes /health through the operator policy", async () => {
-            reachability.getNodePublicUrl.mockResolvedValue("https://api.example.com");
+            reachability.getNodePublicUrl.mockReturnValue(Effect.succeed("https://api.example.com"));
             egress.operator.mockResolvedValue(res(200));
             const result = await Effect.runPromise(service.probePublicUrl());
             expect(egress.operator).toHaveBeenCalledWith({ url: "https://api.example.com/health" });
@@ -69,14 +69,14 @@ describe("NodeReachabilityService outbound probes", () => {
         });
 
         it("makes no request when there is no public URL", async () => {
-            reachability.getNodePublicUrl.mockResolvedValue(null);
+            reachability.getNodePublicUrl.mockReturnValue(Effect.succeed(null));
             const result = await Effect.runPromise(service.probePublicUrl());
             expect(egress.operator).not.toHaveBeenCalled();
             expect(result).toMatchObject({ publicUrl: null, reachable: null });
         });
 
         it("reports an unreachable URL as the answer, not as a failure", async () => {
-            reachability.getNodePublicUrl.mockResolvedValue("https://api.example.com");
+            reachability.getNodePublicUrl.mockReturnValue(Effect.succeed("https://api.example.com"));
             egress.operator.mockRejectedValue(new Error("timeout"));
             const result = await Effect.runPromise(service.probePublicUrl());
             expect(result).toMatchObject({ reachable: false, lastStatus: "timeout" });
@@ -85,13 +85,13 @@ describe("NodeReachabilityService outbound probes", () => {
 
     describe("updateNodeNetworkConfig", () => {
         it("re-converges Traefik after the address changed, and returns only the node's own view", async () => {
-            reachability.updateNodeNetworkConfig.mockResolvedValue({
+            reachability.updateNodeNetworkConfig.mockReturnValue(Effect.succeed({
                 nodeId: "n1",
                 publicAddress: "1.2.3.4",
                 addressKind: "ipv4",
                 updatedAt: "2026-10-27T00:00:00.000Z",
                 tunnel: "must-not-leak",
-            });
+            }));
             const view = await Effect.runPromise(service.updateNodeNetworkConfig({ nodeId: "n1", publicAddress: "1.2.3.4" }));
             expect(refresher.refresh).toHaveBeenCalledOnce();
             expect(view).toEqual({

@@ -1,6 +1,13 @@
+import type { Context } from 'effect';
+
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from '@deployer/node-state';
 import { createGlobalModule } from '@deployer/nest-effect';
 
-import { EnvModule } from '../../../config/env/env.module';
+import { EnvModule, EnvService } from '../../../config/env/env.module';
+import { DatabasePort } from '../database/storage';
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from '../edge/edge-provider.registry';
+import { EgressService } from '../egress/egress.service';
+import { IngressLanesService } from '../platform-ingress/services/ingress-lanes.service';
 import { GlobalDatabaseModule } from '../database/global/global-database.module';
 import { CoreEdgeModule } from '../edge/edge.module';
 import { CoreEgressModule } from '../egress/egress.module';
@@ -8,10 +15,10 @@ import { EventsModule } from '../events/events.module';
 import { NodeStateModule } from '../node-state/node-state.module';
 
 import { PublicAccessPointEventService } from './events/public-access-point-event.service';
-import { NodeNetworkConfigRepository } from './repositories/node-network-config.repository';
-import { PublicAccessPointService } from './services/public-access-point.service';
-import { PublicEdgeService } from './services/public-edge.service';
-import { ReachabilityService } from './services/reachability.service';
+import { makeNodeNetworkConfigRepository, NodeNetworkConfigRepository, type NodeNetworkConfigRepositoryShape } from './repositories/node-network-config.repository';
+import { makePublicAccessPointService, PublicAccessPointService } from './services/public-access-point.service';
+import { makePublicEdgeService, PublicEdgeService, type PublicEdgeServiceShape } from './services/public-edge.service';
+import { makeReachabilityService, ReachabilityService, type ReachabilityServiceShape } from './services/reachability.service';
 
 /**
  * CORE: Reachability + Public Access Point.
@@ -28,11 +35,36 @@ export const CoreReachabilityModule = createGlobalModule({
     // NodeConfigRepository comes from NodeStateModule (the single owner of the
     // local node-state repositories) — redeclaring it here created a SECOND
     // instance and triggered the SC8 duplication guard.
-    NodeNetworkConfigRepository,
-    ReachabilityService,
-    PublicEdgeService,
+    {
+      provide: NodeNetworkConfigRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeNodeNetworkConfigRepository(database),
+      inject: [DatabasePort],
+    },
+    {
+      provide: PublicEdgeService,
+      useFactory: (registry: EdgeProviderRegistryShape, nodeConfigs: NodeNetworkConfigRepositoryShape, env: EnvService) =>
+        makePublicEdgeService({ registry, nodeConfigs, prefix: env.get('DEPLOYER_PREFIX') }),
+      inject: [EdgeProviderRegistry, NodeNetworkConfigRepository, EnvService],
+    },
+    {
+      provide: ReachabilityService,
+      useFactory: (
+        nodeNetworkConfigs: NodeNetworkConfigRepositoryShape,
+        nodeConfig: NodeConfigRepositoryShape,
+        lanes: IngressLanesService,
+        edges: EdgeProviderRegistryShape,
+        publicEdge: PublicEdgeServiceShape,
+        egress: EgressService,
+      ) => makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes, edges, publicEdge, egress }),
+      inject: [NodeNetworkConfigRepository, NodeConfigRepository, IngressLanesService, EdgeProviderRegistry, PublicEdgeService, EgressService],
+    },
     PublicAccessPointEventService,
-    PublicAccessPointService,
+    {
+      provide: PublicAccessPointService,
+      useFactory: (reachability: ReachabilityServiceShape, accessPointEvents: PublicAccessPointEventService) =>
+        makePublicAccessPointService({ reachability, accessPointEvents }),
+      inject: [ReachabilityService, PublicAccessPointEventService],
+    },
   ],
   exports: [
     ReachabilityService,

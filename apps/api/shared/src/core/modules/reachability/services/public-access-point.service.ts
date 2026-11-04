@@ -1,52 +1,47 @@
 /**
  * Public Access Point Service — first-class core service.
  *
- * The single entry point for every feature that needs to know where this node
- * is publicly reachable and whether it is actually up. It uses the CORE EVENT
- * SYSTEM (PublicAccessPointEventService) as the global relay — the state is a
- * Zod discriminated union (`kind`: ip | hostname | tunnel | null).
+ * The single entry point for every feature that needs to know where this node is publicly reachable and whether it is
+ * actually up. It uses the CORE EVENT SYSTEM (`PublicAccessPointEventService`) as the global relay: the state is a Zod
+ * discriminated union (`kind`: ip | hostname | tunnel | null).
  *
- *   - `getAccessPoint()`  — request ⇒ live re-check ⇒ emit onto the global
- *     relay ⇒ return the fresh state. This is the "when the service is
- *     requested" push.
- *   - `watchAccessPoint()` — subscribe to the global event relay to receive
- *     the current state everywhere, whenever it changes.
+ *   - `getAccessPoint()`  — request ⇒ live re-check ⇒ emit onto the global relay ⇒ return the fresh state.
+ *   - `watchAccessPoint()` — subscribe to the global event relay to receive the current state, whenever it changes.
  *
- * The access point can be a public IP, a hostname, or a DNS-provider-backed
- * tunnel. All derived from the node network config — never env vars.
+ * The access point can be a public IP, a hostname, or a DNS-provider-backed tunnel, all derived from the node network config
+ * and the lanes — never env vars.
  */
-import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
-
-import { PublicAccessPointEventService } from "../events/public-access-point-event.service";
-
-import { ReachabilityService } from "./reachability.service";
+import { Context, Effect } from "effect";
 
 import type { PublicAccessPointEvent } from "../events/public-access-point-event.contracts";
+import type { PublicAccessPointEventService } from "../events/public-access-point-event.service";
+import type { ReachabilityDependencyFailure } from "../reachability.errors";
+import type { ReachabilityServiceShape } from "./reachability.service";
+import type { Observable } from "rxjs";
 
-@Injectable()
-export class PublicAccessPointService {
-    constructor(
-        private readonly reachabilityService: ReachabilityService,
-        private readonly accessPointEvents: PublicAccessPointEventService,
-    ) {}
+export type PublicAccessPointServiceShape = {
+  /** Re-check availability (probes the node's own endpoints), emit the result on the relay, and return it. */
+  readonly getAccessPoint: () => Effect.Effect<PublicAccessPointEvent, ReachabilityDependencyFailure>;
+  /** Every state push on the global access-point relay. */
+  readonly watchAccessPoint: () => Observable<PublicAccessPointEvent>;
+};
 
-    /**
-     * Request the public access point: re-checks availability (probes the
-     * node's own endpoints), emits the result onto the global event relay,
-     * and returns it. Every `watchAccessPoint()` subscriber gets the update.
-     */
-    async getAccessPoint(): Promise<PublicAccessPointEvent> {
-        const state = await this.reachabilityService.resolveAccessPointState();
-        this.accessPointEvents.emitAccessPointUpdated(state);
-        return state;
-    }
+type Ports = {
+  readonly reachability: Pick<ReachabilityServiceShape, "resolveAccessPointState">;
+  /** The pooled event service stays a class until the events module migrates. */
+  readonly accessPointEvents: Pick<PublicAccessPointEventService, "emitAccessPointUpdated" | "watchAccessPoint$">;
+};
 
-    /**
-     * Observe the global access-point event relay. Emits every state push.
-     */
-    watchAccessPoint(): Observable<PublicAccessPointEvent> {
-        return this.accessPointEvents.watchAccessPoint$();
-    }
+export function makePublicAccessPointService({ reachability, accessPointEvents }: Ports): PublicAccessPointServiceShape {
+  return {
+    getAccessPoint: () =>
+      reachability.resolveAccessPointState().pipe(
+        Effect.tap((state) => Effect.sync(() => { accessPointEvents.emitAccessPointUpdated(state); })),
+      ),
+    watchAccessPoint: () => accessPointEvents.watchAccessPoint$(),
+  };
 }
 
+export class PublicAccessPointService extends Context.Service<PublicAccessPointService, PublicAccessPointServiceShape>()(
+  "shared/PublicAccessPointService",
+) {}

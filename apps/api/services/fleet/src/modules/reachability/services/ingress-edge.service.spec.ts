@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 import { provideTo } from "@deployer/effect-core";
 import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
-import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
+import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "@deployer/shared/core/modules/edge/testing/edge-registry.fixture";
 import { EnvHostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
-import type { NodeNetworkConfigRepository } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
-import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
+import type { NodeNetworkConfigRepositoryShape } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
+import { makePublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
@@ -97,9 +97,9 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 				: [],
 		),
 	);
-	const nodeConfigs = { list: vi.fn(() => Promise.resolve([])) } as unknown as NodeNetworkConfigRepository;
+	const nodeConfigs = { list: vi.fn(() => Effect.succeed([])) } as unknown as NodeNetworkConfigRepositoryShape;
 	const env = { get: vi.fn(() => "") } as unknown as EnvService;
-	const publicEdge = new PublicEdgeService(registry, nodeConfigs, env);
+	const publicEdge = makePublicEdgeService({ registry, nodeConfigs, prefix: "" });
 	const dns = {
 		results: vi.fn(() => Effect.succeed([])),
 		reconcile: vi.fn(() => Effect.succeed([])),

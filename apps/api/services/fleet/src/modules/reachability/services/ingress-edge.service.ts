@@ -38,7 +38,7 @@ import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mes
 import type { EdgeProviderRegistryShape } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
-import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
+import type { PublicEdgeServiceShape } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 
@@ -104,7 +104,7 @@ export type IngressEdgeServiceShape = {
 type Ports = {
 	readonly lanes: IngressLanesService;
 	readonly edges: EdgeProviderRegistryShape;
-	readonly publicEdge: PublicEdgeService;
+	readonly publicEdge: PublicEdgeServiceShape;
 	readonly mesh: NodeDoorClient;
 	readonly hostnames: HostnameService;
 	readonly refresher: TraefikConfigRefresherShape;
@@ -227,7 +227,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 	const getState = Effect.fn("IngressEdgeService.getState")(function* () {
 		const lanes = yield* attempt(() => lanesPort.getLanes());
 		const [mesh_, edge, publicPath] = yield* Effect.all(
-			[meshView, attempt(() => publicEdge.view(lanes)), attempt(() => publicEdge.joinPath(lanes))],
+			[meshView, publicEdge.view(lanes), publicEdge.joinPath(lanes)],
 			{ concurrency: "unbounded" },
 		);
 		const state: IngressState = {
@@ -254,7 +254,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 
 	/** The names the current public edge owns: candidates for removal after a change. */
 	const retiredNames = (lanes: IngressLanes): Effect.Effect<RetiredDnsName[]> =>
-		attempt(() => publicEdge.dnsRecords(lanes)).pipe(
+		publicEdge.dnsRecords(lanes).pipe(
 			Effect.map((records) => records.map((record) => ({ name: record.name, accountId: record.preferredAccountId }))),
 			Effect.orElseSucceed((): RetiredDnsName[] => []),
 		);
@@ -302,7 +302,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 			const meshAddresses = (view?.agents ?? []).flatMap((agent) =>
 				agent.overlay === null ? [] : [agent.overlay.meshAddress],
 			);
-			const publicEdgeRecords = yield* attempt(() => publicEdge.dnsRecords(lanes));
+			const publicEdgeRecords = yield* publicEdge.dnsRecords(lanes);
 			const plans = planLaneDnsRecords(lanes, { publicEdgeRecords, meshAddresses });
 			const planned = new Set(plans.map((plan) => plan.name.toLowerCase()));
 			for (const old of retired) {
@@ -339,7 +339,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 
 			// 1. The new edge must exist before the lanes claim it.
 			if (lanes.public !== null) {
-				const resolved = yield* attempt(() => publicEdge.resolve(lanes));
+				const resolved = yield* publicEdge.resolve(lanes);
 				if (resolved === null) {
 					return yield* new FleetInvalid({ reason: `Unknown edge provider '${lanes.public.provider}'` });
 				}
