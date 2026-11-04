@@ -6,7 +6,6 @@ import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/do
 import { DomainConflictService } from "@deployer/shared/core/modules/domain/services/domain-conflict.service";
 import { DomainVerificationService } from "@deployer/shared/core/modules/domain/services/domain-verification.service";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
-import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { CoreReachabilityModule } from "@deployer/shared/core/modules/reachability/core-reachability.module";
 
 import { DomainConflict } from "@project/core/ports/domain-conflict.port";

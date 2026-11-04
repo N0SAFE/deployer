@@ -9,7 +9,6 @@ import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
-import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 
 import { ProjectDomainModule } from "@/modules/project/project.module";
 

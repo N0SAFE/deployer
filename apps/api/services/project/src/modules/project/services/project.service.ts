@@ -266,9 +266,10 @@ export class ProjectServiceImpl {
 			yield* rule(() => { projectRules.assertNotOwnerMembership(collaborator, "modify"); });
 
 			// A role patch is a grant, so it obeys the same guards as an invite.
-			const role = data.role === undefined
+			const requestedRole = data.role;
+			const role = requestedRole === undefined
 				? undefined
-				: yield* rule(() => projectRules.assertCanGrant(actorRole, data.role!));
+				: yield* rule(() => projectRules.assertCanGrant(actorRole, requestedRole));
 
 			const updated = yield* projects.updateCollaborator(collaborator.id, {
 				role,

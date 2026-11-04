@@ -108,7 +108,8 @@ export function resolvePreviewTopology(rootId: string, ctx: TopologyContext): Re
         visited.add(serviceId);
         emit(base);
 
-        if (kind === "root" || kind === "linked-preview") {
+        // `kind` is the parameter's own union ("root" | "linked-preview"), so this used to be an always-true guard.
+        {
             const edges = ctx.deps.get(serviceId) ?? [];
             const resolution = service.preview?.backendResolution;
 

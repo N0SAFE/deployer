@@ -92,7 +92,7 @@ export class ProjectServiceModule extends createModuleContext({
 		createOrpcModule({
 			extraContext: {
 				inject: [EffectHost],
-				resolve: async (executionContext, host) => ({
+				resolve: (executionContext, host) => ({
 					"effect/context": host.contextFor(executionContext.getClass()),
 				}),
 			},
