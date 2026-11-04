@@ -21,7 +21,7 @@ export function makeSupervisorDriftControl(orchestrator: SupervisorOrchestratorS
 				const control = yield* orchestrator.startDriftControl;
 				stop = control.stop;
 			}),
-		onStop: () => (stop === undefined ? Effect.void : stop),
+		onStop: () => (stop ?? Effect.void),
 	};
 }
 

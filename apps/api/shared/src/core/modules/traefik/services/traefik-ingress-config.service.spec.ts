@@ -15,10 +15,8 @@ import { EnvHostnameService } from "../../platform-ingress/services/hostname.ser
 import { makeTraefikIngressConfigService } from "./traefik-ingress-config.service";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
 import type { PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
-import type { PlatformRoutesSourceShape, SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
-import type { PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
+import type { SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
 import type { TraefikRepositoryShape } from "../repositories/traefik.repository";
 
 
@@ -33,9 +31,9 @@ async function makeService(options: { lanes?: IngressLanes; routes?: SupervisedR
 		// touch no Docker API and an empty engine is asserted to the interface.
 		dockerEngine: { containers: {} } as unknown as DockerEngineShape,
 		hostnames: new EnvHostnameService(env),
-		lanes: { getLanes: () => Effect.succeed(options.lanes ?? defaultIngressLanes()), setLanes: () => Effect.die("unused") } as IngressLanesServiceShape,
-		webTarget: { resolveWebTarget: () => Effect.succeed(options.webTarget === undefined ? "deployer-managed-web" : options.webTarget) } as PlatformWebTargetServiceShape,
-		routesSource: { listSupervisedRoutes: () => Effect.succeed(options.routes ?? []) } as PlatformRoutesSourceShape,
+		lanes: { getLanes: () => Effect.succeed(options.lanes ?? defaultIngressLanes()), setLanes: () => Effect.die("unused") },
+		webTarget: { resolveWebTarget: () => Effect.succeed(options.webTarget === undefined ? "deployer-managed-web" : options.webTarget) },
+		routesSource: { listSupervisedRoutes: () => Effect.succeed(options.routes ?? []) },
 		traefikRepository: { getAllServiceConfigs: () => Effect.succeed([]), getServiceTargetsByConfigId: () => Effect.succeed([]) } as unknown as TraefikRepositoryShape,
 		platformConfig: { getManagedWebOrigin: () => Effect.succeed(null), getManagedWebTunnel: () => Effect.succeed(null) } as unknown as PlatformConfigServiceShape,
 		edges: testEdgeRegistry().registry,

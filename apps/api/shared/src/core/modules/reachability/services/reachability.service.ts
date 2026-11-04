@@ -306,7 +306,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
             const data = yield* Effect.try({
               try: () => JSON.parse(new TextDecoder().decode(resp.body)) as { Answer?: { data?: unknown }[] },
               catch: (cause) => cause,
-            }).pipe(Effect.catch(() => Effect.succeed({} as { Answer?: { data?: unknown }[] })));
+            }).pipe(Effect.catch(() => Effect.succeed<{ Answer?: { data?: unknown }[] }>({})));
             resolvedIps = (data.Answer ?? []).flatMap((a) => (typeof a.data === "string" && isIP(a.data) !== 0 ? [a.data] : []));
           }
         }

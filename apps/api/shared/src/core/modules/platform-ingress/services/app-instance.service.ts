@@ -64,7 +64,7 @@ export function makeAppInstanceService(database: Context.Service.Shape<typeof Da
 			storage(database, (db) => db.select().from(appInstances).where(eq(appInstances.tokenHash, hash(rawToken))).limit(1)).pipe(
 				Effect.map((rows) => {
 					const row = rows[0];
-					return row !== undefined && row.status === "active" ? row : null;
+					return row?.status === "active" ? row : null;
 				}),
 			),
 
@@ -97,7 +97,7 @@ export function makeAppInstanceService(database: Context.Service.Shape<typeof Da
 						.returning({ id: appInstances.id, status: appInstances.status }),
 				);
 				const row = updated[0];
-				if (row === undefined || row.status !== "revoked") return false;
+				if (row?.status !== "revoked") return false;
 				yield* Effect.logWarning(`Revoked app instance ${instanceId}`);
 				return true;
 			}),

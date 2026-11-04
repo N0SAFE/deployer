@@ -55,7 +55,7 @@ describe('ReachabilityService', () => {
         lanes: { getLanes: vi.fn(() => Effect.succeed(lanes)) },
         edges: edges.registry,
         publicEdge,
-        egress: egress as never,
+        egress: egress,
       }),
     );
   });

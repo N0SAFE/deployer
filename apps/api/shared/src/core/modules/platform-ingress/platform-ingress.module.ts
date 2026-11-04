@@ -58,7 +58,7 @@ export const CorePlatformIngressModule = createGlobalModule({
 					platformConfig,
 					env: {
 						webTarget: () => env.get("DEPLOYER_WEB_TARGET"),
-						managedWebExternal: () => Boolean(env.get("MANAGED_WEB_APP_EXTERNAL")),
+						managedWebExternal: () => env.get("MANAGED_WEB_APP_EXTERNAL"),
 						prefix: () => env.get("DEPLOYER_PREFIX"),
 					},
 				}),

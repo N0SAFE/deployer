@@ -1,4 +1,3 @@
-import { Logger } from "@nestjs/common";
 import { Effect } from "effect";
 
 import type { DockerEngineShape } from "@deployer/docker";

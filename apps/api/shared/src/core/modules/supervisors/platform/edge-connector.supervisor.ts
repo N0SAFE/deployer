@@ -2,7 +2,6 @@ import { Logger } from "@nestjs/common";
 import { Effect } from "effect";
 
 import type { DockerEngineShape } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import {
 	EDGE_CONNECTOR_SUPERVISOR_ID,
 	

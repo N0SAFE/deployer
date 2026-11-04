@@ -144,7 +144,7 @@ export function makeGitService(options: { readonly workspaceDir: string }): GitS
                         return Effect.fail(
                             failure === undefined
                                 ? new ArchiveExtractionFailure({ reason: Cause.pretty(cause) })
-                                : toExtractionError(failure.error as ArchiveError | FsError),
+                                : toExtractionError(failure.error),
                         );
                     }),
                     Effect.tapError((error) => Effect.logError(`Failed to extract file ${filePath}: ${error.message}`).pipe(Effect.andThen(removeDir(extractPath)))),

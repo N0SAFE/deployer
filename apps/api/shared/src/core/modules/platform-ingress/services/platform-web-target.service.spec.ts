@@ -27,6 +27,6 @@ describe("PlatformWebTargetService", () => {
 	it("names the managed web container, prefixed on a prefixed install", async () => {
 		const plain = await resolve(target({}, true));
 		expect(plain).toBe("deployer-managed-web");
-		expect(await resolve(target({ prefix: "acme" }, true))).toBe(`${plain}-acme`);
+		expect(await resolve(target({ prefix: "acme" }, true))).toBe("deployer-managed-web-acme");
 	});
 });
