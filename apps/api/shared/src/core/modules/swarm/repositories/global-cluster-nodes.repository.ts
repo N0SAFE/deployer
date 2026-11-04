@@ -1,72 +1,76 @@
 /**
- * GlobalClusterNodesRepository — enrolls the LOCAL platform node into the
- * shared (Postgres) `cluster_nodes` table.
+ * GlobalClusterNodesRepository — enrolls the LOCAL platform node into the shared (Postgres) `cluster_nodes` table.
  *
- * Why: `resource_ownership_index.owner_node_id` and `cluster_join_grants`
- * have hard FKs → `cluster_nodes.node_id` (the platform UUID). If the node
- * is never enrolled, every mesh resource registration fails with a foreign
- * key violation. The fleet view (`FleetRepository.listServersWithMetrics`)
- * also reads this table.
+ * Why: `resource_ownership_index.owner_node_id` and `cluster_join_grants` have hard FKs → `cluster_nodes.node_id` (the
+ * platform UUID). If the node is never enrolled, every mesh resource registration fails with a foreign key violation. The
+ * fleet view (`FleetRepository.listServersWithMetrics`) also reads this table.
  *
- * The row is keyed by the PLATFORM node UUID (`SystemMeshConfigService.getNodeId()`,
- * same as `node_config.nodeId`) — NOT the docker engine node id (non-uuid).
+ * The row is keyed by the PLATFORM node UUID (`SystemMeshConfigService.getNodeId()`, same as `node_config.nodeId`) — NOT
+ * the docker engine node id (non-uuid).
  */
 
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { Context, Effect } from "effect";
 
 import { clusterNodes } from "@deployer/nest-schema/global/fleet/cluster";
 
-import { GlobalDatabaseService } from "../../database/global/global-database.service";
-import { SystemMeshConfigService, type SystemMeshConfigServiceShape } from "../../mesh/services/system-mesh-config.service";
+import { storage, type DatabasePort, type StorageFailure } from "../../database/storage";
 
-@Injectable()
-export class GlobalClusterNodesRepository {
-    private readonly logger = new Logger(GlobalClusterNodesRepository.name);
+import type { SystemMeshConfigServiceShape } from "../../mesh/services/system-mesh-config.service";
 
-    constructor(
-        private readonly db: GlobalDatabaseService,
-        @Inject(SystemMeshConfigService) private readonly meshConfig: SystemMeshConfigServiceShape,
-    ) {}
+export type GlobalClusterNodesRepositoryShape = {
+	/**
+	 * Upsert the local platform node (idempotent by the unique `node_id`). Resolves true when the node is enrolled, false
+	 * when its identity is unresolvable (callers treat that as best-effort).
+	 */
+	readonly enrollLocalNode: (options?: { swarmNodeId?: string }) => Effect.Effect<boolean, StorageFailure>;
+};
 
-    /**
-     * Upsert the local platform node (idempotent by the unique `node_id`).
-     * Returns true when the node is enrolled, false when identity/url are
-     * unresolvable (callers treat as best-effort).
-     */
-    async enrollLocalNode(options?: { swarmNodeId?: string }): Promise<boolean> {
-        const nodeId = this.meshConfig.getNodeId();
-        if (nodeId.length === 0) {
-            return false;
-        }
-        const serverUrl = this.meshConfig.getNodeServerUrl();
-        const now = new Date();
+type Ports = {
+	readonly database: Context.Service.Shape<typeof DatabasePort>;
+	readonly meshConfig: Pick<SystemMeshConfigServiceShape, "getNodeId" | "getNodeServerUrl">;
+};
 
-        await this.db.db
-            .insert(clusterNodes)
-            .values({
-                nodeId,
-                serverUrl: serverUrl ?? "http://localhost",
-                displayName: `node-${nodeId.slice(0, 8)}`,
-                swarmNodeId: options?.swarmNodeId ?? null,
-                status: "active",
-                healthy: true,
-                lastSeenAt: now,
-                updatedAt: now,
-            })
-            .onConflictDoUpdate({
-                target: clusterNodes.nodeId,
-                set: {
-                    serverUrl: serverUrl ?? "http://localhost",
-                    displayName: `node-${nodeId.slice(0, 8)}`,
-                    swarmNodeId: options?.swarmNodeId ?? undefined,
-                    status: "active",
-                    healthy: true,
-                    lastSeenAt: now,
-                    updatedAt: now,
-                },
-            });
+export function makeGlobalClusterNodesRepository({ database, meshConfig }: Ports): GlobalClusterNodesRepositoryShape {
+	return {
+		enrollLocalNode: (options) =>
+			Effect.gen(function* () {
+				const nodeId = meshConfig.getNodeId();
+				if (nodeId.length === 0) return false;
 
-        return true;
-    }
+				const serverUrl = meshConfig.getNodeServerUrl() ?? "http://localhost";
+				const displayName = `node-${nodeId.slice(0, 8)}`;
+				const now = new Date();
+				yield* storage(database, (db) =>
+					db
+						.insert(clusterNodes)
+						.values({
+							nodeId,
+							serverUrl,
+							displayName,
+							swarmNodeId: options?.swarmNodeId ?? null,
+							status: "active",
+							healthy: true,
+							lastSeenAt: now,
+							updatedAt: now,
+						})
+						.onConflictDoUpdate({
+							target: clusterNodes.nodeId,
+							set: {
+								serverUrl,
+								displayName,
+								swarmNodeId: options?.swarmNodeId ?? undefined,
+								status: "active",
+								healthy: true,
+								lastSeenAt: now,
+								updatedAt: now,
+							},
+						}),
+				);
+				return true;
+			}),
+	};
 }
+
+export class GlobalClusterNodesRepository extends Context.Service<GlobalClusterNodesRepository, GlobalClusterNodesRepositoryShape>()(
+	"shared/GlobalClusterNodesRepository",
+) {}

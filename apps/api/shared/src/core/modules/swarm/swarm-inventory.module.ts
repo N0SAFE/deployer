@@ -23,18 +23,40 @@
 
 
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
+import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm";
 
+import { DatabaseModule } from "../database/database.module";
+import { DatabasePort } from "../database/storage";
 import { MeshCoreModule } from "../mesh/mesh-core.module";
+import { SystemMeshConfigService, type SystemMeshConfigServiceShape } from "../mesh/services/system-mesh-config.service";
 
-import { GlobalClusterNodesRepository } from "./repositories/global-cluster-nodes.repository";
-import { NodeInventoryService } from "./services/node-inventory.service";
+import { GlobalClusterNodesRepository, makeGlobalClusterNodesRepository, type GlobalClusterNodesRepositoryShape } from "./repositories/global-cluster-nodes.repository";
+import { makeNodeInventoryService, NodeInventoryService } from "./services/node-inventory.service";
 import { SwarmCoreModule } from "./swarm.module";
+
+import type { Context } from "effect";
 
 export class SwarmInventoryModule extends createModuleContext({
     // SwarmCoreModule supplies SwarmClusterService (the `docker node ls` read
     // path). This direction is acyclic: SwarmCoreModule never imports this one.
-    imports: [SwarmCoreModule, MeshCoreModule],
-    providers: [GlobalClusterNodesRepository, NodeInventoryService],
+    imports: [SwarmCoreModule, MeshCoreModule, DatabaseModule],
+    providers: [
+        effectHostProvider(),
+        {
+            provide: GlobalClusterNodesRepository,
+            useFactory: (database: Context.Service.Shape<typeof DatabasePort>, meshConfig: SystemMeshConfigServiceShape) =>
+                makeGlobalClusterNodesRepository({ database, meshConfig }),
+            inject: [DatabasePort, SystemMeshConfigService],
+        },
+        {
+            provide: NodeInventoryService,
+            useFactory: (cluster: SwarmClusterShape, inventory: ClusterNodeInventoryRepositoryShape, globalClusterNodes: GlobalClusterNodesRepositoryShape) =>
+                makeNodeInventoryService({ cluster, inventory, globalClusterNodes }),
+            inject: [SwarmCluster, ClusterNodeInventoryRepository, GlobalClusterNodesRepository],
+        },
+        serviceLifecycle(NodeInventoryService),
+    ],
     exports: [GlobalClusterNodesRepository, NodeInventoryService],
 }) {}

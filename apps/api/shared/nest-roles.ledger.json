@@ -32,9 +32,6 @@
     "src/core/modules/setup/services/local-initialization.service.ts",
     "src/core/modules/setup/services/remote-initialization.service.ts",
     "src/core/modules/setup/services/setup-event.service.ts",
-    "src/core/modules/swarm/repositories/global-cluster-nodes.repository.ts",
-    "src/core/modules/swarm/services/node-inventory.service.ts",
-    "src/core/modules/swarm/swarm.module.ts",
     "src/core/modules/traefik/events/traefik-event.service.ts",
     "src/core/utils/migration-journal.service.ts",
     "src/server/preflight/preflight.service.ts",
@@ -55,9 +52,7 @@
     "src/core/modules/events/base/base-event.service.ts",
     "src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts",
     "src/core/modules/node-state/node-config.snapshot.ts",
-    "src/core/modules/setup/services/initialization.service.ts",
-    "src/core/modules/swarm/services/node-inventory.service.ts",
-    "src/core/modules/swarm/swarm.module.ts"
+    "src/core/modules/setup/services/initialization.service.ts"
   ],
   "noNestRequestScope": [
     "src/e2e-harness/shared-api-runtime/manager.ts",

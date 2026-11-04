@@ -1,3 +1,5 @@
+import { Effect } from "effect";
+
 import { isTransientDatabaseError } from "@deployer/events";
 
 /**
@@ -42,5 +44,13 @@ export class DatabaseNotReadyReporter {
         }
         this.warned = true;
         logger.warn(`${label} (db not ready yet — retrying as it comes up): ${message}`);
+    }
+
+    /** The same once-then-debug reporting, as an Effect for services that log through Effect's logger. */
+    reportEffect(label: string, message: string, error?: unknown): Effect.Effect<void> {
+        if (error !== undefined && !isDatabaseNotReadyError(error)) return Effect.logWarning(`${label}: ${message}`);
+        if (this.warned) return Effect.logDebug(`${label} (db not ready): ${message}`);
+        this.warned = true;
+        return Effect.logWarning(`${label} (db not ready yet — retrying as it comes up): ${message}`);
     }
 }

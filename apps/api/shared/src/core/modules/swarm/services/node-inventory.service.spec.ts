@@ -1,12 +1,9 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
-import type { SwarmClusterShape } from "@deployer/swarm"
+import { StorageFailure } from "../../database/storage";
 
-import { NodeInventoryService } from "./node-inventory.service";
-
-import type { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
+import { makeNodeInventoryService, type NodeInventoryServiceShape } from "./node-inventory.service";
 
 const activeSnapshot = {
     localNodeState: "active",
@@ -19,12 +16,13 @@ const engineNode = (id: string) => ({
     ID: id,
     Version: { Index: 1 },
     Spec: { Name: id, Labels: {}, Role: "worker", Availability: "active" },
+    Status: { State: "ready", Addr: "10.0.0.1" },
     Description: { Hostname: `host-${id}` },
     ManagerStatus: null,
 });
 
 describe("NodeInventoryService", () => {
-    let service: NodeInventoryService;
+    let service: NodeInventoryServiceShape;
     // Kept as the mock shape so per-test assertions keep their `vi.fn()` typing; the
     // value is asserted to `SwarmClusterShape` at the single construction site.
     let clusterService: { getLocalClusterSnapshot: ReturnType<typeof vi.fn>; listSwarmNodes: ReturnType<typeof vi.fn> };
@@ -48,24 +46,28 @@ describe("NodeInventoryService", () => {
             list: vi.fn().mockReturnValue(Effect.succeed([])),
         };
         globalClusterNodes = {
-            enrollLocalNode: vi.fn().mockResolvedValue(true),
+            enrollLocalNode: vi.fn().mockReturnValue(Effect.succeed(true)),
         };
-        service = new NodeInventoryService(
-            clusterService as never,
-            repository as never,
-            globalClusterNodes as unknown as GlobalClusterNodesRepository,
-        );
+        service = makeNodeInventoryService({
+            cluster: clusterService as never,
+            inventory: repository as never,
+            globalClusterNodes: globalClusterNodes as never,
+        });
     });
 
+    const sync = () => Effect.runPromise(service.syncOnce());
+
     it("enrolls the local node globally at init + on every sync (FK fix)", async () => {
-        service.onModuleInit();
-        await service.syncOnce();
+        await Effect.runPromise(service.onStart?.() ?? Effect.void);
+        await sync();
+        // The detached enrollment at start runs on its own fiber: give it its turn.
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(globalClusterNodes.enrollLocalNode).toHaveBeenCalledTimes(2);
     });
 
     it("persists every engine node and marks vanished nodes down", async () => {
-        const count = await service.syncOnce();
+        const count = await sync();
 
         expect(count).toBe(2);
         expect(repository.upsertFromEngine).toHaveBeenCalledTimes(2);
@@ -80,23 +82,29 @@ describe("NodeInventoryService", () => {
             localNodeState: "inactive",
         }));
 
-        const count = await service.syncOnce();
+        const count = await sync();
 
         expect(count).toBe(0);
         expect(clusterService.listSwarmNodes).not.toHaveBeenCalled();
         expect(repository.upsertFromEngine).not.toHaveBeenCalled();
     });
 
-    it("never throws when the engine probe fails", async () => {
+    it("fails the pass when the engine probe fails (the run loop logs it and tries again)", async () => {
         clusterService.listSwarmNodes.mockReturnValue(Effect.fail(new Error("engine unreachable")));
 
-        await expect(service.syncOnce()).rejects.toThrow("engine unreachable");
+        await expect(Effect.runPromise(Effect.flip(service.syncOnce()))).resolves.toMatchObject({ message: "engine unreachable" });
+    });
+
+    it("does not fail a pass when the shared enrollment fails (the database may not be up)", async () => {
+        globalClusterNodes.enrollLocalNode.mockReturnValue(Effect.fail(new StorageFailure({ cause: new Error("db down") })));
+
+        expect(await sync()).toBe(2);
     });
 
     it("marks previously-seen nodes down (drift)", async () => {
         repository.markMissingNodeDown.mockReturnValue(Effect.succeed(1));
 
-        const count = await service.syncOnce();
+        const count = await sync();
 
         expect(count).toBe(2);
         expect(repository.markMissingNodeDown).toHaveBeenCalled();
