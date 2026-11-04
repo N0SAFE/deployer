@@ -12,6 +12,41 @@ bun run type-check:requirements   # tsc, the same files without the runner
 bun run start:requirements        # boots on :3100
 ```
 
+## The architecture gate, on four fixtures
+
+`gate-demo/` shows the repo's module-graph gate (`bun run lint:architecture` at the monorepo root) running under
+`bun lint` on the TypeScript 7.1 API. The rules are enabled in this folder's own `eslint.config.mjs` (the nearest flat config, so editors pick it up), so
+`gate-demo/` fails on purpose (14 findings: the module side, plus the provider/controller files where the missing service is used):
+
+```bash
+bun run lint:requirements
+```
+
+The rules are TypeScript in `tooling/eslint/src/rules/`; this folder loads the built `tooling/eslint/dist/architecture.mjs`
+(Node ESLint cannot import TypeScript), so run `bun run build` in `tooling/eslint` after changing a rule.
+
+### In the editor
+
+Open the folder and install the ESLint extension: ESLint 10 reads the nearest `eslint.config.mjs`, so no setting is needed.
+Errors appear in **two places for one mistake** — on the module entry that lacks the dependency (`gate-demo/*.module.ts`),
+and on each use of it in the provider's own file (`src/modules/mesh/services/directory.service.ts`).
+
+The facts come from disk, so they refresh when you **save** (the rule re-reads them when a file it was built from changed);
+unsaved edits are not reflected until then. The first lint of a session takes ~1–2 s for this demo.
+
+| Fixture | Expected |
+|---|---|
+| `consumer-ok.module.ts` | clean — imports the module that exports what its controller yields |
+| `declared.module.ts` | clean — a plain `@Module` wrapped with `declareModule` |
+| `consumer-missing-import.module.ts` | `requirementFlow`: `DirectoryReaderController` needs `MeshDirectory` and `ReplicaStore` (one finding each) |
+| `directory-without-store.module.ts` | `requirementFlow`, at both ends: on `DirectoryReaderController` in the module, and on each use of `ReplicaStore` inside `MeshDirectory`'s own file (`directory.service.ts`) |
+| `broken-exports.module.ts` | `requirementFlow`: `LeaseSigner` exported but not provided or imported (`unknownExport`); `MeshClock` provided twice (`duplicateProvider`) |
+| `unicode-positions.module.ts` | `requirementFlow`: the same gap as `consumer-missing-import`, after accents/emoji/CJK on the same line — positions must stay exact |
+| `legacy.module.ts` | `requireModuleContext`: bare `@Module` |
+
+`MeshClock` / `LeaseSigner` are never reported: `PlatformModule` is global, and the gate subtracts globals like the
+root type check does.
+
 ## The four rules
 
 1. **An endpoint's requirements are its body.**

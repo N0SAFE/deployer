@@ -12,6 +12,7 @@
     "test:requirements": "cd requirements-demo && vitest run",
     "test:requirements:types": "cd requirements-demo && vitest run --typecheck.only",
     "start:requirements": "bun requirements-demo/src/main.ts",
+    "lint:requirements": "cd requirements-demo && bun lint --no-script --threads=1 .",
     "lint": "eslint src test",
     "lint:fix": "eslint src test --fix",
     "lint:fix+": "eslint src test --fix"
