@@ -1,11 +1,10 @@
-import { Injectable } from "@nestjs/common";
 import { Observable, ReplaySubject } from "rxjs";
 
 import type { DockerImageSecurityScanEvent, DockerRuntimeEvent } from "@deployer/contracts-entities";
 import type { DockerImageSecurityScanStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/security/scanning/images/stream";
 
-import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
-import { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
+import type { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
+import type { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
 
 const IMAGE_SCAN_STREAM_REPLAY_BUFFER_SIZE = 600;
 const DEFAULT_IMAGE_SCAN_CACHE_AGE_MS = 6 * 60 * 60 * 1_000;
@@ -26,7 +25,7 @@ export type EnsureImageSecurityScanOptions = {
   waitForCompletion?: boolean;
 }
 
-@Injectable()
+/** Built by a factory in `DockerImagesModule`. */
 export class DockerImageSecurityScanService {
   private readonly imageSecurityScanStreamsInFlight = new Map<string, ActiveImageScanStream>();
 

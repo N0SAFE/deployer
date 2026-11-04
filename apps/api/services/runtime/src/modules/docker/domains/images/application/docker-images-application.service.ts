@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import { Observable } from "rxjs";
 
 import type {
@@ -14,15 +13,15 @@ import type {
   DockerImageSecurityScanStreamQueryInput,
 } from "@deployer/runtime-contracts/modules/docker/security/scanning/images/stream";
 
-import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
-import { DockerImageCatalogRepository } from "../../../repositories/images/catalog/docker-image-catalog.repository";
-import {
+import type { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
+import type { DockerImageCatalogRepository } from "../../../repositories/images/catalog/docker-image-catalog.repository";
+import type {
   DockerImageSecurityScanService,
-  type EnsureImageSecurityScanOptions,
-  type EnsureImageSecurityScanResult,
+  EnsureImageSecurityScanOptions,
+  EnsureImageSecurityScanResult,
 } from "../security/docker-image-security-scan.service";
 
-@Injectable()
+/** Built by a factory in `DockerImagesModule`. */
 export class DockerImagesApplicationService {
   constructor(
     private readonly dockerImageCatalogRepository: DockerImageCatalogRepository,

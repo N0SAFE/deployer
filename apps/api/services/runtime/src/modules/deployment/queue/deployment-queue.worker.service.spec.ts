@@ -1,15 +1,18 @@
 import { mkdtempSync } from "node:fs";
 import path from "node:path";
 
+import { Cause, Context, Effect, Exit } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 import { BadRequestError } from "@deployer/errors";
 
-import { DeploymentQueueWorkerService } from "./deployment-queue.worker.service";
+import { DeploymentArtifactBuilder } from "../builders/deployment-artifact-builder.service";
+
+import { makeDeploymentQueueWorker, type DeploymentQueueWorkerShape } from "./deployment-queue.worker.service";
 
 
-describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
+describe("DeploymentQueueWorker (typed, Bull-free)", () => {
     const claimedJob = {
         id: "queue-job-1",
         idempotencyKey: "deploy:job:1",
@@ -25,8 +28,43 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     let deploymentArtifactBuilderService: {
         buildContainerizedArtifact: ReturnType<typeof vi.fn>;
     };
-    let queueLifecycle: { onJobQueued: ReturnType<typeof vi.fn>; onJobCancelled: ReturnType<typeof vi.fn> };
-    let worker: DeploymentQueueWorkerService;
+    let queueLifecycle: { jobQueued$: unknown; jobCancelled$: unknown };
+    let worker: DeploymentQueueWorkerShape;
+
+    /** The builder the jobs run against: the promise-based mock, behind the Effect shape (its signal is the fiber's). */
+    const builder = () => ({
+        buildContainerizedArtifact: (input: unknown) =>
+            Effect.tryPromise({
+                try: (signal) =>
+                    (deploymentArtifactBuilderService.buildContainerizedArtifact as (i: unknown) => Promise<string | null>)({ ...(input as object), signal }),
+                catch: (error: unknown) => error,
+            }),
+    });
+    const builderContext = () => Context.make(DeploymentArtifactBuilder, builder() as never);
+
+    /** Runs a worker program with the fake builder; a failure is thrown as the original error. */
+    const run = async <A>(effect: Effect.Effect<A, unknown, DeploymentArtifactBuilder>): Promise<A> => {
+        const exit = await Effect.runPromiseExit(Effect.provide(effect, builderContext()));
+        if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+        return exit.value;
+    };
+
+    const makeWorker = (extra: { heartbeatEveryMs?: number; concurrency?: number } = {}) =>
+        makeDeploymentQueueWorker(
+            {
+                // The deployment service answers Effects; this suite fakes it with Promise spies and lifts them here.
+                deployments: Object.fromEntries(
+                    Object.entries(deploymentService).map(([name, fn]) => [
+                        name,
+                        (...args: unknown[]) => Effect.tryPromise({ try: async () => (fn as (...a: unknown[]) => unknown)(...args), catch: (cause) => cause }),
+                    ]),
+                ) as never,
+                lifecycle: queueLifecycle as never,
+                host: { context: () => Promise.resolve(builderContext() as never) },
+                env: extra.concurrency === undefined ? undefined : ({ get: () => extra.concurrency } as never),
+            },
+            extra.heartbeatEveryMs === undefined ? {} : { heartbeatEveryMs: extra.heartbeatEveryMs },
+        );
 
     beforeEach(() => {
         // Effect's scheduler and sleeps run on real timers; the heartbeat cadence is shortened per test instead.
@@ -39,15 +77,8 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         deploymentArtifactBuilderService = {
             buildContainerizedArtifact: vi.fn().mockResolvedValue(null),
         };
-        queueLifecycle = {
-            onJobQueued: vi.fn(),
-            onJobCancelled: vi.fn(),
-        };
-        worker = new DeploymentQueueWorkerService(
-            deploymentService as never,
-            queueLifecycle as never,
-            deploymentArtifactBuilderService as never,
-        );
+        queueLifecycle = { jobQueued$: undefined, jobCancelled$: undefined };
+        worker = makeWorker();
     });
 
     afterEach(() => {
@@ -57,7 +88,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("claims the matching lifecycle job by idempotency key and completes it", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
 
-        await worker.processQueueJob(createQueueJob("job-1", "deploy:job:1"));
+        await run(worker.processQueueJob(createQueueJob("job-1", "deploy:job:1")));
 
         expect(deploymentService.claimQueueJobByIdempotencyKey).toHaveBeenCalledWith(
             "deploy:job:1",
@@ -83,7 +114,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("does nothing when no lifecycle job matches the typed delivery", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(null);
 
-        await worker.processQueueJob(createQueueJob("job-2", "deploy:job:2"));
+        await run(worker.processQueueJob(createQueueJob("job-2", "deploy:job:2")));
 
         expect(deploymentService.completeQueueJob).not.toHaveBeenCalled();
         expect(deploymentService.failQueueJob).not.toHaveBeenCalled();
@@ -99,17 +130,9 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         });
         deploymentService.completeQueueJob.mockReturnValue(completionPromise);
 
-        const statics = DeploymentQueueWorkerService as unknown as { HEARTBEAT_MS: number };
-        const previousHeartbeat = statics.HEARTBEAT_MS;
-        statics.HEARTBEAT_MS = 20;
-        worker = new DeploymentQueueWorkerService(
-            deploymentService as never,
-            queueLifecycle as never,
-            deploymentArtifactBuilderService as never,
-        );
-        statics.HEARTBEAT_MS = previousHeartbeat;
+        worker = makeWorker({ heartbeatEveryMs: 20 });
 
-        const processing = worker.processQueueJob(createQueueJob("job-3", "deploy:job:1"));
+        const processing = run(worker.processQueueJob(createQueueJob("job-3", "deploy:job:1")));
 
         await new Promise((resolve) => setTimeout(resolve, 120));
 
@@ -132,7 +155,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         deploymentService.completeQueueJob.mockRejectedValue(new Error("runtime exploded"));
 
         await expect(
-            worker.processQueueJob(createQueueJob("job-4", "deploy:job:1") as never),
+            run(worker.processQueueJob(createQueueJob("job-4", "deploy:job:1") as never)),
         ).rejects.toThrow("runtime exploded");
 
         expect(deploymentService.failQueueJob).toHaveBeenCalledWith(
@@ -152,7 +175,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         );
 
         await expect(
-            worker.processQueueJob(createQueueJob("job-q5", "deploy:job:1") as never),
+            run(worker.processQueueJob(createQueueJob("job-q5", "deploy:job:1") as never)),
         ).rejects.toThrow("Builder image missing");
 
         expect(deploymentService.failQueueJob).toHaveBeenCalledWith(
@@ -167,7 +190,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("forwards storageBinding from the typed payload context into completion result", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-5", "deploy:job:1", {
                 context: {
                     storageBinding: {
@@ -182,7 +205,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -202,7 +225,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("forwards runtime runner and typed options from source checkout context", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-6", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -222,7 +245,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -246,7 +269,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("hydrates runtime runner network mode from runtime configuration when absent from source options", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-6b", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -263,7 +286,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -280,7 +303,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("forwards runtime environment variables from runtime configuration context", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-6c", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -296,7 +319,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -319,7 +342,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             .mockRejectedValueOnce(new Error("build attempt 2 failed"))
             .mockResolvedValueOnce("deployer/service-job-10:deployment-job-10-dockerfile");
 
-        const processing = worker.processQueueJob(
+        const processing = run(worker.processQueueJob(
             createQueueJob("job-10", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -338,7 +361,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         await processing;
 
@@ -353,7 +376,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         deploymentArtifactBuilderService.buildContainerizedArtifact
             .mockRejectedValue(new Error("build failed permanently"));
 
-        const processing = worker.processQueueJob(
+        const processing = run(worker.processQueueJob(
             createQueueJob("job-11", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -372,7 +395,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         const rejectionAssertion = expect(processing).rejects.toThrow("build failed permanently");
 
@@ -393,7 +416,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             "ghcr.io/acme/web:sha-123",
         );
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-7", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -405,7 +428,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -426,7 +449,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             "deployer/service-job-8:deployment-job-8-nixpacks",
         );
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-8", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -464,7 +487,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -500,7 +523,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             "deployer/service-job-9:deployment-job-9-buildpack",
         );
 
-        await worker.processQueueJob(
+        await run(worker.processQueueJob(
             createQueueJob("job-9", "deploy:job:1", {
                 context: {
                     sourceCheckout: {
@@ -523,7 +546,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                     },
                 },
             }),
-        );
+        ));
 
         expect(deploymentArtifactBuilderService.buildContainerizedArtifact).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -597,31 +620,31 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                 }),
         );
 
-        const processing = worker.processQueueJob(
+        const processing = run(worker.processQueueJob(
             createQueueJob("job-cancel", "deploy:job:1", {
                 context: { executionPlan: { builder: "dockerfile" } },
             }),
-        );
+        ));
         await new Promise((resolve) => setTimeout(resolve, 50));
 
         const cancelledAt = Date.now();
-        expect(await worker.cancelRunningJob("queue-job-1")).toBe(true);
+        expect(await run(worker.cancelRunningJob("queue-job-1"))).toBe(true);
         await processing;
 
         expect(Date.now() - cancelledAt).toBeLessThan(1000);
         expect(aborted).toBe(true);
         expect(deploymentService.completeQueueJob).not.toHaveBeenCalled();
         expect(deploymentService.failQueueJob).not.toHaveBeenCalled();
-        expect(await worker.cancelRunningJob("queue-job-1")).toBe(false);
+        expect(await run(worker.cancelRunningJob("queue-job-1"))).toBe(false);
     });
 
     describe("concurrency", () => {
         /** Delivers three jobs and reports the highest number of builds that were running at once. */
         const peakParallelBuilds = async (concurrency?: number): Promise<number> => {
             const subscribers: ((job: DeploymentQueueJob) => void)[] = [];
-            queueLifecycle.onJobQueued.mockReturnValue({ subscribe: (next: (job: DeploymentQueueJob) => void) => { subscribers.push(next); return { unsubscribe: vi.fn() }; } });
-            queueLifecycle.onJobCancelled.mockReturnValue({ subscribe: () => ({ unsubscribe: vi.fn() }) });
-            const instance = new DeploymentQueueWorkerService(deploymentService as never, queueLifecycle as never, deploymentArtifactBuilderService as never, concurrency === undefined ? undefined : ({ get: () => concurrency } as never));
+            queueLifecycle.jobQueued$ = { subscribe: (next: (job: DeploymentQueueJob) => void) => { subscribers.push(next); return { unsubscribe: vi.fn() }; } };
+            queueLifecycle.jobCancelled$ = { subscribe: () => ({ unsubscribe: vi.fn() }) };
+            const instance = makeWorker(concurrency === undefined ? {} : { concurrency });
             let running = 0;
             let peak = 0;
             deploymentService.claimQueueJobByIdempotencyKey.mockImplementation((key: string) =>
@@ -634,10 +657,10 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                 running -= 1;
                 return null;
             });
-            instance.onModuleInit();
+            await Effect.runPromise(instance.onStart?.() ?? Effect.void);
             for (const id of ["a", "b", "c"]) subscribers[0]?.(createQueueJob(`job-${id}`, `key-${id}`));
             await new Promise((resolve) => setTimeout(resolve, 400));
-            instance.onModuleDestroy();
+            await Effect.runPromise(instance.onStop?.() ?? Effect.void);
             return peak;
         };
 

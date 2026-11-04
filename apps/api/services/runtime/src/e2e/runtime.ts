@@ -2,6 +2,7 @@
 // never runs `main.ts`, so without this import every Effect-based controller fails with
 // `.effect is not a function`.
 import "@orpc/effect/extensions/effect";
+import { Effect } from "effect";
 import {
 	getSharedApiRuntimeContext as getShared,
 	useDescribeSharedApiRuntime as useDescribeShared,
@@ -12,7 +13,7 @@ import {
 } from "@deployer/shared/e2e-harness/shared-api-runtime";
 import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
-import { DeploymentQueueWorkerService } from "@/modules/deployment/queue/deployment-queue.worker.service";
+import { DeploymentQueueWorker } from "@/modules/deployment/queue/deployment-queue.worker.service";
 
 /**
  * The shared e2e harness, bound to THIS service's root module.
@@ -49,7 +50,7 @@ export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRu
 export { setSharedRuntimeAuthHeaders, setSharedRuntimeRequestOverride, resetSharedRuntimeRequestOverride } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
 /**
- * Boot the app with `DeploymentQueueWorkerService` made inert.
+ * Boot the app with `DeploymentQueueWorker` made inert.
  *
  * ── WHY A SUITE WOULD WANT THIS ─────────────────────────────────────────────
  * The worker subscribes to `onJobQueued()` and CLAIMS + EXECUTES any job carrying
@@ -78,11 +79,12 @@ export function withDeploymentQueueWorkerDisabled(
 			...options.nest,
 			onModuleBuilder: async (context) => {
 				context.moduleBuilder
-					.overrideProvider(DeploymentQueueWorkerService)
+					.overrideProvider(DeploymentQueueWorker)
 					.useValue({
-						onModuleInit: () => undefined,
-						onModuleDestroy: () => undefined,
-						processQueueJob: async () => undefined,
+						onStart: () => Effect.void,
+						onStop: () => Effect.void,
+						processQueueJob: () => Effect.void,
+						cancelRunningJob: () => Effect.succeed(false),
 					});
 				await options.nest?.onModuleBuilder?.(context);
 			},

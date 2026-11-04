@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { Subject } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -78,7 +79,7 @@ function createServiceHarness(options?: {
     get: vi.fn(() => false),
   };
 
-  const service = new DockerImageAutoScanListenerService(
+  const service = DockerImageAutoScanListenerService.make(
     nodeMesh,
     dockerRuntimeEventsStreamService as never,
     dockerRuntimeMeshRelayService as never,
@@ -99,7 +100,7 @@ describe("DockerImageAutoScanListenerService", () => {
   it("triggers auto-scan for container start events with image payload", async () => {
     const { service, runtimeEvents$, dockerImagesApplicationService } = createServiceHarness();
 
-    service.onModuleInit();
+    await Effect.runPromise(service.onStart());
     await flushAsyncWork();
 
     runtimeEvents$.next(dockerContainerRuntimeEventSchema.parse({
@@ -137,7 +138,7 @@ describe("DockerImageAutoScanListenerService", () => {
       waitForCompletion: true,
     });
 
-    service.onModuleDestroy();
+    await Effect.runPromise(service.onStop());
   });
 
   it("ignores non-container and non-create runtime events", async () => {
@@ -151,7 +152,7 @@ describe("DockerImageAutoScanListenerService", () => {
     const dockerImageSecurityRepository = { recordAutoScanAttempt: vi.fn(async () => undefined) };
     const envService = { get: vi.fn(() => false) };
 
-    const serviceWithCustomStream = new DockerImageAutoScanListenerService(
+    const serviceWithCustomStream = DockerImageAutoScanListenerService.make(
       { selfNodeId: vi.fn(() => "node-local") },
       dockerRuntimeEventsStreamService as never,
       { relayRuntimeEvent: vi.fn() } as never,
@@ -160,7 +161,7 @@ describe("DockerImageAutoScanListenerService", () => {
       envService as never,
     );
 
-    serviceWithCustomStream.onModuleInit();
+    await Effect.runPromise(serviceWithCustomStream.onStart());
     await flushAsyncWork();
 
     runtimeEvents$.next(dockerImageRuntimeEventSchema.parse({
@@ -214,14 +215,14 @@ describe("DockerImageAutoScanListenerService", () => {
 
     expect(dockerImagesApplicationService.ensureImageSecurityScan).not.toHaveBeenCalled();
 
-    serviceWithCustomStream.onModuleDestroy();
-    service.onModuleDestroy();
+    await Effect.runPromise(serviceWithCustomStream.onStop());
+    await Effect.runPromise(service.onStop());
   });
 
   it("ignores container start events emitted by a different mesh node", async () => {
     const { service, runtimeEvents$, dockerImagesApplicationService } = createServiceHarness();
 
-    service.onModuleInit();
+    await Effect.runPromise(service.onStart());
     await flushAsyncWork();
 
     runtimeEvents$.next(dockerContainerRuntimeEventSchema.parse({
@@ -252,7 +253,7 @@ describe("DockerImageAutoScanListenerService", () => {
 
     expect(dockerImagesApplicationService.ensureImageSecurityScan).not.toHaveBeenCalled();
 
-    service.onModuleDestroy();
+    await Effect.runPromise(service.onStop());
   });
 
   it("queues startup scans for unique local container images", async () => {
@@ -272,7 +273,7 @@ describe("DockerImageAutoScanListenerService", () => {
       }),
     });
 
-    service.onModuleInit();
+    await Effect.runPromise(service.onStart());
     await flushAsyncWork();
 
     expect(dockerImagesApplicationService.listImages).toHaveBeenCalledTimes(1);
@@ -300,7 +301,7 @@ describe("DockerImageAutoScanListenerService", () => {
       waitForCompletion: true,
     });
 
-    service.onModuleDestroy();
+    await Effect.runPromise(service.onStop());
   });
 
   it("drains startup queue sequentially by waiting for each scan completion", async () => {
@@ -343,7 +344,7 @@ describe("DockerImageAutoScanListenerService", () => {
         imageId: "sha256:second",
       })) as ReturnType<typeof vi.fn>;
 
-    service.onModuleInit();
+    await Effect.runPromise(service.onStart());
     await flushAsyncWork();
 
     expect(dockerImagesApplicationService.ensureImageSecurityScan).toHaveBeenCalledTimes(1);
@@ -367,6 +368,6 @@ describe("DockerImageAutoScanListenerService", () => {
       waitForCompletion: true,
     });
 
-    service.onModuleDestroy();
+    await Effect.runPromise(service.onStop());
   });
 });

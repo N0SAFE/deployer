@@ -1,8 +1,9 @@
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Deployment } from "@deployer/contracts-entities";
 
-import { DeploymentQueueReconciliationService } from "./deployment-queue-reconciliation.service";
+import { makeDeploymentQueueReconciliation, type DeploymentQueueReconciliationShape } from "./deployment-queue-reconciliation.service";
 
 const buildingRow = (id: string, metadata?: Record<string, unknown>): Deployment =>
     (({
@@ -40,7 +41,7 @@ describe("DeploymentQueueReconciliationService", () => {
         insertLog: ReturnType<typeof vi.fn>;
     };
     let queueLifecycle: { hasLiveJobForDeployment: ReturnType<typeof vi.fn> };
-    let service: DeploymentQueueReconciliationService;
+    let service: DeploymentQueueReconciliationShape;
 
     beforeEach(() => {
         repository = {
@@ -49,9 +50,9 @@ describe("DeploymentQueueReconciliationService", () => {
             insertLog: vi.fn(async () => undefined),
         };
         queueLifecycle = {
-            hasLiveJobForDeployment: vi.fn(() => false),
+            hasLiveJobForDeployment: vi.fn(() => Effect.succeed(false)),
         };
-        service = new DeploymentQueueReconciliationService(repository as never, queueLifecycle as never);
+        service = makeDeploymentQueueReconciliation({ deployments: repository as never, queue: queueLifecycle as never });
         vi.clearAllMocks();
     });
 
@@ -61,7 +62,7 @@ describe("DeploymentQueueReconciliationService", () => {
             meta: { total: 2, limit: 500, offset: 0, hasMore: false },
         });
 
-        const reconciled = await service.reconcileOrphanedInFlightDeployments();
+        const reconciled = await Effect.runPromise(service.reconcileOrphanedInFlightDeployments());
 
         expect(reconciled).toEqual(["deployment-a", "deployment-b"]);
         expect(repository.findMany).toHaveBeenCalledWith(
@@ -87,9 +88,9 @@ describe("DeploymentQueueReconciliationService", () => {
             data: [buildingRow("deployment-live")],
             meta: { total: 1, limit: 500, offset: 0, hasMore: false },
         });
-        queueLifecycle.hasLiveJobForDeployment.mockReturnValue(true);
+        queueLifecycle.hasLiveJobForDeployment.mockReturnValue(Effect.succeed(true));
 
-        const reconciled = await service.reconcileOrphanedInFlightDeployments();
+        const reconciled = await Effect.runPromise(service.reconcileOrphanedInFlightDeployments());
 
         expect(reconciled).toEqual([]);
         expect(repository.updateStatus).not.toHaveBeenCalled();
@@ -97,7 +98,7 @@ describe("DeploymentQueueReconciliationService", () => {
     });
 
     it("reconciles nothing when there are no building rows", async () => {
-        const reconciled = await service.reconcileOrphanedInFlightDeployments();
+        const reconciled = await Effect.runPromise(service.reconcileOrphanedInFlightDeployments());
         expect(reconciled).toEqual([]);
         expect(repository.updateStatus).not.toHaveBeenCalled();
     });

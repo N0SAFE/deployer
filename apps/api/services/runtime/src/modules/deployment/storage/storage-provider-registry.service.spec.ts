@@ -1,23 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 
-import { LocalStorageProviderService } from "./local/local-storage-provider.service";
-import { NfsStorageProviderService } from "./nfs/nfs-storage-provider.service";
-import { S3StorageProviderService } from "./s3/s3-storage-provider.service";
-import { StorageProviderRegistryService } from "./storage-provider-registry.service";
-import { VolumeStorageProviderService } from "./volume/volume-storage-provider.service";
+import { StorageProviderRegistry } from "./storage-provider-registry.service";
 
-describe("StorageProviderRegistryService", () => {
-    const createRegistry = () =>
-        new StorageProviderRegistryService([
-            new LocalStorageProviderService(),
-            new S3StorageProviderService(),
-            new NfsStorageProviderService(),
-            new VolumeStorageProviderService(),
-        ]);
+describe("StorageProviderRegistry", () => {
+    // The registry answers Effects; the cases below read better awaiting them.
+    const createRegistry = () => ({
+        resolveStorageBinding: (...args: Parameters<typeof StorageProviderRegistry.live.resolveStorageBinding>) =>
+            runPromiseUnwrapped(StorageProviderRegistry.live.resolveStorageBinding(...args)),
+    });
 
     it("should default to local storage provider when no storage config is provided", async () => {
         const registry = createRegistry();

@@ -1,18 +1,25 @@
 import { describe, expect, it } from "vitest";
 
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { ConfigurationDefinitionService } from "@deployer/shared/core/modules/configuration/services/configuration-definition.service";
 import { ConfigurationResolverService } from "@deployer/shared/core/modules/configuration/services/configuration-resolver.service";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 
-import { RuntimeConfigurationStoragePolicyResolverService } from "./runtime-configuration-storage-policy-resolver.service";
-import { ServiceCustomDataStoragePolicyResolverService } from "./service-custom-data-storage-policy-resolver.service";
-import { ServiceTopLevelStoragePolicyResolverService } from "./service-top-level-storage-policy-resolver.service";
-import { StoragePolicyResolverRegistryService } from "./storage-policy-resolver-registry.service";
+import { runtimeConfigurationStoragePolicyResolver } from "./runtime-configuration-storage-policy-resolver.service";
+import { serviceCustomDataStoragePolicyResolver } from "./service-custom-data-storage-policy-resolver.service";
+import { serviceTopLevelStoragePolicyResolver } from "./service-top-level-storage-policy-resolver.service";
+import { makeStoragePolicyResolverRegistry, type StoragePolicyResolverRegistryShape } from "./storage-policy-resolver-registry.service";
 
 import type { DeploymentStoragePolicyResolver } from "../base/storage-policy-resolver.interface";
 
 
-describe("StoragePolicyResolverRegistryService", () => {
+/** The registry answers Effects; the cases below read better calling it synchronously. */
+const synchronous = (registry: StoragePolicyResolverRegistryShape) => ({
+    resolveServiceStorageConfig: (...args: Parameters<StoragePolicyResolverRegistryShape["resolveServiceStorageConfig"]>) =>
+        runSyncUnwrapped(registry.resolveServiceStorageConfig(...args)),
+});
+
+describe("StoragePolicyResolverRegistry", () => {
     const accessor = new RuntimeConfigurationAccessorService(
         new ConfigurationResolverService(new ConfigurationDefinitionService()),
     );
@@ -60,10 +67,10 @@ describe("StoragePolicyResolverRegistryService", () => {
             }),
         };
 
-        const registry = new StoragePolicyResolverRegistryService([
+        const registry = synchronous(makeStoragePolicyResolverRegistry([
             fallbackResolver,
             highestPriorityResolver,
-        ]);
+        ]));
 
         const policy = registry.resolveServiceStorageConfig(buildInput({}));
         expect(policy).toMatchObject({
@@ -76,11 +83,11 @@ describe("StoragePolicyResolverRegistryService", () => {
     });
 
     it("should resolve policy from metadata.customData.storage before top-level metadata.storage", () => {
-        const registry = new StoragePolicyResolverRegistryService([
-            new RuntimeConfigurationStoragePolicyResolverService(),
-            new ServiceTopLevelStoragePolicyResolverService(),
-            new ServiceCustomDataStoragePolicyResolverService(),
-        ]);
+        const registry = synchronous(makeStoragePolicyResolverRegistry([
+            runtimeConfigurationStoragePolicyResolver,
+            serviceTopLevelStoragePolicyResolver,
+            serviceCustomDataStoragePolicyResolver,
+        ]));
 
         const policy = registry.resolveServiceStorageConfig(
             buildInput({
@@ -106,11 +113,11 @@ describe("StoragePolicyResolverRegistryService", () => {
     });
 
     it("should prioritize first-class runtime configuration storage over metadata conventions", () => {
-        const registry = new StoragePolicyResolverRegistryService([
-            new RuntimeConfigurationStoragePolicyResolverService(),
-            new ServiceTopLevelStoragePolicyResolverService(),
-            new ServiceCustomDataStoragePolicyResolverService(),
-        ]);
+        const registry = synchronous(makeStoragePolicyResolverRegistry([
+            runtimeConfigurationStoragePolicyResolver,
+            serviceTopLevelStoragePolicyResolver,
+            serviceCustomDataStoragePolicyResolver,
+        ]));
 
         const policy = registry.resolveServiceStorageConfig(
             (() => {

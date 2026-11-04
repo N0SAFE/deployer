@@ -1,8 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Effect } from "effect";
 
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
-import { DeploymentRepository } from "../repositories/deployment.repository";
+import { attempt } from "../../../core/effects";
+
+import { TriggerServiceLinkPort } from "./deployment-trigger.ports";
 
 import type { DeploymentTriggerEvent, DeploymentTriggerSource } from "./base/deployment-trigger-source.interface";
 
@@ -31,12 +33,8 @@ import type { DeploymentTriggerEvent, DeploymentTriggerSource } from "./base/dep
  * and whether a particular push deploys depends on whether a service has a `sourceUrl`
  * configured — a normal runtime condition (logged and skipped), not a capability gap.
  */
-@Injectable()
-export class GithubPushTriggerSource implements DeploymentTriggerSource {
+export class GithubPushTriggerSource implements DeploymentTriggerSource<TriggerServiceLinkPort> {
     readonly sourceId = "github-push";
-    private readonly logger = new Logger(GithubPushTriggerSource.name);
-
-    constructor(private readonly deploymentRepository: DeploymentRepository) {}
 
     isEnabled(): boolean {
         // The bridge exists (see the correction above). A push that matches no service is
@@ -52,56 +50,60 @@ export class GithubPushTriggerSource implements DeploymentTriggerSource {
         return event.provider === "github" && event.eventName === "push";
     }
 
-    async toTriggerInput(event: DeploymentTriggerEvent): Promise<DeploymentTriggerInput | null> {
+    toTriggerInput(event: DeploymentTriggerEvent) {
         const payload = this.asPushPayload(event.payload);
-        if (!payload) return null;
+        if (!payload) return Effect.succeed(null);
 
         // A push to a deleted branch, or a deleted repo, is not deployable.
-        if (payload.deleted === true) return null;
+        if (payload.deleted === true) return Effect.succeed(null);
         const commitSha = payload.head_commit?.id ?? payload.after;
-        if (typeof commitSha !== "string" || commitSha.length === 0) return null;
+        if (typeof commitSha !== "string" || commitSha.length === 0) return Effect.succeed(null);
 
         const branch = typeof payload.ref === "string" ? payload.ref.replace(/^refs\/heads\//, "") : null;
-        if (branch === null) return null;
+        if (branch === null) return Effect.succeed(null);
 
         const repositoryUrl = payload.repository?.html_url;
-        if (typeof repositoryUrl !== "string") return null;
+        if (typeof repositoryUrl !== "string") return Effect.succeed(null);
 
-        const linked = await this.findLinkedService(repositoryUrl);
-        if (!linked) {
-            this.logger.warn(
-                `push to ${repositoryUrl} ignored: no service is linked to this repository (branch ${branch}, ${commitSha.slice(0, 7)})`,
-            );
-            return null;
-        }
+        const findLinkedService = this.findLinkedService;
+        return Effect.gen(function* () {
+            const linked = yield* findLinkedService(repositoryUrl);
+            if (!linked) {
+                yield* Effect.logWarning(
+                    `push to ${repositoryUrl} ignored: no service is linked to this repository (branch ${branch}, ${commitSha.slice(0, 7)})`,
+                );
+                return null;
+            }
 
-        return {
-            serviceId: linked.serviceId,
-            environment: linked.environment,
-            source: {
-                sourceType: "github",
-                repositoryUrl,
-                branch,
-                commitSha,
-            },
-        } as DeploymentTriggerInput;
+            return {
+                serviceId: linked.serviceId,
+                environment: linked.environment,
+                source: {
+                    sourceType: "github",
+                    repositoryUrl,
+                    branch,
+                    commitSha,
+                },
+            } as DeploymentTriggerInput;
+        });
     }
 
     /** The bridge to repo→service mapping, kept in one place so the shape is type-checked. */
-    private async findLinkedService(
-        repositoryUrl: string,
-    ): Promise<{ serviceId: string; environment: string } | null> {
-        const found = await this.deploymentRepository.findServiceBySourceUrl(repositoryUrl);
-        if (!found) return null;
-        // `services` has no `environment` column — environments are separate rows. The
-        // target environment for a push is therefore the default, unless the service's
-        // provider config pins one.
-        const pinnedEnvironment = (found.providerConfig as { environment?: string } | null)?.environment;
-        return {
-            serviceId: found.id,
-            environment: typeof pinnedEnvironment === "string" ? pinnedEnvironment : "production",
-        };
-    }
+    private readonly findLinkedService = (repositoryUrl: string) => {
+        return Effect.gen(function* () {
+            const links = yield* TriggerServiceLinkPort;
+            const found = yield* attempt(() => links.findServiceBySourceUrl(repositoryUrl));
+            if (!found) return null;
+            // `services` has no `environment` column — environments are separate rows. The
+            // target environment for a push is therefore the default, unless the service's
+            // provider config pins one.
+            const pinnedEnvironment = (found.providerConfig as { environment?: string } | null)?.environment;
+            return {
+                serviceId: found.id,
+                environment: typeof pinnedEnvironment === "string" ? pinnedEnvironment : "production",
+            };
+        });
+    };
 
     private asPushPayload(payload: unknown): {
         ref?: unknown;

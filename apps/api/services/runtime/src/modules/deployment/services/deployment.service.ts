@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { Inject, Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import {
     EMPTY,
     Observable,
@@ -20,7 +20,7 @@ import { isRecord } from "@deployer/type-guards"
 import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/deployment/list";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import type { PlatformRole, ProjectRole } from "@deployer/auth";
-import { ApprovalGuard, type ApprovalGuardShape } from "@deployer/shared/core/modules/approval/approval.guard";
+import type { ApprovalGuardShape } from "@deployer/shared/core/modules/approval/approval.guard";
 import type {
     DeploymentProgressEvent,
     DeploymentQueryEvent,
@@ -84,29 +84,28 @@ import type {
     DeploymentPhaseTransitionsCatalog,
     DeploymentStreamEventType,
 } from "@deployer/contracts-entities";
-import { EffectHost, type EffectHostShape } from "@deployer/nest-effect";
+import type { EffectHostShape } from "@deployer/nest-effect";
 import type { ResolvedRuntimeConfiguration } from "@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema";
-import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
+import type { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import type { DeploymentStateMachineScopeConfigInput } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { deploymentRunnerKindSchema } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
-import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
-import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
-import { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
-import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
-import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
+import type { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
+import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
+import type { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
+import { lift } from "../../../core/effects";
 import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
-import { CodeProviderRegistryService } from "../../providers/code/shared/code-provider-registry.service";
-import { UploadBundleRegistryService } from "../../providers/code/upload/services/upload-bundle-registry.service";
-import { DeploymentEventService } from "../events/deployment-event.service";
-import { DeploymentQueueLifecycleService } from "../queue/deployment-queue-lifecycle.service";
-import { DeploymentRepository } from "../repositories/deployment.repository";
-import { StoragePolicyResolverRegistryService } from "../storage/policy/storage-policy-resolver-registry.service";
-import { StorageProviderRegistryService } from "../storage/storage-provider-registry.service";
+import type { CodeProviderRegistryShape } from "../../providers/code/shared/code-provider-registry.service";
+import type { UploadBundleRegistryShape } from "../../providers/code/upload/services/upload-bundle-registry.service";
+import type { DeploymentEventService } from "../events/deployment-event.service";
+import type { DeploymentQueueLifecycleShape } from "../queue/deployment-queue-lifecycle.service";
+import type { DeploymentRepositoryPort } from "../deployment.ports";
+import type { StoragePolicyResolverRegistryShape } from "../storage/policy/storage-policy-resolver-registry.service";
+import type { StorageProviderRegistryShape } from "../storage/storage-provider-registry.service";
 
-import { DeploymentExecutionWorkflowService } from "./deployment-execution-workflow.service";
-
-import type { OnModuleInit } from "@nestjs/common";
+import type { DeploymentExecutionWorkflowShape } from "./deployment-execution-workflow.service";
 
 
 const CANCELLABLE_STATUSES = ["pending", "queued", "building", "deploying"] as const;
@@ -175,54 +174,55 @@ const BASE_RETRY_POLICIES: DeploymentRetryPolicy[] = [
     },
 ];
 
-@Injectable()
-export class DeploymentService implements OnModuleInit {
-    private static readonly DEPLOYMENT_MUTATION_PLATFORM_ROLES: readonly PlatformRole[] = [
+export type DeploymentServicePorts = {
+    readonly deploymentRepository: Context.Service.Shape<typeof DeploymentRepositoryPort>;
+    readonly deploymentEventService: DeploymentEventService;
+    readonly coreEventSyncService: CoreEventSyncService;
+    readonly codeProviders: CodeProviderRegistryShape;
+    readonly storageProviders: StorageProviderRegistryShape;
+    readonly storagePolicies: StoragePolicyResolverRegistryShape;
+    readonly workflow: DeploymentExecutionWorkflowShape;
+    readonly queue: DeploymentQueueLifecycleShape;
+    readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService;
+    readonly uploadBundles: UploadBundleRegistryShape;
+    readonly projectAccessService: ProjectAccessService["Service"];
+    readonly domainRoutingService: DomainRoutingService;
+    readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService;
+    /** Fires a re-converge of the platform ingress when the route table may
+     *  have changed (a deployment/preview became live, a rollback moved
+     *  the backend container). */
+    readonly ingressRefresher: TraefikConfigRefresher;
+    /** Boundary: the shared access checks and the collaborators above are Effects, and the bodies below still answer Promises. */
+    readonly host: Pick<EffectHostShape, "runUnwrapped">;
+    /** Cross-service approval guard (`SEC-072`): a production deploy needs a second person without the capability. */
+    readonly approvalGuard: ApprovalGuardShape;
+};
+
+export function makeDeploymentService(ports: DeploymentServicePorts) {
+    const { deploymentRepository, deploymentEventService, coreEventSyncService, codeProviders, storageProviders, storagePolicies, workflow, queue, deploymentStateMachineService, uploadBundles, projectAccessService, domainRoutingService, runtimeConfigurationAccessor, ingressRefresher, host, approvalGuard } = ports;
+    const DEPLOYMENT_MUTATION_PLATFORM_ROLES: readonly PlatformRole[] = [
         "superAdmin",
         "admin",
         "operator",
     ];
-    private readonly templateProvenanceByDeployment = new Map<string, DeploymentTemplateProvenance>();
-    private readonly templateProvenanceByRun = new Map<string, DeploymentTemplateProvenance[]>();
-    private readonly compiledSnapshotsById = new Map<string, DeploymentCompiledPlanSnapshot>();
-    private readonly compiledSnapshotsByDeployment = new Map<string, DeploymentCompiledPlanSnapshot[]>();
-    private readonly compiledSnapshotsByRun = new Map<string, DeploymentCompiledPlanSnapshot>();
-    private readonly executionCheckpointsByDeployment = new Map<string, DeploymentExecutionCheckpoint>();
-    private readonly executionCheckpointsByRun = new Map<string, DeploymentExecutionCheckpoint>();
-    private readonly nodeLifecycleByRun = new Map<string, DeploymentNodeLifecycleEvent[]>();
+    const templateProvenanceByDeployment = new Map<string, DeploymentTemplateProvenance>();
+    const templateProvenanceByRun = new Map<string, DeploymentTemplateProvenance[]>();
+    const compiledSnapshotsById = new Map<string, DeploymentCompiledPlanSnapshot>();
+    const compiledSnapshotsByDeployment = new Map<string, DeploymentCompiledPlanSnapshot[]>();
+    const compiledSnapshotsByRun = new Map<string, DeploymentCompiledPlanSnapshot>();
+    const executionCheckpointsByDeployment = new Map<string, DeploymentExecutionCheckpoint>();
+    const executionCheckpointsByRun = new Map<string, DeploymentExecutionCheckpoint>();
+    const nodeLifecycleByRun = new Map<string, DeploymentNodeLifecycleEvent[]>();
 
-    constructor(
-        private readonly deploymentRepository: DeploymentRepository,
-        private readonly deploymentEventService: DeploymentEventService,
-        private readonly coreEventSyncService: CoreEventSyncService,
-        private readonly sourceProviderRegistryService: CodeProviderRegistryService,
-        private readonly storageProviderRegistryService: StorageProviderRegistryService,
-        private readonly storagePolicyResolverRegistryService: StoragePolicyResolverRegistryService,
-        private readonly deploymentExecutionWorkflowService: DeploymentExecutionWorkflowService,
-        private readonly deploymentQueueLifecycleService: DeploymentQueueLifecycleService,
-        private readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
-        private readonly uploadBundleRegistryService: UploadBundleRegistryService,
-        // `@Inject` is required: the parameter type is an indexed access, which emits no design metadata.
-        @Inject(ProjectAccessService) private readonly projectAccessService: ProjectAccessService["Service"],
-        private readonly domainRoutingService: DomainRoutingService,
-        private readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
-        /** Fires a re-converge of the platform ingress when the route table may
-         *  have changed (a deployment/preview became live, a rollback moved
-         *  the backend container). */
-        private readonly ingressRefresher: TraefikConfigRefresher,
-        /** Boundary: the shared access checks are Effects, and this class still answers Promises. */
-        @Inject(EffectHost) private readonly host: Pick<EffectHostShape, "runUnwrapped">,
-        /** Cross-service approval guard (`SEC-072`): a production deploy needs a second person without the capability. */
-        @Inject(ApprovalGuard) private readonly approvalGuard: ApprovalGuardShape,
-    ) {}
 
-    onModuleInit(): void {
-        this.coreEventSyncService.registerNamespaceAdapter("deployment", ({ definition, replay, replayLimit }) =>
-            this.toCoreAdapterStream(definition, replay, replayLimit),
+    /** Registers the deployment namespace on the shared event sync; it needs nothing to stop. */
+    function registerEventNamespace(): void {
+        coreEventSyncService.registerNamespaceAdapter("deployment", ({ definition, replay, replayLimit }) =>
+            toCoreAdapterStream(definition, replay, replayLimit),
         );
     }
 
-    async uploadBundle(input: { file: File; fileName?: string }) {
+    async function uploadBundle(input: { file: File; fileName?: string }) {
         const preferredFileName =
             typeof input.fileName === "string" && input.fileName.trim().length > 0
                 ? input.fileName.trim()
@@ -243,13 +243,13 @@ export class DeploymentService implements OnModuleInit {
         const bytes = Buffer.from(await input.file.arrayBuffer());
         await writeFile(targetPath, bytes);
 
-        this.uploadBundleRegistryService.register({
+        await host.runUnwrapped(uploadBundles.register({
             uploadId,
             uploadPath: targetPath,
             fileName: normalizedFileName,
             fileSize: bytes.byteLength,
             mimeType: input.file.type || "application/octet-stream",
-        });
+        }));
 
         return {
             uploadId,
@@ -260,16 +260,16 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    async listDeployments(input: DeploymentListInput = {} as DeploymentListInput) {
-        return this.deploymentRepository.findMany(input);
+    async function listDeployments(input: DeploymentListInput = {} as DeploymentListInput) {
+        return deploymentRepository.findMany(input);
     }
 
     /**
      * List preview environments for a service from the `preview_environments`
      * table (populated by PreviewProvisioningService). Read-only projection.
      */
-    async listServicePreviews(serviceId: string) {
-        const rows = await this.deploymentRepository.findPreviewsByServiceId(serviceId);
+    async function listServicePreviews(serviceId: string) {
+        const rows = await deploymentRepository.findPreviewsByServiceId(serviceId);
         return {
             previews: rows.map((r) => ({
                 id: r.id,
@@ -294,8 +294,8 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    async getDeploymentById(id: string) {
-        const deployment = await this.deploymentRepository.findById(id);
+    async function getDeploymentById(id: string) {
+        const deployment = await deploymentRepository.findById(id);
         if (!deployment) {
             throw new RuntimeNotFound({ reason: `Deployment with id '${id}' not found` });
         }
@@ -307,19 +307,19 @@ export class DeploymentService implements OnModuleInit {
      * owner/maintainer/deployer access on the service. Delegates to
      * DomainRoutingService.promotePreviewToStable (idempotent).
      */
-    async promoteServicePreview(
+    async function promoteServicePreview(
         serviceId: string,
         previewName: string,
         requesterId: string,
         actorPlatformRole: PlatformRole | null = null,
     ) {
-        await this.assertDeploymentServiceAccess(serviceId, requesterId, [
+        await assertDeploymentServiceAccess(serviceId, requesterId, [
             "owner",
             "maintainer",
             "deployer",
         ], actorPlatformRole);
 
-        const result = await this.domainRoutingService.promotePreviewToStable(serviceId, previewName);
+        const result = await domainRoutingService.promotePreviewToStable(serviceId, previewName);
         if (!result.promoted) {
             throw new RuntimeInvalid({ reason: result.reason === "subdomain_already_stable"
                     ? `Preview '${previewName}' is already promoted to a stable domain`
@@ -336,7 +336,7 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    private async assertDeploymentServiceAccess(
+    async function assertDeploymentServiceAccess(
         serviceId: string,
         requesterId: string,
         allowedRoles: readonly ProjectRole[],
@@ -344,36 +344,36 @@ export class DeploymentService implements OnModuleInit {
     ): Promise<void> {
         if (
             requesterPlatformRole !== null &&
-            DeploymentService.DEPLOYMENT_MUTATION_PLATFORM_ROLES.includes(requesterPlatformRole)
+            DEPLOYMENT_MUTATION_PLATFORM_ROLES.includes(requesterPlatformRole)
         ) {
             return;
         }
 
-        const projectId = await this.deploymentRepository.getServiceProjectId(serviceId);
+        const projectId = await deploymentRepository.getServiceProjectId(serviceId);
         if (!projectId) {
             throw new RuntimeNotFound({ reason: `Service '${serviceId}' not found` });
         }
-        const project = await this.host.runUnwrapped(this.projectAccessService.findProjectById(projectId));
+        const project = await host.runUnwrapped(projectAccessService.findProjectById(projectId));
         if (!project) {
             throw new RuntimeNotFound({ reason: `Project '${projectId}' not found` });
         }
         if (project.ownerId === requesterId) {
             return;
         }
-        const collaborator = await this.host.runUnwrapped(
-            this.projectAccessService.findCollaboratorByUserAndProject(requesterId, projectId),
+        const collaborator = await host.runUnwrapped(
+            projectAccessService.findCollaboratorByUserAndProject(requesterId, projectId),
         );
         if (!collaborator || !allowedRoles.includes(collaborator.role)) {
             throw new RuntimeForbidden({ reason: "You do not have permission to perform this action" });
         }
     }
 
-    async triggerDeployment(
+    async function triggerDeployment(
         input: DeploymentTriggerInput,
         userId: string,
         actorPlatformRole: PlatformRole | null = null,
     ) {
-        await this.assertDeploymentServiceAccess(input.serviceId, userId, [
+        await assertDeploymentServiceAccess(input.serviceId, userId, [
             "owner",
             "maintainer",
             "deployer",
@@ -382,12 +382,12 @@ export class DeploymentService implements OnModuleInit {
         // Deploying to PRODUCTION is a protected action: whoever lacks `deployment:create` needs an approval for THIS
         // service, consumed before anything is queued. Staging and previews keep their normal flow.
         if (input.environment === "production") {
-            await this.host.runUnwrapped(
-                this.approvalGuard.require(userId, "deployment:create", "deployment.create", [input.serviceId]),
+            await host.runUnwrapped(
+                approvalGuard.require(userId, "deployment:create", "deployment.create", [input.serviceId]),
             );
         }
 
-        return this.queueTriggeredDeployment(input, userId);
+        return queueTriggeredDeployment(input, userId);
     }
 
     /**
@@ -399,19 +399,19 @@ export class DeploymentService implements OnModuleInit {
      * state machine, storage) still runs, because it lives in `queueTriggeredDeployment`.
      * `triggeredBy` is stored as null, which the column allows "for webhook triggers".
      */
-    async triggerDeploymentAsSystem(input: DeploymentTriggerInput) {
-        return this.queueTriggeredDeployment(input, null);
+    async function triggerDeploymentAsSystem(input: DeploymentTriggerInput) {
+        return queueTriggeredDeployment(input, null);
     }
 
-    private async queueTriggeredDeployment(input: DeploymentTriggerInput, triggeredBy: string | null) {
+    async function queueTriggeredDeployment(input: DeploymentTriggerInput, triggeredBy: string | null) {
         const runtimeConfigurationSeed =
-            await this.deploymentRepository.getRuntimeConfigurationSeed(input.serviceId);
+            await deploymentRepository.getRuntimeConfigurationSeed(input.serviceId);
 
         if (!runtimeConfigurationSeed) {
             throw new RuntimeNotFound({ reason: `Service '${input.serviceId}' not found` });
         }
 
-        const serviceDependencies = await this.deploymentRepository.getServiceDependencies(input.serviceId);
+        const serviceDependencies = await deploymentRepository.getServiceDependencies(input.serviceId);
         const crossProjectDependency = serviceDependencies.find(
             (dependency) => dependency.dependsOnProjectId !== runtimeConfigurationSeed.projectId,
         );
@@ -420,7 +420,7 @@ export class DeploymentService implements OnModuleInit {
             throw new RuntimeInvalid({ reason: `Service dependency '${crossProjectDependency.dependsOnServiceId}' belongs to a different project and cannot be deployed together` });
         }
 
-        const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveForDeployment({
+        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
             environment: input.environment,
@@ -428,7 +428,7 @@ export class DeploymentService implements OnModuleInit {
             projectSettings: runtimeConfigurationSeed.projectSettings,
             serviceRecord: runtimeConfigurationSeed.service,
         });
-        const stateMachineScopeConfig = this.buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
+        const stateMachineScopeConfig = buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
 
         if (!resolvedRuntimeConfiguration.effective.constraints.canDeployToRequestedEnvironment) {
             throw new RuntimeInvalid({ reason: resolvedRuntimeConfiguration.effective.constraints.reason ??
@@ -444,7 +444,7 @@ export class DeploymentService implements OnModuleInit {
         }
 
         if (input.environment === "preview") {
-            const previewTransition = this.deploymentStateMachineService.evaluatePreviewTransition(
+            const previewTransition = deploymentStateMachineService.evaluatePreviewTransition(
                 {
                     operation: "create",
                     environment: input.environment,
@@ -458,17 +458,17 @@ export class DeploymentService implements OnModuleInit {
             }
         }
 
-        const sourceCheckout = await this.sourceProviderRegistryService.resolveSourceCheckout(input);
-        const serviceStorageConfig = this.storagePolicyResolverRegistryService.resolveServiceStorageConfig({
+        const sourceCheckout = await host.runUnwrapped(codeProviders.resolveSourceCheckout(input));
+        const serviceStorageConfig = await host.runUnwrapped(storagePolicies.resolveServiceStorageConfig({
             serviceId: input.serviceId,
             serviceMetadata: resolvedRuntimeConfiguration.service.metadata,
             source: input.source,
             runtimeConfiguration: resolvedRuntimeConfiguration,
-        });
-        const storageBinding = await this.storageProviderRegistryService.resolveStorageBinding(
+        }));
+        const storageBinding = await host.runUnwrapped(storageProviders.resolveStorageBinding(
             input,
             serviceStorageConfig,
-        );
+        ));
 
         const requestedRuntimeRunnerFromSource =
             sourceCheckout && "runtimeRunner" in sourceCheckout
@@ -483,7 +483,7 @@ export class DeploymentService implements OnModuleInit {
             sourceCheckout && "containerImage" in sourceCheckout
                 ? sourceCheckout.containerImage
                 : null;
-        const stateMachine = this.deploymentStateMachineService.evaluate({
+        const stateMachine = deploymentStateMachineService.evaluate({
             provider: sourceCheckout?.provider ?? "upload",
             builder: requestedBuilder,
             runner: requestedRuntimeRunner,
@@ -510,16 +510,16 @@ export class DeploymentService implements OnModuleInit {
 
         const correlationId = randomUUID();
 
-        const deployment = await this.deploymentRepository.create({
+        const deployment = await deploymentRepository.create({
             serviceId: input.serviceId,
             triggeredBy,
             environment: input.environment,
-            environmentId: await this.deploymentRepository.resolveEnvironmentId(input.serviceId, input.environment),
+            environmentId: await deploymentRepository.resolveEnvironmentId(input.serviceId, input.environment),
             sourceType: input.source.sourceType,
             sourceConfig: input.source,
         });
 
-        await this.deploymentRepository.insertLog(deployment.id, {
+        await deploymentRepository.insertLog(deployment.id, {
             level: "info",
             message: "Source provider checkout resolved",
             phase: "queued",
@@ -535,9 +535,9 @@ export class DeploymentService implements OnModuleInit {
             },
         });
 
-        await this.emitLifecycleQueued(deployment, null, "Deployment queued");
+        await emitLifecycleQueued(deployment, null, "Deployment queued");
 
-        await this.enqueueQueueJob({
+        await enqueueQueueJob({
             type: "deploy",
             idempotencyKey: `deploy:${deployment.id}:trigger`,
             payload: {
@@ -585,9 +585,9 @@ export class DeploymentService implements OnModuleInit {
         return deployment;
     }
 
-    async cancelDeployment(id: string, requesterId: string, reason?: string, actorPlatformRole: PlatformRole | null = null) {
-        const deployment = await this.getDeploymentById(id);
-        await this.assertDeploymentServiceAccess(deployment.serviceId, requesterId, [
+    async function cancelDeployment(id: string, requesterId: string, reason?: string, actorPlatformRole: PlatformRole | null = null) {
+        const deployment = await getDeploymentById(id);
+        await assertDeploymentServiceAccess(deployment.serviceId, requesterId, [
             "owner",
             "maintainer",
             "deployer",
@@ -597,21 +597,21 @@ export class DeploymentService implements OnModuleInit {
                     `Only ${CANCELLABLE_STATUSES.join(", ")} deployments can be cancelled.` });
         }
         const cancelledAt = new Date();
-        await this.deploymentRepository.updateStatus(id, "cancelled", {
+        await deploymentRepository.updateStatus(id, "cancelled", {
             cancelReason: reason ?? "user_requested",
             cancelledAt,
         });
         // Stop the work, not just the label: the queued job is cancelled and the worker interrupts the fiber that
         // is building it (killing its child processes).
-        await this.deploymentQueueLifecycleService.cancelJobsForDeployment(id, reason ?? "user_requested");
-        const cancelLog = await this.deploymentRepository.insertLog(id, {
+        await host.runUnwrapped(queue.cancelJobsForDeployment(id, reason ?? "user_requested"));
+        const cancelLog = await deploymentRepository.insertLog(id, {
             level: "warn",
             message: "Deployment cancelled",
             phase: "failed",
             stage: "cancel",
             metadata: { reason: reason ?? "user_requested" },
         });
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "statusChanged",
             { deploymentId: id },
             {
@@ -621,7 +621,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: cancelledAt.toISOString(),
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "serviceStatusChanged",
             { serviceId: deployment.serviceId },
             {
@@ -631,7 +631,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: cancelledAt.toISOString(),
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "deploymentCancelled",
             { serviceId: deployment.serviceId },
             {
@@ -641,11 +641,11 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: cancelledAt.toISOString(),
             },
         );
-        this.deploymentEventService.emit("logAppended", { deploymentId: id }, cancelLog);
+        deploymentEventService.emit("logAppended", { deploymentId: id }, cancelLog);
         return { deploymentId: id, cancelledAt };
     }
 
-    async rollbackDeployment(
+    async function rollbackDeployment(
         fromDeploymentId: string,
         targetDeploymentId: string,
         userId: string,
@@ -653,11 +653,11 @@ export class DeploymentService implements OnModuleInit {
         actorPlatformRole: PlatformRole | null = null,
     ) {
         const [fromDeployment, targetDeployment] = await Promise.all([
-            this.getDeploymentById(fromDeploymentId),
-            this.getDeploymentById(targetDeploymentId),
+            getDeploymentById(fromDeploymentId),
+            getDeploymentById(targetDeploymentId),
         ]);
 
-        await this.assertDeploymentServiceAccess(fromDeployment.serviceId, userId, [
+        await assertDeploymentServiceAccess(fromDeployment.serviceId, userId, [
             "owner",
             "maintainer",
             "deployer",
@@ -670,12 +670,12 @@ export class DeploymentService implements OnModuleInit {
             throw new RuntimeInvalid({ reason: `Target deployment status is '${targetDeployment.status}', must be 'success' to roll back to` });
         }
 
-        const rollbackStateMachineScopeConfig = await this.resolveStateMachineScopeConfigForService({
+        const rollbackStateMachineScopeConfig = await resolveStateMachineScopeConfigForService({
             serviceId: fromDeployment.serviceId,
             environment: fromDeployment.environment,
             sourceType: targetDeployment.sourceType,
         });
-        const rollbackTransition = this.deploymentStateMachineService.evaluateRollbackTransition(
+        const rollbackTransition = deploymentStateMachineService.evaluateRollbackTransition(
             {
                 sourceStatus: fromDeployment.status,
                 targetStatus: targetDeployment.status,
@@ -689,7 +689,7 @@ export class DeploymentService implements OnModuleInit {
             throw new RuntimeInvalid({ reason: rollbackTransition.violations.map((violation) => violation.message).join(" ") });
         }
 
-        const rollback = await this.deploymentRepository.create({
+        const rollback = await deploymentRepository.create({
             serviceId: fromDeployment.serviceId,
             triggeredBy: userId,
             environment: fromDeployment.environment,
@@ -701,7 +701,7 @@ export class DeploymentService implements OnModuleInit {
                 ...(reason ? { rollbackReason: reason } : {}),
             },
         });
-        const rollbackRecord = await this.deploymentRepository.createRollback({
+        const rollbackRecord = await deploymentRepository.createRollback({
             fromDeploymentId,
             toDeploymentId: rollback.id,
             triggeredBy: userId,
@@ -711,11 +711,11 @@ export class DeploymentService implements OnModuleInit {
             },
         });
 
-        const rollbackProjectId = await this.deploymentRepository.getServiceProjectId(rollback.serviceId);
+        const rollbackProjectId = await deploymentRepository.getServiceProjectId(rollback.serviceId);
 
-        await this.emitLifecycleQueued(rollback, fromDeployment.status, "Rollback deployment queued");
+        await emitLifecycleQueued(rollback, fromDeployment.status, "Rollback deployment queued");
 
-        await this.enqueueQueueJob({
+        await enqueueQueueJob({
             type: "rollback",
             idempotencyKey: `rollback:${rollbackRecord.id}`,
             payload: {
@@ -740,7 +740,7 @@ export class DeploymentService implements OnModuleInit {
             },
         });
 
-        const rollbackLog = await this.deploymentRepository.insertLog(rollback.id, {
+        const rollbackLog = await deploymentRepository.insertLog(rollback.id, {
             level: "info",
             message: "Rollback deployment queued",
             phase: "queued",
@@ -753,7 +753,7 @@ export class DeploymentService implements OnModuleInit {
             },
         });
         const now = new Date().toISOString();
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "deploymentTriggered",
             { serviceId: rollback.serviceId },
             {
@@ -762,7 +762,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "rollbackStarted",
             { serviceId: fromDeployment.serviceId },
             {
@@ -772,7 +772,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "serviceStatusChanged",
             { serviceId: rollback.serviceId },
             {
@@ -782,7 +782,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "statusChanged",
             { deploymentId: rollback.id },
             {
@@ -792,7 +792,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "phaseUpdated",
             { deploymentId: rollback.id },
             {
@@ -802,7 +802,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "orchestrationPhaseTransition",
             { deploymentId: rollback.id },
             {
@@ -812,7 +812,7 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "metricsSnapshot",
             { deploymentId: rollback.id },
             {
@@ -824,11 +824,11 @@ export class DeploymentService implements OnModuleInit {
                 timestamp: now,
             },
         );
-        this.deploymentEventService.emit("logAppended", { deploymentId: rollback.id }, rollbackLog);
+        deploymentEventService.emit("logAppended", { deploymentId: rollback.id }, rollbackLog);
         return rollback;
     }
 
-    async getDeploymentLogs(
+    async function getDeploymentLogs(
         deploymentId: string,
         limit: number,
         offset: number,
@@ -841,17 +841,17 @@ export class DeploymentService implements OnModuleInit {
             includeRetrySummary?: boolean;
         },
     ) {
-        await this.getDeploymentById(deploymentId); // verify exists
+        await getDeploymentById(deploymentId); // verify exists
         const [logs, total, buildRetryEvents, deployRetryEvents] = await Promise.all([
-            this.deploymentRepository.findLogs(deploymentId, limit, offset, filters),
-            this.deploymentRepository.countLogs(deploymentId, filters),
+            deploymentRepository.findLogs(deploymentId, limit, offset, filters),
+            deploymentRepository.countLogs(deploymentId, filters),
             options?.includeRetrySummary
-                ? this.deploymentRepository.countLogs(deploymentId, {
+                ? deploymentRepository.countLogs(deploymentId, {
                       step: "build_retry",
                   })
                 : Promise.resolve(null),
             options?.includeRetrySummary
-                ? this.deploymentRepository.countLogs(deploymentId, {
+                ? deploymentRepository.countLogs(deploymentId, {
                       step: "deploy_retry",
                   })
                 : Promise.resolve(null),
@@ -879,20 +879,20 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    async deleteDeployment(id: string, requesterId: string, actorPlatformRole: PlatformRole | null = null) {
-        const deployment = await this.getDeploymentById(id);
-        await this.assertDeploymentServiceAccess(
+    async function deleteDeployment(id: string, requesterId: string, actorPlatformRole: PlatformRole | null = null) {
+        const deployment = await getDeploymentById(id);
+        await assertDeploymentServiceAccess(
             deployment.serviceId,
             requesterId,
             ["owner", "maintainer"],
             actorPlatformRole,
         );
-        await this.deploymentRepository.delete(id);
+        await deploymentRepository.delete(id);
     }
 
-    async retryDeployment(id: string, userId: string, actorPlatformRole: PlatformRole | null = null) {
-        const deployment = await this.getDeploymentById(id);
-        await this.assertDeploymentServiceAccess(deployment.serviceId, userId, [
+    async function retryDeployment(id: string, userId: string, actorPlatformRole: PlatformRole | null = null) {
+        const deployment = await getDeploymentById(id);
+        await assertDeploymentServiceAccess(deployment.serviceId, userId, [
             "owner",
             "maintainer",
             "deployer",
@@ -901,21 +901,21 @@ export class DeploymentService implements OnModuleInit {
         if (!RETRYABLE_STATUSES.includes(deployment.status as (typeof RETRYABLE_STATUSES)[number])) {
             throw new RuntimeInvalid({ reason: `Cannot retry deployment with status '${deployment.status}'. Only failed or cancelled deployments can be retried.` });
         }
-        const retry = await this.deploymentRepository.create({
+        const retry = await deploymentRepository.create({
             serviceId: deployment.serviceId,
             triggeredBy: userId,
             environment: deployment.environment,
             sourceType: deployment.sourceType,
             sourceConfig: deployment.sourceConfig ?? undefined,
         });
-        await this.emitLifecycleQueued(retry, null, "Retry deployment queued");
+        await emitLifecycleQueued(retry, null, "Retry deployment queued");
 
         // W10: enqueue the retry into the REAL queue (was a documented no-op).
         // The job runs through the same claim → build → complete flow as a
         // fresh deploy; its context carries the original deployment's source
         // (re-resolved to a checkout so the builder can rebuild without
         // re-triggering provider discovery).
-        const projectId = await this.deploymentRepository.getServiceProjectId(
+        const projectId = await deploymentRepository.getServiceProjectId(
             deployment.serviceId,
         );
         const correlationId = randomUUID();
@@ -923,14 +923,14 @@ export class DeploymentService implements OnModuleInit {
         const retrySource = deployment.sourceConfig;
         const sourceCheckout =
             retrySource && "sourceType" in retrySource && retrySource.sourceType
-                ? await this.sourceProviderRegistryService.resolveSourceCheckout({
+                ? await host.runUnwrapped(codeProviders.resolveSourceCheckout({
                       serviceId: deployment.serviceId,
                       environment: deployment.environment,
                       source: retrySource,
-                  })
+                  }))
                 : null;
 
-        await this.enqueueQueueJob({
+        await enqueueQueueJob({
             type: "retry",
             idempotencyKey: `retry:${retry.id}`,
             payload: {
@@ -959,15 +959,15 @@ export class DeploymentService implements OnModuleInit {
         return retry;
     }
 
-    async getRollbackHistory(deploymentId: string) {
-        await this.getDeploymentById(deploymentId); // verify exists
-        const rollbacks = await this.deploymentRepository.findRollbacks(deploymentId);
+    async function getRollbackHistory(deploymentId: string) {
+        await getDeploymentById(deploymentId); // verify exists
+        const rollbacks = await deploymentRepository.findRollbacks(deploymentId);
         return { rollbacks };
     }
 
-    async getDeploymentReplayEvents(deploymentId: string, replayLimit: number): Promise<DeploymentProgressEvent[]> {
-        const deployment = await this.getDeploymentById(deploymentId);
-        const logs = await this.deploymentRepository.findLogs(deploymentId, replayLimit, 0);
+    async function getDeploymentReplayEvents(deploymentId: string, replayLimit: number): Promise<DeploymentProgressEvent[]> {
+        const deployment = await getDeploymentById(deploymentId);
+        const logs = await deploymentRepository.findLogs(deploymentId, replayLimit, 0);
 
         const events: DeploymentProgressEvent[] = [
             {
@@ -996,8 +996,8 @@ export class DeploymentService implements OnModuleInit {
         return events;
     }
 
-    async getServiceReplayEvents(serviceId: string, replayLimit: number): Promise<ServiceDeploymentEvent[]> {
-        const deployments = await this.deploymentRepository.findRecentDeployments({ serviceId }, replayLimit);
+    async function getServiceReplayEvents(serviceId: string, replayLimit: number): Promise<ServiceDeploymentEvent[]> {
+        const deployments = await deploymentRepository.findRecentDeployments({ serviceId }, replayLimit);
 
         const events: ServiceDeploymentEvent[] = [];
 
@@ -1032,7 +1032,7 @@ export class DeploymentService implements OnModuleInit {
         return events;
     }
 
-    async getFilteredReplayEvents(
+    async function getFilteredReplayEvents(
         filters: {
             deploymentId?: string;
             serviceId?: string;
@@ -1044,8 +1044,8 @@ export class DeploymentService implements OnModuleInit {
         replayLimit: number,
     ): Promise<DeploymentQueryEvent[]> {
         const [deployments, logs] = await Promise.all([
-            this.deploymentRepository.findRecentDeployments(filters, replayLimit),
-            this.deploymentRepository.findRecentLogs(filters, replayLimit),
+            deploymentRepository.findRecentDeployments(filters, replayLimit),
+            deploymentRepository.findRecentLogs(filters, replayLimit),
         ]);
 
         const events: DeploymentQueryEvent[] = [];
@@ -1055,7 +1055,7 @@ export class DeploymentService implements OnModuleInit {
             events.push({
                 type: "deploymentTriggered",
                 deployment,
-                emittedAt: this.toDate(deployment.createdAt),
+                emittedAt: toDate(deployment.createdAt),
             });
             events.push({
                 type: "statusChanged",
@@ -1064,7 +1064,7 @@ export class DeploymentService implements OnModuleInit {
                 ...(item.projectId ? { projectId: item.projectId } : {}),
                 status: deployment.status,
                 environment: deployment.environment,
-                emittedAt: this.toDate(deployment.updatedAt),
+                emittedAt: toDate(deployment.updatedAt),
             });
 
             if (deployment.phase) {
@@ -1073,7 +1073,7 @@ export class DeploymentService implements OnModuleInit {
                     deploymentId: deployment.id,
                     phase: deployment.phase,
                     phaseProgress: deployment.phaseProgress ?? 0,
-                    emittedAt: this.toDate(deployment.updatedAt),
+                    emittedAt: toDate(deployment.updatedAt),
                 });
             }
 
@@ -1084,7 +1084,7 @@ export class DeploymentService implements OnModuleInit {
                     ...(typeof deployment.metadata?.cancelReason === "string"
                         ? { reason: deployment.metadata.cancelReason }
                         : {}),
-                    emittedAt: this.toDate(deployment.updatedAt),
+                    emittedAt: toDate(deployment.updatedAt),
                 });
             }
 
@@ -1093,7 +1093,7 @@ export class DeploymentService implements OnModuleInit {
                     type: "rollbackStarted",
                     fromDeploymentId: deployment.metadata.rollbackFrom,
                     rollbackDeploymentId: deployment.id,
-                    emittedAt: this.toDate(deployment.updatedAt),
+                    emittedAt: toDate(deployment.updatedAt),
                 });
             }
         }
@@ -1102,39 +1102,39 @@ export class DeploymentService implements OnModuleInit {
             events.push({
                 type: "logAppended",
                 log: item.log,
-                emittedAt: this.toDate(item.log.timestamp),
+                emittedAt: toDate(item.log.timestamp),
             });
         }
 
-        return events.filter((event) => this.matchesStreamQueryFilters(event, filters));
+        return events.filter((event) => matchesStreamQueryFilters(event, filters));
     }
 
-    async getProjectServiceIds(projectId: string) {
-        return this.deploymentRepository.findServiceIdsByProject(projectId);
+    async function getProjectServiceIds(projectId: string) {
+        return deploymentRepository.findServiceIdsByProject(projectId);
     }
 
-    async listStreamDefinitions(input: DeploymentStreamListInput | undefined) {
-        return this.deploymentRepository.findStreamMany(input);
+    async function listStreamDefinitions(input: DeploymentStreamListInput | undefined) {
+        return deploymentRepository.findStreamMany(input);
     }
 
-    async getStreamDefinitionById(id: string) {
-        const stream = await this.deploymentRepository.findStreamById(id);
+    async function getStreamDefinitionById(id: string) {
+        const stream = await deploymentRepository.findStreamById(id);
         if (!stream) {
             throw new RuntimeNotFound({ reason: `Deployment stream definition with id '${id}' not found` });
         }
         return stream;
     }
 
-    getTemplateProvenance(deploymentId: string): DeploymentTemplateProvenance | null {
-        return this.templateProvenanceByDeployment.get(deploymentId) ?? null;
+    function getTemplateProvenance(deploymentId: string): DeploymentTemplateProvenance | null {
+        return templateProvenanceByDeployment.get(deploymentId) ?? null;
     }
 
-    upsertTemplateProvenance(
+    function upsertTemplateProvenance(
         deploymentId: string,
         input: DeploymentTemplateProvenanceUpsertInput,
     ): Promise<DeploymentTemplateProvenanceUpsertResult> {
         const now = new Date().toISOString();
-        const existing = this.templateProvenanceByDeployment.get(deploymentId);
+        const existing = templateProvenanceByDeployment.get(deploymentId);
         const record: DeploymentTemplateProvenance = {
             id: existing?.id ?? randomUUID(),
             deploymentId,
@@ -1147,24 +1147,24 @@ export class DeploymentService implements OnModuleInit {
             updatedAt: now,
         };
 
-        this.templateProvenanceByDeployment.set(deploymentId, record);
+        templateProvenanceByDeployment.set(deploymentId, record);
         if (record.runId) {
-            const records = this.templateProvenanceByRun.get(record.runId) ?? [];
+            const records = templateProvenanceByRun.get(record.runId) ?? [];
             const next = [...records.filter((item) => item.id !== record.id), record];
-            this.templateProvenanceByRun.set(record.runId, next);
+            templateProvenanceByRun.set(record.runId, next);
         }
 
         return Promise.resolve({ persisted: true, provenance: record });
     }
 
-    getTemplateProvenanceByRun(runId: string): DeploymentTemplateProvenanceByRunResult {
+    function getTemplateProvenanceByRun(runId: string): DeploymentTemplateProvenanceByRunResult {
         return {
             runId,
-            records: this.templateProvenanceByRun.get(runId) ?? [],
+            records: templateProvenanceByRun.get(runId) ?? [],
         };
     }
 
-    createCompiledPlanSnapshot(
+    function createCompiledPlanSnapshot(
         deploymentId: string,
         input: DeploymentCreateCompiledPlanSnapshotInput,
     ): DeploymentCreateCompiledPlanSnapshotResult {
@@ -1182,33 +1182,33 @@ export class DeploymentService implements OnModuleInit {
             createdAt: new Date().toISOString(),
         };
 
-        this.compiledSnapshotsById.set(snapshot.id, snapshot);
-        this.compiledSnapshotsByRun.set(snapshot.runId, snapshot);
-        const existing = this.compiledSnapshotsByDeployment.get(deploymentId) ?? [];
-        this.compiledSnapshotsByDeployment.set(deploymentId, [...existing, snapshot]);
+        compiledSnapshotsById.set(snapshot.id, snapshot);
+        compiledSnapshotsByRun.set(snapshot.runId, snapshot);
+        const existing = compiledSnapshotsByDeployment.get(deploymentId) ?? [];
+        compiledSnapshotsByDeployment.set(deploymentId, [...existing, snapshot]);
 
         return { persisted: true, snapshot };
     }
 
-    listCompiledPlanSnapshots(deploymentId: string): DeploymentListCompiledPlanSnapshotsResult {
+    function listCompiledPlanSnapshots(deploymentId: string): DeploymentListCompiledPlanSnapshotsResult {
         return {
             deploymentId,
-            snapshots: this.compiledSnapshotsByDeployment.get(deploymentId) ?? [],
+            snapshots: compiledSnapshotsByDeployment.get(deploymentId) ?? [],
         };
     }
 
-    getCompiledPlanSnapshot(snapshotId: string): DeploymentCompiledPlanSnapshot | null {
-        return this.compiledSnapshotsById.get(snapshotId) ?? null;
+    function getCompiledPlanSnapshot(snapshotId: string): DeploymentCompiledPlanSnapshot | null {
+        return compiledSnapshotsById.get(snapshotId) ?? null;
     }
 
-    getCompiledPlanSnapshotByRun(runId: string): DeploymentCompiledPlanSnapshotByRunResult {
+    function getCompiledPlanSnapshotByRun(runId: string): DeploymentCompiledPlanSnapshotByRunResult {
         return {
             runId,
-            snapshot: this.compiledSnapshotsByRun.get(runId) ?? null,
+            snapshot: compiledSnapshotsByRun.get(runId) ?? null,
         };
     }
 
-    compilePlan(input: DeploymentPlanCompileInput): DeploymentPlanCompileResult {
+    function compilePlan(input: DeploymentPlanCompileInput): DeploymentPlanCompileResult {
         const isPreview = input.environment === "preview";
         const previewTemplateId = input.templateRefs.previewTemplateId ?? null;
 
@@ -1308,7 +1308,7 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    compileRollbackEdges(input: DeploymentCompileRollbackEdgesInput): DeploymentCompileRollbackEdgesResult {
+    function compileRollbackEdges(input: DeploymentCompileRollbackEdgesInput): DeploymentCompileRollbackEdgesResult {
         const rollbackEdges = input.plan.edges
             .filter((edge) => edge.kind === "rollback")
             .map((edge) => ({
@@ -1339,40 +1339,40 @@ export class DeploymentService implements OnModuleInit {
      * The job is a row in `deployment_queue_jobs`; the lifecycle service announces it on the typed channel
      * (`onJobQueued`) once it is stored, and the worker claims and executes it. It survives a restart.
      */
-    enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult> {
-        return this.deploymentQueueLifecycleService.enqueueQueueJob(input);
+    function enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult> {
+        return host.runUnwrapped(queue.enqueueQueueJob(input));
     }
 
-    async claimQueueJobs(input: DeploymentQueueClaimInput): Promise<DeploymentQueueClaimResult> {
+    async function claimQueueJobs(input: DeploymentQueueClaimInput): Promise<DeploymentQueueClaimResult> {
         const now = Date.now();
-        const claimResult = await this.deploymentQueueLifecycleService.claimQueueJobs(input);
+        const claimResult = await host.runUnwrapped(queue.claimQueueJobs(input));
         for (const job of claimResult.claimed) {
-            await this.handleClaimedQueueJob(job, now);
+            await handleClaimedQueueJob(job, now);
         }
 
         return claimResult;
     }
 
-    async claimQueueJobByIdempotencyKey(
+    async function claimQueueJobByIdempotencyKey(
         idempotencyKey: string,
         input: DeploymentQueueClaimInput,
     ): Promise<DeploymentQueueJob | null> {
         const now = Date.now();
-        const claimed = await this.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+        const claimed = await host.runUnwrapped(queue.claimQueueJobByIdempotencyKey(
             idempotencyKey,
             input,
-        );
+        ));
 
         if (!claimed) {
             return null;
         }
 
-        await this.handleClaimedQueueJob(claimed, now);
+        await handleClaimedQueueJob(claimed, now);
         return claimed;
     }
 
-    async heartbeatQueueJob(jobId: string, input: DeploymentQueueHeartbeatInput): Promise<DeploymentQueueHeartbeatResult> {
-        const heartbeat = await this.deploymentQueueLifecycleService.heartbeatQueueJob(jobId, input);
+    async function heartbeatQueueJob(jobId: string, input: DeploymentQueueHeartbeatInput): Promise<DeploymentQueueHeartbeatResult> {
+        const heartbeat = await host.runUnwrapped(queue.heartbeatQueueJob(jobId, input));
         if (!heartbeat) {
             return {
                 acknowledged: false,
@@ -1385,130 +1385,130 @@ export class DeploymentService implements OnModuleInit {
         return heartbeat;
     }
 
-    async completeQueueJob(
+    async function completeQueueJob(
         jobId: string,
         input: DeploymentQueueCompleteInput,
     ): Promise<DeploymentQueueTransitionResult> {
-        const existing = await this.deploymentQueueLifecycleService.findQueueJobById(jobId);
+        const existing = await host.runUnwrapped(queue.findQueueJobById(jobId));
         if (existing?.workerId !== input.workerId || existing.lockToken !== input.lockToken) {
             throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue completion" });
         }
 
         if (existing.type === "deploy" && existing.payload.deploymentId) {
-            await this.deploymentExecutionWorkflowService.persistBuildExecutionResult(
+            await host.runUnwrapped(workflow.persistBuildExecutionResult(
                 existing.payload.deploymentId,
                 input.result,
                 existing.payload.observability ?? null,
-            );
+            ));
         }
 
         if (existing.type === "retry" && existing.payload.deploymentId) {
-            await this.deploymentExecutionWorkflowService.persistBuildExecutionResult(
+            await host.runUnwrapped(workflow.persistBuildExecutionResult(
                 existing.payload.deploymentId,
                 input.result,
                 existing.payload.observability ?? null,
-            );
+            ));
         }
 
         if (existing.type === "rollback" && existing.payload.deploymentId) {
-            await this.deploymentExecutionWorkflowService.persistRollbackExecutionResult(
+            await host.runUnwrapped(workflow.persistRollbackExecutionResult(
                 existing.payload.deploymentId,
-                this.getResultString(existing.payload.context, "rollbackId"),
-                this.getResultString(existing.payload.context, "fromDeploymentId"),
+                getResultString(existing.payload.context, "rollbackId"),
+                getResultString(existing.payload.context, "fromDeploymentId"),
                 existing.payload.observability ?? null,
                 input.result,
-            );
+            ));
         }
 
-        const completion = await this.deploymentQueueLifecycleService.completeQueueJob(
+        const completion = await host.runUnwrapped(queue.completeQueueJob(
             jobId,
             input.workerId,
             input.lockToken,
             input.result,
-        );
+        ));
         if (!completion) {
             throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue completion" });
         }
         // A deploy, retry, or rollback finished → its container/domain routing
         // may have changed → the ingress must publish the new Host rules.
         if (existing.type === "deploy" || existing.type === "rollback" || existing.type === "retry") {
-            this.ingressRefresher.refresh();
+            ingressRefresher.refresh();
         }
         return completion;
     }
 
-    private getResultString(result: Record<string, unknown> | undefined, key: string): string | null {
+    function getResultString(result: Record<string, unknown> | undefined, key: string): string | null {
         const value = result?.[key];
         return typeof value === "string" && value.trim().length > 0 ? value : null;
     }
 
-    private async handleClaimedQueueJob(job: DeploymentQueueJob, claimedAtMs: number): Promise<void> {
+    async function handleClaimedQueueJob(job: DeploymentQueueJob, claimedAtMs: number): Promise<void> {
         if ((job.type !== "deploy" && job.type !== "retry") || !job.payload.deploymentId) {
             if (job.type === "rollback" && job.payload.deploymentId) {
-                await this.deploymentExecutionWorkflowService.markRollbackExecutionStarted(
+                await host.runUnwrapped(workflow.markRollbackExecutionStarted(
                     job.payload.deploymentId,
-                    this.getResultString(job.payload.context, "rollbackId"),
-                    this.getResultString(job.payload.context, "fromDeploymentId"),
+                    getResultString(job.payload.context, "rollbackId"),
+                    getResultString(job.payload.context, "fromDeploymentId"),
                     job.payload.observability ?? null,
-                );
+                ));
             }
             return;
         }
 
-        await this.deploymentExecutionWorkflowService.markBuildExecutionStarted(
+        await host.runUnwrapped(workflow.markBuildExecutionStarted(
             job.payload.deploymentId,
             new Date(claimedAtMs),
             job.payload.observability ?? null,
-        );
+        ));
     }
 
-    async failQueueJob(jobId: string, input: DeploymentQueueFailInput): Promise<DeploymentQueueTransitionResult> {
-        const failure = await this.deploymentQueueLifecycleService.failQueueJob(jobId, input);
+    async function failQueueJob(jobId: string, input: DeploymentQueueFailInput): Promise<DeploymentQueueTransitionResult> {
+        const failure = await host.runUnwrapped(queue.failQueueJob(jobId, input));
         if (!failure) {
             throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue failure" });
         }
 
         if (failure.failedJob.type === "rollback" && failure.failedJob.payload.deploymentId) {
-            void this.deploymentExecutionWorkflowService.persistRollbackExecutionFailure(
+            void host.runUnwrapped(workflow.persistRollbackExecutionFailure(
                 failure.failedJob.payload.deploymentId,
-                this.getResultString(failure.failedJob.payload.context, "rollbackId"),
-                this.getResultString(failure.failedJob.payload.context, "fromDeploymentId"),
+                getResultString(failure.failedJob.payload.context, "rollbackId"),
+                getResultString(failure.failedJob.payload.context, "fromDeploymentId"),
                 input.error,
-            );
+            ));
         } else if (failure.failedJob.payload.deploymentId) {
             // W-Queue (Q4): deploy/retry failures now persist to the deployment
             // row (previously only rollback was persisted, leaving deploys stuck
             // at "building" after queue exhaust).
-            void this.deploymentExecutionWorkflowService.persistDeploymentExecutionFailure(
+            void host.runUnwrapped(workflow.persistDeploymentExecutionFailure(
                 failure.failedJob.payload.deploymentId,
                 input.error,
-            );
+            ));
         }
 
         return failure.transition;
     }
 
-    findQueueJobById(jobId: string): Promise<DeploymentQueueJob | null> {
-        return this.deploymentQueueLifecycleService.findQueueJobById(jobId);
+    function findQueueJobById(jobId: string): Promise<DeploymentQueueJob | null> {
+        return host.runUnwrapped(queue.findQueueJobById(jobId));
     }
 
-    listQueueJobs(input: DeploymentQueueListInput): Promise<DeploymentQueueListResult> {
-        return this.deploymentQueueLifecycleService.listQueueJobs(input);
+    function listQueueJobs(input: DeploymentQueueListInput): Promise<DeploymentQueueListResult> {
+        return host.runUnwrapped(queue.listQueueJobs(input));
     }
 
-    listDeadLetterJobs(input: DeploymentDeadLetterListInput): Promise<DeploymentDeadLetterListResult> {
-        return this.deploymentQueueLifecycleService.listDeadLetterJobs(input);
+    function listDeadLetterJobs(input: DeploymentDeadLetterListInput): Promise<DeploymentDeadLetterListResult> {
+        return host.runUnwrapped(queue.listDeadLetterJobs(input));
     }
 
-    findDeadLetterJobById(deadLetterJobId: string): Promise<DeploymentDeadLetterJob | null> {
-        return this.deploymentQueueLifecycleService.findDeadLetterJobById(deadLetterJobId);
+    function findDeadLetterJobById(deadLetterJobId: string): Promise<DeploymentDeadLetterJob | null> {
+        return host.runUnwrapped(queue.findDeadLetterJobById(deadLetterJobId));
     }
 
-    replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): Promise<DeploymentDeadLetterReplayResult> {
-        return this.deploymentQueueLifecycleService.replayDeadLetterJob(input);
+    function replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): Promise<DeploymentDeadLetterReplayResult> {
+        return host.runUnwrapped(queue.replayDeadLetterJob(input));
     }
 
-    listRetryPolicies(input: DeploymentRetryPolicyListInput) {
+    function listRetryPolicies(input: DeploymentRetryPolicyListInput) {
         return {
             policies: BASE_RETRY_POLICIES.filter((policy) =>
                 (!input.jobType || policy.jobType === input.jobType) &&
@@ -1519,7 +1519,7 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    resolveRetryPolicy(input: DeploymentRetryPolicyResolveInput): DeploymentRetryPolicyResolveResult {
+    function resolveRetryPolicy(input: DeploymentRetryPolicyResolveInput): DeploymentRetryPolicyResolveResult {
         const matched = BASE_RETRY_POLICIES.find((policy) =>
             (!policy.jobType || policy.jobType === input.jobType) &&
             (!policy.nodeType || policy.nodeType === input.nodeType) &&
@@ -1574,9 +1574,9 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    cancelExecution(deploymentId: string, input: DeploymentExecutionCancelInput): DeploymentExecutionCancelResult {
+    function cancelExecution(deploymentId: string, input: DeploymentExecutionCancelInput): DeploymentExecutionCancelResult {
         const now = new Date().toISOString();
-        const existing = this.executionCheckpointsByDeployment.get(deploymentId);
+        const existing = executionCheckpointsByDeployment.get(deploymentId);
         const runId = existing?.runId ?? randomUUID();
 
         const checkpoint: DeploymentExecutionCheckpoint = {
@@ -1604,8 +1604,8 @@ export class DeploymentService implements OnModuleInit {
             updatedAt: now,
         };
 
-        this.executionCheckpointsByDeployment.set(deploymentId, checkpoint);
-        this.executionCheckpointsByRun.set(runId, checkpoint);
+        executionCheckpointsByDeployment.set(deploymentId, checkpoint);
+        executionCheckpointsByRun.set(runId, checkpoint);
 
         return {
             accepted: true,
@@ -1617,8 +1617,8 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    resumeExecution(deploymentId: string, input: DeploymentExecutionResumeInput): DeploymentExecutionResumeResult {
-        const previous = this.executionCheckpointsByDeployment.get(deploymentId);
+    function resumeExecution(deploymentId: string, input: DeploymentExecutionResumeInput): DeploymentExecutionResumeResult {
+        const previous = executionCheckpointsByDeployment.get(deploymentId);
         const now = new Date().toISOString();
         const runId = randomUUID();
 
@@ -1647,8 +1647,8 @@ export class DeploymentService implements OnModuleInit {
             updatedAt: now,
         };
 
-        this.executionCheckpointsByDeployment.set(deploymentId, checkpoint);
-        this.executionCheckpointsByRun.set(runId, checkpoint);
+        executionCheckpointsByDeployment.set(deploymentId, checkpoint);
+        executionCheckpointsByRun.set(runId, checkpoint);
 
         return {
             resumed: true,
@@ -1661,18 +1661,18 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    getExecutionCheckpoint(deploymentId: string): DeploymentExecutionCheckpoint | null {
-        return this.executionCheckpointsByDeployment.get(deploymentId) ?? null;
+    function getExecutionCheckpoint(deploymentId: string): DeploymentExecutionCheckpoint | null {
+        return executionCheckpointsByDeployment.get(deploymentId) ?? null;
     }
 
-    getExecutionCheckpointByRun(runId: string): DeploymentExecutionCheckpointByRunResult {
+    function getExecutionCheckpointByRun(runId: string): DeploymentExecutionCheckpointByRunResult {
         return {
             runId,
-            checkpoint: this.executionCheckpointsByRun.get(runId) ?? null,
+            checkpoint: executionCheckpointsByRun.get(runId) ?? null,
         };
     }
 
-    emitNodeLifecycleEvent(
+    function emitNodeLifecycleEvent(
         runId: string,
         input: DeploymentNodeLifecycleEventEmitInput,
     ): DeploymentNodeLifecycleEventEmitResult {
@@ -1699,18 +1699,18 @@ export class DeploymentService implements OnModuleInit {
             emittedAt: input.emittedAt ?? new Date().toISOString(),
         };
 
-        const events = this.nodeLifecycleByRun.get(runId) ?? [];
+        const events = nodeLifecycleByRun.get(runId) ?? [];
         const next = [...events, event].sort((a, b) => a.sequence - b.sequence);
-        this.nodeLifecycleByRun.set(runId, next);
+        nodeLifecycleByRun.set(runId, next);
 
         return { emitted: true, event };
     }
 
-    listNodeLifecycleEvents(
+    function listNodeLifecycleEvents(
         runId: string,
         input: Omit<DeploymentNodeLifecycleEventListInput, "runId">,
     ): DeploymentNodeLifecycleEventListResult {
-        const events = (this.nodeLifecycleByRun.get(runId) ?? [])
+        const events = (nodeLifecycleByRun.get(runId) ?? [])
             .filter((event) => !input.deploymentId || event.deploymentId === input.deploymentId)
             .filter((event) => !input.nodeId || event.nodeId === input.nodeId)
             .filter((event) => !input.type || event.type === input.type)
@@ -1728,13 +1728,13 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    streamNodeLifecycleEvents(input: {
+    function streamNodeLifecycleEvents(input: {
         runId: string;
         fromSequence?: number;
         replay: boolean;
         replayLimit: number;
     }): Observable<DeploymentNodeLifecycleEvent> {
-        const events = (this.nodeLifecycleByRun.get(input.runId) ?? [])
+        const events = (nodeLifecycleByRun.get(input.runId) ?? [])
             .filter((event) => input.fromSequence === undefined || event.sequence >= input.fromSequence)
             .sort((a, b) => a.sequence - b.sequence);
 
@@ -1743,7 +1743,7 @@ export class DeploymentService implements OnModuleInit {
         return from(replayEvents);
     }
 
-    listPhaseTransitions(input: { from?: string; to?: string }): DeploymentPhaseTransitionsCatalog {
+    function listPhaseTransitions(input: { from?: string; to?: string }): DeploymentPhaseTransitionsCatalog {
         return {
             transitions: BASE_PHASE_TRANSITIONS.filter((transition) =>
                 (!input.from || transition.from === input.from) && (!input.to || transition.to === input.to),
@@ -1751,7 +1751,7 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    validatePhaseTransition(
+    function validatePhaseTransition(
         input: DeploymentPhaseTransitionValidationInput,
     ): DeploymentPhaseTransitionValidationResult {
         const transition = BASE_PHASE_TRANSITIONS.find(
@@ -1785,11 +1785,11 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    async applyPhaseTransition(
+    async function applyPhaseTransition(
         deploymentId: string,
         input: DeploymentPhaseTransitionApplyInput,
     ): Promise<DeploymentPhaseTransitionApplyResult> {
-        const validation = this.validatePhaseTransition(input);
+        const validation = validatePhaseTransition(input);
         const previousPhase = input.currentPhase;
 
         if (!validation.valid && !input.force) {
@@ -1805,7 +1805,7 @@ export class DeploymentService implements OnModuleInit {
 
         const phaseProgress =
             typeof input.context.phaseProgress === "number" ? input.context.phaseProgress : 0;
-        await this.deploymentRepository.updatePhase(deploymentId, input.targetPhase, phaseProgress);
+        await deploymentRepository.updatePhase(deploymentId, input.targetPhase, phaseProgress);
 
         return {
             applied: true,
@@ -1821,14 +1821,14 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    streamDeploymentEvents(input: {
+    function streamDeploymentEvents(input: {
         deploymentId: string;
     } & StreamReplayInput): Observable<StreamEventWithMeta<DeploymentProgressEvent>> {
-        const live$ = defer(async () => this.getDeploymentById(input.deploymentId)).pipe(
+        const live$ = defer(async () => getDeploymentById(input.deploymentId)).pipe(
             mergeMap((deployment) =>
-                this.mergeEventStreams<DeploymentProgressEvent>([
-                    this.mapEventStream(
-                        this.deploymentEventService.subscribe("statusChanged", {
+                mergeEventStreams<DeploymentProgressEvent>([
+                    mapEventStream(
+                        deploymentEventService.subscribe("statusChanged", {
                             deploymentId: input.deploymentId,
                         }),
                         (event) => ({
@@ -1837,8 +1837,8 @@ export class DeploymentService implements OnModuleInit {
                             ...(event.phase ? { phase: event.phase } : {}),
                         }),
                     ),
-                    this.mapEventStream(
-                        this.deploymentEventService.subscribe("phaseUpdated", {
+                    mapEventStream(
+                        deploymentEventService.subscribe("phaseUpdated", {
                             deploymentId: input.deploymentId,
                         }),
                         (event) => ({
@@ -1847,14 +1847,14 @@ export class DeploymentService implements OnModuleInit {
                             phaseProgress: event.progress,
                         }),
                     ),
-                    this.mapEventStream(
-                        this.deploymentEventService.subscribe("logAppended", {
+                    mapEventStream(
+                        deploymentEventService.subscribe("logAppended", {
                             deploymentId: input.deploymentId,
                         }),
                         (event) => ({ type: "logAppended" as const, log: event }),
                     ),
-                    this.mapEventStream(
-                        this.deploymentEventService.subscribe("deploymentCancelled", {
+                    mapEventStream(
+                        deploymentEventService.subscribe("deploymentCancelled", {
                             serviceId: deployment.serviceId,
                         }),
                         (event) => {
@@ -1867,8 +1867,8 @@ export class DeploymentService implements OnModuleInit {
                             };
                         },
                     ),
-                    this.mapEventStream(
-                        this.deploymentEventService.subscribe("rollbackStarted", {
+                    mapEventStream(
+                        deploymentEventService.subscribe("rollbackStarted", {
                             serviceId: deployment.serviceId,
                         }),
                         (event) => {
@@ -1881,8 +1881,8 @@ export class DeploymentService implements OnModuleInit {
                             };
                         },
                     ),
-                    this.mapEventStream(
-                        this.deploymentEventService.subscribe("rollbackCompleted", {
+                    mapEventStream(
+                        deploymentEventService.subscribe("rollbackCompleted", {
                             serviceId: deployment.serviceId,
                         }),
                         (event) => {
@@ -1899,9 +1899,9 @@ export class DeploymentService implements OnModuleInit {
             ),
         );
 
-        return this.toSequencedObservable({
+        return toSequencedObservable({
             replay$: input.replay
-                ? defer(() => from(this.getDeploymentReplayEvents(input.deploymentId, input.replayLimit))).pipe(
+                ? defer(() => from(getDeploymentReplayEvents(input.deploymentId, input.replayLimit))).pipe(
                       mergeMap((events) => from(events)),
                   )
                 : EMPTY,
@@ -1909,12 +1909,12 @@ export class DeploymentService implements OnModuleInit {
         });
     }
 
-    streamServiceEvents(input: {
+    function streamServiceEvents(input: {
         serviceId: string;
     } & StreamReplayInput): Observable<StreamEventWithMeta<ServiceDeploymentEvent>> {
-        const live$ = this.mergeEventStreams<ServiceDeploymentEvent>([
-            this.mapEventStream(
-                this.deploymentEventService.subscribe("deploymentTriggered", {
+        const live$ = mergeEventStreams<ServiceDeploymentEvent>([
+            mapEventStream(
+                deploymentEventService.subscribe("deploymentTriggered", {
                     serviceId: input.serviceId,
                 }),
                 (event) => ({
@@ -1922,8 +1922,8 @@ export class DeploymentService implements OnModuleInit {
                     deployment: event.deployment,
                 }),
             ),
-            this.mapEventStream(
-                this.deploymentEventService.subscribe("serviceStatusChanged", {
+            mapEventStream(
+                deploymentEventService.subscribe("serviceStatusChanged", {
                     serviceId: input.serviceId,
                 }),
                 (event) => ({
@@ -1932,8 +1932,8 @@ export class DeploymentService implements OnModuleInit {
                     status: event.status,
                 }),
             ),
-            this.mapEventStream(
-                this.deploymentEventService.subscribe("deploymentCancelled", {
+            mapEventStream(
+                deploymentEventService.subscribe("deploymentCancelled", {
                     serviceId: input.serviceId,
                 }),
                 (event) => ({
@@ -1944,9 +1944,9 @@ export class DeploymentService implements OnModuleInit {
             ),
         ]);
 
-        return this.toSequencedObservable({
+        return toSequencedObservable({
             replay$: input.replay
-                ? defer(() => from(this.getServiceReplayEvents(input.serviceId, input.replayLimit))).pipe(
+                ? defer(() => from(getServiceReplayEvents(input.serviceId, input.replayLimit))).pipe(
                       mergeMap((events) => from(events)),
                   )
                 : EMPTY,
@@ -1954,7 +1954,7 @@ export class DeploymentService implements OnModuleInit {
         });
     }
 
-    streamQueryEvents(input: {
+    function streamQueryEvents(input: {
         deploymentId?: string;
         serviceId?: string;
         projectId?: string;
@@ -1969,7 +1969,7 @@ export class DeploymentService implements OnModuleInit {
                 serviceIds.push(input.serviceId);
             }
             if (input.projectId) {
-                const projectServiceIds = await this.getProjectServiceIds(input.projectId);
+                const projectServiceIds = await getProjectServiceIds(input.projectId);
                 for (const id of projectServiceIds) {
                     if (!serviceIds.includes(id)) {
                         serviceIds.push(id);
@@ -1983,8 +1983,8 @@ export class DeploymentService implements OnModuleInit {
 
                 if (input.deploymentId) {
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("statusChanged", {
+                        mapEventStream(
+                            deploymentEventService.subscribe("statusChanged", {
                                 deploymentId: input.deploymentId,
                             }),
                             (event) => ({
@@ -1995,8 +1995,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("phaseUpdated", {
+                        mapEventStream(
+                            deploymentEventService.subscribe("phaseUpdated", {
                                 deploymentId: input.deploymentId,
                             }),
                             (event) => ({
@@ -2008,16 +2008,16 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("logAppended", {
+                        mapEventStream(
+                            deploymentEventService.subscribe("logAppended", {
                                 deploymentId: input.deploymentId,
                             }),
                             (event) => ({ type: "logAppended" as const, log: event }),
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("metricsSnapshot", {
+                        mapEventStream(
+                            deploymentEventService.subscribe("metricsSnapshot", {
                                 deploymentId: input.deploymentId,
                             }),
                             (event) => ({
@@ -2038,8 +2038,8 @@ export class DeploymentService implements OnModuleInit {
 
                 for (const serviceId of serviceIds) {
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("deploymentTriggered", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("deploymentTriggered", { serviceId }),
                             (event) => ({
                                 type: "deploymentTriggered" as const,
                                 deployment: event.deployment,
@@ -2047,8 +2047,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("serviceStatusChanged", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("serviceStatusChanged", { serviceId }),
                             (event) => ({
                                 type: "statusChanged" as const,
                                 deploymentId: event.deploymentId,
@@ -2058,8 +2058,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("deploymentCancelled", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("deploymentCancelled", { serviceId }),
                             (event) => ({
                                 type: "deploymentCancelled" as const,
                                 deploymentId: event.deploymentId,
@@ -2068,8 +2068,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("rollbackStarted", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("rollbackStarted", { serviceId }),
                             (event) => ({
                                 type: "rollbackStarted" as const,
                                 fromDeploymentId: event.fromDeploymentId,
@@ -2078,8 +2078,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("rollbackCompleted", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("rollbackCompleted", { serviceId }),
                             (event) => ({
                                 type: "rollbackCompleted" as const,
                                 fromDeploymentId: event.fromDeploymentId,
@@ -2089,8 +2089,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("healthCheckUpdated", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("healthCheckUpdated", { serviceId }),
                             (event) => ({
                                 type: "healthCheckUpdated" as const,
                                 serviceId: event.serviceId,
@@ -2101,8 +2101,8 @@ export class DeploymentService implements OnModuleInit {
                         ),
                     );
                     streams.push(
-                        this.mapEventStream(
-                            this.deploymentEventService.subscribe("domainRouteUpdated", { serviceId }),
+                        mapEventStream(
+                            deploymentEventService.subscribe("domainRouteUpdated", { serviceId }),
                             (event) => ({
                                 type: "domainRouteUpdated" as const,
                                 serviceId: event.serviceId,
@@ -2114,7 +2114,7 @@ export class DeploymentService implements OnModuleInit {
                     );
                 }
 
-                return streams.length > 0 ? this.mergeEventStreams(streams) : EMPTY;
+                return streams.length > 0 ? mergeEventStreams(streams) : EMPTY;
             }),
         );
 
@@ -2128,14 +2128,14 @@ export class DeploymentService implements OnModuleInit {
         };
 
         const filteredLive$ = live$.pipe(
-            rxFilter((event) => this.matchesStreamQueryFilters(event, replayFilters)),
+            rxFilter((event) => matchesStreamQueryFilters(event, replayFilters)),
         );
 
-        return this.toSequencedObservable({
+        return toSequencedObservable({
             replay$: input.replay
                 ? defer(() =>
                       from(
-                          this.getFilteredReplayEvents(
+                          getFilteredReplayEvents(
                               replayFilters,
                               input.replayLimit,
                           ),
@@ -2148,13 +2148,13 @@ export class DeploymentService implements OnModuleInit {
         });
     }
 
-    private async emitLifecycleQueued(
-        deployment: Awaited<ReturnType<DeploymentRepository["create"]>>,
+    async function emitLifecycleQueued(
+        deployment: Awaited<ReturnType<Context.Service.Shape<typeof DeploymentRepositoryPort>["create"]>>,
         previousStatus: DeploymentStatus | null,
         message: string,
     ) {
-        await this.deploymentRepository.updatePhase(deployment.id, "queued", 0);
-        const log = await this.deploymentRepository.insertLog(deployment.id, {
+        await deploymentRepository.updatePhase(deployment.id, "queued", 0);
+        const log = await deploymentRepository.insertLog(deployment.id, {
             level: "info",
             message,
             phase: "queued",
@@ -2163,7 +2163,7 @@ export class DeploymentService implements OnModuleInit {
 
         const now = new Date().toISOString();
 
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "deploymentTriggered",
             { serviceId: deployment.serviceId },
             {
@@ -2173,7 +2173,7 @@ export class DeploymentService implements OnModuleInit {
             },
         );
 
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "serviceStatusChanged",
             { serviceId: deployment.serviceId },
             {
@@ -2184,7 +2184,7 @@ export class DeploymentService implements OnModuleInit {
             },
         );
 
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "statusChanged",
             { deploymentId: deployment.id },
             {
@@ -2196,7 +2196,7 @@ export class DeploymentService implements OnModuleInit {
             },
         );
 
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "phaseUpdated",
             { deploymentId: deployment.id },
             {
@@ -2207,7 +2207,7 @@ export class DeploymentService implements OnModuleInit {
             },
         );
 
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "orchestrationPhaseTransition",
             { deploymentId: deployment.id },
             {
@@ -2218,7 +2218,7 @@ export class DeploymentService implements OnModuleInit {
             },
         );
 
-        this.deploymentEventService.emit(
+        deploymentEventService.emit(
             "metricsSnapshot",
             { deploymentId: deployment.id },
             {
@@ -2232,7 +2232,7 @@ export class DeploymentService implements OnModuleInit {
         );
 
         if (deployment.phase === "health_check") {
-            this.deploymentEventService.emit(
+            deploymentEventService.emit(
                 "healthCheckUpdated",
                 { serviceId: deployment.serviceId },
                 {
@@ -2245,7 +2245,7 @@ export class DeploymentService implements OnModuleInit {
         }
 
         if (deployment.phase === "updating_routes") {
-            this.deploymentEventService.emit(
+            deploymentEventService.emit(
                 "domainRouteUpdated",
                 { serviceId: deployment.serviceId },
                 {
@@ -2257,10 +2257,10 @@ export class DeploymentService implements OnModuleInit {
             );
         }
 
-        this.deploymentEventService.emit("logAppended", { deploymentId: deployment.id }, log);
+        deploymentEventService.emit("logAppended", { deploymentId: deployment.id }, log);
     }
 
-    private mapEventStream<TInput, TOutput extends object>(
+    function mapEventStream<TInput, TOutput extends object>(
         iterable: AsyncIterable<TInput>,
         mapper: (value: TInput) => TOutput | null,
     ): Observable<TOutput> {
@@ -2270,11 +2270,11 @@ export class DeploymentService implements OnModuleInit {
         );
     }
 
-    private mergeEventStreams<T>(streams: Observable<T>[]): Observable<T> {
+    function mergeEventStreams<T>(streams: Observable<T>[]): Observable<T> {
         return merge(...streams);
     }
 
-    private toSequencedObservable<TEvent extends object>(input: {
+    function toSequencedObservable<TEvent extends object>(input: {
         replay$: Observable<TEvent>;
         live$: Observable<TEvent>;
         since?: string;
@@ -2322,7 +2322,7 @@ export class DeploymentService implements OnModuleInit {
         return stream$;
     }
 
-    private matchesStreamQueryFilters(
+    function matchesStreamQueryFilters(
         event: DeploymentQueryEvent,
         filters: {
             aggregateId?: string;
@@ -2335,14 +2335,14 @@ export class DeploymentService implements OnModuleInit {
         }
 
         if (filters.aggregateId) {
-            const aggregateId = this.resolveAggregateIdForQueryEvent(event);
+            const aggregateId = resolveAggregateIdForQueryEvent(event);
             if (!aggregateId || aggregateId !== filters.aggregateId) {
                 return false;
             }
         }
 
         if (filters.since) {
-            const eventTime = this.resolveEventTimestamp(event);
+            const eventTime = resolveEventTimestamp(event);
             if (eventTime) {
                 const sinceDate = new Date(filters.since);
                 if (
@@ -2358,7 +2358,7 @@ export class DeploymentService implements OnModuleInit {
         return true;
     }
 
-    private resolveAggregateIdForQueryEvent(event: DeploymentQueryEvent): string | undefined {
+    function resolveAggregateIdForQueryEvent(event: DeploymentQueryEvent): string | undefined {
         switch (event.type) {
             case "deploymentTriggered":
                 return event.deployment.id;
@@ -2382,18 +2382,18 @@ export class DeploymentService implements OnModuleInit {
         }
     }
 
-    private resolveEventTimestamp(event: DeploymentQueryEvent): Date | undefined {
+    function resolveEventTimestamp(event: DeploymentQueryEvent): Date | undefined {
         switch (event.type) {
             case "deploymentTriggered":
-                return this.toDate(event.deployment.createdAt);
+                return toDate(event.deployment.createdAt);
             case "logAppended":
-                return this.toDate(event.log.timestamp);
+                return toDate(event.log.timestamp);
             default:
                 return event.emittedAt;
         }
     }
 
-    private toCoreAdapterStream(
+    function toCoreAdapterStream(
         definition: {
             scope: "global" | "tenant" | "project" | "service" | "deployment";
             scopeId: string | null;
@@ -2418,7 +2418,7 @@ export class DeploymentService implements OnModuleInit {
             ? new Set(filters.eventTypes.filter((v): v is string => typeof v === "string"))
             : null;
 
-        const source$ = this.streamQueryEvents({
+        const source$ = streamQueryEvents({
             deploymentId,
             serviceId,
             projectId,
@@ -2437,19 +2437,19 @@ export class DeploymentService implements OnModuleInit {
         );
     }
 
-    private toDate(value: string | Date): Date {
+    function toDate(value: string | Date): Date {
         return value instanceof Date ? value : new Date(value);
     }
 
-    private buildStateMachineScopeConfig(
+    function buildStateMachineScopeConfig(
         resolvedRuntimeConfiguration: ResolvedRuntimeConfiguration,
     ): DeploymentStateMachineScopeConfigInput {
         return {
-            mesh: this.extractStateMachinePolicyPatch(
+            mesh: extractStateMachinePolicyPatch(
                 resolvedRuntimeConfiguration.mesh.metadata,
             ),
-            project: this.extractStateMachinePolicyPatch(resolvedRuntimeConfiguration.project.metadata),
-            service: this.extractStateMachinePolicyPatch(resolvedRuntimeConfiguration.service.metadata),
+            project: extractStateMachinePolicyPatch(resolvedRuntimeConfiguration.project.metadata),
+            service: extractStateMachinePolicyPatch(resolvedRuntimeConfiguration.service.metadata),
             runtime: {
                 previewEnabled: resolvedRuntimeConfiguration.effective.deployment.previewEnabled,
                 deploymentStrategy: resolvedRuntimeConfiguration.effective.deployment.strategy,
@@ -2457,17 +2457,17 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    private async resolveStateMachineScopeConfigForService(input: {
+    async function resolveStateMachineScopeConfigForService(input: {
         serviceId: string;
         environment: "production" | "staging" | "preview" | "development";
         sourceType: string;
     }): Promise<DeploymentStateMachineScopeConfigInput | undefined> {
-        const runtimeConfigurationSeed = await this.deploymentRepository.getRuntimeConfigurationSeed(input.serviceId);
+        const runtimeConfigurationSeed = await deploymentRepository.getRuntimeConfigurationSeed(input.serviceId);
         if (!runtimeConfigurationSeed) {
             return undefined;
         }
 
-        const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveForDeployment({
+        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
             environment: input.environment,
@@ -2476,10 +2476,10 @@ export class DeploymentService implements OnModuleInit {
             serviceRecord: runtimeConfigurationSeed.service,
         });
 
-        return this.buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
+        return buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
     }
 
-    private extractStateMachinePolicyPatch(
+    function extractStateMachinePolicyPatch(
         metadata: Record<string, unknown> | null | undefined,
     ): Record<string, unknown> | undefined {
         const candidate = metadata?.deploymentStateMachine;
@@ -2490,4 +2490,78 @@ export class DeploymentService implements OnModuleInit {
         return candidate;
     }
 
+    const methods = lift(
+        {
+            uploadBundle,
+            listDeployments,
+            listServicePreviews,
+            getDeploymentById,
+            promoteServicePreview,
+            triggerDeployment,
+            triggerDeploymentAsSystem,
+            cancelDeployment,
+            rollbackDeployment,
+            getDeploymentLogs,
+            deleteDeployment,
+            retryDeployment,
+            getRollbackHistory,
+            getDeploymentReplayEvents,
+            getServiceReplayEvents,
+            getFilteredReplayEvents,
+            getProjectServiceIds,
+            listStreamDefinitions,
+            getStreamDefinitionById,
+            getTemplateProvenance,
+            upsertTemplateProvenance,
+            getTemplateProvenanceByRun,
+            createCompiledPlanSnapshot,
+            listCompiledPlanSnapshots,
+            getCompiledPlanSnapshot,
+            getCompiledPlanSnapshotByRun,
+            compilePlan,
+            compileRollbackEdges,
+            enqueueQueueJob,
+            claimQueueJobs,
+            claimQueueJobByIdempotencyKey,
+            heartbeatQueueJob,
+            completeQueueJob,
+            failQueueJob,
+            findQueueJobById,
+            listQueueJobs,
+            listDeadLetterJobs,
+            findDeadLetterJobById,
+            replayDeadLetterJob,
+            listRetryPolicies,
+            resolveRetryPolicy,
+            cancelExecution,
+            resumeExecution,
+            getExecutionCheckpoint,
+            getExecutionCheckpointByRun,
+            emitNodeLifecycleEvent,
+            listNodeLifecycleEvents,
+            listPhaseTransitions,
+            validatePhaseTransition,
+            applyPhaseTransition,
+            streamDeploymentEvents,
+            streamServiceEvents,
+            streamQueryEvents,
+            streamNodeLifecycleEvents,
+        },
+        ["streamDeploymentEvents", "streamServiceEvents", "streamQueryEvents", "streamNodeLifecycleEvents"] as const,
+    );
+    return { ...methods, onStart: () => Effect.sync(registerEventNamespace) };
 }
+
+/**
+ * The deployment core: triggers, cancels, rollbacks and retries, the queue's claim/heartbeat/complete/fail, the
+ * compiled plans and execution checkpoints, and the progress streams.
+ *
+ * Every method is an Effect that fails with what the body threw (the `Runtime*` refusals reach `serve` as they are);
+ * the four `stream*` methods return RxJS Observables. It holds in-memory state (provenance, snapshots, checkpoints),
+ * so a module builds it once with `useFactory`, and it registers the deployment event namespace in `onStart`.
+ */
+export type DeploymentServiceShape = ReturnType<typeof makeDeploymentService>;
+
+export class DeploymentService extends Context.Service<DeploymentService, DeploymentServiceShape>()(
+    "runtime/DeploymentService",
+) {}

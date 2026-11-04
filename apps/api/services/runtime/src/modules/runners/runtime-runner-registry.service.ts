@@ -1,7 +1,6 @@
 import { Context, Effect } from "effect";
 
 import { DockerEngine } from "@deployer/docker";
-import { type EffectHostShape } from "@deployer/nest-effect";
 import { SwarmCluster } from "@deployer/swarm";
 
 
@@ -69,21 +68,4 @@ export class RuntimeRunnerRegistry extends Context.Service<RuntimeRunnerRegistry
                 return yield* selectedRunner.executeRuntime(input);
             })
     };
-}
-
-/**
- * The Promise face of the registry, for the deployment workflow, which is not on Effect yet.
- * Each call runs the registry through the app-wide `EffectHost`; the failure comes back as thrown.
- */
-export class RuntimeRunnerRegistryService {
-    constructor(private readonly host: Pick<EffectHostShape, "run">) {}
-
-    execute(runnerKind: string | null | undefined, input: RuntimeExecutionInput): Promise<RuntimeExecutionResult> {
-        return this.host.run(
-            Effect.gen(function* () {
-                const registry = yield* RuntimeRunnerRegistry;
-                return yield* registry.execute(runnerKind, input);
-            }),
-        );
-    }
 }

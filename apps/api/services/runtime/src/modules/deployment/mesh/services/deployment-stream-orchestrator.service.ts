@@ -1,15 +1,23 @@
-import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
+import { Context, Effect } from "effect";
 
 import type { DeploymentProgressEvent } from "@deployer/runtime-contracts/modules/deployment/stream";
+import { serviceOver } from "@deployer/effect-core";
 
-import { DeploymentService } from "../../services/deployment.service";
+import { DeploymentStreamsPort } from "../../deployment.ports";
+
+import type { Observable } from "rxjs";
 
 export type OpenDeploymentStreamInput = {
     deploymentId: string;
     replay: boolean;
     replayLimit: number;
 }
+
+export type DeploymentStreamOrchestratorServiceShape = {
+    readonly openDeploymentStream: (
+        input: OpenDeploymentStreamInput,
+    ) => Effect.Effect<Observable<DeploymentProgressEvent>, never, DeploymentStreamsPort>;
+};
 
 /**
  * Opens the progress stream of a deployment.
@@ -18,15 +26,21 @@ export type OpenDeploymentStreamInput = {
  * bus, so every node can replay and follow any deployment without asking the node that executes it. The cross-node proxy
  * this class used to try first answered "not remote" for every deployment, so removing it changes nothing a caller can see.
  */
-@Injectable()
-export class DeploymentStreamOrchestratorService {
-    constructor(private readonly deploymentService: DeploymentService) {}
-
-    openDeploymentStream(input: OpenDeploymentStreamInput): Observable<DeploymentProgressEvent> {
-        return this.deploymentService.streamDeploymentEvents({
-            deploymentId: input.deploymentId,
-            replay: input.replay,
-            replayLimit: input.replayLimit,
-        });
-    }
+export class DeploymentStreamOrchestratorService extends Context.Service<
+    DeploymentStreamOrchestratorService,
+    DeploymentStreamOrchestratorServiceShape
+>()("runtime/DeploymentStreamOrchestratorService") {
+    static readonly live = serviceOver(
+        Effect.all({ deployments: DeploymentStreamsPort }),
+        ({ deployments }): DeploymentStreamOrchestratorServiceShape => ({
+            openDeploymentStream: (input) =>
+                Effect.sync(() =>
+                    deployments.streamDeploymentEvents({
+                        deploymentId: input.deploymentId,
+                        replay: input.replay,
+                        replayLimit: input.replayLimit,
+                    }),
+                ),
+        }),
+    );
 }

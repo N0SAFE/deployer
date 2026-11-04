@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
@@ -9,17 +7,15 @@ import type {
     ResolveDeploymentStoragePolicyInput,
 } from "../base/storage-policy-resolver.interface";
 
-@Injectable()
-
 /**
  * Resolves the deployment storage policy from the service's custom data
  * (when set via the service metadata). Uses runtime type guards from
  * @deployer/type-guards in place of `as Record<string, unknown>` casts to
  * avoid the runtime lie.
  */
-export class ServiceCustomDataStoragePolicyResolverService implements DeploymentStoragePolicyResolver {
-    readonly name = "service-custom-data-storage";
-    readonly priority = 200;
+export const serviceCustomDataStoragePolicyResolver: DeploymentStoragePolicyResolver = {
+    name: "service-custom-data-storage",
+    priority: 200,
 
     resolve(input: ResolveDeploymentStoragePolicyInput) {
         const customData = input.serviceMetadata?.customData;
@@ -35,4 +31,4 @@ export class ServiceCustomDataStoragePolicyResolverService implements Deployment
         const parsedStoragePolicy = deploymentStoragePolicySchema.safeParse(storage);
         return parsedStoragePolicy.success ? parsedStoragePolicy.data : undefined;
     }
-}
+};

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { Effect } from "effect";
+
 import type {
   DeploymentQueueClaimResult,
   DeploymentDeadLetterJob,
@@ -17,7 +19,7 @@ import type {
 } from "@deployer/contracts-entities";
 
 import { getSharedApiRuntimeContext } from "@/e2e/runtime";
-import { DeploymentQueueLifecycleService } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
+import { DeploymentQueueLifecycle } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
 
 export type DeploymentQueueLifecyclePort = {
   enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult>;
@@ -71,9 +73,16 @@ export type DeploymentQueueWorkflowContext = {
 
 export async function createDeploymentQueueWorkflowContext(): Promise<DeploymentQueueWorkflowContext> {
   const context = await getSharedApiRuntimeContext();
-  const deploymentQueueLifecycleService = context.serviceMapper.get(
-    DeploymentQueueLifecycleService,
-  ) as DeploymentQueueLifecyclePort;
+  // The lifecycle is an Effect service; the workflows below drive it as Promises, so lift each method once.
+  const lifecycle = context.serviceMapper.get(DeploymentQueueLifecycle) as unknown as Record<string, unknown>;
+  const deploymentQueueLifecycleService = Object.fromEntries(
+    Object.entries(lifecycle)
+      .filter(([, member]) => typeof member === "function")
+      .map(([name, member]) => [
+        name,
+        (...args: unknown[]) => Effect.runPromise((member as (...a: unknown[]) => Effect.Effect<unknown>)(...args)),
+      ]),
+  ) as unknown as DeploymentQueueLifecyclePort;
 
   return {
     deploymentQueueLifecycleService,

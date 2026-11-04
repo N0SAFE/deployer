@@ -1,23 +1,28 @@
+import { Effect } from 'effect';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { RuntimeInvalid } from "../../../../../core/runtime.errors";
 
-import { GithubSourceProviderService } from './github-source-provider.service';
+import { makeGithubSourceProvider } from './github-source-provider.service';
 
-describe('GithubSourceProviderService', () => {
+type Provider = ReturnType<typeof makeGithubSourceProvider>;
+const run = (p: Provider, input: never) => Effect.runPromise(p.resolveSourceCheckout(input));
+const runFail = (p: Provider, input: never) => Effect.runPromise(Effect.flip(p.resolveSourceCheckout(input)));
+
+describe('makeGithubSourceProvider', () => {
   const gitService = {
     validateRepository: vi.fn(),
   };
 
-  let service: GithubSourceProviderService;
+  let service: ReturnType<typeof makeGithubSourceProvider>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new GithubSourceProviderService(gitService as never);
+    service = makeGithubSourceProvider({ git: gitService as never });
   });
 
   it('returns null for non-github source type', async () => {
-    const result = await service.resolveSourceCheckout({
+    const result = await run(service, {
       source: {
         sourceType: 'upload',
         
@@ -27,20 +32,20 @@ describe('GithubSourceProviderService', () => {
     expect(gitService.validateRepository).not.toHaveBeenCalled();
   });
 
-  it('throws when repositoryUrl is missing', async () => {
+  it('fails with RuntimeInvalid when repositoryUrl is missing', async () => {
     await expect(
-      service.resolveSourceCheckout({
+      runFail(service, {
         source: {
         sourceType: 'github',
                 branch: 'main' 
       }      } as never),
-    ).rejects.toThrow(RuntimeInvalid);
+    ).resolves.toBeInstanceOf(RuntimeInvalid);
   });
 
   it('uses branch from pullRequestNumber when branch is omitted', async () => {
     gitService.validateRepository.mockResolvedValue(true);
 
-    const result = await service.resolveSourceCheckout({
+    const result = await run(service, {
       source: {
         sourceType: 'github',
         
@@ -61,7 +66,7 @@ describe('GithubSourceProviderService', () => {
   it('prefers explicit branch over pullRequestNumber fallback', async () => {
     gitService.validateRepository.mockResolvedValue(true);
 
-    const result = await service.resolveSourceCheckout({
+    const result = await run(service, {
       source: {
         sourceType: 'github',
         
@@ -80,11 +85,11 @@ describe('GithubSourceProviderService', () => {
     });
   });
 
-  it('throws when repository is not accessible', async () => {
+  it('fails with RuntimeInvalid when repository is not accessible', async () => {
     gitService.validateRepository.mockResolvedValue(false);
 
     await expect(
-      service.resolveSourceCheckout({
+      runFail(service, {
         source: {
         sourceType: 'github',
         
@@ -92,6 +97,6 @@ describe('GithubSourceProviderService', () => {
          repositoryUrl: 'https://github.com/acme/private',
         
       }      } as never),
-    ).rejects.toThrow(RuntimeInvalid);
+    ).resolves.toBeInstanceOf(RuntimeInvalid);
   });
 });

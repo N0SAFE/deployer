@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentExecutionWorkflowService } from "./deployment-execution-workflow.service";
+import { Effect } from "effect";
 
-describe("DeploymentExecutionWorkflowService", () => {
+import { makeDeploymentExecutionWorkflow } from "./deployment-execution-workflow.service";
+
+describe("DeploymentExecutionWorkflow", () => {
     let deploymentRepository: {
         findById: ReturnType<typeof vi.fn>;
         getServiceProjectId: ReturnType<typeof vi.fn>;
@@ -25,7 +27,11 @@ describe("DeploymentExecutionWorkflowService", () => {
         buildVariableMap: ReturnType<typeof vi.fn>;
     };
 
-    let service: DeploymentExecutionWorkflowService;
+    let service: {
+        persistBuildExecutionResult: (...args: Parameters<ReturnType<typeof makeDeploymentExecutionWorkflow>["persistBuildExecutionResult"]>) => Promise<void>;
+        persistDeploymentExecutionFailure: (...args: Parameters<ReturnType<typeof makeDeploymentExecutionWorkflow>["persistDeploymentExecutionFailure"]>) => Promise<void>;
+        probeDeployedDomain: (...args: Parameters<ReturnType<typeof makeDeploymentExecutionWorkflow>["probeDeployedDomain"]>) => Promise<void>;
+    };
     let egress: { external: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
@@ -104,13 +110,21 @@ describe("DeploymentExecutionWorkflowService", () => {
             buildVariableMap: vi.fn().mockReturnValue({}),
         };
 
-        service = new DeploymentExecutionWorkflowService(
-            deploymentRepository as never,
-            runtimeRunnerRegistryService as never,
-            deploymentEventService as never,
-            domainRoutingService as never,
-            egress as never,
-        );
+        const workflow = makeDeploymentExecutionWorkflow({
+            deploymentRepository: deploymentRepository as never,
+            runtimeRunnerRegistry: {
+                execute: (kind, input) => Effect.tryPromise({ try: () => (runtimeRunnerRegistryService.execute as (...a: unknown[]) => Promise<never>)(kind, input), catch: (cause) => cause }),
+            },
+            host: { run: (effect) => Effect.runPromise(effect as Effect.Effect<never>) as never },
+            deploymentEventService: deploymentEventService as never,
+            domainRoutingService: domainRoutingService as never,
+            egress: egress as never,
+        });
+        service = {
+            persistBuildExecutionResult: (...args) => Effect.runPromise(workflow.persistBuildExecutionResult(...args)),
+            persistDeploymentExecutionFailure: (...args) => Effect.runPromise(workflow.persistDeploymentExecutionFailure(...args)),
+            probeDeployedDomain: (...args) => Effect.runPromise(workflow.probeDeployedDomain(...args)),
+        };
     });
 
     it("passes validated storageBinding from queue result to runtime runner", async () => {
@@ -479,12 +493,7 @@ describe("DeploymentExecutionWorkflowService", () => {
     });
 
     describe("post-deploy external probe", () => {
-        const probe = (url: string) =>
-            (service as unknown as { probeDeployedDomain(id: string, url: string, correlationId: string): Promise<void> }).probeDeployedDomain(
-                "deployment-1",
-                url,
-                "corr-1",
-            );
+        const probe = (url: string) => service.probeDeployedDomain("deployment-1", url, "corr-1");
 
         beforeEach(() => {
             deploymentRepository.persistBuildArtifacts = vi.fn().mockResolvedValue(undefined);

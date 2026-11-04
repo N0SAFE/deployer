@@ -1,8 +1,11 @@
+import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiTriggerSource } from "./api-trigger.source";
-import { DeploymentTriggerRegistryService } from "./deployment-trigger-registry.service";
+import { makeDeploymentTriggerRegistry } from "./deployment-trigger-registry.service";
+import { TriggerServiceLinkPort } from "./deployment-trigger.ports";
 import { GithubPushTriggerSource } from "./github-push-trigger.source";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 
 import type { DeploymentTriggerSource } from "./base/deployment-trigger-source.interface";
 
@@ -13,27 +16,34 @@ import type { DeploymentTriggerSource } from "./base/deployment-trigger-source.i
  * pluggable while the real dispatch order, the enabled/disabled rule, or the null-vs-throw
  * contract is wrong. Every assertion below fails if the seam regresses.
  */
-const makeRegistry = (sources: DeploymentTriggerSource[]) => new DeploymentTriggerRegistryService(sources);
+const makeRegistry = (sources: DeploymentTriggerSource<TriggerServiceLinkPort>[]) => makeDeploymentTriggerRegistry(sources);
+
+type Links = { findServiceBySourceUrl: (url: string) => Promise<{ id: string; providerConfig: unknown } | null> };
+const noLinks: Links = { findServiceBySourceUrl: () => Promise.resolve(null) };
+
+/** Runs a source/registry program with the repo link port faked, resolving to the success value. */
+const run = <A, E>(effect: Effect.Effect<A, E, TriggerServiceLinkPort>, links: Links = noLinks): Promise<A> =>
+    Effect.runPromise(Effect.provideService(effect, TriggerServiceLinkPort, links as never));
 
 /** A source whose only job is to claim one provider/event pair. */
-const stubSource = (sourceId: string, provider: string, eventName: string, enabled = true): DeploymentTriggerSource => ({
+const stubSource = (sourceId: string, provider: string, eventName: string, enabled = true): DeploymentTriggerSource<TriggerServiceLinkPort> => ({
     sourceId,
     isEnabled: () => enabled,
     disabledReason: () => (enabled ? "" : `${sourceId} is off`),
     matches: (event) => event.provider === provider && event.eventName === eventName,
     toTriggerInput: () =>
-        Promise.resolve({
+        Effect.succeed({
             serviceId: `svc-from-${sourceId}`,
             environment: "production",
             source: { sourceType: "github", repositoryUrl: "https://example.test/r.git", branch: "main", commitSha: "a".repeat(40) },
         }),
 });
 
-describe("DeploymentTriggerRegistryService", () => {
+describe("DeploymentTriggerRegistry", () => {
     it("dispatches by provider+event and reports which source claimed it", async () => {
         const registry = makeRegistry([stubSource("one", "github", "push"), stubSource("two", "github", "pull_request")]);
 
-        const result = await registry.toTriggerInput({ provider: "github", eventName: "pull_request", payload: {} });
+        const result = await run(registry.toTriggerInput({ provider: "github", eventName: "pull_request", payload: {} }));
 
         expect(result?.sourceId).toBe("two");
         expect(result?.input?.serviceId).toBe("svc-from-two");
@@ -44,15 +54,22 @@ describe("DeploymentTriggerRegistryService", () => {
         // deployable, and that is not an error.
         const registry = makeRegistry([stubSource("one", "github", "push")]);
 
-        await expect(registry.toTriggerInput({ provider: "github", eventName: "issues", payload: {} })).resolves.toBeNull();
+        await expect(run(registry.toTriggerInput({ provider: "github", eventName: "issues", payload: {} }))).resolves.toBeNull();
     });
 
-    it("throws from requireInput when nothing matched, listing the enabled sources", async () => {
+    it("fails requireInput with RuntimeInvalid when nothing matched, listing the enabled sources", async () => {
         const registry = makeRegistry([stubSource("one", "github", "push")]);
 
-        await expect(
-            registry.requireInput({ provider: "github", eventName: "issues", payload: {} }),
-        ).rejects.toThrow(/No deployment trigger source matched.*one/);
+        const exit = await Effect.runPromiseExit(
+            Effect.provideService(
+                registry.requireInput({ provider: "github", eventName: "issues", payload: {} }),
+                TriggerServiceLinkPort,
+                noLinks as never,
+            ),
+        );
+        const failure = Exit.isFailure(exit) ? Cause.squash(exit.cause) : null;
+        expect(failure).toBeInstanceOf(RuntimeInvalid);
+        expect((failure as RuntimeInvalid).reason).toMatch(/No deployment trigger source matched.*one/);
     });
 
     it("does NOT let a DISABLED source claim an event", async () => {
@@ -61,7 +78,7 @@ describe("DeploymentTriggerRegistryService", () => {
         // "no source".
         const registry = makeRegistry([stubSource("off", "github", "push", false), stubSource("on", "github", "push", true)]);
 
-        const result = await registry.toTriggerInput({ provider: "github", eventName: "push", payload: {} });
+        const result = await run(registry.toTriggerInput({ provider: "github", eventName: "push", payload: {} }));
 
         expect(result?.sourceId).toBe("on");
     });
@@ -89,7 +106,7 @@ describe("ApiTriggerSource", () => {
         };
 
         expect(source.matches({ provider: "api", eventName: "trigger", payload })).toBe(true);
-        await expect(source.toTriggerInput({ provider: "api", eventName: "trigger", payload })).resolves.toMatchObject({
+        await expect(run(source.toTriggerInput({ provider: "api", eventName: "trigger", payload }))).resolves.toMatchObject({
             serviceId: "svc-1",
         });
     });
@@ -118,23 +135,22 @@ describe("GithubPushTriggerSource", () => {
      * here is what keeps that regression from coming back.
      */
     it("is enabled, because the repo→service bridge exists", () => {
-        const source = new GithubPushTriggerSource({} as never);
+        const source = new GithubPushTriggerSource();
 
         expect(source.isEnabled()).toBe(true);
     });
 
     it("explains that a push deploys only when a service has a matching sourceUrl", () => {
-        const source = new GithubPushTriggerSource({} as never);
+        const source = new GithubPushTriggerSource();
 
         expect(source.disabledReason()).toMatch(/sourceUrl/);
     });
 
     it("deploys a push whose repository matches a linked service", async () => {
-        const source = new GithubPushTriggerSource({
-            findServiceBySourceUrl: vi.fn(() => Promise.resolve({ id: "svc-1", providerConfig: null })),
-        } as never);
+        const source = new GithubPushTriggerSource();
+        const links = { findServiceBySourceUrl: vi.fn(() => Promise.resolve({ id: "svc-1", providerConfig: null })) };
 
-        const input = await source.toTriggerInput({
+        const input = await run(source.toTriggerInput({
             provider: "github",
             eventName: "push",
             payload: {
@@ -142,7 +158,7 @@ describe("GithubPushTriggerSource", () => {
                 after: "abc1234def",
                 repository: { html_url: "https://github.com/acme/app" },
             },
-        });
+        }), links);
 
         expect(input).toMatchObject({
             serviceId: "svc-1",
@@ -157,11 +173,10 @@ describe("GithubPushTriggerSource", () => {
     });
 
     it("declines a push whose repository matches no service", async () => {
-        const source = new GithubPushTriggerSource({
-            findServiceBySourceUrl: vi.fn(() => Promise.resolve(null)),
-        } as never);
+        const source = new GithubPushTriggerSource();
+        const links = { findServiceBySourceUrl: vi.fn(() => Promise.resolve(null)) };
 
-        const input = await source.toTriggerInput({
+        const input = await run(source.toTriggerInput({
             provider: "github",
             eventName: "push",
             payload: {
@@ -169,13 +184,13 @@ describe("GithubPushTriggerSource", () => {
                 after: "abc1234def",
                 repository: { html_url: "https://github.com/acme/unlinked" },
             },
-        });
+        }), links);
 
         expect(input).toBeNull();
     });
 
     it("claims only github push", () => {
-        const source = new GithubPushTriggerSource({} as never);
+        const source = new GithubPushTriggerSource();
 
         expect(source.matches({ provider: "github", eventName: "push", payload: {} })).toBe(true);
         expect(source.matches({ provider: "github", eventName: "pull_request", payload: {} })).toBe(false);
@@ -183,25 +198,25 @@ describe("GithubPushTriggerSource", () => {
     });
 
     it("declines a branch-deletion push, which is not deployable", async () => {
-        const source = new GithubPushTriggerSource({} as never);
+        const source = new GithubPushTriggerSource();
 
-        const input = await source.toTriggerInput({
+        const input = await run(source.toTriggerInput({
             provider: "github",
             eventName: "push",
             payload: { deleted: true, ref: "refs/heads/main", after: "0".repeat(40), repository: { html_url: "https://x" } },
-        });
+        }));
 
         expect(input).toBeNull();
     });
 
     it("declines a push with no commit sha", async () => {
-        const source = new GithubPushTriggerSource({} as never);
+        const source = new GithubPushTriggerSource();
 
-        const input = await source.toTriggerInput({
+        const input = await run(source.toTriggerInput({
             provider: "github",
             eventName: "push",
             payload: { ref: "refs/heads/main", repository: { html_url: "https://x" } },
-        });
+        }));
 
         expect(input).toBeNull();
     });

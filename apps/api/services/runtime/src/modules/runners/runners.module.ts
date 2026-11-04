@@ -3,11 +3,10 @@
  *
  * Runners are a first-class concern, not a deployment sub-feature. Each runner
  * implements the contract in `runtime-runner.interface.ts` as a constant Effect service
- * provided below, dispatched by `RuntimeRunnerRegistry.execute(runnerKind, …)`;
- * `RuntimeRunnerRegistryService` is its Promise face for callers not on Effect yet.
+ * provided below, dispatched by `RuntimeRunnerRegistry.execute(runnerKind, …)`.
  */
 
-import { createModuleContext, effectHostProvider, EffectHost, type EffectHostShape } from "@deployer/nest-effect";
+import { createModuleContext, effectHostProvider } from "@deployer/nest-effect";
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
@@ -17,8 +16,8 @@ import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik
 
 import { DockerRuntimeRunner } from "./docker/docker-runtime-runner.service";
 import { RunnerEnvPort, RunnerTraefikPort } from "./runners.ports";
-import { RuntimeRunnerRegistry, RuntimeRunnerRegistryService } from "./runtime-runner-registry.service";
-import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.service";
+import { RuntimeRunnerRegistry } from "./runtime-runner-registry.service";
+import { SwarmComposeRealizer } from "./swarm/swarm-compose-realizer.service";
 import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
 
 export class RunnersDomainModule extends createModuleContext({
@@ -38,12 +37,7 @@ export class RunnersDomainModule extends createModuleContext({
         { provide: DockerRuntimeRunner, useClass: DockerRuntimeRunner.live },
         { provide: SwarmRuntimeRunner, useClass: SwarmRuntimeRunner.live },
         { provide: RuntimeRunnerRegistry, useClass: RuntimeRunnerRegistry.live },
-        SwarmComposeRealizerService,
-        {
-            provide: RuntimeRunnerRegistryService,
-            useFactory: (host: Pick<EffectHostShape, "run">) => new RuntimeRunnerRegistryService(host),
-            inject: [EffectHost],
-        },
+        { provide: SwarmComposeRealizer, useClass: SwarmComposeRealizer.live },
     ],
-    exports: [RuntimeRunnerRegistryService],
+    exports: [RuntimeRunnerRegistry],
 }) {}

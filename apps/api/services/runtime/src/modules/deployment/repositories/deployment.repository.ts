@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
 
-import { Injectable } from "@nestjs/common";
 import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
 import { Cause, Effect, Exit } from "effect";
 
@@ -167,7 +166,6 @@ function toStreamDto(row: DeploymentStreamRow) {
 
 // ─── Repository ───────────────────────────────────────────────────────────────
 
-@Injectable()
 export class DeploymentRepository {
     constructor(private readonly databaseService: GlobalDatabaseService) {}
 

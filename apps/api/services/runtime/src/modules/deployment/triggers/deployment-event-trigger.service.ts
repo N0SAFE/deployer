@@ -3,9 +3,9 @@ import { Context, Effect } from "effect";
 import { CurrentActor } from "@deployer/effect-core";
 import type { DeploymentTriggerFromEventInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
-import { attempt } from "../../../core/effects";
 
-import { SystemDeploymentsPort, TriggerRegistryPort } from "./deployment-trigger.ports";
+import { DeploymentTriggerRegistry, type TriggerSourceServices } from "./deployment-trigger-registry.service";
+import { SystemDeploymentsPort } from "./deployment-trigger.ports";
 
 export type DeploymentEventTriggerResult =
     | { dispatched: true; sourceId: string; deploymentId: string; reason: null }
@@ -28,7 +28,7 @@ export type DeploymentEventTriggerServiceShape = {
     readonly trigger: (
         event: DeploymentTriggerFromEventInput,
         deliveryId: string | null,
-    ) => Effect.Effect<DeploymentEventTriggerResult, unknown, CurrentActor | TriggerRegistryPort | SystemDeploymentsPort>;
+    ) => Effect.Effect<DeploymentEventTriggerResult, unknown, CurrentActor | DeploymentTriggerRegistry | TriggerSourceServices | SystemDeploymentsPort>;
 };
 
 /**
@@ -43,16 +43,14 @@ export class DeploymentEventTriggerService extends Context.Service<
     static readonly live = class DeploymentEventTriggerServiceImpl implements DeploymentEventTriggerServiceShape {
         trigger(event, deliveryId) {
           return Effect.gen(function* () {
-              const registry = yield* TriggerRegistryPort;
+              const registry = yield* DeploymentTriggerRegistry;
               const deploymentService = yield* SystemDeploymentsPort;
               const actor = yield* CurrentActor;
-              const resolution = yield* attempt(() =>
-                  registry.toTriggerInput({
-                      provider: event.provider,
-                      eventName: event.eventName,
-                      payload: event.payload,
-                  }),
-              );
+              const resolution = yield* registry.toTriggerInput({
+                  provider: event.provider,
+                  eventName: event.eventName,
+                  payload: event.payload,
+              });
 
               if (!resolution) {
                   return {
@@ -72,7 +70,7 @@ export class DeploymentEventTriggerService extends Context.Service<
               }
 
               const input = resolution.input;
-              const deployment = yield* attempt(() => deploymentService.triggerDeploymentAsSystem(input));
+              const deployment = yield* deploymentService.triggerDeploymentAsSystem(input);
               yield* Effect.logInfo(
                   `Deployment ${deployment.id} queued by system actor '${actor.id}' ` +
                       `(delivery=${deliveryId ?? "none"}, trigger=${resolution.sourceId}, service=${input.serviceId})`,

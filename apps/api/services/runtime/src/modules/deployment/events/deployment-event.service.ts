@@ -1,14 +1,12 @@
-import { Injectable } from "@nestjs/common";
-
 import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import type { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 
 import {
     deploymentEventContracts,
     type DeploymentEventContracts,
 } from "./deployment-event.contracts";
 
-@Injectable()
+/** The typed event bus; the deployment module builds it over the shared stream pool. */
 export class DeploymentEventService extends BasePooledEventService<DeploymentEventContracts> {
     constructor(streamPool?: CoreEventStreamPoolService) {
         super("deployment", deploymentEventContracts, streamPool);

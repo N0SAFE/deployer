@@ -1,13 +1,21 @@
-import { createModuleContext } from "@deployer/nest-effect";
-import { GitModule } from "@deployer/shared/core/modules/git/index";
+import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
+import { GitModule, GitService } from "@deployer/shared/core/modules/git/index";
 
-import { CustomSourceProviderService } from "./code/custom/services/custom-source-provider.service";
-import { GithubSourceProviderService } from "./code/github/services/github-source-provider.service";
-import { GitlabSourceProviderService } from "./code/gitlab/services/gitlab-source-provider.service";
-import { CodeProviderRegistryService } from "./code/shared/code-provider-registry.service";
-import { CodeProvider } from "./code/shared/code-provider.interface";
-import { UploadBundleRegistryService } from "./code/upload/services/upload-bundle-registry.service";
-import { UploadSourceProviderService } from "./code/upload/services/upload-source-provider.service";
+import { CustomSourceProvider } from "./code/custom/services/custom-source-provider.service";
+import { GithubSourceProvider, makeGithubSourceProvider } from "./code/github/services/github-source-provider.service";
+import { GitlabSourceProvider, makeGitlabSourceProvider } from "./code/gitlab/services/gitlab-source-provider.service";
+import {
+	CodeProviderRegistry,
+	makeCodeProviderRegistry,
+} from "./code/shared/code-provider-registry.service";
+import { CODE_PROVIDERS, type CodeProviderShape } from "./code/shared/code-provider.interface";
+import {
+	makeUploadBundleRegistry,
+	UploadBundleRegistry,
+	type UploadBundleRegistryShape,
+} from "./code/upload/services/upload-bundle-registry.service";
+import { makeUploadSourceProvider, UploadSourceProvider } from "./code/upload/services/upload-source-provider.service";
+import { SourceGitPort } from "./providers.ports";
 
 /**
  * The runtime's SOURCE providers.
@@ -24,39 +32,50 @@ import { UploadSourceProviderService } from "./code/upload/services/upload-sourc
  * *app* (installations, OAuth, webhooks) because that is fleet state; runtime keeps the
  * *source resolution* because that is build machinery.
  *
- * ── WHY STILL AN ARRAY UNDER ONE TOKEN ──────────────────────────────────────
+ * ── WHY STILL A COLLECTION UNDER ONE TOKEN ──────────────────────────────────────
  * The registry dispatches by `sourceType`, so the providers must reach it as a
- * COLLECTION. Binding them under `CodeProvider` with `multi: true` is what lets a fifth
+ * COLLECTION. Collecting them under `CODE_PROVIDERS` is what lets a fifth
  * provider be added by listing it here, with no change to the registry or its callers.
  */
 export class ProviderDomainsModule extends createModuleContext({
 	imports: [GitModule],
 	providers: [
-		GithubSourceProviderService,
-		GitlabSourceProviderService,
-		UploadSourceProviderService,
-		CustomSourceProviderService,
+		effectHostProvider(),
+		{ provide: SourceGitPort, useExisting: GitService },
 		{
-			provide: CodeProvider,
+			provide: GithubSourceProvider,
+			useFactory: (git: GitService) => makeGithubSourceProvider({ git }),
+			inject: [SourceGitPort],
+		},
+		{
+			provide: GitlabSourceProvider,
+			useFactory: (git: GitService) => makeGitlabSourceProvider({ git }),
+			inject: [SourceGitPort],
+		},
+		{ provide: UploadBundleRegistry, useFactory: () => makeUploadBundleRegistry() },
+		{
+			provide: UploadSourceProvider,
+			useFactory: (bundles: UploadBundleRegistryShape) => makeUploadSourceProvider({ bundles }),
+			inject: [UploadBundleRegistry],
+		},
+		{ provide: CustomSourceProvider, useValue: CustomSourceProvider.live },
+		{
+			provide: CODE_PROVIDERS,
 			useFactory: (
-				github: GithubSourceProviderService,
-				gitlab: GitlabSourceProviderService,
-				upload: UploadSourceProviderService,
-				custom: CustomSourceProviderService,
-			) => [github, gitlab, upload, custom],
-			inject: [
-				GithubSourceProviderService,
-				GitlabSourceProviderService,
-				UploadSourceProviderService,
-				CustomSourceProviderService,
-			],
+				github: CodeProviderShape,
+				gitlab: CodeProviderShape,
+				upload: CodeProviderShape,
+				custom: CodeProviderShape,
+			): readonly CodeProviderShape[] => [github, gitlab, upload, custom],
+			inject: [GithubSourceProvider, GitlabSourceProvider, UploadSourceProvider, CustomSourceProvider],
 		},
 		{
-			provide: CodeProviderRegistryService,
-			useFactory: (providers: CodeProvider[]) => new CodeProviderRegistryService(providers),
-			inject: [CodeProvider],
+			provide: CodeProviderRegistry,
+			useFactory: (providers: readonly CodeProviderShape[]) => makeCodeProviderRegistry(providers),
+			inject: [CODE_PROVIDERS],
 		},
-		UploadBundleRegistryService,
+		// The registry declares its start (it logs what it registered); one generic runner binds it.
+		serviceLifecycle(CodeProviderRegistry),
 	],
-	exports: [CodeProviderRegistryService, UploadBundleRegistryService],
+	exports: [CodeProviderRegistry, UploadBundleRegistry],
 }) {}

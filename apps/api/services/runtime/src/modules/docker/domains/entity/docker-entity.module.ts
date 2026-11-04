@@ -4,7 +4,7 @@ import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/
 
 import { DockerCatalogModule } from "../../catalog/docker-catalog.module"
 import { DockerCommonModule } from "../../common/docker-common.module"
-import { DockerRuntimeEventsStreamService } from "../../common/events/docker-runtime-events-stream.service"
+import { DockerRuntimeEventsStreamService, type DockerRuntimeEventsStreamShape } from "../../common/events/docker-runtime-events-stream.service"
 import { DockerContainersModule } from "../containers/docker-containers.module"
 import { DockerImagesModule } from "../images/docker-images.module"
 
@@ -32,7 +32,7 @@ export class DockerEntityModule extends createModuleContext({
     { provide: DockerEntityDomainService, useValue: DockerEntityDomainService.live },
     {
       provide: DockerEntityOrchestratorService,
-      useFactory: (host: EffectHostShape, events: DockerRuntimeEventsStreamService, pool: CoreEventStreamPoolService, cache: DockerEntityCacheService) =>
+      useFactory: (host: EffectHostShape, events: DockerRuntimeEventsStreamShape, pool: CoreEventStreamPoolService, cache: DockerEntityCacheService) =>
         DockerEntityOrchestratorService.withStreams(
           entityStreamsOver({ host, events, pool, cache, log: entityChunkLog }),
         ),

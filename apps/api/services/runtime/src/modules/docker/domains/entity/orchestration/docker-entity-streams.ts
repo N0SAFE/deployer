@@ -12,7 +12,7 @@ import { coerceStreamChunk, type EntityChunkLog } from "./entity-chunks"
 import { buildStreamFilter, eventMatchesFilter, poolKeyFor, type EntityFilterInput } from "./entity-stream-rules"
 
 import type { DockerEntityCacheService } from "./docker-entity-cache.service"
-import type { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
+import type { DockerRuntimeEventsStreamShape } from "../../../common/events/docker-runtime-events-stream.service"
 
 /** The entity event stream, kept as RxJS so the oRPC streaming handler keeps its shape. */
 export type DockerEntityStreamsShape = {
@@ -22,7 +22,7 @@ export type DockerEntityStreamsShape = {
 /** What the stream needs at construction; every field is a plain Nest provider except the host. */
 export type DockerEntityStreamsDeps = {
   readonly host: EffectHostShape
-  readonly events: DockerRuntimeEventsStreamService
+  readonly events: Pick<DockerRuntimeEventsStreamShape, "observeEvents">
   readonly pool: CoreEventStreamPoolService
   readonly cache: DockerEntityCacheService
   readonly log: EntityChunkLog

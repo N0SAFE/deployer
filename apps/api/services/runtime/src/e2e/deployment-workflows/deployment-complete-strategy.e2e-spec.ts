@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { Effect } from "effect";
 import { beforeAll, describe, expect, it } from "vitest";
 
 // The app-local wrapper, not the raw harness: the harness REQUIRES
@@ -9,7 +10,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 
 import { useDescribeSharedApiRuntime, withDeploymentQueueWorkerDisabled } from "@/e2e/runtime";
-import { DeploymentService } from "@/modules/deployment/services/deployment.service";
+import { DeploymentService, type DeploymentServiceShape } from "@/modules/deployment/services/deployment.service";
 
 import {
 	createDeploymentCompleteStrategyContext,
@@ -37,12 +38,18 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 	// `queued`.
 	const runtimeScope = useDescribeSharedApiRuntime(withDeploymentQueueWorkerDisabled());
 	let context: DeploymentCompleteStrategyContext;
-	let deployment: DeploymentService;
+	let deployment: { [K in "triggerDeployment" | "listQueueJobs" | "claimQueueJobByIdempotencyKey" | "completeQueueJob"]: (...args: Parameters<DeploymentServiceShape[K]>) => Promise<Effect.Success<ReturnType<DeploymentServiceShape[K]>>> };
 	let traefik: TraefikService;
 
 	beforeAll(async () => {
 		context = await createDeploymentCompleteStrategyContext(runtimeScope.getContext());
-		deployment = runtimeScope.getContext().serviceMapper.get(DeploymentService);
+		const service = runtimeScope.getContext().serviceMapper.get(DeploymentService) as unknown as DeploymentServiceShape;
+		deployment = {
+			triggerDeployment: (...args) => Effect.runPromise(service.triggerDeployment(...args)),
+			listQueueJobs: (...args) => Effect.runPromise(service.listQueueJobs(...args)),
+			claimQueueJobByIdempotencyKey: (...args) => Effect.runPromise(service.claimQueueJobByIdempotencyKey(...args)),
+			completeQueueJob: (...args) => Effect.runPromise(service.completeQueueJob(...args)),
+		};
 		traefik = runtimeScope.getContext().serviceMapper.get(TraefikService);
 	});
 
