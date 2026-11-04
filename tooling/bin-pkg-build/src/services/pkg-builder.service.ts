@@ -86,13 +86,13 @@ export class PkgBuilderService {
             return
         }
 
+        // `buildAll` writes declarations into the same staging tree as the JS, so
+        // there is nothing left to build here.
         await this.buildAll(buildMode)
-        this.buildTypes()
         if (!watch) return
 
         await this.startWatch(async () => {
             await this.buildAll(buildMode)
-            this.buildTypes()
         })
     }
 
@@ -197,19 +197,34 @@ export class PkgBuilderService {
         )
 
         const tsc = this.pkg.resolveTsc()
+        const tsBuildInfo = path.join(pkgRoot, `.pkg-build-types.${String(process.pid)}.tsbuildinfo`)
+        const removeTemp = (): void => {
+            fs.rmSync(typesTsconfig, { force: true })
+            fs.rmSync(tsBuildInfo, { force: true })
+        }
+        // `turbo watch` stops a stale task with SIGTERM and `die` ends the process with
+        // `process.exit`: neither runs a `finally`, which left 189 per-PID files behind. Each one
+        // is a different input to every later hash of the package.
+        const onSignal = (signal: NodeJS.Signals): never => {
+            removeTemp()
+            process.exit(signal === 'SIGINT' ? 130 : 143)
+        }
+        process.once('SIGTERM', onSignal)
+        process.once('SIGINT', onSignal)
+        let failed = false
         try {
             const result = Bun.spawnSync([tsc, '-p', typesTsconfig], {
                 cwd: pkgRoot,
                 stdout: 'inherit',
                 stderr: 'inherit',
             })
-            if (result.exitCode !== 0) die('types build failed')
+            failed = result.exitCode !== 0
         } finally {
-            fs.rmSync(typesTsconfig, { force: true })
-            fs.rmSync(path.join(pkgRoot, `.pkg-build-types.${String(process.pid)}.tsbuildinfo`), {
-                force: true,
-            })
+            removeTemp()
+            process.off('SIGTERM', onSignal)
+            process.off('SIGINT', onSignal)
         }
+        if (failed) die('types build failed')
 
         for (const ambientRel of ambientDeclarations) {
             const dest = path.join(typesDir, ambientRel)
@@ -240,7 +255,7 @@ export class PkgBuilderService {
 
         console.log(
             `${c.green('ok')} types ${c.dim(
-                `${entries.length} entries -> ${path.relative(pkgRoot, typesDir)}${
+                `${entries.length} entries -> ${this.pkg.displayPath(typesDir)}${
                     ambientDeclarations.length > 0
                         ? ` (+${ambientDeclarations.length} source .d.ts)`
                         : ''
@@ -259,41 +274,155 @@ export class PkgBuilderService {
      * Two variants require two child processes, because `bun build` samples
      * `NODE_ENV` at process start and no build option overrides the JSX runtime it
      * selects. A single variant runs in-process.
+     *
+     * ── WHY THE BUILD NO LONGER CLEARS `dist` FIRST ─────────────────────────
+     * Clearing in place made the output directory EMPTY for the whole build, and
+     * `dist` is frequently a SYMLINK into a shared volume that other processes
+     * read (`dependency-builder` publishes it; the apps resolve through it).
+     * Measured with a poller on the shared volume during one rebuild of
+     * `@deployer/ui`: 16_565 consecutive samples where
+     * `dist/development/esm/components/shadcn/table.mjs` did not exist. A Next.js
+     * dev server compiling in that window fails with
+     *
+     *   Module not found: Can't resolve '@deployer/ui/components/shadcn/table'
+     *
+     * — the "errors all of a sudden" that a restart always fixed, because a
+     * restart rebuilt into a moment when the tree happened to be complete.
+     *
+     * The build now goes to a STAGING directory beside the real one and is
+     * swapped in at the end. `rename` within one filesystem is atomic, so a
+     * reader sees either the previous complete tree or the new complete tree —
+     * never a half-written one. Staging lives NEXT TO the target so the rename
+     * cannot cross a device boundary (a symlinked `dist` on a volume, a normal
+     * `dist` on the image layer).
      */
     async buildAll(mode: BuildMode): Promise<void> {
         const { config, distDir } = this.pkg
         const variants = config.variants
 
-        // A `dist` that is a symlink points at a publishing directory owned by the
-        // dependency-builder. Removing it would dereference the link and send the
-        // build output into the package directory instead, so the artifacts would
-        // never reach the volume the applications read from. Clear the CONTENTS and
-        // leave the link in place.
-        const distIsLink =
-            fs
-                .lstatSync(distDir, { throwIfNoEntry: false })
-                ?.isSymbolicLink() === true
-        if (distIsLink) {
-            for (const entry of fs.readdirSync(distDir)) {
-                fs.rmSync(path.join(distDir, entry), {
-                    recursive: true,
-                    force: true,
-                })
+        // Real directory the output lands in, and where it is assembled.
+        //
+        // `dist` may be a symlink into the publishing volume; `realDist` is where
+        // that link points, so staging sits on the SAME filesystem and the final
+        // rename stays atomic. `lstat` (not `existsSync`) is required: the latter
+        // follows the link, so it cannot tell a link from a directory.
+        const distStat = fs.lstatSync(distDir, { throwIfNoEntry: false })
+        const realDist =
+            distStat?.isSymbolicLink() === true
+                ? fs.realpathSync(distDir)
+                : distDir
+
+        const staging = `${realDist}.staging-${String(process.pid)}`
+        fs.rmSync(staging, { recursive: true, force: true })
+        fs.mkdirSync(staging, { recursive: true })
+        // A killed build never reaches `publish`, so its staging tree would stay on
+        // the volume forever. Everybody else's is safe to remove: the pid in the name
+        // is alive only for the process that owns it.
+        sweepOrphanedStaging(realDist)
+        // `die()` exits without unwinding, so the `finally` below cannot be the only
+        // cleanup. Claim the tree now; `releaseStaging` after a successful publish.
+        ownStaging(staging)
+
+        try {
+            this.pkg.redirectOutput(staging)
+            if (variants.length === 1) {
+                await this.buildVariant(mode, variants[0]!)
+            } else {
+                for (const variant of variants) {
+                    await this.runChildForVariant(mode, variant, staging)
+                }
             }
-        } else {
-            fs.rmSync(distDir, { recursive: true, force: true })
+            // Assets are variant-independent: copied once, at the shared root.
+            this.copyAssets(staging)
+
+            // Declarations are written into the SAME staging tree, so the swap
+            // installs JS and types together: a consumer must never resolve the new
+            // JS against declarations the swap has not installed yet.
+            this.buildTypes()
+
+            this.publish(staging, realDist)
+            releaseStaging(staging)
+        } finally {
+            // Restore the real paths before anything else reads them, even when the
+            // build threw — a failed build must not leave the process pointing at a
+            // half-written staging tree.
+            this.pkg.redirectOutput(undefined)
+            // Thrown failures unwind through here; `die()` does not, and is covered
+            // by the exit hook above. Both paths end with no staging tree left.
+            if (OWNED_STAGING.has(staging)) {
+                fs.rmSync(staging, { recursive: true, force: true })
+                releaseStaging(staging)
+            }
+        }
+    }
+
+    /**
+     * Replace `target`'s contents with `staging`, as close to atomically as the
+     * filesystem allows.
+     *
+     * A single `rename` cannot swap one NON-EMPTY directory for another (`ENOTEMPTY`),
+     * so the steps are: move the old tree aside, move the new one in, delete the old.
+     * The visible window is two renames rather than one build — microseconds instead
+     * of seconds — and a crash between them leaves a recoverable state rather than an
+     * empty tree.
+     *
+     * The old tree is moved ASIDE rather than deleted first, so a failure to install
+     * the new one can put it back.
+     *
+     * ── WHY THERE IS A FALLBACK ─────────────────────────────────────────────
+     * `rename` on a DIRECTORY fails with `EXDEV: cross-device link not permitted`
+     * under overlayfs when the source tree lives in the image's LOWER layer — which
+     * is exactly the case in the dependency-builder image, where `dist/` is baked
+     * in and then rebuilt at runtime:
+     *
+     *   Error: EXDEV: cross-device link not permitted,
+     *     rename '/app/tooling/bin-runthenkill/dist' -> '.../dist.previous-1261'
+     *
+     * The same inode device number is reported for both paths (`stat -c %d`), so
+     * this is a layer boundary, not a mount: overlayfs cannot rename a directory
+     * that has not been copied up. The fallback moves the entries individually,
+     * which only ever renames UPPER-layer paths and therefore succeeds.
+     *
+     * The fallback is not atomic, but it is still bounded per ENTRY instead of per
+     * build: only the entry being replaced is briefly absent, never the whole tree.
+     * On a real volume (the publishing case this exists for) the atomic path is
+     * taken and this branch never runs.
+     */
+    private publish(staging: string, target: string): void {
+        const previous = `${target}.previous-${String(process.pid)}`
+        fs.rmSync(previous, { recursive: true, force: true })
+
+        const hadPrevious = fs.existsSync(target)
+        if (hadPrevious) {
+            try {
+                fs.renameSync(target, previous)
+            } catch (error) {
+                if (!isCrossDevice(error)) throw error
+                // The directory cannot be renamed across the overlay boundary; merge
+                // entry by entry instead. `staging` is removed either way.
+                mergeInto(staging, target)
+                return
+            }
         }
 
-        if (variants.length === 1) {
-            await this.buildVariant(mode, variants[0]!)
-        } else {
-            for (const variant of variants) {
-                await this.runChildForVariant(mode, variant)
+        try {
+            fs.renameSync(staging, target)
+        } catch (error) {
+            if (!isCrossDevice(error)) {
+                // Put the previous tree back: a failed publish must not leave the
+                // package without output while its consumers are running.
+                if (hadPrevious) fs.renameSync(previous, target)
+                fs.rmSync(staging, { recursive: true, force: true })
+                throw error
             }
+            // `rename` refused the swap; the old tree is already moved aside, so
+            // restore it and merge instead of corrupting the target.
+            if (hadPrevious) fs.renameSync(previous, target)
+            mergeInto(staging, target)
+            return
         }
 
-        // Assets are variant-independent: copied once, at the shared root.
-        this.copyAssets(distDir)
+        fs.rmSync(previous, { recursive: true, force: true })
     }
 
     /**
@@ -392,7 +521,7 @@ export class PkgBuilderService {
 
         console.log(
             `${c.green('ok')} ${format.padEnd(4)} ${c.dim(
-                `${entries.length} entries -> ${path.relative(pkgRoot, outDir)}${
+                `${entries.length} entries -> ${this.pkg.displayPath(outDir)}${
                     minify ? ' [minified]' : ''
                 }${sourcemap === 'none' ? ' [no map]' : ''}`
             )}`
@@ -581,7 +710,11 @@ export class PkgBuilderService {
             : path.join(import.meta.dir, '..', name)
     }
 
-    private runChildForVariant(mode: BuildMode, variant: Variant): Promise<void> {
+    private runChildForVariant(
+        mode: BuildMode,
+        variant: Variant,
+        staging: string
+    ): Promise<void> {
         const childEntry = this.variantChildEntry()
         return new Promise((resolve, reject) => {
             const child = Bun.spawn(
@@ -590,6 +723,11 @@ export class PkgBuilderService {
                     childEntry,
                     `--variant=${variant}`,
                     `--mode=${mode}`,
+                    // The child re-loads the config and derives its own output
+                    // paths, so the staging root has to cross the process
+                    // boundary: without it a variant build would write into the
+                    // LIVE tree the swap is meant to protect.
+                    `--out-root=${staging}`,
                 ],
                 {
                     cwd: this.pkg.pkgRoot,
@@ -668,5 +806,137 @@ export class PkgBuilderService {
                 }
                 trigger()
             })
+    }
+}
+
+/**
+ * Staging trees this process currently owns.
+ *
+ * Removed on process exit, because `die()` is how a build failure is reported —
+ * and `die()` calls `process.exit(1)`, which does NOT throw and does NOT run a
+ * `finally`. Measured: a `--types` failure (`TS2688: Cannot find type definition
+ * file for 'node'`) exited 1, left `dist` untouched, and kept a complete
+ * `vol.staging-1797304` tree holding `cjs/`, `esm/` and `types/`.
+ *
+ * `exit` handlers run synchronously, which is why the removal is `rmSync`.
+ */
+const OWNED_STAGING = new Set<string>()
+let exitHookInstalled = false
+
+/** Claim a staging tree so an abnormal exit still removes it. */
+function ownStaging(dir: string): void {
+    OWNED_STAGING.add(dir)
+    if (exitHookInstalled) return
+    exitHookInstalled = true
+    process.on('exit', () => {
+        for (const dir of OWNED_STAGING) {
+            fs.rmSync(dir, { recursive: true, force: true })
+        }
+        OWNED_STAGING.clear()
+    })
+}
+
+/** Forget a staging tree: it was published, or already removed. */
+function releaseStaging(dir: string): void {
+    OWNED_STAGING.delete(dir)
+}
+
+/**
+ * Whether a filesystem error is overlayfs refusing to rename across a layer
+ * boundary.
+ *
+ * The device numbers of both paths are identical (`stat -c %d`), so the usual
+ * "different mount" reading of `EXDEV` is wrong here: the old tree has simply not
+ * been copied up from the image's lower layer.
+ */
+function isCrossDevice(error: unknown): boolean {
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code?: unknown }).code === 'EXDEV'
+    )
+}
+
+/**
+ * Install `staging`'s entries into `target` one at a time, for filesystems that
+ * refuse a directory rename.
+ *
+ * `staging` is always removed, including on failure: an abandoned staging tree is
+ * hundreds of files that the next run has to walk, and it is the residue a killed
+ * build leaves on a publishing volume.
+ */
+function mergeInto(staging: string, target: string): void {
+    fs.mkdirSync(target, { recursive: true })
+    try {
+        for (const entry of fs.readdirSync(staging)) {
+            const from = path.join(staging, entry)
+            const to = path.join(target, entry)
+            fs.rmSync(to, { recursive: true, force: true })
+            try {
+                fs.renameSync(from, to)
+            } catch (error) {
+                if (!isCrossDevice(error)) throw error
+                // A directory whose entries are themselves lower-layer files cannot
+                // be renamed either; copy it across.
+                fs.cpSync(from, to, { recursive: true })
+                fs.rmSync(from, { recursive: true, force: true })
+            }
+        }
+    } finally {
+        fs.rmSync(staging, { recursive: true, force: true })
+    }
+}
+
+/**
+ * Remove staging trees left behind by processes that no longer exist.
+ *
+ * A build that is killed (container stop, CI timeout, a crash between the build
+ * and the publish) never reaches `publish`, so its `dist.staging-<pid>` stays on
+ * the publishing volume. Left alone they accumulate one full tree per kill — the
+ * measured residue was 7 directories spanning `ui`, `runtime-contracts`,
+ * `mesh-service`, `bin-runthenkill` and others.
+ *
+ * Liveness is the pid in the name: `process.kill(pid, 0)` succeeds for a live
+ * process and throws `ESRCH` for a dead one. That is what makes this safe to run
+ * while other packages are building — those pids belong to running children and
+ * their trees are kept.
+ *
+ * ── PID REUSE ───────────────────────────────────────────────────────────────
+ * A pid is only unique among LIVE processes, so a recycled pid can point at an
+ * unrelated process and the sweep would keep a dead tree. That is the safe
+ * direction (a leftover, not a deletion of something in use), and the next run
+ * clears it once that pid is free again. Deleting on an ambiguity would be the
+ * unsafe direction, and is deliberately not done.
+ */
+export function sweepOrphanedStaging(realDist: string): void {
+    const parent = path.dirname(realDist)
+    const prefix = `${path.basename(realDist)}.staging-`
+    let entries: string[]
+    try {
+        entries = fs.readdirSync(parent)
+    } catch {
+        return
+    }
+    for (const entry of entries) {
+        if (!entry.startsWith(prefix)) continue
+        const pid = Number(entry.slice(prefix.length))
+        // `Number('')` is 0 and `Number('12abc')` is NaN; both mean the name is
+        // not one this code wrote, so leave it alone rather than guess.
+        if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue
+        // `kill(pid, 0)` is a liveness probe: no signal is sent. `EPERM` means the
+        // process EXISTS but belongs to another user — treat it as live, because
+        // deleting a tree another build is writing would corrupt its output.
+        try {
+            process.kill(pid, 0)
+            continue
+        } catch (error) {
+            const code =
+                typeof error === 'object' && error !== null && 'code' in error
+                    ? (error as { code?: unknown }).code
+                    : undefined
+            if (code !== 'ESRCH') continue
+        }
+        fs.rmSync(path.join(parent, entry), { recursive: true, force: true })
     }
 }

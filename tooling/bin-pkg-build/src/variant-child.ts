@@ -22,6 +22,7 @@ import type { BuildMode, Variant } from './config'
  */
 const VARIANT_PREFIX = '--variant='
 const MODE_PREFIX = '--mode='
+const OUT_ROOT_PREFIX = '--out-root='
 
 /** Read a `--flag=value` argument, or `undefined`. */
 function flag(prefix: string): string | undefined {
@@ -45,6 +46,13 @@ async function main(): Promise<void> {
     }
 
     const config = await PkgConfigService.create(process.cwd())
+
+    // The parent assembles the whole tree in a staging directory and swaps it in
+    // when the build succeeds, so this child must write THERE rather than into the
+    // live `dist` — including when the paths are read back from the config.
+    const outRoot = flag(OUT_ROOT_PREFIX)
+    if (outRoot !== undefined) config.redirectOutput(outRoot)
+
     const builder = new PkgBuilderService(config)
     await builder.buildVariant(mode, variant)
 }

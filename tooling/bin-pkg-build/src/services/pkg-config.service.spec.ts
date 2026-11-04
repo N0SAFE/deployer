@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -138,17 +138,15 @@ describe('PkgConfigService', () => {
 
         // `die()` exits the process. Stub `process.exit` to throw so the test can
         // observe the rejection instead of killing the runner.
-        const previousExit = process.exit
-        const previousError = console.error
-        process.exit = ((code?: number) => {
+        const exit = vi.spyOn(process, 'exit').mockImplementation((code) => {
             throw new Error(`exit:${String(code)}`)
-        }) as typeof process.exit
-        console.error = () => undefined
+        })
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
         try {
             await expect(PkgConfigService.create(dir)).rejects.toThrow('exit:1')
         } finally {
-            process.exit = previousExit
-            console.error = previousError
+            exit.mockRestore()
+            error.mockRestore()
         }
     })
 
@@ -228,5 +226,44 @@ describe('PkgConfigService', () => {
                 'development'
             )
         ).toBe(path.join(service.distDir, 'development', 'cjs', 'a/b.js'))
+    })
+
+    it('folds the staging suffix back to the published output name', async () => {
+        // ── WHY ──────────────────────────────────────────────────────────────
+        // A staged build assembles into `<realDist>.staging-<pid>` and swaps it in,
+        // so every log line during the build describes a directory that will not
+        // exist a second later. `displayPath` folds it back for the reader.
+        //
+        // The name comes from the REAL target, not the declared `outDir`: `dist`
+        // may be a symlink into a publishing volume, in which case staging is
+        // created beside the VOLUME's directory and the suffix appeared as
+        // `vol.staging-224641` in the log (measured). Keying on the literal `dist`
+        // matched nothing there.
+        const dir = fixture({ 'src/index.ts': '' })
+        const service = await PkgConfigService.create(dir)
+
+        expect(service.displayPath(`${service.distDir}/types/x.d.ts`)).toBe(
+            'dist/types/x.d.ts'
+        )
+        expect(
+            service.displayPath(`${service.distDir}.staging-4242/esm/index.mjs`)
+        ).toBe('dist/esm/index.mjs')
+    })
+
+    it('folds a symlinked output directory by its real name', async () => {
+        const dir = fixture({ 'src/index.ts': '' })
+        // The package publishes through a link: `dist` -> `volume`.
+        const volume = path.join(dir, 'volume')
+        fs.mkdirSync(volume, { recursive: true })
+        fs.symlinkSync(volume, path.join(dir, 'dist'))
+
+        const service = await PkgConfigService.create(dir)
+
+        expect(
+            service.displayPath(path.join(volume, 'staging-ish/esm/x.mjs'))
+        ).toBe('volume/staging-ish/esm/x.mjs')
+        expect(service.displayPath(`${volume}.staging-77/cjs/x.js`)).toBe(
+            'volume/cjs/x.js'
+        )
     })
 })

@@ -77,8 +77,15 @@ export class PkgConfigService {
      * Declarations live in one layout-independent tree, keyed by source path:
      * `src/a/b.ts` -> `dist/types/a/b.d.ts`. Formats and JSX variants select
      * runtime code only, so they share a single declarations tree.
+     *
+     * Derived from {@link outputDir} rather than `distDir` so a staged build writes
+     * its declarations into the staging tree as well — otherwise the swap would
+     * install the JS output WITHOUT `dist/types`, and every consumer's type-check
+     * would resolve declarations that no longer exist.
      */
-    typesDir!: string
+    get typesDir(): string {
+        return path.join(this.outputDir, 'types')
+    }
 
     /**
      * Generated tsconfig for the declaration pass.
@@ -92,6 +99,32 @@ export class PkgConfigService {
 
     /** Absolute path of the config file that was loaded, when one was found. */
     configFile: string | undefined
+
+    /**
+     * Where output is written, when it differs from {@link distDir}.
+     *
+     * `buildAll` assembles the whole tree in a staging directory and swaps it in at
+     * the end, so no reader ever observes a half-written `dist`. While a build is
+     * running, every derived path (`formatOutDir`, `formatEntryPath`, `typesDir`)
+     * must resolve under the staging root instead — otherwise the build would write
+     * into the live tree it is trying to protect.
+     *
+     * `undefined` means "publish in place", which is the case outside a build.
+     */
+    private outputDirOverride: string | undefined
+
+    /** Point derived output paths at `dir`, or back at the real `dist` for `undefined`. */
+    redirectOutput(dir: string | undefined): void {
+        this.outputDirOverride = dir
+    }
+
+    /**
+     * The root every output path is derived from: the staging directory during a
+     * build, the package's real `dist` otherwise.
+     */
+    private get outputDir(): string {
+        return this.outputDirOverride ?? this.distDir
+    }
 
     private constructor(pkgRoot: string) {
         this.pkgRoot = pkgRoot
@@ -125,7 +158,6 @@ export class PkgConfigService {
         this.config = this.resolveConfig(authored)
         this.rootDir = path.resolve(this.pkgRoot, this.config.root)
         this.distDir = path.resolve(this.pkgRoot, this.config.outDir)
-        this.typesDir = path.join(this.distDir, 'types')
         this.typesTsconfig = path.join(
             this.pkgRoot,
             // Per process: turbo runs `compile` and `build:types` of one package
@@ -417,7 +449,7 @@ export class PkgConfigService {
     formatOutDir(format: Format, variant: Variant): string {
         const parts: string[] = this.config.flat ? [] : [format]
         if (this.config.variants.length > 1) parts.unshift(variant)
-        return path.join(this.distDir, ...parts)
+        return path.join(this.outputDir, ...parts)
     }
 
     /**
@@ -493,5 +525,40 @@ export class PkgConfigService {
     /** Path relative to the package root, POSIX separators (for tsconfig). */
     relative(abs: string): string {
         return path.relative(this.pkgRoot, abs).split(path.sep).join('/')
+    }
+
+    /**
+     * A path as a human should see it in a log line.
+     *
+     * During a staged build the real path contains the staging suffix
+     * (`dist.staging-<pid>`), which means nothing to a reader and changes every run.
+     * The suffix is folded back to the real output name so the log describes the
+     * artifact that will be published, not the temporary directory it was assembled
+     * in.
+     *
+     * Keyed on the ACTUAL `dist` name rather than the literal string `dist`:
+     * `outDir` is configurable, and a package that publishes to `vol/` (or any other
+     * name) had its staging suffix leak into the log because the pattern only
+     * matched `dist`. Falls back to the generic form when the path is outside this
+     * package, so a caller cannot get a silent no-op.
+     */
+    displayPath(abs: string): string {
+        const rel = this.relative(abs)
+        // The staging tree is named after the REAL target, not the symlink: when
+        // `dist` links into a publishing volume the build assembles beside the
+        // volume's directory (`vol.staging-<pid>`), so keying on the literal `dist`
+        // left the suffix in the log. `realpathSync` on a path with no link is
+        // itself, so the plain case is unaffected.
+        let base = path.basename(this.distDir)
+        try {
+            base = path.basename(fs.realpathSync(this.distDir))
+        } catch {
+            // Absent on a first build; the declared name is the best answer then.
+        }
+        const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        return rel.replace(
+            new RegExp(`(^|/)${escaped}\\.staging-\\d+`, 'g'),
+            `$1${base}`
+        )
     }
 }
