@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { Test } from "@nestjs/testing";
 import { ORPCError } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -81,9 +82,9 @@ describe("SetupController", () => {
         mockInitializationService = {
             getSetupState: vi.fn(),
             getNodeStatus: vi.fn(),
-            assertSetupMutable: vi.fn(async () => undefined),
-            assertDatabaseProbeAllowed: vi.fn(async () => undefined),
-            triggerInitialize: vi.fn(() => ({ accepted: true, delivered: true })),
+            assertSetupMutable: vi.fn(() => Effect.void),
+            assertDatabaseProbeAllowed: vi.fn(() => Effect.void),
+            triggerInitialize: vi.fn(() => Effect.succeed({ accepted: true, delivered: true })),
         };
         mockReachabilityService = {
             checkMeshUrlReachability: vi.fn(),
@@ -148,7 +149,7 @@ describe("SetupController", () => {
             steps: [],
             completedAt: null,
         };
-        mockInitializationService.getSetupState.mockReturnValue(mockState);
+        mockInitializationService.getSetupState.mockReturnValue(Effect.succeed(mockState));
         controller.getState();
         const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as () => Promise<unknown>;
         expect(await handler()).toBe(mockState);
@@ -168,7 +169,7 @@ describe("SetupController", () => {
             new ORPCError("CONFLICT", { message: "Setup is already complete on this node" });
 
         beforeEach(() => {
-            mockInitializationService.assertSetupMutable.mockRejectedValue(conflict());
+            mockInitializationService.assertSetupMutable.mockReturnValue(Effect.fail(conflict()));
         });
 
         it("refuses triggerInitialize", async () => {
@@ -197,7 +198,7 @@ describe("SetupController", () => {
         });
 
         it("still allows triggerInitialize while setup is in progress", async () => {
-            mockInitializationService.assertSetupMutable.mockResolvedValue(undefined);
+            mockInitializationService.assertSetupMutable.mockReturnValue(Effect.void);
             controller.triggerInitialize();
 
             await expect(lastHandler()({ input: { strategy: "local" } })).resolves.toMatchObject({
@@ -207,8 +208,8 @@ describe("SetupController", () => {
     });
 
     it("refuses a probe target the network policy forbids", async () => {
-        mockInitializationService.assertDatabaseProbeAllowed.mockRejectedValue(
-            new ORPCError("BAD_REQUEST", { message: "127.0.0.1 is a loopback address" }),
+        mockInitializationService.assertDatabaseProbeAllowed.mockReturnValue(
+            Effect.fail(new ORPCError("BAD_REQUEST", { message: "127.0.0.1 is a loopback address" })),
         );
         controller.probeDatabase();
 

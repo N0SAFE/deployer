@@ -1,6 +1,5 @@
 import { Controller, Logger, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { ORPCError } from "@orpc/server";
 import { Pool } from "pg";
 
 import { procedure } from "@deployer/nest-effect";
@@ -13,7 +12,7 @@ import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import {  EgressService } from "@/core/modules/egress/egress.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
-import { InitializationService } from "@/core/modules/setup/services/initialization.service";
+import { InitializationService, type InitializationServiceShape } from "@/core/modules/setup/services/initialization.service";
 
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService } from "../services/post-setup-verification.service";
@@ -38,7 +37,7 @@ const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
 export class SetupController {
     private readonly logger = new Logger(SetupController.name);
     constructor(
-        private readonly initializationService: InitializationService,
+        @Inject(InitializationService) private readonly initializationService: InitializationServiceShape,
         private readonly reachabilityService: ReachabilityService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         private readonly postSetupDestination: PostSetupDestinationService,
@@ -52,14 +51,14 @@ export class SetupController {
     getState() {
         return procedure(setupContract.getState)
             .use(publicAccess())
-            .handler(async () => this.initializationService.getSetupState());
+            .handler(async () => runPromiseUnwrapped(this.initializationService.getSetupState()));
     }
 
     @Implement(setupContract.getNodeStatus)
     getNodeStatus() {
         return procedure(setupContract.getNodeStatus)
             .use(publicAccess())
-            .handler(async () => this.initializationService.getNodeStatus());
+            .handler(async () => runPromiseUnwrapped(this.initializationService.getNodeStatus()));
     }
 
     // ─── Pre-flight probes ────────────────────────────────────────────────────
@@ -73,8 +72,8 @@ export class SetupController {
         return procedure(setupContract.probeDatabase)
             .use(publicAccess())
             .handler(async ({ input }) => {
-                await this.initializationService.assertSetupMutable();
-                await this.initializationService.assertDatabaseProbeAllowed(input.databaseUrl.trim());
+                await runPromiseUnwrapped(this.initializationService.assertSetupMutable());
+                await runPromiseUnwrapped(this.initializationService.assertDatabaseProbeAllowed(input.databaseUrl.trim()));
                 const start = Date.now();
                 const pool = new Pool({
                     connectionString: input.databaseUrl.trim(),
@@ -112,9 +111,9 @@ export class SetupController {
         return procedure(setupContract.triggerInitialize)
             .use(publicAccess())
             .handler(async ({ input }) => {
-                await this.initializationService.assertSetupMutable();
+                await runPromiseUnwrapped(this.initializationService.assertSetupMutable());
                 // Credentials are stored inside initializationService.triggerInitialize()
-                const result = this.initializationService.triggerInitialize(input);
+                const result = await runPromiseUnwrapped(this.initializationService.triggerInitialize(input));
                 return { status: 201 as const, headers: {}, body: result };
             });
     }
@@ -156,7 +155,7 @@ export class SetupController {
         return procedure(setupContract.dismissPostSetupHint)
             .use(publicAccess())
             .handler(async ({ input, errors }) => {
-                await this.initializationService.assertSetupMutable();
+                await runPromiseUnwrapped(this.initializationService.assertSetupMutable());
                 this.logger.log(`Hint dismissed: ${input.hintId}`);
                 const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
                 if (!config) {
