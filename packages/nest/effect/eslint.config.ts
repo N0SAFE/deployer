@@ -7,7 +7,7 @@ export default defineConfig([
     // `ServiceLifecycleRunner` the one class that implements Nest's hooks FOR every service. They stay, by design;
     // everything else is banned. The ledger lists exactly them.
     {
-        extends: [nestjsConfig.configs.nestRoles({ ledger: "./nest-roles.ledger.json" })],
+        extends: [nestjsConfig.configs.nestRoles({ ledger: `${import.meta.dirname}/nest-roles.ledger.json` })],
     },
     {extends:[libraryConfig.configs.base()],
         files: ["src/**/*.{ts,tsx}"],

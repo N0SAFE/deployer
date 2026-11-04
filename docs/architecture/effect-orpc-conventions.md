@@ -501,7 +501,7 @@ message says what to write instead and points here.
 
 ### The ledger
 
-`nestjsConfig.configs.nestRoles({ ledger: "./nest-roles.ledger.json" })` (also included by `effectConventions`) turns **all** the
+`nestjsConfig.configs.nestRoles({ ledger: `${import.meta.dirname}/nest-roles.ledger.json` })` (also included by `effectConventions`) turns **all** the
 rules on for an app. The ledger is a JSON file next to its `eslint.config.ts`: `{ "<rule>": ["src/…/file.ts", …] }` — the files
 that have **not** migrated yet; each rule is switched off for exactly those files. It is the migration's to-do list:
 
