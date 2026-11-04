@@ -282,7 +282,7 @@ describe('DeploymentService', () => {
         };
 
         mockRuntimeConfigurationAccessor = {
-            resolveForDeployment: vi.fn(() => defaultResolvedRuntimeConfiguration()),
+            resolveForDeployment: vi.fn(() => Effect.succeed(defaultResolvedRuntimeConfiguration())),
         };
 
         mockIngressRefresher = {
@@ -891,7 +891,7 @@ describe('DeploymentService', () => {
                     },
                 },
             });
-            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue({
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(Effect.succeed({
                 ...defaultResolvedRuntimeConfiguration(),
                 service: {
                     ...defaultResolvedRuntimeConfiguration().service,
@@ -908,7 +908,7 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
-            });
+            }));
 
             mockRepository.create.mockResolvedValue(mockDeployment);
             mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
@@ -1725,13 +1725,13 @@ describe('DeploymentService', () => {
                 return Promise.resolve(null);
             });
 
-            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue({
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(Effect.succeed({
                 ...defaultResolvedRuntimeConfiguration(),
                 project: {
                     ...defaultResolvedRuntimeConfiguration().project,
                     metadata: { deploymentStateMachine: { rollback: { enabled: false } } },
                 },
-            });
+            }));
 
             await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();

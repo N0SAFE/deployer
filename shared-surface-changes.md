@@ -83,3 +83,11 @@ User decision M: nothing is pruned; every traefik class is migrated. (a9827042 h
 - `GlobalClusterNodesRepository`: `makeGlobalClusterNodesRepository({ database, meshConfig })` over `DatabasePort`; `enrollLocalNode` is an Effect failing with `StorageFailure` (resolves `false` when the node has no identity yet).
 - `NodeInventoryService`: `makeNodeInventoryService({ cluster, inventory, globalClusterNodes, timing? })`, lifecycle shape (`onStart`: detached enrollment; `run`: the 5 s delay then 30 s sweep loop, failures logged); `syncOnce` is an Effect. `DatabaseNotReadyReporter` gains `reportEffect`. `SwarmInventoryModule` now imports `DatabaseModule`.
 - `SwarmCoreModule`: the `SwarmLifecycle` class is a `ServiceLifecycleRunner` (`onStart`: `bootstrap.onBoot`, `run`: `leadership.run`). One ordering change: the election loop now starts AFTER the boot convergence finished (it was forked first, concurrently).
+
+## Commit: configuration
+- New tagged errors in `configuration/configuration.errors.ts`: `RuntimeConfigurationInvalid` (`stage: "input" | "output"`, `issues`; kind `validation`) replaces the `ZodError` the resolver threw; `RuntimeConfigurationStateMachineInvalid` replaces the one `build()` threw.
+- `ConfigurationDefinitionService`: `makeConfigurationDefinitionService()`; pure, `listDefinitions`/`getDefinition` stay plain reads.
+- `ConfigurationResolverService`: `makeConfigurationResolverService(definitions)`; `resolve`, `resolveStrict`, `resolveForProject/Service/User` are Effects failing with `RuntimeConfigurationInvalid`. The resolution internals became module functions (no behavior change).
+- `RuntimeConfigurationAccessorService`: `makeRuntimeConfigurationAccessorService(resolver)`; `resolve`, `resolveStrict`, `resolveForDeployment` are Effects; `projectConfigFromSettings` and `serviceConfigFromRecord` (pure mappers) stay synchronous.
+- `ConfigurationStateMachineBuilderService`: `makeConfigurationStateMachineBuilderService()`; the fluent builders' `build()` returns an Effect.
+- Consumers: project `RuntimeConfigurationAccessorShape` is a `Pick` of the new shape; project/service services wrap resolutions with the new `configurationRule` (→ `ProjectInvalid`, same refusal as before); runtime `DeploymentServicePorts.runtimeConfigurationAccessor` is the shape and the two `resolveForDeployment` calls go through `host.runUnwrapped`.

@@ -86,7 +86,7 @@ import type {
 } from "@deployer/contracts-entities";
 import type { EffectHostShape } from "@deployer/nest-effect";
 import type { ResolvedRuntimeConfiguration } from "@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema";
-import type { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
+import type { RuntimeConfigurationAccessorServiceShape } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import type { DeploymentStateMachineScopeConfigInput } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { deploymentRunnerKindSchema } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { DeploymentStateMachineShape } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
@@ -187,7 +187,7 @@ export type DeploymentServicePorts = {
     readonly uploadBundles: UploadBundleRegistryShape;
     readonly projectAccessService: ProjectAccessService["Service"];
     readonly domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>;
-    readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService;
+    readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorServiceShape;
     /** Fires a re-converge of the platform ingress when the route table may
      *  have changed (a deployment/preview became live, a rollback moved
      *  the backend container). */
@@ -420,14 +420,14 @@ export function makeDeploymentService(ports: DeploymentServicePorts) {
             throw new RuntimeInvalid({ reason: `Service dependency '${crossProjectDependency.dependsOnServiceId}' belongs to a different project and cannot be deployed together` });
         }
 
-        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
+        const resolvedRuntimeConfiguration = await host.runUnwrapped(runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
             environment: input.environment,
             sourceType: input.source.sourceType,
             projectSettings: runtimeConfigurationSeed.projectSettings,
             serviceRecord: runtimeConfigurationSeed.service,
-        });
+        }));
         const stateMachineScopeConfig = buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
 
         if (!resolvedRuntimeConfiguration.effective.constraints.canDeployToRequestedEnvironment) {
@@ -2467,14 +2467,14 @@ export function makeDeploymentService(ports: DeploymentServicePorts) {
             return undefined;
         }
 
-        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
+        const resolvedRuntimeConfiguration = await host.runUnwrapped(runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
             environment: input.environment,
             sourceType: input.sourceType,
             projectSettings: runtimeConfigurationSeed.projectSettings,
             serviceRecord: runtimeConfigurationSeed.service,
-        });
+        }));
 
         return buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
     }

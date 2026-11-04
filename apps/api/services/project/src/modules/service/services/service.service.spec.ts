@@ -148,9 +148,11 @@ describe("ServiceService", () => {
 		};
 
 		configuration = {
-			resolveStrict: vi.fn(() => ({
-				effective: { constraints: { providerAllowed: true, runnerAllowed: true } },
-			})),
+			resolveStrict: vi.fn(() =>
+				Effect.succeed({
+					effective: { constraints: { providerAllowed: true, runnerAllowed: true } },
+				}),
+			),
 			projectConfigFromSettings: vi.fn(),
 			serviceConfigFromRecord: vi.fn(() => ({}) as never),
 		};
@@ -239,9 +241,11 @@ describe("ServiceService", () => {
 		});
 
 		it("rejects a provider the runtime configuration does not allow", async () => {
-			configuration.resolveStrict = vi.fn(() => ({
-				effective: { constraints: { providerAllowed: false, runnerAllowed: true } },
-			}));
+			configuration.resolveStrict = vi.fn(() =>
+				Effect.succeed({
+					effective: { constraints: { providerAllowed: false, runnerAllowed: true } },
+				}),
+			);
 
 			await expect(
 				run(

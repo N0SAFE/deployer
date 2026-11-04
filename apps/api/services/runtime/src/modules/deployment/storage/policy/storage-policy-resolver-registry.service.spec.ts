@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { runSyncUnwrapped } from "@deployer/effect-core";
-import { ConfigurationDefinitionService } from "@deployer/shared/core/modules/configuration/services/configuration-definition.service";
-import { ConfigurationResolverService } from "@deployer/shared/core/modules/configuration/services/configuration-resolver.service";
-import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
+import { makeConfigurationDefinitionService } from "@deployer/shared/core/modules/configuration/services/configuration-definition.service";
+import { makeConfigurationResolverService } from "@deployer/shared/core/modules/configuration/services/configuration-resolver.service";
+import { makeRuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 
 import { runtimeConfigurationStoragePolicyResolver } from "./runtime-configuration-storage-policy-resolver.service";
 import { serviceCustomDataStoragePolicyResolver } from "./service-custom-data-storage-policy-resolver.service";
@@ -20,8 +20,8 @@ const synchronous = (registry: StoragePolicyResolverRegistryShape) => ({
 });
 
 describe("StoragePolicyResolverRegistry", () => {
-    const accessor = new RuntimeConfigurationAccessorService(
-        new ConfigurationResolverService(new ConfigurationDefinitionService()),
+    const accessor = makeRuntimeConfigurationAccessorService(
+        makeConfigurationResolverService(makeConfigurationDefinitionService()),
     );
 
     const buildInput = (metadata: Record<string, unknown> | null) => ({
@@ -31,7 +31,7 @@ describe("StoragePolicyResolverRegistry", () => {
             sourceType: "upload" as const,
             uploadId: "upload-1",
         },
-        runtimeConfiguration: accessor.resolveForDeployment({
+        runtimeConfiguration: runSyncUnwrapped(accessor.resolveForDeployment({
             serviceId: "service-1",
             projectId: "project-1",
             environment: "production",
@@ -44,7 +44,7 @@ describe("StoragePolicyResolverRegistry", () => {
                 resourceLimits: null,
                 deploymentStateMachine: null,
             },
-        }),
+        })),
     });
 
     it("should resolve policy from the highest priority resolver", () => {

@@ -181,7 +181,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 uploadBundles: Context.Service.Shape<typeof UploadBundleRegistry>,
                 projectAccessService: Context.Service.Shape<typeof ProjectAccessService>,
                 domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>,
-                runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
+                runtimeConfigurationAccessor: Context.Service.Shape<typeof RuntimeConfigurationAccessorService>,
                 ingressRefresher: TraefikConfigRefresherShape,
                 host: EffectHostShape,
                 approvalGuard: Context.Service.Shape<typeof ApprovalGuard>,

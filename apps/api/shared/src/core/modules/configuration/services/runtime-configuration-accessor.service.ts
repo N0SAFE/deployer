@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { isRecord } from "@deployer/type-guards";
 
@@ -16,8 +16,9 @@ import {
     type ServiceRuntimeConfig,
 } from "../schemas/runtime-configuration.schema";
 
-import { ConfigurationDefinitionService } from "./configuration-definition.service";
-import { ConfigurationResolverService } from "./configuration-resolver.service";
+import type { RuntimeConfigurationInvalid } from "../configuration.errors";
+
+import type { ConfigurationResolverServiceShape } from "./configuration-resolver.service";
 
 const PROVIDER_TYPE_SET = new Set<ConfigurationProviderType>([
     "github",
@@ -235,80 +236,68 @@ function toServiceRuntimeConfig(input: {
     };
 }
 
+type ServiceRecordInput = {
+    providerId?: string | null;
+    builderId?: string | null;
+    customDomains?: string[] | null;
+    environmentVariables?: Record<string, string> | null;
+    metadata?: Record<string, unknown> | null;
+    storage?: Record<string, unknown> | null;
+    resourceLimits?: {
+        memory?: string | null;
+        cpu?: string | null;
+    } | null;
+    deploymentStateMachine?: Record<string, unknown> | null;
+};
+
+type Resolution = Effect.Effect<ResolvedRuntimeConfiguration, RuntimeConfigurationInvalid>;
+
 /**
- * Injectable facade over `ConfigurationResolverService` that adapts
- * project/service records into the runtime configuration shape.
- *
- * Replaces the former module-level singleton `runtimeConfigurationAccessor`
- * (service-locator anti-pattern) with a proper DI provider so consumers
- * declare their dependency explicitly and tests can mock it.
+ * Facade over the configuration resolver that adapts project/service records into the runtime configuration shape. The
+ * record → config mappers are pure, so they are plain reads; the resolutions are Effects failing with
+ * `RuntimeConfigurationInvalid`.
  */
-@Injectable()
-export class RuntimeConfigurationAccessorService {
-    constructor(private readonly resolver: ConfigurationResolverService) {}
-
-    resolve(input: RuntimeConfigurationResolverScopedInput): ResolvedRuntimeConfiguration {
-        return this.resolver.resolveStrict(input);
-    }
-
-    resolveStrict<TScope extends ConfigurationScope>(
-        input: RuntimeConfigurationResolverInputByScope<TScope>,
-    ): ResolvedRuntimeConfiguration {
-        return this.resolver.resolveStrict(input);
-    }
-
-    resolveForDeployment(input: {
+export type RuntimeConfigurationAccessorServiceShape = {
+    readonly resolve: (input: RuntimeConfigurationResolverScopedInput) => Resolution;
+    readonly resolveStrict: <TScope extends ConfigurationScope>(input: RuntimeConfigurationResolverInputByScope<TScope>) => Resolution;
+    readonly resolveForDeployment: (input: {
         serviceId: string;
         projectId: string;
         environment: RequestedEnvironment;
         sourceType: string;
         projectSettings?: Record<string, unknown> | null;
-        serviceRecord?: {
-            providerId?: string | null;
-            builderId?: string | null;
-            customDomains?: string[] | null;
-            environmentVariables?: Record<string, string> | null;
-            metadata?: Record<string, unknown> | null;
-            storage?: Record<string, unknown> | null;
-            resourceLimits?: {
-                memory?: string | null;
-                cpu?: string | null;
-            } | null;
-            deploymentStateMachine?: Record<string, unknown> | null;
-        };
-    }): ResolvedRuntimeConfiguration {
-        return this.resolver.resolveStrict({
-            scope: "service",
-            context: {
-                serviceId: input.serviceId,
-                projectId: input.projectId,
-                requestedEnvironment: input.environment,
-                sourceProvider: input.sourceType === "gitlab" ? "gitlab" : input.sourceType === "github" ? "github" : input.sourceType === "git" ? "git" : input.sourceType === "upload" ? "upload" : "custom",
-                requestedProviderType: toProviderType(input.serviceRecord?.providerId),
-                requestedRunnerType: toRunnerType(input.serviceRecord?.builderId),
-            },
-            project: toProjectRuntimeConfig(input.projectSettings),
-            service: toServiceRuntimeConfig(input.serviceRecord ?? {}),
-        });
-    }
+        serviceRecord?: ServiceRecordInput;
+    }) => Resolution;
+    readonly projectConfigFromSettings: (settings: Record<string, unknown> | null | undefined) => ProjectRuntimeConfig;
+    readonly serviceConfigFromRecord: (input: ServiceRecordInput) => ServiceRuntimeConfig;
+};
 
-    projectConfigFromSettings(settings: Record<string, unknown> | null | undefined): ProjectRuntimeConfig {
-        return toProjectRuntimeConfig(settings);
-    }
+export function makeRuntimeConfigurationAccessorService(resolver: ConfigurationResolverServiceShape): RuntimeConfigurationAccessorServiceShape {
+    return {
+        resolve: (input) => resolver.resolveStrict(input),
+        resolveStrict: (input) => resolver.resolveStrict(input),
 
-    serviceConfigFromRecord(input: {
-        providerId?: string | null;
-        builderId?: string | null;
-        customDomains?: string[] | null;
-        environmentVariables?: Record<string, string> | null;
-        metadata?: Record<string, unknown> | null;
-        storage?: Record<string, unknown> | null;
-        resourceLimits?: {
-            memory?: string | null;
-            cpu?: string | null;
-        } | null;
-        deploymentStateMachine?: Record<string, unknown> | null;
-    }): ServiceRuntimeConfig {
-        return toServiceRuntimeConfig(input);
-    }
+        resolveForDeployment: (input) =>
+            resolver.resolveStrict({
+                scope: "service",
+                context: {
+                    serviceId: input.serviceId,
+                    projectId: input.projectId,
+                    requestedEnvironment: input.environment,
+                    sourceProvider: input.sourceType === "gitlab" ? "gitlab" : input.sourceType === "github" ? "github" : input.sourceType === "git" ? "git" : input.sourceType === "upload" ? "upload" : "custom",
+                    requestedProviderType: toProviderType(input.serviceRecord?.providerId),
+                    requestedRunnerType: toRunnerType(input.serviceRecord?.builderId),
+                },
+                project: toProjectRuntimeConfig(input.projectSettings),
+                service: toServiceRuntimeConfig(input.serviceRecord ?? {}),
+            }),
+
+        projectConfigFromSettings: toProjectRuntimeConfig,
+        serviceConfigFromRecord: toServiceRuntimeConfig,
+    };
 }
+
+export class RuntimeConfigurationAccessorService extends Context.Service<
+    RuntimeConfigurationAccessorService,
+    RuntimeConfigurationAccessorServiceShape
+>()("shared/RuntimeConfigurationAccessorService") {}

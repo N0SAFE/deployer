@@ -1,4 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
+
+import { RuntimeConfigurationStateMachineInvalid } from "../configuration.errors";
 
 import {
     type ConfigurationLifecycleState,
@@ -15,16 +17,23 @@ import {
     type RuntimeConfigurationStateTransitionInput,
 } from "../schemas/runtime-configuration.schema";
 
-@Injectable()
-export class ConfigurationStateMachineBuilderService {
-    create(): RuntimeConfigurationStateMachineBuilder {
-        return new RuntimeConfigurationStateMachineBuilder();
-    }
+export type ConfigurationStateMachineBuilderServiceShape = {
+    readonly create: () => RuntimeConfigurationStateMachineBuilder;
+    readonly policy: () => RuntimeConfigurationPolicyDsl;
+};
 
-    policy(): RuntimeConfigurationPolicyDsl {
-        return new RuntimeConfigurationPolicyDsl(this.create());
-    }
+/** The builders are fluent value objects (each call starts a fresh one), so the service itself is pure. */
+export function makeConfigurationStateMachineBuilderService(): ConfigurationStateMachineBuilderServiceShape {
+    return {
+        create: () => new RuntimeConfigurationStateMachineBuilder(),
+        policy: () => new RuntimeConfigurationPolicyDsl(new RuntimeConfigurationStateMachineBuilder()),
+    };
 }
+
+export class ConfigurationStateMachineBuilderService extends Context.Service<
+    ConfigurationStateMachineBuilderService,
+    ConfigurationStateMachineBuilderServiceShape
+>()("shared/ConfigurationStateMachineBuilderService") {}
 
 export class RuntimeConfigurationStateMachineBuilder {
     private readonly nodes: RuntimeConfigurationStateNodeInput[] = [];
@@ -50,14 +59,22 @@ export class RuntimeConfigurationStateMachineBuilder {
         return new RuntimeConfigurationPolicyDsl(this);
     }
 
-    build(): RuntimeConfigurationStateMachine {
-        return runtimeConfigurationStateMachineSchema.parse({
+    /** Validates the definition; an invalid one fails with every violation named. */
+    build(): Effect.Effect<RuntimeConfigurationStateMachine, RuntimeConfigurationStateMachineInvalid> {
+        const parsed = runtimeConfigurationStateMachineSchema.safeParse({
             nodes: this.nodes,
             transitions: this.transitions,
             dispatch: {
                 rules: this.rules,
             },
         });
+        return parsed.success
+            ? Effect.succeed(parsed.data)
+            : Effect.fail(
+                  new RuntimeConfigurationStateMachineInvalid({
+                      issues: parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; "),
+                  }),
+              );
     }
 }
 
@@ -101,7 +118,7 @@ export class RuntimeConfigurationPolicyDsl {
         return this;
     }
 
-    build(): RuntimeConfigurationStateMachine {
+    build(): Effect.Effect<RuntimeConfigurationStateMachine, RuntimeConfigurationStateMachineInvalid> {
         return this.builder.build();
     }
 }

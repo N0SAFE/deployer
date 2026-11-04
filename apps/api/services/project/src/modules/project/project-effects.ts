@@ -2,6 +2,8 @@ import { HttpException } from '@nestjs/common'
 import { Effect } from 'effect'
 import { ZodError } from 'zod/v4'
 
+import type { RuntimeConfigurationInvalid } from '@deployer/shared/core/modules/configuration/configuration.errors'
+
 import {
     BadRequestError,
     ForbiddenError,
@@ -120,4 +122,11 @@ export function rule<A>(
             }
         }
     )
+}
+
+/** A runtime configuration that does not resolve is the caller's invalid input: the project domain's refusal. */
+export function configurationRule<A>(
+    resolution: Effect.Effect<A, RuntimeConfigurationInvalid>,
+): Effect.Effect<A, ProjectInvalid> {
+    return resolution.pipe(Effect.mapError((error) => new ProjectInvalid({ reason: error.publicMessage() })));
 }
