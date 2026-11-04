@@ -1,4 +1,4 @@
-import { Injectable, type NestMiddleware } from "@nestjs/common";
+import { edgeUse, type HttpEdgeEntry } from "@deployer/shared/server";
 
 import { runWithServiceAuth } from "./service-auth-context";
 
@@ -37,6 +37,9 @@ function apiKeyOf(req: Request): string | undefined {
  * only point where the inbound request provably exists, and `ServiceClientRegistry`
  * reads it on each outgoing leg.
  *
+
+ * (A plain function mounted by `mountHttpEdge` in `main.ts` — no Nest middleware class.)
+ *
  * ── WHY IT IS NOT A GUARD ───────────────────────────────────────────────────
  * A guard runs for CONTROLLER routes only. This must cover the fan-out made by any
  * handler, including ones reached through paths a guard does not wrap, and it must
@@ -57,9 +60,8 @@ function apiKeyOf(req: Request): string | undefined {
  * on the leg they receive; refusing at the edge would break the public procedures
  * (health, setup, login) that legitimately fan out with no session.
  */
-@Injectable()
-export class ServiceAuthContextMiddleware implements NestMiddleware {
-	use(req: Request, _res: Response, next: NextFunction): void {
+export function serviceAuthContextEdge(): HttpEdgeEntry {
+	return edgeUse("service-auth-context", (req: Request, _res: Response, next: NextFunction): void => {
 		const meshInternalKey = req.headers[HDR_MESH_INTERNAL_KEY];
 
 		runWithServiceAuth(
@@ -73,5 +75,5 @@ export class ServiceAuthContextMiddleware implements NestMiddleware {
 			},
 			() => { next(); },
 		);
-	}
+	});
 }

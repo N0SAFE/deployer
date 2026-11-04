@@ -9,6 +9,7 @@ import "@/core/orpc/context";
 import { bootstrapApiServer, DependencyNotReadyError, DEPENDENCIES } from "@deployer/shared/server";
 
 import { BffModule } from "./bff.module";
+import { serviceAuthContextEdge } from "./clients/service-auth-context.edge";
 
 /**
  * The BFF's process entry point.
@@ -32,6 +33,9 @@ void bootstrapApiServer({
         port: BFF_PORT,
         name: "api-bff",
         dependencies: DEPENDENCIES.platform,
+        // Binds the CALLER's credentials to the request, so every fan-out the BFF makes is made as them. A plain function,
+        // not a Nest middleware: see `service-auth-context.edge.ts` for why it is an edge piece and not a guard.
+        edge: [serviceAuthContextEdge()],
 }).catch((error: unknown) => {
         // A missing dependency is a KNOWN, reportable condition — not an
         // unhandled boot crash. Exit 5 (the documented "engine/dependency

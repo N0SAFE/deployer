@@ -28,7 +28,7 @@ import { generateOpenApiSpec } from "@/orpc/openapi";
  * contract change and nothing would catch it.
  *
  * ── WHY PUBLIC ─────────────────────────────────────────────────────────────
- * `@AllowAnonymous()`: an API reference that requires a session to READ cannot be
+ * Public: an API reference that requires a session to READ cannot be
  * used to obtain a session, and the document exposes only shape — never data. The
  * procedures it describes still enforce their own auth when CALLED.
  */

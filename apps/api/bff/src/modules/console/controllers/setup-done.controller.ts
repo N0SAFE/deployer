@@ -40,7 +40,7 @@ export class SetupDoneController {
 	}> {
 		// ── THIS PAGE MUST ANSWER EVEN WHEN THE STATE CANNOT BE READ ──────────
 		// `state()` asks FLEET for the managed web app's status, bound with the
-		// CALLER's credentials. `/setup/done` is public (`@AllowAnonymous()`), so the
+		// CALLER's credentials. `/setup/done` is public (no session required), so the
 		// caller is usually a browser that has just finished onboarding and holds no
 		// session for that service — and the response was
 		//

@@ -7,7 +7,7 @@ export { MeshBaseDomainError };
  * representation (HTTP status + ORPC error code).
  *
  * Single source of truth used by:
- *   - `InternalErrorExceptionFilter` to build HTTP responses
+ *   - the HTTP transport, to build responses
  *   - the mesh contract to declare typed error shapes via `.errors()`
  *   - clients (web, e2e) to pattern-match on a stable ORPC code
  */

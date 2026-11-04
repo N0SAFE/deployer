@@ -8,6 +8,8 @@ import {
 } from "@deployer/shared/e2e-harness/shared-api-runtime";
 import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
+import { serviceAuthContextEdge } from "@/clients/service-auth-context.edge";
+
 /**
  * The shared e2e harness, bound to the BFF's root module.
  *
@@ -20,10 +22,13 @@ import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@
  */
 const rootModuleLoader = async () => (await import("@/bff.module")).BffModule;
 
+/** What `main.ts` passes to `bootstrapApiServer`: the harness boots the app itself, so it must mount the same edge. */
+const edge = [serviceAuthContextEdge()];
+
 function withRootModule(options: SharedApiRuntimeOptions = {}): SharedApiRuntimeOptions {
 	return {
 		...options,
-		nest: { ...options.nest, rootModuleLoader },
+		nest: { ...options.nest, rootModuleLoader, edge },
 	};
 }
 

@@ -8,6 +8,7 @@ import { type RequirementsMet } from "@deployer/nest-effect";
 
 import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "../core/utils/cors.utils";
 
+import { containerHttpEdge, mountHttpEdge, type HttpEdgeEntry } from "./http-edge";
 import { PreflightService } from "./preflight/preflight.service";
 
 import type { PreflightDependency, PreflightReport } from "./preflight/types";
@@ -138,12 +139,18 @@ export function mountLiveness(gateway: express.Express): void {
  * Deliberately not `createApplicationContext`: that skips the HTTP adapter, so
  * the app a `compile`-style check validates would not be the app that ships.
  */
-export async function createApiServerApp(rootModule: Type<unknown>): Promise<INestApplication> {
+export async function createApiServerApp(
+	rootModule: Type<unknown>,
+	options: { readonly edge?: readonly HttpEdgeEntry[] } = {},
+): Promise<INestApplication> {
 	const gateway = createGateway();
 	mountLiveness(gateway);
 
 	const app = await NestFactory.create(rootModule, new ExpressAdapter(gateway), apiAppOptions());
 	applySecurityHeaders(app);
+	// Between `create()` (the container is live) and `init()` (the router is registered): the edge runs before any route.
+	// What the container holds (Better Auth's routes, if `AuthModule` is imported) first, then what the app adds.
+	mountHttpEdge(app, [...containerHttpEdge(app), ...(options.edge ?? [])]);
 	app.enableShutdownHooks();
 	await app.init();
 
@@ -211,8 +218,10 @@ export async function bootstrapApiServer<M extends Type<unknown>>(options: {
 	 * case the port binds and the app is immediately ready.
 	 */
 	dependencies?: readonly PreflightDependency[];
+	/** Extra HTTP-edge pieces for this app (plain functions, mounted after the container's own). */
+	edge?: readonly HttpEdgeEntry[];
 }): Promise<INestApplication> {
-	const app = await createApiServerApp(options.rootModule);
+	const app = await createApiServerApp(options.rootModule, { edge: options.edge });
 
 	// `init()` already ran inside `createApiServerApp`, so the container is live.
 	// Resolve preflight LAZILY: an app that declares no dependencies never

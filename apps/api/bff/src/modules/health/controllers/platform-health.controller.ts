@@ -15,13 +15,12 @@ import type { PlatformHealth } from "../platform-health.schema";
  * Public by design — a readiness endpoint that requires a session always fails,
  * because Compose healthchecks and the ingress have no cookie to present.
  *
- * ── `@AllowAnonymous()` IS WHAT MAKES THAT TRUE ─────────────────────────────
- * The auth guard is GLOBAL, so "public by design" in a comment does nothing on its
- * own. Without the decorator this answered `401 UNAUTHORIZED` — the worst possible
- * shape for a probe: the endpoint exists, the aggregate is computed, and every
- * caller is told the platform is unauthorized. Setup's handover polls the BFF for
- * readiness, and an operator polling this to confirm the tier came up would have
- * concluded the tier was down.
+ * ── NOTHING MAY REQUIRE A SESSION HERE ──────────────────────────────────────
+ * There is no global guard, so "public" is simply the absence of an auth requirement —
+ * and it must stay that way. A `401 UNAUTHORIZED` is the worst possible shape for a
+ * probe: the endpoint exists, the aggregate is computed, and every caller is told the
+ * platform is unauthorized. Setup's handover polls the BFF for readiness, and an
+ * operator polling this to confirm the tier came up would conclude the tier was down.
  */
 @Controller("health")
 export class PlatformHealthController {

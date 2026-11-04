@@ -5,6 +5,7 @@ import type { TestingModule } from '@nestjs/testing'
 import type { AnyContractRouter, ContractRouterClient } from '@orpc/contract'
 import type { Pool } from 'pg'
 import type request from 'supertest'
+import type { HttpEdgeEntry } from "../../server/http-edge"
 
 export type SharedPostgresContainerHandle = {
     getConnectionUri(): string
@@ -115,6 +116,12 @@ export type SharedRuntimeNestOptions = {
      * forcing a common export name would be a convention that exists only for the harness.
      */
     rootModuleLoader?: () => Promise<Type<unknown>>
+    /**
+     * Extra HTTP-edge pieces for this app, mounted after the container's own (Better Auth's routes), exactly as
+     * `bootstrapApiServer({ edge })` does. The harness builds the Nest app itself, so without this an app whose
+     * `main.ts` passes an edge (the BFF's credentials context) would be tested without it.
+     */
+    edge?: readonly HttpEdgeEntry[]
     onModuleBuilder?: (context: SharedRuntimeNestModuleBuilderContext) => Promise<void> | void
     onModuleCompiled?: (context: SharedRuntimeNestModuleCompiledContext) => Promise<void> | void
     onAppInit?: (context: SharedRuntimeNestAppInitContext) => Promise<void> | void

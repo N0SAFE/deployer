@@ -126,7 +126,7 @@ export const meshErrorActions = {
 
 /**
  * Helper to attach the canonical mesh domain errors to an ORPC contract.
- * Mirrors the error table used by `InternalErrorExceptionFilter` so the
+ * Mirrors the canonical table (`MESH_DOMAIN_ERROR_HTTP_STATUS`) so the
  * contract surface and the HTTP transport agree on status codes and ORPC
  * error codes.
  */

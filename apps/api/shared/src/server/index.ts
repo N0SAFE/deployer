@@ -23,6 +23,15 @@ export {
 	DependencyNotReadyError,
 	mountLiveness,
 } from "./bootstrap";
+export {
+	betterAuthBasePath,
+	betterAuthEdge,
+	containerHttpEdge,
+	edgeAt,
+	edgeUse,
+	mountHttpEdge,
+	type HttpEdgeEntry,
+} from "./http-edge";
 export * from "./preflight";
 export * from "./health";
 export {

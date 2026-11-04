@@ -2,7 +2,6 @@ import { Controller, Get, Inject, Optional, Res } from "@nestjs/common";
 
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { AllowAnonymous } from "../core/modules/auth/decorators/decorators";
 
 import type { Response } from "express";
 
@@ -41,19 +40,11 @@ export const SERVICE_READINESS = Symbol("api-server:service-readiness");
  */
 @Controller("health")
 // ── THE PROBES MUST NOT REQUIRE A SESSION ────────────────────────────────────
-// `AuthModule` registers a GLOBAL `APP_GUARD`, so every route needs a session
-// unless it opts out via this metadata — and without it BOTH probes answered
-// 401 to their own healthcheck:
-//
-//   CMD-SHELL wget --spider http://127.0.0.1:3101/health/ready
-//   -> HTTP/1.1 401 Unauthorized
-//   -> docker marks the container unhealthy, `bff` gates on those containers,
-//      and the whole stack stays down
-//
-// An orchestrator's probe cannot authenticate: it has no session and must not be
-// given one. `AllowAnonymous` (the `PUBLIC` metadata the guard reads) is the
-// supported opt-out, and the same reason applies to every service's probes.
-@AllowAnonymous()
+// There is NO global guard (`AuthModule` installs none): a plain controller route requires
+// nothing, and these routes must stay that way. An orchestrator's probe has no session and
+// must not be given one — a probe that answered 401 made docker mark the container
+// unhealthy (`CMD-SHELL wget --spider http://127.0.0.1:3101/health/ready`), `bff` gates on
+// those containers, and the whole stack stayed down. Never add an auth requirement here.
 export class ServiceHealthController {
 	constructor(
 		@Optional() @Inject(SERVICE_READINESS) private readonly readiness: ServiceReadinessPort | null,

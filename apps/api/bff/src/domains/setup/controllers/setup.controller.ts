@@ -30,12 +30,9 @@ const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
  * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs
  * before any account exists).
  *
- * CRITICAL: the global APP_GUARD AuthGuard (AuthModule) runs at the Nest layer
- * BEFORE ORPC middleware, so the ORPC-level `.use(publicAccess())` alone does
- * NOT bypass it — every request would 401. The Nest-level @AllowAnonymous()
- * metadata is what the guard actually reads (SetMetadata "PUBLIC"). Both are
- * applied: @AllowAnonymous() for the guard, publicAccess() for ORPC handlers
- * that read context.auth without requiring a session.
+ * There is no global guard: nothing here requires a session by default, and
+ * `publicAccess()` is what lets an ORPC handler read `context.auth` without
+ * requiring one. Do not add `requireAuth()` to this surface.
  */
 @Controller()
 export class SetupController {

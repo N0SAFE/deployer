@@ -38,6 +38,7 @@ import {
 } from './types'
 
 import type { AddressInfo } from 'node:net'
+import { containerHttpEdge, mountHttpEdge } from "../../server/http-edge"
 
 const SHARED_RUNTIME_LOG_ENV = 'E2E_SHARED_RUNTIME_LOGS'
 
@@ -1055,6 +1056,10 @@ export class SharedApiRuntimeManager {
                 }
                 next()
             })
+
+            // The HTTP edge, as `createApiServerApp` mounts it: what the container holds (Better Auth's routes, body parsing),
+            // then what the app adds. Mounted AFTER the header copy above, the order Nest's own `configure()` ran in.
+            mountHttpEdge(app, [...containerHttpEdge(app), ...(options.nest?.edge ?? [])])
 
             // `moduleBuilder` is reassigned later in this method, so TypeScript's
             // control-flow analysis still sees its `null` initialiser as one member of

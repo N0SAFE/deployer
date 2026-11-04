@@ -1,4 +1,3 @@
-import { type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 
 import { createModuleContext } from "@deployer/nest-effect";
 import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
@@ -24,7 +23,6 @@ import { SupervisorsPlatformModule } from "@/core/modules/supervisors/platform/p
 import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
 import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 
-import { ServiceAuthContextMiddleware } from "./clients/service-auth-context.middleware";
 import { ServiceClientModule } from "./clients/service-client.module";
 import { SetupDomainModule } from "./domains/setup/setup.module";
 import { PlatformConsoleModule } from "./modules/console/platform-console.module";
@@ -197,26 +195,4 @@ export class BffModule extends createModuleContext({
 		// orchestrator reachable without further wiring.
 		BootstrapModule,
 	],
-	providers: [ServiceAuthContextMiddleware],
-}) implements NestModule {
-	/**
-	 * Bind the CALLER's credentials to the request, for every fan-out to come.
-	 *
-	 * ── WHY THE BFF HAS A MIDDLEWARE AT ALL, NOW THAT IT DOES NOT FORWARD ────
-	 * The old edge copied each inbound request onto the owning service, so the
-	 * caller's session cookie reached the service BECAUSE THE REQUEST DID. The BFF no
-	 * longer relays requests — it calls services itself and composes the answers — so
-	 * the cookie has to travel another route, or every fan-out would be anonymous and
-	 * every service would answer 401. This captures it once, here, where the inbound
-	 * request provably exists: `ServiceClientRegistry` then sends it on each leg.
-	 *
-	 * ── WHY `forRoutes("*")` RATHER THAN THE ORPC PATHS ─────────────────────
-	 * Any handler may compose, including ones reached outside the oRPC surface (the
-	 * console pages, the health roll-up). Enumerating paths would be a list that has to
-	 * be kept in step with every future orchestrator — and the failure mode of getting
-	 * it wrong is a silent 401 deep inside a fan-out, not a startup error.
-	 */
-	configure(consumer: MiddlewareConsumer): void {
-		consumer.apply(ServiceAuthContextMiddleware).forRoutes("*");
-	}
-}
+}) {}
