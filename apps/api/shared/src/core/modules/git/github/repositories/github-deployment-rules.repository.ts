@@ -14,138 +14,156 @@
  * - Used by service layer
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Context, Effect } from 'effect';
 import { eq, and, desc } from 'drizzle-orm';
 
-import { AppError } from "@deployer/errors";
 import { githubDeploymentRules } from "@deployer/nest-schema/global/fleet/github-provider";
 
-import { GlobalDatabaseService } from '../../../database/services/global-database.service';
+import { storage, type DatabasePort, type StorageFailure } from '../../../database/storage';
 // Type inference from schema
 type GithubDeploymentRule = typeof githubDeploymentRules.$inferSelect;
 type GithubDeploymentRuleInsert = typeof githubDeploymentRules.$inferInsert;
 
-@Injectable()
-export class GithubDeploymentRulesRepository {
-  private readonly logger = new Logger(GithubDeploymentRulesRepository.name);
+type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> };
 
-  constructor(private readonly databaseService: GlobalDatabaseService) {}
+export type GithubDeploymentRulesRepositoryShape = {
+  readonly findById: (id: string) => Effect.Effect<GithubDeploymentRule | null, StorageFailure>;
+  readonly findByProjectAndEvent: (projectId: string, event: string) => Effect.Effect<GithubDeploymentRule[], StorageFailure>;
+  readonly findByProjectId: (projectId: string) => Effect.Effect<GithubDeploymentRule[], StorageFailure>;
+  readonly findActiveByProjectId: (projectId: string) => Effect.Effect<GithubDeploymentRule[], StorageFailure>;
+  readonly create: (data: GithubDeploymentRuleInsert) => Effect.Effect<GithubDeploymentRule, StorageFailure>;
+  readonly update: (id: string, data: Partial<GithubDeploymentRuleInsert>) => Effect.Effect<GithubDeploymentRule | null, StorageFailure>;
+  readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>;
+};
 
+export function makeGithubDeploymentRulesRepository({ database }: Ports): GithubDeploymentRulesRepositoryShape {
+  return {
   /**
    * Find a GitHub deployment rule by ID
    */
-  async findById(id: string): Promise<GithubDeploymentRule | null> {
-    this.logger.debug(`Finding GitHub deployment rule by ID: ${id}`);
-    
-    const [rule] = await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(eq(githubDeploymentRules.id, id))
-      .limit(1);
+    findById: (id: string) =>
+      Effect.logDebug(`Finding GitHub deployment rule by ID: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [rule] = await db
+          .select()
+          .from(githubDeploymentRules)
+          .where(eq(githubDeploymentRules.id, id))
+          .limit(1);
 
-    return rule ?? null;
-  }
+        return rule ?? null;
+  
+      }),
+      )),
 
   /**
    * Find rules by project ID and event
    */
-  async findByProjectAndEvent(
-    projectId: string,
-    event: string
-  ): Promise<GithubDeploymentRule[]> {
-    this.logger.debug(`Finding GitHub deployment rules for project ${projectId} and event ${event}`);
-    
-    return await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(
-        and(
-          eq(githubDeploymentRules.projectId, projectId),
-          eq(githubDeploymentRules.event, event)
-        )
-      );
-  }
+    findByProjectAndEvent: (projectId: string, event: string) =>
+      Effect.logDebug(`Finding GitHub deployment rules for project ${projectId} and event ${event}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    return await db
+          .select()
+          .from(githubDeploymentRules)
+          .where(
+            and(
+              eq(githubDeploymentRules.projectId, projectId),
+              eq(githubDeploymentRules.event, event)
+            )
+          );
+  
+      }),
+      )),
 
   /**
    * Find all rules for a project
    */
-  async findByProjectId(projectId: string): Promise<GithubDeploymentRule[]> {
-    this.logger.debug(`Finding all GitHub deployment rules for project: ${projectId}`);
-    
-    return await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(eq(githubDeploymentRules.projectId, projectId))
-      .orderBy(desc(githubDeploymentRules.priority));
-  }
+    findByProjectId: (projectId: string) =>
+      Effect.logDebug(`Finding all GitHub deployment rules for project: ${projectId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    return await db
+          .select()
+          .from(githubDeploymentRules)
+          .where(eq(githubDeploymentRules.projectId, projectId))
+          .orderBy(desc(githubDeploymentRules.priority));
+  
+      }),
+      )),
 
   /**
    * Find active rules for a project (ordered by priority)
    */
-  async findActiveByProjectId(projectId: string): Promise<GithubDeploymentRule[]> {
-    this.logger.debug(`Finding active GitHub deployment rules for project: ${projectId}`);
-    
-    return await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(
-        and(
-          eq(githubDeploymentRules.projectId, projectId),
-          eq(githubDeploymentRules.isActive, true),
-        ),
-      )
-      .orderBy(desc(githubDeploymentRules.priority));
-  }
+    findActiveByProjectId: (projectId: string) =>
+      Effect.logDebug(`Finding active GitHub deployment rules for project: ${projectId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    return await db
+          .select()
+          .from(githubDeploymentRules)
+          .where(
+            and(
+              eq(githubDeploymentRules.projectId, projectId),
+              eq(githubDeploymentRules.isActive, true),
+            ),
+          )
+          .orderBy(desc(githubDeploymentRules.priority));
+  
+      }),
+      )),
 
   /**
    * Create a new GitHub deployment rule
    */
-  async create(data: GithubDeploymentRuleInsert): Promise<GithubDeploymentRule> {
-    this.logger.log(`Creating GitHub deployment rule: ${data.name}`);
-    
-    const [rule] = await this.databaseService.db
-      .insert(githubDeploymentRules)
-      .values(data)
-      .returning();
+    create: (data: GithubDeploymentRuleInsert) =>
+      Effect.logInfo(`Creating GitHub deployment rule: ${data.name}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [rule] = await db
+          .insert(githubDeploymentRules)
+          .values(data)
+          .returning();
 
-    if (!rule) {
-      throw new AppError('Failed to create GitHub deployment rule', 'INTERNAL_ERROR');
-    }
+        if (!rule) {
+          throw new Error('Failed to create GitHub deployment rule');
+        }
 
-    return rule;
-  }
+        return rule;
+  
+      }),
+      )),
 
   /**
    * Update a GitHub deployment rule
    */
-  async update(
-    id: string,
-    data: Partial<GithubDeploymentRuleInsert>
-  ): Promise<GithubDeploymentRule | null> {
-    this.logger.log(`Updating GitHub deployment rule: ${id}`);
-    
-    const [rule] = await this.databaseService.db
-      .update(githubDeploymentRules)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
-      .where(eq(githubDeploymentRules.id, id))
-      .returning();
+    update: (id: string, data: Partial<GithubDeploymentRuleInsert>) =>
+      Effect.logInfo(`Updating GitHub deployment rule: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [rule] = await db
+          .update(githubDeploymentRules)
+          .set({
+            ...data,
+            updatedAt: new Date(),
+          })
+          .where(eq(githubDeploymentRules.id, id))
+          .returning();
 
-    return rule ?? null;
-  }
+        return rule ?? null;
+  
+      }),
+      )),
 
   /**
    * Delete a GitHub deployment rule
    */
-  async delete(id: string): Promise<boolean> {
-    this.logger.log(`Deleting GitHub deployment rule: ${id}`);
-    
-    const result = await this.databaseService.db
-      .delete(githubDeploymentRules)
-      .where(eq(githubDeploymentRules.id, id));
+    delete: (id: string) =>
+      Effect.logInfo(`Deleting GitHub deployment rule: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const result = await db
+          .delete(githubDeploymentRules)
+          .where(eq(githubDeploymentRules.id, id));
 
-    return result.rowCount ? result.rowCount > 0 : false;
-  }
+        return result.rowCount ? result.rowCount > 0 : false;
+  
+      }),
+      )),
+  };
 }
+
+export class GithubDeploymentRulesRepository extends Context.Service<GithubDeploymentRulesRepository, GithubDeploymentRulesRepositoryShape>()("shared/GithubDeploymentRulesRepository") {}

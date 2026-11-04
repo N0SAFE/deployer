@@ -67,7 +67,7 @@ describe('Source provider conformance', () => {
   });
 
   it('github provider supports PR context fallback branch', async () => {
-    const gitService = { validateRepository: vi.fn().mockResolvedValue(true) };
+    const gitService = { validateRepository: vi.fn(() => Effect.succeed(true)) };
     const github = makeGithubSourceProvider({ git: gitService as never });
 
     const result = await Effect.runPromise(github.resolveSourceCheckout({

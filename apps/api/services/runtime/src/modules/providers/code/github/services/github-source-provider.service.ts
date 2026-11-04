@@ -42,10 +42,7 @@ export function makeGithubSourceProvider(ports: { readonly git: SourceGitPort["S
                 const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
                 const resolvedBranch = branch ?? (pullRequestNumber ? `refs/pull/${pullRequestNumber}/head` : "main");
 
-                const isValidRepository = yield* Effect.tryPromise({
-                    try: () => ports.git.validateRepository(repositoryUrl),
-                    catch: () => new RuntimeInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` }),
-                });
+                const isValidRepository = yield* ports.git.validateRepository(repositoryUrl);
                 if (!isValidRepository) {
                     return yield* new RuntimeInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
                 }

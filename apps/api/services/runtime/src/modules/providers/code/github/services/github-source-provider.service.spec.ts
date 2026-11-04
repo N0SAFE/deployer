@@ -43,7 +43,7 @@ describe('makeGithubSourceProvider', () => {
   });
 
   it('uses branch from pullRequestNumber when branch is omitted', async () => {
-    gitService.validateRepository.mockResolvedValue(true);
+    gitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
     const result = await run(service, {
       source: {
@@ -64,7 +64,7 @@ describe('makeGithubSourceProvider', () => {
   });
 
   it('prefers explicit branch over pullRequestNumber fallback', async () => {
-    gitService.validateRepository.mockResolvedValue(true);
+    gitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
     const result = await run(service, {
       source: {
@@ -86,7 +86,7 @@ describe('makeGithubSourceProvider', () => {
   });
 
   it('fails with RuntimeInvalid when repository is not accessible', async () => {
-    gitService.validateRepository.mockResolvedValue(false);
+    gitService.validateRepository.mockReturnValue(Effect.succeed(false));
 
     await expect(
       runFail(service, {

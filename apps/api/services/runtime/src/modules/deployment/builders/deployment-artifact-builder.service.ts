@@ -115,14 +115,12 @@ export function makeDeploymentArtifactBuilder(ports: DeploymentArtifactBuilderPo
 
             if (sourceCheckout?.provider === "github") {
                 // Clone the GitHub repository as the build context
-                buildContextPath = yield* attempt(() =>
-                    gitService.cloneRepository({
+                buildContextPath = yield* gitService.cloneRepository({
                         url: sourceCheckout.repositoryUrl,
                         branch: sourceCheckout.branch,
                         commit: sourceCheckout.commitSha,
                         deploymentId: input.deploymentId,
-                    }),
-                );
+                    });
             } else if (sourceCheckout?.provider === "upload") {
                 if (!sourceCheckout.uploadPath?.trim()) {
                     return yield* new RuntimeInvalid({ reason: "Upload source checkout must include uploadPath for build stage" });
@@ -131,12 +129,10 @@ export function makeDeploymentArtifactBuilder(ports: DeploymentArtifactBuilderPo
                 const uploadPath = sourceCheckout.uploadPath;
                 const uploadStat = yield* attempt(() => stat(uploadPath));
                 buildContextPath = uploadStat.isFile()
-                    ? yield* attempt(() =>
-                          gitService.extractUploadedFile({
+                    ? yield* gitService.extractUploadedFile({
                               filePath: uploadPath,
                               deploymentId: input.deploymentId,
-                          }),
-                      )
+                          })
                     : uploadPath;
             } else {
                 return yield* new RuntimeInvalid({ reason: `Provider '${sourceCheckout?.provider ?? "none"}' is not supported for builder '${effectiveBuilder ?? "none"}'. ` +

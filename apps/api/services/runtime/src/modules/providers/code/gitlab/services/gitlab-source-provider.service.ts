@@ -44,10 +44,7 @@ export function makeGitlabSourceProvider(ports: { readonly git: SourceGitPort["S
                 const resolvedBranch =
                     branch ?? (mergeRequestIid ? `refs/merge-requests/${mergeRequestIid}/head` : "main");
 
-                const isValidRepository = yield* Effect.tryPromise({
-                    try: () => ports.git.validateRepository(repositoryUrl),
-                    catch: () => new RuntimeInvalid({ reason: `GitLab repository '${repositoryUrl}' is not accessible` }),
-                });
+                const isValidRepository = yield* ports.git.validateRepository(repositoryUrl);
                 if (!isValidRepository) {
                     return yield* new RuntimeInvalid({ reason: `GitLab repository '${repositoryUrl}' is not accessible` });
                 }

@@ -238,7 +238,7 @@ describe("DeploymentArtifactBuilder", () => {
         const extractedDir = mkdtempSync(path.join("/tmp", "deployer-builder-extracted-"));
         writeFileSync(path.join(extractedDir, "Dockerfile"), "FROM nginx:alpine\n", "utf8");
 
-        const extractUploadedFile = vi.fn().mockResolvedValue(extractedDir);
+        const extractUploadedFile = vi.fn(() => Effect.succeed(extractedDir));
         const service = createService(dockerService, { extractUploadedFile });
 
         const archivePath = path.join(mkdtempSync(path.join("/tmp", "deployer-builder-archive-")), "bundle.zip");
@@ -271,7 +271,7 @@ describe("DeploymentArtifactBuilder", () => {
     it("fails dockerfile builder when extracted ZIP context has no Dockerfile", async () => {
         const dockerService = { buildImage: vi.fn().mockResolvedValue(undefined) };
         const extractedDir = mkdtempSync(path.join("/tmp", "deployer-builder-no-dockerfile-"));
-        const extractUploadedFile = vi.fn().mockResolvedValue(extractedDir);
+        const extractUploadedFile = vi.fn(() => Effect.succeed(extractedDir));
         const service = createService(dockerService, { extractUploadedFile });
 
         const archivePath = path.join(mkdtempSync(path.join("/tmp", "deployer-builder-archive-")), "bundle.zip");

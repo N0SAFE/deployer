@@ -14,197 +14,209 @@
  * - Used by service layer
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Context, Effect } from 'effect';
 import { eq, and, desc } from 'drizzle-orm';
 
-import { AppError } from "@deployer/errors";
 import { deploymentCache } from '@deployer/nest-schema/global';
 
-import { GlobalDatabaseService } from '../../../database/services/global-database.service';
+import { storage, type DatabasePort, type StorageFailure } from '../../../database/storage';
 // Type inference from schema
 type DeploymentCache = typeof deploymentCache.$inferSelect;
 type DeploymentCacheInsert = typeof deploymentCache.$inferInsert;
 
-@Injectable()
-export class GithubDeploymentCacheRepository {
-  private readonly logger = new Logger(GithubDeploymentCacheRepository.name);
+type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> };
 
-  constructor(private readonly databaseService: GlobalDatabaseService) {}
+export type GithubDeploymentCacheRepositoryShape = {
+  readonly create: (data: DeploymentCacheInsert) => Effect.Effect<DeploymentCache, StorageFailure>;
+  readonly findLatestByBranch: (projectId: string, repositoryId: string, branch: string) => Effect.Effect<DeploymentCache | null, StorageFailure>;
+  readonly findByCommitSha: (projectId: string, repositoryId: string, commitSha: string) => Effect.Effect<DeploymentCache | null, StorageFailure>;
+  readonly findByProjectId: (projectId: string) => Effect.Effect<DeploymentCache[], StorageFailure>;
+  readonly findByRepository: (projectId: string, repositoryId: string) => Effect.Effect<DeploymentCache[], StorageFailure>;
+  readonly updateDeploymentId: (id: string, deploymentId: string) => Effect.Effect<DeploymentCache | null, StorageFailure>;
+  readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>;
+  readonly deleteByBranch: (projectId: string, repositoryId: string, branch: string) => Effect.Effect<number, StorageFailure>;
+  readonly deleteMany: (ids: string[]) => Effect.Effect<number, StorageFailure>;
+};
 
+export function makeGithubDeploymentCacheRepository({ database }: Ports): GithubDeploymentCacheRepositoryShape {
+  return {
   /**
    * Create a new cache entry
    */
-  async create(data: DeploymentCacheInsert): Promise<DeploymentCache> {
-    this.logger.log(`Creating cache entry for ${data.repositoryId}@${data.branch} - ${data.commitSha}`);
-    
-    const [entry] = await this.databaseService.db
-      .insert(deploymentCache)
-      .values(data)
-      .returning();
+    create: (data: DeploymentCacheInsert) =>
+      Effect.logInfo(`Creating cache entry for ${data.repositoryId}@${data.branch} - ${data.commitSha}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [entry] = await db
+          .insert(deploymentCache)
+          .values(data)
+          .returning();
 
-    if (!entry) {
-      throw new AppError('Failed to create deployment cache entry', 'INTERNAL_ERROR');
-    }
+        if (!entry) {
+          throw new Error('Failed to create deployment cache entry');
+        }
 
-    return entry;
-  }
+        return entry;
+  
+      }),
+      )),
 
   /**
    * Find the latest cache entry for a branch
    */
-  async findLatestByBranch(
-    projectId: string,
-    repositoryId: string,
-    branch: string
-  ): Promise<DeploymentCache | null> {
-    this.logger.debug(`Finding latest cache entry for ${repositoryId}@${branch}`);
-    
-    const [entry] = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-          eq(deploymentCache.branch, branch)
-        )
-      )
-      .orderBy(desc(deploymentCache.createdAt))
-      .limit(1);
+    findLatestByBranch: (projectId: string, repositoryId: string, branch: string) =>
+      Effect.logDebug(`Finding latest cache entry for ${repositoryId}@${branch}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [entry] = await db
+          .select()
+          .from(deploymentCache)
+          .where(
+            and(
+              eq(deploymentCache.projectId, projectId),
+              eq(deploymentCache.repositoryId, repositoryId),
+              eq(deploymentCache.branch, branch)
+            )
+          )
+          .orderBy(desc(deploymentCache.createdAt))
+          .limit(1);
 
-    return entry ?? null;
-  }
+        return entry ?? null;
+  
+      }),
+      )),
 
   /**
    * Find cache entry by commit SHA
    */
-  async findByCommitSha(
-    projectId: string,
-    repositoryId: string,
-    commitSha: string
-  ): Promise<DeploymentCache | null> {
-    this.logger.debug(`Finding cache entry for commit: ${commitSha}`);
-    
-    const [entry] = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-          eq(deploymentCache.commitSha, commitSha)
-        )
-      )
-      .limit(1);
+    findByCommitSha: (projectId: string, repositoryId: string, commitSha: string) =>
+      Effect.logDebug(`Finding cache entry for commit: ${commitSha}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [entry] = await db
+          .select()
+          .from(deploymentCache)
+          .where(
+            and(
+              eq(deploymentCache.projectId, projectId),
+              eq(deploymentCache.repositoryId, repositoryId),
+              eq(deploymentCache.commitSha, commitSha)
+            )
+          )
+          .limit(1);
 
-    return entry ?? null;
-  }
+        return entry ?? null;
+  
+      }),
+      )),
 
   /**
    * Find all cache entries for a project
    */
-  async findByProjectId(projectId: string): Promise<DeploymentCache[]> {
-    this.logger.debug(`Finding cache entries for project: ${projectId}`);
-    
-    return await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(eq(deploymentCache.projectId, projectId))
-      .orderBy(desc(deploymentCache.createdAt));
-  }
+    findByProjectId: (projectId: string) =>
+      Effect.logDebug(`Finding cache entries for project: ${projectId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    return await db
+          .select()
+          .from(deploymentCache)
+          .where(eq(deploymentCache.projectId, projectId))
+          .orderBy(desc(deploymentCache.createdAt));
+  
+      }),
+      )),
 
   /**
    * Find all cache entries for a repository
    */
-  async findByRepository(
-    projectId: string,
-    repositoryId: string
-  ): Promise<DeploymentCache[]> {
-    this.logger.debug(`Finding cache entries for repository: ${repositoryId}`);
-    
-    return await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId)
-        )
-      )
-      .orderBy(desc(deploymentCache.createdAt));
-  }
+    findByRepository: (projectId: string, repositoryId: string) =>
+      Effect.logDebug(`Finding cache entries for repository: ${repositoryId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    return await db
+          .select()
+          .from(deploymentCache)
+          .where(
+            and(
+              eq(deploymentCache.projectId, projectId),
+              eq(deploymentCache.repositoryId, repositoryId)
+            )
+          )
+          .orderBy(desc(deploymentCache.createdAt));
+  
+      }),
+      )),
 
   /**
    * Update cache entry with deployment ID
    */
-  async updateDeploymentId(
-    id: string,
-    deploymentId: string
-  ): Promise<DeploymentCache | null> {
-    this.logger.log(`Updating cache entry ${id} with deployment ${deploymentId}`);
-    
-    const [entry] = await this.databaseService.db
-      .update(deploymentCache)
-      .set({ deploymentId })
-      .where(eq(deploymentCache.id, id))
-      .returning();
+    updateDeploymentId: (id: string, deploymentId: string) =>
+      Effect.logInfo(`Updating cache entry ${id} with deployment ${deploymentId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [entry] = await db
+          .update(deploymentCache)
+          .set({ deploymentId })
+          .where(eq(deploymentCache.id, id))
+          .returning();
 
-    return entry ?? null;
-  }
+        return entry ?? null;
+  
+      }),
+      )),
 
   /**
    * Delete a cache entry
    */
-  async delete(id: string): Promise<boolean> {
-    this.logger.log(`Deleting cache entry: ${id}`);
-    
-    const result = await this.databaseService.db
-      .delete(deploymentCache)
-      .where(eq(deploymentCache.id, id));
+    delete: (id: string) =>
+      Effect.logInfo(`Deleting cache entry: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const result = await db
+          .delete(deploymentCache)
+          .where(eq(deploymentCache.id, id));
 
-    return result.rowCount ? result.rowCount > 0 : false;
-  }
+        return result.rowCount ? result.rowCount > 0 : false;
+  
+      }),
+      )),
 
   /**
    * Delete all cache entries for a branch
    */
-  async deleteByBranch(
-    projectId: string,
-    repositoryId: string,
-    branch: string
-  ): Promise<number> {
-    this.logger.log(`Deleting cache entries for ${repositoryId}@${branch}`);
-    
-    const result = await this.databaseService.db
-      .delete(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-          eq(deploymentCache.branch, branch)
-        )
-      );
+    deleteByBranch: (projectId: string, repositoryId: string, branch: string) =>
+      Effect.logInfo(`Deleting cache entries for ${repositoryId}@${branch}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const result = await db
+          .delete(deploymentCache)
+          .where(
+            and(
+              eq(deploymentCache.projectId, projectId),
+              eq(deploymentCache.repositoryId, repositoryId),
+              eq(deploymentCache.branch, branch)
+            )
+          );
 
-    return result.rowCount ?? 0;
-  }
+        return result.rowCount ?? 0;
+  
+      }),
+      )),
 
   /**
    * Delete multiple cache entries by IDs
    */
-  async deleteMany(ids: string[]): Promise<number> {
-    this.logger.log(`Deleting ${String(ids.length)} cache entries`);
-    
+    deleteMany: (ids: string[]) =>
+      Effect.logInfo(`Deleting ${String(ids.length)} cache entries`).pipe(Effect.andThen(
+        storage(database, async (db) => {
     let deletedCount = 0;
-    for (const id of ids) {
-      const result = await this.databaseService.db
-        .delete(deploymentCache)
-        .where(eq(deploymentCache.id, id));
+        for (const id of ids) {
+          const result = await db
+            .delete(deploymentCache)
+            .where(eq(deploymentCache.id, id));
       
-      if (result.rowCount) {
-        deletedCount += result.rowCount;
-      }
-    }
+          if (result.rowCount) {
+            deletedCount += result.rowCount;
+          }
+        }
 
-    return deletedCount;
-  }
+        return deletedCount;
+  
+      }),
+      )),
+  };
 }
+
+export class GithubDeploymentCacheRepository extends Context.Service<GithubDeploymentCacheRepository, GithubDeploymentCacheRepositoryShape>()("shared/GithubDeploymentCacheRepository") {}

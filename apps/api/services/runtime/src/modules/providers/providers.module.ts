@@ -1,5 +1,6 @@
 import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
 import { GitModule, GitService } from "@deployer/shared/core/modules/git/index";
+import type { GitServiceShape } from "@deployer/shared/core/modules/git/git/services/git.service";
 
 import { CustomSourceProvider } from "./code/custom/services/custom-source-provider.service";
 import { GithubSourceProvider, makeGithubSourceProvider } from "./code/github/services/github-source-provider.service";
@@ -44,12 +45,12 @@ export class ProviderDomainsModule extends createModuleContext({
 		{ provide: SourceGitPort, useExisting: GitService },
 		{
 			provide: GithubSourceProvider,
-			useFactory: (git: GitService) => makeGithubSourceProvider({ git }),
+			useFactory: (git: GitServiceShape) => makeGithubSourceProvider({ git }),
 			inject: [SourceGitPort],
 		},
 		{
 			provide: GitlabSourceProvider,
-			useFactory: (git: GitService) => makeGitlabSourceProvider({ git }),
+			useFactory: (git: GitServiceShape) => makeGitlabSourceProvider({ git }),
 			inject: [SourceGitPort],
 		},
 		{ provide: UploadBundleRegistry, useFactory: () => makeUploadBundleRegistry() },

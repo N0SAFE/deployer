@@ -34,7 +34,7 @@ describe("GithubDeploymentRuleService", () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        findActiveByProjectId.mockResolvedValue([]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([]));
     });
 
     it("defaults to deploy when no rule matches", async () => {
@@ -44,7 +44,7 @@ describe("GithubDeploymentRuleService", () => {
     });
 
     it("answers the first matching rule's action, with the rule that decided", async () => {
-        findActiveByProjectId.mockResolvedValue([rule({ id: "r2", name: "skip docs", action: "skip" }), rule()]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([rule({ id: "r2", name: "skip docs", action: "skip" }), rule()]));
 
         const result = await Effect.runPromise(service.resolveAction({ projectId: "p1", event: "pull_request", branch: "main" }));
 
@@ -52,7 +52,7 @@ describe("GithubDeploymentRuleService", () => {
     });
 
     it("ignores a rule written for another event", async () => {
-        findActiveByProjectId.mockResolvedValue([rule({ event: "push", action: "skip" })]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([rule({ event: "push", action: "skip" })]));
 
         const result = await Effect.runPromise(service.resolveAction({ projectId: "p1", event: "pull_request", branch: "main" }));
 
@@ -60,19 +60,19 @@ describe("GithubDeploymentRuleService", () => {
     });
 
     it("matches a branch by glob and by regex:, and not by another branch", async () => {
-        findActiveByProjectId.mockResolvedValue([rule({ branchPattern: "release/*", action: "skip" })]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([rule({ branchPattern: "release/*", action: "skip" })]));
         expect((await Effect.runPromise(service.resolveAction({ projectId: "p1", event: "pull_request", branch: "release/1.0" }))).action).toBe("skip");
         expect((await Effect.runPromise(service.resolveAction({ projectId: "p1", event: "pull_request", branch: "feat/x" }))).action).toBe("deploy");
 
-        findActiveByProjectId.mockResolvedValue([rule({ branchPattern: "regex:^feat/", action: "skip" })]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([rule({ branchPattern: "regex:^feat/", action: "skip" })]));
         expect((await Effect.runPromise(service.resolveAction({ projectId: "p1", event: "pull_request", branch: "feat/x" }))).action).toBe("skip");
 
-        findActiveByProjectId.mockResolvedValue([rule({ branchPattern: "regex:(", action: "skip" })]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([rule({ branchPattern: "regex:(", action: "skip" })]));
         expect((await Effect.runPromise(service.resolveAction({ projectId: "p1", event: "pull_request", branch: "feat/x" }))).action).toBe("deploy");
     });
 
     it("evaluates path conditions against the changed files", async () => {
-        findActiveByProjectId.mockResolvedValue([rule({ action: "skip", pathConditions: { include: ["docs/**"] } })]);
+        findActiveByProjectId.mockReturnValue(Effect.succeed([rule({ action: "skip", pathConditions: { include: ["docs/**"] } })]));
 
         const docsOnly = await Effect.runPromise(
             service.resolveAction({ projectId: "p1", event: "pull_request", branch: "main", changedFiles: ["docs/a.md"] }),
@@ -87,7 +87,7 @@ describe("GithubDeploymentRuleService", () => {
 
     it("lets the repository's failure through, for the host to translate", async () => {
         const failure = new Error("db down");
-        findActiveByProjectId.mockRejectedValue(failure);
+        findActiveByProjectId.mockReturnValue(Effect.fail(failure));
 
         const exit = await Effect.runPromiseExit(service.resolveAction({ projectId: "p1", event: "pull_request" }));
 

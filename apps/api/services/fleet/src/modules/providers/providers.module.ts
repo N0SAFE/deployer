@@ -139,7 +139,6 @@ export class ProvidersModule extends createModuleContext({
         { provide: GithubAppsStore, useValue: GithubAppsStore.live },
         { provide: GitlabAppsStore, useValue: GitlabAppsStore.live },
         { provide: PreviewEnvironmentStore, useValue: PreviewEnvironmentStore.live },
-        GithubDeploymentRulesRepository,
         { provide: GithubDeploymentRules, useExisting: GithubDeploymentRulesRepository },
         { provide: GitHub, useExisting: GitHubService },
         { provide: PublicAccessPoint, useExisting: PublicAccessPointService },

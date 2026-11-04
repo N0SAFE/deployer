@@ -260,7 +260,7 @@ describe('DeploymentService', () => {
         };
 
         mockGitService = {
-            validateRepository: vi.fn(),
+            validateRepository: vi.fn(() => Effect.succeed(false)),
         };
 
         mockContainers = {
@@ -506,7 +506,7 @@ describe('DeploymentService', () => {
     describe('triggerDeployment', () => {
         it('should create a deployment record and return it', async () => {
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -535,7 +535,7 @@ describe('DeploymentService', () => {
 
         it('should enqueue a deploy orchestration queue job', async () => {
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -612,7 +612,7 @@ describe('DeploymentService', () => {
                 },
             ]);
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             await service.triggerDeployment(
                 {
@@ -656,7 +656,7 @@ describe('DeploymentService', () => {
         });
 
         it('should reject github trigger when repository is not accessible', async () => {
-            mockGitService.validateRepository.mockResolvedValue(false);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(false));
 
             const input = {
                 serviceId: 'service-1',
@@ -718,7 +718,7 @@ describe('DeploymentService', () => {
 
         it('should allow platform operator to trigger deployment without project membership', async () => {
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -911,7 +911,7 @@ describe('DeploymentService', () => {
             });
 
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -1159,7 +1159,7 @@ describe('DeploymentService', () => {
 
             mockRepository.create.mockResolvedValue(queuedDeployment);
             mockRepository.findById.mockResolvedValue(queuedDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
             mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
             mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true, route: 'https://app.example.com' }));
 
@@ -1971,7 +1971,7 @@ describe('DeploymentService', () => {
 
     describe('retryDeployment', () => {
         const enableRetryCheckout = () => {
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
         };
 
         it('should create a retry deployment for failed deployment', async () => {

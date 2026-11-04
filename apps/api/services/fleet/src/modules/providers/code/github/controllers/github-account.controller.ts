@@ -43,14 +43,12 @@ const ensureAppRegistered = Effect.fn("GitHubAppsController.ensureAppRegistered"
     }
     const gitHub = yield* GitHub;
     const { appId, privateKey } = row;
-    yield* attemptSync(() => {
-        gitHub.registerInstallation(row.id, {
-            appId,
-            privateKey,
-            ...(row.clientId ? { clientId: row.clientId } : {}),
-            ...(row.clientSecret ? { clientSecret: row.clientSecret } : {}),
-            ...(row.webhookSecret ? { webhookSecret: row.webhookSecret } : {}),
-        });
+    yield* gitHub.registerInstallation(row.id, {
+        appId,
+        privateKey,
+        ...(row.clientId ? { clientId: row.clientId } : {}),
+        ...(row.clientSecret ? { clientSecret: row.clientSecret } : {}),
+        ...(row.webhookSecret ? { webhookSecret: row.webhookSecret } : {}),
     });
 });
 
@@ -78,7 +76,7 @@ const resolveInstallationId = (
         if (!Number.isFinite(installationId) || installationId <= 0) {
             yield* recover(
                 Effect.gen(function* () {
-                    const installations = yield* attempt(() => gitHub.listInstallations(app.id));
+                    const installations = yield* gitHub.listInstallations(app.id);
                     const first = installations[0];
                     if (first) {
                         installationId = first.id;
@@ -329,7 +327,7 @@ export class GitHubAppsController {
                 const apps = yield* GithubAppsStore;
                 const { result, row } = yield* serve(context)(
                     Effect.gen(function* () {
-                        const created = yield* attempt(() => gitHub.createFromManifestCode(input.code));
+                        const created = yield* gitHub.createFromManifestCode(input.code);
                         const persisted = yield* apps.create({
                             name: created.name,
                             appId: String(created.id),
@@ -468,7 +466,7 @@ export class GitHubAppsController {
                         // only verify the exchange succeeded. The installation id is
                         // captured by the `installation` webhook (or auto-discovered
                         // by listRepos via the app credentials).
-                        const token = yield* attempt(() => gitHub.exchangeCodeForToken(app.id, input.code));
+                        const token = yield* gitHub.exchangeCodeForToken(app.id, input.code);
                         if (!token.access_token) {
                             return yield* new FleetInvalid({ reason: "GitHub OAuth code exchange returned no token" });
                         }
@@ -503,7 +501,7 @@ export class GitHubAppsController {
                                 _meta: { installed: false, appId: app.appId, appName: app.name, message: "This GitHub App is not yet installed on any repositories." },
                             };
                         }
-                        const repos = yield* attempt(() => gitHub.listInstallationRepositories(app.id, installationId));
+                        const repos = yield* gitHub.listInstallationRepositories(app.id, installationId);
                         return {
                             repos: repos.map((r) => ({
                                 id: r.id,
@@ -545,9 +543,7 @@ export class GitHubAppsController {
                             return { owner: input.params.owner, repo: input.params.repo, branches: [] };
                         }
 
-                        const branches = yield* attempt(() =>
-                            gitHub.listRepositoryBranches(app.id, installationId, input.params.owner, input.params.repo),
-                        );
+                        const branches = yield* gitHub.listRepositoryBranches(app.id, installationId, input.params.owner, input.params.repo);
                         return { owner: input.params.owner, repo: input.params.repo, branches };
                     }),
                 );
@@ -584,12 +580,12 @@ export class GitHubAppsController {
 
                         yield* recover(
                             Effect.gen(function* () {
-                                const rootFiles = new Set(yield* attempt(() => gitHub.listRepositoryRoot(app.id, installationId, owner, repo)));
+                                const rootFiles = new Set(yield* gitHub.listRepositoryRoot(app.id, installationId, owner, repo));
                                 const readFile = (path: string) => gitHub.getRepositoryFileContent(app.id, installationId, owner, repo, path);
 
                                 // ── Node.js: package.json → framework, scripts, engines ──
                                 if (rootFiles.has("package.json")) {
-                                    const pkgText = yield* attempt(() => readFile("package.json"));
+                                    const pkgText = yield* readFile("package.json");
                                     const pkg = pkgText ? parsePackageJson(pkgText) : null;
                                     if (pkg) {
                                         hints.language = "node";
@@ -603,7 +599,7 @@ export class GitHubAppsController {
 
                                 // ── Docker: Dockerfile / compose → ports, paths, builder ──
                                 // 1. Search the WHOLE repo for compose files (prod first).
-                                const allFiles = yield* attempt(() => gitHub.listRepositoryFiles(app.id, installationId, owner, repo));
+                                const allFiles = yield* gitHub.listRepositoryFiles(app.id, installationId, owner, repo);
                                 const composeCandidates = findComposeFiles(allFiles);
 
                                 // 2. Pick the compose file: an explicit `composeFile` query
@@ -617,7 +613,7 @@ export class GitHubAppsController {
                                 const dockerfileName = findDockerfile(allFiles, composeName);
 
                                 if (composeName) {
-                                    const text = yield* attempt(() => readFile(composeName));
+                                    const text = yield* readFile(composeName);
                                     // Must match `deploymentBuilderKindSchema` (`docker_compose`,
                                     // underscore). `"docker-compose"` is not a member of it.
                                     builder = "docker_compose";
@@ -638,7 +634,7 @@ export class GitHubAppsController {
                                         const services = yield* attempt(() =>
                                             parseComposeServices(
                                                 text,
-                                                (path: string) => readFile(path),
+                                                (path: string) => Effect.runPromise(readFile(path).pipe(Effect.catch(() => Effect.succeed(null)))),
                                                 dir,
                                                 {},
                                             ),
@@ -651,7 +647,7 @@ export class GitHubAppsController {
                                         }));
                                     }
                                 } else if (dockerfileName) {
-                                    const text = yield* attempt(() => readFile(dockerfileName));
+                                    const text = yield* readFile(dockerfileName);
                                     builder = "dockerfile";
                                     hints.dockerfilePath = dockerfileName;
                                     if (text) {
@@ -665,7 +661,7 @@ export class GitHubAppsController {
                                     builder = "nixpacks";
                                     hints.rootPath = "/";
                                     hints.buildContext = ".";
-                                    const pkgText = yield* attempt(() => readFile("package.json"));
+                                    const pkgText = yield* readFile("package.json");
                                     const pkg = pkgText ? parsePackageJson(pkgText) : null;
                                     if (pkg) {
                                         const devPort = extractDevPort(pkg);
@@ -675,10 +671,10 @@ export class GitHubAppsController {
                                     builder = "nixpacks";
                                     hints.language = "python";
                                     if (rootFiles.has("pyproject.toml")) {
-                                        const text = yield* attempt(() => readFile("pyproject.toml"));
+                                        const text = yield* readFile("pyproject.toml");
                                         if (text) hints.startCommand = extractPythonStart(text);
                                     } else if (rootFiles.has("requirements.txt")) {
-                                        const text = yield* attempt(() => readFile("requirements.txt"));
+                                        const text = yield* readFile("requirements.txt");
                                         if (text) hints.startCommand = extractPythonStartFromRequirements(text);
                                     }
                                 } else if (rootFiles.has("go.mod")) {

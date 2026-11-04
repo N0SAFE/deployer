@@ -2,9 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Effect } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BadRequestError } from '@deployer/errors';
+
+import { GitInputInvalid } from '../errors';
 
 import { assertGitRef, assertRepositoryUrl } from './git-input';
 
@@ -15,7 +18,7 @@ const { raw, simpleGit } = vi.hoisted(() => {
 
 vi.mock('simple-git', () => ({ simpleGit }));
 
-const { GitService } = await import('./git.service');
+const { makeGitService } = await import('./git.service');
 
 /**
  * DEPLOY-030: branch/commit and repository URL reach a `git` argv. A value starting with `-`
@@ -24,13 +27,12 @@ const { GitService } = await import('./git.service');
  */
 describe('git input validation', () => {
     let root: string;
-    let service: InstanceType<typeof GitService>;
+    let service: ReturnType<typeof makeGitService>;
 
     beforeEach(() => {
         vi.clearAllMocks();
         root = mkdtempSync(join(tmpdir(), 'git-input-'));
-        vi.stubEnv('WORKSPACE_DIR', join(root, 'workspace'));
-        service = new GitService();
+        service = makeGitService({ workspaceDir: join(root, 'workspace') });
     });
 
     afterEach(() => {
@@ -93,12 +95,14 @@ describe('git input validation', () => {
     });
 
     it('rejects before spawning git and passes `--` before the positionals', async () => {
-        await service.cloneRepository({
-            url: 'https://github.com/org/repo.git',
-            branch: 'feature/x',
-            commit: 'v1.2.3',
-            deploymentId: 'd1',
-        });
+        await Effect.runPromise(
+            service.cloneRepository({
+                url: 'https://github.com/org/repo.git',
+                branch: 'feature/x',
+                commit: 'v1.2.3',
+                deploymentId: 'd1',
+            }),
+        );
         expect(raw.mock.calls[0]).toEqual([
             ['clone', '--depth', '1', '--branch', 'feature/x', '--', 'https://github.com/org/repo.git', expect.stringContaining('deployment-d1')],
         ]);
@@ -106,20 +110,24 @@ describe('git input validation', () => {
 
         raw.mockClear();
         await expect(
-            service.cloneRepository({
-                url: 'https://github.com/org/repo.git',
-                branch: '--upload-pack=evil',
-                deploymentId: 'd2',
-            }),
-        ).rejects.toBeInstanceOf(BadRequestError);
+            Effect.runPromise(
+                Effect.flip(
+                    service.cloneRepository({
+                        url: 'https://github.com/org/repo.git',
+                        branch: '--upload-pack=evil',
+                        deploymentId: 'd2',
+                    }),
+                ),
+            ),
+        ).resolves.toBeInstanceOf(GitInputInvalid);
         expect(raw).not.toHaveBeenCalled();
     });
 
     it('reports an unsupported URL as "not reachable" from validateRepository', async () => {
-        await expect(service.validateRepository('http://github.com/org/repo.git')).resolves.toBe(false);
+        await expect(Effect.runPromise(service.validateRepository('http://github.com/org/repo.git'))).resolves.toBe(false);
         expect(raw).not.toHaveBeenCalled();
 
-        await expect(service.validateRepository('https://github.com/org/repo.git')).resolves.toBe(true);
+        await expect(Effect.runPromise(service.validateRepository('https://github.com/org/repo.git'))).resolves.toBe(true);
         expect(raw.mock.calls[0]).toEqual([['ls-remote', '--', 'https://github.com/org/repo.git']]);
     });
 });

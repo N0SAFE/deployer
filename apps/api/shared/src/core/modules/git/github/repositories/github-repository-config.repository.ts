@@ -14,182 +14,203 @@
  * - Used by service layer
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Context, Effect } from 'effect';
 import { eq, and, or, SQL } from 'drizzle-orm';
 
-import { AppError } from "@deployer/errors";
 import { githubRepositoryConfigs } from "@deployer/nest-schema/global/fleet/github-provider";
 
-import { GlobalDatabaseService } from '../../../database/services/global-database.service';
+import { storage, type DatabasePort, type StorageFailure } from '../../../database/storage';
 // Type inference from schema
 type GithubRepositoryConfig = typeof githubRepositoryConfigs.$inferSelect;
 type GithubRepositoryConfigInsert = typeof githubRepositoryConfigs.$inferInsert;
 
-@Injectable()
-export class GithubRepositoryConfigRepository {
-  private readonly logger = new Logger(GithubRepositoryConfigRepository.name);
+type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> };
 
-  constructor(private readonly databaseService: GlobalDatabaseService) {}
+export type GithubRepositoryConfigRepositoryShape = {
+  readonly findById: (id: string) => Effect.Effect<GithubRepositoryConfig | null, StorageFailure>;
+  readonly findByRepositoryId: (repositoryId: string) => Effect.Effect<GithubRepositoryConfig | null, StorageFailure>;
+  readonly findByFullName: (fullName: string) => Effect.Effect<GithubRepositoryConfig | null, StorageFailure>;
+  readonly findByRepositoryIdOrFullName: (repositoryId?: string, fullName?: string) => Effect.Effect<GithubRepositoryConfig | null, StorageFailure>;
+  readonly findByProjectId: (projectId: string) => Effect.Effect<GithubRepositoryConfig[], StorageFailure>;
+  readonly findByProjectAndRepository: (projectId: string, repositoryId: string) => Effect.Effect<GithubRepositoryConfig | null, StorageFailure>;
+  readonly create: (data: GithubRepositoryConfigInsert) => Effect.Effect<GithubRepositoryConfig, StorageFailure>;
+  readonly update: (id: string, data: Partial<GithubRepositoryConfigInsert>) => Effect.Effect<GithubRepositoryConfig | null, StorageFailure>;
+  readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>;
+};
 
+export function makeGithubRepositoryConfigRepository({ database }: Ports): GithubRepositoryConfigRepositoryShape {
+  return {
   /**
    * Find config by ID
    */
-  async findById(id: string): Promise<GithubRepositoryConfig | null> {
-    this.logger.debug(`Finding GitHub config by ID: ${id}`);
-    
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.id, id))
-      .limit(1);
+    findById: (id: string) =>
+      Effect.logDebug(`Finding GitHub config by ID: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [config] = await db
+          .select()
+          .from(githubRepositoryConfigs)
+          .where(eq(githubRepositoryConfigs.id, id))
+          .limit(1);
 
-    return config ?? null;
-  }
+        return config ?? null;
+  
+      }),
+      )),
 
   /**
    * Find config by repository ID
    */
-  async findByRepositoryId(repositoryId: string): Promise<GithubRepositoryConfig | null> {
-    this.logger.debug(`Finding GitHub config by repository ID: ${repositoryId}`);
-    
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.repositoryId, repositoryId))
-      .limit(1);
+    findByRepositoryId: (repositoryId: string) =>
+      Effect.logDebug(`Finding GitHub config by repository ID: ${repositoryId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [config] = await db
+          .select()
+          .from(githubRepositoryConfigs)
+          .where(eq(githubRepositoryConfigs.repositoryId, repositoryId))
+          .limit(1);
 
-    return config ?? null;
-  }
+        return config ?? null;
+  
+      }),
+      )),
 
   /**
    * Find config by repository full name (owner/repo)
    */
-  async findByFullName(fullName: string): Promise<GithubRepositoryConfig | null> {
-    this.logger.debug(`Finding GitHub config by full name: ${fullName}`);
-    
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.repositoryFullName, fullName))
-      .limit(1);
+    findByFullName: (fullName: string) =>
+      Effect.logDebug(`Finding GitHub config by full name: ${fullName}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [config] = await db
+          .select()
+          .from(githubRepositoryConfigs)
+          .where(eq(githubRepositoryConfigs.repositoryFullName, fullName))
+          .limit(1);
 
-    return config ?? null;
-  }
+        return config ?? null;
+  
+      }),
+      )),
 
   /**
    * Find config by repository ID or full name
    */
-  async findByRepositoryIdOrFullName(
-    repositoryId?: string,
-    fullName?: string
-  ): Promise<GithubRepositoryConfig | null> {
-    this.logger.debug(`Finding GitHub config by ID or full name`);
-    
+    findByRepositoryIdOrFullName: (repositoryId?: string, fullName?: string) =>
+      Effect.logDebug(`Finding GitHub config by ID or full name`).pipe(Effect.andThen(
+        storage(database, async (db) => {
     if (!repositoryId && !fullName) {
-      return null;
-    }
+          return null;
+        }
 
-    const conditions: SQL[] = [];
-    if (repositoryId) {
-      conditions.push(eq(githubRepositoryConfigs.repositoryId, repositoryId));
-    }
-    if (fullName) {
-      conditions.push(eq(githubRepositoryConfigs.repositoryFullName, fullName));
-    }
+        const conditions: SQL[] = [];
+        if (repositoryId) {
+          conditions.push(eq(githubRepositoryConfigs.repositoryId, repositoryId));
+        }
+        if (fullName) {
+          conditions.push(eq(githubRepositoryConfigs.repositoryFullName, fullName));
+        }
 
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(or(...conditions))
-      .limit(1);
+        const [config] = await db
+          .select()
+          .from(githubRepositoryConfigs)
+          .where(or(...conditions))
+          .limit(1);
 
-    return config ?? null;
-  }
+        return config ?? null;
+  
+      }),
+      )),
 
   /**
    * Find all configs for a project
    */
-  async findByProjectId(projectId: string): Promise<GithubRepositoryConfig[]> {
-    this.logger.debug(`Finding GitHub configs for project: ${projectId}`);
-    
-    return await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.projectId, projectId));
-  }
+    findByProjectId: (projectId: string) =>
+      Effect.logDebug(`Finding GitHub configs for project: ${projectId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    return await db
+          .select()
+          .from(githubRepositoryConfigs)
+          .where(eq(githubRepositoryConfigs.projectId, projectId));
+  
+      }),
+      )),
 
   /**
    * Find config by project and repository
    */
-  async findByProjectAndRepository(
-    projectId: string,
-    repositoryId: string
-  ): Promise<GithubRepositoryConfig | null> {
-    this.logger.debug(`Finding GitHub config for project ${projectId} and repository ${repositoryId}`);
-    
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(
-        and(
-          eq(githubRepositoryConfigs.projectId, projectId),
-          eq(githubRepositoryConfigs.repositoryId, repositoryId)
-        )
-      )
-      .limit(1);
+    findByProjectAndRepository: (projectId: string, repositoryId: string) =>
+      Effect.logDebug(`Finding GitHub config for project ${projectId} and repository ${repositoryId}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [config] = await db
+          .select()
+          .from(githubRepositoryConfigs)
+          .where(
+            and(
+              eq(githubRepositoryConfigs.projectId, projectId),
+              eq(githubRepositoryConfigs.repositoryId, repositoryId)
+            )
+          )
+          .limit(1);
 
-    return config ?? null;
-  }
+        return config ?? null;
+  
+      }),
+      )),
 
   /**
    * Create a new GitHub repository config
    */
-  async create(data: GithubRepositoryConfigInsert): Promise<GithubRepositoryConfig> {
-    this.logger.log(`Creating GitHub repository config for: ${data.repositoryFullName}`);
-    
-    const [config] = await this.databaseService.db
-      .insert(githubRepositoryConfigs)
-      .values(data)
-      .returning();
+    create: (data: GithubRepositoryConfigInsert) =>
+      Effect.logInfo(`Creating GitHub repository config for: ${data.repositoryFullName}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [config] = await db
+          .insert(githubRepositoryConfigs)
+          .values(data)
+          .returning();
 
-    if (!config) {
-      throw new AppError('Failed to create GitHub repository config', 'INTERNAL_ERROR');
-    }
+        if (!config) {
+          throw new Error('Failed to create GitHub repository config');
+        }
 
-    return config;
-  }
+        return config;
+  
+      }),
+      )),
 
   /**
    * Update a GitHub repository config
    */
-  async update(
-    id: string,
-    data: Partial<GithubRepositoryConfigInsert>
-  ): Promise<GithubRepositoryConfig | null> {
-    this.logger.log(`Updating GitHub repository config: ${id}`);
-    
-    const [config] = await this.databaseService.db
-      .update(githubRepositoryConfigs)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
-      .where(eq(githubRepositoryConfigs.id, id))
-      .returning();
+    update: (id: string, data: Partial<GithubRepositoryConfigInsert>) =>
+      Effect.logInfo(`Updating GitHub repository config: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const [config] = await db
+          .update(githubRepositoryConfigs)
+          .set({
+            ...data,
+            updatedAt: new Date(),
+          })
+          .where(eq(githubRepositoryConfigs.id, id))
+          .returning();
 
-    return config ?? null;
-  }
+        return config ?? null;
+  
+      }),
+      )),
 
   /**
    * Delete a GitHub repository config
    */
-  async delete(id: string): Promise<boolean> {
-    this.logger.log(`Deleting GitHub repository config: ${id}`);
-    
-    const result = await this.databaseService.db
-      .delete(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.id, id));
+    delete: (id: string) =>
+      Effect.logInfo(`Deleting GitHub repository config: ${id}`).pipe(Effect.andThen(
+        storage(database, async (db) => {
+    const result = await db
+          .delete(githubRepositoryConfigs)
+          .where(eq(githubRepositoryConfigs.id, id));
 
-    return result.rowCount ? result.rowCount > 0 : false;
-  }
+        return result.rowCount ? result.rowCount > 0 : false;
+  
+      }),
+      )),
+  };
 }
+
+export class GithubRepositoryConfigRepository extends Context.Service<GithubRepositoryConfigRepository, GithubRepositoryConfigRepositoryShape>()("shared/GithubRepositoryConfigRepository") {}
