@@ -1,4 +1,5 @@
 import { createModuleContext } from "@deployer/nest-effect";
+import { SupervisorOrchestrator } from "@deployer/supervision";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { DatabaseModule } from '../database/database.module';
@@ -12,7 +13,7 @@ import { TraefikIngressConfigController } from './controllers/traefik-ingress-co
 import { TraefikEventService } from './events/traefik-event.service';
 import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
 import { TraefikRepository } from './repositories/traefik.repository';
-import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
+import { TraefikConfigRefresher, makeTraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { TraefikFileSystemService } from './services/traefik-file-system.service';
 import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
 import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
@@ -82,7 +83,11 @@ export class TraefikCoreModule extends createModuleContext({
     TraefikEventService,
     // Live-ingress config (served to Traefik's HTTP provider).
     TraefikIngressConfigService,
-    TraefikConfigRefresher,
+    {
+      provide: TraefikConfigRefresher,
+      useFactory: makeTraefikConfigRefresher,
+      inject: [SupervisorOrchestrator],
+    },
     // Repositories
     TraefikRepository,
     TraefikTemplateRepository,

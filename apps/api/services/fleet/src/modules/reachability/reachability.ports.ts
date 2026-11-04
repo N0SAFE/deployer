@@ -8,7 +8,7 @@ import type { IngressLanesService } from '@deployer/shared/core/modules/platform
 import type { PublicAccessPointService } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
 import type { PublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
 import type { ReachabilityService } from '@deployer/shared/core/modules/reachability/services/reachability.service'
-import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
+import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 /**
  * The shared platform services reachability depends on, as Effect ports.
@@ -40,7 +40,7 @@ export class HostnamesPort extends Context.Service<
 >()('fleet/HostnamesPort') {}
 export class TraefikRefresherPort extends Context.Service<
     TraefikRefresherPort,
-    TraefikConfigRefresher
+    TraefikConfigRefresherShape
 >()('fleet/TraefikRefresherPort') {}
 export class ReachabilityCorePort extends Context.Service<
     ReachabilityCorePort,

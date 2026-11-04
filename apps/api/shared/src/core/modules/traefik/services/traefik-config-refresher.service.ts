@@ -13,8 +13,8 @@
  * await it; a failure is logged and surfaces through supervisor health.
  */
 
-import { Injectable, Logger } from "@nestjs/common";
-import { Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
@@ -22,23 +22,29 @@ import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deplo
 import { EDGE_CONNECTOR_SUPERVISOR_ID } from "../../supervisors/platform/edge-connector.supervisor";
 import { PLATFORM_INGRESS_SUPERVISOR_ID } from "../../supervisors/platform/traefik.supervisor";
 
-@Injectable()
-export class TraefikConfigRefresher {
-	private readonly logger = new Logger(TraefikConfigRefresher.name);
-
-	constructor(@Inject(SupervisorOrchestrator) private readonly orchestrator: SupervisorOrchestratorShape) {}
-
+export type TraefikConfigRefresherShape = {
 	/** Re-converge the ingress and the edge connector. Never throws. */
-	refresh(): void {
-		void (async () => {
-			for (const id of [PLATFORM_INGRESS_SUPERVISOR_ID, EDGE_CONNECTOR_SUPERVISOR_ID]) {
-				try {
-					const state = await runPromiseUnwrapped(this.orchestrator.convergeNow(id));
-					if (state === "degraded") this.logger.warn(`${id} DEGRADED after an ingress refresh — see supervisor health`);
-				} catch (error) {
-					this.logger.warn(`${id} re-converge failed: ${error instanceof Error ? error.message : String(error)}`);
+	readonly refresh: () => void;
+};
+
+export function makeTraefikConfigRefresher(orchestrator: SupervisorOrchestratorShape): TraefikConfigRefresherShape {
+	const logger = new Logger("TraefikConfigRefresher");
+	return {
+		refresh() {
+			void (async () => {
+				for (const id of [PLATFORM_INGRESS_SUPERVISOR_ID, EDGE_CONNECTOR_SUPERVISOR_ID]) {
+					try {
+						const state = await runPromiseUnwrapped(orchestrator.convergeNow(id));
+						if (state === "degraded") logger.warn(`${id} DEGRADED after an ingress refresh — see supervisor health`);
+					} catch (error) {
+						logger.warn(`${id} re-converge failed: ${error instanceof Error ? error.message : String(error)}`);
+					}
 				}
-			}
-		})();
-	}
+			})();
+		},
+	};
 }
+
+export class TraefikConfigRefresher extends Context.Service<TraefikConfigRefresher, TraefikConfigRefresherShape>()(
+	"shared/TraefikConfigRefresher",
+) {}

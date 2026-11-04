@@ -8,7 +8,7 @@
  *   which edge, its rules       EdgeProviderRegistry    (validation, inbound-port consent)
  *   the edge itself             the EdgeProvider        (provision / teardown / status)
  *   the DNS records             EdgeDnsService          (separate plane from ingress)
- *   the ingress processes       TraefikConfigRefresher  (re-converge now, not next sweep)
+ *   the ingress processes       TraefikConfigRefresherShape  (re-converge now, not next sweep)
  *   the mesh view               this node's agent, over its node door
  *
  * ── SWITCHING THE PUBLIC EDGE ───────────────────────────────────────────────
@@ -39,7 +39,7 @@ import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/ed
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 
 import type { DnsProviderRegistryServices } from "@/modules/providers/dns/shared/dns-provider-registry.service";
@@ -107,7 +107,7 @@ type Ports = {
 	readonly publicEdge: PublicEdgeService;
 	readonly mesh: NodeDoorClient;
 	readonly hostnames: HostnameService;
-	readonly refresher: TraefikConfigRefresher;
+	readonly refresher: TraefikConfigRefresherShape;
 	readonly dns: EdgeDnsServiceShape;
 };
 

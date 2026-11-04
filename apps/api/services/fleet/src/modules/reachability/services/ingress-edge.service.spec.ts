@@ -11,7 +11,7 @@ import { EnvHostnameService } from "@deployer/shared/core/modules/platform-ingre
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { NodeNetworkConfigRepository } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
 import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 
@@ -110,7 +110,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 		view: vi.fn((): Promise<NodeDoorView | null> => Promise.resolve(doorView)),
 		blockNode: vi.fn(async () => ["m2"] as readonly string[]),
 	} as unknown as NodeDoorClient;
-	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresher;
+	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresherShape;
 	// The fakes need nothing from the context beyond what is provided here, so the DNS registry's
 	// adapter requirements are discharged.
 	const service = provideTo(IngressEdgeService.live, (effect) =>

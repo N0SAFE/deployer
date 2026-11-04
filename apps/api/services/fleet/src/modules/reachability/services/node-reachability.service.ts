@@ -6,7 +6,7 @@ import type { EgressService } from "@deployer/shared/core/modules/egress/egress.
 import type { NodeNetworkConfigData } from "@deployer/shared/core/modules/reachability/services/node-network-config.mapper";
 import type { PublicAccessPointService } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
 import type { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 import { attempt, attemptSync } from "../../../core/effects";
 import {
@@ -86,7 +86,7 @@ type Ports = {
 	readonly reachability: ReachabilityService;
 	readonly accessPoint: PublicAccessPointService;
 	readonly egress: EgressService;
-	readonly refresher: TraefikConfigRefresher;
+	readonly refresher: TraefikConfigRefresherShape;
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */

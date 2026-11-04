@@ -93,7 +93,7 @@ import type { DeploymentStateMachineShape } from "@deployer/shared/core/modules/
 import type { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
 import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
 import type { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 import { lift } from "../../../core/effects";
 import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
@@ -191,7 +191,7 @@ export type DeploymentServicePorts = {
     /** Fires a re-converge of the platform ingress when the route table may
      *  have changed (a deployment/preview became live, a rollback moved
      *  the backend container). */
-    readonly ingressRefresher: TraefikConfigRefresher;
+    readonly ingressRefresher: TraefikConfigRefresherShape;
     /** Boundary: the shared access checks and the collaborators above are Effects, and the bodies below still answer Promises. */
     readonly host: Pick<EffectHostShape, "runUnwrapped">;
     /** Cross-service approval guard (`SEC-072`): a production deploy needs a second person without the capability. */

@@ -18,7 +18,7 @@ import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modul
 import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
 import { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
-import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import { TraefikConfigRefresher, type TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import { EnvService } from "@deployer/shared/config/env/env.module";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { GitModule } from "@deployer/shared/core/modules/git/git/git.module";
@@ -182,7 +182,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 projectAccessService: Context.Service.Shape<typeof ProjectAccessService>,
                 domainRoutingService: DomainRoutingService,
                 runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
-                ingressRefresher: TraefikConfigRefresher,
+                ingressRefresher: TraefikConfigRefresherShape,
                 host: EffectHostShape,
                 approvalGuard: Context.Service.Shape<typeof ApprovalGuard>,
             ) =>

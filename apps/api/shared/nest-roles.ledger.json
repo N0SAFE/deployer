@@ -71,7 +71,6 @@
     "src/core/modules/traefik/events/traefik-event.service.ts",
     "src/core/modules/traefik/repositories/traefik-template.repository.ts",
     "src/core/modules/traefik/repositories/traefik.repository.ts",
-    "src/core/modules/traefik/services/traefik-config-refresher.service.ts",
     "src/core/modules/traefik/services/traefik-file-system.service.ts",
     "src/core/modules/traefik/services/traefik-ingress-config.service.ts",
     "src/core/modules/traefik/services/traefik-middleware-library.service.ts",

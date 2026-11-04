@@ -8,7 +8,7 @@ import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@deployer/shared/core/modules/platform-ingress/services/platform-names";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
 import { CloudflareAppService, type CloudflareAppServiceShape } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
@@ -92,7 +92,7 @@ type Ports = {
 	readonly orchestrator: SupervisorOrchestratorShape;
 	readonly tunnelService: SettledTunnels;
 	readonly cloudflareApps: SettledApps;
-	readonly ingressRefresher: TraefikConfigRefresher;
+	readonly ingressRefresher: TraefikConfigRefresherShape;
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
