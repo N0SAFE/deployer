@@ -9,8 +9,8 @@ const userOps = standard.zod(userSchema, "user");
 /**
  * Change a user's platform role.
  *
- * The role is the CATALOG's union (`PLATFORM_ROLES` via `userSchema.role`), not a free string, and the service ends the
- * target's sessions: a session carries the role, so it cannot outlive a role change.
+ * The body accepts any role NAME (`roles` are rows, so a deployment can add one); the service refuses a name the
+ * catalogue does not hold, and it ends the target's sessions: a session carries the role, so it cannot outlive a change.
  */
 export const userSetRoleContract = userOps
 	.create()

@@ -84,3 +84,17 @@ export function permissionsOfRole(role: string | null | undefined): readonly Per
 	if (snapshot === null || snapshot.permissions.size === 0) return capabilitiesOfRole(role ?? "");
 	return [...(snapshot.permissions.get(role ?? "") ?? [])] as readonly Permission[];
 }
+
+/**
+ * Whether the catalogue knows a role name.
+ *
+ * Answering "is this a role" from the snapshot rather than a hardcoded list is what lets a CUSTOM role be filtered on,
+ * assigned, or counted without a code change. Before the snapshot loads, the declaration answers — the same fallback
+ * every other helper here uses.
+ */
+export function roleExists(role: string): boolean {
+	if (snapshot === null || snapshot.permissions.size === 0) {
+		return Object.hasOwn(SYSTEM_ROLES_TABLE, role);
+	}
+	return snapshot.permissions.has(role);
+}

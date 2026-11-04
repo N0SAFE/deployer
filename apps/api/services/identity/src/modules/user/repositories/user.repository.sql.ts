@@ -1,3 +1,4 @@
+
 import {
 	and,
 	asc,
@@ -14,6 +15,7 @@ import {
 } from "drizzle-orm";
 
 import { user } from "@deployer/nest-schema/global/identity/auth";
+import { roleExists } from "@deployer/shared/core/authz/role-catalog";
 
 import type { OperatorFilter, UserFilter } from "./user.repository.types";
 import type { User } from "../domain/user.types";
@@ -120,8 +122,8 @@ export function toUser(row: typeof user.$inferSelect): User {
 }
 
 function toRole(value: string): User["role"] | undefined {
-	const known: ReadonlySet<string> = new Set(["superAdmin", "admin", "operator", "viewer"]);
-	return known.has(value) ? (value as User["role"]) : undefined;
+	// The catalogue is the list of roles (rows, so a custom role counts); a name it does not know is not a filter.
+	return roleExists(value) ? value : undefined;
 }
 
 export { count };

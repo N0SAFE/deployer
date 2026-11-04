@@ -1,29 +1,42 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { Effect } from "effect";
+import { Context, Effect } from "effect";
 
+import type { RequestContextInput } from "@deployer/effect-orpc";
 import { analyticsContract } from "@deployer/identity-contracts";
 import { procedure } from "@deployer/nest-effect";
+import { roleNamesWithPermission } from "@deployer/shared/core/authz/role-catalog";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
-import { DatabasePort } from "@identity/core/database/database.port";
 import { serve } from "@identity/core/orpc/serve";
 
 import { AnalyticsFieldRequired } from "../domain/analytics.errors";
-import { AnalyticsRepository } from "../repositories/analytics.repository";
-import { AnalyticsService, type MetricsQuery } from "../services/analytics.service";
+import { AnalyticsService, type AnalyticsServicePorts, type MetricsQuery } from "../services/analytics.service";
 
 /**
- * One live-stream tick.
+ * Builds the "run one snapshot" callback for a streaming procedure.
  *
- * A snapshot re-evaluates on a timer, outside the request's Effect context, so the requirement its
- * Effect carries (the repository and the database behind it) is not available there. The assertion
- * states that; `liveSnapshot` drops an evaluation that fails.
+ * ── WHY THE CONTEXT IS CAPTURED, NOT ERASED ────────────────────────────────
+ * A `liveSnapshot` evaluation runs on a TIMER, outside the request fiber that
+ * produced it. `Effect.runPromise` therefore starts from an EMPTY context, and an
+ * analytics query requires `AnalyticsRepository` (which itself requires
+ * `DatabasePort`). Running the bare effect there fails with
+ *
+ *   Service not found: identity/AnalyticsRepository
+ *
+ * — a defect, so `liveSnapshot` swallowed it and the stream silently emitted
+ * nothing. This used to be hidden behind a cast that claimed the requirement did
+ * not exist; the cast was the bug, not the workaround.
+ *
+ * So the caller captures the module's context while the request fiber is still
+ * alive (`yield* Effect.context<AnalyticsServicePorts>()`), and each tick
+ * re-provides it. Same shape as `streamSwarmConfig` in the fleet service.
  */
-const runSnapshot = <A, E>(
-	effect: Effect.Effect<A, E, AnalyticsRepository | DatabasePort>,
-): Promise<A> => Effect.runPromise(effect as Effect.Effect<A, E>);
+const snapshotOf =
+	(ports: Context.Context<AnalyticsServicePorts>, context: RequestContextInput) =>
+	<A, E>(effect: Effect.Effect<A, E, AnalyticsServicePorts>): Promise<A> =>
+		Effect.runPromise(serve(context)(effect.pipe(Effect.provideContext(ports))) as Effect.Effect<A, E>);
 
 /**
  * Re-evaluation cadence for the streaming (`…/stream`) siblings.
@@ -58,8 +71,14 @@ const STREAM_INTERVAL = {
  * every call even where the handler does not branch on it.
  */
 
-/** `platformAnalytics:view` covers the reads; generating, storing or configuring a report is `configure`+`export`. */
-const ANALYTICS_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
+/**
+ * The roles that may read analytics, read from the CATALOGUE rather than listed here.
+ *
+ * A hardcoded `["superAdmin", "admin", "operator"]` is a second, silently-drifting copy of the role table: a custom role
+ * granted `analytics:read` would be refused, and a role that lost the permission would still pass. The declaration on the
+ * contract (`analytics:read`) is the same permission this asks for, so the interim role gate and the gate agree.
+ */
+const analyticsRoles = () => roleNamesWithPermission("analytics:read");
 
 @Controller()
 export class AnalyticsController {
@@ -81,8 +100,10 @@ export class AnalyticsController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
-				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => runSnapshot(serve(context)(analytics.resourceMetrics(readMetricsQuery(input)))), {
+				// The module's context is captured HERE, while the request fiber is alive; the
+				// timer cannot reach it afterwards. See `snapshotOf`.
+				const ports = yield* Effect.context<AnalyticsServicePorts>();
+				return liveSnapshot(() => snapshotOf(ports, context)(analytics.resourceMetrics(readMetricsQuery(input))), {
 					intervalMs: STREAM_INTERVAL.resourceMetrics,
 				});
 			});
@@ -124,8 +145,8 @@ export class AnalyticsController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
-				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => runSnapshot(serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)))), {
+				const ports = yield* Effect.context<AnalyticsServicePorts>();
+				return liveSnapshot(() => snapshotOf(ports, context)(analytics.deploymentMetrics(readMetricsQuery(input))), {
 					intervalMs: STREAM_INTERVAL.deploymentMetrics,
 				});
 			});
@@ -147,8 +168,8 @@ export class AnalyticsController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
-				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => runSnapshot(serve(context)(analytics.serviceHealth(readServices(input)))), {
+				const ports = yield* Effect.context<AnalyticsServicePorts>();
+				return liveSnapshot(() => snapshotOf(ports, context)(analytics.serviceHealth(readServices(input))), {
 					intervalMs: STREAM_INTERVAL.serviceHealth,
 				});
 			});
@@ -170,8 +191,8 @@ export class AnalyticsController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
-				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => runSnapshot(serve(context)(analytics.realtimeMetrics(readServices(input)))), {
+				const ports = yield* Effect.context<AnalyticsServicePorts>();
+				return liveSnapshot(() => snapshotOf(ports, context)(analytics.realtimeMetrics(readServices(input))), {
 					intervalMs: STREAM_INTERVAL.realTime,
 				});
 			});
@@ -199,12 +220,12 @@ export class AnalyticsController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
-				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => runSnapshot(serve(context)(analytics.resourceUsage({
+				const ports = yield* Effect.context<AnalyticsServicePorts>();
+				return liveSnapshot(() => snapshotOf(ports, context)(analytics.resourceUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					resource: readString(input, "resource", "all"),
 					aggregation: readString(input, "aggregation", "average"),
-				}))), {
+				})), {
 					intervalMs: STREAM_INTERVAL.resourceUsage,
 				});
 			});
@@ -278,12 +299,12 @@ export class AnalyticsController {
 			.use(requireAuth())
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
-				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => runSnapshot(serve(context)(analytics.deploymentUsage({
+				const ports = yield* Effect.context<AnalyticsServicePorts>();
+				return liveSnapshot(() => snapshotOf(ports, context)(analytics.deploymentUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					...readOptionalString(input, "projectId"),
 					...readOptionalString(input, "userId"),
-				}))), {
+				})), {
 					intervalMs: STREAM_INTERVAL.deploymentUsage,
 				});
 			});
@@ -308,7 +329,7 @@ export class AnalyticsController {
 	generateReport() {
 		return procedure(analyticsContract.generateReport)
 			.use(requireAuth())
-			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
+			.use(requirePlatformRole(analyticsRoles()))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
@@ -402,7 +423,7 @@ export class AnalyticsController {
 	deleteReport() {
 		return procedure(analyticsContract.deleteReport)
 			.use(requireAuth())
-			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
+			.use(requirePlatformRole(analyticsRoles()))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				yield* serve(context)(analytics.deleteReport(input.params.reportId));
@@ -450,7 +471,7 @@ export class AnalyticsController {
 	createReportConfig() {
 		return procedure(analyticsContract.createReportConfig)
 			.use(requireAuth())
-			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
+			.use(requirePlatformRole(analyticsRoles()))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
@@ -495,7 +516,7 @@ export class AnalyticsController {
 	updateReportConfig() {
 		return procedure(analyticsContract.updateReportConfig)
 			.use(requireAuth())
-			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
+			.use(requirePlatformRole(analyticsRoles()))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The update contract declares its patch under `body`, alongside the path parameter.
@@ -517,7 +538,7 @@ export class AnalyticsController {
 	deleteReportConfig() {
 		return procedure(analyticsContract.deleteReportConfig)
 			.use(requireAuth())
-			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
+			.use(requirePlatformRole(analyticsRoles()))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				yield* serve(context)(analytics.deleteReportConfig(input.params.configId));

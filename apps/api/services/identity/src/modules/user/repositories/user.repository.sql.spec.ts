@@ -1,5 +1,7 @@
 import { PgDialect } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { clearRoleSnapshot, installRoleSnapshot } from "@deployer/shared/core/authz/role-catalog";
 
 import { buildWhere, toUser, USER_SORT_COLUMNS } from "./user.repository.sql";
 
@@ -93,10 +95,21 @@ describe("toUser", () => {
 		expect(toUser(row)).toMatchObject({ id: "u-1", role: "admin", banned: false, image: null });
 	});
 
-	it("omits a role the domain does not know and a banned flag that is null", () => {
-		const mapped = toUser({ ...row, role: "owner", banned: null });
+	afterEach(() => {
+		clearRoleSnapshot();
+	});
+
+	it("omits a role the catalogue does not hold, and a banned flag that is null", () => {
+		// With no snapshot the declaration answers, and it does not hold `no-such-role`.
+		const mapped = toUser({ ...row, role: "no-such-role", banned: null });
 
 		expect(mapped).not.toHaveProperty("role");
 		expect(mapped).not.toHaveProperty("banned");
+	});
+
+	it("keeps a CUSTOM role, which is a row rather than a member of a union", () => {
+		installRoleSnapshot(3, [{ name: "owner", permissions: ["project:read"] }]);
+
+		expect(toUser({ ...row, role: "owner" })).toMatchObject({ role: "owner" });
 	});
 });
