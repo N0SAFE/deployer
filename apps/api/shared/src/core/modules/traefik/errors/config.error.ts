@@ -93,3 +93,10 @@ export class ConfigFileWriteFailure extends domainError("ConfigFileWriteFailure"
 }>() {
   override publicMessage() { return `Could not write the Traefik configuration file ${this.filePath}`; }
 }
+
+/** A bulk sync or cleanup could not start (the database or the config directory failed); the cause stays server-side. */
+export class ConfigSyncFailure extends domainError("ConfigSyncFailure", "dependency_missing")<{
+  readonly operation: string;
+}>() {
+  override publicMessage() { return `Traefik configuration ${this.operation} failed`; }
+}

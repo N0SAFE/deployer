@@ -80,9 +80,9 @@ export class TraefikCoreModule extends createModuleContext({
     { provide: TraefikVariableResolverService, useValue: TraefikVariableResolverService.live },
     {
       provide: TraefikFileSystemService,
-      useFactory: (env: EnvService) =>
-        makeTraefikFileSystem({ basePath: env.get('TRAEFIK_CONFIG_BASE_PATH'), backupPath: env.get('TRAEFIK_BACKUP_PATH') }),
-      inject: [EnvService],
+      useFactory: (env: EnvService, repository: Context.Service.Shape<typeof TraefikRepository>) =>
+        makeTraefikFileSystem({ basePath: env.get('TRAEFIK_CONFIG_BASE_PATH'), backupPath: env.get('TRAEFIK_BACKUP_PATH') }, repository),
+      inject: [EnvService, TraefikRepository],
     },
     {
       provide: TraefikSyncService,
@@ -91,9 +91,12 @@ export class TraefikCoreModule extends createModuleContext({
     },
     {
       provide: TraefikService,
-      useFactory: (repository: Context.Service.Shape<typeof TraefikRepository>, sync: Context.Service.Shape<typeof TraefikSyncService>) =>
-        makeTraefikService({ repository, sync }),
-      inject: [TraefikRepository, TraefikSyncService],
+      useFactory: (
+        repository: Context.Service.Shape<typeof TraefikRepository>,
+        fileSystem: Context.Service.Shape<typeof TraefikFileSystemService>,
+        sync: Context.Service.Shape<typeof TraefikSyncService>,
+      ) => makeTraefikService({ repository, fileSystem, sync }),
+      inject: [TraefikRepository, TraefikFileSystemService, TraefikSyncService],
     },
     TraefikValidationService,
     TraefikMiddlewareLibraryService,

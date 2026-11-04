@@ -40,6 +40,7 @@ export {
   ConfigValidationError,
   ConfigNotFoundError,
   ConfigFileWriteFailure,
+  ConfigSyncFailure,
 } from './config.error';
 
 // File system errors
@@ -52,6 +53,8 @@ export {
   FileWriteError,
   FileReadError,
   FileDeleteError,
+  TraefikFileNotFound,
+  TraefikFileWriteRefused,
 } from './file-system.error';
 
 // Template errors

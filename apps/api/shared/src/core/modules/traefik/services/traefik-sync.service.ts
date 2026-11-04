@@ -7,10 +7,10 @@ import * as yaml from "yaml";
 import { isRecord } from "@deployer/type-guards";
 
 import { StorageFailure } from "../../database/storage";
-import { ConfigFileWriteFailure } from "../errors";
+import { ConfigFileWriteFailure, ConfigSyncFailure } from "../errors";
 
 import type { TraefikFileSystemShape } from "./traefik-file-system.service";
-import type { SyncResult, CompleteServiceConfig, MiddlewareData } from "../interfaces";
+import type { SyncResult, SyncSummary, TraefikConfigData, CompleteServiceConfig, MiddlewareData } from "../interfaces";
 import type { TraefikRepositoryShape } from "../repositories/traefik.repository";
 
 /** Generated Traefik configuration structure for YAML output */
@@ -145,11 +145,25 @@ function parseMiddlewareConfiguration(middleware: MiddlewareData): Record<string
 }
 
 export type TraefikSyncShape = {
+  /** Sync every Traefik config that changed since its last sync. A config that fails is a `success: false` result and is marked failed. */
+  readonly syncAllConfigurations: () => Effect.Effect<SyncSummary, StorageFailure>;
+  /** Sync one config from the data a batch already loaded. Never fails: a failure is a `success: false` result. */
+  readonly syncTraefikConfigData: (config: TraefikConfigData) => Effect.Effect<SyncResult>;
+  readonly syncTraefikConfigurationById: (configId: string) => Effect.Effect<SyncResult, StorageFailure>;
   /**
    * Generate a service's Traefik YAML from the database and write it where Traefik reads it, then record the sync.
    * A write or status-update failure is a `success: false` result (the caller reports it); only an unreadable database fails.
    */
   readonly syncServiceConfiguration: (configId: string) => Effect.Effect<SyncResult, StorageFailure>;
+  readonly syncProjectConfigurations: (projectId: string) => Effect.Effect<SyncSummary, StorageFailure>;
+  readonly syncStandaloneConfigurations: () => Effect.Effect<SyncSummary, StorageFailure>;
+  /** Delete a service config's real file and its file record. */
+  readonly deleteConfigurationFile: (configId: string) => Effect.Effect<SyncResult>;
+  /** Delete the real files that no active config owns. */
+  readonly cleanupOrphanedFiles: () => Effect.Effect<SyncSummary, ConfigSyncFailure>;
+  readonly cleanupOrphanedFilesForProject: (projectId: string) => Effect.Effect<SyncSummary, ConfigSyncFailure>;
+  /** Prepare the filesystem structure (a no-op for the database-driven one, logged). */
+  readonly initialize: () => Effect.Effect<void>;
 };
 
 type Ports = {
@@ -203,8 +217,7 @@ export function makeTraefikSync({ repository, fileSystem }: Ports): TraefikSyncS
       })
       .pipe(Effect.catch((error) => Effect.logError(`Failed to update config file record for ${configId}: ${error.message}`)));
 
-  return {
-    syncServiceConfiguration: (configId) =>
+  const syncServiceConfiguration: TraefikSyncShape["syncServiceConfiguration"] = (configId) =>
       Effect.gen(function* () {
         yield* Effect.logDebug(`Syncing configuration ${configId}`);
         const completeConfig = yield* repository.getCompleteServiceConfig(configId);
@@ -250,7 +263,216 @@ export function makeTraefikSync({ repository, fileSystem }: Ports): TraefikSyncS
             ),
           ),
         );
-      }),
+      });
+
+  const message = (error: { readonly message: string }): string => error.message || "Unknown error";
+  const summarize = (results: SyncResult[]): SyncSummary => ({
+    total: results.length,
+    successful: results.filter((r) => r.success).length,
+    failed: results.filter((r) => !r.success).length,
+    results,
+  });
+  const relativeToBase = (filePath: string): string => filePath.replace(fileSystem.getFileSystemPaths().basePath + "/", "");
+
+  const deleteRealFile = (filePath: string): Effect.Effect<{ success: boolean; message?: string }> =>
+    Effect.tryPromise({
+      try: async () => {
+        const fullPath = path.join(fileSystem.getFileSystemPaths().basePath, filePath);
+        try {
+          await fs.promises.access(fullPath);
+        } catch {
+          return { success: true, message: "File did not exist" };
+        }
+        await fs.promises.unlink(fullPath);
+        return { success: true };
+      },
+      catch: (cause) => cause,
+    }).pipe(
+      Effect.catch((cause) =>
+        Effect.logError(`Failed to delete real file ${filePath}: ${String(cause)}`).pipe(
+          Effect.as({ success: false, message: cause instanceof Error ? cause.message : "Unknown error" }),
+        ),
+      ),
+    );
+
+  /** A failed config: record it in the database (best effort) and report it. */
+  const failed = (configId: string, configName: string, error: { readonly message: string }) =>
+    Effect.logError(`Failed to sync Traefik configuration ${configId}: ${error.message}`).pipe(
+      Effect.andThen(repository.markTraefikConfigSyncFailed(configId, message(error))),
+      Effect.catch(() => Effect.void),
+      Effect.as({ configId, configName, success: false, action: "error", message: `Sync failed: ${message(error)}` } satisfies SyncResult),
+    );
+
+  const syncTraefikConfigData: TraefikSyncShape["syncTraefikConfigData"] = (config) =>
+    Effect.gen(function* () {
+      yield* Effect.logDebug(`Syncing Traefik configuration ${config.id}`);
+      const fileName = `${config.configType}-${config.id}.yaml`;
+      const relativePathFromBase =
+        config.storageType === "project" && config.projectName
+          ? `dynamic/projects/${config.projectName}/${fileName}`
+          : `dynamic/standalone/${fileName}`;
+      yield* writeRealFile(relativePathFromBase, config.configContent);
+      yield* repository.updateTraefikConfigSyncStatus(config.id, new Date());
+      return {
+        configId: config.id,
+        configName: config.configName ?? "unnamed",
+        success: true,
+        action: "updated",
+        message: `Configuration synced to ${relativePathFromBase}`,
+        filePath: relativePathFromBase,
+      } satisfies SyncResult;
+    }).pipe(Effect.catch((error) => failed(config.id, config.configName ?? "unnamed", error)));
+
+  /** Sync a batch one by one: a config that fails is reported and marked, the rest still run. */
+  const syncBatch = (label: string, configs: readonly TraefikConfigData[]) =>
+    Effect.gen(function* () {
+      yield* Effect.logDebug(`Found ${String(configs.length)} ${label} that need syncing`);
+      const results = yield* Effect.forEach(configs, (config) => syncTraefikConfigData(config));
+      const summary = summarize(results);
+      yield* Effect.logInfo(`${label} sync completed: ${String(summary.successful)}/${String(summary.total)} successful`);
+      return summary;
+    });
+
+  const syncTraefikConfigurationById: TraefikSyncShape["syncTraefikConfigurationById"] = (configId) =>
+    Effect.gen(function* () {
+      const config = yield* repository.getTraefikConfigById(configId);
+      if (!config) {
+        return { configId, configName: "unknown", success: false, action: "error", message: "Traefik configuration not found in database" } satisfies SyncResult;
+      }
+      return yield* Effect.gen(function* () {
+        const projectName = config.projectId ? ((yield* repository.getProjectById(config.projectId))?.name ?? null) : null;
+        const fileName = `${config.configType}-${config.id}.yaml`;
+        const relativePathFromBase =
+          config.storageType === "project" && projectName ? `dynamic/projects/${projectName}/${fileName}` : `dynamic/standalone/${fileName}`;
+        yield* writeRealFile(relativePathFromBase, config.configContent);
+        yield* repository.updateTraefikConfigSyncStatus(configId, new Date());
+        return {
+          configId,
+          configName: config.configName,
+          success: true,
+          action: "updated",
+          message: `Traefik configuration synced successfully to ${relativePathFromBase}`,
+          filePath: relativePathFromBase,
+        } satisfies SyncResult;
+      }).pipe(Effect.catch((error) => failed(configId, config.configName, error)));
+    });
+
+  /**
+   * File names carry only the first 8 characters of a config id, so ownership is a prefix match. (The service this
+   * replaces compared the 8-character prefix to full ids with `Set.has`, which never matched: every file looked orphaned.)
+   */
+  const hasId = (ids: readonly string[], filePrefix: string): boolean => ids.some((id) => id.startsWith(filePrefix));
+
+  /** The orphan scan both cleanups share: every config file on disk whose id `decide` says to remove. */
+  const parsedFiles = Effect.gen(function* () {
+    const allConfigFiles = yield* fileSystem.getAllConfigFiles();
+    const parsed: { filePath: string; fileName: string; info: { serviceId: string; configId: string } }[] = [];
+    for (const filePath of allConfigFiles) {
+      const fileName = filePath.split("/").pop() ?? "";
+      const info = fileSystem.parseServiceConfigFileName(fileName);
+      if (info) parsed.push({ filePath, fileName, info });
+      else yield* Effect.logDebug(`Skipping file with unrecognized format: ${fileName}`);
+    }
+    return parsed;
+  });
+
+  const removeOrphan = (filePath: string, configId: string, fileName: string, reason: string): Effect.Effect<SyncResult> =>
+    deleteRealFile(relativeToBase(filePath)).pipe(
+      Effect.map((result) => ({
+        configId,
+        configName: fileName,
+        success: result.success,
+        action: "deleted",
+        message: result.success ? `Orphaned real file deleted${reason}` : (result.message ?? "Failed to delete orphaned file"),
+        filePath,
+      })),
+    );
+
+  const cleanupOrphanedFiles: TraefikSyncShape["cleanupOrphanedFiles"] = () =>
+    Effect.gen(function* () {
+      yield* Effect.logInfo("Starting cleanup of orphaned configuration files");
+      const files = yield* parsedFiles;
+      const activeConfigIds = (yield* repository.getAllServiceConfigs(true)).map((config) => config.id);
+      const results: SyncResult[] = [];
+      for (const { filePath, fileName, info } of files) {
+        if (!hasId(activeConfigIds, info.configId)) results.push(yield* removeOrphan(filePath, info.configId, fileName, ""));
+      }
+      const summary = summarize(results);
+      yield* Effect.logInfo(`Cleanup completed: ${String(summary.successful)} files processed, ${String(results.filter((r) => r.action === "deleted").length)} orphaned files removed`);
+      return summary;
+    }).pipe(Effect.mapError((error) => new ConfigSyncFailure({ operation: "cleanup", cause: error })));
+
+  const cleanupOrphanedFilesForProject: TraefikSyncShape["cleanupOrphanedFilesForProject"] = (projectId) =>
+    Effect.gen(function* () {
+      yield* Effect.logInfo(`Starting cleanup of orphaned configuration files for project ${projectId}`);
+      const files = yield* parsedFiles;
+      const activeConfigIds = (yield* repository.getServiceConfigsByProject(projectId, true)).map((config) => config.id);
+      const allConfigs = yield* repository.getAllServiceConfigs();
+      const results: SyncResult[] = [];
+      for (const { filePath, fileName, info } of files) {
+        const config = allConfigs.find((c) => c.id.startsWith(info.configId));
+        if (!config) {
+          results.push(yield* removeOrphan(filePath, info.configId, fileName, " (config not found)"));
+          continue;
+        }
+        const service = yield* repository.getServiceById(config.serviceId);
+        if (service?.projectId !== projectId) continue; // not this project's file
+        if (!hasId(activeConfigIds, info.configId)) {
+          results.push(yield* removeOrphan(filePath, info.configId, fileName, " (inactive config)"));
+        } else {
+          results.push({ configId: info.configId, configName: fileName, success: true, action: "skipped", message: "Active configuration file kept", filePath });
+        }
+      }
+      const summary = summarize(results);
+      yield* Effect.logInfo(`Project ${projectId} cleanup completed: ${String(summary.successful)} files processed, ${String(results.filter((r) => r.action === "deleted").length)} orphaned files removed`);
+      return summary;
+    }).pipe(Effect.mapError((error) => new ConfigSyncFailure({ operation: "project cleanup", cause: error })));
+
+  const deleteConfigurationFile: TraefikSyncShape["deleteConfigurationFile"] = (configId) =>
+    Effect.gen(function* () {
+      yield* Effect.logDebug(`Deleting configuration file for ${configId}`);
+      const completeConfig = yield* repository.getCompleteServiceConfig(configId);
+      if (!completeConfig) {
+        return { configId, configName: "unknown", success: false, action: "error", message: "Configuration not found in database" } satisfies SyncResult;
+      }
+      const projectName = yield* getProjectName(completeConfig.serviceId);
+      const filePath = fileSystem.generateServiceConfigPath(completeConfig.serviceId, completeConfig.id, projectName);
+      // Delete the REAL file only (not the virtual one).
+      const deleted = yield* deleteRealFile(relativeToBase(filePath));
+      if (deleted.success) yield* repository.deleteConfigFile(configId);
+      return {
+        configId,
+        configName: completeConfig.fullDomain,
+        success: deleted.success,
+        action: "deleted",
+        message: deleted.success ? "Configuration file deleted successfully" : (deleted.message ?? "Failed to delete file"),
+        filePath,
+      } satisfies SyncResult;
+    }).pipe(
+      Effect.catch((error) =>
+        Effect.logError(`Failed to delete configuration file for ${configId}: ${error.message}`).pipe(
+          Effect.as({ configId, configName: "unknown", success: false, action: "error", message: `Delete failed: ${message(error)}` } satisfies SyncResult),
+        ),
+      ),
+    );
+
+  return {
+    syncAllConfigurations: () =>
+      Effect.logInfo("Starting optimized sync of Traefik configurations that need syncing").pipe(
+        Effect.andThen(repository.getTraefikConfigsNeedingSync(true)),
+        Effect.flatMap((configs) => syncBatch("configurations", configs)),
+      ),
+    syncTraefikConfigData,
+    syncTraefikConfigurationById,
+    syncServiceConfiguration,
+    syncProjectConfigurations: (projectId) =>
+      repository.getTraefikConfigsNeedingSyncByProject(projectId, true).pipe(Effect.flatMap((configs) => syncBatch(`configurations for project ${projectId}`, configs))),
+    syncStandaloneConfigurations: () =>
+      repository.getStandaloneTraefikConfigsNeedingSync(true).pipe(Effect.flatMap((configs) => syncBatch("standalone configurations", configs))),
+    deleteConfigurationFile,
+    cleanupOrphanedFiles,
+    cleanupOrphanedFilesForProject,
+    initialize: () => fileSystem.initializeFileSystemStructure().pipe(Effect.andThen(Effect.logInfo("TraefikSyncService initialization completed"))),
   };
 }
 
