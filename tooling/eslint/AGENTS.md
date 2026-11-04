@@ -136,10 +136,11 @@ replacement — is `docs/architecture/effect-orpc-conventions.md`; this section 
 
 ### The ledger — an app's migration to-do list
 
-`nestjsConfig.configs.nestRoles({ ledger: "./nest-roles.ledger.json" })` (and `effectConventions({ ledger })`, which includes it)
+`nestjsConfig.configs.nestRoles({ ledger: `${import.meta.dirname}/nest-roles.ledger.json` })` (and `effectConventions({ ledger })`, which includes it)
 turns ALL the rules on for an app. The ledger is a JSON file `{ "<rule>": ["src/…/file.ts"] }` next to the app's
 `eslint.config.ts`: the files that have **not** migrated yet, each exempt from that rule only.
 
+- **Pass the ledger as an absolute path (`import.meta.dirname`), never `./…`**: the pre-commit hook lints staged files from the repository root, and a path resolved against the working directory worked inside an app and failed at the root. Entries are relative to the ledger's own directory (`src/rules/nest-roles-ledger.ts`, tested).
 - Parsed with one zod schema; an unknown rule name is an error. An entry whose file **no longer exists fails the config load**, so
   a migrated or deleted file has to leave the list.
 - `{}` means the app is done. Never add an entry for new code — fix the code.

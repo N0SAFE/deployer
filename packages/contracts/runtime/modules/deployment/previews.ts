@@ -37,9 +37,10 @@ const previewOps = standard.zod(listServicePreviewsOutputSchema, "servicePreview
 
 export const listServicePreviewsContract = previewOps
     .list()
-    .path("/previews")
+    // The static segment lives in the params TEMPLATE: `.params()` defines the whole path, so a `.path("/previews")` before it
+    // was silently dropped and this became `GET /deployments/{serviceId}`, colliding with `findById`.
     .input((b) =>
-        b.params((p) => p`/${p("serviceId", z.uuid())}`),
+        b.params((p) => p`/previews/${p("serviceId", z.uuid())}`),
     )
     .output(listServicePreviewsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
@@ -58,10 +59,11 @@ const promotePreviewOps = standard.zod(promoteServicePreviewOutputSchema, "promo
 
 export const promoteServicePreviewContract = promotePreviewOps
     .create()
-    .path("/previews/promote")
+    // As above: `.path("/previews/promote")` was dropped and this was `POST /deployments/{serviceId}`, which captured every
+    // other single-segment POST (`/trigger`, `/trigger-event`, `/upload-bundle`) before its own route was reached.
     .input((b) =>
         b
-            .params((p) => p`/${p("serviceId", z.uuid())}`)
+            .params((p) => p`/previews/promote/${p("serviceId", z.uuid())}`)
             .body(z.object({ previewName: z.string().min(1) })),
     )
     .output(promoteServicePreviewOutputSchema)
