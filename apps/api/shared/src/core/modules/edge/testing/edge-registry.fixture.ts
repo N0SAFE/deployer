@@ -5,7 +5,9 @@
 
 import type { EdgeProviderDescriptor, EdgeStatus, PublicJoinPath } from "@deployer/contracts-entities/entities/ingress/index";
 
-import { EdgeProviderRegistry } from "../edge-provider.registry";
+import { Effect } from "effect";
+
+import { makeEdgeProviderRegistry, type EdgeProviderRegistryShape } from "../edge-provider.registry";
 import { DirectEdgeProvider } from "../providers/direct.edge-provider";
 
 import type { EdgeConnectorSpec, EdgeContext, EdgeDnsRecord, EdgeIngressPlan, EdgeProvider } from "../edge-provider";
@@ -65,10 +67,10 @@ export class TestTunnelEdgeProvider implements EdgeProvider {
 	}
 }
 
-export function testEdgeRegistry(): { registry: EdgeProviderRegistry; tunnel: TestTunnelEdgeProvider } {
-	const registry = new EdgeProviderRegistry();
-	new DirectEdgeProvider(registry);
+export function testEdgeRegistry(): { registry: EdgeProviderRegistryShape; tunnel: TestTunnelEdgeProvider } {
+	const registry = makeEdgeProviderRegistry();
+	Effect.runSync(registry.register(DirectEdgeProvider.live));
 	const tunnel = new TestTunnelEdgeProvider();
-	registry.register(tunnel);
+	Effect.runSync(registry.register(tunnel));
 	return { registry, tunnel };
 }

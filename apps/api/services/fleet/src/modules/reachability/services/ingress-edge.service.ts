@@ -35,7 +35,7 @@ import {
 import { bindServices, serviceOver, type Over } from "@deployer/effect-core";
 import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts/modules/reachability/contracts";
 import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
-import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
+import type { EdgeProviderRegistryShape } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
@@ -103,7 +103,7 @@ export type IngressEdgeServiceShape = {
 
 type Ports = {
 	readonly lanes: IngressLanesService;
-	readonly edges: EdgeProviderRegistry;
+	readonly edges: EdgeProviderRegistryShape;
 	readonly publicEdge: PublicEdgeService;
 	readonly mesh: NodeDoorClient;
 	readonly hostnames: HostnameService;
@@ -284,14 +284,12 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 	): Effect.Effect<PublicLane | null, unknown> => {
 		if (input === null) return Effect.succeed(null);
 		const sameProvider = current?.provider === input.provider;
-		return attemptSync(() =>
-			edges.normalize({
-				provider: input.provider,
-				domain: input.domain,
-				acknowledgedInboundPorts: input.acknowledgedInboundPorts ?? (sameProvider ? current.acknowledgedInboundPorts : false),
-				options: input.options ?? (sameProvider ? current.options : {}),
-			}),
-		);
+		return edges.normalize({
+			provider: input.provider,
+			domain: input.domain,
+			acknowledgedInboundPorts: input.acknowledgedInboundPorts ?? (sameProvider ? current.acknowledgedInboundPorts : false),
+			options: input.options ?? (sameProvider ? current.options : {}),
+		});
 	};
 
 	const reconcileDns = Effect.fn("IngressEdgeService.reconcileDns")(function* (retired: readonly RetiredDnsName[] = []) {

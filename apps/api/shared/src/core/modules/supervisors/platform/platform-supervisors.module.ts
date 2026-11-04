@@ -25,7 +25,7 @@ import { createGlobalModule } from "@deployer/nest-effect";
 
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { CoreDockerModule } from "../../docker/docker.module";
-import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import { CoreEdgeModule } from "../../edge/edge.module";
 import { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingress.module";
@@ -72,7 +72,7 @@ export const SupervisorsPlatformModule = createGlobalModule({
 			lanes: IngressLanesService,
 			settings: ClusterSettings,
 			webTarget: PlatformWebTargetService,
-			edges: EdgeProviderRegistry,
+			edges: EdgeProviderRegistryShape,
 			platformConfig: PlatformConfigService,
 			appInstances: AppInstanceService,
 			edge: PublicEdgeService,

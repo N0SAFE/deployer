@@ -17,9 +17,6 @@
     "src/core/modules/database/services/database-probe.service.ts",
     "src/core/modules/database/services/database-startup-guard.service.ts",
     "src/core/modules/docker/docker.module.ts",
-    "src/core/modules/edge/edge-provider.registry.ts",
-    "src/core/modules/edge/edge-state.store.ts",
-    "src/core/modules/edge/providers/direct.edge-provider.ts",
     "src/core/modules/egress/egress.service.ts",
     "src/core/modules/events/base/core-event-stream-pool.service.ts",
     "src/core/modules/events/events.module.ts",
@@ -66,7 +63,6 @@
   "noNestExceptionFilter": [
     "src/core/middlewares/internal-error/internal-error-insight.service.ts",
     "src/core/modules/auth/orpc/interceptors.ts",
-    "src/core/modules/edge/edge-provider.registry.ts",
     "src/core/modules/events/services/core-event-sync.service.ts",
     "src/core/modules/reachability/services/reachability.service.ts",
     "src/core/modules/traefik/controllers/traefik-ingress-config.controller.ts"

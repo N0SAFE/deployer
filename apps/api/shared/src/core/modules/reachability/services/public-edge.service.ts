@@ -12,7 +12,7 @@
  * as "no public lane", which would hide that the operator asked for one.
  */
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import type {
 	EdgeProviderDescriptor,
@@ -22,7 +22,7 @@ import type {
 } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import { LANE_ENTRYPOINTS } from "../../platform-ingress/services/lane-traefik-config";
 import { platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository";
@@ -52,7 +52,7 @@ export class PublicEdgeService {
 	private readonly logger = new Logger(PublicEdgeService.name);
 
 	constructor(
-		private readonly registry: EdgeProviderRegistry,
+		@Inject(EdgeProviderRegistry) private readonly registry: EdgeProviderRegistryShape,
 		private readonly nodeConfigs: NodeNetworkConfigRepository,
 		private readonly env: EnvService,
 	) {}

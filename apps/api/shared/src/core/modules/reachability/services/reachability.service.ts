@@ -6,7 +6,7 @@ import { BadRequestException, Injectable, Logger, Inject } from '@nestjs/common'
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
-import { EdgeProviderRegistry } from "../../edge/edge-provider.registry"
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry"
 import { EgressService } from "../../egress/egress.service"
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service"
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository"
@@ -38,7 +38,7 @@ export class ReachabilityService {
     private readonly nodeNetworkConfigRepository: NodeNetworkConfigRepository,
     @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
     private readonly lanes: IngressLanesService,
-    private readonly edges: EdgeProviderRegistry,
+    @Inject(EdgeProviderRegistry) private readonly edges: EdgeProviderRegistryShape,
     private readonly publicEdge: PublicEdgeService,
     private readonly egress: EgressService,
   ) {}

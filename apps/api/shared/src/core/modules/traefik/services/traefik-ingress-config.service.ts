@@ -30,7 +30,7 @@ import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import {
@@ -84,7 +84,7 @@ export class TraefikIngressConfigService {
 		private readonly routesSource: PlatformRoutesSource,
 		@Inject(TraefikRepository) private readonly traefikRepository: TraefikRepositoryShape,
 		private readonly platformConfig: PlatformConfigService,
-		private readonly edges: EdgeProviderRegistry,
+		@Inject(EdgeProviderRegistry) private readonly edges: EdgeProviderRegistryShape,
 	) {}
 
 	/** The API's own backend on the platform overlay. */

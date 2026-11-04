@@ -34,8 +34,8 @@ import type {
 	EdgeIngressPlan,
 	EdgeProvider,
 } from "@deployer/shared/core/modules/edge/edge-provider";
-import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
-import { EdgeStateStore } from "@deployer/shared/core/modules/edge/edge-state.store";
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "@deployer/shared/core/modules/edge/edge-provider.registry";
+import { EdgeStateStore, type EdgeStateStoreShape } from "@deployer/shared/core/modules/edge/edge-state.store";
 
 import { FleetInvalid } from "../../../../core/fleet.errors";
 import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
@@ -89,12 +89,12 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 	private readonly logger = new Logger(CloudflareTunnelEdgeProvider.name);
 
 	constructor(
-		registry: EdgeProviderRegistry,
+		@Inject(EdgeProviderRegistry) registry: EdgeProviderRegistryShape,
 		@Inject(EffectHost) private readonly host: EffectHostShape,
-		private readonly store: EdgeStateStore,
+		@Inject(EdgeStateStore) private readonly store: EdgeStateStoreShape,
 		private readonly env: EnvService,
 	) {
-		registry.register(this);
+		Effect.runSync(registry.register(this)); // duplicate ids are a wiring mistake at boot
 	}
 
 	/**
@@ -116,7 +116,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 	}
 
 	private state(): Promise<TunnelState | null> {
-		return this.store.read(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema);
+		return this.host.runUnwrapped(this.store.read(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema));
 	}
 
 	/** The state, but only when it belongs to the account the lane names. */
@@ -142,7 +142,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 			const created = await this.tunnels((tunnels) => tunnels.createTunnel(accountId, { name: ctx.resourceName }));
 			state = { accountId, tunnelId: created.tunnel.id, token: created.token, wildcard };
 		}
-		await this.store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, { ...state, wildcard });
+		await this.host.runUnwrapped(this.store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, { ...state, wildcard }));
 		// ONE wildcard rule. No DNS here — that is the DNS plane's job (`dnsRecords`).
 		await this.tunnels((tunnels) => tunnels.configureIngress(accountId, state.tunnelId, wildcard, ctx.ingressTarget));
 	}
@@ -152,7 +152,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 		if (state === null) return;
 		// Provider first: forgetting the id first would orphan a tunnel nobody can name.
 		await this.tunnels((tunnels) => tunnels.deleteTunnel(state.accountId, state.tunnelId));
-		await this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID);
+		await this.host.runUnwrapped(this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID));
 		this.logger.log(`Deleted stack tunnel ${state.tunnelId} (account ${state.accountId})`);
 	}
 
@@ -238,7 +238,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 	/** Forget the stack tunnel after it was deleted from the tunnels page. True when it was the stack's. */
 	async forgetDeletedTunnel(accountId: string, tunnelId: string): Promise<boolean> {
 		if ((await this.stackWildcard(accountId, tunnelId)) === null) return false;
-		await this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID);
+		await this.host.runUnwrapped(this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID));
 		this.logger.log(`Forgot stack tunnel ${tunnelId} (deleted from the tunnels page)`);
 		return true;
 	}

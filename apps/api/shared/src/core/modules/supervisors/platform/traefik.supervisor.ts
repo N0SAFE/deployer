@@ -15,7 +15,7 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
+import type { EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { buildNodeDoors } from "../../platform-ingress/services/ingress-doors";
@@ -44,7 +44,7 @@ export type TraefikSupervisorDeps = {
 	readonly lanes: IngressLanesService;
 	readonly settings: ClusterSettings;
 	readonly webTarget: PlatformWebTargetService;
-	readonly edges: EdgeProviderRegistry;
+	readonly edges: EdgeProviderRegistryShape;
 	readonly bus: SupervisorEventBus;
 };
 

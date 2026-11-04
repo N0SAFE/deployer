@@ -5,8 +5,8 @@ import type { PublicLane } from "@deployer/contracts-entities/entities/ingress/i
 import type { EffectHostShape } from "@deployer/nest-effect";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
-import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
-import type { EdgeStateStore } from "@deployer/shared/core/modules/edge/edge-state.store";
+import { makeEdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
+import type { EdgeStateStoreShape } from "@deployer/shared/core/modules/edge/edge-state.store";
 
 import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
 
@@ -24,16 +24,16 @@ const ctx = (l: PublicLane): EdgeContext => ({ lane: l, ingressTarget: "http://d
 function setup(initial: unknown = null) {
 	let state: unknown = initial;
 	const store = {
-		read: vi.fn(() => Promise.resolve(state)),
+		read: vi.fn(() => Effect.succeed(state)),
 		write: vi.fn((_id: string, _schema: unknown, value: unknown) => {
 			state = value;
-			return Promise.resolve(value);
+			return Effect.succeed(value);
 		}),
 		clear: vi.fn(() => {
 			state = null;
-			return Promise.resolve();
+			return Effect.void;
 		}),
-	} as unknown as EdgeStateStore;
+	} as unknown as EdgeStateStoreShape;
 	const tunnels = {
 		createTunnel: vi.fn(() => Effect.succeed({ tunnel: { id: "tun-new" }, token: "tok-new" })),
 		configureIngress: vi.fn(() => Effect.void),
@@ -46,7 +46,7 @@ function setup(initial: unknown = null) {
 			Effect.runPromise(effect.pipe(Effect.provideService(CloudflareTunnelService, tunnels)) as Effect.Effect<unknown>),
 	} as unknown as EffectHostShape;
 	const env = { get: vi.fn((key: string) => (key === "DEPLOYER_CLOUDFLARED_REPLICAS" ? 2 : "cloudflare/cloudflared:2025.1.0")) } as unknown as EnvService;
-	const registry = new EdgeProviderRegistry();
+	const registry = makeEdgeProviderRegistry();
 	const provider = new CloudflareTunnelEdgeProvider(registry, host, store, env);
 	return { provider, registry, tunnels, store, getState: () => state };
 }
@@ -60,7 +60,7 @@ describe("CloudflareTunnelEdgeProvider", () => {
 
 	it("registers itself as an outbound tunnel edge that opens no port", () => {
 		const { registry } = setup();
-		const descriptor = registry.get(CLOUDFLARE_TUNNEL_EDGE_ID).descriptor;
+		const descriptor = registry.find(CLOUDFLARE_TUNNEL_EDGE_ID)!.descriptor;
 		expect(descriptor).toMatchObject({ kind: "tunnel", opensInboundPorts: false, usesProviderAccount: true });
 		expect(registry.ingressPlan({ entryPort: 80, private: { enabled: false, domain: "d.internal", exposeOnLan: false }, public: lane("a"), consoleVisibility: "public" })).toEqual({
 			publishedPorts: [],

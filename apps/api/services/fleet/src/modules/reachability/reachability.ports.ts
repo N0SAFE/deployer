@@ -1,7 +1,7 @@
 import { Context } from 'effect'
 
 import type { NodeDoorClient } from '@deployer/mesh-client'
-import type { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
+import type { EdgeProviderRegistryShape } from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
 import type { IngressLanesService } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
@@ -23,7 +23,7 @@ export class IngressLanesPort extends Context.Service<
 >()('fleet/IngressLanesPort') {}
 export class EdgeProvidersPort extends Context.Service<
     EdgeProvidersPort,
-    EdgeProviderRegistry
+    EdgeProviderRegistryShape
 >()('fleet/EdgeProvidersPort') {}
 export class PublicEdgePort extends Context.Service<
     PublicEdgePort,
