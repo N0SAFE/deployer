@@ -360,6 +360,10 @@ services:
         condition: service_started
       dependency-builder:
         condition: service_healthy
+      # The node's mesh agent runs from this image; it must exist before any
+      # service tries to start the agent (see `build-svc-node-agent` below).
+      build-svc-node-agent:
+        condition: service_completed_successfully
       # The wizard PROBES the database to build the URL it persists, so it must
       # exist first. `service_healthy` and not `started`: Postgres accepts no
       # connections while `initdb` runs, so a `started` gate would let the wizard
@@ -426,6 +430,29 @@ services:
           - setup-dev
           - setup
       shared: {}
+
+  # ── The per-node mesh agent's IMAGE ────────────────────────────────────
+  # An IMAGE PRODUCER only: `NodeAgentBootstrapService` (every `svc-*`) and setup
+  # create the `deployer-node-agent` container at runtime from
+  # `${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}`. Nothing in this profile
+  # built that tag, so each service tried to PULL it, got a registry 404 after
+  # three attempts, ran "without the mesh", and the dashboard showed
+  # "Agent Unreachable". `dev-supervised` already has this producer; the plain
+  # `dev` profile did not.
+  #
+  # `pull_policy: never` because the tag exists only locally. No `secrets:` — the
+  # Dockerfile's turbo secret mounts are `required=false`.
+  build-svc-node-agent:
+    profiles: ["all", "services", "api", "web", "setup"]
+    build:
+      context: ../../..
+      dockerfile: ./infra/docker/builder/node-agent/Dockerfile.svc-node-agent
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}
+    pull_policy: never
+    entrypoint: ["echo", "mesh agent image built: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}"]
+    restart: "no"
 
   # ── The web app ────────────────────────────────────────────────────────
   # The user-facing surface. Gated on the BFF rather than the monolith's

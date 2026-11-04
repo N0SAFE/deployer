@@ -236,7 +236,9 @@ export function makeEventJournal(config: JournalConfig): EventJournalShape {
 				emittedAt: new Date(record.emittedAt),
 			});
 			trimPending();
-			if (pending.length >= settings().flushBatchSize) Effect.runFork(flush);
+			// While persistence is failing the backoff timer owns the retries. Flushing on every emit here
+			// fired one failing INSERT per event (115 database errors in 4 s while migrations ran).
+			if (pending.length >= settings().flushBatchSize && !outageActive) Effect.runFork(flush);
 			return record;
 		},
 		lastSequence: (eventKey) => sequences.get(eventKey) ?? 0,

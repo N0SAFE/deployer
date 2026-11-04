@@ -148,6 +148,22 @@ describe("EventJournal persistence", () => {
 		await run(journal.close);
 	});
 
+	it("does not hit the store on every emit while persistence is down", async () => {
+		let attempts = 0;
+		const { store } = makeStore({
+			insertMany: () => {
+				attempts += 1;
+				return Effect.fail(new EventLogUnavailable({ reason: "table missing" }));
+			},
+		});
+		// Batch of 2 and a long backoff: only the first failure may reach the store.
+		const { journal } = journalWith(store, makeLogger(), { retryBaseMs: 10_000, retryMaxMs: 10_000, maxPending: 100 });
+		for (let n = 1; n <= 20; n += 1) journal.record(entry(n));
+		await tick(20);
+		expect(attempts).toBe(1);
+		await run(journal.close);
+	});
+
 	it("drops the oldest queued events past the cap, warning once", () => {
 		const { journal, logger } = journalWith(null, makeLogger(), { flushBatchSize: 100 });
 		for (let n = 1; n <= 8; n++) journal.record(entry(n));
