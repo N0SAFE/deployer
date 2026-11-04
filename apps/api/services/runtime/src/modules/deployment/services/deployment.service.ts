@@ -89,7 +89,7 @@ import type { ResolvedRuntimeConfiguration } from "@deployer/shared/core/modules
 import type { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import type { DeploymentStateMachineScopeConfigInput } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { deploymentRunnerKindSchema } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
-import type { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
+import type { DeploymentStateMachineShape } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
 import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
 import type { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
@@ -183,7 +183,7 @@ export type DeploymentServicePorts = {
     readonly storagePolicies: StoragePolicyResolverRegistryShape;
     readonly workflow: DeploymentExecutionWorkflowShape;
     readonly queue: DeploymentQueueLifecycleShape;
-    readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService;
+    readonly deploymentStateMachineService: DeploymentStateMachineShape;
     readonly uploadBundles: UploadBundleRegistryShape;
     readonly projectAccessService: ProjectAccessService["Service"];
     readonly domainRoutingService: DomainRoutingService;

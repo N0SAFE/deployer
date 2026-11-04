@@ -58,7 +58,7 @@ const createService = (
             extractUploadedFile: vi.fn(),
             ...(gitServiceOverrides ?? {}),
         } as never,
-        stateMachine: new DeploymentProviderBuilderRunnerStateMachineService(),
+        stateMachine: DeploymentProviderBuilderRunnerStateMachineService.live,
         // See `createRegistry`: the spec supplies only the two Docker methods under
         // test, so the widening stays at this boundary.
         builderRegistry: createRegistry(dockerService),

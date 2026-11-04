@@ -351,7 +351,7 @@ describe('DeploymentService', () => {
                 repository: makeInMemoryDeploymentQueueRepository(),
                 events: mockDeploymentQueueEventService,
             }),
-            deploymentStateMachineService: new DeploymentProviderBuilderRunnerStateMachineService(),
+            deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService.live,
             uploadBundles,
             projectAccessService: mockProjectAccessService,
             domainRoutingService: mockDomainRoutingService,

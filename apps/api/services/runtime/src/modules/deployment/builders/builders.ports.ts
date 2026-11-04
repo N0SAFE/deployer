@@ -1,6 +1,6 @@
 import { Context } from "effect";
 
-import type { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
+import type { DeploymentStateMachineShape } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
 
 /**
@@ -10,5 +10,5 @@ import type { GitService } from "@deployer/shared/core/modules/git/git/services/
 export class BuilderGitPort extends Context.Service<BuilderGitPort, GitService>()("runtime/BuilderGitPort") {}
 export class BuilderStateMachinePort extends Context.Service<
     BuilderStateMachinePort,
-    DeploymentProviderBuilderRunnerStateMachineService
+    DeploymentStateMachineShape
 >()("runtime/BuilderStateMachinePort") {}

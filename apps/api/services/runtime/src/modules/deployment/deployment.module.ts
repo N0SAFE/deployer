@@ -12,7 +12,7 @@ import { EventsModule } from "@deployer/shared/core/modules/events/events.module
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
 import { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
-import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
+import { DeploymentProviderBuilderRunnerStateMachineService, type DeploymentStateMachineShape } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { ApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
@@ -177,7 +177,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 storagePolicies: Context.Service.Shape<typeof StoragePolicyResolverRegistry>,
                 workflow: Context.Service.Shape<typeof DeploymentExecutionWorkflow>,
                 queue: Context.Service.Shape<typeof DeploymentQueueLifecycle>,
-                deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
+                deploymentStateMachineService: DeploymentStateMachineShape,
                 uploadBundles: Context.Service.Shape<typeof UploadBundleRegistry>,
                 projectAccessService: Context.Service.Shape<typeof ProjectAccessService>,
                 domainRoutingService: DomainRoutingService,
