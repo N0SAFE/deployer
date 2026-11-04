@@ -18,7 +18,7 @@ import type { LocalDb } from "@deployer/node-state";
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { LOCAL_DATABASE_CONNECTION } from "../../database/database-connection";
 import { CoreDockerModule } from "../../docker/docker.module";
-import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
+import { NodeConfigSnapshot, type NodeConfigSnapshotShape } from "../../node-state/node-config.snapshot";
 import { supervisorProviders, SupervisorEventBus, type SupervisorEventBusFacade } from "../../supervision/index";
 
 import { makeDatabaseServiceRegistration } from "./database-service.supervisor";
@@ -32,7 +32,7 @@ export const SupervisorsDatabaseModule = createGlobalModule({
 	providers: supervisorProviders({
 		token: DATABASE_SUPERVISORS,
 		inject: [DockerEngine, NodeConfigSnapshot, EnvService, SupervisorEventBus, LOCAL_DATABASE_CONNECTION],
-		build: (engine: DockerEngineShape, snapshot: NodeConfigSnapshot, env: EnvService, bus: SupervisorEventBusFacade, db: LocalDb) => [
+		build: (engine: DockerEngineShape, snapshot: NodeConfigSnapshotShape, env: EnvService, bus: SupervisorEventBusFacade, db: LocalDb) => [
 			makeGlobalDbRegistration({ engine, snapshot, env, bus }),
 			makeLocalDbRegistration({ db, env, bus }),
 			makeDatabaseServiceRegistration({ engine, env, bus }),

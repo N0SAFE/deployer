@@ -5,7 +5,7 @@ import { afterAll, beforeAll } from 'vitest'
 
 import { setupContract } from '@deployer/bff-contracts'
 
-import { AuthCoreService } from '../core/modules/auth/services/auth-core.service'
+import { AuthCoreService, type AuthCoreServiceShape } from '../core/modules/auth/services/auth-core.service'
 import { appContract } from '../core/orpc/app-contract'
 
 import { SharedApiRuntimeManager } from './shared-api-runtime/manager'
@@ -65,7 +65,7 @@ async function buildSharedApiRuntimeContext(
 ): Promise<SharedApiRuntimeContext> {
     const runtime = await sharedRuntimeManager.getRuntime(options)
     const serviceMapper = createServiceMapper(runtime)
-    const betterAuth = serviceMapper.get(AuthCoreService).instance
+    const betterAuth = runtime.moduleRef.get<typeof AuthCoreService, AuthCoreServiceShape>(AuthCoreService).instance
     const tracker = createSharedOrpcResponseTracker()
 
     return {

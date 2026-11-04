@@ -32,28 +32,28 @@ describe("NodeReachabilityService outbound probes", () => {
 
     describe("check", () => {
         it("probes {url}/mesh/ping through the operator policy and reports the status", async () => {
-            egress.operator.mockResolvedValue(res(200));
+            egress.operator.mockReturnValue(Effect.succeed(res(200)));
             const result = await Effect.runPromise(service.check("http://10.0.0.5:3005/"));
             expect(egress.operator).toHaveBeenCalledWith({ url: "http://10.0.0.5:3005/mesh/ping" });
             expect(result).toMatchObject({ reachable: true, statusCode: 200 });
         });
 
         it("reports a non-2xx as unreachable", async () => {
-            egress.operator.mockResolvedValue(res(502));
+            egress.operator.mockReturnValue(Effect.succeed(res(502)));
             const result = await Effect.runPromise(service.check("http://10.0.0.5:3005"));
             expect(result).toMatchObject({ reachable: false, statusCode: 502, error: "HTTP 502" });
         });
 
         it("a refused target returns the generic reason: an authenticated user cannot use this as a port scanner", async () => {
-            egress.operator.mockRejectedValue(new EgressRequestError("Target not allowed by the network policy", "operator"));
+            egress.operator.mockReturnValue(Effect.fail(new EgressRequestError({ target: "operator", reason: "Target not allowed by the network policy", failure: "denied" })));
             const result = await Effect.runPromise(service.check("http://169.254.169.254"));
             expect(result).toMatchObject({ reachable: false, error: "Target not allowed by the network policy" });
         });
 
         it("a transport failure is a category, not the raw error", async () => {
-            egress.operator.mockRejectedValue(
-                new EgressRequestError("Connection failed", "operator", { cause: new Error("ECONNREFUSED 10.1.2.3:3005") }),
-            );
+            egress.operator.mockReturnValue(Effect.fail(
+                new EgressRequestError({ target: "operator", reason: "Connection failed", failure: "failed", cause: new Error("ECONNREFUSED 10.1.2.3:3005") }),
+            ));
             const result = await Effect.runPromise(service.check("http://10.1.2.3:3005"));
             expect(result.error).toBe("Connection failed");
         });
@@ -62,7 +62,7 @@ describe("NodeReachabilityService outbound probes", () => {
     describe("probePublicUrl (the node's own public URL)", () => {
         it("probes /health through the operator policy", async () => {
             reachability.getNodePublicUrl.mockReturnValue(Effect.succeed("https://api.example.com"));
-            egress.operator.mockResolvedValue(res(200));
+            egress.operator.mockReturnValue(Effect.succeed(res(200)));
             const result = await Effect.runPromise(service.probePublicUrl());
             expect(egress.operator).toHaveBeenCalledWith({ url: "https://api.example.com/health" });
             expect(result).toMatchObject({ reachable: true, lastStatus: "reachable" });
@@ -77,7 +77,7 @@ describe("NodeReachabilityService outbound probes", () => {
 
         it("reports an unreachable URL as the answer, not as a failure", async () => {
             reachability.getNodePublicUrl.mockReturnValue(Effect.succeed("https://api.example.com"));
-            egress.operator.mockRejectedValue(new Error("timeout"));
+            egress.operator.mockReturnValue(Effect.fail(new Error("timeout")));
             const result = await Effect.runPromise(service.probePublicUrl());
             expect(result).toMatchObject({ reachable: false, lastStatus: "timeout" });
         });

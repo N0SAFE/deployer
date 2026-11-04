@@ -1,9 +1,9 @@
-import { Effect } from "effect";
+import { Effect, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { LocalDatabaseError, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state";
 
-import { NodeConfigSnapshot } from "./node-config.snapshot";
+import { makeNodeConfigSnapshot } from "./node-config.snapshot";
 
 
 const row = (databaseUrl: string): NodeConfigRow => ({
@@ -50,7 +50,7 @@ function makeRepository(initial: NodeConfigRow | null) {
 describe("NodeConfigSnapshot", () => {
 	it("reads null before the first refresh", () => {
 		const repo = makeRepository(row("postgres://first"));
-		const snapshot = new NodeConfigSnapshot(repo.repository);
+		const snapshot = makeNodeConfigSnapshot(repo.repository);
 
 		expect(snapshot.current()).toBeNull();
 		expect(repo.find).not.toHaveBeenCalled();
@@ -58,43 +58,48 @@ describe("NodeConfigSnapshot", () => {
 
 	it("loads the row on refresh", async () => {
 		const repo = makeRepository(row("postgres://first"));
-		const snapshot = new NodeConfigSnapshot(repo.repository);
+		const snapshot = makeNodeConfigSnapshot(repo.repository);
 
-		await snapshot.refresh();
+		await Effect.runPromise(snapshot.refresh());
 
 		expect(snapshot.current()?.databaseUrl).toBe("postgres://first");
 	});
 
 	it("keeps the previous value when a refresh fails", async () => {
 		const repo = makeRepository(row("postgres://first"));
-		const snapshot = new NodeConfigSnapshot(repo.repository);
-		await snapshot.refresh();
+		const snapshot = makeNodeConfigSnapshot(repo.repository);
+		await Effect.runPromise(snapshot.refresh());
 
 		repo.failWith(true);
 
-		await expect(snapshot.refresh()).resolves.toMatchObject({ databaseUrl: "postgres://first" });
+		await expect(Effect.runPromise(snapshot.refresh())).resolves.toMatchObject({ databaseUrl: "postgres://first" });
 		expect(snapshot.current()?.databaseUrl).toBe("postgres://first");
 	});
 
 	it("sees a later write on the next refresh", async () => {
 		const repo = makeRepository(row("postgres://first"));
-		const snapshot = new NodeConfigSnapshot(repo.repository);
-		await snapshot.refresh();
+		const snapshot = makeNodeConfigSnapshot(repo.repository);
+		await Effect.runPromise(snapshot.refresh());
 
 		repo.write(row("postgres://second"));
-		await snapshot.refresh();
+		await Effect.runPromise(snapshot.refresh());
 
 		expect(snapshot.current()?.databaseUrl).toBe("postgres://second");
 	});
 
-	it("loads once on init and stops its timer on shutdown", async () => {
+	it("loads once on start, then refreshes on its own until interrupted", async () => {
 		const repo = makeRepository(row("postgres://first"));
-		const snapshot = new NodeConfigSnapshot(repo.repository);
+		const snapshot = makeNodeConfigSnapshot(repo.repository, { refreshIntervalMs: 5 });
 
-		await snapshot.onModuleInit();
-		snapshot.onApplicationShutdown();
-
+		await Effect.runPromise(snapshot.onStart?.() ?? Effect.void);
 		expect(snapshot.current()?.databaseUrl).toBe("postgres://first");
 		expect(repo.find).toHaveBeenCalledTimes(1);
+
+		repo.write(row("postgres://second"));
+		const fiber = Effect.runFork(snapshot.run?.() ?? Effect.void);
+		await new Promise((resolve) => setTimeout(resolve, 40));
+		await Effect.runPromise(Fiber.interrupt(fiber));
+
+		expect(snapshot.current()?.databaseUrl).toBe("postgres://second");
 	});
 });

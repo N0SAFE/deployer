@@ -115,7 +115,10 @@ describe("DeploymentExecutionWorkflow", () => {
             runtimeRunnerRegistry: {
                 execute: (kind, input) => Effect.tryPromise({ try: () => (runtimeRunnerRegistryService.execute as (...a: unknown[]) => Promise<never>)(kind, input), catch: (cause) => cause }),
             },
-            host: { run: (effect) => Effect.runPromise(effect as Effect.Effect<never>) as never },
+            host: {
+                run: (effect) => Effect.runPromise(effect as Effect.Effect<never>),
+                runUnwrapped: (effect) => Effect.runPromise(effect as Effect.Effect<never>),
+            },
             deploymentEventService: deploymentEventService as never,
             domainRoutingService: domainRoutingService as never,
             egress: egress as never,
@@ -501,7 +504,7 @@ describe("DeploymentExecutionWorkflow", () => {
         });
 
         it("probes /health of the user-supplied domain through the external egress policy", async () => {
-            egress.external.mockResolvedValue({ status: 200, headers: {}, body: new Uint8Array(), url: "" });
+            egress.external.mockReturnValue(Effect.succeed({ status: 200, headers: {}, body: new Uint8Array(), url: "" }));
             await probe("https://app.example.com/");
             expect(egress.external).toHaveBeenCalledWith({ url: "https://app.example.com/health" }, { timeoutMs: 10_000 });
             expect(deploymentRepository.insertLog).toHaveBeenCalledWith(
@@ -511,7 +514,7 @@ describe("DeploymentExecutionWorkflow", () => {
         });
 
         it("a refused target is logged as a warning with the generic reason and never blocks the deployment", async () => {
-            egress.external.mockRejectedValue(new Error("Target not allowed by the network policy"));
+            egress.external.mockReturnValue(Effect.fail(new Error("Target not allowed by the network policy")));
             await expect(probe("http://169.254.169.254")).resolves.toBeUndefined();
             expect(deploymentRepository.insertLog).toHaveBeenCalledWith(
                 "deployment-1",
@@ -521,7 +524,7 @@ describe("DeploymentExecutionWorkflow", () => {
         });
 
         it("a non-2xx answer is reported as unreachable", async () => {
-            egress.external.mockResolvedValue({ status: 503, headers: {}, body: new Uint8Array(), url: "" });
+            egress.external.mockReturnValue(Effect.succeed({ status: 503, headers: {}, body: new Uint8Array(), url: "" }));
             await probe("https://app.example.com");
             expect(deploymentRepository.insertLog).toHaveBeenCalledWith("deployment-1", expect.objectContaining({ level: "warn" }));
         });

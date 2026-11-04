@@ -13,7 +13,7 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
+import type { NodeConfigSnapshotShape } from "../../node-state/node-config.snapshot";
 import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 export { GLOBAL_DB_SUPERVISOR_ID };
@@ -21,7 +21,7 @@ export { GLOBAL_DB_SUPERVISOR_ID };
 export type GlobalDbSupervisorDeps = {
 	readonly engine: DockerEngineShape;
 	/** Synchronous cache of `node_config`: the spec's config callbacks cannot await a repository. */
-	readonly snapshot: NodeConfigSnapshot;
+	readonly snapshot: Pick<NodeConfigSnapshotShape, "current" | "refresh">;
 	readonly env: EnvService;
 	readonly bus: SupervisorEventBusFacade;
 };
@@ -61,7 +61,7 @@ export function makeGlobalDbRegistration({ engine, snapshot, env, bus }: GlobalD
 	});
 	return {
 		supervisor: buildSupervisor(globalDb.spec, bus, "GlobalDbSupervisor"),
-		activate: Effect.promise(() => snapshot.refresh()).pipe(
+		activate: snapshot.refresh().pipe(
 			Effect.map((row) => {
 				if (isComposeManaged()) {
 					logger.log("Compose-managed global DB detected (MANAGED_GLOBAL_DB_ENABLED=true) — supervisor skipped (not registered)");

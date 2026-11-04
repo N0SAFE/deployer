@@ -3,10 +3,12 @@ import { Module } from "@nestjs/common";
 import {
 	type ASYNC_OPTIONS_TYPE,
 	ConfigurableModuleClass,
+	MODULE_OPTIONS_TOKEN,
+	type AuthModuleOptions,
 	type OPTIONS_TYPE,
 } from "./definitions/auth-module-definition";
 import { makeSessionResolver, SessionResolver } from "./orpc/session-resolver";
-import { AuthCoreService } from "./services/auth-core.service";
+import { AuthCoreService, makeAuthCoreService, type AuthCoreServiceShape } from "./services/auth-core.service";
 
 import type { DynamicModule } from "@nestjs/common";
 
@@ -21,9 +23,9 @@ import type { DynamicModule } from "@nestjs/common";
  */
 @Module({
 	providers: [
-		AuthCoreService,
+		{ provide: AuthCoreService, useFactory: (options: AuthModuleOptions) => makeAuthCoreService(options), inject: [MODULE_OPTIONS_TOKEN] },
 		// Better Auth answers `getSession`; the oRPC auth plugin asks through this Effect service.
-		{ provide: SessionResolver, useFactory: (core: AuthCoreService) => makeSessionResolver(core.instance), inject: [AuthCoreService] },
+		{ provide: SessionResolver, useFactory: (core: AuthCoreServiceShape) => makeSessionResolver(core.instance), inject: [AuthCoreService] },
 	],
 	exports: [AuthCoreService, SessionResolver],
 })

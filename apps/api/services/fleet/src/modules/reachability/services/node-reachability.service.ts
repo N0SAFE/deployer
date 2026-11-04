@@ -2,13 +2,13 @@ import { Context, Effect } from "effect";
 import { Observable } from "rxjs";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
-import type { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
+import type { EgressServiceShape } from "@deployer/shared/core/modules/egress/egress.service";
 import type { NodeNetworkConfigData } from "@deployer/shared/core/modules/reachability/services/node-network-config.mapper";
 import type { PublicAccessPointServiceShape } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
 import type { ReachabilityServiceShape } from "@deployer/shared/core/modules/reachability/services/reachability.service";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
-import { attempt, attemptSync } from "../../../core/effects";
+import { attemptSync } from "../../../core/effects";
 import {
 	EgressPort,
 	PublicAccessPointPort,
@@ -85,7 +85,7 @@ export type NodeReachabilityServiceShape = {
 type Ports = {
 	readonly reachability: ReachabilityServiceShape;
 	readonly accessPoint: PublicAccessPointServiceShape;
-	readonly egress: EgressService;
+	readonly egress: EgressServiceShape;
 	readonly refresher: TraefikConfigRefresherShape;
 };
 
@@ -119,7 +119,7 @@ function makeNodeReachabilityService({ reachability, accessPoint, egress, refres
 	const probePublicUrl = Effect.fn("NodeReachabilityService.probePublicUrl")(function* () {
 		const publicUrl = yield* reachability.getNodePublicUrl();
 		if (!publicUrl) return { publicUrl: null, lastCheckedAt: null, lastStatus: null, reachable: null };
-		return yield* attempt(() => egress.operator({ url: `${publicUrl}/health` })).pipe(
+		return yield* egress.operator({ url: `${publicUrl}/health` }).pipe(
 			Effect.map(
 				(resp): PublicUrlProbe => ({
 					publicUrl,
@@ -146,7 +146,7 @@ function makeNodeReachabilityService({ reachability, accessPoint, egress, refres
 			// Any authenticated user can name this URL: it goes through the operator egress policy
 			// (no loopback / link-local / metadata, no redirects) and failures are reported as a
 			// category, never as a resolved address or a transport error.
-			return yield* attempt(() => egress.operator({ url: probeUrl })).pipe(
+			return yield* egress.operator({ url: probeUrl }).pipe(
 				Effect.map((resp) => ({
 					url,
 					reachable: isOk(resp.status),

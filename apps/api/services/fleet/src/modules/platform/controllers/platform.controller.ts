@@ -18,7 +18,7 @@ import { procedure } from "@deployer/nest-effect";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import { rateLimit } from "@deployer/rate-limit";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
-import { AuthCoreService } from "@deployer/shared/core/modules/auth/services/auth-core.service";
+import { AuthCoreService, type AuthCoreServiceShape } from "@deployer/shared/core/modules/auth/services/auth-core.service";
 import {
 	AppInstanceService,
 	STALE_AFTER_MS,
@@ -34,7 +34,7 @@ const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;
 export class PlatformController {
 	constructor(
 		@Inject(AppInstanceService) private readonly appInstances: AppInstanceServiceShape,
-		private readonly authCoreService: AuthCoreService,
+		@Inject(AuthCoreService) private readonly authCoreService: AuthCoreServiceShape,
 	) {}
 	@Implement(registerAppInstanceContract)
 	register() {

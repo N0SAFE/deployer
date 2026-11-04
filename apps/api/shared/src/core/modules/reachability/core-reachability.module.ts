@@ -6,7 +6,7 @@ import { createGlobalModule } from '@deployer/nest-effect';
 import { EnvModule, EnvService } from '../../../config/env/env.module';
 import { DatabasePort } from '../database/storage';
 import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from '../edge/edge-provider.registry';
-import { EgressService } from '../egress/egress.service';
+import { EgressService, type EgressServiceShape } from '../egress/egress.service';
 import { IngressLanesService, type IngressLanesServiceShape } from '../platform-ingress/services/ingress-lanes.service';
 import { GlobalDatabaseModule } from '../database/global/global-database.module';
 import { CoreEdgeModule } from '../edge/edge.module';
@@ -54,7 +54,7 @@ export const CoreReachabilityModule = createGlobalModule({
         lanes: IngressLanesServiceShape,
         edges: EdgeProviderRegistryShape,
         publicEdge: PublicEdgeServiceShape,
-        egress: EgressService,
+        egress: EgressServiceShape,
       ) => makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes, edges, publicEdge, egress }),
       inject: [NodeNetworkConfigRepository, NodeConfigRepository, IngressLanesService, EdgeProviderRegistry, PublicEdgeService, EgressService],
     },

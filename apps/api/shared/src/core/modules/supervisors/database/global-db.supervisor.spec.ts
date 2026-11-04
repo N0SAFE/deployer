@@ -7,7 +7,7 @@ import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import { makeSupervisorOrchestrator } from "@deployer/supervision";
 
 
-import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
+import { makeNodeConfigSnapshot } from "../../node-state/node-config.snapshot";
 import { harness, testBus } from "../supervisor-test-harness";
 
 import { GLOBAL_DB_SUPERVISOR_ID, makeGlobalDbRegistration } from "./global-db.supervisor";
@@ -83,9 +83,9 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 
 async function makeSupervisor(mocks: ReturnType<typeof makeMocks>) {
 	const env = { get: vi.fn((key: string) => ({ MANAGED_GLOBAL_DB_ENABLED: false })[key as "MANAGED_GLOBAL_DB_ENABLED"]) } as unknown as EnvService;
-	const snapshot = new NodeConfigSnapshot(mocks.nodeConfigRepository);
+	const snapshot = makeNodeConfigSnapshot(mocks.nodeConfigRepository);
 	// The app primes the cache in `onModuleInit`, before any registration activates.
-	await snapshot.refresh();
+	await Effect.runPromise(snapshot.refresh());
 	return harness(makeGlobalDbRegistration({ engine: mocks.dockerService, snapshot, env, bus: testBus() }));
 }
 

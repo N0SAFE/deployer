@@ -16,7 +16,7 @@ import {
 import type { PublicAccessPointState } from "./public-access-point.state";
 import type { PublicEdgeServiceShape } from "./public-edge.service";
 import type { EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
-import type { EgressService } from "../../egress/egress.service";
+import type { EgressServiceShape } from "../../egress/egress.service";
 import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
 import type { NodeNetworkConfigRepositoryShape } from "../repositories/node-network-config.repository";
 
@@ -105,16 +105,12 @@ type Ports = {
   readonly lanes: Pick<IngressLanesServiceShape, "getLanes">;
   readonly edges: EdgeProviderRegistryShape;
   readonly publicEdge: PublicEdgeServiceShape;
-  /** Still a Promise-based provider of the egress module. */
-  readonly egress: Pick<EgressService, "probeUserAddress" | "fixedExternal" | "external" | "probeOperatorPeer">;
+  readonly egress: Pick<EgressServiceShape, "probeUserAddress" | "fixedExternal" | "external" | "probeOperatorPeer">;
 };
 
 const IP_LOOKUP_SERVICES = ["https://checkip.amazonaws.com", "https://api.ipify.org", "https://icanhazip.com"];
 
 export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes, edges, publicEdge, egress }: Ports): ReachabilityServiceShape {
-  /** One Promise-based dependency call: a rejection is a `ReachabilityDependencyFailure` for `operation`. */
-  const dependency = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, Failure> =>
-    Effect.tryPromise({ try: run, catch: (cause) => new ReachabilityDependencyFailure({ operation, cause }) });
   const storage = <A, E extends { readonly message: string }>(operation: string, effect: Effect.Effect<A, E>): Effect.Effect<A, Failure> =>
     Effect.mapError(effect, (cause) => new ReachabilityDependencyFailure({ operation, cause }));
 
@@ -145,16 +141,9 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
     Effect.gen(function* () {
       const clean = address.trim().replace(/\/+$/, "");
       if (!clean) return { valid: false, reason: "Address is empty" };
-      const result = yield* Effect.tryPromise({
-        try: () =>
-          egress.probeUserAddress(clean, ["/mesh/ping", "/health"], (value) =>
-            `Address "${value}" did not respond on this node's /mesh/ping or /health endpoints. DNS may still be propagating, or a firewall/NAT prevents this node from reaching its own public address.`,
-          ),
-        catch: (cause) => cause,
-      }).pipe(
-        Effect.catch((cause) =>
-          Effect.succeed({ valid: false, reason: `The probe failed: ${cause instanceof Error ? cause.message : String(cause)}`, latencyMs: undefined, statusCode: undefined }),
-        ),
+      // The probe reports an unreachable address in its result: it never fails.
+      const result = yield* egress.probeUserAddress(clean, ["/mesh/ping", "/health"], (value) =>
+        `Address "${value}" did not respond on this node's /mesh/ping or /health endpoints. DNS may still be propagating, or a firewall/NAT prevents this node from reaching its own public address.`,
       );
       return { valid: result.valid, reason: result.reason, latencyMs: result.latencyMs, statusCode: result.statusCode };
     });
@@ -167,7 +156,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
 
   /** A GET through the egress's fixed-host policy; `null` when it fails or answers outside 2xx. */
   const fixedGet = (url: string, hosts: readonly string[]) =>
-    Effect.tryPromise({ try: () => egress.fixedExternal({ url }, hosts), catch: (cause) => cause }).pipe(
+    egress.fixedExternal({ url }, hosts).pipe(
       Effect.map((resp) => (resp.status >= 200 && resp.status < 300 ? resp : null)),
       Effect.catch(() => Effect.succeed(null)),
     );
@@ -325,7 +314,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
 
         // Step 4: HTTP reachability, https first.
         const head = (scheme: "https" | "http", timeoutMs: number) =>
-          Effect.tryPromise({ try: () => egress.external({ url: `${scheme}://${cleanDomain}`, method: "HEAD" }, { timeoutMs }), catch: (cause) => cause }).pipe(
+          egress.external({ url: `${scheme}://${cleanDomain}`, method: "HEAD" }, { timeoutMs }).pipe(
             Effect.map((resp) => resp.status),
             Effect.catch(() => Effect.succeed(undefined)),
           );
@@ -346,7 +335,7 @@ export function makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes,
     checkMeshUrlReachability: (url) =>
       Effect.gen(function* () {
         // The probe mechanics are the egress's generic primitive; which paths identify a node is this platform's convention.
-        const result = yield* dependency("probe the mesh peer", () => egress.probeOperatorPeer(url, "/mesh/ping", "/health"));
+        const result = yield* egress.probeOperatorPeer(url, "/mesh/ping", "/health");
         if (result.reachable) {
           yield* Effect.logInfo(`Mesh reachable at ${result.probeUrl} (${String(result.latencyMs)}ms)`);
         } else {

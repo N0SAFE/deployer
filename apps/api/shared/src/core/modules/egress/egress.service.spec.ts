@@ -1,6 +1,7 @@
+import { Effect } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { EgressRequestError, EgressService } from "./egress.service";
+import { EgressRequestError, makeEgressService } from "./egress.service";
 
 let server: Bun.Server<undefined>;
 let base: string;
@@ -26,16 +27,13 @@ afterAll(async () => {
 	await server.stop(true);
 });
 
-const prod = () => new EgressService({ NODE_ENV: "production" });
-const dev = () => new EgressService({ NODE_ENV: "development" });
+const prod = () => makeEgressService({ env: { NODE_ENV: "production" } });
+const dev = () => makeEgressService({ env: { NODE_ENV: "development" } });
 
-const rejection = async (promise: Promise<unknown>): Promise<EgressRequestError> => {
-	const error = await promise.then(
-		() => undefined,
-		(e: unknown) => e,
-	);
+const rejection = async (effect: Effect.Effect<unknown, EgressRequestError>): Promise<EgressRequestError> => {
+	const error = await Effect.runPromise(Effect.flip(effect));
 	expect(error).toBeInstanceOf(EgressRequestError);
-	return error as EgressRequestError;
+	return error;
 };
 
 describe("EgressService", () => {
@@ -59,13 +57,13 @@ describe("EgressService", () => {
 	});
 
 	it("outside production a local target is reachable", async () => {
-		const res = await dev().operator({ url: `${base}/ok` });
+		const res = await Effect.runPromise(dev().operator({ url: `${base}/ok` }));
 		expect(res.status).toBe(200);
 	});
 
 	it("keeps the real reason (kind and cause) for the logs but not in the message", async () => {
 		const error = await rejection(prod().operator({ url: `${base}/ok` }));
-		expect(error.kind).toBe("operator");
+		expect(error.target).toBe("operator");
 		expect((error.cause as { _tag?: string })._tag).toBe("EgressDenied");
 	});
 
@@ -84,7 +82,7 @@ describe("EgressService", () => {
 	it("fixedExternal only reaches its allow-listed hosts", async () => {
 		const error = await rejection(dev().fixedExternal({ url: `${base}/ok` }, ["dns.google"]));
 		expect(error.message).toBe("Target not allowed by the network policy");
-		expect(error.kind).toBe("fixedExternal");
+		expect(error.target).toBe("fixedExternal");
 	});
 });
 

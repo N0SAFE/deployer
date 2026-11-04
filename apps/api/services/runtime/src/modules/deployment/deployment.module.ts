@@ -147,7 +147,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 host: EffectHostShape,
                 deploymentEventService: DeploymentEventService,
                 domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>,
-                egress: EgressService,
+                egress: Context.Service.Shape<typeof EgressService>,
             ) =>
                 makeDeploymentExecutionWorkflow({
                     deploymentRepository,

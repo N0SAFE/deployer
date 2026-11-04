@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 import * as schema from '@deployer/nest-schema/global';
 
-import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
+import { AuthCoreService, type AuthCoreServiceShape } from '@/core/modules/auth/services/auth-core.service';
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 // Temporary seed user email for when other auth methods fail
@@ -43,14 +43,14 @@ export class CliAuthService {
   private readonly logger = new Logger(CliAuthService.name);
   constructor(
     private readonly databaseService: GlobalDatabaseService,
-    private readonly authCoreService: AuthCoreService,
+    @Inject(AuthCoreService) private readonly authCoreService: AuthCoreServiceShape,
     private readonly configService: ConfigService,
   ) {}
 
   /**
    * Gets the auth core service for direct API access
    */
-  getAuthCoreService(): AuthCoreService {
+  getAuthCoreService(): AuthCoreServiceShape {
     return this.authCoreService;
   }
 

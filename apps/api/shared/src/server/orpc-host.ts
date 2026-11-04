@@ -18,14 +18,14 @@ import {
 } from "@deployer/nest-effect/authz";
 
 import { permissionsOfRole } from "../core/authz/role-catalog";
-import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
+import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import {
 	logOrpcErrors,
 	transformNestJSErrorToOrpcError,
 } from "../core/modules/auth/orpc/index";
 import { AuthPlugin } from "../core/modules/auth/orpc/plugins/auth.plugin";
 import { SessionResolver, type SessionResolverShape } from "../core/modules/auth/orpc/session-resolver";
-import { AuthCoreService } from "../core/modules/auth/services/auth-core.service";
+import { AuthCoreService, type AuthCoreServiceShape } from "../core/modules/auth/services/auth-core.service";
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { DynamicModule, ExecutionContext } from "@nestjs/common";
@@ -163,12 +163,12 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 	return ORPCModule.forRootAsync({
 		useFactory: (
 			request: Request,
-			authCoreService: AuthCoreService,
+			authCoreService: AuthCoreServiceShape,
 			sessions: SessionResolverShape,
 			...deps: ExtraInstances<ExtraD>
 		) => {
 			const emptyAuthUtils = authCoreService.createEmptyAuthUtils();
-			const internalErrorInsightService = new InternalErrorInsightService();
+			const internalErrorInsightService = makeInternalErrorInsightService();
 
 			/**
 			 * The app owns the extra keys (e.g. `effect/context`); shared cannot

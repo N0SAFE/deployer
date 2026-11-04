@@ -4,7 +4,7 @@ import type { EffectHostShape } from "@deployer/nest-effect";
 import type { DeploymentObservabilityContext } from "@deployer/contracts-entities";
 import { runtimeRunnerOptionsSchema } from "@deployer/contracts-entities";
 import type { DomainRoutingService, RouteSyncResult } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
-import type { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
+import type { EgressServiceShape } from "@deployer/shared/core/modules/egress/egress.service";
 import { isRecord } from "@deployer/type-guards"
 
 import type { RuntimeRunnerRegistryShape } from "@/modules/runners/runtime-runner-registry.service";
@@ -46,10 +46,10 @@ export type DeploymentExecutionWorkflowPorts = {
     readonly deploymentRepository: Context.Service.Shape<typeof DeploymentRepositoryPort>;
     /** The runner registry; its program needs the runners' own services, so it runs on the app-wide host. */
     readonly runtimeRunnerRegistry: RuntimeRunnerRegistryShape;
-    readonly host: Pick<EffectHostShape, "run">;
+    readonly host: Pick<EffectHostShape, "run" | "runUnwrapped">;
     readonly deploymentEventService: DeploymentEventService;
     readonly domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>;
-    readonly egress: EgressService;
+    readonly egress: EgressServiceShape;
 };
 
 export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkflowPorts) {
@@ -1018,7 +1018,7 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
             const probeUrl = `${url.replace(/\/$/, "")}/health`;
             const start = Date.now();
             // The domain is user-supplied: public targets only, no redirects, result stored in the logs.
-            const resp = await egress.external({ url: probeUrl }, { timeoutMs: 10_000 });
+            const resp = await host.runUnwrapped(egress.external({ url: probeUrl }, { timeoutMs: 10_000 }));
             const reachable = resp.status >= 200 && resp.status < 300;
             const latencyMs = Date.now() - start;
             const result = {

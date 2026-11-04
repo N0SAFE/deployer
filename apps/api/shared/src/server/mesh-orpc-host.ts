@@ -9,7 +9,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { domainErrorInterceptor } from "@deployer/effect-orpc";
 
 
-import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
+import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import { logOrpcErrors, transformNestJSErrorToOrpcError } from "../core/modules/auth/orpc/index";
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
@@ -89,7 +89,7 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 
 	return ORPCModule.forRootAsync({
 		useFactory: (request: Request, verify: MeshCredentialVerifier, ...deps: ExtraInstances<ExtraD>) => {
-			const insight = new InternalErrorInsightService();
+			const insight = makeInternalErrorInsightService();
 
 			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> =>
 				({

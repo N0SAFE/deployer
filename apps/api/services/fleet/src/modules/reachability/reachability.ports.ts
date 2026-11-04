@@ -2,7 +2,7 @@ import { Context } from 'effect'
 
 import type { NodeDoorClient } from '@deployer/mesh-client'
 import type { EdgeProviderRegistryShape } from '@deployer/shared/core/modules/edge/edge-provider.registry'
-import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
+import type { EgressServiceShape } from '@deployer/shared/core/modules/egress/egress.service'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
 import type { IngressLanesServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
 import type { PublicAccessPointServiceShape } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
@@ -50,6 +50,6 @@ export class PublicAccessPointPort extends Context.Service<
     PublicAccessPointPort,
     PublicAccessPointServiceShape
 >()('fleet/PublicAccessPointPort') {}
-export class EgressPort extends Context.Service<EgressPort, EgressService>()(
+export class EgressPort extends Context.Service<EgressPort, EgressServiceShape>()(
     'fleet/EgressPort'
 ) {}

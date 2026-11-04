@@ -36,7 +36,7 @@ import * as globalSchema from '@deployer/nest-schema/global'
 
 import { EnvModule } from "../../../../config/env/env.module"
 import { EnvService } from "../../../../config/env/env.module"
-import { NodeConfigSnapshot } from '../../node-state/node-config.snapshot'
+import { NodeConfigSnapshot, type NodeConfigSnapshotShape } from '../../node-state/node-config.snapshot'
 import { NodeStateModule } from '../../node-state/node-state.module'
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
 import { LocalDatabaseModule } from "../local/local-database.module"
@@ -150,7 +150,7 @@ function readPoolSizing(env: EnvService): PoolSizing {
  * Both are read through the SAME resolver, on every connect, so the pool follows
  * the platform through onboarding instead of freezing whatever was true at boot.
  */
-function buildSharedPool(snapshot: NodeConfigSnapshot, env: EnvService): Pool {
+function buildSharedPool(snapshot: Pick<NodeConfigSnapshotShape, "current">, env: EnvService): Pool {
     let announced = false
 
     const resolveUrl = (): string => {
