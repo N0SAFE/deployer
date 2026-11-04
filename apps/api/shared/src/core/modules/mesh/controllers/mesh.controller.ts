@@ -2,9 +2,9 @@ import * as crypto from "node:crypto";
 
 import { Controller, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { Client } from "pg";
 
+import { procedure } from "@deployer/nest-effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { meshContract } from "@deployer/fleet-contracts";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
@@ -12,7 +12,6 @@ import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics
 
 import { EnvService } from "../../../../config/env/env.module";
 import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
-import { AllowAnonymous } from "../../auth/decorators/decorators";
 import { requireAuth } from "../../auth/orpc/middlewares";
 import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
 
@@ -78,9 +77,8 @@ export class MeshController {
     // ─── PUBLIC: ping (unauthenticated) ───────────────────────────────────
 
     @Implement(meshContract.ping)
-    @AllowAnonymous()
     ping() {
-        return implement(meshContract.ping).handler(() => {
+        return procedure(meshContract.ping).handler(() => {
             const localNode = this.localNodeInfo();
             return {
                 ok: true as const,
@@ -95,7 +93,7 @@ export class MeshController {
 
     @Implement(meshContract.getNodeMetrics)
     getNodeMetrics() {
-        return implement(meshContract.getNodeMetrics)
+        return procedure(meshContract.getNodeMetrics)
             .use(requireAuth())
             .handler(async () => {
                 return runPromiseUnwrapped(this.systemMetrics.snapshot());
@@ -109,7 +107,7 @@ export class MeshController {
 
     @Implement(meshContract.listEventStreams)
     listEventStreams() {
-        return implement(meshContract.listEventStreams)
+        return procedure(meshContract.listEventStreams)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.coreEventSyncService.listStreams(input.query);
@@ -118,7 +116,7 @@ export class MeshController {
 
     @Implement(meshContract.findEventStreamById)
     findEventStreamById() {
-        return implement(meshContract.findEventStreamById)
+        return procedure(meshContract.findEventStreamById)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.coreEventSyncService.getStreamById(input.params.id);
@@ -127,7 +125,7 @@ export class MeshController {
 
     @Implement(meshContract.subscribeEventStream)
     subscribeEventStream() {
-        return implement(meshContract.subscribeEventStream)
+        return procedure(meshContract.subscribeEventStream)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.coreEventSyncService.streamSync({
@@ -160,7 +158,7 @@ export class MeshController {
 
     @Implement(meshContract.getNodeConfig)
     getNodeConfig() {
-        return implement(meshContract.getNodeConfig)
+        return procedure(meshContract.getNodeConfig)
             .use(requireAuth())
             .handler(async () => {
                 const row = await runPromiseUnwrapped(this.nodeConfigRepository.find());
@@ -189,7 +187,7 @@ export class MeshController {
 
     @Implement(meshContract.updateNodeConfig)
     updateNodeConfig() {
-        return implement(meshContract.updateNodeConfig)
+        return procedure(meshContract.updateNodeConfig)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const now = new Date().toISOString();
@@ -236,7 +234,7 @@ export class MeshController {
 
     @Implement(meshContract.regenerateNodeConfigSecret)
     regenerateNodeConfigSecret() {
-        return implement(meshContract.regenerateNodeConfigSecret)
+        return procedure(meshContract.regenerateNodeConfigSecret)
             .use(requireAuth())
             .handler(async () => {
                 const newSecret = crypto.randomBytes(32).toString("hex");
@@ -267,7 +265,7 @@ export class MeshController {
 
     @Implement(meshContract.testNodeConfigDb)
     testNodeConfigDb() {
-        return implement(meshContract.testNodeConfigDb)
+        return procedure(meshContract.testNodeConfigDb)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const client = new Client({

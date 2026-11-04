@@ -267,7 +267,7 @@ Reports: [API](subagent-reports/09-AUTH-SUBAGENT-01-API.md) | [Web](subagent-rep
 
 | ID | Item | Effort | Layer |
 |:--:|------|:------:|:-----:|
-| A1 | Fix `as unknown as` in auth guards/middlewares/plugin-utils | M | API |
+| A1 | ~~Fix `as unknown as` in auth guards/middlewares/plugin-utils~~ — moot: that layer is deleted (`SEC-062`) | — | API |
 | A2 | Resolve TODO(ph2) in orpc/middlewares.ts — proper DI | M | API |
 | A3 | Add tests for auth-core.service.ts (missing) | S | API |
 | A4 | Review DI token consistency (class vs string tokens) | S | API |

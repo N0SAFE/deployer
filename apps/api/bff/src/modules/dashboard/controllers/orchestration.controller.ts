@@ -1,6 +1,5 @@
 import { Controller,  Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
 import {
 	bffAccountOverviewContract,
@@ -11,6 +10,7 @@ import {
 	bffProjectDetailContract,
 	bffServiceDetailContract,
 } from "@deployer/bff-contracts";
+import { procedure } from "@deployer/nest-effect";
 import { analyticsContract } from "@deployer/identity-contracts";
 
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
@@ -55,10 +55,10 @@ export class OrchestrationController {
 	 */
 	@Implement(bffDashboardOverviewContract)
 	dashboardOverview() {
-		return implement(bffDashboardOverviewContract)
+		return procedure(bffDashboardOverviewContract)
 			.use(requireAuth())
 			.handler(async ({ context }) => {
-				const userId = context.auth.user.id;
+				const userId = context.auth.requireAuth().user.id;
 				const sections: Section[] = [];
 
 				// Parallel: these four are independent, so a sequential fan-out would add
@@ -142,7 +142,7 @@ export class OrchestrationController {
 	/** A page of projects, each with its roll-up. */
 	@Implement(bffListProjectOverviewsContract)
 	listProjectOverviews() {
-		return implement(bffListProjectOverviewsContract)
+		return procedure(bffListProjectOverviewsContract)
 			.use(requireAuth())
 			.handler(async ({ input }) => {
 				const result = await this.composer.projectOverviews({
@@ -168,7 +168,7 @@ export class OrchestrationController {
 	/** One project's detail screen. */
 	@Implement(bffProjectDetailContract)
 	projectDetail() {
-		return implement(bffProjectDetailContract)
+		return procedure(bffProjectDetailContract)
 			.use(requireAuth())
 			.handler(async ({ input, errors }) => {
 				const projectId = input.params.projectId;
@@ -202,7 +202,7 @@ export class OrchestrationController {
 	/** One service's detail screen. */
 	@Implement(bffServiceDetailContract)
 	serviceDetail() {
-		return implement(bffServiceDetailContract)
+		return procedure(bffServiceDetailContract)
 			.use(requireAuth())
 			.handler(async ({ input, errors }) => {
 				try {
@@ -234,7 +234,7 @@ export class OrchestrationController {
 	 */
 	@Implement(bffAnalyticsOverviewContract)
 	analyticsOverview() {
-		return implement(bffAnalyticsOverviewContract)
+		return procedure(bffAnalyticsOverviewContract)
 			.use(requireAuth())
 			.handler(async ({ input }) => {
 				const timeRange = input.query.timeRange;
@@ -272,14 +272,14 @@ export class OrchestrationController {
 	 */
 	@Implement(bffAccountOverviewContract)
 	accountOverview() {
-		return implement(bffAccountOverviewContract)
+		return procedure(bffAccountOverviewContract)
 			.use(requireAuth())
 			.handler(async ({ context, errors }) => {
 				// The session proves the user EXISTS (the BFF resolved it), so `null` here
 				// means the identity service could not answer — not that the caller is
 				// unknown. Either way there is no profile to return, and a NOT_FOUND is the
 				// honest response rather than a fabricated one.
-				const user = await this.reads.findOperator(context.auth.user.id);
+				const user = await this.reads.findOperator(context.auth.requireAuth().user.id);
 				if (user === null) {
 					throw errors.NOT_FOUND();
 				}
@@ -297,7 +297,7 @@ export class OrchestrationController {
 	/** The device/CLI view: the flat service list with its status. */
 	@Implement(bffFleetOverviewContract)
 	fleetOverview() {
-		return implement(bffFleetOverviewContract)
+		return procedure(bffFleetOverviewContract)
 			.use(requireAuth())
 			.handler(async () => {
 				const sections: Section[] = [];

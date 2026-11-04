@@ -1,6 +1,7 @@
 import { type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 
 import { createModuleContext } from "@deployer/nest-effect";
+import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
@@ -16,8 +17,6 @@ import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { AuthModule } from "@/core/modules/auth/auth.module";
 import { BootstrapModule } from "@/core/modules/bootstrap/bootstrap.module";
-import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
-
 import { DatabaseModule } from "@/core/modules/database/database.module";
 import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
 import { SupervisorsDatabaseModule } from "@/core/modules/supervisors/database/database-supervisors.module";

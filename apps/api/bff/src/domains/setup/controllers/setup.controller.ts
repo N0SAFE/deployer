@@ -1,9 +1,9 @@
 import { Controller, Logger, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { ORPCError } from "@orpc/server";
 import { Pool } from "pg";
 
+import { procedure } from "@deployer/nest-effect";
 import { setupContract } from "@deployer/bff-contracts";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
@@ -53,14 +53,14 @@ export class SetupController {
 
     @Implement(setupContract.getState)
     getState() {
-        return implement(setupContract.getState)
+        return procedure(setupContract.getState)
             .use(publicAccess())
             .handler(async () => this.initializationService.getSetupState());
     }
 
     @Implement(setupContract.getNodeStatus)
     getNodeStatus() {
-        return implement(setupContract.getNodeStatus)
+        return procedure(setupContract.getNodeStatus)
             .use(publicAccess())
             .handler(async () => this.initializationService.getNodeStatus());
     }
@@ -73,7 +73,7 @@ export class SetupController {
      */
     @Implement(setupContract.probeDatabase)
     probeDatabase() {
-        return implement(setupContract.probeDatabase)
+        return procedure(setupContract.probeDatabase)
             .use(publicAccess())
             .handler(async ({ input }) => {
                 await this.initializationService.assertSetupMutable();
@@ -112,7 +112,7 @@ export class SetupController {
      */
     @Implement(setupContract.triggerInitialize)
     triggerInitialize() {
-        return implement(setupContract.triggerInitialize)
+        return procedure(setupContract.triggerInitialize)
             .use(publicAccess())
             .handler(async ({ input }) => {
                 await this.initializationService.assertSetupMutable();
@@ -131,7 +131,7 @@ export class SetupController {
      */
     @Implement(setupContract.getInitializeStream)
     getInitializeStream() {
-        return implement(setupContract.getInitializeStream)
+        return procedure(setupContract.getInitializeStream)
             .use(publicAccess())
             .handler(() => this.initializationService.getInitializeStream());
     }
@@ -144,7 +144,7 @@ export class SetupController {
      */
     @Implement(setupContract.listPostSetupHints)
     listPostSetupHints() {
-        return implement(setupContract.listPostSetupHints)
+        return procedure(setupContract.listPostSetupHints)
             .use(publicAccess())
             .handler(() => ({
                 hintIds: ["scanning" as const, "notifications" as const],
@@ -156,7 +156,7 @@ export class SetupController {
      */
     @Implement(setupContract.dismissPostSetupHint)
     setupDismissPostSetupHint() {
-        return implement(setupContract.dismissPostSetupHint)
+        return procedure(setupContract.dismissPostSetupHint)
             .use(publicAccess())
             .handler(async ({ input, errors }) => {
                 await this.initializationService.assertSetupMutable();
@@ -207,7 +207,7 @@ export class SetupController {
      */
     @Implement(setupContract.getPostSetupDestination)
     getPostSetupDestination() {
-        return implement(setupContract.getPostSetupDestination)
+        return procedure(setupContract.getPostSetupDestination)
             .use(publicAccess())
             .handler(async () => this.postSetupDestination.resolve());
     }
@@ -221,14 +221,14 @@ export class SetupController {
      */
     @Implement(setupContract.getPostSetupVerification)
     getPostSetupVerification() {
-        return implement(setupContract.getPostSetupVerification)
+        return procedure(setupContract.getPostSetupVerification)
             .use(publicAccess())
             .handler(async () => this.postSetupVerification.verify());
     }
 
     @Implement(setupContract.getPostSetupVerificationStream)
     getPostSetupVerificationStream() {
-        return implement(setupContract.getPostSetupVerificationStream)
+        return procedure(setupContract.getPostSetupVerificationStream)
             .use(publicAccess())
             .handler(() =>
                 liveSnapshot(() => this.postSetupVerification.verify(), {

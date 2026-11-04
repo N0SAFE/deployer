@@ -174,7 +174,7 @@ All 26 mock imports across 15 files removed. Key pages migrated:
 | `filters/api-error-exception-filter.ts` | 💀 DEAD |
 | `orpc/interceptors.ts`, `middlewares.ts`, `plugins/*`, `types.ts` | 💀 DEAD |
 | `services/auth-core.service.ts`, `auth.service.ts` | 💀 DEAD |
-| `plugin-utils/*` (6 files) | 💀 DEAD |
+| `plugin-utils/*` (6 files) | 🗑️ DELETED (2026-11-04) — the Nest-guard/middleware converter and plugin registry went with the second authorization surface (`SEC-062`) |
 | `utils/*` (2 files) | 💀 DEAD |
 
 **Why Dead:** The API (`apps/api`) re-implemented auth internally in `core/modules/auth/`. The shared `@deployer/auth` (at `packages/auth/`) IS still used — but the NestJS-specific wrapper (`packages/nest/auth/`) is orphaned.

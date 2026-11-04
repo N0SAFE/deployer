@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
+import { procedure } from "@deployer/nest-effect";
 import { bffConsoleContract } from "@deployer/bff-contracts";
 
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
@@ -38,7 +38,7 @@ export class ConsoleControlController {
 	/** The managed web app's current state. */
 	@Implement(bffConsoleContract.webState)
 	webState() {
-		return implement(bffConsoleContract.webState).handler(async () => {
+		return procedure(bffConsoleContract.webState).handler(async () => {
 			return this.managedWeb.state();
 		});
 	}
@@ -46,7 +46,7 @@ export class ConsoleControlController {
 	/** Flip the enabled flag and converge. */
 	@Implement(bffConsoleContract.toggleWeb)
 	toggleWeb() {
-		return implement(bffConsoleContract.toggleWeb)
+		return procedure(bffConsoleContract.toggleWeb)
 			.use(requireAuth())
 			.handler(async () => {
 				return this.managedWeb.toggle();
@@ -56,7 +56,7 @@ export class ConsoleControlController {
 	/** Force a restart of the managed web container (also enables it). */
 	@Implement(bffConsoleContract.restartWeb)
 	restartWeb() {
-		return implement(bffConsoleContract.restartWeb)
+		return procedure(bffConsoleContract.restartWeb)
 			.use(requireAuth())
 			.handler(async () => {
 				return this.managedWeb.restart();
@@ -66,7 +66,7 @@ export class ConsoleControlController {
 	/** Set, or clear with null, the custom public origin. */
 	@Implement(bffConsoleContract.setWebOrigin)
 	setWebOrigin() {
-		return implement(bffConsoleContract.setWebOrigin)
+		return procedure(bffConsoleContract.setWebOrigin)
 			.use(requireAuth())
 			.handler(async ({ input }) => {
 				return this.managedWeb.setOrigin(input);
@@ -76,7 +76,7 @@ export class ConsoleControlController {
 	/** Provision the web app's own tunnel. */
 	@Implement(bffConsoleContract.enableWebTunnel)
 	enableWebTunnel() {
-		return implement(bffConsoleContract.enableWebTunnel)
+		return procedure(bffConsoleContract.enableWebTunnel)
 			.use(requireAuth())
 			.handler(async ({ input }) => {
 				return this.managedWeb.enableTunnel(input);
@@ -86,7 +86,7 @@ export class ConsoleControlController {
 	/** Remove the web app's own tunnel. */
 	@Implement(bffConsoleContract.disableWebTunnel)
 	disableWebTunnel() {
-		return implement(bffConsoleContract.disableWebTunnel)
+		return procedure(bffConsoleContract.disableWebTunnel)
 			.use(requireAuth())
 			.handler(async () => {
 				return this.managedWeb.disableTunnel();

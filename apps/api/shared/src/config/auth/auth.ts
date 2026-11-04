@@ -1,15 +1,16 @@
 import { Logger } from "@nestjs/common";
-import { betterAuthFactory } from "@deployer/auth/server";
+
 
 import type { AuthAuditEvent, AuthAuditSink } from "@deployer/auth/audit";
-import type { EnvService } from "../env/env.module";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-
-import { authAuditEvents } from "@deployer/nest-schema/global/identity/audit";
+import { betterAuthFactory } from "@deployer/auth/server";
 import { getErrorMessage } from "@deployer/errors";
+import { authAuditEvents } from "@deployer/nest-schema/global/identity/audit";
 
 import { makeMailSink } from "./mail-sink";
 import { drizzleStepUpSink, makeHasStepUp } from "./step-up-sink";
+
+import type { EnvService } from "../env/env.module";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 /** A string env value, or nothing: the schema's optional keys widen to a union through `EnvService`. */
 const optionalString = (value: unknown): string | undefined =>
