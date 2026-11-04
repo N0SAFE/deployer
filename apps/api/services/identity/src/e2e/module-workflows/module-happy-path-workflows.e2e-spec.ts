@@ -9,7 +9,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 // app-local `@/e2e/runtime` wrapper binds this service's root module; importing the
 // harness directly throws
 // `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
-import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
+import { Actor, Correlation, CurrentActor, HttpRequest, systemRequest, type Ambient } from "@deployer/effect-core";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
@@ -36,7 +36,7 @@ function runUsers<T>(
 	use: (users: UserServiceShape) => Effect.Effect<
 		T,
 		UserFailure,
-		Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService | ApprovalService
+		Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService | HttpRequest | ApprovalService
 	>,
 ): Promise<T> {
 	return Effect.runPromise(
@@ -48,6 +48,7 @@ function runUsers<T>(
 			Effect.provideService(UserRepository, UserRepository.live),
 			Effect.provideService(DatabasePort, database),
 			Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
+			Effect.provideService(HttpRequest, systemRequest),
 			Effect.provideService(Correlation, { id: "e2e" }),
 			// Critical actions (delete, role change, ban) require a passkey proof; this e2e is about the data layer.
 			Effect.provideService(StepUpService, {

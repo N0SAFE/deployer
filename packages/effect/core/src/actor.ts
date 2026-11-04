@@ -1,5 +1,7 @@
 import { Context } from "effect";
 
+import type { HttpRequest } from "./request";
+
 /**
  * Who is acting: a signed-in user, or a named system component.
  *
@@ -29,5 +31,10 @@ export class Correlation extends Context.Service<Correlation, { readonly id: str
 	"effect-core/Correlation",
 ) {}
 
-/** What a service method may leave open in `R`; everything else is resolved at layer build. */
-export type Ambient = CurrentActor | Correlation;
+/**
+ * What a service method may leave open in `R`; everything else is resolved at layer build.
+ *
+ * Supplied per REQUEST by the boundary (`serve(context)` → `provideRequest`), and REQUIRED: a caller outside a request
+ * provides `systemRequest` rather than the code branching on "is there a request".
+ */
+export type Ambient = CurrentActor | Correlation | HttpRequest;

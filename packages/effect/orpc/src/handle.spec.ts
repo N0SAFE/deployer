@@ -90,7 +90,7 @@ describe("request context", () => {
 	});
 
 	it("reads the user, defaulting the role", () => {
-		expect(actorFromContext({ auth: { user: { id: "u1" } } })).toEqual({ kind: "user", id: "u1", role: "user" });
+		expect(actorFromContext({ auth: { user: { id: "u1" } } })).toEqual({ sessionId: null, kind: "user", id: "u1", role: "user" });
 		expect(actorFromContext({})).toBeNull();
 	});
 

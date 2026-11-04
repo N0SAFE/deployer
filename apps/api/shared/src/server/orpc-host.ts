@@ -6,7 +6,9 @@ import {
 	RequestCompressionHandlerPlugin,
 } from "@orpc/server/plugins";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
+import { Context } from "effect";
 
+import { HttpRequest } from "@deployer/effect-core";
 import { domainErrorInterceptor } from "@deployer/effect-orpc";
 import {
 	configureAuthz,
@@ -27,7 +29,6 @@ import { AuthCoreService } from "../core/modules/auth/services/auth-core.service
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { DynamicModule, ExecutionContext } from "@nestjs/common";
-import type { Context } from "effect";
 import type { DefaultInitialContext, Router } from "@orpc/server";
 
 /**
@@ -180,12 +181,28 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 			 * (this factory runs once, while routes are being registered) it was a snapshot taken before
 			 * every provider existed.
 			 */
-			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> =>
-				({
+			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> => {
+				const resolved = extra ? await extra.resolve(executionContext, ...deps) : {};
+				const effectContext = (resolved as { readonly "effect/context"?: Context.Context<unknown> })["effect/context"];
+
+				return {
 					request,
 					auth: emptyAuthUtils,
-					...(extra ? await extra.resolve(executionContext, ...deps) : {}),
-				});
+					...resolved,
+					// The request itself, added to the Effect context ONCE, here (`AUTH-0xx`): every `.effect()` body can then
+					// `yield* HttpRequest` without its module providing it, and two requests cannot see each other's — the
+					// context is immutable and rebuilt per call, so nothing request-scoped is ever cached or shared.
+					...(effectContext === undefined
+						? {}
+						: {
+								"effect/context": Context.add(effectContext, HttpRequest, {
+									headers: request.headers,
+									method: request.method,
+									url: request.url,
+								}),
+							}),
+				};
+			};
 
 			return {
 				interceptors: [

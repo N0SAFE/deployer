@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
+import { Actor, Correlation, CurrentActor, HttpRequest, type Ambient } from "@deployer/effect-core";
 
 type HeadersLike =
 	| { get(name: string): string | null }
@@ -23,7 +23,12 @@ export const CORRELATION_HEADER = "x-correlation-id";
  */
 export type RequestContextInput = {
 	/** Web `Headers` (fetch hosts) or a plain Node header record (Nest's HTTP adapter). */
-	readonly request?: { readonly headers: HeadersLike };
+	readonly request?: {
+		readonly headers: HeadersLike;
+		/** Present on the Web `Request` the oRPC host hands a handler. */
+		readonly method?: string;
+		readonly url?: string;
+	};
 	readonly auth?: {
 		readonly user?: { readonly id: string; readonly role?: string | null } | null;
 		/**
@@ -78,5 +83,13 @@ export const provideRequest =
 			return yield* effect.pipe(
 				Effect.provideService(CurrentActor, actor),
 				Effect.provideService(Correlation, { id: correlationFromContext(context) }),
+				// The request itself (`AUTH-0xx`): supplied here, per call, so a handler can `yield* HttpRequest` without
+				// the module providing it and without a request-scoped Nest graph. Immutable, so overlapping requests
+				// cannot see each other's.
+				Effect.provideService(HttpRequest, {
+					headers: context.request?.headers ?? {},
+					method: context.request?.method ?? "POST",
+					url: context.request?.url ?? "",
+				}),
 			);
 		}) as Effect.Effect<A, E | E2, Exclude<R, Ambient>>;

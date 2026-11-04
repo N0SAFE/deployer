@@ -14,7 +14,6 @@ import {
 import { SkipBodyParsingMiddleware } from "./middlewares/middlewares";
 import { makeSessionResolver, SessionResolver } from "./orpc/session-resolver";
 import { AuthCoreService } from "./services/auth-core.service";
-import { AuthService } from "./services/auth.service";
 
 import type { DynamicModule, MiddlewareConsumer, NestModule } from "@nestjs/common";
 
@@ -29,11 +28,10 @@ import type { DynamicModule, MiddlewareConsumer, NestModule } from "@nestjs/comm
 @Module({
 	providers: [
 		AuthCoreService,
-		AuthService,
 		// Better Auth answers `getSession`; the oRPC auth plugin asks through this Effect service.
 		{ provide: SessionResolver, useFactory: (core: AuthCoreService) => makeSessionResolver(core.instance), inject: [AuthCoreService] },
 	],
-	exports: [AuthCoreService, AuthService, SessionResolver],
+	exports: [AuthCoreService, SessionResolver],
 })
 export class AuthModule extends ConfigurableModuleClass implements NestModule {
 	private readonly logger = new Logger(AuthModule.name);

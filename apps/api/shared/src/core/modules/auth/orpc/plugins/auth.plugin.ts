@@ -55,14 +55,14 @@ export type AuthPluginOptions = {
  * import { AuthPlugin } from './auth.plugin';
  *
  * ORPCModule.forRootAsync({
- *   useFactory: (request: Request, authService: AuthService) => {
+ *   useFactory: (request: Request, authCore: AuthCoreService) => {
  *     const authPlugin = new AuthPlugin({ auth: authService.instance as Auth });
  *     return {
  *       context: { request, auth: new AuthUtilsEmpty() },
  *       plugins: [authPlugin],
  *     };
  *   },
- *   inject: [REQUEST, AuthService],
+ *   inject: [REQUEST, AuthCoreService],
  * })
  * ```
  */

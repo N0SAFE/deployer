@@ -1,7 +1,7 @@
 import { Context, Effect } from "effect";
 
 
-import { CurrentActor, serviceOver } from "@deployer/effect-core";
+import { CurrentActor, HttpRequest, clientAddressOf, headerOf, serviceOver } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { roleHasPermission } from "@deployer/shared/core/authz/role-catalog";
@@ -31,7 +31,7 @@ export type AuditServiceShape = {
 	 */
 	readonly record: (
 		event: NewAuditEvent,
-	) => Effect.Effect<void, never, DatabasePort>;
+	) => Effect.Effect<void, never, DatabasePort | HttpRequest>;
 	readonly list: (
 		query: AuditQuery,
 	) => Effect.Effect<AuditPage, ForbiddenError, AuditRepository | CurrentActor | DatabasePort>;
@@ -82,9 +82,18 @@ export function auditRowsToCsv(rows: readonly AuditRow[]): string {
  */
 const makeAuditService = (repository: AuditRepository["Service"]): AuditServiceShape => ({
 	record: (event): ReturnType<AuditServiceShape["record"]> =>
-		repository
-			.append(event)
-			.pipe(Effect.catchCause(() => Effect.logWarning(`audit write failed for "${event.action}"`))),
+		Effect.gen(function* () {
+			// The client's address and agent, taken from the request this call runs for. REQUIRED: a worker or seed
+			// provides `systemRequest`, which simply carries no address, instead of the audit path guessing.
+			const request = yield* HttpRequest;
+			const source = {
+				ip: event.ip ?? clientAddressOf(request),
+				userAgent: event.userAgent ?? headerOf(request, "user-agent"),
+			};
+			return yield* repository
+				.append({ ...event, ...source })
+				.pipe(Effect.catchCause(() => Effect.logWarning(`audit write failed for "${event.action}"`)));
+		}),
 
 	list: (query): ReturnType<AuditServiceShape["list"]> =>
 		Effect.gen(function* () {

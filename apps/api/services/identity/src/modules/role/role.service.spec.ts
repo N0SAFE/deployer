@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SYSTEM_ROLES_TABLE } from "@deployer/auth/authz";
-import { Actor, CurrentActor } from "@deployer/effect-core";
+import { Actor, CurrentActor, HttpRequest, systemRequest } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { clearRoleSnapshot } from "@deployer/shared/core/authz/role-catalog";
@@ -66,7 +66,7 @@ describe("RoleService", () => {
 		use: (roles: RoleService["Service"]) => Effect.Effect<
 			A,
 			E,
-			RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+			RoleRepository | CurrentActor | DatabasePort | AuditService | HttpRequest | StepUpService
 		>,
 		stepUp: "ok" | "missing" = "ok",
 	): Effect.Effect<A, E> =>
@@ -79,6 +79,7 @@ describe("RoleService", () => {
 					Layer.succeed(RoleService, RoleService.live as unknown as RoleService["Service"]),
 					Layer.succeed(RoleRepository, repo as unknown as RoleRepositoryShape),
 					Layer.succeed(CurrentActor, actor),
+					Layer.succeed(HttpRequest, systemRequest),
 					Layer.succeed(DatabasePort, {} as never),
 					Layer.succeed(AuditService, { record: () => Effect.void } as unknown as AuditService["Service"]),
 					Layer.succeed(StepUpService, {

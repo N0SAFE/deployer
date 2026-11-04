@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { Correlation, CurrentActor, domainError } from "@deployer/effect-core";
+import { Correlation, CurrentActor, HttpRequest, clientAddressOf, domainError, headerOf } from "@deployer/effect-core";
 
 import { createServe } from "./serve";
 
@@ -36,5 +36,44 @@ describe("createServe", () => {
 		const hidden = await Effect.runPromise(Effect.flip(serve(ctx)(Effect.die(new Error("secret")))));
 		expect((hidden as { code: string }).code).toBe("INTERNAL_SERVER_ERROR");
 		expect(onDefect).toHaveBeenCalledWith(expect.anything(), "c2");
+	});
+
+	it("supplies the request itself, so a handler can read it without a Nest scope", async () => {
+		const seen = Effect.gen(function* () {
+			const request = yield* HttpRequest;
+			return { method: request.method, url: request.url, ua: headerOf(request, "user-agent"), ip: clientAddressOf(request) };
+		});
+
+		const ctx = {
+			auth: { user: { id: "u1" } },
+			request: {
+				method: "POST",
+				url: "/user/list",
+				headers: { "user-agent": "cli/1.0", "x-forwarded-for": "203.0.113.7, 10.0.0.1" },
+			},
+		};
+
+		await expect(Effect.runPromise(serve(ctx)(seen))).resolves.toEqual({
+			method: "POST",
+			url: "/user/list",
+			ua: "cli/1.0",
+			ip: "203.0.113.7",
+		});
+	});
+
+	it("keeps two overlapping requests apart", async () => {
+		const reader = Effect.gen(function* () {
+			const request = yield* HttpRequest;
+			yield* Effect.sleep("1 millis");
+			return headerOf(request, "x-request-id");
+		});
+
+		const [first, second] = await Promise.all([
+			Effect.runPromise(serve({ auth: { user: { id: "u1" } }, request: { headers: { "x-request-id": "a" } } })(reader)),
+			Effect.runPromise(serve({ auth: { user: { id: "u2" } }, request: { headers: { "x-request-id": "b" } } })(reader)),
+		]);
+
+		// Each call runs on its own immutable context: no shared mutable slot, so no bleed.
+		expect([first, second]).toEqual(["a", "b"]);
 	});
 });

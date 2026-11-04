@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
+import { Actor, Correlation, CurrentActor, HttpRequest, systemRequest } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
@@ -62,7 +62,7 @@ describe("ApprovalService", () => {
 		use: (approvals: ApprovalService["Service"]) => Effect.Effect<
 			A,
 			E,
-			ApprovalRepository | CurrentActor | DatabasePort | StepUpService | AuditService
+			ApprovalRepository | CurrentActor | DatabasePort | StepUpService | AuditService | HttpRequest
 		>,
 		stepUp: "ok" | "missing" = "ok",
 	): Effect.Effect<A, E> => {
@@ -70,6 +70,7 @@ describe("ApprovalService", () => {
 			Layer.succeed(ApprovalService, ApprovalService.live as unknown as ApprovalService["Service"]),
 			Layer.succeed(ApprovalRepository, repo as unknown as ApprovalRepositoryShape),
 			Layer.succeed(CurrentActor, actor),
+					Layer.succeed(HttpRequest, systemRequest),
 			Layer.succeed(Correlation, { id: "test" }),
 			Layer.succeed(DatabasePort, {} as never),
 			Layer.succeed(AuditService, { record: () => Effect.void } as unknown as AuditService["Service"]),

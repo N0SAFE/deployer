@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
+import { Actor, Correlation, CurrentActor, HttpRequest, systemRequest } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
 import { DatabasePort } from "@identity/core/database/database.port";
@@ -74,11 +74,12 @@ describe("UserService", () => {
 				) => Effect.Effect<
 					unknown,
 					UserFailure,
-					UserRepository | CurrentActor | Correlation | StepUpService | RoleService | AuditService | ApprovalService
+					UserRepository | CurrentActor | Correlation | StepUpService | RoleService | AuditService | HttpRequest | ApprovalService
 				>;
 				return method(...args).pipe(
 					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
 					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
+			Effect.provideService(HttpRequest, systemRequest),
 					Effect.provideService(Correlation, { id: "test" }),
 					// The passkey proof is AUTH-062's concern and has its own spec; here every call is stepped up.
 					Effect.provideService(StepUpService, {
@@ -100,7 +101,8 @@ describe("UserService", () => {
 			},
 	});
 
-	const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
+	const run = <A, E>(effect: Effect.Effect<A, E, HttpRequest>) =>
+		run(effect.pipe(Effect.provideService(HttpRequest, systemRequest)));
 
 	/** The domain error a use case failed with. */
 	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
@@ -189,7 +191,7 @@ describe("UserService", () => {
 			);
 
 		it("refuses a system actor", async () => {
-			await expect(Effect.runPromise(Effect.flip(asSystem()))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(run(Effect.flip(asSystem()))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.delete).not.toHaveBeenCalled();
 		});
 
@@ -198,7 +200,7 @@ describe("UserService", () => {
 			repo.countByRole.mockReturnValue(Effect.succeed(1));
 
 			await expect(
-				Effect.runPromise(Effect.flip(service.deleteSelf({ userId: "root-1", role: "superAdmin" }))),
+				run(Effect.flip(service.deleteSelf({ userId: "root-1", role: "superAdmin" }))),
 			).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.countByRole).toHaveBeenCalledWith("superAdmin");
 			expect(repo.delete).not.toHaveBeenCalled();
@@ -250,7 +252,7 @@ describe("UserService", () => {
 				} as unknown as AuditService["Service"]),
 			);
 
-			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(run(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.exportFor).not.toHaveBeenCalled();
 		});
 	});
@@ -278,7 +280,7 @@ describe("UserService", () => {
 				} as unknown as AuditService["Service"]),
 			);
 
-			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserInvalid);
+			await expect(run(Effect.flip(effect))).resolves.toBeInstanceOf(UserInvalid);
 			expect(repo.update).not.toHaveBeenCalled();
 		});
 
@@ -306,7 +308,7 @@ describe("UserService", () => {
 					} as unknown as ApprovalService["Service"]),
 				);
 
-			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(run(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.insert).not.toHaveBeenCalled();
 		});
 
@@ -331,7 +333,7 @@ describe("UserService", () => {
 				} as unknown as AuditService["Service"]),
 			);
 
-			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(run(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.update).not.toHaveBeenCalled();
 		});
 
@@ -360,7 +362,7 @@ describe("UserService", () => {
 				} as unknown as ApprovalService["Service"]),
 			);
 
-			const outcome = await Effect.runPromise(Effect.flip(effect));
+			const outcome = await run(Effect.flip(effect));
 
 			expect(outcome).toBeInstanceOf(UserForbidden);
 			expect(outcome).toMatchObject({ reason: expect.stringContaining("approval required") });
@@ -388,7 +390,7 @@ describe("UserService", () => {
 				} as unknown as AuditService["Service"]),
 			);
 
-			await expect(Effect.runPromise(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(run(Effect.flip(effect))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.update).not.toHaveBeenCalled();
 		});
 	});

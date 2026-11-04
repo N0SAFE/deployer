@@ -19,12 +19,11 @@ export const CLI_AUTH_SERVICE_TOKEN = 'CLI_AUTH_SERVICE_TOKEN';
 /**
  * @deprecated Use AUTH_CORE_SERVICE instead. AuthCoreService is a singleton that
  * contains all business logic and accepts headers as explicit parameters.
- * AuthService (request-scoped) wraps it and auto-injects headers from request.
  */
 export const CLI_AUTH_SERVICE = 'CLI_AUTH_SERVICE';
 
 /**
- * @deprecated Use AUTH_CORE_SERVICE instead. The main AuthService is REQUEST-scoped
+ * @deprecated Use AUTH_CORE_SERVICE instead.
  * and cannot be injected into CLI commands (no HTTP request context).
  */
 export const AUTH_SERVICE = 'AUTH_SERVICE';

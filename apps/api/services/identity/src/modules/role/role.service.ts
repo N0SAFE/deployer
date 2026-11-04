@@ -1,7 +1,7 @@
 import { Context, Effect } from "effect";
 
 import { capabilitiesOfRole, isPermission, platformRoleRank, type ScopeKind } from "@deployer/auth/authz";
-import { CurrentActor, serviceOver } from "@deployer/effect-core";
+import { CurrentActor, HttpRequest, serviceOver } from "@deployer/effect-core";
 
 import { installRoleSnapshot, roleHasPermission } from "@deployer/shared/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
@@ -27,13 +27,13 @@ export type RoleServiceShape = {
 	readonly isKnownPlatformRole: (name: string) => Effect.Effect<boolean, never, DatabasePort>;
 	readonly list: (
 		scope: ScopeKind | undefined,
-	) => Effect.Effect<RoleRow[], RoleFailure, RoleRepository | CurrentActor | DatabasePort>;
+	) => Effect.Effect<RoleRow[], RoleFailure, RoleRepository | CurrentActor | DatabasePort | HttpRequest>;
 	readonly create: (
 		role: NewRole,
 	) => Effect.Effect<
 		RoleRow,
 		RoleFailure,
-		RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+		RoleRepository | CurrentActor | DatabasePort | HttpRequest | AuditService | StepUpService
 	>;
 	readonly update: (
 		id: string,
@@ -41,14 +41,14 @@ export type RoleServiceShape = {
 	) => Effect.Effect<
 		RoleRow,
 		RoleFailure,
-		RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+		RoleRepository | CurrentActor | DatabasePort | HttpRequest | AuditService | StepUpService
 	>;
 	readonly remove: (
 		id: string,
 	) => Effect.Effect<
 		void,
 		RoleFailure,
-		RoleRepository | CurrentActor | DatabasePort | AuditService | StepUpService
+		RoleRepository | CurrentActor | DatabasePort | HttpRequest | AuditService | StepUpService
 	>;
 };
 

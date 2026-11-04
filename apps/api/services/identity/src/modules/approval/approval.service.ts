@@ -1,7 +1,7 @@
 import { Context, Effect } from "effect";
 
 import { isPermission } from "@deployer/auth/authz";
-import { CurrentActor, serviceOver } from "@deployer/effect-core";
+import { CurrentActor, HttpRequest, serviceOver } from "@deployer/effect-core";
 
 import { roleHasPermission, roleNamesWithPermission } from "@deployer/shared/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
@@ -33,18 +33,18 @@ export type ApprovalServiceShape = {
 	) => Effect.Effect<
 		AccessRequestRow,
 		ApprovalFailure,
-		ApprovalRepository | CurrentActor | DatabasePort | AuditService
+		ApprovalRepository | CurrentActor | DatabasePort | HttpRequest | AuditService
 	>;
 	readonly list: (
 		filter: AccessRequestFilter,
-	) => Effect.Effect<AccessRequestRow[], ApprovalFailure, ApprovalRepository | CurrentActor | DatabasePort>;
+	) => Effect.Effect<AccessRequestRow[], ApprovalFailure, ApprovalRepository | CurrentActor | DatabasePort | HttpRequest>;
 	readonly decide: (
 		id: string,
 		decision: AccessRequestVote,
 	) => Effect.Effect<
 		AccessRequestRow,
 		ApprovalFailure,
-		ApprovalRepository | CurrentActor | DatabasePort | StepUpService | AuditService
+		ApprovalRepository | CurrentActor | DatabasePort | HttpRequest | StepUpService | AuditService
 	>;
 	/**
 	 * The guard a protected action calls (`SEC-072`).
@@ -55,7 +55,7 @@ export type ApprovalServiceShape = {
 	readonly require: (
 		permission: string,
 		actionHash: string,
-	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort>;
+	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort | HttpRequest>;
 	/**
 	 * The same guard for a PEER service, which names the actor it authenticated (`SEC-069`).
 	 *
@@ -66,13 +66,13 @@ export type ApprovalServiceShape = {
 		requesterId: string,
 		permission: string,
 		actionHash: string,
-	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort>;
+	) => Effect.Effect<void, ApprovalFailure, CurrentActor | DatabasePort | HttpRequest>;
 	readonly consume: (
 		actionHash: string,
 	) => Effect.Effect<
 		{ readonly consumed: boolean },
 		ApprovalFailure,
-		ApprovalRepository | CurrentActor | DatabasePort | AuditService
+		ApprovalRepository | CurrentActor | DatabasePort | HttpRequest | AuditService
 	>;
 };
 
