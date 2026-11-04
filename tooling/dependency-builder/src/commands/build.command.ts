@@ -159,47 +159,43 @@ export class BuildCommand extends CommandRunner {
         // treats the conventional trees as always-scanned.
         this.turbo.excludeApplicationsFromGraph(root)
 
-        // 4 — A BUILD WITH THE FINAL GRAPH, BEFORE THE GATE OPENS.
+        // 4 — A BLOCKING BUILD ONLY WHEN THE VOLUME HAS NOTHING TO SERVE.
         //
-        // ── WHY THIS IS NOT CONDITIONAL ON `published` ──────────────────────
-        // It used to be: "the image already published everything → skip". That
-        // skip is what produced the cold-start failure, because the image's bake
-        // and `turbo watch` do not hash the same graph:
+        // `published` means the image's baked output is adopted into the volume, so
+        // the applications already have a complete tree to start against. The
+        // `turbo watch` below runs the same graph first (a replay of the baked cache,
+        // a `FULL TURBO` of 52/52 measured) and then rebuilds on change, so a
+        // separate `turbo run build` before it only repeated that replay while the
+        // applications waited.
         //
-        //   Dockerfile : turbo run build --filter='!./apps/**'   (apps PRESENT in workspaces)
-        //   watch      : same filter, but AFTER `excludeApplicationsFromGraph`
-        //                strips `apps/**` — a DIFFERENT resolved task graph
+        // It used to run unconditionally because the bake and the watch hashed
+        // different graphs, and watch then rebuilt every package under the apps
+        // (~715 `Module not found`). Both are fixed at the source: the bake strips
+        // the applications first (`strip-applications.ts`) and the image holds a git
+        // baseline so ignored files are not hash inputs. Rebuilds land in a staging
+        // directory and are swapped in, so a reader sees the old tree or the new one,
+        // never a partial one.
         //
-        // Turbo's hash includes that graph, so watch could never reuse the baked
-        // entries. Measured on a cold start with a wiped volume:
-        //
-        //   [BuildCommand] every package is already published; skipping the initial build
-        //   [BuildCommand] initial build complete        ← gate opens, apps start compiling
-        //   [TurboRunner]  entering watch mode
-        //   • Running build in 42 packages
-        //   40 × "cache miss, executing …"               ← volume rewritten under the apps
-        //
-        // The result was ~715 `Module not found` errors and a 500-ing dev server
-        // that a single restart always fixed — the signature of a race.
-        //
-        // So the build ALWAYS runs here. It is cheap when the hashes do line up
-        // (a `FULL TURBO` replay of the image's cache), and when they do not it
-        // finishes BEFORE the marker is written, so no application ever compiles
-        // against a volume being rewritten. `watch` then starts warm.
-        //
-        // `published` still matters for diagnostics, so it is logged.
+        // Still blocking when the volume is incomplete (a package added since the
+        // image was built has no output to serve) and for `--once`, which has no
+        // watch to do the work.
         const cacheDir = cacheDirFor(outputRoot)
-        this.logger.info(
-            published
-                ? 'image output adopted into the volume; running a build with the watch graph so `turbo watch` starts warm'
-                : 'volume was incomplete; building the union before opening the gate'
-        )
-        await this.turbo.buildOnce(root, union, cacheDir)
+        if (!published || options.once === true) {
+            this.logger.info(
+                published
+                    ? '--once given; building the union'
+                    : 'volume was incomplete; building the union before opening the gate'
+            )
+            await this.turbo.buildOnce(root, union, cacheDir)
+        } else {
+            this.logger.info(
+                'image output adopted into the volume; opening the gate and letting `turbo watch` reconcile'
+            )
+        }
 
-        // 5 — the gate the applications wait on. Written only once every artifact
-        // is on the volume AND nothing is still rebuilding it.
+        // 5 — the gate the applications wait on: every artifact is on the volume.
         writeFileSync(marker, `${new Date().toISOString()}\n`)
-        this.logger.info(`initial build complete (${marker})`)
+        this.logger.info(`gate open (${marker})`)
 
         if (options.once === true) {
             this.logger.info('--once given; exiting after the initial build')
