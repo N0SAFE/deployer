@@ -12,13 +12,13 @@
  * same as `node_config.nodeId`) — NOT the docker engine node id (non-uuid).
  */
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 
 import { clusterNodes } from "@deployer/nest-schema/global/fleet/cluster";
 
 import { GlobalDatabaseService } from "../../database/global/global-database.service";
-import { SystemMeshConfigService } from "../../mesh/services/system-mesh-config.service";
+import { SystemMeshConfigService, type SystemMeshConfigServiceShape } from "../../mesh/services/system-mesh-config.service";
 
 @Injectable()
 export class GlobalClusterNodesRepository {
@@ -26,7 +26,7 @@ export class GlobalClusterNodesRepository {
 
     constructor(
         private readonly db: GlobalDatabaseService,
-        private readonly meshConfig: SystemMeshConfigService,
+        @Inject(SystemMeshConfigService) private readonly meshConfig: SystemMeshConfigServiceShape,
     ) {}
 
     /**

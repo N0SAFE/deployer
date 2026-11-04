@@ -5,7 +5,8 @@ import { LocalDatabaseModule } from "../database/local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { AppLifecycleModule } from "../lifecycle";
 import { MeshInitializationModule } from "../mesh/initialization/mesh-initialization.module";
-import { MeshVersionService } from "../mesh/version/mesh-version.service";
+import { MeshInitializationService, type MeshInitializationServiceShape } from "../mesh/initialization/services/mesh-initialization.service";
+import { makeMeshVersionService, MeshVersionService } from "../mesh/version/mesh-version.service";
 import { NodeStateModule } from "../node-state/node-state.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { SupervisorsModule } from "../supervision/index";
@@ -51,7 +52,7 @@ export class CoreInitializationModule extends createModuleContext({
         RemoteInitializationService,
         InitializationService,
         SetupEventService,
-        MeshVersionService,
+        { provide: MeshVersionService, useFactory: (mesh: MeshInitializationServiceShape) => makeMeshVersionService(mesh), inject: [MeshInitializationService] },
     ],
     exports: [InitializationService, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],
 }) {}
