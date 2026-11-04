@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { Logger, type INestApplication } from '@nestjs/common'
-import { REQUEST } from '@nestjs/core'
 import { Test, type TestingModule } from '@nestjs/testing'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import Dockerode from 'dockerode'
@@ -24,7 +23,6 @@ import {
 import { GlobalDatabaseService } from '../../core/modules/database/global/global-database.service'
 import { TraefikFileSystemService, type TraefikFileSystemShape } from '../../core/modules/traefik/services/traefik-file-system.service'
 
-import { defaultRequestOverride, sharedRequestOverride } from './request-override'
 import {
     DEFAULT_SHARED_RUNTIME_KEY,
     SHARED_POSTGRES_CONNECTION_URI_ENV,
@@ -943,8 +941,6 @@ export class SharedApiRuntimeManager {
                     moduleBuilder = Test.createTestingModule({
                         imports: [AppModule],
                     })
-                        .overrideProvider(REQUEST)
-                        .useValue(sharedRequestOverride)
                         .overrideProvider(GLOBAL_DATABASE_POOL)
                         .useValue(runtimePool)
                         .overrideProvider(GLOBAL_DATABASE_CONNECTION)
@@ -1003,26 +999,6 @@ export class SharedApiRuntimeManager {
                 logger: isSharedRuntimeLoggingEnabled()
                     ? undefined
                     : ['error'],
-            })
-
-            // ── WHY THIS MIDDLEWARE ─────────────────────────────────────────────
-            // `overrideProvider(REQUEST)` replaces Nest's per-request provider with one
-            // static object for the whole module, so a middleware that reads a header
-            // off `context.request` (oRPC's context IS that value) would always see the
-            // synthetic bootstrap request and never the caller's headers — a
-            // token-authenticated route then 401s while the same call made directly on
-            // the service works. Copying the live request's headers onto the override
-            // before each call restores what a real HTTP request would provide.
-            //
-            // The set is REPLACED, not merged: the override outlives the request, so
-            // merging would carry the previous caller's token into the next one — a
-            // "rejects a missing token" case would then succeed with the stale token.
-            app.use((req: { headers?: Record<string, unknown> }, _res: unknown, next: () => void) => {
-                sharedRequestOverride.headers = {
-                    ...defaultRequestOverride.headers,
-                    ...((req.headers ?? {}) as Record<string, string | string[]>),
-                }
-                next()
             })
 
             // The HTTP edge, as `createApiServerApp` mounts it: what the container holds (Better Auth's routes, body parsing),

@@ -21,6 +21,9 @@ function configFactory(extra: Parameters<typeof createOrpcModule>[0]): Factory {
 	return provider.useFactory;
 }
 
+/** What `@orpc/nest` hands the context function: the execution context of the live HTTP request. */
+const ctxOf = (request: unknown) => ({ switchToHttp: () => ({ getRequest: () => request }) });
+
 describe("createOrpcModule extraContext", () => {
 	it("is read for every request, not once while the host is being built", async () => {
 		let calls = 0;
@@ -30,23 +33,23 @@ describe("createOrpcModule extraContext", () => {
 		});
 		const factory = configFactory({ extraContext: { inject: [], resolve } });
 
-		const config = await factory({}, { createEmptyAuthUtils: () => ({}) });
+		const config = await factory({ createEmptyAuthUtils: () => ({}), instance: {} }, {});
 
 		// Building the config must not have asked the runtime for anything: at that point the
 		// container is unfinished, and what it answered would have been kept for every request.
 		expect(resolve).not.toHaveBeenCalled();
 
 		const context = config.context as (ctx: unknown) => Promise<{ "effect/context": Context.Context<Snapshot> }>;
-		expect(Context.get((await context({}))["effect/context"], Snapshot).n).toBe(1);
-		expect(Context.get((await context({}))["effect/context"], Snapshot).n).toBe(2);
+		expect(Context.get((await context(ctxOf({})))["effect/context"], Snapshot).n).toBe(1);
+		expect(Context.get((await context(ctxOf({})))["effect/context"], Snapshot).n).toBe(2);
 	});
 
 	it("adds the request to the Effect context, so a handler can `yield* HttpRequest`", async () => {
 		const request = { headers: { "x-test": "1" }, method: "GET", url: "/things" };
 		const factory = configFactory({ extraContext: { inject: [], resolve: () => ({ "effect/context": Context.make(Snapshot, { n: 1 }) }) } });
 
-		const config = await factory(request, { createEmptyAuthUtils: () => ({}) });
-		const { "effect/context": effect } = await (config.context as (ctx: unknown) => Promise<{ "effect/context": Context.Context<Snapshot | HttpRequest> }>)({});
+		const config = await factory({ createEmptyAuthUtils: () => ({}), instance: {} }, {});
+		const { "effect/context": effect } = await (config.context as (ctx: unknown) => Promise<{ "effect/context": Context.Context<Snapshot | HttpRequest> }>)(ctxOf(request));
 
 		expect(Context.get(effect, HttpRequest)).toEqual({ headers: { "x-test": "1" }, method: "GET", url: "/things" });
 		// What the app resolved is still there beside it.
@@ -58,8 +61,8 @@ describe("createOrpcModule extraContext", () => {
 		const auth = { isLoggedIn: false };
 		const factory = configFactory(undefined);
 
-		const config = await factory(request, { createEmptyAuthUtils: () => auth });
-		const context = await (config.context as (ctx: unknown) => Promise<Record<string, unknown>>)({});
+		const config = await factory({ createEmptyAuthUtils: () => auth, instance: {} }, {});
+		const context = await (config.context as (ctx: unknown) => Promise<Record<string, unknown>>)(ctxOf(request));
 
 		expect(context.request).toBe(request);
 		expect(context.auth).toBe(auth);

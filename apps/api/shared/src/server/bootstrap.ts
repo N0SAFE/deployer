@@ -1,7 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
-
+import { Effect } from "effect";
 
 import { logger } from "@deployer/logger";
 import { type RequirementsMet } from "@deployer/nest-effect";
@@ -9,7 +9,7 @@ import { type RequirementsMet } from "@deployer/nest-effect";
 import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "../core/utils/cors.utils";
 
 import { containerHttpEdge, mountHttpEdge, type HttpEdgeEntry } from "./http-edge";
-import { PreflightService } from "./preflight/preflight.service";
+import { PreflightService, type PreflightServiceShape } from "./preflight/preflight.service";
 
 import type { PreflightDependency, PreflightReport } from "./preflight/types";
 import type { INestApplication, Type } from "@nestjs/common";
@@ -227,14 +227,14 @@ export async function bootstrapApiServer<M extends Type<unknown>>(options: {
 	// Resolve preflight LAZILY: an app that declares no dependencies never
 	// imports `PreflightModule`, and `strict: false` turns that into `null`
 	// instead of an unresolvable-dependency crash on a correct configuration.
-	const preflight = app.get<PreflightService | null>(PreflightService, { strict: false });
+	const preflight = app.get<typeof PreflightService, PreflightServiceShape | null>(PreflightService, { strict: false });
 
 	// Bind BEFORE the checks. See the ordering note above.
 	await app.listen(options.port, options.host ?? "0.0.0.0");
 	logger.scope(options.name).info(`🚀 ${options.name} listening on ${options.host ?? "0.0.0.0"}:${String(options.port)}`);
 
 	if (preflight !== null) {
-		const report = await preflight.run();
+		const report = await Effect.runPromise(preflight.run());
 		if (!report.ready) {
 			// Close the listener so the port is not left answering probes with a
 			// process that will not serve, then exit non-zero for the orchestrator.

@@ -13,11 +13,6 @@ import {
     createSharedOrpcResponseTracker,
     createSharedRuntimeOrpcClient,
 } from './shared-api-runtime/orpc'
-import {
-    resetSharedRuntimeRequestOverride,
-    setSharedRuntimeAuthHeaders,
-    setSharedRuntimeRequestOverride,
-} from './shared-api-runtime/request-override'
 import { resolveSharedRuntimeMaxConcurrency } from './shared-api-runtime/types'
 
 import type { Auth } from '../auth'
@@ -80,12 +75,7 @@ async function buildSharedApiRuntimeContext(
     }
 }
 
-export {
-    setSharedRuntimeRequestOverride,
-    setSharedRuntimeAuthHeaders,
-    resetSharedRuntimeRequestOverride,
-    createSharedRuntimeOrpcClient,
-}
+export { createSharedRuntimeOrpcClient }
 
 export type {
     SharedApiRuntime,

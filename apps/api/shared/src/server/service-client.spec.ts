@@ -18,7 +18,7 @@ async function load(socket: string | undefined) {
 	vi.resetModules();
 	if (socket === undefined) delete process.env.NODE_AGENT_SOCKET;
 	else process.env.NODE_AGENT_SOCKET = socket;
-	return (await import("./service-client")).ServiceClient;
+	return (await import("./service-client")).makeServiceClient;
 }
 
 describe("ServiceClient", () => {
@@ -38,9 +38,9 @@ describe("ServiceClient", () => {
 	});
 
 	it("calls the service's own HTTP surface when the node has no agent, as a node does alone", async () => {
-		const ServiceClient = await load(join(directory, "no-such-agent.sock"));
+		const makeServiceClient = await load(join(directory, "no-such-agent.sock"));
 
-		const client = new ServiceClient().clientFor("project", contract as never) as unknown as PingClient;
+		const client = makeServiceClient().clientFor("project", contract as never) as unknown as PingClient;
 		await client.ping();
 
 		expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -51,9 +51,9 @@ describe("ServiceClient", () => {
 	it("sends the call to the agent and never to the service's HTTP surface when the node has one", async () => {
 		const socket = join(directory, "agent.sock");
 		writeFileSync(socket, "");
-		const ServiceClient = await load(socket);
+		const makeServiceClient = await load(socket);
 
-		const client = new ServiceClient().clientFor("project", contract as never) as unknown as PingClient;
+		const client = makeServiceClient().clientFor("project", contract as never) as unknown as PingClient;
 		// Nothing listens on the socket, so the call fails; what matters is where it tried to go.
 		await expect(client.ping()).rejects.toBeDefined();
 
@@ -61,16 +61,16 @@ describe("ServiceClient", () => {
 	});
 
 	it("gives one client per service and contract", async () => {
-		const ServiceClient = await load(undefined);
-		const clients = new ServiceClient();
+		const makeServiceClient = await load(undefined);
+		const clients = makeServiceClient();
 
 		expect(clients.clientFor("project", contract as never)).toBe(clients.clientFor("project", contract as never));
 		expect(clients.clientFor("project", contract as never)).not.toBe(clients.clientFor("fleet", contract as never));
 	});
 
 	it("builds a fresh client for each system-actor call, since the claim is short-lived", async () => {
-		const ServiceClient = await load(undefined);
-		const clients = new ServiceClient();
+		const makeServiceClient = await load(undefined);
+		const clients = makeServiceClient();
 
 		expect(clients.systemActorClientFor("project", contract as never, "claim-1")).not.toBe(clients.systemActorClientFor("project", contract as never, "claim-2"));
 	});

@@ -21,10 +21,7 @@
     "src/core/modules/setup/services/local-initialization.service.ts",
     "src/core/modules/setup/services/remote-initialization.service.ts",
     "src/core/modules/setup/services/setup-event.service.ts",
-    "src/core/modules/traefik/events/traefik-event.service.ts",
-    "src/core/utils/migration-journal.service.ts",
-    "src/server/preflight/preflight.service.ts",
-    "src/server/service-client.ts"
+    "src/core/modules/traefik/events/traefik-event.service.ts"
   ],
   "noNestExceptionFilter": [
     "src/core/middlewares/internal-error/internal-error-insight.service.ts",
@@ -40,9 +37,5 @@
     "src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts",
     "src/core/modules/setup/services/initialization.service.ts"
   ],
-  "noNestRequestScope": [
-    "src/e2e-harness/shared-api-runtime/manager.ts",
-    "src/server/mesh-orpc-host.ts",
-    "src/server/orpc-host.ts"
-  ]
+  "noNestRequestScope": []
 }

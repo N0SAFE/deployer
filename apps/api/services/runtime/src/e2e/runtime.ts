@@ -47,7 +47,6 @@ export function useDescribeSharedApiRuntime(
 }
 
 export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRuntimeScope };
-export { setSharedRuntimeAuthHeaders, setSharedRuntimeRequestOverride, resetSharedRuntimeRequestOverride } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
 /**
  * Boot the app with `DeploymentQueueWorker` made inert.

@@ -1,6 +1,7 @@
-import { Module, Injectable } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
+import { Context } from "effect";
 
 
 import { apiServiceUrl, type ApiServiceName } from "@deployer/env";
@@ -33,66 +34,68 @@ const nodeAgent = nodeAgentLink();
  * contracts with `@Implement`, which serves each procedure at the OpenAPI route its contract declares), which is how a node
  * works alone before it is part of anything. The BFF's client makes the same choice for the same reason.
  */
-@Injectable()
-export class ServiceClient {
-	/**
-	 * One client per (service, contract) pair.
-	 *
-	 * Keyed by the CONTRACT OBJECT rather than by name: two callers reaching the same
-	 * service through different sub-contracts must not receive each other's client — a link
-	 * built for one shape answers the other with a 404 rather than something actionable. A
-	 * WeakMap makes that identity exact and lets a contract be collected with its client.
-	 */
-	private readonly clients = new WeakMap<object, Map<ApiServiceName, unknown>>();
-
+export type ServiceClientShape = {
 	/**
 	 * A client for `name`, typed to the contract the caller passes.
 	 *
-	 * Generic in the contract rather than fixed per service: a caller that imports
-	 * `providersContract` gets inference on that call, while this class never has to know
-	 * about any contract — the coupling that would otherwise make it a routing table.
+	 * Generic in the contract rather than fixed per service: a caller that imports `providersContract` gets inference on
+	 * that call, while this service never has to know about any contract — the coupling that would otherwise make it a
+	 * routing table. One client per (service, contract) pair.
 	 */
-	clientFor<TContract extends RouterContract>(
-		name: ApiServiceName,
-		contract: TContract,
-	): ContractRouterClient<TContract> {
-		const perContract = this.clients.get(contract) ?? new Map<ApiServiceName, unknown>();
-		this.clients.set(contract, perContract);
-
-		const existing = perContract.get(name);
-		if (existing !== undefined) {
-			return existing as ContractRouterClient<TContract>;
-		}
-
-		const client = createORPCClient<ContractRouterClient<TContract>>(
-			nodeAgent === undefined
-				? new OpenAPILink(contract, { origin: apiServiceUrl(name) })
-				: serviceLink({ agent: nodeAgent, service: name, contract }),
-		);
-		perContract.set(name, client);
-		return client;
-	}
-
+	readonly clientFor: <TContract extends RouterContract>(name: ApiServiceName, contract: TContract) => ContractRouterClient<TContract>;
 	/**
-	 * A client that calls `name` AS THE SYSTEM: every request carries `token`, a signed
-	 * system-actor claim (see `auth/system-actor`), for procedures no user session may reach.
-	 *
-	 * Not cached, unlike `clientFor`: a claim is short-lived and per event, so a cached link
-	 * would keep presenting an expired one. Building a link is a handful of allocations.
+	 * A client that calls `name` AS THE SYSTEM: every request carries `token`, a signed system-actor claim (see
+	 * `auth/system-actor`), for procedures no user session may reach. Not cached: a claim is short-lived and per event,
+	 * so a cached link would keep presenting an expired one. Building a link is a handful of allocations.
 	 */
-	systemActorClientFor<TContract extends RouterContract>(
+	readonly systemActorClientFor: <TContract extends RouterContract>(
 		name: ApiServiceName,
 		contract: TContract,
 		token: string,
-	): ContractRouterClient<TContract> {
-		const headers = { [SYSTEM_ACTOR_HEADER]: token };
-		return createORPCClient<ContractRouterClient<TContract>>(
-			nodeAgent === undefined
-				? new OpenAPILink(contract, { origin: apiServiceUrl(name), headers })
-				: serviceLink({ agent: nodeAgent, service: name, contract, headers: () => headers }),
-		);
-	}
+	) => ContractRouterClient<TContract>;
+};
+
+/**
+ * What it returns are oRPC clients (Promise-based by nature), and building one is synchronous: the shape is plain
+ * functions, not Effects.
+ */
+export function makeServiceClient(): ServiceClientShape {
+	/**
+	 * Keyed by the CONTRACT OBJECT rather than by name: two callers reaching the same service through different
+	 * sub-contracts must not receive each other's client — a link built for one shape answers the other with a 404 rather
+	 * than something actionable. A WeakMap makes that identity exact and lets a contract be collected with its client.
+	 */
+	const clients = new WeakMap<object, Map<ApiServiceName, unknown>>();
+
+	return {
+		clientFor: (name, contract) => {
+			const perContract = clients.get(contract) ?? new Map<ApiServiceName, unknown>();
+			clients.set(contract, perContract);
+
+			const existing = perContract.get(name);
+			if (existing !== undefined) return existing as ContractRouterClient<typeof contract>;
+
+			const client = createORPCClient<ContractRouterClient<typeof contract>>(
+				nodeAgent === undefined
+					? new OpenAPILink(contract, { origin: apiServiceUrl(name) })
+					: serviceLink({ agent: nodeAgent, service: name, contract }),
+			);
+			perContract.set(name, client);
+			return client;
+		},
+
+		systemActorClientFor: (name, contract, token) => {
+			const headers = { [SYSTEM_ACTOR_HEADER]: token };
+			return createORPCClient<ContractRouterClient<typeof contract>>(
+				nodeAgent === undefined
+					? new OpenAPILink(contract, { origin: apiServiceUrl(name), headers })
+					: serviceLink({ agent: nodeAgent, service: name, contract, headers: () => headers }),
+			);
+		},
+	};
 }
+
+export class ServiceClient extends Context.Service<ServiceClient, ServiceClientShape>()("shared/ServiceClient") {}
 
 /**
  * Provides `ServiceClient`.
@@ -109,7 +112,7 @@ export class ServiceClientModule {
 				module: ServiceClientModule,
 				global: true,
 				providers: [
-					ServiceClient,
+					{ provide: ServiceClient, useFactory: () => makeServiceClient() },
 					{ provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
 				],
 				exports: [ServiceClient, ApprovalGuard],

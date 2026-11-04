@@ -1,5 +1,4 @@
 import { Logger } from "@nestjs/common";
-import { REQUEST } from "@nestjs/core";
 import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ORPCModule } from "@orpc/nest";
 import {
@@ -162,7 +161,6 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 
 	return ORPCModule.forRootAsync({
 		useFactory: (
-			request: Request,
 			authCoreService: AuthCoreServiceShape,
 			sessions: SessionResolverShape,
 			...deps: ExtraInstances<ExtraD>
@@ -182,6 +180,8 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 			 * every provider existed.
 			 */
 			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> => {
+				// The live request, read from the call itself: nothing here is request-scoped, so the host is a singleton.
+				const request = executionContext.switchToHttp().getRequest<Request>();
 				const resolved = extra ? await extra.resolve(executionContext, ...deps) : {};
 				const effectContext = (resolved as { readonly "effect/context"?: Context.Context<unknown> })["effect/context"];
 
@@ -263,7 +263,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 				context,
 			};
 		},
-		inject: [REQUEST, AuthCoreService, SessionResolver, ...(extra?.inject ?? [])],
+		inject: [AuthCoreService, SessionResolver, ...(extra?.inject ?? [])],
 	});
 }
 

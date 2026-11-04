@@ -11,7 +11,7 @@ import { AuthModule } from '@/core/modules/auth/auth.module';
 import { DatabaseModule } from "@/core/modules/database/database.module";
 import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
-import { MigrationJournalService } from '@/core/utils/migration-journal.service';
+import { MigrationJournalService, makeMigrationJournalService } from '@/core/utils/migration-journal.service';
 
 import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
 import { MigrateCommand } from './commands/migrate.command';
@@ -66,6 +66,6 @@ export class CLIModule extends createModuleContext({
     CreateDefaultAdminCommand,
     NodeStartupCheckCommand,
     ResealSecretsCommand,
-    MigrationJournalService,
+    { provide: MigrationJournalService, useFactory: () => makeMigrationJournalService() },
   ],
 }) {}

@@ -45,7 +45,6 @@ export function useDescribeSharedApiRuntime(
 }
 
 export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRuntimeScope };
-export { setSharedRuntimeAuthHeaders, setSharedRuntimeRequestOverride, resetSharedRuntimeRequestOverride } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
 /**
  * The setup-surface client, bound to this app's root module.
