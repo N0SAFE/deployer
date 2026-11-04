@@ -16,6 +16,8 @@ import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { AuthModule } from "@/core/modules/auth/auth.module";
 import { BootstrapModule } from "@/core/modules/bootstrap/bootstrap.module";
+import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
+
 import { DatabaseModule } from "@/core/modules/database/database.module";
 import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
 import { SupervisorsDatabaseModule } from "@/core/modules/supervisors/database/database-supervisors.module";
@@ -96,6 +98,9 @@ export class BffModule extends createModuleContext({
 		// to resolve at boot.
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,
+		// The authz gate decides from the `roles` table; without this it falls back to the code table and would refuse
+		// every custom role (`SEC-062`, `SEC-055`).
+		RoleCatalogueModule,
 		AuthModule.forRootAsync({
 			imports: [EnvModule],
 			useFactory: createBetterAuth,

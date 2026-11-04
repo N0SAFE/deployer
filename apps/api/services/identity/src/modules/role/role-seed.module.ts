@@ -1,8 +1,9 @@
 import { Module } from "@nestjs/common";
 
+import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
+
 import { DatabasePortModule } from "@identity/core/database/database.module";
 
-import { RoleCatalogueRefresher } from "./role-catalogue.refresher";
 import { RoleSeeder } from "./role.seed";
 
 /**
@@ -13,7 +14,7 @@ import { RoleSeeder } from "./role.seed";
  * no request context, so it stays on Nest's own `OnApplicationBootstrap`.
  */
 @Module({
-	imports: [DatabasePortModule],
-	providers: [RoleSeeder, RoleCatalogueRefresher],
+	imports: [DatabasePortModule, RoleCatalogueModule],
+	providers: [RoleSeeder],
 })
 export class RoleSeedModule {}

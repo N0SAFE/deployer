@@ -10,6 +10,7 @@ import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
+import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	DEPENDENCIES,
@@ -56,6 +57,9 @@ export class HealthServiceModule extends createModuleContext({
 		EnvModule,
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,
+		// The authz gate decides from the `roles` table; without this it falls back to the code table
+		// and would refuse every custom role (`SEC-062`, `SEC-055`).
+		RoleCatalogueModule,
 		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
 		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
 		// populates `context.auth`, so the service it injects has to be in this app's
@@ -86,7 +90,7 @@ export class HealthServiceModule extends createModuleContext({
 				inject: [EffectHost],
 				// The request context is the context of the module that owns the controller being called: this app's
 				// handlers can only reach what `HealthDomainModule` provides, exactly what the type audit checks.
-				resolve: async (executionContext, host) => ({
+				resolve: (executionContext, host) => ({
 					"effect/context": host.contextFor(executionContext.getClass()),
 				}),
 			},

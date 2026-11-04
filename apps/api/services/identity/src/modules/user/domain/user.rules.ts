@@ -2,7 +2,7 @@ import { refuseAdminAction, refuseRoleGrant, isPlatformAdministrator } from "@de
 import type { Permission } from "@deployer/auth/authz";
 import { ForbiddenError, ValidationError } from "@deployer/errors";
 
-import { roleHasPermission } from "@identity/core/authz/role-catalog";
+import { roleHasPermission } from "@deployer/shared/core/authz/role-catalog";
 
 import type { Actor, User, UserPatch } from "./user.types";
 

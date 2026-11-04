@@ -10,6 +10,7 @@ import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
+import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { NodeStateModule } from "@deployer/shared/core/modules/node-state/node-state.module";
 import { ServiceClientModule } from "@deployer/shared/server";
@@ -51,6 +52,9 @@ export class RuntimeServiceModule extends createModuleContext({
 		EnvModule,
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,
+		// The authz gate decides from the `roles` table; without this it falls back to the code table
+		// and would refuse every custom role (`SEC-062`, `SEC-055`).
+		RoleCatalogueModule,
 		// ── WHY THE NODE-STATE MODULE ───────────────────────────────────────────
 		// It is what registers the LOCAL SQLite database (`NODE_LOCAL_DB_PATH` +
 		// migrations) and the node repositories over it. Shared modules read that

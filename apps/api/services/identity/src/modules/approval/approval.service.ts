@@ -3,7 +3,7 @@ import { Context, Effect } from "effect";
 import { isPermission } from "@deployer/auth/authz";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
-import { roleHasPermission, roleNamesWithPermission } from "@identity/core/authz/role-catalog";
+import { roleHasPermission, roleNamesWithPermission } from "@deployer/shared/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actionHash } from "@identity/core/utils/action-hash";
 import { AuditService } from "@identity/modules/audit/audit.service";

@@ -4,7 +4,7 @@ import { Context, Effect } from "effect";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
-import { roleHasPermission } from "@identity/core/authz/role-catalog";
+import { roleHasPermission } from "@deployer/shared/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actorFromCurrent } from "@identity/core/utils/actor.utils";
 

@@ -10,6 +10,7 @@ import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
+import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { SwarmInventoryModule } from "@deployer/shared/core/modules/swarm/swarm-inventory.module";
@@ -83,6 +84,9 @@ export class FleetServiceModule extends createModuleContext({
 		EnvModule,
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,
+		// The authz gate decides from the `roles` table; without this it falls back to the code table
+		// and would refuse every custom role (`SEC-062`, `SEC-055`).
+		RoleCatalogueModule,
 		// The `DatabasePort` Effect key, global: repositories yield it at call time, so every module's
 		// scoped request context must see it (a root `providers` entry is invisible to child modules).
 		DatabasePortModule,

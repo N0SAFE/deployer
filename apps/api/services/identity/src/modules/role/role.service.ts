@@ -3,7 +3,7 @@ import { Context, Effect } from "effect";
 import { capabilitiesOfRole, isPermission, platformRoleRank, type ScopeKind } from "@deployer/auth/authz";
 import { CurrentActor, serviceOver } from "@deployer/effect-core";
 
-import { installRoleSnapshot, roleHasPermission } from "@identity/core/authz/role-catalog";
+import { installRoleSnapshot, roleHasPermission } from "@deployer/shared/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { actorFromCurrent } from "@identity/core/utils/actor.utils";
 import { AuditService } from "@identity/modules/audit/audit.service";

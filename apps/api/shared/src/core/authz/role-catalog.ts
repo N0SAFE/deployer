@@ -1,4 +1,4 @@
-import { SYSTEM_ROLES_TABLE, roleGrants, type Permission } from "@deployer/auth/authz";
+import { SYSTEM_ROLES_TABLE, capabilitiesOfRole, roleGrants, type Permission } from "@deployer/auth/authz";
 
 /**
  * The permission snapshot authorization reads (`SEC-055`).
@@ -10,6 +10,9 @@ import { SYSTEM_ROLES_TABLE, roleGrants, type Permission } from "@deployer/auth/
  * Until a snapshot exists (boot, or a spec that never loads one) the CODE table answers, so the fallback is the same
  * declaration the seed was written from. That is why an empty cache is safe: it is never "no permissions", it is
  * "ask the declaration".
+ *
+ * It lives in `shared` because TWO readers need the same view: the identity service's approval guard, and the oRPC authz
+ * gate in every service (`SEC-062`). Each process loads it from the `roles` table it can reach; the code is one.
  */
 export type CatalogueRole = { readonly name: string; readonly permissions: readonly string[] };
 
@@ -67,4 +70,17 @@ export function roleHasPermission(role: string | null | undefined, permission: P
 	// with rows is authoritative, and a role it does not list grants nothing (fail closed).
 	if (snapshot === null || snapshot.permissions.size === 0) return roleGrants(role ?? "", permission);
 	return snapshot.permissions.get(role ?? "")?.has(permission) ?? false;
+}
+
+/**
+ * Every permission a role grants, read the same way `roleHasPermission` answers one: the snapshot when the catalogue is
+ * loaded, the code table before that.
+ *
+ * The gate needs the SET rather than one answer (`PermissionStore.capabilities`), and it must not disagree with the
+ * boolean helper — a role that passes one and fails the other is the kind of split-brain an enforcement flip turns into
+ * a lockout.
+ */
+export function permissionsOfRole(role: string | null | undefined): readonly Permission[] {
+	if (snapshot === null || snapshot.permissions.size === 0) return capabilitiesOfRole(role ?? "");
+	return [...(snapshot.permissions.get(role ?? "") ?? [])] as readonly Permission[];
 }

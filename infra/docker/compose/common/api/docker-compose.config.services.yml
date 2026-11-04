@@ -61,6 +61,12 @@ x-api-service-common: &api-service-common
     APP_DIR: /app
     DEP_OUTPUT_ROOT: /app/dep-output
     WAIT_FOR_DEPS: ${WAIT_FOR_DEPS:-1}
+    # ── AUTHORIZATION ENFORCEMENT (`SEC-062`) ──────────────────────────────
+    # off | shadow | enforce, read once by `createOrpcModule`. `off` is the default because a
+    # flip is a DECISION, not a deploy: `shadow` evaluates every declaration and logs the
+    # would-denies without refusing, `enforce` refuses. Unset and a typo both mean `off` (with
+    # one warning), so this file cannot lock an installation out by being wrong.
+    AUTHZ_MODE: ${AUTHZ_MODE:-off}
     # ── HOW LONG PREFLIGHT WAITS, AND WHY IT IS LONGER HERE ─────────────────
     # Every app in this profile declares `DEPENDENCIES.database` and exits 5 when
     # it is not usable (`PreflightModule` → `DependencyNotReadyError`). The 60s

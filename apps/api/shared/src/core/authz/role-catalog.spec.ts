@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearRoleSnapshot,
 	installRoleSnapshot,
+	permissionsOfRole,
 	roleHasPermission,
 	roleSnapshotEpoch,
 } from "./role-catalog";
@@ -40,5 +41,22 @@ describe("role catalogue snapshot", () => {
 		// A role deleted while accounts still carry its name fails closed, never open.
 		expect(roleHasPermission("deleted-role", "audit:read")).toBe(false);
 		expect(roleHasPermission(null, "audit:read")).toBe(false);
+	});
+
+	it("answers the whole set the way it answers one permission, so the gate and the guard cannot disagree", () => {
+		// The fallback (no snapshot) and the snapshot must agree: a role that passes one and fails the other is the
+		// split-brain an enforcement flip turns into a lockout.
+		for (const role of ["superAdmin", "admin", "viewer", "no-such-role"]) {
+			const before = permissionsOfRole(role);
+			expect(before.includes("user:delete")).toBe(roleHasPermission(role, "user:delete"));
+			expect(before.length === 0).toBe(!roleHasPermission(role, "user:list") && !roleHasPermission(role, "project:read"));
+		}
+
+		installRoleSnapshot(7, [{ name: "support", permissions: ["audit:read"] }]);
+
+		expect(permissionsOfRole("support")).toEqual(["audit:read"]);
+		expect(roleHasPermission("support", "audit:read")).toBe(true);
+		// A role the catalogue does not list grants nothing, including one that used to exist.
+		expect(permissionsOfRole("viewer")).toEqual([]);
 	});
 });

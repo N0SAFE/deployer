@@ -5,7 +5,7 @@ import { SYSTEM_ROLES_TABLE } from "@deployer/auth/authz";
 import { Actor, CurrentActor } from "@deployer/effect-core";
 import { ForbiddenError } from "@deployer/errors";
 
-import { clearRoleSnapshot } from "@identity/core/authz/role-catalog";
+import { clearRoleSnapshot } from "@deployer/shared/core/authz/role-catalog";
 import { DatabasePort } from "@identity/core/database/database.port";
 import { AuditService } from "@identity/modules/audit/audit.service";
 import { StepUpService } from "@identity/modules/step-up/step-up.service";

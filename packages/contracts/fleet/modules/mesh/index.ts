@@ -4,6 +4,7 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import {
     nodeAgentNodeSchema,
     nodeAgentNodesResultSchema,
@@ -66,6 +67,7 @@ export const meshGetLocalNodeContract = nodeAgentNodeOps
     .path("/node/local")
     .input(z.object({}))
     .output(() => nodeAgentNodeSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 /**
@@ -83,6 +85,7 @@ export const meshPingContract = meshPingOps
     .path("/ping")
     .input(z.object({}))
     .output(meshPingResultSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 export const meshGetNodeMetricsContract = meshSystemMetricsOps
@@ -90,6 +93,7 @@ export const meshGetNodeMetricsContract = meshSystemMetricsOps
     .path("/node/metrics")
     .input(z.object({}))
     .output(systemMetricsSnapshotSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 export const meshListPeersContract = nodeAgentNodesOps
@@ -97,14 +101,17 @@ export const meshListPeersContract = nodeAgentNodesOps
     .path("/peers")
     .input(z.object({}))
     .output(nodeAgentNodesResultSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
-export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfigSchemas).build();
+export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfigSchemas).meta(access({ permission: "mesh:read" }))
+.build();
 
 export const meshFindEventStreamByIdContract = meshEventStreamByIdOps
     .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/streams/${p("id", z.uuid())}`))
     .output(coreEventStreamDefinitionSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 export const meshStreamSubscribeContract = meshStreamSubscribeOps
@@ -115,6 +122,7 @@ export const meshStreamSubscribeContract = meshStreamSubscribeOps
             .query(meshStreamReplayQuerySchema),
     )
     .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 export const meshMembershipSnapshotContract = nodeAgentSnapshotOps
@@ -122,6 +130,7 @@ export const meshMembershipSnapshotContract = nodeAgentSnapshotOps
     .path("/membership/snapshot")
     .input(z.object({}))
     .output(nodeAgentSnapshotSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 /** The swarm as the agents report it, sent again whenever it changes. */
@@ -130,6 +139,7 @@ export const meshTopologyStreamContract = nodeAgentSnapshotOps
     .path("/topology/stream")
     .input(z.object({}))
     .output((b) => b.observable(nodeAgentSnapshotSchema))
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 export const meshLookupResourceContract = nodeAgentLookupOps
@@ -137,6 +147,7 @@ export const meshLookupResourceContract = nodeAgentLookupOps
     .path("/lookup")
     .input((b) => b.body(nodeAgentLookupInputSchema))
     .output(nodeAgentLookupResultSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 /**
@@ -148,6 +159,7 @@ export const meshIssueJoinTokenContract = nodeAgentJoinTokenOps
     .path("/enrollment/tokens/issue")
     .input((b) => b.body(nodeAgentJoinTokenInputSchema))
     .output(nodeAgentJoinTokenResultSchema)
+    .meta(access({ permission: "cluster:join-token:reveal" }))
     .build();
 
 export const meshGetNodeConfigContract = meshNodeConfigOps
@@ -155,6 +167,7 @@ export const meshGetNodeConfigContract = meshNodeConfigOps
     .path("/node/config")
     .input((b) => b.body(z.object({}).optional()))
     .output(meshNodeConfigSchema)
+    .meta(access({ permission: "mesh:read" }))
     .build();
 
 export const meshUpdateNodeConfigContract = meshNodeConfigUpdateOps
@@ -162,6 +175,7 @@ export const meshUpdateNodeConfigContract = meshNodeConfigUpdateOps
     .path("/node/config")
     .input((b) => b.body(meshNodeConfigUpdateInputSchema))
     .output(meshNodeConfigUpdateResultSchema)
+    .meta(access({ permission: "mesh:operate" }))
     .build();
 
 export const meshRegenerateNodeConfigSecretContract = meshNodeConfigRegenerateSecretOps
@@ -169,6 +183,7 @@ export const meshRegenerateNodeConfigSecretContract = meshNodeConfigRegenerateSe
     .path("/node/config/regenerate-secret")
     .input((b) => b.body(z.object({}).optional()))
     .output(meshNodeConfigRegenerateSecretResultSchema)
+    .meta(access({ permission: "mesh:operate" }))
     .build();
 
 export const meshTestNodeConfigDbContract = meshNodeConfigTestDbOps
@@ -176,6 +191,7 @@ export const meshTestNodeConfigDbContract = meshNodeConfigTestDbOps
     .path("/node/config/test-db")
     .input((b) => b.body(meshNodeConfigTestDbInputSchema))
     .output(meshNodeConfigTestDbResultSchema)
+    .meta(access({ permission: "mesh:operate" }))
     .build();
 
 export const meshContract = oc.meta(openapi({ tags: ["Core Mesh"], prefix: "/mesh" })).router({

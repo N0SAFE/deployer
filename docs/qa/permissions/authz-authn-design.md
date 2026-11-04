@@ -202,3 +202,25 @@ gate that reads it) and re-export the `authz` meta key, so the declaration and t
 
 ---
 
+---
+
+## Rollout (`SEC-062`, 2026-11-04)
+
+**Q**: What is safe to turn on, and in what order?
+
+**A**: `AUTHZ_MODE` (read once by `createOrpcModule`) is `off | shadow | enforce`; the compose files default it
+to `off`, so a flip is a decision and a typo means `off` with one warning.
+
+- `shadow` — every declaration is evaluated and a would-deny is logged (`[authz] would deny …`), nothing is refused.
+  Safe anywhere; this is how the mapping gets reviewed against real traffic.
+- `enforce` — refusals. Currently safe for the surfaces that only need PLATFORM capabilities: identity (all of it) and
+  fleet `cluster`/`nodes`. It is NOT safe for project-scoped routes: the capability source answers nothing for a project
+  scope (`SEC-059`), so enforcement there would deny the people who actually own the project. Those routes stay
+  undeclared — the gate allows an undeclared procedure and logs it — until project capabilities exist.
+
+The capability source is the `roles` TABLE through the process snapshot (`RoleCatalogueModule`, refreshed on boot, every
+30 s, and immediately after a catalogue write), not the shipped constant: with the constant, a custom role would be
+denied everything the moment enforcement came on.
+
+Two things follow for whoever flips it: watch the shadow log for a day first, and start with one service
+(`AUTHZ_MODE=enforce` on `svc-identity`), because the gate is per process.

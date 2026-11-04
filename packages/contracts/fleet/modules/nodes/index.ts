@@ -2,6 +2,7 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /**
@@ -150,6 +151,7 @@ export const fleetListServersContract = fleetServerSummaryOps
     .path("/servers")
     .input(z.object({}))
     .output((b) => b.body(z.object({ items: z.array(fleetServerSummarySchema) })))
+    .meta(access({ permission: "node:read" }))
     .build();
 
 export const fleetListAllocationsContract = fleetServerAllocationOps
@@ -157,6 +159,7 @@ export const fleetListAllocationsContract = fleetServerAllocationOps
     .path("/allocations")
     .input((b) => b.query(listFleetAllocationsQuerySchema))
     .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
+    .meta(access({ permission: "node:read" }))
     .build();
 
 export const fleetListMyAllocationsContract = fleetServerAllocationOps
@@ -164,6 +167,7 @@ export const fleetListMyAllocationsContract = fleetServerAllocationOps
     .path("/allocations/me")
     .input(z.object({}))
     .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
+    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
     .build();
 
 export const fleetUpsertAllocationContract = fleetServerAllocationOps
@@ -175,6 +179,7 @@ export const fleetUpsertAllocationContract = fleetServerAllocationOps
         // 404 unknown node/server; 409 allocation conflict.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "node:operate" }))
     .build();
 
 export const fleetDeleteAllocationContract = fleetAllocationDeleteOps
@@ -186,6 +191,7 @@ export const fleetDeleteAllocationContract = fleetAllocationDeleteOps
         // 404 for unknown allocation.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "node:operate" }))
     .build();
 
 export const fleetCheckMyAdmissionContract = fleetAdmissionCheckOps
@@ -193,6 +199,7 @@ export const fleetCheckMyAdmissionContract = fleetAdmissionCheckOps
     .path("/allocations/me/admission-check")
     .input((b) => b.body(fleetAdmissionCheckInputSchema))
     .output((b) => b.body(fleetAdmissionCheckResultSchema))
+    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
     .build();
 
 export const fleetCreateMyAdmissionRequestContract = fleetAdmissionRequestOps
@@ -200,6 +207,7 @@ export const fleetCreateMyAdmissionRequestContract = fleetAdmissionRequestOps
     .path("/allocations/me/requests")
     .input((b) => b.body(createFleetAdmissionRequestInputSchema))
     .output((b) => b.body(fleetAdmissionRequestSchema))
+    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
     .build();
 
 export const fleetListMyAdmissionRequestsContract = fleetAdmissionRequestOps
@@ -207,6 +215,7 @@ export const fleetListMyAdmissionRequestsContract = fleetAdmissionRequestOps
     .path("/allocations/me/requests")
     .input((b) => b.query(z.object({ status: fleetAdmissionRequestStatusSchema.optional() })))
     .output((b) => b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) })))
+    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
     .build();
 
 export const fleetListAdmissionRequestsContract = fleetAdmissionRequestOps
@@ -214,6 +223,7 @@ export const fleetListAdmissionRequestsContract = fleetAdmissionRequestOps
     .path("/allocations/requests")
     .input((b) => b.query(listFleetAdmissionRequestsQuerySchema))
     .output((b) => b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) })))
+    .meta(access({ permission: "node:read" }))
     .build();
 
 export const fleetResolveAdmissionRequestContract = fleetAdmissionRequestOps
@@ -221,6 +231,7 @@ export const fleetResolveAdmissionRequestContract = fleetAdmissionRequestOps
     .path("/allocations/requests/resolve")
     .input((b) => b.body(resolveFleetAdmissionRequestInputSchema))
     .output((b) => b.body(fleetAdmissionRequestSchema))
+    .meta(access({ permission: "node:operate" }))
     .build();
 
 export const fleetSetServerCapacityContract = fleetServerSummaryOps
@@ -236,6 +247,7 @@ export const fleetSetServerCapacityContract = fleetServerSummaryOps
         ),
     )
     .output((b) => b.body(fleetServerSummarySchema))
+    .meta(access({ permission: "node:operate" }))
     .build();
 
 export const nodesContract = oc.meta(openapi({ tags: ["Nodes"], prefix: "/nodes" })).router({
