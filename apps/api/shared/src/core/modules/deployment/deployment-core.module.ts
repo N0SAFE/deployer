@@ -6,13 +6,12 @@ import { PreviewNamingService } from "./services/preview-naming.service";
 
 export class DeploymentCoreModule extends createModuleContext({
     providers: [
-        PreviewNamingService,
-        PreviewCleanupPolicyService,
-        DeploymentProviderBuilderRunnerStateMachineService,
+        { provide: PreviewNamingService, useValue: PreviewNamingService.live },
+        { provide: PreviewCleanupPolicyService, useValue: PreviewCleanupPolicyService.live },
+        {
+            provide: DeploymentProviderBuilderRunnerStateMachineService,
+            useValue: DeploymentProviderBuilderRunnerStateMachineService.live,
+        },
     ],
-    exports: [
-        PreviewNamingService,
-        PreviewCleanupPolicyService,
-        DeploymentProviderBuilderRunnerStateMachineService,
-    ],
+    exports: [PreviewNamingService, PreviewCleanupPolicyService, DeploymentProviderBuilderRunnerStateMachineService],
 }) {}

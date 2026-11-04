@@ -1,17 +1,19 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
-import { PreviewNamingService } from "@deployer/shared/core/modules/deployment/services/preview-naming.service";
+import { Effect } from "effect";
+
+import { PreviewNamingInvalid, PreviewNamingService } from "@deployer/shared/core/modules/deployment/services/preview-naming.service";
 
 describe("PreviewNamingService", () => {
-    let service: PreviewNamingService;
-
-    beforeEach(() => {
-        service = new PreviewNamingService();
-    });
+    const service = PreviewNamingService.live;
+    const build = (input: Parameters<typeof service.buildPreviewName>[0]) =>
+        Effect.runSync(service.buildPreviewName(input));
+    const failure = (input: Parameters<typeof service.buildPreviewName>[0]) =>
+        Effect.runSync(Effect.flip(service.buildPreviewName(input)));
 
     describe("strategy=pr", () => {
         it("returns pr-<number> name", () => {
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 prNumber: 42,
                 urlPattern: "preview-{{preview_name}}.example.com",
@@ -22,20 +24,20 @@ describe("PreviewNamingService", () => {
             expect(result.strategy).toBe("pr");
         });
 
-        it("throws when prNumber is missing", () => {
-            expect(() =>
-                service.buildPreviewName({
+        it("fails when prNumber is missing", () => {
+            const error = failure({
                     serviceId: "svc-1",
                     urlPattern: "{{preview_name}}.example.com",
                     namingStrategy: "pr",
-                }),
-            ).toThrow("prNumber");
+                });
+            expect(error).toBeInstanceOf(PreviewNamingInvalid);
+            expect(error.reason).toContain("prNumber");
         });
     });
 
     describe("strategy=branch", () => {
         it("slugifies the branch name", () => {
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 branchName: "feature/my-new-Feature",
                 urlPattern: "{{preview_name}}.example.com",
@@ -45,19 +47,19 @@ describe("PreviewNamingService", () => {
             expect(result.resolvedUrl).toBe("feature-my-new-feature.example.com");
         });
 
-        it("throws when branchName is missing", () => {
-            expect(() =>
-                service.buildPreviewName({
+        it("fails when branchName is missing", () => {
+            const error = failure({
                     serviceId: "svc-1",
                     urlPattern: "{{preview_name}}.example.com",
                     namingStrategy: "branch",
-                }),
-            ).toThrow("branchName");
+                });
+            expect(error).toBeInstanceOf(PreviewNamingInvalid);
+            expect(error.reason).toContain("branchName");
         });
 
         it("trims slugs to max 48 chars", () => {
             const longBranch = "feature/this-is-a-very-very-very-long-branch-name-that-exceeds-limit";
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 branchName: longBranch,
                 urlPattern: "{{preview_name}}.example.com",
@@ -69,7 +71,7 @@ describe("PreviewNamingService", () => {
 
     describe("strategy=branch_hash", () => {
         it("appends a 7-char hash fragment", () => {
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 branchName: "main",
                 commitSha: "abc1234def5678",
@@ -88,8 +90,8 @@ describe("PreviewNamingService", () => {
                 urlPattern: "{{preview_name}}.preview.dev",
                 namingStrategy: "branch_hash" as const,
             };
-            const r1 = service.buildPreviewName(input);
-            const r2 = service.buildPreviewName(input);
+            const r1 = build(input);
+            const r2 = build(input);
             expect(r1.previewName).toBe(r2.previewName);
         });
 
@@ -100,25 +102,25 @@ describe("PreviewNamingService", () => {
                 urlPattern: "{{preview_name}}.example.com",
                 namingStrategy: "branch_hash" as const,
             };
-            const r1 = service.buildPreviewName({ ...base, branchName: "feat/a" });
-            const r2 = service.buildPreviewName({ ...base, branchName: "feat/b" });
+            const r1 = build({ ...base, branchName: "feat/a" });
+            const r2 = build({ ...base, branchName: "feat/b" });
             expect(r1.previewName).not.toBe(r2.previewName);
         });
 
-        it("throws when branchName is missing", () => {
-            expect(() =>
-                service.buildPreviewName({
+        it("fails when branchName is missing", () => {
+            const error = failure({
                     serviceId: "svc-1",
                     urlPattern: "{{preview_name}}.example.com",
                     namingStrategy: "branch_hash",
-                }),
-            ).toThrow("branchName");
+                });
+            expect(error).toBeInstanceOf(PreviewNamingInvalid);
+            expect(error.reason).toContain("branchName");
         });
     });
 
     describe("strategy=custom", () => {
         it("resolves token substitution in url pattern", () => {
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 branchName: "feat/custom",
                 prNumber: 7,
@@ -132,7 +134,7 @@ describe("PreviewNamingService", () => {
 
     describe("url pattern token substitution", () => {
         it("substitutes {{branch}} token", () => {
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 branchName: "feat/tokens",
                 urlPattern: "{{branch}}.preview.example.com",
@@ -142,7 +144,7 @@ describe("PreviewNamingService", () => {
         });
 
         it("substitutes {{commit_sha}} token with 7-char slice", () => {
-            const result = service.buildPreviewName({
+            const result = build({
                 serviceId: "svc-1",
                 branchName: "main",
                 commitSha: "abcdef1234567",

@@ -31,7 +31,7 @@ const event: GithubPrEvent = {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function setup() {
-    const naming = { buildPreviewName: vi.fn(() => ({ previewName: "pr-7", resolvedUrl: "pr-7.example.com" })) };
+    const naming = { buildPreviewName: vi.fn(() => Effect.succeed({ previewName: "pr-7", resolvedUrl: "pr-7.example.com" })) };
     const cleanupPolicy = { shouldCleanup: vi.fn(() => ({ cleanup: true, reason: "pr_closed" })) };
     const lifecycle = { emitEffect: vi.fn(() => Effect.void) };
     const provisioning = {

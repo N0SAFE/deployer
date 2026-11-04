@@ -77,7 +77,7 @@ function makeGithubWebhookDispatchService({ naming, cleanupPolicy, lifecycle, pr
             const urlPattern = input.previewUrlPattern
                 ?? (baseDomain ? `preview-pr-{{pr_number}}.${baseDomain}` : "preview-pr-{{pr_number}}");
 
-            const previewNaming = naming.buildPreviewName({
+            const previewNaming = yield* naming.buildPreviewName({
                 serviceId: input.serviceId,
                 branchName: input.branchName,
                 prNumber: input.prNumber,
