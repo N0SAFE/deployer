@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { EMPTY, Observable, combineLatest, defer, firstValueFrom, from, merge } from "rxjs";
+import { Context, Effect } from "effect";
+import { EMPTY, Observable, combineLatest, defer, firstValueFrom, from, merge, throwError } from "rxjs";
 import { filter as rxFilter, map, mergeMap, startWith, tap as rxTap, toArray } from "rxjs/operators";
 
 import type {
@@ -11,8 +11,18 @@ import type {
 import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
 import type { CoreEventStreamListInput } from "@deployer/fleet-contracts";
 
-import { AbstractDomainEventStreamService, CoreEventStreamPoolService } from "../base/index";
-import { CoreEventStreamRepository } from "../repositories/core-event-stream.repository";
+import {
+    CoreEventCollectionFailed,
+    CoreEventNamespaceMisconfigured,
+    CoreEventNamespaceUnregistered,
+    CoreEventStreamFiltersInvalid,
+    CoreEventStreamInactive,
+    CoreEventStreamNotFound,
+} from "../events.errors";
+
+import type { CoreEventStreamPoolServiceShape } from "../base/index";
+import type { CoreEventStreamRepositoryShape } from "../repositories/core-event-stream.repository";
+import type { StorageFailure } from "../../database/storage";
 
 import type { BaseEventService } from "../base/index";
 
@@ -64,7 +74,7 @@ export type NamespaceEventSubscription<
 export type RegisterNamespaceEventServiceOptions<TService extends BaseEventService> = {
     resolveSubscriptions?: (
         definition: CoreEventStreamDefinition,
-    ) => NamespaceEventSubscription<TService>[];
+    ) => NamespaceEventSubscription<TService>[] | CoreEventStreamFiltersInvalid;
 }
 
 type SelectedServiceEnvelope<
@@ -370,7 +380,7 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
     private replayLimitValue?: number;
 
     constructor(
-        private readonly service: CoreEventSyncService,
+        private readonly service: CoreEventSyncServiceShape,
         private readonly fromSource: CoreEventQueryNamespaceInput,
     ) {}
 
@@ -399,10 +409,8 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
 
     private async resolveRows(): Promise<TRow[]> {
         const fromAlias = this.fromSource.alias ?? this.fromSource.namespace;
-        const baseEvents = await this.service.collectNamespaceEvents(
-            this.fromSource,
-            this.replayEnabled,
-            this.replayLimitValue,
+        const baseEvents = await Effect.runPromise(
+            this.service.collectNamespaceEvents(this.fromSource, this.replayEnabled, this.replayLimitValue),
         );
 
         let rows: CoreEventQueryRow[] = baseEvents.map((event) => ({
@@ -411,10 +419,8 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
 
         for (const join of this.joins) {
             const joinAlias = join.alias ?? join.namespace;
-            const rightEvents = await this.service.collectNamespaceEvents(
-                join,
-                this.replayEnabled,
-                this.replayLimitValue,
+            const rightEvents = await Effect.runPromise(
+                this.service.collectNamespaceEvents(join, this.replayEnabled, this.replayLimitValue),
             );
 
             const nextRows: CoreEventQueryRow[] = [];
@@ -454,7 +460,7 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService | null 
     private staticSelections: NamespaceEventSubscription<BaseEventService>[] = [];
 
     constructor(
-        private readonly service: CoreEventSyncService,
+        private readonly service: CoreEventSyncServiceShape,
         private readonly namespaceValue: string,
     ) {}
 
@@ -497,16 +503,14 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService | null 
         return this;
     }
 
-    register(): void {
+    register(): Effect.Effect<void, CoreEventNamespaceMisconfigured> {
         if (this.adapter) {
             this.service.registerNamespaceAdapter(this.namespaceValue, this.adapter);
-            return;
+            return Effect.void;
         }
 
         if (!this.eventService) {
-            throw new BadRequestException(
-                `No adapter or event service configured for namespace '${this.namespaceValue}'`,
-            );
+            return Effect.fail(new CoreEventNamespaceMisconfigured({ namespace: this.namespaceValue }));
         }
 
         this.service.registerNamespaceEventService(this.namespaceValue, this.eventService, {
@@ -522,144 +526,38 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService | null 
                 return defaultSubscriptionsFromFilters(definition);
             },
         });
+        return Effect.void;
     }
 }
 
-@Injectable()
-export class CoreEventSyncService extends AbstractDomainEventStreamService {
-    protected readonly streamDomain = "core-events-sync";
-    private readonly namespaceAdapters = new Map<string, CoreEventNamespaceAdapter>();
-
-    constructor(
-        private readonly repository: CoreEventStreamRepository,
-        streamPool: CoreEventStreamPoolService,
-    ) {
-        super(streamPool);
-    }
-
-    registerNamespaceAdapter(namespace: string, adapter: CoreEventNamespaceAdapter): void {
-        this.namespaceAdapters.set(namespace, adapter);
-    }
-
-    namespace(namespace: string): CoreEventNamespaceBuilder {
-        return new CoreEventNamespaceBuilder(this, namespace);
-    }
-
-    registerNamespaceEventService<TService extends BaseEventService>(
+export type CoreEventSyncServiceShape = {
+    /** Publishes a namespace on the core event bus through an adapter. */
+    readonly registerNamespaceAdapter: (namespace: string, adapter: CoreEventNamespaceAdapter) => void;
+    readonly namespace: (namespace: string) => CoreEventNamespaceBuilder;
+    /** Publishes a namespace served by a `BaseEventService`; a stream whose filters name no subscription errors with `CoreEventStreamFiltersInvalid`. */
+    readonly registerNamespaceEventService: <TService extends BaseEventService>(
         namespace: string,
         eventService: TService,
         options?: RegisterNamespaceEventServiceOptions<TService>,
-    ): void {
-        const adapter: CoreEventNamespaceAdapter = ({ definition }) => {
-            const subscriptions =
-                options?.resolveSubscriptions?.(definition) ??
-                defaultSubscriptionsFromFilters<TService>(definition);
-
-            if (subscriptions.length === 0) {
-                return EMPTY;
-            }
-
-            const streams = subscriptions.map((selection) =>
-                eventService
-                    .subscribe$(
-                        selection.eventName,
-                        selection.input as never,
-                    )
-                    .pipe(
-                        map((value) => {
-                            const eventName =
-                                typeof selection.mapEventName === "function"
-                                    ? selection.mapEventName(selection.eventName)
-                                    : (selection.mapEventName ?? selection.eventName);
-
-                            // The subscription is erased at this point (the builder accepts any service), so neither the
-                            // handler's output nor the mapper's parameter carries a type. `never` is the one argument
-                            // every parameter accepts; the payload leaves this seam as `unknown`.
-                            const payload: unknown = selection.mapPayload
-                                ? selection.mapPayload(value as never)
-                                : value;
-
-                            return {
-                        eventName,
-                        payload,
-                        replayed: false,
-                        emittedAt: new Date().toISOString(),
-                            } satisfies CoreEventAdapterEvent;
-                        }),
-                    ),
-            );
-
-            return merge(...streams);
-        };
-
-        this.namespaceAdapters.set(namespace, adapter);
-    }
-
-    query(from: CoreEventQueryNamespaceInput): CoreEventSyncQueryBuilder {
-        return new CoreEventSyncQueryBuilder(this, from);
-    }
-
-    select<
+    ) => void;
+    readonly query: (from: CoreEventQueryNamespaceInput) => CoreEventSyncQueryBuilder;
+    readonly select: <
         TService extends BaseEventService,
         K extends EventNamesOf<TService>,
         TAlias extends string | undefined = undefined,
     >(
         input: ServiceQuerySelectInput<TService, K, TAlias>,
-    ): CoreEventServiceQueryBuilder<
-        Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K>>
-    > {
-        const alias = (input.alias ?? input.service.namespace) as AliasForService<TService, TAlias>;
-        return new CoreEventServiceQueryBuilder<
-            Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K>>
-        >(
-            {
-                alias,
-                stream$: selectedServiceObservable(
-                    input.service,
-                    input.eventName,
-                    input.input,
-                    input.mapEventName,
-                    input.mapPayload,
-                ),
-            },
-        );
-    }
-
-    selectMany<
+    ) => CoreEventServiceQueryBuilder<Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K>>>;
+    readonly selectMany: <
         TService extends BaseEventService,
         TSelections extends readonly AnyServiceSelection<TService>[],
         TAlias extends string | undefined = undefined,
     >(
         input: ServiceQuerySelectManyInput<TService, TSelections, TAlias>,
-    ): CoreEventServiceQueryBuilder<
-        Record<
-            AliasForService<TService, TAlias>,
-            SelectedServiceEnvelope<TService, TSelections[number]["eventName"]>
-        >
-    > {
-        const alias = (input.alias ?? input.service.namespace) as AliasForService<TService, TAlias>;
-        const sources = input.selections.map((selection) =>
-            selectedServiceObservable(
-                input.service,
-                selection.eventName,
-                selection.input,
-                selection.mapEventName,
-                selection.mapPayload,
-            ),
-        );
-
-        return new CoreEventServiceQueryBuilder<
-            Record<
-                AliasForService<TService, TAlias>,
-                SelectedServiceEnvelope<TService, TSelections[number]["eventName"]>
-            >
-        >({
-            alias,
-            stream$: merge(...sources),
-        });
-    }
-
-    queryFromService<TService extends BaseEventService, TAlias extends string>(input: {
+    ) => CoreEventServiceQueryBuilder<
+        Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, TSelections[number]["eventName"]>>
+    >;
+    readonly queryFromService: <TService extends BaseEventService, TAlias extends string>(input: {
         namespace: string;
         service: TService;
         alias: TAlias;
@@ -671,147 +569,209 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
         isActive?: boolean;
         replayDefault?: boolean;
         replayLimitDefault?: number;
-    }): CoreEventSyncQueryBuilder<Record<TAlias, ServiceEventEnvelope<TService>>> {
-        const source: CoreEventQueryNamespaceInput = {
-            namespace: input.namespace,
-            alias: input.alias,
-            name: input.name,
-            description: input.description,
-            scope: input.scope,
-            scopeId: input.scopeId,
-            filters: input.filters,
-            isActive: input.isActive,
-            replayDefault: input.replayDefault,
-            replayLimitDefault: input.replayLimitDefault,
-        };
-        return new CoreEventSyncQueryBuilder<Record<TAlias, ServiceEventEnvelope<TService>>>(
-            this,
-            source,
-        );
-    }
-
-    async listStreams(input: CoreEventStreamListInput | undefined) {
-        return this.repository.findMany(input);
-    }
-
-    async getStreamById(id: string): Promise<CoreEventStreamDefinition> {
-        const definition = await this.repository.findById(id);
-        if (!definition) {
-            throw new NotFoundException(`Core event stream definition with id '${id}' not found`);
-        }
-        return definition;
-    }
-
-    streamSync(input: {
-        id: string;
-        replay: boolean;
-        replayLimit?: number;
-    }): Observable<CoreSyncedEventEnvelope> {
-        return defer(() => from(this.getStreamById(input.id))).pipe(
-            mergeMap((definition) => {
-                if (!definition.isActive) {
-                    throw new BadRequestException(`Core event stream '${definition.id}' is inactive`);
-                }
-
-                const adapter = this.namespaceAdapters.get(definition.namespace);
-                if (!adapter) {
-                    throw new BadRequestException(
-                        `No core event namespace adapter registered for '${definition.namespace}'`,
-                    );
-                }
-
-                const replayLimit = input.replayLimit ?? 1;
-                const streamFactory = () => this.withEnvelope(definition, adapter({
-                    definition,
-                    replay: input.replay,
-                    replayLimit,
-                }));
-
-                if (input.replay) {
-                    return streamFactory();
-                }
-
-                return this.observeDomainPooledStream(
-                    this.buildLiveStreamPoolKey(definition.id),
-                    streamFactory,
-                );
-            }),
-        );
-    }
-
-    private buildLiveStreamPoolKey(streamId: string): string {
-        return `core-event-sync-live:${streamId}`;
-    }
-
-    async collectNamespaceEvents(
+    }) => CoreEventSyncQueryBuilder<Record<TAlias, ServiceEventEnvelope<TService>>>;
+    readonly listStreams: (
+        input: CoreEventStreamListInput | undefined,
+    ) => ReturnType<CoreEventStreamRepositoryShape["findMany"]>;
+    readonly getStreamById: (id: string) => Effect.Effect<CoreEventStreamDefinition, StorageFailure | CoreEventStreamNotFound>;
+    /**
+     * The live (pooled) or replayed stream of a definition. The transport is RxJS, so failures arrive on the observable's
+     * error channel as the tagged errors (`CoreEventStreamNotFound`, `CoreEventStreamInactive`, `CoreEventNamespaceUnregistered`).
+     */
+    readonly streamSync: (input: { id: string; replay: boolean; replayLimit?: number }) => Observable<CoreSyncedEventEnvelope>;
+    /** Every event of a namespace, collected (a virtual definition: nothing is stored). */
+    readonly collectNamespaceEvents: (
         source: CoreEventQueryNamespaceInput,
         replay: boolean,
         replayLimit?: number,
-    ): Promise<CoreSyncedEventEnvelope[]> {
-        const adapter = this.namespaceAdapters.get(source.namespace);
-        if (!adapter) {
-            throw new BadRequestException(
-                `No core event namespace adapter registered for '${source.namespace}'`,
-            );
-        }
+    ) => Effect.Effect<CoreSyncedEventEnvelope[], CoreEventNamespaceUnregistered | CoreEventCollectionFailed>;
+};
 
-        const definition = this.toVirtualDefinition(source);
-        const effectiveReplayLimit = replayLimit ?? 1;
-        const stream = adapter({
-            definition,
-            replay,
-            replayLimit: effectiveReplayLimit,
-        });
+type Ports = {
+    readonly repository: CoreEventStreamRepositoryShape;
+    readonly streamPool: CoreEventStreamPoolServiceShape;
+};
 
-        return firstValueFrom(
-            this.withEnvelope(definition, stream).pipe(toArray()),
+const STREAM_DOMAIN = "core-events-sync";
+
+const toVirtualDefinition = (source: CoreEventQueryNamespaceInput): CoreEventStreamDefinition => {
+    const now = new Date().toISOString();
+    return {
+        id: randomUUID(),
+        name: source.name ?? `${source.namespace}-query-stream`,
+        namespace: source.namespace,
+        description: source.description ?? null,
+        isActive: source.isActive ?? true,
+        scope: source.scope ?? "global",
+        scopeId: source.scopeId ?? null,
+        filters: source.filters ?? null,
+        replayDefault: source.replayDefault ?? true,
+        replayLimitDefault: source.replayLimitDefault ?? 1,
+        createdBy: null,
+        createdAt: now,
+        updatedAt: now,
+    };
+};
+
+const withEnvelope = (
+    definition: CoreEventStreamDefinition,
+    source: Observable<CoreEventAdapterEvent>,
+): Observable<CoreSyncedEventEnvelope> =>
+    defer(() => {
+        let sequence = 0;
+
+        return source.pipe(
+            map((event) => {
+                sequence += 1;
+
+                return {
+                    streamId: definition.id,
+                    namespace: definition.namespace,
+                    eventName: event.eventName,
+                    payload: event.payload,
+                    sequence,
+                    replayed: event.replayed,
+                    emittedAt: event.emittedAt ?? new Date().toISOString(),
+                } satisfies CoreSyncedEventEnvelope;
+            }),
         );
-    }
+    });
 
-    private toVirtualDefinition(source: CoreEventQueryNamespaceInput): CoreEventStreamDefinition {
-        const now = new Date().toISOString();
-        return {
-            id: randomUUID(),
-            name: source.name ?? `${source.namespace}-query-stream`,
-            namespace: source.namespace,
-            description: source.description ?? null,
-            isActive: source.isActive ?? true,
-            scope: source.scope ?? "global",
-            scopeId: source.scopeId ?? null,
-            filters: source.filters ?? null,
-            replayDefault: source.replayDefault ?? true,
-            replayLimitDefault: source.replayLimitDefault ?? 1,
-            createdBy: null,
-            createdAt: now,
-            updatedAt: now,
-        };
-    }
+export function makeCoreEventSyncService({ repository, streamPool }: Ports): CoreEventSyncServiceShape {
+    const namespaceAdapters = new Map<string, CoreEventNamespaceAdapter>();
 
-    private withEnvelope(
-        definition: CoreEventStreamDefinition,
-        source: Observable<CoreEventAdapterEvent>,
-    ): Observable<CoreSyncedEventEnvelope> {
-        return defer(() => {
-            let sequence = 0;
+    const registerNamespaceAdapter: CoreEventSyncServiceShape["registerNamespaceAdapter"] = (namespace, adapter) => {
+        namespaceAdapters.set(namespace, adapter);
+    };
 
-            return source.pipe(
-                map((event) => {
-                    sequence += 1;
+    const getStreamById: CoreEventSyncServiceShape["getStreamById"] = (id) =>
+        repository.findById(id).pipe(
+            Effect.flatMap((definition) => (definition === null ? Effect.fail(new CoreEventStreamNotFound({ id })) : Effect.succeed(definition))),
+        );
 
-                    return {
-                        streamId: definition.id,
-                        namespace: definition.namespace,
-                        eventName: event.eventName,
-                        payload: event.payload,
-                        sequence,
-                        replayed: event.replayed,
-                        emittedAt: event.emittedAt ?? new Date().toISOString(),
-                    } satisfies CoreSyncedEventEnvelope;
-                }),
+    const service: CoreEventSyncServiceShape = {
+        registerNamespaceAdapter,
+
+        namespace: (namespace) => new CoreEventNamespaceBuilder(service, namespace),
+
+        registerNamespaceEventService: <TService extends BaseEventService>(
+            namespace: string,
+            eventService: TService,
+            options?: RegisterNamespaceEventServiceOptions<TService>,
+        ) => {
+            const adapter: CoreEventNamespaceAdapter = ({ definition }) => {
+                const subscriptions =
+                    options?.resolveSubscriptions?.(definition) ?? defaultSubscriptionsFromFilters<TService>(definition);
+
+                if (subscriptions instanceof CoreEventStreamFiltersInvalid) return throwError(() => subscriptions);
+                if (subscriptions.length === 0) return EMPTY;
+
+                const streams = subscriptions.map((selection) =>
+                    eventService.subscribe$(selection.eventName, selection.input as never).pipe(
+                        map((value) => {
+                            const eventName =
+                                typeof selection.mapEventName === "function"
+                                    ? selection.mapEventName(selection.eventName)
+                                    : (selection.mapEventName ?? selection.eventName);
+
+                            // The subscription is erased at this point (the builder accepts any service), so neither the
+                            // handler's output nor the mapper's parameter carries a type. `never` is the one argument
+                            // every parameter accepts; the payload leaves this seam as `unknown`.
+                            const payload: unknown = selection.mapPayload ? selection.mapPayload(value as never) : value;
+
+                            return {
+                                eventName,
+                                payload,
+                                replayed: false,
+                                emittedAt: new Date().toISOString(),
+                            } satisfies CoreEventAdapterEvent;
+                        }),
+                    ),
+                );
+
+                return merge(...streams);
+            };
+
+            namespaceAdapters.set(namespace, adapter);
+        },
+
+        query: (from) => new CoreEventSyncQueryBuilder(service, from),
+
+        select: (input) => {
+            const alias = (input.alias ?? input.service.namespace) as AliasForService<typeof input.service, typeof input.alias>;
+            return new CoreEventServiceQueryBuilder({
+                alias,
+                stream$: selectedServiceObservable(input.service, input.eventName, input.input, input.mapEventName, input.mapPayload),
+            }) as never;
+        },
+
+        selectMany: (input) => {
+            const alias = input.alias ?? input.service.namespace;
+            const sources = input.selections.map((selection) =>
+                selectedServiceObservable(input.service, selection.eventName, selection.input, selection.mapEventName, selection.mapPayload),
             );
-        });
-    }
+
+            return new CoreEventServiceQueryBuilder({ alias, stream$: merge(...sources) }) as never;
+        },
+
+        queryFromService: (input) => {
+            const source: CoreEventQueryNamespaceInput = {
+                namespace: input.namespace,
+                alias: input.alias,
+                name: input.name,
+                description: input.description,
+                scope: input.scope,
+                scopeId: input.scopeId,
+                filters: input.filters,
+                isActive: input.isActive,
+                replayDefault: input.replayDefault,
+                replayLimitDefault: input.replayLimitDefault,
+            };
+            return new CoreEventSyncQueryBuilder(service, source) as never;
+        },
+
+        listStreams: (input) => repository.findMany(input),
+
+        getStreamById,
+
+        streamSync: (input) =>
+            defer(() => from(Effect.runPromise(getStreamById(input.id)))).pipe(
+                mergeMap((definition) => {
+                    if (!definition.isActive) return throwError(() => new CoreEventStreamInactive({ id: definition.id }));
+
+                    const adapter = namespaceAdapters.get(definition.namespace);
+                    if (!adapter) return throwError(() => new CoreEventNamespaceUnregistered({ namespace: definition.namespace }));
+
+                    const replayLimit = input.replayLimit ?? 1;
+                    const streamFactory = () => withEnvelope(definition, adapter({ definition, replay: input.replay, replayLimit }));
+
+                    if (input.replay) return streamFactory();
+
+                    return streamPool.observePooledStream(`${STREAM_DOMAIN}:core-event-sync-live:${definition.id}`, streamFactory, {
+                        onError: (error) => (error instanceof Error ? error.message : String(error)),
+                    });
+                }),
+            ),
+
+        collectNamespaceEvents: (source, replay, replayLimit) =>
+            Effect.suspend((): Effect.Effect<CoreSyncedEventEnvelope[], CoreEventNamespaceUnregistered | CoreEventCollectionFailed> => {
+                const adapter = namespaceAdapters.get(source.namespace);
+                if (!adapter) return Effect.fail(new CoreEventNamespaceUnregistered({ namespace: source.namespace }));
+
+                const definition = toVirtualDefinition(source);
+                const stream = adapter({ definition, replay, replayLimit: replayLimit ?? 1 });
+
+                return Effect.tryPromise({
+                    try: () => firstValueFrom(withEnvelope(definition, stream).pipe(toArray())),
+                    catch: (cause) => new CoreEventCollectionFailed({ cause }),
+                });
+            }),
+    };
+
+    return service;
 }
+
+export class CoreEventSyncService extends Context.Service<CoreEventSyncService, CoreEventSyncServiceShape>()("shared/CoreEventSyncService") {}
 
 function selectedServiceObservable<
     TService extends BaseEventService,
@@ -896,15 +856,13 @@ function buildFuzzyHaystack(row: CoreEventQueryRow, fields: FuzzyField[]): strin
 
 function defaultSubscriptionsFromFilters<TService extends BaseEventService>(
     definition: CoreEventStreamDefinition,
-): NamespaceEventSubscription<TService>[] {
+): NamespaceEventSubscription<TService>[] | CoreEventStreamFiltersInvalid {
     const filters = definition.filters ?? {};
     const eventName = filters.eventName;
     const input = filters.input;
 
     if (typeof eventName !== "string" || typeof input !== "object" || input === null) {
-        throw new BadRequestException(
-            "Core stream filters must include 'eventName' (string) and 'input' (object) when using registerNamespaceEventService without a custom resolver",
-        );
+        return new CoreEventStreamFiltersInvalid({});
     }
 
     return [

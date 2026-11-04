@@ -28,7 +28,7 @@ import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.mo
 import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { CoreEdgeModule } from "@deployer/shared/core/modules/edge/edge.module";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { GitHubModule } from "@deployer/shared/core/modules/git/github/github.module";
 import { GithubDeploymentRulesRepository } from "@deployer/shared/core/modules/git/github/repositories/github-deployment-rules.repository";
@@ -155,7 +155,7 @@ export class ProvidersModule extends createModuleContext({
         { provide: WebhookIdempotencyService, useValue: WebhookIdempotencyService.live },
         {
             provide: PreviewLifecycleEventService,
-            useFactory: (pool: CoreEventStreamPoolService) => new PreviewLifecycleEventServiceImpl(pool),
+            useFactory: (pool: CoreEventStreamPoolServiceShape) => new PreviewLifecycleEventServiceImpl(pool),
             inject: [CoreEventStreamPoolService],
         },
         // Schedules the expired-preview cleanup when the module is built; stopped with the application.

@@ -1,7 +1,7 @@
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { createModuleContext, effectHostProvider, EffectHost, serviceLifecycle, type EffectHostShape } from "@deployer/nest-effect";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 
 import { DockerContainersModule } from "../domains/containers/docker-containers.module";
@@ -22,7 +22,7 @@ export class DockerCommonModule extends createModuleContext({
     effectHostProvider(),
     {
       provide: DockerRuntimeEventsSourceService,
-      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerRuntimeEventsSourceService(engine, pool),
+      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolServiceShape) => new DockerRuntimeEventsSourceService(engine, pool),
       inject: [DockerEngine, CoreEventStreamPoolService],
     },
     {

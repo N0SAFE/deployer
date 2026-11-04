@@ -5,7 +5,7 @@ import { DatabaseModule } from "@deployer/shared/core/modules/database/database.
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
 import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
@@ -62,7 +62,7 @@ export class ServiceDomainModule extends createModuleContext({
 		{ provide: SERVICE_EVENT_REGISTRATION, useFactory: registerServiceEventAdapter, inject: [CoreEventSyncService, EffectHost] },
 		{
 			provide: ServiceEventService,
-			useFactory: (pool: CoreEventStreamPoolService) => new ServiceEventServiceImpl(pool),
+			useFactory: (pool: CoreEventStreamPoolServiceShape) => new ServiceEventServiceImpl(pool),
 			inject: [CoreEventStreamPoolService],
 		},
 		{ provide: ServiceStore, useValue: ServiceStore.live },

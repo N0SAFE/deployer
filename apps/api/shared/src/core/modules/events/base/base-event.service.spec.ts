@@ -1,9 +1,10 @@
+import { Effect } from 'effect';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import * as z from 'zod/v4';
 
-import { contractBuilder } from '@deployer/events';
+import { contractBuilder, EventLogUnavailable, type EventLogStoreShape, type PersistedEventLog } from '@deployer/events';
 
-import { BaseEventService, type EventLogPersistenceAdapter } from './base-event.service';
+import { BaseEventService } from './base-event.service';
 
 const testContracts = {
   progress: contractBuilder()
@@ -25,6 +26,23 @@ function setTinyBatch(svc: TinyBatchTestService): void {
 }
 
 const emptyFind = () => Promise.resolve([]);
+
+/** A Promise-shaped log, as an Effect store whose rejections are `EventLogUnavailable`. */
+type EventLogPersistenceAdapter = {
+  insertMany(logs: PersistedEventLog[]): Promise<void>;
+  findRecentByEventKey: () => Promise<PersistedEventLog[]>;
+  findRecentByEventName: () => Promise<PersistedEventLog[]>;
+};
+
+const asStore = (adapter: EventLogPersistenceAdapter): EventLogStoreShape => {
+  const lift = <A>(run: () => Promise<A>) =>
+    Effect.tryPromise({ try: run, catch: (cause) => new EventLogUnavailable({ reason: cause instanceof Error ? cause.message : String(cause), cause }) });
+  return {
+    insertMany: (logs) => lift(() => adapter.insertMany([...logs])),
+    findRecentByEventKey: () => lift(() => adapter.findRecentByEventKey()),
+    findRecentByEventName: () => lift(() => adapter.findRecentByEventName()),
+  };
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -49,7 +67,7 @@ describe('BaseEventService persistence retry', () => {
       findRecentByEventKey: emptyFind,
       findRecentByEventName: emptyFind,
     };
-    BaseEventService.configurePersistenceAdapter(adapter);
+    BaseEventService.configureEventLogStore(asStore(adapter));
 
     const svc = new TinyBatchTestService();
     setTinyBatch(svc);
@@ -65,7 +83,7 @@ describe('BaseEventService persistence retry', () => {
     expect(inserted.length).toBe(2);
     expect(adapter.insertMany).toHaveBeenCalledTimes(2);
 
-    svc.onModuleDestroy();
+    svc.dispose();
     vi.useRealTimers();
   });
 
@@ -75,7 +93,7 @@ describe('BaseEventService persistence retry', () => {
       findRecentByEventKey: emptyFind,
       findRecentByEventName: emptyFind,
     };
-    BaseEventService.configurePersistenceAdapter(adapter);
+    BaseEventService.configureEventLogStore(asStore(adapter));
 
     const svc = new TinyBatchTestService();
     const received: string[] = [];
@@ -88,6 +106,6 @@ describe('BaseEventService persistence retry', () => {
 
     expect(received).toEqual(['a', 'b']);
     sub.unsubscribe();
-    svc.onModuleDestroy();
+    svc.dispose();
   });
 });

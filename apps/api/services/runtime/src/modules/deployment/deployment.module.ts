@@ -9,7 +9,7 @@ import { DeploymentCoreModule } from "@deployer/shared/core/modules/deployment/d
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
 import { CoreEgressModule } from "@deployer/shared/core/modules/egress/egress.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
 import { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
 import { DeploymentProviderBuilderRunnerStateMachineService, type DeploymentStateMachineShape } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
@@ -127,15 +127,14 @@ export class DeploymentDomainModule extends createModuleContext({
         // The event buses are typed plain classes built over the shared stream pool.
         {
             provide: DeploymentEventService,
-            useFactory: (pool?: CoreEventStreamPoolService) => new DeploymentEventService(pool),
+            useFactory: (pool?: CoreEventStreamPoolServiceShape) => new DeploymentEventService(pool),
             inject: [{ token: CoreEventStreamPoolService, optional: true }],
         },
         {
             provide: DeploymentQueueEventService,
-            useFactory: (pool?: CoreEventStreamPoolService) => new DeploymentQueueEventService(pool),
+            useFactory: (pool?: CoreEventStreamPoolServiceShape) => new DeploymentQueueEventService(pool),
             inject: [{ token: CoreEventStreamPoolService, optional: true }],
         },
-        CoreEventSyncService,
         // The execution workflow and the deployment core are Effect services built over these ports. The core keeps
         // in-memory state, so it is built once (`useFactory`) and registers its event namespace in `onStart`.
         { provide: DeploymentRepositoryPort, useExisting: DeploymentRepository },
@@ -171,7 +170,7 @@ export class DeploymentDomainModule extends createModuleContext({
             useFactory: (
                 deploymentRepository: Context.Service.Shape<typeof DeploymentRepositoryPort>,
                 deploymentEventService: DeploymentEventService,
-                coreEventSyncService: CoreEventSyncService,
+                coreEventSyncService: Context.Service.Shape<typeof CoreEventSyncService>,
                 codeProviders: Context.Service.Shape<typeof CodeProviderRegistry>,
                 storageProviders: Context.Service.Shape<typeof StorageProviderRegistry>,
                 storagePolicies: Context.Service.Shape<typeof StoragePolicyResolverRegistry>,

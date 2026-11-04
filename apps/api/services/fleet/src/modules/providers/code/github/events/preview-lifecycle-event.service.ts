@@ -1,7 +1,7 @@
 import { Context } from "effect";
 
 import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
-import type { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import type { CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 
 import {
     previewLifecycleEventContracts,
@@ -10,7 +10,7 @@ import {
 
 // T037: Preview lifecycle audit trail event service.
 export class PreviewLifecycleEventServiceImpl extends BasePooledEventService<PreviewLifecycleEventContracts, "preview"> {
-    constructor(streamPool?: CoreEventStreamPoolService) {
+    constructor(streamPool?: CoreEventStreamPoolServiceShape) {
         super("preview", previewLifecycleEventContracts, streamPool);
     }
 }

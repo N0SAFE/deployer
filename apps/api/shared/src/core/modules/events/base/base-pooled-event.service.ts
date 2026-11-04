@@ -7,7 +7,7 @@ import { isRecord } from "@deployer/type-guards"
 
 import { BaseEventService } from "./base-event.service";
 
-import type { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
+import type { CoreEventStreamPoolServiceShape } from "./core-event-stream-pool.service";
 import type { Observable } from "rxjs";
 
 export type PooledEventObserveOptions = {
@@ -25,7 +25,7 @@ export abstract class BasePooledEventService<
   constructor(
     eventPrefix: TNamespace,
     contracts: TContracts,
-    private readonly streamPool?: CoreEventStreamPoolService,
+    private readonly streamPool?: CoreEventStreamPoolServiceShape,
   ) {
     super(eventPrefix, contracts);
   }

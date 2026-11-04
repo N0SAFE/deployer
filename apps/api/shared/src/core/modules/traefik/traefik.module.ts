@@ -20,6 +20,7 @@ import { PlatformWebTargetService, type PlatformWebTargetServiceShape } from '..
 import { SupervisorsModule } from "../supervision/index";
 
 import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from '../events/base/index';
 import { TraefikEventService } from './events/traefik-event.service';
 import { makeTraefikTemplateRepository, TraefikTemplateRepository } from './repositories/traefik-template.repository';
 import { makeTraefikRepository, TraefikRepository } from './repositories/traefik.repository';
@@ -112,7 +113,7 @@ export class TraefikCoreModule extends createModuleContext({
     },
     { provide: TraefikValidationService, useValue: TraefikValidationService.live },
     { provide: TraefikMiddlewareLibraryService, useValue: TraefikMiddlewareLibraryService.live },
-    TraefikEventService,
+    { provide: TraefikEventService, useFactory: (pool?: CoreEventStreamPoolServiceShape) => new TraefikEventService(pool), inject: [{ token: CoreEventStreamPoolService, optional: true }] },
     // Live-ingress config (served to Traefik's HTTP provider).
     {
       provide: TraefikIngressConfigService,

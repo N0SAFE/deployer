@@ -8,33 +8,20 @@
     "src/core/modules/database/services/database-failure-tracker.service.ts",
     "src/core/modules/database/services/database-probe.service.ts",
     "src/core/modules/database/services/database-startup-guard.service.ts",
-    "src/core/modules/events/base/core-event-stream-pool.service.ts",
-    "src/core/modules/events/events.module.ts",
-    "src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts",
-    "src/core/modules/events/outbox/local-event-outbox.repository.ts",
-    "src/core/modules/events/repositories/core-event-log.repository.ts",
-    "src/core/modules/events/repositories/core-event-stream.repository.ts",
-    "src/core/modules/events/services/core-event-sync.service.ts",
     "src/core/modules/platform-ingress/services/hostname.service.ts",
-    "src/core/modules/reachability/events/public-access-point-event.service.ts",
     "src/core/modules/setup/services/initialization.service.ts",
     "src/core/modules/setup/services/local-initialization.service.ts",
-    "src/core/modules/setup/services/remote-initialization.service.ts",
-    "src/core/modules/setup/services/setup-event.service.ts",
-    "src/core/modules/traefik/events/traefik-event.service.ts"
+    "src/core/modules/setup/services/remote-initialization.service.ts"
   ],
   "noNestExceptionFilter": [
     "src/core/middlewares/internal-error/internal-error-insight.service.ts",
-    "src/core/modules/auth/orpc/interceptors.ts",
-    "src/core/modules/events/services/core-event-sync.service.ts"
+    "src/core/modules/auth/orpc/interceptors.ts"
   ],
   "noNestLifecycleHook": [
     "src/core/modules/bootstrap/bootstrap-orchestrator.service.ts",
     "src/core/modules/database/global/global-database-lifecycle.service.ts",
     "src/core/modules/database/local/local-database.module.ts",
     "src/core/modules/database/services/bootstrap-advisory-lock.service.ts",
-    "src/core/modules/events/base/base-event.service.ts",
-    "src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts",
     "src/core/modules/setup/services/initialization.service.ts"
   ],
   "noNestRequestScope": []

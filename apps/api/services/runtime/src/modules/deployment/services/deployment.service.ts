@@ -91,7 +91,7 @@ import type { DeploymentStateMachineScopeConfigInput } from "@deployer/shared/co
 import { deploymentRunnerKindSchema } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { DeploymentStateMachineShape } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
-import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
+import type { CoreEventSyncServiceShape } from "@deployer/shared/core/modules/events/index";
 import type { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
@@ -177,7 +177,7 @@ const BASE_RETRY_POLICIES: DeploymentRetryPolicy[] = [
 export type DeploymentServicePorts = {
     readonly deploymentRepository: Context.Service.Shape<typeof DeploymentRepositoryPort>;
     readonly deploymentEventService: DeploymentEventService;
-    readonly coreEventSyncService: CoreEventSyncService;
+    readonly coreEventSyncService: CoreEventSyncServiceShape;
     readonly codeProviders: CodeProviderRegistryShape;
     readonly storageProviders: StorageProviderRegistryShape;
     readonly storagePolicies: StoragePolicyResolverRegistryShape;

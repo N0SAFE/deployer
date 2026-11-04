@@ -57,13 +57,11 @@ export function makeDeploymentReadModelProjector(
 
     const processOutboxBatch = (limit = 200): Effect.Effect<number, unknown> =>
         Effect.gen(function* () {
-            const rows = yield* attempt(() =>
-                ports.outbox.findByTopic("deployment.lifecycle", {
-                    states: ["pending", "sent"],
-                    afterCreatedAt: lastProcessedCreatedAt,
-                    limit,
-                }),
-            );
+            const rows = yield* ports.outbox.findByTopic("deployment.lifecycle", {
+                states: ["pending", "sent"],
+                afterCreatedAt: lastProcessedCreatedAt,
+                limit,
+            });
 
             let processed = 0;
 

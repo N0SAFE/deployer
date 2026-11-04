@@ -4,7 +4,7 @@ import * as z from "zod";
 import { projectRoleSchema } from "@deployer/contracts-entities";
 import { contractBuilder } from "@deployer/events";
 import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 
 export const projectEventContracts = {
     projectCreated: contractBuilder()
@@ -97,7 +97,7 @@ export const projectEventContracts = {
 export type ProjectEventContracts = typeof projectEventContracts;
 
 export class ProjectEventServiceImpl extends BasePooledEventService<ProjectEventContracts, "project"> {
-	constructor(streamPool: CoreEventStreamPoolService) {
+	constructor(streamPool: CoreEventStreamPoolServiceShape) {
 		super("project", projectEventContracts, streamPool);
 	}
 }

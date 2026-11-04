@@ -5,7 +5,7 @@ import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modul
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
 import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { ServiceClient } from "@deployer/shared/server";
@@ -56,7 +56,7 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: ProjectDb, useValue: ProjectDb.live },
 		{
 			provide: ProjectEventService,
-			useFactory: (pool: CoreEventStreamPoolService) => new ProjectEventServiceImpl(pool),
+			useFactory: (pool: CoreEventStreamPoolServiceShape) => new ProjectEventServiceImpl(pool),
 			inject: [CoreEventStreamPoolService],
 		},
 		{ provide: ProjectStore, useValue: ProjectStore.live },

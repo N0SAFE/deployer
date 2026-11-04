@@ -1,5 +1,5 @@
 import { createModuleContext, EffectHost, effectHostProvider, type EffectHostShape } from "@deployer/nest-effect";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index"
 import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/events/events.module"
 
 import { DockerCatalogModule } from "../../catalog/docker-catalog.module"
@@ -32,7 +32,7 @@ export class DockerEntityModule extends createModuleContext({
     { provide: DockerEntityDomainService, useValue: DockerEntityDomainService.live },
     {
       provide: DockerEntityOrchestratorService,
-      useFactory: (host: EffectHostShape, events: DockerRuntimeEventsStreamShape, pool: CoreEventStreamPoolService, cache: DockerEntityCacheService) =>
+      useFactory: (host: EffectHostShape, events: DockerRuntimeEventsStreamShape, pool: CoreEventStreamPoolServiceShape, cache: DockerEntityCacheService) =>
         DockerEntityOrchestratorService.withStreams(
           entityStreamsOver({ host, events, pool, cache, log: entityChunkLog }),
         ),

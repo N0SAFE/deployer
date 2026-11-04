@@ -13,7 +13,7 @@ import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics
 import { EnvService } from "../../../../config/env/env.module";
 import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 import { requireAuth } from "../../auth/orpc/middlewares";
-import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
+import { CoreEventSyncService, type CoreEventSyncServiceShape } from "../../events/services/core-event-sync.service";
 
 
 
@@ -30,7 +30,7 @@ import { CoreEventSyncService } from "../../events/services/core-event-sync.serv
 @Controller()
 export class MeshController {
     constructor(
-        private readonly coreEventSyncService: CoreEventSyncService,
+        @Inject(CoreEventSyncService) private readonly coreEventSyncService: CoreEventSyncServiceShape,
         @Inject(SystemMetrics) private readonly systemMetrics: SystemMetricsShape,
         private readonly envService: EnvService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
@@ -110,7 +110,7 @@ export class MeshController {
         return procedure(meshContract.listEventStreams)
             .use(requireAuth())
             .handler(async ({ input }) => {
-                return this.coreEventSyncService.listStreams(input.query);
+                return runPromiseUnwrapped(this.coreEventSyncService.listStreams(input.query));
             });
     }
 
@@ -119,7 +119,7 @@ export class MeshController {
         return procedure(meshContract.findEventStreamById)
             .use(requireAuth())
             .handler(async ({ input }) => {
-                return this.coreEventSyncService.getStreamById(input.params.id);
+                return runPromiseUnwrapped(this.coreEventSyncService.getStreamById(input.params.id));
             });
     }
 

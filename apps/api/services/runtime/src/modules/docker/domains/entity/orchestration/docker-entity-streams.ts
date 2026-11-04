@@ -4,7 +4,7 @@ import { Observable, filter, map, type Subscriber } from "rxjs"
 import type { DockerEntityStreamChunk, DockerRuntimeEvent } from "@deployer/contracts-entities"
 import type { EffectHostShape } from "@deployer/nest-effect"
 import type { DockerEntityStreamInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
-import type { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
+import type { CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index"
 
 import { DockerEntityDomainService } from "./docker-entity-domain.service"
 import { entityDebug } from "./docker-entity-orchestrator.service"
@@ -23,7 +23,7 @@ export type DockerEntityStreamsShape = {
 export type DockerEntityStreamsDeps = {
   readonly host: EffectHostShape
   readonly events: Pick<DockerRuntimeEventsStreamShape, "observeEvents">
-  readonly pool: CoreEventStreamPoolService
+  readonly pool: CoreEventStreamPoolServiceShape
   readonly cache: DockerEntityCacheService
   readonly log: EntityChunkLog
 }

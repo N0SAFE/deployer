@@ -15,6 +15,7 @@ import { SwarmCoreModule } from "../swarm/swarm.module";
 import { InitializationService } from "./services/initialization.service";
 import { LocalInitializationService } from "./services/local-initialization.service";
 import { RemoteInitializationService } from "./services/remote-initialization.service";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "../events/base/index";
 import { SetupEventService } from "./services/setup-event.service";
 
 
@@ -51,7 +52,7 @@ export class CoreInitializationModule extends createModuleContext({
         LocalInitializationService,
         RemoteInitializationService,
         InitializationService,
-        SetupEventService,
+        { provide: SetupEventService, useFactory: (pool?: CoreEventStreamPoolServiceShape) => new SetupEventService(pool), inject: [{ token: CoreEventStreamPoolService, optional: true }] },
         { provide: MeshVersionService, useFactory: (mesh: MeshInitializationServiceShape) => makeMeshVersionService(mesh), inject: [MeshInitializationService] },
     ],
     exports: [InitializationService, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],

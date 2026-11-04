@@ -14,6 +14,7 @@ import { CoreEgressModule } from '../egress/egress.module';
 import { EventsModule } from '../events/events.module';
 import { NodeStateModule } from '../node-state/node-state.module';
 
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from '../events/base/index';
 import { PublicAccessPointEventService } from './events/public-access-point-event.service';
 import { makeNodeNetworkConfigRepository, NodeNetworkConfigRepository, type NodeNetworkConfigRepositoryShape } from './repositories/node-network-config.repository';
 import { makePublicAccessPointService, PublicAccessPointService } from './services/public-access-point.service';
@@ -58,7 +59,7 @@ export const CoreReachabilityModule = createGlobalModule({
       ) => makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes, edges, publicEdge, egress }),
       inject: [NodeNetworkConfigRepository, NodeConfigRepository, IngressLanesService, EdgeProviderRegistry, PublicEdgeService, EgressService],
     },
-    PublicAccessPointEventService,
+    { provide: PublicAccessPointEventService, useFactory: (pool?: CoreEventStreamPoolServiceShape) => new PublicAccessPointEventService(pool), inject: [{ token: CoreEventStreamPoolService, optional: true }] },
     {
       provide: PublicAccessPointService,
       useFactory: (reachability: ReachabilityServiceShape, accessPointEvents: PublicAccessPointEventService) =>

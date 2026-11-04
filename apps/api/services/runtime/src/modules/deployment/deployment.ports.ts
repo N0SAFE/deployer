@@ -1,7 +1,7 @@
 import { Context } from "effect";
 
 import type { EnvService } from "@deployer/shared/config/env/env.module";
-import type { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
+import type { LocalEventOutboxRepositoryShape } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
 
 import type { DeploymentRepository } from "./repositories/deployment.repository";
 import type { DeploymentServiceShape } from "./services/deployment.service";
@@ -41,7 +41,7 @@ export class DeploymentStreamsPort extends Context.Service<
 /** The local event outbox the read-model projector reads. */
 export class ProjectorOutboxPort extends Context.Service<
     ProjectorOutboxPort,
-    Pick<LocalEventOutboxRepository, "findByTopic">
+    Pick<LocalEventOutboxRepositoryShape, "findByTopic">
 >()("runtime/ProjectorOutboxPort") {}
 
 /** The environment the queue worker reads its concurrency from. */

@@ -1,7 +1,5 @@
-import { Injectable } from '@nestjs/common';
-
 import { BasePooledEventService } from '../../events/base/index';
-import { CoreEventStreamPoolService } from '../../events/base/index';
+import { type CoreEventStreamPoolServiceShape } from '../../events/base/index';
 
 import {
   traefikEventContracts,
@@ -39,9 +37,8 @@ import {
  * eventService.emitConfigCreated('cfg_123', 'service', 'proj_456');
  * ```
  */
-@Injectable()
 export class TraefikEventService extends BasePooledEventService<typeof traefikEventContracts> {
-  constructor(streamPool?: CoreEventStreamPoolService) {
+  constructor(streamPool?: CoreEventStreamPoolServiceShape) {
     super('traefik', traefikEventContracts, streamPool);
     this.logger.log('TraefikEventService initialized');
   }

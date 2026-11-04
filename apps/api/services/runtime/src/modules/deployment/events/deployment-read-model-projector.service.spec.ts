@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import type { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
+import type { LocalEventOutboxRepositoryShape } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
 
 import {
     makeDeploymentReadModelProjector,
@@ -44,7 +44,7 @@ function createEventRow(input: {
 
 describe("DeploymentReadModelProjectorService", () => {
     let outboxQueue: unknown[][];
-    let mockOutboxRepository: LocalEventOutboxRepository;
+    let mockOutboxRepository: LocalEventOutboxRepositoryShape;
     let mockRepository: DeploymentRepository;
     let service: DeploymentReadModelProjectorServiceShape;
 
@@ -52,8 +52,8 @@ describe("DeploymentReadModelProjectorService", () => {
         outboxQueue = [];
 
         mockOutboxRepository = {
-            findByTopic: vi.fn(async () => outboxQueue.shift() ?? []),
-        } as unknown as LocalEventOutboxRepository;
+            findByTopic: vi.fn(() => Effect.succeed(outboxQueue.shift() ?? [])),
+        } as unknown as LocalEventOutboxRepositoryShape;
 
         mockRepository = {
             findLogs: vi.fn(async () => []),

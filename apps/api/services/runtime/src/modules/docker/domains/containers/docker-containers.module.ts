@@ -1,7 +1,7 @@
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { createModuleContext, EffectHost, effectHostProvider, type EffectHostShape } from "@deployer/nest-effect";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 
 import { runtimeReplicaId } from "../../../../core/mesh/runtime-replica-id";
@@ -34,7 +34,7 @@ export class DockerContainersModule extends createModuleContext({
     { provide: DockerContainerAccess, useClass: DockerContainerAccess.live },
     {
       provide: DockerContainerMetricsStreamService,
-      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerContainerMetricsStreamService(engine, pool),
+      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolServiceShape) => new DockerContainerMetricsStreamService(engine, pool),
       inject: [DockerEngine, CoreEventStreamPoolService],
     },
     // The runtime asks the other nodes through the agent of its own node. The holder is empty until `joinRuntimeMesh` fills it,
