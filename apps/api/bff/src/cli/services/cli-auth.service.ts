@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
-import { Roles } from '@deployer/auth';
 import * as schema from '@deployer/nest-schema/global';
 
 import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
@@ -209,7 +208,7 @@ export class CliAuthService {
       name: 'Temporary CLI User',
       email: TEMP_SEED_USER_EMAIL,
       emailVerified: true,
-      role: Roles.superAdmin,
+      role: "superAdmin",
       createdAt: now,
       updatedAt: now,
     });
@@ -299,11 +298,11 @@ export class CliAuthService {
     if (existingUser.length > 0 && existingUser[0]) {
       const existing = existingUser[0];
 
-      if (existing.role !== Roles.superAdmin) {
+      if (existing.role !== "superAdmin") {
         await this.databaseService.db
           .update(schema.user)
           .set({
-            role: Roles.superAdmin,
+            role: "superAdmin",
             updatedAt: new Date(),
           })
           .where(eq(schema.user.id, existing.id));
@@ -321,7 +320,7 @@ export class CliAuthService {
 
     try {
       // Use type-safe Roles accessor
-      const superAdminRole = Roles.superAdmin;
+      const superAdminRole = "superAdmin";
       
       // BOOTSTRAP: Create user directly in database since admin plugin needs this user to exist first
       const userId = nanoid();
@@ -389,7 +388,7 @@ export class CliAuthService {
     if (existingUser.length > 0 && existingUser[0]) {
       const existing = existingUser[0];
 
-      if (existing.role !== Roles.superAdmin) {
+      if (existing.role !== "superAdmin") {
         // AUTH-005: an existing account is never promoted by matching DEFAULT_ADMIN_EMAIL. Promotion is an explicit
         // grant, not a side effect of an environment variable. Say so and leave the row alone.
         this.logger.warn(
@@ -408,7 +407,7 @@ export class CliAuthService {
 
     try {
       // Use type-safe Roles accessor - super admin role for default admin bootstrap
-      const adminRole = Roles.superAdmin;
+      const adminRole = "superAdmin";
       
       // Create user directly in database (bootstrap operation)
       const userId = nanoid();

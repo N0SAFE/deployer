@@ -3,7 +3,6 @@
  * 
  * This module provides React-specific utilities organized by concern:
  * - session: Session management (useSession, getSession, prefetch)
- * - permissions: Permission checking hooks and components
  * 
  * For isomorphic imports, use the specific submodules:
  * - '@deployer/auth/react/session' - Shared types and constants
@@ -20,23 +19,3 @@ export {
     type PrefetchSessionOptions,
 } from './session/index'
 
-// Re-export permission hooks factory and types
-export {
-    createPermissionHooks,
-    type UsePermissionsResult,
-    type CreatePermissionHooksOptions,
-    type UseSessionResult,
-    type SessionData,
-} from './usePermissions'
-
-// Re-export permission components factory
-export {
-    createRequirePermissionComponents,
-    type RequirePlatformPermissionProps,
-    type RequirePermissionProps,
-} from './RequirePermission'
-
-// Re-export permission types
-export type {
-    PlatformPermission,
-} from './usePermissions'

@@ -23,7 +23,6 @@ import { Pool } from "pg";
 // the migrations, so the path cannot drift when a caller moves.
 
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
-import { Roles } from "@deployer/auth/permissions";
 import { provisionUserAccount } from "@deployer/auth/server";
 import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
 import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
@@ -797,7 +796,7 @@ export class LocalInitializationService {
                     email: input.email,
                     name: input.name,
                     password: input.password,
-                    role: Roles.superAdmin,
+                    role: "superAdmin",
                 });
             } catch (seedError: unknown) {
                 // Another node created the same admin concurrently (unique email constraint): the winner's row is the
