@@ -15,7 +15,7 @@ import type { AppInstanceServiceShape } from "../../platform-ingress/services/ap
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
 import { MANAGED_WEB_CONTAINER_BASE_NAME, platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 export { PLATFORM_MANAGED_WEB_SUPERVISOR_ID };
 
@@ -25,7 +25,7 @@ export type ManagedWebSupervisorDeps = {
 	readonly hostnameService: HostnameService;
 	readonly platformConfig: PlatformConfigServiceShape;
 	readonly appInstances: AppInstanceServiceShape;
-	readonly bus: SupervisorEventBus;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 /**

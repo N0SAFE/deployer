@@ -9,8 +9,8 @@ const schema = z.object({ tunnelId: z.string() });
 
 function store(overrides: Record<string, unknown> = {}) {
 	const settings = {
-		read: vi.fn((_key: string, _schema: unknown, fallback: unknown) => Promise.resolve(fallback)),
-		write: vi.fn((_key: string, _value: unknown) => Promise.resolve()),
+		read: vi.fn((_key: string, _schema: unknown, fallback: unknown) => Effect.succeed(fallback)),
+		write: vi.fn((_key: string, _value: unknown) => Effect.void),
 		...overrides,
 	};
 	return { settings, store: makeEdgeStateStore(settings as never) };
@@ -39,7 +39,7 @@ describe("EdgeStateStore", () => {
 		const t = store();
 		expect(await Effect.runPromise(Effect.flip(t.store.write("p", schema, { tunnelId: 1 } as never)))).toBeInstanceOf(EdgeStateFailure);
 		expect(t.settings.write).not.toHaveBeenCalled();
-		const down = store({ write: () => Promise.reject(new Error("no cluster")) });
+		const down = store({ write: () => Effect.fail(new Error("no cluster")) });
 		expect(await Effect.runPromise(Effect.flip(down.store.clear("p")))).toBeInstanceOf(EdgeStateFailure);
 	});
 });

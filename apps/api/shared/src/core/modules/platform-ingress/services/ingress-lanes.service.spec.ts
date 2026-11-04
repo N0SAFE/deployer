@@ -5,15 +5,15 @@ import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-enti
 
 import { INGRESS_LANES_SETTING, makeIngressLanesService } from "./ingress-lanes.service";
 
-import type { ClusterSettings } from "../../mesh-node/cluster-settings";
+import type { ClusterSettingsShape } from "../../mesh-node/cluster-settings";
 
 const entryPort = () => 8080;
 
 function settings(stored: IngressLanes | undefined) {
 	return {
-		read: vi.fn((_key: string, _schema: unknown, fallback: IngressLanes) => Promise.resolve(stored ?? fallback)),
-		write: vi.fn(() => Promise.resolve()),
-	} as unknown as ClusterSettings;
+		read: vi.fn((_key: string, _schema: unknown, fallback: IngressLanes) => Effect.succeed(stored ?? fallback)),
+		write: vi.fn(() => Effect.void),
+	} as unknown as ClusterSettingsShape;
 }
 
 describe("IngressLanesService", () => {

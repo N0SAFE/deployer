@@ -3,10 +3,10 @@ import { Effect } from "effect";
 import { runPromiseUnwrapped, runSyncUnwrapped } from "@deployer/effect-core";
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
-import { SupervisorEventBus, type SupervisorRegistration } from "../supervision/index";
+import { makeSupervisorEventBusFacade, type SupervisorEventBusFacade, type SupervisorRegistration } from "../supervision/index";
 
 /** A bus for a spec: the registrations publish on it, nothing else listens. */
-export const testBus = (): SupervisorEventBus => new SupervisorEventBus();
+export const testBus = (): SupervisorEventBusFacade => makeSupervisorEventBusFacade();
 
 /**
  * Drives a `SupervisorRegistration` the way the module does, with Promise-returning helpers so a spec reads

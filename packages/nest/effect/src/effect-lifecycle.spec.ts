@@ -34,6 +34,20 @@ function recordingHost() {
 const shape = (overrides: Partial<ServiceLifecycleShape> = {}): ServiceLifecycleShape => ({ ...overrides });
 
 describe("ServiceLifecycleRunner", () => {
+	it("runs onReady at application bootstrap, after onStart and the fork", async () => {
+		const { host, calls } = recordingHost();
+		const runner = new ServiceLifecycleRunner(
+			"test/Service",
+			shape({ onStart: () => Effect.void, run: () => Effect.never, onReady: () => Effect.void }),
+			host,
+		);
+
+		await runner.onModuleInit();
+		await runner.onApplicationBootstrap();
+
+		expect(calls).toEqual(["runUnwrapped", "fork", "runUnwrapped"]);
+	});
+
 	it("runs onStart, then forks run", async () => {
 		const { host, calls } = recordingHost();
 		const runner = new ServiceLifecycleRunner("test/Service", shape({ onStart: () => Effect.void, run: () => Effect.never }), host);

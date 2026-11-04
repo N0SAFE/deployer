@@ -15,7 +15,7 @@ import { EdgeStateFailure } from "./edge.errors";
 
 import type z from "zod/v4";
 
-import type { ClusterSettings } from "../mesh-node/cluster-settings";
+import type { ClusterSettingsShape } from "../mesh-node/cluster-settings";
 
 export function edgeStateKey(providerId: string): string {
 	return `edge.${providerId}`;
@@ -30,18 +30,16 @@ export type EdgeStateStoreShape = {
 	readonly clear: (providerId: string) => Effect.Effect<void, EdgeStateFailure>;
 };
 
-/** The cluster settings are still a Promise-based provider of the mesh-node module, so the store lifts each call. */
-export function makeEdgeStateStore(settings: Pick<ClusterSettings, "read" | "write">): EdgeStateStoreShape {
-	const lift = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, EdgeStateFailure> =>
-		Effect.tryPromise({ try: run, catch: (cause) => new EdgeStateFailure({ operation, cause }) });
+export function makeEdgeStateStore(settings: Pick<ClusterSettingsShape, "read" | "write">): EdgeStateStoreShape {
+	const failed = (operation: string) => (cause: unknown) => new EdgeStateFailure({ operation, cause });
 
 	return {
-		read: (providerId, schema) => lift("read", () => settings.read(edgeStateKey(providerId), schema.nullable(), null)),
+		read: (providerId, schema) => settings.read(edgeStateKey(providerId), schema.nullable(), null).pipe(Effect.mapError(failed("read"))),
 		write: (providerId, schema, value) =>
-			Effect.try({ try: () => schema.parse(value), catch: (cause) => new EdgeStateFailure({ operation: "validated", cause }) }).pipe(
-				Effect.flatMap((parsed) => lift("written", () => settings.write(edgeStateKey(providerId), parsed))),
+			Effect.try({ try: () => schema.parse(value), catch: failed("validated") }).pipe(
+				Effect.flatMap((parsed) => settings.write(edgeStateKey(providerId), parsed).pipe(Effect.mapError(failed("written")))),
 			),
-		clear: (providerId) => lift("cleared", () => settings.write(edgeStateKey(providerId), null)),
+		clear: (providerId) => settings.write(edgeStateKey(providerId), null).pipe(Effect.mapError(failed("cleared"))),
 	};
 }
 

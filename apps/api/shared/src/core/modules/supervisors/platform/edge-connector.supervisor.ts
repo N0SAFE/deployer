@@ -14,7 +14,7 @@ import {
 import { EnvService } from "../../../../config/env/env.module";
 import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 export { EDGE_CONNECTOR_SUPERVISOR_ID };
 
@@ -23,7 +23,7 @@ export type EdgeConnectorSupervisorDeps = {
 	readonly env: EnvService;
 	readonly lanes: IngressLanesServiceShape;
 	readonly edge: PublicEdgeServiceShape;
-	readonly bus: SupervisorEventBus;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 /**

@@ -19,7 +19,7 @@ import { defaultIngressLanes, ingressLanesSchema, type IngressLanes } from "@dep
 
 import { IngressLanesUnavailable } from "../platform-ingress.errors";
 
-import type { ClusterSettings } from "../../mesh-node/cluster-settings";
+import type { ClusterSettingsShape } from "../../mesh-node/cluster-settings";
 
 export const INGRESS_LANES_SETTING = "ingress.lanes";
 
@@ -30,21 +30,20 @@ export type IngressLanesServiceShape = {
 };
 
 type Ports = {
-	/** The cluster settings are still a Promise-based provider of the mesh-node module. */
-	readonly settings: Pick<ClusterSettings, "read" | "write">;
+	readonly settings: Pick<ClusterSettingsShape, "read" | "write">;
 	/** `DEPLOYER_TRAEFIK_HTTP_PORT`: the entry port of the install-default lanes. */
 	readonly entryPort: () => number;
 };
 
 export function makeIngressLanesService({ settings, entryPort }: Ports): IngressLanesServiceShape {
-	const lift = <A>(operation: string, run: () => Promise<A>) =>
-		Effect.tryPromise({ try: run, catch: (cause) => new IngressLanesUnavailable({ operation, cause }) });
+	const failed = (operation: string) => (cause: unknown) => new IngressLanesUnavailable({ operation, cause });
 
 	return {
-		getLanes: () => lift("read", () => settings.read(INGRESS_LANES_SETTING, ingressLanesSchema, defaultIngressLanes(entryPort()))),
+		getLanes: () => Effect.suspend(() => settings.read(INGRESS_LANES_SETTING, ingressLanesSchema, defaultIngressLanes(entryPort()))).pipe(Effect.mapError(failed("read"))),
 
 		setLanes: (next) =>
-			lift("written", () => settings.write(INGRESS_LANES_SETTING, next)).pipe(
+			settings.write(INGRESS_LANES_SETTING, next).pipe(
+				Effect.mapError(failed("written")),
 				Effect.andThen(
 					Effect.logInfo(
 						`Ingress lanes set — local${next.private.enabled ? ` + private (${next.private.domain})` : ""}${

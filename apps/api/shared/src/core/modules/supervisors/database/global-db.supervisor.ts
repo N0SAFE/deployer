@@ -14,7 +14,7 @@ import {
 
 import { EnvService } from "../../../../config/env/env.module";
 import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 export { GLOBAL_DB_SUPERVISOR_ID };
 
@@ -23,7 +23,7 @@ export type GlobalDbSupervisorDeps = {
 	/** Synchronous cache of `node_config`: the spec's config callbacks cannot await a repository. */
 	readonly snapshot: NodeConfigSnapshot;
 	readonly env: EnvService;
-	readonly bus: SupervisorEventBus;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 /**

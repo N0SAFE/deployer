@@ -13,7 +13,7 @@ import { Effect } from "effect";
 
 import { createGlobalModule } from "@deployer/nest-effect";
 
-import { ClusterSettings } from "../mesh-node/cluster-settings";
+import { ClusterSettings, type ClusterSettingsShape } from "../mesh-node/cluster-settings";
 import { MeshNodeModule } from "../mesh-node/mesh-node.module";
 
 import { EdgeProviderRegistry, makeEdgeProviderRegistry, type EdgeProviderRegistryShape } from "./edge-provider.registry";
@@ -24,7 +24,7 @@ export const CoreEdgeModule = createGlobalModule({
 	imports: [MeshNodeModule],
 	providers: [
 		{ provide: EdgeProviderRegistry, useFactory: makeEdgeProviderRegistry },
-		{ provide: EdgeStateStore, useFactory: (settings: ClusterSettings) => makeEdgeStateStore(settings), inject: [ClusterSettings] },
+		{ provide: EdgeStateStore, useFactory: (settings: ClusterSettingsShape) => makeEdgeStateStore(settings), inject: [ClusterSettings] },
 		{
 			// Built in: it needs nothing but the nodes, so the module registers it when it builds the provider.
 			provide: DirectEdgeProvider,

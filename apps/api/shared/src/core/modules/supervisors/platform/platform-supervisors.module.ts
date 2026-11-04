@@ -27,7 +27,7 @@ import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { CoreDockerModule } from "../../docker/docker.module";
 import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import { CoreEdgeModule } from "../../edge/edge.module";
-import { ClusterSettings } from "../../mesh-node/cluster-settings";
+import { ClusterSettings, type ClusterSettingsShape } from "../../mesh-node/cluster-settings";
 import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingress.module";
 import { AppInstanceService, type AppInstanceServiceShape } from "../../platform-ingress/services/app-instance.service";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
@@ -36,7 +36,7 @@ import { PlatformConfigService, type PlatformConfigServiceShape } from "../../pl
 import { PlatformWebTargetService, type PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
 import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
 import { PublicEdgeService, type PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
-import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
+import { supervisorProviders, SupervisorEventBus, type SupervisorEventBusFacade } from "../../supervision/index";
 import { makeNodeAgentSwarmRegistration } from "../node-agent/node-agent.supervisor";
 
 import { makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
@@ -67,10 +67,10 @@ export const SupervisorsPlatformModule = createGlobalModule({
 		build: (
 			engine: DockerEngineShape,
 			env: EnvService,
-			bus: SupervisorEventBus,
+			bus: SupervisorEventBusFacade,
 			hostnameService: HostnameService,
 			lanes: IngressLanesServiceShape,
-			settings: ClusterSettings,
+			settings: ClusterSettingsShape,
 			webTarget: PlatformWebTargetServiceShape,
 			edges: EdgeProviderRegistryShape,
 			platformConfig: PlatformConfigServiceShape,

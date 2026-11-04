@@ -13,7 +13,7 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 import type { Database as BunSqliteDatabase } from "bun:sqlite";
 
@@ -22,7 +22,7 @@ export { LOCAL_DB_SUPERVISOR_ID };
 export type LocalDbSupervisorDeps = {
 	readonly db: LocalDb;
 	readonly env: EnvService;
-	readonly bus: SupervisorEventBus;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 /** The supervisor of the node's own SQLite file; registers unless the deployment owns the file. */

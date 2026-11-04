@@ -21,7 +21,7 @@ import { createGlobalModule } from "@deployer/nest-effect";
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { DatabasePort } from "../database/storage";
 import { CoreDockerModule } from "../docker/docker.module";
-import { ClusterSettings } from "../mesh-node/cluster-settings";
+import { ClusterSettings, type ClusterSettingsShape } from "../mesh-node/cluster-settings";
 
 import { AppInstanceService, makeAppInstanceService } from "./services/app-instance.service";
 import { EnvHostnameService, HostnameService } from "./services/hostname.service";
@@ -36,7 +36,7 @@ export const CorePlatformIngressModule = createGlobalModule({
 		{ provide: HostnameService, useClass: EnvHostnameService },
 		{
 			provide: IngressLanesService,
-			useFactory: (settings: ClusterSettings, env: EnvService) =>
+			useFactory: (settings: ClusterSettingsShape, env: EnvService) =>
 				makeIngressLanesService({ settings, entryPort: () => env.get("DEPLOYER_TRAEFIK_HTTP_PORT") }),
 			inject: [ClusterSettings, EnvService],
 		},
