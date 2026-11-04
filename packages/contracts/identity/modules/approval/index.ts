@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** The lifecycle of a request. A closed set, so a reader never has to interpret a free string. */
@@ -54,7 +55,7 @@ export const approvalRequestContract = approvalOps
 	.output(accessRequestSchema)
 	.tags("Approvals")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ self: true, reason: "any signed-in caller may ask for something they cannot do alone" })).build();
 
 /** Pending (or filtered) requests an approver may act on; `approval:read`. */
 export const approvalListContract = approvalOps
@@ -71,7 +72,7 @@ export const approvalListContract = approvalOps
 	.output(z.object({ data: z.array(accessRequestSchema) }))
 	.tags("Approvals")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "approval:read" })).build();
 
 /**
  * Approve or deny (`approval:approve`).
@@ -88,7 +89,7 @@ export const approvalDecideContract = approvalOps
 	.output(accessRequestSchema)
 	.tags("Approvals")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "approval:approve" })).build();
 
 /**
  * Spend an approved request (`SEC-072`).
@@ -103,7 +104,7 @@ export const approvalConsumeContract = approvalOps
 	.output(z.object({ consumed: z.boolean() }))
 	.tags("Approvals")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ self: true, reason: "only the requester spends their own approval; the service checks the actor" })).build();
 
 
 /**

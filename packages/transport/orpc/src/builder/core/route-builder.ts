@@ -5,7 +5,7 @@
  * Provides fluent API for creating ORPC contracts with Standard Schema
  */
 
-import { oc } from "@orpc/contract";
+import { oc, type AnyMetaPlugin } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 
 import { error, type ErrorDefinitionBuilder, type ExtractErrorsFromBuilders } from "@deployer/orpc-utils/builder/core/error-builder";
@@ -44,7 +44,6 @@ import type {
 } from "@deployer/orpc-utils/types/types";
 
 import type { ProcedureContract } from "@orpc/contract";
-import type { OpenAPIMeta } from "@orpc/openapi";
 
 
 // ============================================================================
@@ -347,6 +346,13 @@ export class RouteBuilder<
     private _entitySchema: RouteEntitySchemaValue<TEntitySchema>;
     private _errors: TErrors;
     private _plugin: TPlugin;
+    /**
+     * oRPC metadata attached by the route itself (`access(...)` from `@deployer/auth/authz/meta`, `SEC-062`).
+     *
+     * A side field rather than a `RouteMetadata` key: that object is handed to `openapi()`, so anything parked in it
+     * would end up in the published document.
+     */
+    private _extraMeta: readonly AnyMetaPlugin[] = [];
 
     constructor(
         defaults?: {
@@ -476,6 +482,26 @@ export class RouteBuilder<
             errors: this._errors,
             use: this._plugin,
         });
+    }
+
+    /**
+     * Attach an oRPC metadata plugin to the procedure — the authz declaration, mostly.
+     *
+     * `access({...})` from `@deployer/auth/authz/meta` is the one caller: the gate reads it back off the implemented
+     * procedure, so a route cannot be gated by anything that is not on its contract (`DEC-AUTH-26`).
+     */
+    meta(...plugins: AnyMetaPlugin[]): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
+        const next = new RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin>({
+            metadata: this._metadata,
+            input: this._input,
+            output: this._output,
+            method: this._method,
+            entitySchema: this._entitySchema,
+            errors: this._errors,
+            use: this._plugin,
+        });
+        next._extraMeta = [...this._extraMeta, ...plugins];
+        return next;
     }
 
     /**
@@ -904,7 +930,12 @@ export class RouteBuilder<
         // changed accordingly: `route`/`inputSchema`/`outputSchema` became
         // `meta`/`inputSchemas`/`outputSchemas`, so the metadata must be attached
         // here or every procedure silently falls back to POST + router-derived path.
-        return contractWithOutput.meta(openapi(finalRouteMetadata)) as unknown as ProcedureContract<BuildInput<TPlugin, TInput>, BuildOutput<TPlugin, TOutput>, TErrors>;
+        const withOpenApi = contractWithOutput.meta(openapi(finalRouteMetadata));
+        const contract = this._extraMeta.reduce(
+            (current, plugin) => current.meta(plugin as Parameters<typeof current.meta>[0]),
+            withOpenApi,
+        );
+        return contract as unknown as ProcedureContract<BuildInput<TPlugin, TInput>, BuildOutput<TPlugin, TOutput>, TErrors>;
     }
 
     // ============================================================================

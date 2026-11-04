@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 export const unsubscribeInputSchema = z.object({
@@ -21,4 +22,4 @@ export const unsubscribeContract = pushUnsubscribeOps
     // 404 for unknown push subscription endpoint.
     ...standardDomainErrorContracts(e),
   ])
-  .build();
+  .meta(access({ self: true, reason: "the caller manages their own devices and notifications" })).build();

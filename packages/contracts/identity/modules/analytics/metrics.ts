@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import {
@@ -93,7 +94,7 @@ export const analyticsGetResourceMetricsContract = analyticsResourceMetricsOps
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsResourceMetricsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetApplicationMetricsContract = analyticsApplicationMetricsOps
     .list()
@@ -101,7 +102,7 @@ export const analyticsGetApplicationMetricsContract = analyticsApplicationMetric
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsApplicationMetricsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetDatabaseMetricsContract = analyticsDatabaseMetricsOps
     .list()
@@ -109,7 +110,7 @@ export const analyticsGetDatabaseMetricsContract = analyticsDatabaseMetricsOps
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsDatabaseMetricsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetDeploymentMetricsContract = analyticsDeploymentMetricsOps
     .list()
@@ -117,7 +118,7 @@ export const analyticsGetDeploymentMetricsContract = analyticsDeploymentMetricsO
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsDeploymentMetricsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetServiceHealthContract = analyticsServiceHealthOps
     .list()
@@ -125,7 +126,7 @@ export const analyticsGetServiceHealthContract = analyticsServiceHealthOps
     .input((input) => input.query(analyticsServiceHealthQuerySchema))
     .output(analyticsServiceHealthOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetRealTimeMetricsContract = analyticsRealtimeMetricsOps
     .list()
@@ -133,7 +134,7 @@ export const analyticsGetRealTimeMetricsContract = analyticsRealtimeMetricsOps
     .input((input) => input.query(analyticsServiceHealthQuerySchema))
     .output(analyticsRealtimeMetricsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 /**
  * SSE siblings of the polled metric reads.
@@ -148,7 +149,7 @@ export const analyticsStreamResourceMetricsContract = analyticsResourceMetricsOp
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output((output) => output.observable(analyticsResourceMetricsOutputSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsStreamDeploymentMetricsContract = analyticsDeploymentMetricsOps
     .list()
@@ -156,7 +157,7 @@ export const analyticsStreamDeploymentMetricsContract = analyticsDeploymentMetri
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output((output) => output.observable(analyticsDeploymentMetricsOutputSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsStreamServiceHealthContract = analyticsServiceHealthOps
     .list()
@@ -164,7 +165,7 @@ export const analyticsStreamServiceHealthContract = analyticsServiceHealthOps
     .input((input) => input.query(analyticsServiceHealthQuerySchema))
     .output((output) => output.observable(analyticsServiceHealthOutputSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsStreamRealTimeMetricsContract = analyticsRealtimeMetricsOps
     .list()
@@ -172,5 +173,5 @@ export const analyticsStreamRealTimeMetricsContract = analyticsRealtimeMetricsOp
     .input((input) => input.query(analyticsServiceHealthQuerySchema))
     .output((output) => output.observable(analyticsRealtimeMetricsOutputSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 

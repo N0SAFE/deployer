@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 const subscriptionKeysSchema = z.object({
@@ -31,4 +32,4 @@ export const subscribeContract = pushSubscribeOps
     // 400 malformed push endpoint/keys; 409 duplicate subscription.
     ...standardDomainErrorContracts(e),
   ])
-  .build();
+  .meta(access({ self: true, reason: "the caller manages their own devices and notifications" })).build();

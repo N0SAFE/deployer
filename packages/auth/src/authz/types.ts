@@ -18,6 +18,17 @@ export const PLATFORM_SCOPE: Scope = { kind: "platform" };
 export type AccessDeclaration =
 	| { readonly public: true; readonly reason: string }
 	| {
+			/**
+			 * The caller acting on their OWN record (`DEC-AUTH-27`).
+			 *
+			 * There is no permission for this and there must not be: "list the user's own sessions" is not an admin
+			 * capability a role can hold. The gate asserts an authenticated actor; the handler is what scopes the work to
+			 * `actor.id`, and a route that takes someone else's id declares a permission instead.
+			 */
+			readonly self: true;
+			readonly reason: string;
+	  }
+	| {
 			readonly public?: false;
 			readonly permission: Permission;
 			readonly scope?: Scope | { readonly by: "input" | "context"; readonly path: string };

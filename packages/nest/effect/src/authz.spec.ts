@@ -88,6 +88,21 @@ describe("authz gate", () => {
 		expect(done).toHaveBeenCalled();
 	});
 
+	it("serves a `self` procedure to any signed-in caller, whatever their role (DEC-AUTH-27)", async () => {
+		const events: DecisionEvent[] = [];
+		const { done } = await run({ self: true, reason: "own sessions" }, caller("viewer"), {
+			mode: "enforce",
+			onDecision: (event) => events.push(event),
+		});
+
+		expect(done).toHaveBeenCalled();
+		expect(events[0]).toMatchObject({ enforced: true, undeclared: false, decision: { allowed: true } });
+	});
+
+	it("still refuses a `self` procedure without an actor", async () => {
+		await expect(run({ self: true, reason: "own sessions" }, {})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+	});
+
 	it("requires an actor for a non-public procedure", async () => {
 		await expect(run({ permission: "cluster:read" }, {})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 	});

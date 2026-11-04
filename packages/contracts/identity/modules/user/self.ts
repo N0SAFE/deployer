@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { userSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -47,4 +48,4 @@ export const selfExportContract = selfOps
 	.output(selfExportSchema)
 	.tags("User")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ self: true, reason: "the caller exports their own account" })).build();

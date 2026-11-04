@@ -172,3 +172,33 @@ Source of the questions: `docs/audit-2026-10-25/authz-authn-design.md` section 1
 (Decided 2026-11-03, measured in `packages/nest/effect/src/authz.spec.ts`.)
 
 ---
+
+## Self procedures (DEC-AUTH-27, 2026-11-04)
+
+**Q**: Roughly ten identity procedures act on the caller's own record (`exportSelf`, `deleteSelf`,
+`listSessions`, `revokeSession`, `setPassword`, every `push.*`, `step-up.status`, `approval.request`/`consume`). None has a
+natural permission: `session:list` is "list a user's sessions" as an admin capability, and `push:subscribe` on
+`platform-read` would mean a role without it cannot manage its own devices.
+
+**A**: A third declaration variant — `{ self: true, reason }` — rather than invented permissions:
+
+- The gate asserts only that an actor exists; a `self` route therefore still refuses an anonymous caller
+  (`UNAUTHORIZED`), and the decision is logged with the reason.
+- Ownership is the handler's job, and it already is: each of these routes scopes to `actor.id`. A route that takes
+  someone ELSE's id declares a permission instead — the two cases are visibly different on the contract, which is the
+  point.
+- No role can be locked out of its own account, which a permission would allow.
+
+The definition and its reader live in `@deployer/auth/authz/meta` (imported by both the contract that writes it and the
+gate that reads it) and re-export the `authz` meta key, so the declaration and the check cannot drift.
+
+**Follow-on permission decisions from the same pass**:
+
+- `analytics:read` (new, `platform-read`): the metric and usage reads, including their streams. Platform observation, the
+  same reach a viewer already has over cluster state.
+- `push:stats` (new, `platform-admin`): delivery counts are administration, not something a subscriber sees.
+- Analytics REPORTS are deliberately still undeclared: generating and deleting one is not a read, and `analytics:read`
+  would be a lie. They stay in the named exception list until they get their own permission.
+
+---
+

@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** The factors a step-up can be proved with. */
@@ -31,7 +32,7 @@ export const stepUpStatusContract = stepUpOps
 	.output(stepUpStatusSchema)
 	.tags("Step-up")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ self: true, reason: "the caller reads their own step-up state" })).build();
 
 /** The step-up namespace the service exposes. */
 export const stepUpContract = oc.router({

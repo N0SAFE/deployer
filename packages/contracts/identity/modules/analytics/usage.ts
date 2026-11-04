@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import {
@@ -160,7 +161,7 @@ export const analyticsGetResourceUsageContract = analyticsResourceUsageOps
     .input((input) => input.query(getUsageInputSchema.optional()))
     .output(analyticsResourceUsageOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetUserActivityContract = analyticsUserActivityOps
     .list()
@@ -168,7 +169,7 @@ export const analyticsGetUserActivityContract = analyticsUserActivityOps
     .input((input) => input.query(getActivityInputSchema.optional()))
     .output(analyticsUserActivityOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetActivitySummaryContract = analyticsActivitySummaryOps
     .list()
@@ -176,7 +177,7 @@ export const analyticsGetActivitySummaryContract = analyticsActivitySummaryOps
     .input((input) => input.query(analyticsActivitySummaryQuerySchema))
     .output(analyticsActivitySummaryOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetApiUsageContract = analyticsApiUsageOps
     .list()
@@ -184,7 +185,7 @@ export const analyticsGetApiUsageContract = analyticsApiUsageOps
     .input((input) => input.query(analyticsApiUsageQuerySchema))
     .output(analyticsApiUsageOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 export const analyticsGetDeploymentUsageContract = analyticsDeploymentUsageOps
     .list()
@@ -192,7 +193,7 @@ export const analyticsGetDeploymentUsageContract = analyticsDeploymentUsageOps
     .input((input) => input.query(analyticsDeploymentUsageQuerySchema))
     .output(analyticsDeploymentUsageOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 /** SSE sibling of the polled usage read — same input, pushed on change. */
 export const analyticsStreamResourceUsageContract = analyticsResourceUsageOps
@@ -201,7 +202,7 @@ export const analyticsStreamResourceUsageContract = analyticsResourceUsageOps
     .input((input) => input.query(getUsageInputSchema.optional()))
     .output((output) => output.observable(analyticsResourceUsageOutputSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 /** SSE sibling of the polled usage read — same input, pushed on change. */
 export const analyticsStreamDeploymentUsageContract = analyticsDeploymentUsageOps
@@ -210,7 +211,7 @@ export const analyticsStreamDeploymentUsageContract = analyticsDeploymentUsageOp
     .input((input) => input.query(analyticsDeploymentUsageQuerySchema))
     .output((output) => output.observable(analyticsDeploymentUsageOutputSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .meta(access({ permission: "analytics:read" })).build();
 
 
 export const analyticsGetStorageUsageContract = analyticsStorageUsageOps
@@ -219,4 +220,5 @@ export const analyticsGetStorageUsageContract = analyticsStorageUsageOps
     .input((input) => input.query(analyticsStorageUsageQuerySchema))
     .output(analyticsStorageUsageOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "analytics:read" }))
     .build();

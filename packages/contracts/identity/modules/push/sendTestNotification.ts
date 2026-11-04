@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 export const sendTestNotificationOutputSchema = z.object({
@@ -19,4 +20,4 @@ export const sendTestNotificationContract = pushSendTestNotificationOps
   .input(z.object({}))
   .output(sendTestNotificationOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+  .meta(access({ self: true, reason: "the caller manages their own devices and notifications" })).build();

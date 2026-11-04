@@ -71,16 +71,17 @@
         "@orpc/server": "catalog:orpc"
     },
     "devDependencies": {
-        "@types/react": "catalog:react",
-        "react": "catalog:react",
-        "eslint": "catalog:linting",
+        "@deployer/auth": "*",
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
-        "vitest": "catalog:testing",
+        "@deployer/pkg-build": "*",
+        "@types/react": "catalog:react",
         "@vitest/coverage-v8": "catalog:testing",
+        "eslint": "catalog:linting",
+        "react": "catalog:react",
         "typescript": "catalog:build",
-        "@deployer/pkg-build": "*"
+        "vitest": "catalog:testing"
     },
     "module": "./dist/esm/index.mjs"
 }

@@ -85,6 +85,14 @@ const builder = createAuthzBuilder()
 			reveal: { risk: "reveal", description: "Reveal a platform secret." },
 		}),
 
+		analytics: actions({
+			read: { risk: "read", description: "See platform metrics, usage and activity." },
+		}),
+		push: actions({
+			// Delivery counts are a platform observation; a subscriber managing their own devices is `self`, not this.
+			stats: { risk: "read", description: "See push notification delivery statistics." },
+		}),
+
 		// ── project ──────────────────────────────────────────────────────────────────────────────────────────
 		project: actions({
 			read: { risk: "read", description: "See a project." },
@@ -155,6 +163,7 @@ const builder = createAuthzBuilder()
 			edge: ["read"],
 			"dns.provider": ["read"],
 			mesh: ["read"],
+			analytics: ["read"],
 		}),
 		"platform-admin": permissions({
 			approval: ["read", "approve"],
@@ -164,6 +173,7 @@ const builder = createAuthzBuilder()
 			user: ["create", "update", "ban", "unban", "set-role", "set-password", "set-email"],
 			session: ["delete"],
 			token: ["create", "revoke"],
+			push: ["stats"],
 		}),
 		"platform-operate": permissions({
 			cluster: ["operate"],

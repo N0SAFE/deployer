@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { roleCreateContract, roleDeleteContract, roleUpdateContract } from "./crud";
@@ -21,7 +22,7 @@ export const roleListContract = roleOps
 	.output(z.object({ data: z.array(roleSchema) }))
 	.tags("Roles")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "role:read" })).build();
 
 /** The role namespace the BFF delegates to `identity`. */
 export const roleContract = oc.router({

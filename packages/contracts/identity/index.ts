@@ -20,9 +20,9 @@ import { oc } from "@orpc/contract";
 import { analyticsContract } from "./modules/analytics";
 import { approvalContract } from "./modules/approval";
 import { auditContract } from "./modules/audit";
+import { pushContract } from "./modules/push";
 import { roleContract } from "./modules/role";
 import { stepUpContract } from "./modules/step-up";
-import { pushContract } from "./modules/push";
 import { userContract } from "./modules/user";
 
 /**

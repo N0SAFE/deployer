@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 export const subscriptionSchema = z.object({
@@ -24,4 +25,4 @@ export const getSubscriptionsContract = pushSubscriptionOps
   .input(z.object({}))
   .output(getSubscriptionsOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+  .meta(access({ self: true, reason: "the caller manages their own devices and notifications" })).build();

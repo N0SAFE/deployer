@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import { userSchema } from "@deployer/contracts-entities";
 import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -37,7 +38,7 @@ const userListConfig = createFilterConfig(userOps)
 export const userListConfigSchemas = userListConfig;
 
 // Build the list contract
-export const userListContract = userOps.list(userListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
+export const userListContract = userOps.list(userListConfig).errors((e) => [...standardDomainErrorContracts(e)]).meta(access({ permission: "user:list" })).build();
 
 // Export input type helper - computed from the config
 export type UserListInput = ComputeInputSchema<typeof userListConfigSchemas>;

@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 export const getPublicKeyOutputSchema = z.object({
@@ -14,4 +15,4 @@ export const getPublicKeyContract = pushPublicKeyOps
   .input(z.object({}))
   .output(getPublicKeyOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+  .meta(access({ self: true, reason: "the caller manages their own devices and notifications" })).build();

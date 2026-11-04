@@ -746,6 +746,7 @@
         "@better-auth/core": "catalog:auth",
         "@better-auth/passkey": "catalog:auth",
         "@deployer/type-guards": "*",
+        "@orpc/contract": "catalog:orpc",
         "@simplewebauthn/server": "^13.2.2",
         "better-auth": "catalog:auth",
         "better-call": "catalog:auth",
@@ -1744,6 +1745,7 @@
         "zod": "catalog:utils",
       },
       "devDependencies": {
+        "@deployer/auth": "*",
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",

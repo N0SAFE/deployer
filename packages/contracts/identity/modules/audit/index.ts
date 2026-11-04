@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** One recorded auth audit event, as the admin viewer reads it. */
@@ -52,7 +53,7 @@ export const auditListContract = auditOps
 	.output(auditPageSchema)
 	.tags("Audit")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "audit:read" })).build();
 
 /** The same rows as CSV, bounded at 5000 with a `truncated` flag so a capped export never looks complete. */
 export const auditExportContract = auditOps
@@ -74,7 +75,7 @@ export const auditExportContract = auditOps
 	)
 	.tags("Audit")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "audit:export" })).build();
 
 /** The audit namespace the BFF delegates to `identity`. */
 export const auditContract = oc.router({

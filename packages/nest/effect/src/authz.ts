@@ -1,4 +1,3 @@
-import { defineMeta } from "@orpc/contract";
 import { ORPCError } from "@orpc/server";
 import { Context, Effect, Layer, Ref } from "effect";
 
@@ -33,26 +32,13 @@ import {
  */
 
 /**
- * The declaration attached to a contract, as an oRPC metadata plugin:
- *
- * ```ts
- * export const contract = os.input(inputSchema).meta(access({ permission: "service:deploy", scope: { by: "input", path: "serviceId" } }));
- * ```
- *
- * `defineMeta` keeps the value under one key and merges nothing, so a second `.meta(...)` (OpenAPI, docs) cannot clobber
- * it, and `accessOf` reads it back from the implemented procedure.
+ * The declaration and its reader live in `@deployer/auth/authz/meta`: a contract WRITES it and this gate READS it, so two
+ * definitions would be two chances to agree by accident. Re-exported here because a controller imports the gate from this
+ * package and should not have to know where the metadata lives.
  */
-const [accessMeta] = defineMeta("authz", (value: AccessDeclaration) => value);
+import { accessOf } from "@deployer/auth/authz/meta";
 
-export const access = (declaration: AccessDeclaration) => accessMeta(declaration);
-
-/** The declaration on a procedure, or undefined when the procedure declares nothing. */
-export function accessOf(procedure: unknown): AccessDeclaration | undefined {
-	if (procedure === null || typeof procedure !== "object") return undefined;
-	const meta = (procedure as { readonly "~orpc"?: { readonly meta?: Record<PropertyKey, unknown> } })["~orpc"]?.meta;
-	const declaration = meta?.authz;
-	return declaration === null || typeof declaration !== "object" ? undefined : (declaration as AccessDeclaration);
-}
+export { access, accessOf } from "@deployer/auth/authz/meta";
 
 export type AuthzMode = "off" | "shadow" | "enforce";
 
@@ -177,6 +163,8 @@ export function actorOf(context: unknown): Actor | null {
 
 /** Resolve the declaration's scope, including `{ by: "input", path: "serviceId" }`. */
 export function resolveScope(declaration: AccessDeclaration, input: unknown, context: unknown): Scope {
+	// Neither a caller acting on their own record nor an open route has a scope to resolve.
+	if ("self" in declaration) return { kind: "platform" };
 	if (declaration.public === true) return { kind: "platform" };
 	const scope = declaration.scope;
 	if (scope === undefined) return { kind: "platform" };
@@ -255,6 +243,23 @@ export function authzGate(options: AuthzOptions) {
 			return done();
 		}
 
+		// A caller acting on their own record (`DEC-AUTH-27`): authentication is the whole check. There is no permission
+		// to evaluate — the handler is what scopes the work to `actor.id`, and a route that takes someone else's id
+		// declares a permission instead.
+		if ("self" in declaration) {
+			if (actor === null) {
+				throw new ORPCError("UNAUTHORIZED", { message: "Authentication required" });
+			}
+			options.onDecision?.({
+				decision: { allowed: true, reason: `self: ${declaration.reason}`, permission: "user:get", scope: { kind: "platform" } },
+				actor,
+				mode: options.mode,
+				enforced: options.mode === "enforce",
+				undeclared: false,
+			});
+			return done();
+		}
+
 		if (declaration.public === true) return done();
 
 		if (actor === null) {
@@ -262,6 +267,7 @@ export function authzGate(options: AuthzOptions) {
 		}
 
 		const scope = resolveScope(declaration, _input, opts.context);
+
 		const capabilities = await options.store.capabilities(actor, scope);
 		const decision = decide({
 			permission: declaration.permission,

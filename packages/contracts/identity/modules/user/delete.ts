@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import { userSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -11,4 +12,4 @@ export const userDeleteContract = userOps
         // 404 for unknown user id.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .meta(access({ permission: "user:delete" })).build();

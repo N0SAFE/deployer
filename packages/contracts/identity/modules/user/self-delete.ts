@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 const selfDeleteResultSchema = z.object({ deleted: z.literal(true) });
@@ -22,4 +23,4 @@ export const selfDeleteContract = selfOps
 	.output(selfDeleteResultSchema)
 	.tags("User")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ self: true, reason: "the caller deletes their own account (last-superAdmin guard in the service)" })).build();

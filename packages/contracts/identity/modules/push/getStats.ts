@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 export const deviceSchema = z.object({
@@ -21,4 +22,4 @@ export const getStatsContract = pushStatsOps
   .input(z.object({}))
   .output(getStatsOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+  .meta(access({ permission: "push:stats" })).build();

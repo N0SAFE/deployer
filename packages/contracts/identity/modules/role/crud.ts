@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { roleSchema } from "./schema";
@@ -39,7 +40,7 @@ export const roleCreateContract = roleOps
 	.output(roleSchema)
 	.tags("Roles")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "role:write" })).build();
 
 /**
  * Edit a custom role (`role:write`).
@@ -54,7 +55,7 @@ export const roleUpdateContract = roleOps
 	.output(roleSchema)
 	.tags("Roles")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "role:write" })).build();
 
 /**
  * Delete a custom role (`role:write`).
@@ -69,4 +70,4 @@ export const roleDeleteContract = roleOps
 	.output(z.object({ deleted: z.literal(true) }))
 	.tags("Roles")
 	.errors((e) => [...standardDomainErrorContracts(e)])
-	.build();
+	.meta(access({ permission: "role:write" })).build();
