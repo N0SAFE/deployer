@@ -199,7 +199,6 @@ function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
         DEPLOYER_TRAEFIK_HTTP_PORT: 80,
         DEPLOYER_TRAEFIK_ACME_EMAIL: 'ops@example.com',
         DEPLOYER_DOOR_IMAGE: 'nginx:alpine',
-        AUTH_SECRET: 'test-secret',
         API_PORT: 3005,
         ...overrides,
     }
@@ -240,6 +239,7 @@ function makeSupervisor(
             webTarget,
             edges: testEdgeRegistry().registry,
             bus: testBus(),
+            platformSecret: () => 'test-secret',
         }).registration
     )
     return { supervisor, writeSetting, ...mocks }

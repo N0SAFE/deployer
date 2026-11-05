@@ -7,7 +7,7 @@ import { deriveIngressProviderToken } from '../../platform-ingress/services/ingr
 
 import { TraefikIngressConfigController } from './traefik-ingress-config.controller'
 
-import type { EnvService } from '../../../../config/env/env.module'
+import type { SecretShape } from '../../auth/orpc/secrets'
 import type { TraefikIngressConfigServiceShape } from '../services/traefik-ingress-config.service'
 
 const config = { http: { routers: {}, services: {} } }
@@ -16,18 +16,14 @@ function controller() {
     const service = {
         buildDynamicConfig: vi.fn(() => Effect.succeed(config)),
     } as unknown as TraefikIngressConfigServiceShape
-    const env = {
-        get: vi.fn((key: string) =>
-            key === 'AUTH_SECRET' ? 's3cret' : undefined
-        ),
-    } as unknown as EnvService
+    const secrets: SecretShape = { get: () => Effect.succeed('s3cret') }
     const host = {
         runUnwrapped: (effect: Effect.Effect<unknown>) =>
             Effect.runPromise(effect),
     } as unknown as EffectHostShape
     const response = { status: vi.fn() }
     return {
-        controller: new TraefikIngressConfigController(service, env, host),
+        controller: new TraefikIngressConfigController(service, secrets, host),
         service,
         response,
     }

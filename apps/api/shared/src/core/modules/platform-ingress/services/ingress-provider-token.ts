@@ -3,9 +3,9 @@
  *
  * The config endpoint is reachable through Traefik itself (`api.<host>` routes to
  * the API), so "only the overlay can reach it" is not true and the endpoint must
- * authenticate its caller. The token is DERIVED from the API's auth secret rather
+ * authenticate its caller. The token is DERIVED from the platform secret rather
  * than stored: every API replica computes the same value with no shared state, and
- * rotating the auth secret rotates it.
+ * rotating the platform secret rotates it.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
@@ -19,22 +19,16 @@ export const INGRESS_TOKEN_HEADER = 'X-Deployer-Ingress-Token'
 const DERIVATION_LABEL = 'deployer:traefik-http-provider:v1'
 
 /**
- * The secret the token is derived from: `AUTH_SECRET`, else `BETTER_AUTH_SECRET`
- * (the env schema requires them to agree when both are set). Throws when neither
- * is set — an ingress whose poll cannot be authenticated must fail loudly rather
- * than accept a token derived from an empty key.
+ * The secret the token is derived from: the node's platform secret (`PlatformSecret`). Throws when there is none — an
+ * ingress whose poll cannot be authenticated must fail loudly rather than accept a token derived from an empty key.
  */
 export function requireIngressSecret(
-    authSecret: string | undefined,
-    betterAuthSecret: string | undefined
+    platformSecret: string | null | undefined
 ): string {
-    const candidates = [authSecret?.trim(), betterAuthSecret?.trim()]
-    const secret = candidates.find(
-        (value) => value !== undefined && value !== ''
-    )
-    if (secret === undefined) {
+    const secret = platformSecret?.trim()
+    if (secret === undefined || secret === '') {
         throw new Error(
-            'AUTH_SECRET is not set — the ingress cannot authenticate its route poll'
+            'The platform secret is not available — the ingress cannot authenticate its route poll'
         )
     }
     return secret

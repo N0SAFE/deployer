@@ -55,6 +55,8 @@ export type TraefikSupervisorDeps = {
     readonly webTarget: PlatformWebTargetServiceShape
     readonly edges: EdgeProviderRegistryShape
     readonly bus: SupervisorEventBusFacade
+    /** The node's platform secret, read synchronously (the supervisor's config callbacks cannot wait); null before it exists. */
+    readonly platformSecret: () => string | null
 }
 
 /**
@@ -76,6 +78,7 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
         webTarget,
         edges,
         bus,
+        platformSecret,
     } = deps
     const logger = new Logger('TraefikSupervisor')
     const prefix = () => env.get('DEPLOYER_PREFIX')
@@ -123,10 +126,7 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
             providerToken: () => ({
                 header: INGRESS_TOKEN_HEADER,
                 value: deriveIngressProviderToken(
-                    requireIngressSecret(
-                        env.get('AUTH_SECRET'),
-                        env.get('BETTER_AUTH_SECRET')
-                    )
+                    requireIngressSecret(platformSecret())
                 ),
             }),
             acmeEmail: () => env.get('DEPLOYER_TRAEFIK_ACME_EMAIL'),

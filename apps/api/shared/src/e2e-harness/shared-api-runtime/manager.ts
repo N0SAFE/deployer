@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { Logger, type INestApplication } from '@nestjs/common'
 import { Test, type TestingModule } from '@nestjs/testing'
@@ -132,13 +131,13 @@ async function withWatchdog<T>(
         )
     }, timeoutMs)
 
-    let raceTimeout: ReturnType<typeof setTimeout> | null = null
+    const race: { timer?: ReturnType<typeof setTimeout> } = {}
 
     try {
         return await Promise.race([
             action(),
             new Promise<T>((_, reject) => {
-                raceTimeout = setTimeout(() => {
+                race.timer = setTimeout(() => {
                     reject(
                         new Error(
                             `${stepLabel} exceeded ${String(timeoutMs)}ms (active handles: ${describeActiveHandles()})${describePending === undefined ? '' : ` | ${describePending()}`}`
@@ -150,9 +149,7 @@ async function withWatchdog<T>(
     } finally {
         clearInterval(interval)
         clearTimeout(timeout)
-        if (raceTimeout) {
-            clearTimeout(raceTimeout)
-        }
+        clearTimeout(race.timer)
     }
 }
 
@@ -518,7 +515,7 @@ export class SharedApiRuntimeManager {
             }
 
             await withWatchdog(
-                `plugin:${plugin.name}:${String(hook)}`,
+                `plugin:${plugin.name}:${hook}`,
                 30_000,
                 async () => {
                     await handler(context as never)
@@ -603,7 +600,7 @@ export class SharedApiRuntimeManager {
                     .remove({ force: true })
                     .catch(() => undefined)
                 logStep(
-                    `Cleaned up deployer-managed container: ${String(containerInfo.Names?.[0] ?? containerInfo.Id)}`
+                    `Cleaned up deployer-managed container: ${containerInfo.Names.at(0) ?? containerInfo.Id}`
                 )
             } catch {
                 // already removed or inaccessible — ignore
@@ -666,11 +663,6 @@ export class SharedApiRuntimeManager {
             }
 
             const containerPromise = this.sharedPostgresContainerPromise
-            if (containerPromise === null) {
-                throw new Error(
-                    'shared Postgres container promise was not initialised'
-                )
-            }
             const container = await containerPromise
             this.sharedPostgresContainerRefCount += 1
             logStep(
@@ -913,7 +905,7 @@ export class SharedApiRuntimeManager {
 
         if (lastError) {
             logStep(
-                `stopAllRuntimes: completed with errors — ${keys.length} runtime(s) processed, last error: ${lastError.message}`
+                `stopAllRuntimes: completed with errors — ${String(keys.length)} runtime(s) processed, last error: ${lastError.message}`
             )
         }
     }
@@ -985,10 +977,6 @@ export class SharedApiRuntimeManager {
                 ...apiMockEnv,
                 SETUP_DATABASE_URL: databaseUrl,
                 AUTH_SECRET: process.env.AUTH_SECRET ?? apiMockEnv.AUTH_SECRET,
-                BETTER_AUTH_SECRET:
-                    process.env.BETTER_AUTH_SECRET ??
-                    process.env.AUTH_SECRET ??
-                    apiMockEnv.BETTER_AUTH_SECRET,
                 NEXT_PUBLIC_API_URL:
                     process.env.NEXT_PUBLIC_API_URL ??
                     apiMockEnv.NEXT_PUBLIC_API_URL,

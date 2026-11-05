@@ -249,9 +249,8 @@ describe('ingress provider token', () => {
     })
 
     it('refuses to derive a token from no secret at all', () => {
-        expect(() => requireIngressSecret(undefined, '  ')).toThrow(
-            /AUTH_SECRET/
-        )
-        expect(requireIngressSecret(undefined, 'fallback')).toBe('fallback')
+        expect(() => requireIngressSecret(null)).toThrow(/platform secret/)
+        expect(() => requireIngressSecret('  ')).toThrow(/platform secret/)
+        expect(requireIngressSecret(' s3cret ')).toBe('s3cret')
     })
 })

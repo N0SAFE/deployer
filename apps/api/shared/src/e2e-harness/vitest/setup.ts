@@ -77,8 +77,6 @@ function describeActiveRequests(): string {
 process.env.NODE_ENV = 'test'
 process.env.AUTH_SECRET =
     process.env.AUTH_SECRET ?? 'test-auth-secret-key-for-testing-only'
-process.env.BETTER_AUTH_SECRET =
-    process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET
 process.env.NEXT_PUBLIC_API_URL =
     process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 process.env.API_PORT = process.env.API_PORT ?? '3001'
@@ -188,7 +186,7 @@ function cleanupOrphanedDeployerContainers(): void {
 
         if (containerIds.length > 0) {
             logSetup(
-                `cleanupOrphanedDeployerContainers: force-removing ${containerIds.length} orphaned container(s)`
+                `cleanupOrphanedDeployerContainers: force-removing ${String(containerIds.length)} orphaned container(s)`
             )
             execSync(
                 `docker rm -f ${containerIds.join(' ')} 2>/dev/null || true`,
@@ -197,7 +195,7 @@ function cleanupOrphanedDeployerContainers(): void {
                 }
             )
             logSetup(
-                `cleanupOrphanedDeployerContainers: removed ${containerIds.length} container(s)`
+                `cleanupOrphanedDeployerContainers: removed ${String(containerIds.length)} container(s)`
             )
         }
     } catch (error) {

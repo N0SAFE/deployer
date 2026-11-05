@@ -25,7 +25,7 @@ type CreatedSpec = {
 
 /** A door that answers once with `status`, or not at all (null) — the two states the provisioner must handle. */
 const doorWith = (status: NodeDoorStatus | null): NodeDoorClient =>
-    ({ status: async () => status }) as unknown as NodeDoorClient
+    ({ status: () => Promise.resolve(status) }) as unknown as NodeDoorClient
 
 /** The provisioner with its door replaced: a test has no agent socket to dial. */
 class TestTier extends ServicesTierProvisionerImpl {
@@ -66,7 +66,6 @@ async function schedule(
     const tier = new TestTier(
         makeEnvService({
             SETUP_MODE: 'prod',
-            AUTH_SECRET: 's3cret-s3cret-s3cret-s3cret-s3cret',
             ...IMAGES,
             ...env,
         }),

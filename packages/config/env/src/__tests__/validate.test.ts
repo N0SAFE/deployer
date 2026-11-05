@@ -133,8 +133,6 @@ describe('Web Environment Validation', () => {
         NODE_ENV: 'development' as const,
         API_URL: 'http://localhost:3001',
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
-        AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
-        BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
         NEXT_PUBLIC_SHOW_AUTH_LOGS: false,
         NEXT_PUBLIC_DEBUG: '',
         REACT_SCAN: false,
@@ -259,7 +257,7 @@ describe('Web Environment Validation', () => {
         })
 
         it('should return error for invalid environment', () => {
-            const result = validateWebEnvSafe({})
+            const result = validateWebEnvSafe({ API_URL: 'not-a-url' })
             expect(result.success).toBe(false)
         })
     })
@@ -270,7 +268,7 @@ describe('Web Environment Validation', () => {
         })
 
         it('should return false for invalid environment', () => {
-            expect(webEnvIsValid({})).toBe(false)
+            expect(webEnvIsValid({ API_URL: 'not-a-url' })).toBe(false)
         })
     })
 
@@ -402,7 +400,7 @@ describe('All Apps Environment Validation', () => {
         })
 
         it('should throw on invalid web environment', () => {
-            const invalid = { ...validAllEnv, web: {} }
+            const invalid = { ...validAllEnv, web: { API_URL: 'not-a-url' } }
             expect(() => validateAllEnv(invalid)).toThrow()
         })
 
@@ -420,7 +418,7 @@ describe('All Apps Environment Validation', () => {
         })
 
         it('should return error for invalid environments', () => {
-            const invalid = { api: {}, web: {}, doc: {} }
+            const invalid = { api: {}, web: { API_URL: 'not-a-url' }, doc: {} }
             const result = validateAllEnvSafe(invalid)
             expect(result.success).toBe(false)
         })
@@ -432,7 +430,7 @@ describe('All Apps Environment Validation', () => {
         })
 
         it('should return false for invalid environments', () => {
-            const invalid = { api: {}, web: {}, doc: {} }
+            const invalid = { api: {}, web: { API_URL: 'not-a-url' }, doc: {} }
             expect(allEnvIsValid(invalid)).toBe(false)
         })
     })

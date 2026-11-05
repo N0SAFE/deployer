@@ -13,7 +13,7 @@ import { Effect } from 'effect'
 import { domainError } from '@deployer/effect-core'
 import { EffectHost, type EffectHostShape } from '@deployer/nest-effect'
 
-import { EnvService } from '../../../../config/env/env.module'
+import { PlatformSecret, type SecretShape } from '../../auth/orpc/secrets'
 import {
     INGRESS_TOKEN_HEADER,
     ingressTokenMatches,
@@ -44,7 +44,7 @@ export class TraefikIngressConfigController {
     constructor(
         @Inject(TraefikIngressConfigService)
         private readonly config: TraefikIngressConfigServiceShape,
-        private readonly env: EnvService,
+        @Inject(PlatformSecret) private readonly secrets: SecretShape,
         @Inject(EffectHost) private readonly host: EffectHostShape
     ) {}
 
@@ -58,16 +58,17 @@ export class TraefikIngressConfigController {
         @Headers(INGRESS_TOKEN_HEADER.toLowerCase()) token: string | undefined,
         @Res({ passthrough: true }) response: Pick<Response, 'status'>
     ): Promise<LaneTraefikConfig | { error: string }> {
-        const secret = requireIngressSecret(
-            this.env.get('AUTH_SECRET'),
-            this.env.get('BETTER_AUTH_SECRET')
-        )
+        const { config, secrets } = this
         const program: Effect.Effect<
             LaneTraefikConfig,
             IngressTokenInvalid | IngressLanesUnavailable
-        > = ingressTokenMatches(token, secret)
-            ? this.config.buildDynamicConfig()
-            : Effect.fail(new IngressTokenInvalid({}))
+        > = Effect.gen(function* () {
+            // A node with no platform secret fails loudly: an ingress poll must never be accepted against an empty key.
+            const secret = requireIngressSecret(yield* secrets.get())
+            return yield* ingressTokenMatches(token, secret)
+                ? config.buildDynamicConfig()
+                : Effect.fail(new IngressTokenInvalid({}))
+        })
         return this.host.runUnwrapped(
             program.pipe(
                 Effect.catchTag('IngressTokenInvalid', (error) =>

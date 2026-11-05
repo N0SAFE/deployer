@@ -208,10 +208,9 @@ export const apiEnvSchema = zod
         // dedicated tunnel (default: first tunnel-capable app).
         CLOUDFLARE_WEB_TUNNEL_PROVIDER_ID: zod.string().optional(),
 
-        // Authentication — resolved through mesh secret sharing at runtime.
-        // Optional in env so the container can start without them.
+        // Authentication. The platform secret is generated on a node's first boot and shared through the join
+        // (SEC-100); `AUTH_SECRET` remains only for the legacy column reader and the one-time import of an old root.
         AUTH_SECRET: zod.string().optional(),
-        BETTER_AUTH_SECRET: zod.string().optional(),
         AUTH_BASE_DOMAIN: zod.string().optional(),
         // WebAuthn relying-party coordinates. The RP ID must be the PARENT domain (the page runs on the web origin,
         // the API answers on `api.<domain>`); pin both when the public hostnames do not follow AUTH_BASE_DOMAIN.
@@ -685,20 +684,6 @@ export const apiEnvSchema = zod
         ...sharedEnvVars,
     })
     .superRefine((data, ctx) => {
-        // Ensure BETTER_AUTH_SECRET matches AUTH_SECRET when both provided
-        if (
-            data.BETTER_AUTH_SECRET &&
-            data.AUTH_SECRET &&
-            data.BETTER_AUTH_SECRET !== data.AUTH_SECRET
-        ) {
-            ctx.addIssue({
-                code: zod.ZodIssueCode.custom,
-                message:
-                    'BETTER_AUTH_SECRET must match AUTH_SECRET when provided',
-                path: ['BETTER_AUTH_SECRET'],
-            })
-        }
-
         // SETUP_AUTO=true without SETUP_AUTO_DATABASE_URL: Postgres is
         // auto-provisioned on demand via PostgresContainerService (dockerode).
         // SETUP_AUTO=true with SETUP_AUTO_DATABASE_URL: use the URL directly
@@ -978,11 +963,7 @@ export const webEnvSchema = zod
             .max(65535)
             .optional(),
 
-        // Authentication
-        AUTH_SECRET: zod.string().min(1, 'AUTH_SECRET is required'),
-        BETTER_AUTH_SECRET: zod
-            .string()
-            .min(1, 'BETTER_AUTH_SECRET is required'),
+        // Authentication: the web app holds no secret. It asks the API for the session (SEC-100).
         AUTH_BASE_DOMAIN: zod.string().optional(),
         DEV_AUTH_KEY: zod.string().optional(),
         NEXT_PUBLIC_SHOW_AUTH_LOGS: zod.coerce
@@ -1023,21 +1004,6 @@ export const webEnvSchema = zod
 
         ...sharedEnvVars,
     })
-    .refine(
-        (data) => {
-            if (
-                data.BETTER_AUTH_SECRET &&
-                data.BETTER_AUTH_SECRET !== data.AUTH_SECRET
-            ) {
-                return false
-            }
-            return true
-        },
-        {
-            message: 'BETTER_AUTH_SECRET must match AUTH_SECRET when provided',
-            path: ['BETTER_AUTH_SECRET'],
-        }
-    )
 
 /**
  * Doc App (Fumadocs) Environment Variables

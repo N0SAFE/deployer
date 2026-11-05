@@ -92,8 +92,6 @@ function buildServerEnv(appUrl: string): string[] {
     const defaults: Record<string, string> = {
         NODE_ENV: 'production',
         NEXT_TELEMETRY_DISABLED: '1',
-        BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? 'web-e2e-secret',
-        AUTH_SECRET: process.env.AUTH_SECRET ?? 'web-e2e-secret',
         NEXT_PUBLIC_API_URL:
             process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3005',
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? appUrl,

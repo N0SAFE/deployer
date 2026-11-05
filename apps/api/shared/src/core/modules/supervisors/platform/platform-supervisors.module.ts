@@ -52,6 +52,10 @@ import {
     PlatformWebTargetService,
     type PlatformWebTargetServiceShape,
 } from '../../platform-ingress/services/platform-web-target.service'
+import {
+    NodeConfigSnapshot,
+    type NodeConfigSnapshotShape,
+} from '../../node-state/node-config.snapshot'
 import { CoreReachabilityModule } from '../../reachability/core-reachability.module'
 import {
     PublicEdgeService,
@@ -94,6 +98,7 @@ export const SupervisorsPlatformModule = createGlobalModule({
             PlatformConfigService,
             AppInstanceService,
             PublicEdgeService,
+            NodeConfigSnapshot,
         ],
         build: (
             engine: DockerEngineShape,
@@ -106,7 +111,8 @@ export const SupervisorsPlatformModule = createGlobalModule({
             edges: EdgeProviderRegistryShape,
             platformConfig: PlatformConfigServiceShape,
             appInstances: AppInstanceServiceShape,
-            edge: PublicEdgeServiceShape
+            edge: PublicEdgeServiceShape,
+            nodeConfig: NodeConfigSnapshotShape
         ) => [
             makeTraefikRegistration({
                 engine,
@@ -117,6 +123,8 @@ export const SupervisorsPlatformModule = createGlobalModule({
                 webTarget,
                 edges,
                 bus,
+                platformSecret: () =>
+                    nodeConfig.current()?.platformSecret ?? null,
             }).registration,
             makeManagedWebRegistration({
                 engine,
