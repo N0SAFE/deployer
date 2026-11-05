@@ -26,6 +26,7 @@ import {
     ScopeNotFound,
     ServiceScope,
     type AuthenticatedContext,
+    type ContractInput,
     type ScopeResolverShape,
 } from './index'
 
@@ -188,7 +189,13 @@ describe('a nested id', () => {
     const SubjectUser = defineResource('user', { scope: 'platform', idKey: 'id' })
     const setRole = () =>
         procedure<typeof nested, Ctx>(nested)
-            .use(accessRequired(SubjectUser.can('set-role').on('params.id').orSelf()))
+            .use(
+                accessRequired(
+                    SubjectUser.can('set-role')
+                        .on<ContractInput<typeof nested>>(({ input }) => input.params.id)
+                        .orSelf()
+                )
+            )
             .effect(function* ({ context }) {
                 yield* Effect.void
                 return context.access.user.via
@@ -206,10 +213,19 @@ describe('a nested id', () => {
         ).resolves.toBe('self')
     })
 
-    it('refuses a path that is not a path, and requires the nested shape in the input', () => {
-        expect(() => SubjectUser.can('update').on('a..b')).toThrow('not a field path')
-        // @ts-expect-error `deploy` has no `params.id`
-        procedure<typeof deploy, Ctx>(deploy).use(accessRequired(SubjectUser.can('update').on('params.id')))
+    it('types the mapping by the contract, and refuses a procedure of another shape', () => {
+        // the field is checked against the contract named in the type argument
+        SubjectUser.can('update').on<ContractInput<typeof deploy>>(
+            // @ts-expect-error `deploy` has no `params.id`
+            ({ input }) => input.params.id
+        )
+        // and `.use` checks that contract's shape against the procedure it is used on
+        procedure<typeof list, Ctx>(list).use(
+            // @ts-expect-error `list` has no `serviceId`
+            accessRequired(
+                Service.can('deploy').on<ContractInput<typeof deploy>>(({ input }) => input.serviceId)
+            )
+        )
     })
 })
 
@@ -257,6 +273,22 @@ describe('the other forms', () => {
                 return 1
             })
         expect(accessOfProcedure(guarded)).toMatchObject({ kind: 'required' })
+    })
+})
+
+describe('a mapped requirement is audited too', () => {
+    it('reads the permission and scope off a mapped requirement without a request', () => {
+        const mapped = accessRequired(
+            Service.can('update').on(
+                ({ input }: { input: { params: { id: string } } }) => input.params.id
+            )
+        )
+        expect(accessDescriptorOf(mapped)).toMatchObject({
+            kind: 'required',
+            requirements: [
+                { permission: 'service:update', scope: 'service', mapped: true },
+            ],
+        })
     })
 })
 
@@ -376,8 +408,12 @@ describe('types', () => {
     it('requires the input to carry the field that locates the scope', () => {
         // @ts-expect-error `list` has no `serviceId`
         procedure<typeof list, Ctx>(list).use(accessRequired(Service.can('deploy')))
-        // accepted: the field is named explicitly and present
-        procedure<typeof update, Ctx>(update).use(accessRequired(Service.can('deploy').on('userId')))
+        // accepted: mapped from a field the input does have
+        procedure<typeof update, Ctx>(update).use(
+            accessRequired(
+                Service.can('deploy').on<ContractInput<typeof update>>(({ input }) => input.userId)
+            )
+        )
     })
 
     it('types the proof by the requirement name', () => {
@@ -410,7 +446,9 @@ describe('accessSelf is checked, not assumed', () => {
             })
     const deleteOwnSession = () =>
         procedure<typeof nested, Ctx>(nested)
-            .use(accessSelf('the caller ends their own session', { on: 'params.id' }))
+            .use(
+                accessSelf('the caller ends their own session', ({ input }) => input.params.id)
+            )
             .effect(function* ({ context }) {
                 yield* Effect.void
                 return context.access.self.id
@@ -436,9 +474,10 @@ describe('accessSelf is checked, not assumed', () => {
     })
 
     it('requires the input to carry the checked field', () => {
-        // @ts-expect-error `list` has no `params.id`
-        procedure<typeof list, Ctx>(list).use(accessSelf('x', { on: 'params.id' }))
-        expect(() => accessSelf('x', { on: 'a..b' })).toThrow('not a field path')
+        procedure<typeof list, Ctx>(list).use(
+            // @ts-expect-error `list` has no `params.id`
+            accessSelf('x', ({ input }) => input.params.id)
+        )
     })
 })
 
@@ -508,5 +547,69 @@ describe('Resource.require inside a handler', () => {
                 return 'served'
             })
         await expect(call(p, {}, { context: caller('u1') })).resolves.toBe('served')
+    })
+})
+
+describe('the inferred mapping: accessRequired(({ input }) => Resource.can(…).on(input.…))', () => {
+    const SubjectUser = defineResource('user', { scope: 'platform', idKey: 'id' })
+    const get = () =>
+        procedure<typeof nested, Ctx>(nested)
+            .use(accessRequired(({ input }) => SubjectUser.can('get').on(input.params.id)))
+            .effect(function* ({ context }) {
+                yield* Effect.void
+                return context.access.user.id
+            })
+
+    it('infers `input` from the procedure and reads the mapped id at request time', async () => {
+        configureAuthz({ store: storeOf({ 'platform:': ['user:get'] }), mode: 'enforce' })
+        await expect(
+            call(get(), { params: { id: 'u9' }, body: { role: 'x' } }, { context: caller('u1') })
+        ).resolves.toBe('u9')
+    })
+
+    it('refuses without the permission, and passes the caller\'s own id through `.orSelf()`', async () => {
+        configureAuthz({ store: storeOf({}), mode: 'enforce' })
+        const own = procedure<typeof nested, Ctx>(nested)
+            .use(
+                accessRequired(({ input }) => SubjectUser.can('get').on(input.params.id).orSelf())
+            )
+            .effect(function* ({ context }) {
+                yield* Effect.void
+                return context.access.user.via
+            })
+        await expect(
+            call(own, { params: { id: 'other' }, body: { role: 'x' } }, { context: caller('u1') })
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+        await expect(
+            call(own, { params: { id: 'u1' }, body: { role: 'x' } }, { context: caller('u1') })
+        ).resolves.toBe('self')
+    })
+
+    it('accepts several requirements as an array, keyed by name', async () => {
+        configureAuthz({
+            store: storeOf({ 'platform:': ['user:get', 'user:list'] }),
+            mode: 'enforce',
+        })
+        const both = procedure<typeof nested, Ctx>(nested)
+            .use(
+                accessRequired(({ input }) => [
+                    SubjectUser.can('get').on(input.params.id).as('target'),
+                    SubjectUser.can('list').as('everyone'),
+                ])
+            )
+            .effect(function* ({ context }) {
+                yield* Effect.void
+                return [context.access.target.permission, context.access.everyone.permission]
+            })
+        await expect(
+            call(both, { params: { id: 'x' }, body: { role: 'r' } }, { context: caller('u1') })
+        ).resolves.toEqual(['user:get', 'user:list'])
+    })
+
+    it('is a compile error to read a field the procedure\'s input lacks', () => {
+        procedure<typeof deploy, Ctx>(deploy).use(
+            // @ts-expect-error `deploy` has no `params`
+            accessRequired(({ input }) => SubjectUser.can('get').on(input.params.id))
+        )
     })
 })

@@ -4,9 +4,12 @@ import { Cause, Context as EffectContext, Effect, Exit } from 'effect'
 import type { Decision, Permission, ScopeKind } from '@deployer/auth/authz'
 
 import { actorOf } from '../authz'
+
+import { type AccessArgs, type AuthenticatedContext } from './context'
 import { evaluate, type Caller, type LineageOf } from './decision'
 import { describe } from './descriptor'
 import { AccessDenied } from './errors'
+import { RequirementBuilder } from './resource'
 import {
     EnvironmentScope,
     NodeScope,
@@ -23,7 +26,6 @@ import type {
     InputOf,
     KindOf,
     NameOf,
-    NestedInput,
     PermissionOfRequirement,
     RequirementSpec,
     ScopeServicesOf,
@@ -44,14 +46,6 @@ export type AccessEntry<P extends Permission, K extends ScopeKind> = {
     /** `permission` when the catalog decided, `self` for an id that is the caller's, `off` when `AUTHZ_MODE=off`. */
     readonly via: 'permission' | 'self' | 'off'
     readonly decision: Decision | null
-}
-
-/** The caller is authenticated: what `requireAuth()` guarantees and these middlewares require before them. */
-export type AuthenticatedContext = {
-    readonly auth: {
-        readonly isLoggedIn: true
-        readonly user: { readonly id: string }
-    }
 }
 
 /** `context.access` for a requirement list: one entry per requirement, keyed by its name. */
@@ -138,17 +132,33 @@ function lineageThrough(spec: RequirementSpec, context: unknown): LineageOf<neve
     }
 }
 
-async function check(
-    spec: RequirementSpec,
+/** The id a requirement is about: what the controller mapped from the request, else the resource's default input field. */
+function idOf(
+    requirement: AnyRequirement,
     input: unknown,
-    context: unknown,
+    context: AuthenticatedContext
+): string | undefined {
+    if (requirement.mapping !== null) {
+        const mapped = requirement.mapping({ input, context })
+        return typeof mapped === 'string' && mapped !== '' ? mapped : undefined
+    }
+    const { key } = requirement.spec
+    if (key === null) return undefined
+    const raw = valueAt(input, key)
+    return typeof raw === 'string' ? raw : undefined
+}
+
+async function check(
+    requirement: AnyRequirement,
+    input: unknown,
+    context: AuthenticatedContext,
     caller: Caller
 ): Promise<AccessEntry<Permission, ScopeKind>> {
-    const raw = spec.key === null ? undefined : valueAt(input, spec.key)
-    const id = typeof raw === 'string' ? raw : undefined
-    if (spec.key !== null && id === undefined) {
-        // The contract's schema validated the input before any middleware ran; a missing key is a wiring mistake.
-        throw wiring(spec.permission, `the input has no string field "${spec.key}"`)
+    const { spec } = requirement
+    const id = idOf(requirement, input, context)
+    if ((spec.mapped || spec.key !== null) && id === undefined) {
+        // The contract's schema validated the input before any middleware ran; a missing id is a wiring mistake.
+        throw wiring(spec.permission, 'the request has no id to locate this by')
     }
     const exit = await Effect.runPromiseExit(
         evaluate(spec, id, caller, lineageThrough(spec, context))
@@ -180,33 +190,76 @@ function requireActor(context: unknown) {
     return actor
 }
 
+function assertUniqueNames(specs: readonly RequirementSpec[]): void {
+    const seen = new Set<string>()
+    for (const spec of specs) {
+        if (seen.has(spec.name)) {
+            throw wiring(spec.permission, `two requirements share the name "${spec.name}"; give one .as("…")`)
+        }
+        seen.add(spec.name)
+    }
+}
+
+/** A function that returns one requirement or several, however the controller wrote it. */
+type Mapped = AnyRequirement | readonly AnyRequirement[]
+type Normalized<Ret extends Mapped> = Ret extends readonly AnyRequirement[]
+    ? Ret
+    : readonly [Ret]
+const isMapping = (
+    arg: unknown
+): arg is (args: AccessArgs<unknown>) => Mapped => typeof arg === 'function'
+const isMany = (ret: Mapped): ret is readonly AnyRequirement[] =>
+    Array.isArray(ret)
+const normalize = (ret: Mapped): readonly AnyRequirement[] =>
+    isMany(ret) ? ret : [ret]
+
+/** A value that answers every property, call and conversion with itself: what the audit feeds a mapping function. */
+function probe(): unknown {
+    return new Proxy(() => undefined, {
+        get: (_target, key) =>
+            key === Symbol.toPrimitive ? () => 'probe' : probe(),
+        apply: () => probe(),
+    })
+}
+
 /**
- * The requirement of a procedure, in the controller: what permission, on what, found where.
- *
- * ```ts
- * procedure(contract.deploy)
- *   .use(requireAuth())                                   // required first: this is typed after it
- *   .use(accessRequired(Service.can('deploy')))           // `.on` inferred from the resource's id key
- * ```
- *
- * Several requirements are ONE call (`accessRequired(a, b)`): they all must pass, and the proofs are keyed by name.
- * The middleware demands what the requirements locate by (`InputOf`), so a procedure whose input lacks the field does
- * not accept it, and it adds the scope plugins it reads to the procedure's `R`.
+ * The requirements of a mapping function, for the boot audit. The function is run once on a stand-in input, which is why a
+ * mapping should only read the input (`.on(input.params.id)`); one that does anything else may report fewer requirements,
+ * and the audit then still sees the middleware, just not its list.
  */
-export function accessRequired<const Rs extends readonly AnyRequirement[]>(
-    ...requirements: Rs & UniqueNames<Rs>
+function specsOfMapping(
+    map: (args: AccessArgs<unknown>) => Mapped
+): readonly RequirementSpec[] {
+    try {
+        return normalize(
+            map({
+                input: probe(),
+                context: { auth: { isLoggedIn: true, user: { id: 'probe' } } },
+            })
+        ).map((requirement) => requirement.spec)
+    } catch {
+        return []
+    }
+}
+
+function middlewareOf<const Rs extends readonly AnyRequirement[], In>(
+    resolve: (args: AccessArgs<unknown>) => readonly AnyRequirement[]
 ) {
-    const specs = requirements.map((requirement) => requirement.spec)
-    const middleware = os
+    return os
         .$context<AuthenticatedContext>()
         .middleware<
             { readonly access: AccessRecord<Rs> } & Marked<ScopeServicesOf<Rs>>,
-            InputOf<Rs>
+            In
         >(async ({ context, next }, input) => {
             const actor = requireActor(context)
+            const requirements = resolve({ input, context })
+            assertUniqueNames(requirements.map((requirement) => requirement.spec))
             const entries: [string, AccessEntry<Permission, ScopeKind>][] = []
-            for (const spec of specs) {
-                entries.push([spec.name, await check(spec, input, context, actor)])
+            for (const requirement of requirements) {
+                entries.push([
+                    requirement.spec.name,
+                    await check(requirement, input, context, actor),
+                ])
             }
             // The proofs are keyed by names only the types know; `Marked` is a phantom no runtime value carries. This is
             // the one place the dynamic record meets its mapped type.
@@ -215,7 +268,51 @@ export function accessRequired<const Rs extends readonly AnyRequirement[]>(
                 context: { access } as { readonly access: AccessRecord<Rs> } & Marked<ScopeServicesOf<Rs>>,
             })
         })
-    return describe(middleware, { kind: 'required', requirements: specs })
+}
+
+/**
+ * The requirement of a procedure, in the controller: what permission, on what, found where.
+ *
+ * ```ts
+ * procedure(contract.setRole)
+ *   .use(requireAuth())                                                              // required first
+ *   .use(accessRequired(Service.can('deploy')))                                      // the id is the resource's default field
+ *   .use(accessRequired(                                                              // or mapped from the request
+ *       User.can('get').on<ContractInput<typeof contract.get>>(({ input }) => input.params.id)
+ *   ))
+ * ```
+ *
+ * A mapping's `input` is typed by the type argument (`ContractInput<…>`), and the middleware then demands that shape of the
+ * procedure it is used on, so a field that does not exist is a compile error and a mismatched procedure is refused. Several requirements are
+ * ONE call (`accessRequired(a, b)`): all must pass, and the proofs are keyed by name. The middleware adds the scope plugins
+ * it reads to the procedure's `R`.
+ */
+export function accessRequired<const Rs extends readonly AnyRequirement[]>(
+    ...requirements: Rs & UniqueNames<Rs>
+): ReturnType<typeof middlewareOf<Rs, InputOf<Rs>>>
+export function accessRequired<I extends object, const Ret extends Mapped>(
+    map: (args: AccessArgs<I>) => Ret
+): ReturnType<
+    typeof middlewareOf<Extract<Normalized<Ret>, readonly AnyRequirement[]>, I>
+>
+export function accessRequired(...args: readonly unknown[]): unknown {
+    const [first] = args
+    if (isMapping(first)) {
+        return describe(
+            middlewareOf<readonly AnyRequirement[], unknown>((a) => normalize(first(a))),
+            { kind: 'required', requirements: specsOfMapping(first) }
+        )
+    }
+    const requirements = args.filter(
+        (arg): arg is AnyRequirement => arg instanceof RequirementBuilder
+    )
+    return describe(
+        middlewareOf<readonly AnyRequirement[], unknown>(() => requirements),
+        {
+            kind: 'required',
+            requirements: requirements.map((requirement) => requirement.spec),
+        }
+    )
 }
 
 /**
@@ -223,17 +320,13 @@ export function accessRequired<const Rs extends readonly AnyRequirement[]>(
  *
  * - `accessSelf(reason)`: the procedure takes no id at all (`deleteSelf`, `exportSelf`). There is nothing to tamper with, and
  *   the proof carries `context.access.self.id`, the one id the handler may act on: the session's own.
- * - `accessSelf(reason, { on: 'params.id' })`: the input names a record; the middleware refuses with 403 unless that id is the
- *   caller's. It does not depend on `AUTHZ_MODE`: whose record it is is an identity fact, not a rollout.
+ * - `accessSelf(reason, ({ input }) => input.params.id)`: the input names a record; the middleware refuses with 403 unless that
+ *   id is the caller's. It does not depend on `AUTHZ_MODE`: whose record it is is an identity fact, not a rollout.
  */
-export function accessSelf<const Key extends string | undefined = undefined>(
+export function accessSelf<I extends object = object>(
     reason: string,
-    options?: { readonly on: Key }
+    on?: (args: AccessArgs<I>) => string
 ) {
-    const key = options?.on
-    if (key !== undefined && (key === '' || key.startsWith('.') || key.endsWith('.') || key.includes('..'))) {
-        throw new Error(`accessSelf: "${key}" is not a field path`)
-    }
     const middleware = os
         .$context<AuthenticatedContext>()
         .middleware<
@@ -242,10 +335,10 @@ export function accessSelf<const Key extends string | undefined = undefined>(
                     readonly self: { readonly reason: string; readonly id: string }
                 }
             },
-            Key extends string ? NestedInput<Key> : unknown
+            I
         >(({ context, next }, input) => {
             const actor = requireActor(context)
-            if (key !== undefined && valueAt(input, key) !== actor.id) {
+            if (on !== undefined && on({ input, context }) !== actor.id) {
                 throw new ORPCError('FORBIDDEN', {
                     message: 'You can only act on your own record',
                 })

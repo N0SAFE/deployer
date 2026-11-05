@@ -4,6 +4,7 @@ import { isPermission, type Permission, type ScopeKind } from '@deployer/auth/au
 import { CurrentActor } from '@deployer/effect-core'
 
 import { Authorized, mint } from './authorized'
+import { type AccessArgs } from './context'
 import { evaluate } from './decision'
 import { DecisionLedger } from './ledger'
 import {
@@ -33,7 +34,7 @@ export type ActionOf<R extends string> = Permission extends infer P
         : never
     : never
 
-/** `params.id` -> `{ params: { id: string } }`: what a dotted path demands of the input. */
+/** `params.id` -> `{ params: { id: string } }`: what a resource's default id field demands of the input. */
 export type NestedInput<Path extends string> =
     Path extends `${infer Head}.${infer Tail}`
         ? { readonly [K in Head]: NestedInput<Tail> }
@@ -59,8 +60,10 @@ export type RequirementSpec = {
     readonly resource: string
     readonly scope: ScopeKind
     readonly permission: Permission
-    /** The input field (or dotted path) holding the id, or `null` for a platform-wide check. */
+    /** The resource's default input field (or dotted path) holding the id, or `null` when there is none. */
     readonly key: string | null
+    /** The controller mapped the id with `.on(({ input }) => …)`: that function wins over `key`. */
+    readonly mapped: boolean
     /** The resource's own id key: what `.orSelf()` falls back to on a platform resource. */
     readonly defaultKey: string | null
     readonly name: string
@@ -74,9 +77,6 @@ type UnionToIntersection<U> = (
 ) extends (x: infer I) => void
     ? I
     : never
-
-const invalidPath = (key: string): boolean =>
-    key === '' || key.startsWith('.') || key.endsWith('.') || key.includes('..')
 
 /**
  * The fluent builder `Resource.can(action)` returns. Immutable: every step returns a new one.
@@ -92,36 +92,60 @@ export class RequirementBuilder<
     K extends ScopeKind,
     DK extends string | undefined = undefined,
 > {
+    /**
+     * `input` is a function parameter on purpose: a requirement that needs LESS of the input is usable where more is
+     * given, so `Builder<object>` is assignable to `Builder<{ serviceId: string }>` and not the other way round.
+     */
     declare readonly [requirementTypes]?: {
         permission: P
-        input: Input
+        input: (input: Input) => void
         name: N
         kind: K
     }
     readonly spec: RequirementSpec
+    /** The mapping from the request to the id, when the controller wrote one. */
+    readonly mapping: ((args: AccessArgs<unknown>) => string) | null
 
-    constructor(spec: RequirementSpec) {
+    constructor(
+        spec: RequirementSpec,
+        mapping: ((args: AccessArgs<unknown>) => string) | null = null
+    ) {
         this.spec = spec
+        this.mapping = mapping
     }
 
     /**
-     * The input field (or dotted path) that holds the id, when it is not the resource's own `idKey`. On a platform
-     * resource the id is the *subject*, not a scope: it is only used by `.orSelf()` and rules that compare with the caller.
+     * The id this requirement is about, mapped from the request:
+     * `User.can('get').on<ContractInput<typeof userContract.findById>>(({ input, context }) => input.params.id)`.
+     *
+     * `input` is typed by the type argument (or an annotation), `ContractInput<typeof contract.procedure>`; `.use(...)` then
+     * refuses a procedure whose input is not that shape, and a field that does not exist is a compile error. On a
+     * platform resource the id is the *subject* (the user acted on), not a scope: it is only used by `.orSelf()` and by
+     * rules that compare it with the caller. It replaces the resource's default id field.
      */
-    on<const Key extends string>(
-        key: Key
-    ): RequirementBuilder<P, NestedInput<Key>, N, K> {
-        if (invalidPath(key)) {
-            throw new Error(`${this.spec.permission}: "${key}" is not a field path`)
-        }
-        return new RequirementBuilder({ ...this.spec, key })
+    on(value: string): RequirementBuilder<P, object, N, K>
+    on<I extends object>(
+        mapping: (args: AccessArgs<I>) => string
+    ): RequirementBuilder<P, I, N, K>
+    on(
+        source: string | ((args: AccessArgs<never>) => string)
+    ): RequirementBuilder<P, never, N, K> {
+        // A value is what the inferred form hands over (`accessRequired(({ input }) => X.can('get').on(input.params.id))`: the
+        // function around the requirement already ran on this request). A function is the explicit form, evaluated per request.
+        // The request's input IS the mapping's `I` by the time it runs (the contract validated it); the builder stores the
+        // function type-erased because one builder serves any procedure: a narrowing of the parameter, never of the result.
+        const mapping =
+            typeof source === 'string'
+                ? () => source
+                : (source as (args: AccessArgs<unknown>) => string)
+        return new RequirementBuilder({ ...this.spec, mapped: true }, mapping)
     }
 
     /** The name the proof takes in `context.access`; required when two requirements share a resource. */
     as<const Name extends string>(
         name: Name
     ): RequirementBuilder<P, Input, Name, K, DK> {
-        return new RequirementBuilder({ ...this.spec, name })
+        return new RequirementBuilder({ ...this.spec, name }, this.mapping)
     }
 
     /** Pass when the id in the input is the caller's own, with no permission needed. */
@@ -132,20 +156,27 @@ export class RequirementBuilder<
         K,
         DK
     > {
-        const key = this.spec.key ?? this.spec.defaultKey
+        const key = this.spec.mapped ? 'mapped' : (this.spec.key ?? this.spec.defaultKey)
         if (key === null) {
             throw new Error(
-                `${this.spec.permission}: .orSelf() needs an id to compare with the caller; use .on("field")`
+                `${this.spec.permission}: .orSelf() needs an id to compare with the caller; map it with .on(({ input }) => input.…)`
             )
         }
-        return new RequirementBuilder({ ...this.spec, key, orSelf: true })
+        return new RequirementBuilder(
+            {
+                ...this.spec,
+                key: this.spec.mapped ? this.spec.key : key,
+                orSelf: true,
+            },
+            this.mapping
+        )
     }
 }
 
 /** Any builder, whatever it demands. */
 export type AnyRequirement = RequirementBuilder<
     Permission,
-    object,
+    never,
     string,
     ScopeKind,
     string | undefined
@@ -170,7 +201,7 @@ export type InputOf<Rs extends readonly AnyRequirement[]> =
 export type NameOf<R> =
     R extends RequirementBuilder<
         Permission,
-        object,
+        never,
         infer N,
         ScopeKind,
         string | undefined
@@ -180,7 +211,7 @@ export type NameOf<R> =
 export type PermissionOfRequirement<R> =
     R extends RequirementBuilder<
         infer P,
-        object,
+        never,
         string,
         ScopeKind,
         string | undefined
@@ -190,7 +221,7 @@ export type PermissionOfRequirement<R> =
 export type KindOf<R> =
     R extends RequirementBuilder<
         Permission,
-        object,
+        never,
         string,
         infer K,
         string | undefined
@@ -298,6 +329,7 @@ export function defineResource<
             scope: scopeKind,
             permission,
             key: null,
+            mapped: false,
             defaultKey: idKey ?? null,
             name,
             orSelf: false,
@@ -354,6 +386,7 @@ export function defineResource<
                 permission,
                 // A scoped resource is located by its id; a platform one has none unless `.on(...)` names a subject.
                 key: definition.scope === 'platform' ? null : (idKey ?? null),
+                mapped: false,
                 defaultKey: idKey ?? null,
                 name,
                 orSelf: false,

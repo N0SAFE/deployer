@@ -61,7 +61,7 @@ export class UserController {
     findById() {
         return procedure(userContract.findById)
             .use(requireAuth())
-            .use(accessRequired(User.can('get').on('params.id')))
+            .use(accessRequired(({ input }) => User.can('get').on(input.params.id)))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 return yield* users.findById(input.params.id)

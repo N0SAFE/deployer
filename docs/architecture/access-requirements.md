@@ -37,7 +37,7 @@ Related: [`effect-orpc-conventions.md`](./effect-orpc-conventions.md) (services,
 |---|---|
 | **Permission** | `resource:action`, typed from the catalog (`service:deploy`). Has a risk tier and a *natural scope kind*. Code. |
 | **Resource** | a plugin describing one kind of thing (`Service`, `Project`, `User`, `Node`): its id key, how to load it, its parent (lineage), its actions. Defined once by the service that owns the data. |
-| **Requirement** | one typed demand: `Service.can("deploy").on("serviceId")`. Built from a resource. |
+| **Requirement** | one typed demand: `Service.can("deploy")`, or `User.can("get").on<ContractInput<…>>(({ input }) => input.params.id)`. Built from a resource. |
 | **Access proof** | the typed value a passed check leaves in `context.access.<name>` (or returns as `Authorized<…>`). Only the access machinery can create one. |
 | **Scope** | `platform`, or `project`, `environment`, `service`, `node` with an id. A grant on a scope reaches everything below it. |
 | **Lineage** | the chain from a scope up to the platform (`service → project → platform`), supplied by the resource plugins. |
@@ -64,18 +64,19 @@ procedure(serviceContract.deploy)
 | You write | Means |
 |---|---|
 | `Service.can("deploy")` | permission `service:deploy`, scope kind `service` (from the catalog), id from `input.serviceId` (the resource's `idKey`). |
-| `.on("sourceId")` / `.on(({ input }) => input.target.id)` | the id lives elsewhere. Typed against the contract's input. Required when the input lacks the resource's `idKey`. |
+| `Service.can("deploy").on<ContractInput<typeof contract.deploy>>(({ input, context }) => input.target.id)` | the id is mapped from the request by a function on the builder. `input` is typed by the type argument (`ContractInput<…>` states the shape once, from the contract) and `.use(...)` checks that shape against the procedure it is used on, so a field that does not exist, or a procedure of another shape, is a compile error. Needed when the input lacks the resource's default id field. |
 | `User.can("list")` | platform-wide permission; `.on` is a type error. |
-| `Project.can("create-service").on("targetProjectId")` | an action the catalog marks as checked on the parent. |
+| `Project.can("create-service").on<ContractInput<typeof contract.clone>>(({ input }) => input.targetProjectId)` | an action the catalog marks as checked on the parent. |
 | `.as("source")` | name in `context.access`. Default is the resource name; two requirements on the same resource need `.as`. |
 | `.onEach("serviceIds")` | one requirement over a list; all must pass; the refusal names the failing ids. |
 | `accessRequired(a, b)` | several requirements, all must pass, one decision-log group, context keyed by name. |
 | `anyOf(a.as("owner"), b.as("admin"))` | either; `context.access.matched` says which. |
-| `User.can("update").on("userId").orSelf()` | passes when the id is the caller's, no permission needed. |
+| `User.can("update").on<ContractInput<typeof contract.update>>(({ input }) => input.params.id).orSelf()` | passes when the id is the caller's, no permission needed. |
 | `.notAbove()` | the subset rule (section 6.3): the target's effective permissions must be a strict subset of the caller's. |
 | `.requiring(freshTotp("5m"))` | a guardrail: extra proof for the action. |
 | `.loaded()` | keep the row the plugin loaded in `context.access.<name>.row`. |
-| `accessSelf(reason)` | the caller acts on their own record; only authentication is checked; the handler must scope to `actor.id`. |
+| `accessSelf(reason)` | the route takes no id (`deleteSelf`, `exportSelf`): there is nothing to tamper with, and `context.access.self.id` is the one id the handler may act on, the session's own. |
+| `accessSelf<ContractInput<typeof contract.revoke>>(reason, ({ input }) => input.params.id)` | the input names a record: **checked**, 403 unless that id is the caller's, in every `AUTHZ_MODE` (whose record it is is an identity fact, not a rollout). |
 | `accessPublic(reason)` | the only anonymous form; the reason is mandatory and listed in the generated public surface. |
 | `accessDeferred(reason)` | the decision is made in the handler (section 5). |
 
@@ -138,8 +139,8 @@ procedure(serviceContract.transfer)
   .use(accessDeferred("the target project is only known after loading the service"))
   .effect(function* ({ input }) {
     const svc  = yield* ServiceRepository.find(input.serviceId);
-    const from = yield* Service.require("update").on(svc.id);                   // Authorized<"service:update">
-    const to   = yield* Project.require("create-service").on(input.targetProjectId);
+    const from = yield* Service.require("update", svc.id);                      // Authorized<"service:update">
+    const to   = yield* Project.require("create-service", input.targetProjectId);
     return yield* ServiceTransfer.run(from, to, svc);                           // demands the proofs
   });
 ```
@@ -295,7 +296,7 @@ flowchart TB
 
 | Check | Fails when |
 |---|---|
-| type check | a procedure's terminal `.effect()` lacks `context.access`; `accessRequired` precedes `requireAuth()`; `.on` is missing though the input lacks the id key; a duplicate `.as` name |
+| type check | a procedure's terminal `.effect()` lacks `context.access`; `accessRequired` precedes `requireAuth()`; a mapping reads a field the input lacks; a duplicate `.as` name |
 | boot audit | a mounted procedure has no access descriptor in its middleware chain (also catches code that bypasses `procedure()`) |
 | boundary check | an `accessDeferred` procedure finished with no recorded decision |
 | `check:authz-catalog` | a permission has no bundle or no scope kind; a role references an unknown permission |
@@ -327,8 +328,8 @@ Open decisions (operator):
 
 Unverified until the spike (`AUTHZ-016`):
 
-- `.on` inference from the contract's input through oRPC's `.use(...)`, and the "authenticated first" type check, in the BFF
-  whose contexts are unions (the repo has hit narrowing problems there before). Fallback: an always-explicit `.on("key")`.
+- the "authenticated first" type check, in the BFF
+  whose contexts are unions (the repo has hit narrowing problems there before). The mapping function's own typing (`input` inferred from the procedure) is verified, see section 12.
 - `.as(name)` records with three or more requirements, and the readability of the resulting compile errors.
 - Scope inheritance in the store today (`AUTHZ-053` is listed as not built): whether a project-level grant reaches its
   services.
@@ -343,7 +344,7 @@ behaviour tests, and used by identity's user controller (all 15 procedures; the 
 
 | Piece | State |
 |---|---|
-| `defineResource`, `Resource.can(action)` typed by the catalog, `.on(field or dotted path)`, `.as(name)`, `.orSelf()` | done |
+| `defineResource`, `Resource.can(action)` typed by the catalog, `.on(id)` inside a mapping function, `.as(name)`, `.orSelf()` | done |
 | `accessRequired(...)` (variadic, authenticated-first, typed `context.access`, duplicate names are a compile error), `accessSelf`, `accessPublic`, `accessDeferred` | done |
 | scope plugin tags (`ProjectScope`, `EnvironmentScope`, `ServiceScope`, `NodeScope`) and the scope plugin's contribution to the procedure's `R` | done; no `live` implementation exists yet (the project service writes them) |
 | boot audit: `auditRouter`, `auditController`, `assertAccessDeclared` (with a ledger) | done as library functions; **not yet wired into the host** |
@@ -353,9 +354,7 @@ behaviour tests, and used by identity's user controller (all 15 procedures; the 
 
 Spike results (`AUTHZ-016`):
 
-- **`.on` is enforced by the type system, once `RequirementProcedure.use` carries the procedure's input.** It was typed
-  `any` there, so a middleware locating by an input field was never checked. It now is: a procedure whose input lacks the
-  field does not accept the middleware. Dotted paths (`params.id`) are typed (`NestedInput`).
+- **A mapping on the builder cannot infer its `input`.** Tried: `accessRequired(User.can('get').on(({ input }) => input.params.id))` types `input` as `object`, because TypeScript does not carry the procedure's input into a lambda passed to a method of a builder that already exists (verified with type tests). So the shape is stated once with `ContractInput<typeof contract.procedure>` as a type argument, and `.use(...)` verifies it against the real procedure. A function that wraps the whole requirement (`accessRequired(({ input }) => User.can('get').on(input.params.id))`) does infer `input` from the procedure, and is the alternative if the explicit argument proves too heavy. The default id field is enforced once `RequirementProcedure.use` carries the procedure's input.
 - **Authenticated-first holds with the real `requireAuth()`** (identity compiles). In a package without the
   `DefaultInitialContext` augmentation the ordering is a compile error. *Unverified:* in services where the augmentation
   already carries `auth`, whether placing `accessRequired` before `requireAuth()` is still refused; the boot audit and the
@@ -364,7 +363,7 @@ Spike results (`AUTHZ-016`):
   several requirements are one variadic call. This is now a rule, not a preference.
 - **The requirement flow works unchanged.** A procedure's requirements are one `Marked` union of the handler's yields and the
   middleware's scope plugins; a platform requirement contributes none (asserted with `RequiredBy`).
-- **A platform resource's id is a subject, not a scope.** `User.can('list')` takes none; `.on('params.id')` names the subject
+- **A platform resource's id is a subject, not a scope.** `User.can('list')` takes none; `.on(input.params.id)` names the subject
   `.orSelf()` compares with the caller.
 - **The catalog's own action set is the vocabulary**; the runtime also refuses a name the catalog lacks (`isPermission`).
 - **A bug in the previous gate was found and fixed.** `authzGate` continued with oRPC's `done()`, which ends the chain early

@@ -20,8 +20,12 @@ export {
     accessSelf,
     type AccessEntry,
     type AccessRecord,
-    type AuthenticatedContext,
 } from './middleware'
+export {
+    type AccessArgs,
+    type AuthenticatedContext,
+    type ContractInput,
+} from './context'
 export {
     defineResource,
     RequirementBuilder,

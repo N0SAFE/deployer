@@ -15,6 +15,7 @@ const requirementSchema = z.object({
     scope: z.enum(['platform', 'project', 'environment', 'service', 'node']),
     permission: z.string(),
     key: z.string().nullable(),
+    mapped: z.boolean(),
     defaultKey: z.string().nullable(),
     name: z.string(),
     orSelf: z.boolean(),
