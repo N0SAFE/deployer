@@ -2,6 +2,15 @@
 
 Applies to every secret the platform stores in Postgres through an `encryptedText` column: GitHub App / OAuth secrets and private keys, GitLab tokens, DNS provider credentials, webhook signing secrets, cluster signing material, and environment-variable values (11 columns today; `reseal-secrets` finds them by probing the schema).
 
+> **Update 2026-11-05 (SEC-100): the root is the node's platform secret.** The sealing root is no longer `DEPLOYER_ROOT_SECRET` /
+> `AUTH_SECRET`: it is the platform secret each node generates on its first boot in `node_config` and receives from the fleet
+> when it joins, so every node seals and opens with the same value and nobody sets it. There is no fallback key in any
+> environment: a node with no platform secret cannot seal or open, and says so. An install that already had a **strong**
+> `DEPLOYER_ROOT_SECRET` or `AUTH_SECRET` adopts it as its platform secret the first time one is generated, so what it stored
+> stays readable (weak values are not adopted: reseal under the new secret, as below). Back up `node_config.platform_secret`
+> the way the steps below say to back up the root. The legacy reader still uses `AUTH_SECRET` until `reseal-secrets` reports zero
+> legacy rows. The rest of this page describes the original change; read "root secret" as "platform secret".
+
 ## What was wrong
 
 The old codec derived its key as `Buffer.from(AUTH_SECRET, "hex")`. For any `AUTH_SECRET` that is not a hex string (the value in `.env.example` is base64) that buffer is **empty**, and the per-value salt that feeds scrypt is stored inside the ciphertext. Such rows could be decrypted by anyone with read access to the database, without any secret. If your `AUTH_SECRET` is not exactly 64 hex characters, **everything written before this change was effectively unprotected**:

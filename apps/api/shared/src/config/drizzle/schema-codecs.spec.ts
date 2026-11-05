@@ -11,7 +11,12 @@ import {
 import { findEncryptedColumns } from '@deployer/nest-schema/codecs/reseal'
 import * as globalSchema from '@deployer/nest-schema/global'
 
-import { registerSchemaCodecs, resolveSealer } from './schema-codecs'
+import {
+    bindEncryptionRoot,
+    legacyRootFrom,
+    registerSchemaCodecs,
+    resolveSealer,
+} from './schema-codecs'
 
 /**
  * The key policy for NEW writes (SEC-016) and the compatibility contract with rows the old
@@ -33,47 +38,32 @@ function oldEncrypt(text: string, key: Buffer): string {
     return `${salt.toString('hex')}:${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`
 }
 
-describe('resolveSealer: the root-secret policy', () => {
-    it('round-trips with a strong AUTH_SECRET in production (base64 is fine: no hex assumption)', () => {
-        const sealer = resolveSealer({
-            NODE_ENV: 'production',
-            AUTH_SECRET: STRONG,
-        })
+describe('resolveSealer: the root is the platform secret, read at use time', () => {
+    it('round-trips under a strong root (base64 is fine: no hex assumption)', () => {
+        const sealer = resolveSealer(() => STRONG)
         const stored = sealer.seal('token')
         expect(stored.startsWith('enc:v1:')).toBe(true)
         expect(sealer.open(stored)).toBe('token')
     })
 
-    it('prefers DEPLOYER_ROOT_SECRET over AUTH_SECRET', () => {
-        const viaRoot = resolveSealer({
-            NODE_ENV: 'production',
-            DEPLOYER_ROOT_SECRET: STRONG,
-            AUTH_SECRET: OTHER_STRONG,
-        })
-        const viaAuth = resolveSealer({
-            NODE_ENV: 'production',
-            AUTH_SECRET: OTHER_STRONG,
-        })
-        const viaRootOnly = resolveSealer({
-            NODE_ENV: 'production',
-            DEPLOYER_ROOT_SECRET: STRONG,
-        })
+    it('reads the root when it is used, so a root that arrives after registration works', () => {
+        let root: string | null = null
+        const sealer = resolveSealer(() => root)
 
-        const stored = viaRoot.seal('secret')
-        expect(viaRootOnly.open(stored)).toBe('secret')
-        expect(() => viaAuth.open(stored)).toThrow()
+        expect(() => sealer.seal('x')).toThrowError(/Encryption root unavailable/)
+        root = STRONG
+        expect(sealer.open(sealer.seal('x'))).toBe('x')
     })
 
-    it('refuses to boot in production without any secret', () => {
-        expect(() => resolveSealer({ NODE_ENV: 'production' })).toThrowError(
-            /DEPLOYER_ROOT_SECRET.*refusing to boot/
-        )
-        expect(() =>
-            resolveSealer({
-                NODE_ENV: 'production',
-                DEPLOYER_ROOT_SECRET: '   ',
-            })
-        ).toThrowError(/refusing to boot/)
+    it('has no fallback key in any environment: no secret means no sealing and no opening', () => {
+        const sealer = resolveSealer(() => null)
+        expect(() => sealer.seal('x')).toThrowError(/Encryption root unavailable/)
+        expect(() => sealer.open('enc:v1:{}')).toThrowError(/Encryption root unavailable/)
+    })
+
+    it('a different root cannot open what another sealed', () => {
+        const stored = resolveSealer(() => STRONG).seal('secret')
+        expect(() => resolveSealer(() => OTHER_STRONG).open(stored)).toThrow()
     })
 
     it.each([
@@ -81,33 +71,32 @@ describe('resolveSealer: the root-secret policy', () => {
         ['a placeholder', 'your-secure-auth-secret-here-0123456789abcdef'],
         ['a known fallback', 'fallback-auth-secret-fallback-auth-secret'],
         ['no variety', 'a'.repeat(64)],
-    ])(
-        'refuses to boot in production with a root that is %s, naming the variable to set',
-        (_label, secret) => {
-            expect(() =>
-                resolveSealer({ NODE_ENV: 'production', AUTH_SECRET: secret })
-            ).toThrowError(/DEPLOYER_ROOT_SECRET.*refusing to boot/s)
-        }
-    )
-
-    it('outside production a missing or weak root falls back (with a warning) so dev and tests keep working', () => {
-        for (const env of [
-            { NODE_ENV: 'development' },
-            { NODE_ENV: 'test', AUTH_SECRET: 'short' },
-            {},
-        ]) {
-            const sealer = resolveSealer(env)
-            expect(sealer.open(sealer.seal('dev-value'))).toBe('dev-value')
-        }
+    ])('refuses a root that is %s', (_label, secret) => {
+        expect(() => resolveSealer(() => secret).seal('x')).toThrow()
     })
 
-    it('the dev fallback root is stable across restarts (dev data stays readable)', () => {
-        const first = resolveSealer({ NODE_ENV: 'development' }).seal(
-            'persisted'
-        )
-        expect(resolveSealer({ NODE_ENV: 'development' }).open(first)).toBe(
-            'persisted'
-        )
+    it('accepts the 64 hex characters a node generates for itself', () => {
+        const generated = randomBytes(32).toString('hex')
+        const sealer = resolveSealer(() => generated)
+        expect(sealer.open(sealer.seal('v'))).toBe('v')
+    })
+})
+
+describe('legacyRootFrom: what an upgraded install may bring along', () => {
+    it('prefers DEPLOYER_ROOT_SECRET over AUTH_SECRET', () => {
+        expect(
+            legacyRootFrom({ DEPLOYER_ROOT_SECRET: STRONG, AUTH_SECRET: OTHER_STRONG })
+        ).toBe(STRONG)
+        expect(legacyRootFrom({ AUTH_SECRET: OTHER_STRONG })).toBe(OTHER_STRONG)
+    })
+
+    it('skips a weak value and falls through to the next, or to nothing', () => {
+        expect(
+            legacyRootFrom({ DEPLOYER_ROOT_SECRET: 'short', AUTH_SECRET: OTHER_STRONG })
+        ).toBe(OTHER_STRONG)
+        expect(legacyRootFrom({ AUTH_SECRET: 'fallback-auth-secret' })).toBeNull()
+        expect(legacyRootFrom({ DEPLOYER_ROOT_SECRET: '   ' })).toBeNull()
+        expect(legacyRootFrom({})).toBeNull()
     })
 })
 
@@ -115,11 +104,12 @@ describe('registerSchemaCodecs: compatibility with rows written by the old codec
     beforeEach(() => {
         vi.stubEnv('NODE_ENV', 'production')
         vi.stubEnv('AUTH_SECRET', HEX_SECRET)
-        vi.stubEnv('DEPLOYER_ROOT_SECRET', STRONG)
+        bindEncryptionRoot(() => STRONG)
     })
 
     afterEach(() => {
         vi.unstubAllEnvs()
+        bindEncryptionRoot(() => null)
         // Leave the module-level registry in a harmless state for other suites in this worker.
         configureSchemaCodecs({
             encryption: { resolveKey: () => Buffer.alloc(32, 7) },
@@ -155,13 +145,14 @@ describe('registerSchemaCodecs: compatibility with rows written by the old codec
         expect(decryptSecret(legacyRow)).toBe('exposed-dns-token')
     })
 
-    it('registerSchemaCodecs fails at boot (not at first query) when production has a weak root', () => {
-        vi.stubEnv('DEPLOYER_ROOT_SECRET', '')
-        vi.stubEnv('AUTH_SECRET', 'short')
+    it('registering needs no secret: sealing waits for the root and says so until it is bound', () => {
+        bindEncryptionRoot(() => null)
 
         expect(() => {
             registerSchemaCodecs()
-        }).toThrowError(/refusing to boot/)
+        }).not.toThrow()
+        // The registry wraps the cause (and logs it); what matters is that it fails instead of writing plaintext.
+        expect(() => encryptSecret('too early')).toThrowError('Failed to encrypt data')
     })
 })
 
@@ -177,12 +168,13 @@ describe("the REAL schema's encrypted columns use the registry that registerSche
     beforeEach(() => {
         vi.stubEnv('NODE_ENV', 'production')
         vi.stubEnv('AUTH_SECRET', HEX_SECRET)
-        vi.stubEnv('DEPLOYER_ROOT_SECRET', STRONG)
+        bindEncryptionRoot(() => STRONG)
         registerSchemaCodecs()
     })
 
     afterEach(() => {
         vi.unstubAllEnvs()
+        bindEncryptionRoot(() => null)
         configureSchemaCodecs({
             encryption: { resolveKey: () => Buffer.alloc(32, 7) },
         })

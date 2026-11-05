@@ -35,11 +35,18 @@ import {
     type NodeConfigRepositoryShape,
 } from '@deployer/node-state'
 
-import { MeshSecret, PlatformSecret } from '../auth/orpc/secrets'
+import {
+    bindEncryptionRoot,
+    legacyRootFrom,
+} from '../../../config/drizzle/schema-codecs'
+import { MeshSecret, PlatformSecret, type SecretShape } from '../auth/orpc/secrets'
 import { LocalDatabaseModule } from '../database/local/local-database.module'
 
 import { agentNodeRecords } from './agent-node-records'
-import { NodeConfigSnapshot } from './node-config.snapshot'
+import {
+    NodeConfigSnapshot,
+    type NodeConfigSnapshotShape,
+} from './node-config.snapshot'
 
 const repositories = [
     {
@@ -62,15 +69,39 @@ const repositories = [
     },
     // The platform secret is generated here on first use and stored in the same row, so every service of the node signs and
     // verifies with one value. Unconfigured (no row yet) is "no secret", which the system-actor middleware refuses.
+    //
+    // It is also the root the column codecs seal under: ensured once at boot, then read synchronously from the snapshot (a drizzle
+    // codec cannot wait). An upgraded install adopts the root it already used (`legacyRootFrom`) instead of minting one its
+    // stored ciphertext does not open under.
     {
         provide: PlatformSecret,
-        useFactory: (nodeConfig: NodeConfigRepositoryShape) => ({
-            get: () =>
+        useFactory: async (
+            nodeConfig: NodeConfigRepositoryShape,
+            snapshot: NodeConfigSnapshotShape
+        ): Promise<SecretShape> => {
+            let ensured: string | null = null
+            const get = (): Effect.Effect<string | null> =>
                 nodeConfig
-                    .ensurePlatformSecret()
-                    .pipe(Effect.catch(() => Effect.succeed(null))),
-        }),
-        inject: [NodeConfigRepository],
+                    .ensurePlatformSecret(
+                        legacyRootFrom({
+                            DEPLOYER_ROOT_SECRET: process.env.DEPLOYER_ROOT_SECRET,
+                            AUTH_SECRET: process.env.AUTH_SECRET,
+                        })
+                    )
+                    .pipe(
+                        Effect.tap((secret) => {
+                            ensured = secret
+                            return Effect.void
+                        }),
+                        Effect.catch(() => Effect.succeed(null))
+                    )
+            bindEncryptionRoot(
+                () => ensured ?? snapshot.current()?.platformSecret ?? null
+            )
+            await Effect.runPromise(get())
+            return { get }
+        },
+        inject: [NodeConfigRepository, NodeConfigSnapshot],
     },
     {
         provide: ClusterNodeRepository,

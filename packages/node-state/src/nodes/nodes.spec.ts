@@ -267,6 +267,18 @@ describe('platform secret', () => {
         expect(await run(makeNodeConfigRepository(database).getPlatformSecret())).toBe(first)
     })
 
+    it('adopts the secret an upgraded node already lived under, once', async () => {
+        await run(seed())
+        const repository = makeNodeConfigRepository(database)
+
+        expect(await run(repository.ensurePlatformSecret('old-root-secret'))).toBe(
+            'old-root-secret'
+        )
+        expect(await run(repository.ensurePlatformSecret('another-one'))).toBe(
+            'old-root-secret'
+        )
+    })
+
     it('keeps a secret the node received instead of replacing it', async () => {
         await run(seed())
         const repository = makeNodeConfigRepository(database)

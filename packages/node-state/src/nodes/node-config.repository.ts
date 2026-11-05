@@ -49,13 +49,16 @@ export type NodeConfigRepositoryShape = {
         LocalDatabaseError
     >
     /**
-     * The platform secret, generated and stored on first use. Null only before the node has a config row at all (an
+     * The platform secret, generated and stored on first use. `seed` is a secret the node already lived under (an upgrade): it
+     * is adopted instead of a random one, only when none is stored yet. Null only before the node has a config row at all (an
      * unconfigured node signs nothing yet); never read from the environment.
      *
      * shortcut: two services of one node calling this at the same instant can each store a value and the last write wins
      * (the agent has no compare-and-set); upgrade when the agent's record write takes the expected previous value (SEC-100).
      */
-    readonly ensurePlatformSecret: () => Effect.Effect<
+    readonly ensurePlatformSecret: (
+        seed?: string | null
+    ) => Effect.Effect<
         string | null,
         LocalDatabaseError | NodeStateConflict
     >
@@ -175,7 +178,7 @@ function nodeConfigOperations(
             ),
         getPlatformSecret: () =>
             ops.find().pipe(Effect.map((row) => row?.platformSecret ?? null)),
-        ensurePlatformSecret: () =>
+        ensurePlatformSecret: (seed) =>
             Effect.gen(function* () {
                 const row = yield* ops.find()
                 if (row === null) return null
@@ -185,7 +188,10 @@ function nodeConfigOperations(
                 const now = new Date().toISOString()
                 const stored = yield* ops.upsert({
                     ...rest,
-                    platformSecret: randomBytes(32).toString('hex'),
+                    platformSecret:
+                        seed !== undefined && seed !== null && seed !== ''
+                            ? seed
+                            : randomBytes(32).toString('hex'),
                     platformSecretUpdatedAt: now,
                 })
                 return stored.platformSecret

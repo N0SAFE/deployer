@@ -4,7 +4,7 @@ import { Logger } from '@nestjs/common'
 import { Redacted } from 'effect'
 
 import { runSyncUnwrapped } from '@deployer/effect-core'
-import { makeSyncSecretBox } from '@deployer/effect-infra'
+import { makeSyncSecretBox, validateRootSecret } from '@deployer/effect-infra'
 import { validateApiEnvPath } from '@deployer/env'
 import {
     configureSchemaCodecs,
@@ -25,9 +25,9 @@ const logger = new Logger('SchemaCodecs')
  * Both answers are application POLICY, not schema mechanics. The key policy in
  * particular is security-sensitive: a missing `AUTH_SECRET` is a HARD BOOT
  * FAILURE in production (an in-source fallback key would make every stored
- * ciphertext decryptable by anyone with repo access) but a loud warning in
- * dev/test, where a temporary key keeps unit runs working. A shared schema
- * package cannot make that call — it does not know which environment it is in.
+ * ciphertext decryptable by anyone with repo access). A shared schema package
+ * cannot make that call. The sealing root is the node's platform secret; only the
+ * LEGACY reader below still reads the environment.
  *
  * The package declares what it needs; this file is what it gets.
  */
@@ -73,78 +73,78 @@ const legacyKeyProvider: EncryptedTextKeyProvider = {
     },
 }
 
-/** Root used when NO secret is configured outside production. It is public: never a real key. */
-const INSECURE_DEV_ROOT = 'insecure-dev-root-secret-never-use-in-production'
-
-/** The slice of the environment the sealer policy reads. */
-export type SealerEnv = {
-    readonly DEPLOYER_ROOT_SECRET?: string | undefined
-    readonly AUTH_SECRET?: string | undefined
-    readonly NODE_ENV?: string | undefined
-}
+/** Where the sealing root comes from, read at USE time: null means this node has no platform secret yet. */
+export type RootSource = () => string | null
 
 /**
- * Build the sealing codec: the policy for the key that protects NEW writes (SEC-016).
+ * Build the sealing codec: the root that protects NEW writes (SEC-016) is the node's platform secret (`node_config`), read
+ * when a value is sealed or opened rather than when the codecs are registered. Registration runs at module load, before
+ * the node's config can be read; a drizzle column codec is synchronous, so the source is a synchronous reader of the
+ * snapshot the node keeps.
  *
- * Root = `DEPLOYER_ROOT_SECRET`, falling back to `AUTH_SECRET`. Production REFUSES to boot
- * when the root is missing, shorter than 32 characters, low-variety or a placeholder: a
- * weak root silently re-creates the original bug. Outside production a missing or weak root
- * falls back to a public dev root with a loud warning, so local runs and unit tests keep
- * working (a random per-process key would make dev data unreadable after a restart).
+ * There is no fallback key, in any environment: a node with no platform secret cannot seal or open anything, and says so
+ * (an in-source or public key would make every ciphertext readable by whoever has the repository). A weak root is refused
+ * the same way (`WeakRootSecret`), including one adopted from an old environment variable.
  */
-export function resolveSealer(env: SealerEnv): EncryptedTextSealer {
-    const configured = [
-        env.DEPLOYER_ROOT_SECRET?.trim(),
-        env.AUTH_SECRET?.trim(),
-    ].find((value) => value !== undefined && value.length > 0)
-    const production = env.NODE_ENV === 'production'
-    const fix =
-        'Set DEPLOYER_ROOT_SECRET to at least 32 random characters (for example `openssl rand -base64 48`)'
-
-    if (configured === undefined) {
-        if (production) {
+export function resolveSealer(source: RootSource): EncryptedTextSealer {
+    let current: { readonly root: string; readonly sealer: EncryptedTextSealer } | null =
+        null
+    const sealer = (): EncryptedTextSealer => {
+        const root = source()
+        if (root === null || root === '') {
             throw new Error(
-                `Encryption root secret is required in production: ${fix} — refusing to boot`
+                'Encryption root unavailable: this node has no platform secret yet (its node_config is not set up, or not read yet)'
             )
         }
-        logger.warn(
-            '⚠️  No DEPLOYER_ROOT_SECRET/AUTH_SECRET: using a PUBLIC dev root. Production will refuse to boot.'
-        )
-        return sealerFor(INSECURE_DEV_ROOT, true)
+        if (current?.root !== root) current = { root, sealer: sealerFor(root) }
+        return current.sealer
     }
-
-    try {
-        return sealerFor(configured, false)
-    } catch (error) {
-        if ((error as { _tag?: string })._tag !== 'WeakRootSecret') throw error
-        const reason = error instanceof Error ? error.message : 'weak secret'
-        if (production) {
-            throw new Error(
-                `Encryption root secret rejected (${reason}). ${fix} — refusing to boot`
-            )
-        }
-        logger.warn(
-            `⚠️  Encryption root secret is weak (${reason}); allowed outside production only.`
-        )
-        return sealerFor(configured, true)
+    return {
+        seal: (plaintext) => sealer().seal(plaintext),
+        open: (stored) => sealer().open(stored),
     }
 }
 
-function sealerFor(
-    root: string,
-    allowInsecureRoot: boolean
-): EncryptedTextSealer {
+function sealerFor(root: string): EncryptedTextSealer {
     const box = runSyncUnwrapped(
-        makeSyncSecretBox({
-            rootSecret: Redacted.make(root),
-            allowInsecureRoot,
-        })
+        makeSyncSecretBox({ rootSecret: Redacted.make(root) })
     )
     // A drizzle column codec is synchronous, so the Effects run here, at the codec boundary.
     return {
         seal: (plaintext) => runSyncUnwrapped(box.seal(plaintext)),
         open: (stored) => runSyncUnwrapped(box.open(stored)),
     }
+}
+
+/** The slice of the environment an upgrade may import its old encryption root from. */
+export type LegacyRootEnv = {
+    readonly DEPLOYER_ROOT_SECRET?: string | undefined
+    readonly AUTH_SECRET?: string | undefined
+}
+
+/**
+ * The root an install used BEFORE the platform secret existed, if it was a usable one.
+ *
+ * shortcut: a one-time import so an upgraded install keeps reading what it already stored (and keeps its sessions valid):
+ * the node adopts it as its platform secret the first time one is generated, instead of minting a new one that no existing
+ * ciphertext opens under. Weak or placeholder values are NOT adopted (they would be refused as a root anyway). Delete once
+ * no install predates the platform secret.
+ */
+export function legacyRootFrom(env: LegacyRootEnv): string | null {
+    for (const candidate of [env.DEPLOYER_ROOT_SECRET, env.AUTH_SECRET]) {
+        const value = candidate?.trim()
+        if (value !== undefined && value !== '' && validateRootSecret(value) === undefined) {
+            return value
+        }
+    }
+    return null
+}
+
+let boundRoot: RootSource = () => null
+
+/** Tells the codecs where the node's platform secret is. Called once the node can read it (see `NodeStateModule`). */
+export function bindEncryptionRoot(source: RootSource): void {
+    boundRoot = source
 }
 
 /**
@@ -172,8 +172,8 @@ export function registerSchemaCodecs(): void {
     configureSchemaCodecs({
         // Reads of rows written by the old codec.
         encryption: legacyKeyProvider,
-        // Every write, and every read of a sealed value. Built eagerly so a weak root fails at boot.
-        sealing: resolveSealer(process.env),
+        // Every write, and every read of a sealed value, under the node's platform secret (bound once it can be read).
+        sealing: resolveSealer(() => boundRoot()),
         traefik: traefikConfigCodec,
     })
 }
