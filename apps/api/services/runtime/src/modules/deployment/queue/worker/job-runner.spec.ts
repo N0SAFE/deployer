@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+
 import { Effect, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -185,8 +187,10 @@ describe("makeJobRunner", () => {
 });
 
 async function listSleepers(): Promise<number[]> {
-	const proc = Bun.spawn(["pgrep", "-f", "^sleep 30$"], { stdout: "pipe" });
-	const text = await new Response(proc.stdout).text();
+	// pgrep exits 1 when nothing matches: that is an empty list, not a failure.
+	const text = await new Promise<string>((resolve) => {
+		execFile("pgrep", ["-f", "^sleep 30$"], (_error, stdout) => { resolve(stdout); });
+	});
 	return text.split("\n").filter(Boolean).map(Number);
 }
 

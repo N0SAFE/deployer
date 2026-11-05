@@ -21,10 +21,10 @@
     "prettify": "bun fmt .",
     "start": "bun --bun src/main.ts",
     "start:prod": "bun --bun dist/main.js",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:unit": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun --bun vitest run",
+    "test:coverage": "bun --bun vitest run --coverage",
+    "test:unit": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest",
     "type-check": "bun check --no-script"
   },
   "dependencies": {
