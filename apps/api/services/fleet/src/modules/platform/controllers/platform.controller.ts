@@ -18,7 +18,7 @@ import { procedure } from "@deployer/nest-effect";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import { rateLimit } from "@deployer/rate-limit";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
-import { AuthCoreService, type AuthCoreServiceShape } from "@deployer/shared/core/modules/auth/services/auth-core.service";
+import { AuthCoreService } from "@deployer/shared/core/modules/auth/services/auth-core.service";
 import {
 	AppInstanceService,
 	STALE_AFTER_MS,
@@ -34,12 +34,9 @@ const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;
 export class PlatformController {
 	constructor(
 		@Inject(AppInstanceService) private readonly appInstances: AppInstanceServiceShape,
-		@Inject(AuthCoreService) private readonly authCoreService: AuthCoreServiceShape,
 	) {}
 	@Implement(registerAppInstanceContract)
 	register() {
-		// Better Auth is not an Effect service: its instance is the controller's own (Nest-injected) collaborator.
-		const authCore = this.authCoreService;
 		return procedure(registerAppInstanceContract)
 			.use(rateLimit({
 				...REGISTER_RATE_LIMIT,
@@ -47,6 +44,7 @@ export class PlatformController {
 			}))
 			.effect(function* ({ input, errors }) {
 				const appInstances = yield* AppInstanceService;
+				const authCore = yield* AuthCoreService;
 				// Verify the account exists on THIS API — the anti-abuse boundary:
 				// only legitimate account holders can introduce web instances.
 				yield* Effect.tryPromise(() =>

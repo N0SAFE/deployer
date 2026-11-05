@@ -44,6 +44,6 @@ const PROVIDERS = [
 function effectAware(module: DynamicModule) {
 	return declareModule(
 		{ ...module, providers: [...(module.providers ?? []), ...PROVIDERS], exports: [...(module.exports ?? []), AuthCoreService, SessionResolver] },
-		{ provides: [AuthCoreService, SessionResolver], exports: [AuthCoreService, SessionResolver] },
+		{ provides: [AuthCoreService, SessionResolver], exports: [AuthCoreService, SessionResolver], global: true },
 	);
 }
