@@ -193,3 +193,97 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 		);
 	});
 });
+/**
+ * THE FOUNDING MATRIX: database source × who owns the platform services × swarm role × engine outcome.
+ *
+ * Rules pinned here (see `initialize`): the swarm is founded ONLY for a locally-provisioned database on a deployment
+ * that does not own every service; it is founded BEFORE the database; the operator's swarm choice is persisted BEFORE it
+ * is acted on; a swarm that does not come up stops the run before any database exists and before `setup_done`.
+ */
+type Source = "explicit" | "provided" | "provision";
+type Owner = "deployment owns everything" | "platform owns services";
+const OWNED_ENV = { MANAGED_TRAEFIK_ENABLED: "true", MANAGED_REDIS_ENABLED: "true", MANAGED_LOCAL_DB_ENABLED: "true" };
+
+function makeMatrixService(options: { source: Source; owner: Owner; snapshotState?: string; migrationsFail?: boolean }) {
+	const timeline: string[] = [];
+	const rows: Record<string, unknown>[] = [];
+	let stored: Record<string, unknown> | null =
+		options.source === "provided" ? { nodeId: "n", strategy: "local", setupState: "not_started", databaseUrl: EXTERNAL_URL, databaseProvisioning: "external" } : null;
+	const repo = {
+		find: () => Effect.succeed(stored),
+		upsert: (row: Record<string, unknown>) => {
+			timeline.push(row.setupState === "setup_done" ? "persist:setup_done" : "persist:swarm-choice");
+			stored = { ...(stored ?? {}), ...row };
+			rows.push(row);
+			return Effect.succeed(row);
+		},
+	} as unknown as NodeConfigRepositoryShape;
+	const flags: Record<string, string> = options.owner === "deployment owns everything" ? OWNED_ENV : {};
+	const env = { get: (key: string) => (key === "DEPLOYER_PREFIX" ? "" : key === "DB_DATABASE" ? "deployer" : flags[key]) } as unknown as EnvService;
+	const service = new LocalInitializationService(
+		{ ensure: vi.fn(() => Effect.succeed({ name: "pg" })) } as unknown as PostgresProvisionerShape,
+		{ swarmServices: { logs: vi.fn(() => Effect.succeed("")) } } as unknown as DockerEngineShape,
+		env,
+		repo,
+		{ converge: () => (timeline.push("swarm:converge"), Effect.void) } as unknown as SwarmBootstrapShape,
+		{
+			getLocalClusterSnapshot: () =>
+				Effect.succeed({ localNodeState: options.snapshotState ?? "active", nodeCount: 1, managerCount: 1, localNode: { swarmRole: "manager" }, master: { nodeId: "self" } }) as never,
+		} as unknown as SwarmClusterShape,
+		{ convergeNow: () => Effect.succeed(null) } as unknown as SupervisorOrchestratorShape,
+	);
+	const patch = service as unknown as Record<string, unknown>;
+	patch.provisionDockerDatabase = () => (timeline.push("database:provision"), Promise.resolve(LOCAL_URL));
+	patch.probeExistingDatabase = () => (timeline.push("database:probe"), Promise.resolve(EXTERNAL_URL));
+	patch.ensureDatabaseEmpty = () => Promise.resolve([]);
+	patch.runMigrations = () => (timeline.push("database:migrate"), options.migrationsFail === true ? Promise.reject(new Error("migration failed")) : Promise.resolve());
+	patch.seedInitialData = () => (timeline.push("database:seed"), Promise.resolve({ userId: "u1" }));
+	return { service, timeline, rows };
+}
+
+const sources: Source[] = ["explicit", "provided", "provision"];
+const owners: Owner[] = ["deployment owns everything", "platform owns services"];
+const policies = [{ mode: "create", policy: "auto", joinAddrs: [] }, { mode: "create", policy: "manager", joinAddrs: [] }, undefined] as const;
+const base = { strategy: "local" as const, name: "Admin", email: "admin@test.com", password: "password123", serverUrl: "http://127.0.0.1:3001" };
+
+describe.each(sources.flatMap((source) => owners.flatMap((owner) => policies.map((swarm) => [`${source} db · ${owner} · ${swarm?.policy ?? "no swarm choice"}`, source, owner, swarm] as const))))(
+	"founding matrix · %s",
+	(_name, source, owner, swarm) => {
+		const input = { ...base, ...(source === "explicit" ? { existingDatabaseUrl: EXTERNAL_URL } : {}), ...(swarm ? { swarm } : {}) } as never;
+		const foundsSwarm = source === "provision" && owner === "platform owns services";
+
+		it("founds the swarm only when it must, always before the database, and ends setup_done with the right marker", async () => {
+			const { service, timeline, rows } = makeMatrixService({ source, owner });
+			await service.initialize(input, new SetupStepTracker(), noopEmit);
+
+			expect(timeline.includes("swarm:converge")).toBe(foundsSwarm);
+			if (foundsSwarm) {
+				// Decision persisted, THEN acted on, THEN the database.
+				expect(timeline.indexOf("persist:swarm-choice")).toBeLessThan(timeline.indexOf("swarm:converge"));
+				expect(timeline.indexOf("swarm:converge")).toBeLessThan(timeline.indexOf("database:provision"));
+			}
+			expect(timeline.indexOf("database:migrate")).toBeLessThan(timeline.indexOf("persist:setup_done"));
+			const final = rows.at(-1) as { setupState: string; databaseProvisioning: string; swarmConfig?: { policy: string }; meshSharedSecret?: string };
+			expect(final.setupState).toBe("setup_done");
+			expect(final.databaseProvisioning).toBe(source === "provision" ? "local" : "external");
+			expect(final.meshSharedSecret).toBeTruthy();
+			// What the operator chose is what is stored, not a default.
+			expect(final.swarmConfig?.policy).toBe(swarm?.policy);
+		});
+
+		it("a failing migration never produces setup_done", async () => {
+			const { service, rows } = makeMatrixService({ source, owner, migrationsFail: true });
+			await expect(service.initialize(input, new SetupStepTracker(), noopEmit)).rejects.toThrow();
+			expect(rows.some((row) => row.setupState === "setup_done")).toBe(false);
+		});
+
+		if (foundsSwarm) {
+			it("a swarm that never becomes active stops the run: no database, no setup_done", async () => {
+				const { service, timeline, rows } = makeMatrixService({ source, owner, snapshotState: "inactive" });
+				await expect(service.initialize(input, new SetupStepTracker(), noopEmit)).rejects.toThrow(/did not become active/);
+				expect(timeline).not.toContain("database:provision");
+				expect(rows.some((row) => row.setupState === "setup_done")).toBe(false);
+			});
+		}
+	},
+);

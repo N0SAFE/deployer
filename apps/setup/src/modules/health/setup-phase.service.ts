@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { BehaviorSubject, Observable, Subject, filter, map, distinctUntilChanged } from "rxjs";
+import { BehaviorSubject, Observable, Subject, defer, filter, map, merge, of, distinctUntilChanged } from "rxjs";
 
 import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-phase.types";
 
@@ -80,12 +80,22 @@ export class SetupPhaseService {
     return this.transitions$.asObservable();
   }
 
-  /** Transitions INTO a specific phase. */
+  /**
+   * Transitions INTO a specific phase — including the one that already happened.
+   *
+   * A subscriber that arrives while the node is ALREADY in `phase` still gets that entry once. Nest runs the boot hooks
+   * of two modules in an order that has nothing to do with who depends on whom, and on a restart the gate opens inside
+   * its own hook: without this, a handover that subscribes a moment later never sees `launching` and setup never hands
+   * over. Later entries (a retry) arrive as live events.
+   */
   onEnter(phase: SetupPhase): Observable<SetupPhaseEvent> {
-    return this.events$.pipe(
-      filter((event) => event.to === phase),
-      distinctUntilChanged((a, b) => a.at === b.at),
-    );
+    return defer(() => {
+      const current = this.state$.value;
+      const live = this.events$.pipe(filter((event) => event.to === phase));
+      return current.phase === phase
+        ? merge(of<SetupPhaseEvent>({ from: current.phase, to: phase, snapshot: current, at: current.updatedAt }), live)
+        : live;
+    }).pipe(distinctUntilChanged((a, b) => a.at === b.at));
   }
 
   /** The phase as a stream of phase names (ignores detail/flag churn). */

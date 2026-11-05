@@ -133,3 +133,25 @@ describe("SetupPhaseService", () => {
     expect(service.isReady()).toBe(false);
   });
 });
+
+describe("SetupPhaseService.onEnter — late subscribers", () => {
+  it("delivers the entry that already happened, exactly once, then later entries live", () => {
+    const phases = new SetupPhaseService();
+    phases.record("launching", "gate opened before anyone listened");
+    const seen: string[] = [];
+
+    phases.onEnter("launching").subscribe((event) => seen.push(event.snapshot.detail));
+    expect(seen).toEqual(["gate opened before anyone listened"]);
+
+    phases.record("provisioning", "x");
+    phases.record("launching", "retry");
+    expect(seen).toEqual(["gate opened before anyone listened", "retry"]);
+  });
+
+  it("stays silent when the node is in another phase", () => {
+    const phases = new SetupPhaseService();
+    const seen: string[] = [];
+    phases.onEnter("launching").subscribe((event) => seen.push(event.to));
+    expect(seen).toEqual([]);
+  });
+});
