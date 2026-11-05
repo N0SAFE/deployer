@@ -17,7 +17,7 @@ secrets are not provided, they are made.
 | Secret | Where it comes from now | What uses it | Target |
 |---|---|---|---|
 | **Mesh shared secret** | generated on the node's first boot and stored in `node_config.mesh_shared_secret` (with `mesh_shared_secret_updated_at`); handed to a joiner with the join grant | mesh peer tokens (`v1.`, `v2.`), the control token, `requireMesh()` | already the target; needs versioning and adoption status |
-| **Platform secret** (`BETTER_AUTH_SECRET`, else `AUTH_SECRET`) | **environment variable** | Better Auth session signing, the column-encryption root key (`schema-codecs`), the ingress token derivation, system-actor claims | generated on first boot, stored in `node_config`, shared with joiners (`SEC-100`) |
+| **Platform secret** | `node_config` for system-actor claims (generated on first use); **environment variable** (`BETTER_AUTH_SECRET`, else `AUTH_SECRET`) still for the rest | Better Auth session signing, the column-encryption root key (`schema-codecs`), the ingress token derivation, system-actor claims | generated on first boot, stored in `node_config`, shared with joiners (`SEC-100`) |
 | **Root secret** (`DEPLOYER_ROOT_SECRET`) | **environment variable**, falls back to the platform secret | derived keys for encrypted columns | derived from the platform secret generated above; no separate variable |
 
 `MeshSecret` and `PlatformSecret` are Effect services (`apps/api/shared/src/core/modules/auth/orpc/secrets.ts`), so the source is
