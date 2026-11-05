@@ -25,6 +25,8 @@ const row = (databaseUrl: string): NodeConfigRow => ({
     updatedAt: '2026-01-01T00:00:00.000Z',
     meshSharedSecret: null,
     meshSharedSecretUpdatedAt: null,
+    platformSecret: null,
+    platformSecretUpdatedAt: null,
     scanConfig: null,
     postSetupFlags: null,
     swarmConfig: null,

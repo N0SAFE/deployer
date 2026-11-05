@@ -9,7 +9,6 @@ import {
     MODULE_OPTIONS_TOKEN,
     type AuthModuleOptions,
 } from './definitions/auth-module-definition'
-import { envPlatformSecret, PlatformSecret } from './orpc/secrets'
 import { makeSessionResolver, SessionResolver } from './orpc/session-resolver'
 import {
     AuthCoreService,
@@ -60,14 +59,11 @@ export class AuthModule extends createGlobalModule(
             },
             // How access is decided in this process: every access check depends on it, so an app cannot run unprotected by omission.
             { provide: AccessPolicy, useFactory: accessPolicy },
-            // The platform secret system-actor claims are signed with (see the shortcut in `secrets.ts`).
-            { provide: PlatformSecret, useValue: envPlatformSecret },
         ],
         exports: [
             MODULE_OPTIONS_TOKEN,
             AuthCoreService,
             SessionResolver,
-            PlatformSecret,
             AccessPolicy,
         ],
     },

@@ -2,12 +2,9 @@ import { Cause, Effect, Exit } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { provideTo } from '@deployer/effect-core'
+import { PlatformSecret } from '@deployer/shared/core/modules/auth/orpc/secrets'
 import { verifySystemActorClaim } from '@deployer/shared/core/modules/auth/system-actor/system-actor'
 
-import {
-    PlatformEnv,
-    type PlatformEnvShape,
-} from '@/core/ports/platform-env.port'
 import {
     SystemActorClients,
     type SystemActorClientsShape,
@@ -27,7 +24,7 @@ async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 describe('DeploymentTriggerGateway', () => {
     const triggerFromEvent = vi.fn()
     const systemActorClientFor = vi.fn(() => ({ triggerFromEvent }))
-    const env = { get: vi.fn() }
+    const secret = vi.fn<() => string | null>()
     // The fakes need nothing from the context beyond what is provided here.
     const gateway = provideTo(
         DeploymentTriggerGateway.live,
@@ -36,18 +33,15 @@ describe('DeploymentTriggerGateway', () => {
                 Effect.provideService(SystemActorClients, {
                     systemActorClientFor,
                 } as unknown as SystemActorClientsShape),
-                Effect.provideService(
-                    PlatformEnv,
-                    env as unknown as PlatformEnvShape
-                )
+                Effect.provideService(PlatformSecret, {
+                    get: () => Effect.sync(secret),
+                })
             ) as Effect.Effect<unknown>
     )
 
     beforeEach(() => {
         vi.clearAllMocks()
-        env.get.mockImplementation((key: string) =>
-            key === 'BETTER_AUTH_SECRET' ? SECRET : undefined
-        )
+        secret.mockReturnValue(SECRET)
     })
 
     it('calls runtime with a claim runtime accepts, naming the source and delivery', async () => {
@@ -83,38 +77,8 @@ describe('DeploymentTriggerGateway', () => {
         expect(result.dispatched).toBe(true)
     })
 
-    it('falls back to AUTH_SECRET when BETTER_AUTH_SECRET is not set', async () => {
-        env.get.mockImplementation((key: string) =>
-            key === 'AUTH_SECRET' ? SECRET : undefined
-        )
-        triggerFromEvent.mockResolvedValue({
-            dispatched: false,
-            sourceId: null,
-            deploymentId: null,
-            reason: null,
-        })
-
-        await run(
-            gateway.relay({
-                provider: 'github',
-                eventName: 'push',
-                deliveryId: 'del-2',
-                payload: {},
-            })
-        )
-
-        const [, , token] = systemActorClientFor.mock.calls[0] as unknown as [
-            string,
-            unknown,
-            string,
-        ]
-        expect(verifySystemActorClaim(token, SECRET, 'runtime')).toMatchObject({
-            deliveryId: 'del-2',
-        })
-    })
-
     it('refuses to relay when no platform secret is configured', async () => {
-        env.get.mockReturnValue(undefined)
+        secret.mockReturnValue(null)
 
         await expect(
             run(
@@ -125,7 +89,7 @@ describe('DeploymentTriggerGateway', () => {
                     payload: {},
                 })
             )
-        ).rejects.toThrow(/BETTER_AUTH_SECRET/)
+        ).rejects.toThrow(/platform secret is not configured/)
         expect(triggerFromEvent).not.toHaveBeenCalled()
     })
 

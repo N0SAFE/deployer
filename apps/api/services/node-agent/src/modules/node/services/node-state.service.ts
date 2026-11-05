@@ -36,6 +36,8 @@ const UNCONFIGURED: Omit<MeshNodeConfig, 'updatedAt'> = {
     peerServiceTokenExpiresAt: null,
     meshSharedSecret: null,
     meshSharedSecretUpdatedAt: null,
+    platformSecret: null,
+    platformSecretUpdatedAt: null,
     scanConfig: null,
     mesh: null,
     postSetupFlags: null,

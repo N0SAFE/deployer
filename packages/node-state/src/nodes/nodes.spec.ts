@@ -161,6 +161,8 @@ const AGENT_ROW: NodeConfigRow = {
     updatedAt: '2026-10-30T10:00:00.000Z',
     meshSharedSecret: 'agent-secret',
     meshSharedSecretUpdatedAt: null,
+    platformSecret: null,
+    platformSecretUpdatedAt: null,
     scanConfig: null,
     postSetupFlags: null,
     swarmConfig: null,
@@ -238,6 +240,42 @@ describe('AgentFirstNodeConfigRepository', () => {
             'http://new',
         ])
         expect(localRows()).toEqual([])
+    })
+})
+
+describe('platform secret', () => {
+    const seed = () =>
+        makeNodeConfigRepository(database).upsert({
+            nodeId: 'n1',
+            strategy: 'local',
+            updatedAt: '2026-10-30T10:00:00.000Z',
+        })
+
+    it('is not invented before the node has a config row', async () => {
+        const repository = makeNodeConfigRepository(database)
+        expect(await run(repository.ensurePlatformSecret())).toBeNull()
+        expect(await run(repository.getPlatformSecret())).toBeNull()
+    })
+
+    it('is generated once, then stays the same across reads and a restart', async () => {
+        await run(seed())
+        const repository = makeNodeConfigRepository(database)
+        const first = await run(repository.ensurePlatformSecret())
+
+        expect(first).toMatch(/^[0-9a-f]{64}$/)
+        expect(await run(repository.ensurePlatformSecret())).toBe(first)
+        expect(await run(makeNodeConfigRepository(database).getPlatformSecret())).toBe(first)
+    })
+
+    it('keeps a secret the node received instead of replacing it', async () => {
+        await run(seed())
+        const repository = makeNodeConfigRepository(database)
+        const row = await run(repository.find())
+        if (row === null) throw new Error('seeded row missing')
+        const { id: _id, ...rest } = row
+        await run(repository.upsert({ ...rest, platformSecret: 'from-the-mesh' }))
+
+        expect(await run(repository.ensurePlatformSecret())).toBe('from-the-mesh')
     })
 })
 

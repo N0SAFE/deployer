@@ -69,6 +69,8 @@ export const meshNodeConfigSchema = z.object({
     /** The secret peers present to this node, and when it was last rotated. */
     meshSharedSecret: z.string().nullable(),
     meshSharedSecretUpdatedAt: z.string().nullable(),
+    platformSecret: z.string().nullable(),
+    platformSecretUpdatedAt: z.string().nullable(),
     scanConfig: meshNodeScanConfigSchema.nullable(),
     /** The node's mesh wiring, once something configured it. Null on an unconfigured node. */
     mesh: meshNodeMeshConfigSchema.nullable(),

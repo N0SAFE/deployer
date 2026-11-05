@@ -18,7 +18,7 @@
  *                           (the account-free `direct` edge is built into core/modules/edge)
  */
 import { createModuleContext, EffectHost } from '@deployer/nest-effect'
-import { EnvModule, EnvService } from '@deployer/shared/config/env/env.module'
+import { EnvModule } from '@deployer/shared/config/env/env.module'
 import { ConfigurationCoreModule } from '@deployer/shared/core/modules/configuration/configuration-core.module'
 import { GlobalDatabaseModule } from '@deployer/shared/core/modules/database/global/global-database.module'
 import { DeploymentCoreModule } from '@deployer/shared/core/modules/deployment/deployment-core.module'
@@ -52,7 +52,6 @@ import { Git } from '@/core/ports/git.port'
 import { GithubDeploymentRules } from '@/core/ports/github-deployment-rules.port'
 import { GitHub } from '@/core/ports/github.port'
 import { IngressLanes } from '@/core/ports/ingress-lanes.port'
-import { PlatformEnv } from '@/core/ports/platform-env.port'
 import {
     PreviewCleanupPolicy,
     PreviewNaming,
@@ -201,7 +200,6 @@ export class ProvidersModule extends createModuleContext(
                 useExisting: PreviewCleanupPolicyService,
             },
             { provide: SystemActorClients, useExisting: ServiceClient },
-            { provide: PlatformEnv, useExisting: EnvService },
             {
                 provide: GithubDeploymentRuleService,
                 useValue: GithubDeploymentRuleService.live,

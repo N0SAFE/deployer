@@ -132,6 +132,18 @@ export const nodeConfig = sqliteTable('node_config', {
     meshSharedSecretUpdatedAt: text('mesh_shared_secret_updated_at'),
 
     /**
+     * The platform secret: what signs the claims one service hands another (system actors) and, later, everything else the
+     * platform derives keys from. Generated on this node's first boot, never read from the environment, and handed to nodes
+     * that join so every node verifies what the others sign (SEC-100).
+     *
+     * Null until this node generated or received one.
+     */
+    platformSecret: text('platform_secret'),
+
+    /** ISO-8601 timestamp when `platformSecret` was generated or last received. Null alongside it. */
+    platformSecretUpdatedAt: text('platform_secret_updated_at'),
+
+    /**
      * Scanner configuration as JSON.
      * Stores per-node scanning preferences (auto-scan, scanner types, etc.).
      * Used instead of env var DISABLE_AUTO_SCAN so the config survives restarts.

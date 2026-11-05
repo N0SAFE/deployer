@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import { Context, Effect, Layer } from 'effect'
 
 import { nodeConfig } from '@deployer/nest-schema/local'
@@ -40,6 +42,22 @@ export type NodeConfigRepositoryShape = {
     readonly getMeshSharedSecret: () => Effect.Effect<
         string | null,
         LocalDatabaseError
+    >
+    /** The platform secret, or null when there is no row yet or this node has neither generated nor received one. */
+    readonly getPlatformSecret: () => Effect.Effect<
+        string | null,
+        LocalDatabaseError
+    >
+    /**
+     * The platform secret, generated and stored on first use. Null only before the node has a config row at all (an
+     * unconfigured node signs nothing yet); never read from the environment.
+     *
+     * shortcut: two services of one node calling this at the same instant can each store a value and the last write wins
+     * (the agent has no compare-and-set); upgrade when the agent's record write takes the expected previous value (SEC-100).
+     */
+    readonly ensurePlatformSecret: () => Effect.Effect<
+        string | null,
+        LocalDatabaseError | NodeStateConflict
     >
     /** Merges `peerUrls` into the stored peer snapshot, deduplicated; null when there is no row yet. */
     readonly updateMeshPeers: (
@@ -155,6 +173,23 @@ function nodeConfigOperations(
                         null) as string | null
                 })
             ),
+        getPlatformSecret: () =>
+            ops.find().pipe(Effect.map((row) => row?.platformSecret ?? null)),
+        ensurePlatformSecret: () =>
+            Effect.gen(function* () {
+                const row = yield* ops.find()
+                if (row === null) return null
+                if (row.platformSecret !== null && row.platformSecret !== '')
+                    return row.platformSecret
+                const { id: _id, ...rest } = row
+                const now = new Date().toISOString()
+                const stored = yield* ops.upsert({
+                    ...rest,
+                    platformSecret: randomBytes(32).toString('hex'),
+                    platformSecretUpdatedAt: now,
+                })
+                return stored.platformSecret
+            }),
         updateMeshPeers: (peerUrls) =>
             Effect.gen(function* () {
                 const existing = yield* ops.find()

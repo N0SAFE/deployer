@@ -72,6 +72,8 @@ const AGENT_RECORD: NodeRecord = {
         peerServiceTokenExpiresAt: null,
         meshSharedSecret: null,
         meshSharedSecretUpdatedAt: null,
+        platformSecret: null,
+        platformSecretUpdatedAt: null,
         scanConfig: null,
         mesh: {
             nodeServerUrl: 'https://agent.example.com',

@@ -35,7 +35,7 @@ import {
     type NodeConfigRepositoryShape,
 } from '@deployer/node-state'
 
-import { MeshSecret } from '../auth/orpc/secrets'
+import { MeshSecret, PlatformSecret } from '../auth/orpc/secrets'
 import { LocalDatabaseModule } from '../database/local/local-database.module'
 
 import { agentNodeRecords } from './agent-node-records'
@@ -56,6 +56,18 @@ const repositories = [
             get: () =>
                 nodeConfig
                     .getMeshSharedSecret()
+                    .pipe(Effect.catch(() => Effect.succeed(null))),
+        }),
+        inject: [NodeConfigRepository],
+    },
+    // The platform secret is generated here on first use and stored in the same row, so every service of the node signs and
+    // verifies with one value. Unconfigured (no row yet) is "no secret", which the system-actor middleware refuses.
+    {
+        provide: PlatformSecret,
+        useFactory: (nodeConfig: NodeConfigRepositoryShape) => ({
+            get: () =>
+                nodeConfig
+                    .ensurePlatformSecret()
                     .pipe(Effect.catch(() => Effect.succeed(null))),
         }),
         inject: [NodeConfigRepository],
@@ -85,6 +97,7 @@ export const NodeStateModule = createGlobalModule({
         NodeConfigRepository,
         NodeConfigSnapshot,
         MeshSecret,
+        PlatformSecret,
         ClusterNodeRepository,
         ClusterNodeInventoryRepository,
     ],

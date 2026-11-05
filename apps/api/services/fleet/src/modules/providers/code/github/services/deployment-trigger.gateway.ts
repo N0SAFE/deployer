@@ -2,13 +2,10 @@ import { Context, Effect } from 'effect'
 
 import { serviceOver, type Over } from '@deployer/effect-core'
 import { deploymentContract } from '@deployer/runtime-contracts'
+import { PlatformSecret } from '@deployer/shared/core/modules/auth/orpc/secrets'
 import { signSystemActorClaim } from '@deployer/shared/core/modules/auth/system-actor/system-actor'
 
 import { attempt, attemptSync } from '@/core/effects'
-import {
-    PlatformEnv,
-    type PlatformEnvShape,
-} from '@/core/ports/platform-env.port'
 import {
     SystemActorClients,
     type SystemActorClientsShape,
@@ -23,7 +20,7 @@ export type TriggerRelayResult = {
 
 type Ports = {
     readonly clients: SystemActorClientsShape
-    readonly env: PlatformEnvShape
+    readonly secrets: { readonly get: () => Effect.Effect<string | null> }
 }
 
 /**
@@ -36,7 +33,7 @@ type Ports = {
  *
  * Fleet depends on runtime's CONTRACT only — never on its internals.
  */
-function makeDeploymentTriggerGateway({ clients, env }: Ports) {
+function makeDeploymentTriggerGateway({ clients, secrets }: Ports) {
     return {
         relay: Effect.fn('DeploymentTriggerGateway.relay')(function* (event: {
             provider: string
@@ -44,15 +41,11 @@ function makeDeploymentTriggerGateway({ clients, env }: Ports) {
             deliveryId: string
             payload: unknown
         }) {
-            const secret = (
-                env.get('BETTER_AUTH_SECRET') ?? env.get('AUTH_SECRET')
-            )
-                ?.toString()
-                .trim()
-            if (!secret) {
+            const secret = yield* secrets.get()
+            if (secret === null || secret === '') {
                 return yield* Effect.fail(
                     new Error(
-                        'Cannot sign a system-actor claim: BETTER_AUTH_SECRET is not configured'
+                        'Cannot sign a system-actor claim: the platform secret is not configured'
                     )
                 )
             }
@@ -88,7 +81,7 @@ function makeDeploymentTriggerGateway({ clients, env }: Ports) {
 
 export type DeploymentTriggerGatewayShape = Over<
     ReturnType<typeof makeDeploymentTriggerGateway>,
-    SystemActorClients | PlatformEnv
+    SystemActorClients | PlatformSecret
 >
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
@@ -96,9 +89,9 @@ export class DeploymentTriggerGateway extends Context.Service<
     DeploymentTriggerGateway,
     DeploymentTriggerGatewayShape
 >()('fleet/DeploymentTriggerGateway') {
-    /** The clients and the environment are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    /** The clients and the platform secret are yielded when a method runs, so this is a constant the module provides with `useValue`. */
     static readonly live: DeploymentTriggerGatewayShape = serviceOver(
-        Effect.all({ clients: SystemActorClients, env: PlatformEnv }),
+        Effect.all({ clients: SystemActorClients, secrets: PlatformSecret }),
         makeDeploymentTriggerGateway
     )
 }

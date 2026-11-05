@@ -148,7 +148,9 @@ describe('UserService', () => {
     })
 
     const run = <A, E>(effect: Effect.Effect<A, E, HttpRequest>) =>
-        run(effect.pipe(Effect.provideService(HttpRequest, systemRequest)))
+        Effect.runPromise(
+            effect.pipe(Effect.provideService(HttpRequest, systemRequest))
+        )
 
     /** The domain error a use case failed with. */
     const failureOf = (effect: Effect.Effect<unknown, UserFailure>) =>

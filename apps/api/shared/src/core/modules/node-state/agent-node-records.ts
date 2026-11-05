@@ -73,6 +73,8 @@ export const nodeConfigRowFromRecord = (
               updatedAt: config.updatedAt,
               meshSharedSecret: config.meshSharedSecret,
               meshSharedSecretUpdatedAt: config.meshSharedSecretUpdatedAt,
+              platformSecret: config.platformSecret,
+              platformSecretUpdatedAt: config.platformSecretUpdatedAt,
               scanConfig:
                   config.scanConfig === null
                       ? null
@@ -97,7 +99,7 @@ export const nodeConfigRowFromRecord = (
 export const nodeRecordPatchFromRow = (
     row: NewNodeConfigRow
 ): Partial<NodeRecordConfig> => ({
-    nodeId: row.nodeId ?? null,
+    nodeId: row.nodeId,
     strategy: row.strategy,
     setupState: row.setupState ?? 'not_started',
     deployerVersion: row.deployerVersion ?? null,
@@ -110,6 +112,8 @@ export const nodeRecordPatchFromRow = (
     peerServiceTokenExpiresAt: row.peerServiceTokenExpiresAt ?? null,
     meshSharedSecret: row.meshSharedSecret ?? null,
     meshSharedSecretUpdatedAt: row.meshSharedSecretUpdatedAt ?? null,
+    platformSecret: row.platformSecret ?? null,
+    platformSecretUpdatedAt: row.platformSecretUpdatedAt ?? null,
     scanConfig: row.scanConfig ?? null,
     postSetupFlags: row.postSetupFlags ?? null,
 })
