@@ -37,14 +37,23 @@ function fakeHost() {
     return { host, forks, stop };
 }
 
-/** Run a forked loop for a short real slice, then interrupt it as shutdown would. */
-async function runFor(effect: unknown, ms: number): Promise<void> {
+/**
+ * Run a forked loop until `done()` holds (or `ceilingMs` passes), then interrupt it as shutdown would.
+ *
+ * Waits for the CONDITION instead of sleeping a fixed real-time slice and counting calls: that is a race with whatever else
+ * the machine is doing, and a test that passes alone and fails in the suite proves nothing. `ceilingMs` only bounds a loop
+ * that really is stuck — and is the whole window for the one assertion about something NOT happening.
+ */
+async function runUntil(effect: unknown, done: () => boolean, ceilingMs = 5_000): Promise<void> {
     const fiber = Effect.runFork(
         (effect as Effect.Effect<void, never, PreviewTtlCleanupService>).pipe(
             Effect.provideService(PreviewTtlCleanupService, service),
         ),
     );
-    await new Promise((resolve) => setTimeout(resolve, ms));
+    const deadline = Date.now() + ceilingMs;
+    while (!done() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    }
     await Effect.runPromise(Fiber.interrupt(fiber));
 }
 
@@ -106,9 +115,9 @@ describe("startPreviewTtlCleanup", () => {
 
     it("runs the cleanup on every tick until the fiber is interrupted", async () => {
         const { host, forks } = fakeHost();
-        startPreviewTtlCleanup(host, 5);
+        startPreviewTtlCleanup(host, 5, 0);
 
-        await runFor(forks[0]?.effect, 40);
+        await runUntil(forks[0]?.effect, () => provisioning.findExpiredPreviews.mock.calls.length > 1);
 
         expect(provisioning.findExpiredPreviews.mock.calls.length).toBeGreaterThan(1);
     });
@@ -116,11 +125,21 @@ describe("startPreviewTtlCleanup", () => {
     it("survives a run that fails, and tries again on the next tick", async () => {
         provisioning.findExpiredPreviews.mockReturnValue(Effect.fail(new Error("db down")) as never);
         const { host, forks } = fakeHost();
-        startPreviewTtlCleanup(host, 5);
+        startPreviewTtlCleanup(host, 5, 0);
 
-        await runFor(forks[0]?.effect, 40);
+        await runUntil(forks[0]?.effect, () => provisioning.findExpiredPreviews.mock.calls.length > 1);
 
         // A loop that died on the first failure would have run exactly once.
         expect(provisioning.findExpiredPreviews.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it("does not run before the startup delay, so the context is populated when it does", async () => {
+        const { host, forks } = fakeHost();
+        startPreviewTtlCleanup(host, 5, 10_000);
+
+        // Nothing is expected: give a loop that wrongly ignored the delay a real window to show itself.
+        await runUntil(forks[0]?.effect, () => false, 100);
+
+        expect(provisioning.findExpiredPreviews).not.toHaveBeenCalled();
     });
 });

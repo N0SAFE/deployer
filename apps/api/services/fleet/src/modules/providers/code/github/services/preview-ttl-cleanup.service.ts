@@ -60,23 +60,38 @@ export class PreviewTtlCleanupService extends Context.Service<PreviewTtlCleanupS
 export const PREVIEW_TTL_CLEANUP = Symbol("fleet:preview-ttl-cleanup");
 
 /**
+ * The fiber is forked while the module is still being built, when the Effect context is not populated yet:
+ * the first run failed with `Cannot destructure property 'db' from null`. Waiting a moment lets the
+ * application finish starting.
+ */
+const STARTUP_DELAY_MS = 10_000;
+
+/**
  * Schedules the cleanup when the module is built and stops it with the application. The handle it
  * returns carries the shutdown hook, which Nest calls on a provider's instance whatever built it;
  * stopping interrupts the fiber and awaits it.
  */
-export function startPreviewTtlCleanup(host: EffectHostShape, intervalMs: number = TTL_CLEANUP_INTERVAL_MS) {
+export function startPreviewTtlCleanup(
+    host: EffectHostShape,
+    intervalMs: number = TTL_CLEANUP_INTERVAL_MS,
+    initialDelayMs: number = STARTUP_DELAY_MS,
+) {
     const logger = new Logger("PreviewTtlCleanup");
     const stop = host.fork(
         "fleet/preview-ttl-cleanup",
-        Effect.repeat(
-            recover(
-                Effect.gen(function* () {
-                    const cleanup = yield* PreviewTtlCleanupService;
-                    yield* cleanup.runCleanup();
-                }),
-                (error) => Effect.sync(() => { logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`); }),
+        Effect.sleep(initialDelayMs).pipe(
+            Effect.andThen(
+                Effect.repeat(
+                    recover(
+                        Effect.gen(function* () {
+                            const cleanup = yield* PreviewTtlCleanupService;
+                            yield* cleanup.runCleanup();
+                        }),
+                        (error) => Effect.sync(() => { logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`); }),
+                    ),
+                    Schedule.spaced(intervalMs),
+                ),
             ),
-            Schedule.spaced(intervalMs),
         ),
     );
     logger.log(`Preview TTL cleanup scheduled every ${String(intervalMs / 60000)} minutes`);

@@ -55,7 +55,7 @@ export class ClusterController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
-                return yield* serve(context)(cluster.listNodes(input.includeDown ?? false));
+                return yield* serve(context)(cluster.listNodes(input.includeDown));
             });
     }
 
@@ -65,7 +65,7 @@ export class ClusterController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const events = yield* ClusterEventsPort;
-                return yield* serve(context)(attemptSync(() => events.observeNodes(input.includeDown ?? false)));
+                return yield* serve(context)(attemptSync(() => events.observeNodes(input.includeDown)));
             });
     }
 

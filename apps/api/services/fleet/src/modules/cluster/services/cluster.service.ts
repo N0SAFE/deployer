@@ -216,7 +216,7 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                     nodeId,
                     before.Version.Index,
                     withIngress(
-                        withPlatformRole(before.Spec?.Labels ?? {}, input.platformRole ?? null),
+                        withPlatformRole(before.Spec.Labels, input.platformRole ?? null),
                         input.ingress ?? null,
                     ),
                 )),
@@ -228,26 +228,24 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
             // sweep). The cache is rebuilt from the same source the sweep uses, so a partial write
             // is visible immediately instead of being masked.
             const node = yield* swarmClusterService.inspectSwarmNode(nodeId);
-            const labels = node.Spec?.Labels ?? {};
-            const hostname = node.Description?.Hostname ?? "";
+            const labels = node.Spec.Labels;
+            const hostname = node.Description.Hostname;
             const swarmRole = resolveSwarmNodeRole(node);
             const platformRole = platformRoleFromLabels(labels);
             const isIngress = ingressFromLabels(labels);
             const isMaster = node.ManagerStatus?.Leader === true;
             const availability =
-                node.Spec?.Availability === "pause" || node.Spec?.Availability === "drain"
+                node.Spec.Availability === "pause" || node.Spec.Availability === "drain"
                     ? node.Spec.Availability
                     : "active";
             const capacity = {
-                nanoCpus: node.Description?.Resources?.NanoCPUs ?? null,
-                memoryBytes: node.Description?.Resources?.MemoryBytes ?? null,
+                nanoCpus: node.Description.Resources?.NanoCPUs ?? null,
+                memoryBytes: node.Description.Resources?.MemoryBytes ?? null,
             };
 
             // CLUSTER-009: the engine's own node state, not just its availability (`down` from `disconnected`).
             const state: "ready" | "down" | "unknown" =
-                node.Status?.State === undefined
-                    ? "unknown"
-                    : node.Status.State === "ready"
+                node.Status.State === "ready"
                         ? "ready"
                         : "down";
 
