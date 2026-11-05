@@ -90,6 +90,8 @@ export function makeRemoteInitializationService(
     ): Promise<{ nodeId: string; databaseUrl: string }> {
         let nodeId = ''
         let databaseUrl = ''
+        /** The fleet's platform secret: this node adopts it instead of keeping one of its own. */
+        let platformSecret: string | null = null
         /** The fleet's swarm role decision for this node (null = none offered). */
         let swarmGrant: MeshSwarmJoinGrant | null = null
         /** Whether this node entered the cluster's mesh (Swarm then rides it). */
@@ -267,6 +269,7 @@ export function makeRemoteInitializationService(
                     )
                 )
                 databaseUrl = enrolled.databaseUrl
+                platformSecret = enrolled.platformSecret
                 swarmGrant = enrolled.swarmGrant
                 stepLog(`✅ Enrolled in the fleet as ${enrolled.nodeId}`)
                 stepLog(
@@ -310,6 +313,14 @@ export function makeRemoteInitializationService(
                         // managed, never supervised by this node's GlobalDbSupervisorService.
                         databaseProvisioning: 'external' as const,
                         configuredAt: now,
+                        // The fleet's secret replaces any this node generated before it joined: one value signs and verifies
+                        // everywhere. Left alone only when the fleet predates it.
+                        ...(platformSecret === null
+                            ? {}
+                            : {
+                                  platformSecret,
+                                  platformSecretUpdatedAt: now,
+                              }),
                         // The FLEET's role decision, persisted so a restart re-converges
                         // from the same answer instead of re-asking the mesh.
                         swarmConfig:

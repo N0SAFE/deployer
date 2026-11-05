@@ -40,6 +40,7 @@ vi.mock('@deployer/mesh-client', async (importOriginal) => ({
 type Timeline = string[]
 
 const DB_URL = 'postgresql://fleet:secret@fleet-db:5432/deployer'
+const FLEET_SECRET = 'fleet-platform-secret-from-first-boot'
 
 function makeFleet(
     timeline: Timeline,
@@ -118,6 +119,7 @@ function makeFleet(
                     nodeId: input.nodeId,
                     enrolledAt: new Date().toISOString(),
                     databaseUrl: DB_URL,
+                    platformSecret: FLEET_SECRET,
                     swarmGrant: grant,
                     meshJoinToken: input.token,
                 })
@@ -297,6 +299,8 @@ describe('a new node joining a fleet from its setup', () => {
             strategy: 'remote',
             setupState: 'setup_done',
             databaseUrl: DB_URL,
+            // The fleet's secret, so this node verifies what the others sign.
+            platformSecret: FLEET_SECRET,
             databaseProvisioning: 'external',
             swarmConfig: {
                 mode: 'join',

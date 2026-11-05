@@ -13,13 +13,16 @@ const grant = {
 function ports(over: Partial<EnrollmentPorts> = {}): EnrollmentPorts {
     return {
         version: '3.1.0',
-        swarmGrant: vi.fn(async () => grant),
-        checkToken: vi.fn(async () => true),
+        swarmGrant: vi.fn(() => Promise.resolve(grant)),
+        checkToken: vi.fn(() => Promise.resolve(true)),
         databaseUrl: () => 'postgres://db/deployer',
-        register: vi.fn(async (input) => ({
-            nodeId: input.nodeId,
-            enrolledAt: '2026-10-29T00:00:00.000Z',
-        })),
+        platformSecret: () => Promise.resolve('fleet-platform-secret'),
+        register: vi.fn((input) =>
+            Promise.resolve({
+                nodeId: input.nodeId,
+                enrolledAt: '2026-10-29T00:00:00.000Z',
+            })
+        ),
         ...over,
     }
 }
@@ -61,13 +64,14 @@ describe('EnrollmentService', () => {
             nodeId: 'node-b',
             enrolledAt: '2026-10-29T00:00:00.000Z',
             databaseUrl: 'postgres://db/deployer',
+            platformSecret: 'fleet-platform-secret',
             swarmGrant: grant,
             meshJoinToken: 't',
         })
     })
 
     it('refuses a token its agent does not vouch for, and registers nothing', async () => {
-        const p = ports({ checkToken: vi.fn(async () => false) })
+        const p = ports({ checkToken: vi.fn(() => Promise.resolve(false)) })
         const service = new EnrollmentService(p)
 
         await expect(service.enroll(enrollInput)).rejects.toMatchObject({
@@ -82,11 +86,20 @@ describe('EnrollmentService', () => {
     it('enrolls no one when it has no agent to vouch for the token', async () => {
         await expect(
             new EnrollmentService(
-                ports({ checkToken: vi.fn(async () => null) })
+                ports({ checkToken: vi.fn(() => Promise.resolve(null)) })
             ).enroll(enrollInput)
         ).rejects.toMatchObject({
             code: 'UNAUTHORIZED',
         })
+    })
+
+    it('refuses to enroll before it has a platform secret to hand over', async () => {
+        const p = ports({ platformSecret: () => Promise.resolve(null) })
+
+        await expect(
+            new EnrollmentService(p).enroll(enrollInput)
+        ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' })
+        expect(p.register).not.toHaveBeenCalled()
     })
 
     it('refuses to enroll before it has a database to hand over', async () => {

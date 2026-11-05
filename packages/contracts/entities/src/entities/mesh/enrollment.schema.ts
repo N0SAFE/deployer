@@ -47,6 +47,12 @@ export const meshEnrollmentEnrollResultSchema = z.object({
     /** The fleet's swarm role decision, or null when the fleet has no swarm to hand over. */
     swarmGrant: meshSwarmJoinGrantSchema.nullable(),
     /**
+     * The fleet's platform secret, so the joiner signs and verifies sessions and system-actor claims with the SAME value as
+     * every other node. It travels like `databaseUrl` (its own credential): over the mesh, to a holder of a valid join
+     * token. Null only from a fleet that predates it; the joiner then keeps the one it generates itself.
+     */
+    platformSecret: z.string().min(1).nullable().default(null),
+    /**
      * The agent join token this node was admitted with, echoed back so the joiner keeps it if it ever has to repeat the
      * join.
      */
