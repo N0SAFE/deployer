@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -107,7 +108,8 @@ function describeActiveHandles(): string {
 async function withWatchdog<T>(
     stepLabel: string,
     timeoutMs: number,
-    action: () => Promise<T>
+    action: () => Promise<T>,
+    describePending?: () => string
 ): Promise<T> {
     const startedAt = Date.now()
 
@@ -133,7 +135,7 @@ async function withWatchdog<T>(
                 raceTimeout = setTimeout(() => {
                     reject(
                         new Error(
-                            `${stepLabel} exceeded ${String(timeoutMs)}ms (active handles: ${describeActiveHandles()})`
+                            `${stepLabel} exceeded ${String(timeoutMs)}ms (active handles: ${describeActiveHandles()})${describePending === undefined ? '' : ` | ${describePending()}`}`
                         )
                     )
                 }, timeoutMs)
@@ -146,6 +148,56 @@ async function withWatchdog<T>(
             clearTimeout(raceTimeout)
         }
     }
+}
+
+/**
+ * The providers Nest has not finished instantiating: when `compile()` hangs, this names the one it is waiting on (a
+ * factory that never settles, a cycle between factories) instead of leaving a bare timeout.
+ */
+function describeUnresolvedProviders(builder: unknown): string {
+    type Wrapper = {
+        isResolved?: boolean
+        inject?: unknown[] | null
+        metatype?: unknown
+        name?: unknown
+        getInstanceByContextId?: (context: { id: number }) => { isResolved?: boolean, isPending?: boolean } | undefined
+    }
+    type ModuleLike = {
+        metatype?: { name?: string }
+        providers: Map<unknown, Wrapper>
+        controllers: Map<unknown, Wrapper>
+        injectables: Map<unknown, Wrapper>
+    }
+    const tokenName = (token: unknown): string => {
+        const entry = (token as { token?: unknown } | undefined)?.token ?? token
+        return typeof entry === 'function' ? entry.name : String(entry)
+    }
+    const container = (builder as { container?: { getModules?: () => Map<string, ModuleLike> } } | null)?.container
+    const modules = container?.getModules?.()
+    if (modules === undefined) return 'unresolved providers: unavailable'
+    const graph: Record<string, string[]> = {}
+    let unresolved = 0
+    let total = 0
+    for (const module of modules.values()) {
+        for (const [kind, wrappers] of [['provider', module.providers], ['controller', module.controllers], ['injectable', module.injectables]] as const) {
+            for (const [token, wrapper] of wrappers) {
+                total += 1
+                const resolved = wrapper.getInstanceByContextId?.({ id: 1 })?.isResolved
+                if (resolved === false) unresolved += 1
+                let deps: unknown[] = wrapper.inject ?? []
+                if (wrapper.inject === null || wrapper.inject === undefined) {
+                    const target = wrapper.metatype as object | undefined
+                    const types: unknown[] = typeof target === 'function' ? ((Reflect.getMetadata('design:paramtypes', target) as unknown[] | undefined) ?? []) : []
+                    const selfs = typeof target === 'function' ? ((Reflect.getMetadata('self:paramtypes', target) as { index: number, param: unknown }[] | undefined) ?? []) : []
+                    deps = types.map((type, index) => selfs.find((self) => self.index === index)?.param ?? type)
+                }
+                graph[`${module.metatype?.name ?? 'module'}:${kind}:${tokenName(token)}${resolved === false ? '[unresolved]' : ''}`] = deps.map(tokenName)
+            }
+        }
+    }
+    const dump = process.env.E2E_PROVIDER_GRAPH_DUMP
+    if (dump !== undefined && dump !== '') writeFileSync(dump, JSON.stringify(graph, null, 1))
+    return `unresolved (${String(unresolved)} of ${String(total)} across ${String(modules.size)} modules)${dump === undefined ? '' : `; graph written to ${dump}`}`
 }
 
 function normalizeError(error: unknown): Error {
@@ -822,6 +874,7 @@ export class SharedApiRuntimeManager {
         let moduleBuilder: ReturnType<typeof Test.createTestingModule> | null =
             null
         let moduleRef: TestingModule | null = null
+        let compilePhase = 'not started'
         let app: INestApplication | null = null
         let runtimeEnvSnapshot: Map<string, string | undefined> | null = null
 
@@ -932,6 +985,7 @@ export class SharedApiRuntimeManager {
                 `Nest testing module compile (${instanceKey})`,
                 60_000,
                 async () => {
+                    compilePhase = 'pool'
                     runtimePool = new Pool({
                         connectionString: databaseUrl,
                     })
@@ -951,7 +1005,9 @@ export class SharedApiRuntimeManager {
                         ...databaseContext,
                         moduleBuilder,
                     }
+                    compilePhase = 'options.onModuleBuilder'
                     await options.nest?.onModuleBuilder?.(moduleBuilderContext)
+                    compilePhase = 'plugins.onModuleBuilder'
                     await this.runPluginHook(
                         plugins,
                         'onModuleBuilder',
@@ -962,14 +1018,18 @@ export class SharedApiRuntimeManager {
                         moduleBuilder.setLogger(new Logger())
                     }
 
+                    compilePhase = 'moduleBuilder.compile()'
                     const compiled = await moduleBuilder.compile()
+                    compilePhase = 'compiled'
 
                     const moduleCompiledContext = {
                         ...databaseContext,
                         moduleBuilder,
                         moduleRef: compiled,
                     }
+                    compilePhase = 'options.onModuleCompiled'
                     await options.nest?.onModuleCompiled?.(moduleCompiledContext)
+                    compilePhase = 'plugins.onModuleCompiled'
                     await this.runPluginHook(
                         plugins,
                         'onModuleCompiled',
@@ -977,7 +1037,8 @@ export class SharedApiRuntimeManager {
                     )
 
                     return compiled
-                }
+                },
+                () => `phase=${compilePhase} | ${describeUnresolvedProviders(moduleBuilder)}`
             )
 
             await withWatchdog(
