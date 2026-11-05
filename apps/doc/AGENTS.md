@@ -64,12 +64,12 @@ trailing slashes). Keep importing from `react`/`react-dom`, and never set
 `withRedact` must sit **inside** `withMDX` (the MDX wrapper spreads
 `turbopack.rules` and appends; the other order would drop Redact's rules), and
 the adapter supports stable **Next 15.5 and 16.0–16.4 only** — which is why the
-`next` catalog is an exact `16.4.3` pin. Bump Next and `@tanstack/redact`
+`next` catalog is an exact `16.4.4` pin. Bump Next and `@tanstack/redact`
 together, and only to a listed version.
 
 ## Turbopack Filesystem Cache
 
-`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (pinned to `16.4.3`, where both are default-on — set explicitly so a re-pin cannot silently drop the build cache). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
+`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (pinned to `16.4.4`, where both are default-on — set explicitly so a re-pin cannot silently drop the build cache). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
 
 Compose mounts a named volume (`doc_next_cache_dev` / `doc_next_cache_prod`) over the `cache/` directory only, so the dist-dir lock at `.next/dev/lock` stays on the container layer. See `.docs/guides/DOCKER-BUILD-STRATEGIES.md`.
 

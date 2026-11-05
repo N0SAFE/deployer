@@ -1,10 +1,11 @@
-import { Test } from '@nestjs/testing';
+import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 import { Effect } from 'effect';
 import { firstValueFrom, take, toArray } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 
 import { DockerEngine } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import {
     runtimeConfigurationContextSchema,
     meshRuntimeConfigSchema,
@@ -13,45 +14,46 @@ import {
     userRuntimeConfigSchema,
     type ResolvedRuntimeConfiguration,
 } from '@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema';
-import { RuntimeConfigurationAccessorService } from '@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service';
 import { DeploymentProviderBuilderRunnerStateMachineService } from '@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service';
-import { DomainRoutingService } from '@deployer/shared/core/modules/domain/services/domain-routing.service';
-import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service';
 import { SwarmCluster } from "@deployer/swarm";
 
-import { CustomSourceProviderService } from "@/modules/providers/code/custom/services/custom-source-provider.service";
-import { GithubSourceProviderService } from "@/modules/providers/code/github/services/github-source-provider.service";
-import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
-import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
-import { UploadSourceProviderService } from "@/modules/providers/code/upload/services/upload-source-provider.service";
+import { CustomSourceProvider } from "@/modules/providers/code/custom/services/custom-source-provider.service";
+import { makeGithubSourceProvider } from "@/modules/providers/code/github/services/github-source-provider.service";
+import { makeCodeProviderRegistry } from "@/modules/providers/code/shared/code-provider-registry.service";
+import { makeUploadSourceProvider } from "@/modules/providers/code/upload/services/upload-source-provider.service";
 import { DockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
-import { RunnerEnvPort, RunnerTraefikPort } from "@/modules/runners/runners.ports";
-import {
-    RuntimeRunnerRegistry,
-    RuntimeRunnerRegistryService,
-} from "@/modules/runners/runtime-runner-registry.service";
+import { RunnerEnvPort } from "@/modules/runners/runners.ports";
+import { RuntimeRunnerRegistry } from "@/modules/runners/runtime-runner-registry.service";
 import { SwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
 import { run as runEffect } from "@/modules/runners/testing";
 
 import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
-import { DeploymentEventService } from '../events/deployment-event.service';
-import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
-import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
+import { makeDeploymentQueueLifecycle } from '../queue/deployment-queue-lifecycle.service';
 import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository';
-import { LocalStorageProviderService } from '../storage/local/local-storage-provider.service';
-import { NfsStorageProviderService } from '../storage/nfs/nfs-storage-provider.service';
-import { RuntimeConfigurationStoragePolicyResolverService } from '../storage/policy/runtime-configuration-storage-policy-resolver.service';
-import { ServiceCustomDataStoragePolicyResolverService } from '../storage/policy/service-custom-data-storage-policy-resolver.service';
-import { ServiceTopLevelStoragePolicyResolverService } from '../storage/policy/service-top-level-storage-policy-resolver.service';
-import { StoragePolicyResolverRegistryService } from '../storage/policy/storage-policy-resolver-registry.service';
-import { S3StorageProviderService } from '../storage/s3/s3-storage-provider.service';
-import { StorageProviderRegistryService } from '../storage/storage-provider-registry.service';
-import { VolumeStorageProviderService } from '../storage/volume/volume-storage-provider.service';
+import { StoragePolicyResolverRegistry } from '../storage/policy/storage-policy-resolver-registry.service';
+import { StorageProviderRegistry } from '../storage/storage-provider-registry.service';
 
-import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
-import { DeploymentService } from './deployment.service';
+import { makeDeploymentExecutionWorkflow } from './deployment-execution-workflow.service';
+import { makeDeploymentService, type DeploymentServiceShape } from './deployment.service';
 
-import type { TestingModule } from '@nestjs/testing';
+/** The service answers Effects; the suite reads better awaiting them, so each Effect-returning method becomes a Promise. */
+type Awaitable<T> = {
+    [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer R, unknown, never> ? (...args: A) => Promise<R> : T[K];
+};
+
+function awaitable<T extends object>(shape: T): Awaitable<T> {
+    return Object.fromEntries(
+        Object.entries(shape).map(([name, member]) => [
+            name,
+            typeof member === 'function'
+                ? (...args: unknown[]) => {
+                      const result = (member as (...a: unknown[]) => unknown)(...args);
+                      return Effect.isEffect(result) ? runPromiseUnwrapped(result as Effect.Effect<unknown>) : result;
+                  }
+                : member,
+        ]),
+    ) as Awaitable<T>;
+}
 
 async function* fromArray<T>(items: T[]): AsyncGenerator<T> {
     for (const item of items) {
@@ -61,7 +63,7 @@ async function* fromArray<T>(items: T[]): AsyncGenerator<T> {
 }
 
 describe('DeploymentService', () => {
-    let service: DeploymentService;
+    let service: Awaitable<DeploymentServiceShape>;
     let mockRepository: any;
     let mockDeploymentEventService: any;
     let mockCoreEventSyncService: any;
@@ -216,7 +218,7 @@ describe('DeploymentService', () => {
         timestamp: now,
     };
 
-    beforeEach(async () => {
+    beforeEach(() => {
         mockRepository = {
             findMany: vi.fn(),
             findById: vi.fn(),
@@ -258,7 +260,7 @@ describe('DeploymentService', () => {
         };
 
         mockGitService = {
-            validateRepository: vi.fn(),
+            validateRepository: vi.fn(() => Effect.succeed(false)),
         };
 
         mockContainers = {
@@ -276,11 +278,11 @@ describe('DeploymentService', () => {
         };
 
         mockDomainRoutingService = {
-            promotePreviewToStable: vi.fn().mockResolvedValue(undefined),
+            promotePreviewToStable: vi.fn(() => Effect.succeed({ promoted: true, host: null })),
         };
 
         mockRuntimeConfigurationAccessor = {
-            resolveForDeployment: vi.fn(() => defaultResolvedRuntimeConfiguration()),
+            resolveForDeployment: vi.fn(() => Effect.succeed(defaultResolvedRuntimeConfiguration())),
         };
 
         mockIngressRefresher = {
@@ -299,235 +301,68 @@ describe('DeploymentService', () => {
             findByUploadId: vi.fn(),
         };
 
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                {
-                    provide: DeploymentService,
-                    useFactory: (
-                        sourceProviderRegistryService: CodeProviderRegistryService,
-                        storageProviderRegistryService: StorageProviderRegistryService,
-                        storagePolicyResolverRegistryService: StoragePolicyResolverRegistryService,
-                        deploymentExecutionWorkflowService: DeploymentExecutionWorkflowService,
-                        deploymentQueueLifecycleService: DeploymentQueueLifecycleService,
-                        deploymentProviderBuilderRunnerStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
-                        uploadBundleRegistryService: UploadBundleRegistryService,
-                    ) =>
-                        new DeploymentService(
-                            mockRepository,
-                            mockDeploymentEventService,
-                            mockCoreEventSyncService,
-                            sourceProviderRegistryService,
-                            storageProviderRegistryService,
-                            storagePolicyResolverRegistryService,
-                            deploymentExecutionWorkflowService,
-                            deploymentQueueLifecycleService,
-                            deploymentProviderBuilderRunnerStateMachineService,
-                            uploadBundleRegistryService,
-                            mockProjectAccessService,
-                            mockDomainRoutingService,
-                            mockRuntimeConfigurationAccessor,
-                            mockIngressRefresher,
-                            { runUnwrapped: (effect: any) => Effect.runPromise(effect) },
-                            // Approval has its own spec; this suite's deploys are assumed approved.
-                            { require: () => Effect.void },
-                        ),
-                    inject: [
-                        CodeProviderRegistryService,
-                        StorageProviderRegistryService,
-                        StoragePolicyResolverRegistryService,
-                        DeploymentExecutionWorkflowService,
-                        DeploymentQueueLifecycleService,
-                        DeploymentProviderBuilderRunnerStateMachineService,
-                        UploadBundleRegistryService,
-                        DomainRoutingService,
-                        RuntimeConfigurationAccessorService,
-                        TraefikConfigRefresher,
-                    ],
-                },
-                {
-                    provide: DeploymentProviderBuilderRunnerStateMachineService,
-                    useFactory: () => new DeploymentProviderBuilderRunnerStateMachineService(),
-                },
-                {
-                    provide: DeploymentEventService,
-                    useFactory: () => mockDeploymentEventService,
-                },
-                {
-                    provide: DomainRoutingService,
-                    useFactory: () => mockDomainRoutingService,
-                },
-                {
-                    provide: RuntimeConfigurationAccessorService,
-                    useFactory: () => mockRuntimeConfigurationAccessor,
-                },
-                {
-                    provide: TraefikConfigRefresher,
-                    useFactory: () => mockIngressRefresher,
-                },
-                {
-                    provide: GithubSourceProviderService,
-                    useFactory: () => new GithubSourceProviderService(mockGitService),
-                },
-                {
-                    provide: CodeProviderRegistryService,
-                    useFactory: (
-                        githubSourceProviderService: GithubSourceProviderService,
-                        uploadSourceProviderService: UploadSourceProviderService,
-                        customSourceProviderService: CustomSourceProviderService,
-                    ) =>
-                        new CodeProviderRegistryService([
-                            githubSourceProviderService,
-                            uploadSourceProviderService,
-                            customSourceProviderService,
-                        ]),
-                    inject: [GithubSourceProviderService, UploadSourceProviderService, CustomSourceProviderService],
-                },
-                {
-                    provide: UploadSourceProviderService,
-                    useFactory: (uploadBundleRegistryService: UploadBundleRegistryService) =>
-                        new UploadSourceProviderService(uploadBundleRegistryService),
-                    inject: [UploadBundleRegistryService],
-                },
-                {
-                    provide: UploadBundleRegistryService,
-                    useFactory: () => mockUploadBundleRegistryService,
-                },
-                {
-                    provide: CustomSourceProviderService,
-                    useFactory: () => new CustomSourceProviderService(),
-                },
-                {
-                    provide: LocalStorageProviderService,
-                    useFactory: () => new LocalStorageProviderService(),
-                },
-                {
-                    provide: S3StorageProviderService,
-                    useFactory: () => new S3StorageProviderService(),
-                },
-                {
-                    provide: NfsStorageProviderService,
-                    useFactory: () => new NfsStorageProviderService(),
-                },
-                {
-                    provide: VolumeStorageProviderService,
-                    useFactory: () => new VolumeStorageProviderService(),
-                },
-                {
-                    provide: StorageProviderRegistryService,
-                    useFactory: (
-                        localStorageProviderService: LocalStorageProviderService,
-                        s3StorageProviderService: S3StorageProviderService,
-                        nfsStorageProviderService: NfsStorageProviderService,
-                        volumeStorageProviderService: VolumeStorageProviderService,
-                    ) =>
-                        new StorageProviderRegistryService([
-                            localStorageProviderService,
-                            s3StorageProviderService,
-                            nfsStorageProviderService,
-                            volumeStorageProviderService,
-                        ]),
-                    inject: [
-                        LocalStorageProviderService,
-                        S3StorageProviderService,
-                        NfsStorageProviderService,
-                        VolumeStorageProviderService,
-                    ],
-                },
-                {
-                    provide: RuntimeConfigurationStoragePolicyResolverService,
-                    useFactory: () => new RuntimeConfigurationStoragePolicyResolverService(),
-                },
-                {
-                    provide: ServiceCustomDataStoragePolicyResolverService,
-                    useFactory: () => new ServiceCustomDataStoragePolicyResolverService(),
-                },
-                {
-                    provide: ServiceTopLevelStoragePolicyResolverService,
-                    useFactory: () => new ServiceTopLevelStoragePolicyResolverService(),
-                },
-                {
-                    provide: StoragePolicyResolverRegistryService,
-                    useFactory: (
-                        runtimeConfigurationStoragePolicyResolverService: RuntimeConfigurationStoragePolicyResolverService,
-                        serviceCustomDataStoragePolicyResolverService: ServiceCustomDataStoragePolicyResolverService,
-                        serviceTopLevelStoragePolicyResolverService: ServiceTopLevelStoragePolicyResolverService,
-                    ) =>
-                        new StoragePolicyResolverRegistryService([
-                            runtimeConfigurationStoragePolicyResolverService,
-                            serviceCustomDataStoragePolicyResolverService,
-                            serviceTopLevelStoragePolicyResolverService,
-                        ]),
-                    inject: [
-                        RuntimeConfigurationStoragePolicyResolverService,
-                        ServiceCustomDataStoragePolicyResolverService,
-                        ServiceTopLevelStoragePolicyResolverService,
-                    ],
-                },
-                {
-                    provide: RuntimeRunnerRegistryService,
-                    // The registry needs all seven runners, so the test builds the same set
-                    // `RunnersLive` does. Five need only the mocked docker runner; swarm
-                    // additionally needs a cluster, mocked here because this suite never
-                    // exercises the swarm path. The Promise face runs it on a stand-in runtime.
-                    useFactory: () => {
-                        const services = {
-                            // `DEPLOYER_PREFIX` is the only env key read; "" is the unprefixed default install.
-                            env: { get: vi.fn(() => "") } as never,
-                        };
-                        return new RuntimeRunnerRegistryService({
-                            run: (effect: Effect.Effect<unknown>) =>
-                                runEffect(
-                                    effect.pipe(
-                                        Effect.provideService(RuntimeRunnerRegistry, new RuntimeRunnerRegistry.live()),
-                                        Effect.provideService(DockerRuntimeRunner, new DockerRuntimeRunner.live()),
-                                        Effect.provideService(SwarmRuntimeRunner, new SwarmRuntimeRunner.live()),
-                                        Effect.provideService(DockerEngine, {
-                                            containers: mockContainers,
-                                            swarmServices: {},
-                                            networks: {},
-                                        } as never),
-                                        Effect.provideService(RunnerTraefikPort, mockTraefikService as never),
-                                        Effect.provideService(SwarmCluster, {
-                                            getSwarmState: vi.fn().mockResolvedValue({ active: false }),
-                                        } as never),
-                                        Effect.provideService(RunnerEnvPort, services.env),
-                                    ),
-                                ),
-                        } as never);
-                    },
-                },
-                {
-                    provide: DeploymentExecutionWorkflowService,
-                    useFactory: (
-                        runtimeRunnerRegistryService: RuntimeRunnerRegistryService,
-                        domainRoutingService: DomainRoutingService,
-                    ) =>
-                        new DeploymentExecutionWorkflowService(
-                            mockRepository,
-                            runtimeRunnerRegistryService,
-                            mockDeploymentEventService,
-                            domainRoutingService,
-                            { external: vi.fn() } as never,
-                        ),
-                    inject: [RuntimeRunnerRegistryService, DomainRoutingService],
-                },
-                {
-                    provide: DeploymentQueueLifecycleService,
-                    useFactory: () =>
-                        new DeploymentQueueLifecycleService(
-                            undefined as never,
-                            mockDeploymentQueueEventService,
-                            makeInMemoryDeploymentQueueRepository(),
-                        ),
-                },
-                {
-                    provide: DeploymentQueueEventService,
-                    useFactory: () => mockDeploymentQueueEventService,
-                },
-            ],
-        }).compile();
-
-        service = module.get<DeploymentService>(DeploymentService);
+        const uploadBundles = {
+            register: (record: any) => Effect.sync(() => mockUploadBundleRegistryService.register(record)),
+            findByUploadId: (id: string) => Effect.sync(() => mockUploadBundleRegistryService.findByUploadId(id)),
+        };
+        // The runners run on a stand-in runtime that holds what `RunnersLive` provides: the mocked docker runner, and a
+        // swarm cluster this suite never exercises.
+        const runnerHost = {
+            run: (effect: Effect.Effect<unknown>) =>
+                runEffect(
+                    effect.pipe(
+                        Effect.provideService(RuntimeRunnerRegistry, new RuntimeRunnerRegistry.live()),
+                        Effect.provideService(DockerRuntimeRunner, new DockerRuntimeRunner.live()),
+                        Effect.provideService(SwarmRuntimeRunner, new SwarmRuntimeRunner.live()),
+                        Effect.provideService(DockerEngine, {
+                            containers: mockContainers,
+                            swarmServices: {},
+                            networks: {},
+                        } as never),
+                        Effect.provideService(TraefikService, mockTraefikService as never),
+                        Effect.provideService(SwarmCluster, {
+                            getSwarmState: vi.fn().mockResolvedValue({ active: false }),
+                        } as never),
+                        // `DEPLOYER_PREFIX` is the only env key read; "" is the unprefixed default install.
+                        Effect.provideService(RunnerEnvPort, { get: vi.fn(() => "") } as never),
+                    ),
+                ),
+        };
+        const workflow = makeDeploymentExecutionWorkflow({
+            deploymentRepository: mockRepository,
+            runtimeRunnerRegistry: new RuntimeRunnerRegistry.live(),
+            host: runnerHost as never,
+            deploymentEventService: mockDeploymentEventService,
+            domainRoutingService: mockDomainRoutingService,
+            egress: { external: vi.fn() } as never,
+        });
+        const built = makeDeploymentService({
+            deploymentRepository: mockRepository,
+            deploymentEventService: mockDeploymentEventService,
+            coreEventSyncService: mockCoreEventSyncService,
+            codeProviders: makeCodeProviderRegistry([
+                makeGithubSourceProvider({ git: mockGitService }),
+                makeUploadSourceProvider({ bundles: uploadBundles }),
+                CustomSourceProvider.live,
+            ]),
+            storageProviders: StorageProviderRegistry.live,
+            storagePolicies: StoragePolicyResolverRegistry.live,
+            workflow,
+            queue: makeDeploymentQueueLifecycle({
+                repository: makeInMemoryDeploymentQueueRepository(),
+                events: mockDeploymentQueueEventService,
+            }),
+            deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService.live,
+            uploadBundles,
+            projectAccessService: mockProjectAccessService,
+            domainRoutingService: mockDomainRoutingService,
+            runtimeConfigurationAccessor: mockRuntimeConfigurationAccessor,
+            ingressRefresher: mockIngressRefresher,
+            host: { runUnwrapped: (effect: Effect.Effect<unknown>) => runPromiseUnwrapped(effect) } as never,
+            // Approval has its own spec; this suite's deploys are assumed approved.
+            approvalGuard: { require: () => Effect.void } as never,
+        });
+        service = awaitable(built);
         vi.clearAllMocks();
 
         mockRepository.getServiceProjectId.mockResolvedValue('proj-1');
@@ -583,18 +418,24 @@ describe('DeploymentService', () => {
         mockContainers.create.mockReturnValue(Effect.succeed({ id: 'container-1' }));
         mockContainers.start.mockReturnValue(Effect.succeed(undefined));
         mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
-        mockTraefikService.syncServiceConfiguration.mockResolvedValue({
+        mockTraefikService.syncServiceConfiguration.mockReturnValue(Effect.succeed({
             configId: 'cfg-1',
             configName: 'service-route',
             success: true,
             action: 'updated',
             message: 'ok',
-        });
-        mockTraefikService.getHealthStatus.mockResolvedValue({ healthy: true });
+        }));
+        mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true }));
     });
 
     it('should be defined', () => {
         expect(service).toBeDefined();
+    });
+
+    it('registers the deployment event namespace when it starts', async () => {
+        await service.onStart();
+
+        expect(mockCoreEventSyncService.registerNamespaceAdapter).toHaveBeenCalledWith('deployment', expect.any(Function));
     });
 
     // ========================================
@@ -665,7 +506,7 @@ describe('DeploymentService', () => {
     describe('triggerDeployment', () => {
         it('should create a deployment record and return it', async () => {
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -694,7 +535,7 @@ describe('DeploymentService', () => {
 
         it('should enqueue a deploy orchestration queue job', async () => {
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -771,7 +612,7 @@ describe('DeploymentService', () => {
                 },
             ]);
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             await service.triggerDeployment(
                 {
@@ -815,7 +656,7 @@ describe('DeploymentService', () => {
         });
 
         it('should reject github trigger when repository is not accessible', async () => {
-            mockGitService.validateRepository.mockResolvedValue(false);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(false));
 
             const input = {
                 serviceId: 'service-1',
@@ -877,7 +718,7 @@ describe('DeploymentService', () => {
 
         it('should allow platform operator to trigger deployment without project membership', async () => {
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -1050,7 +891,7 @@ describe('DeploymentService', () => {
                     },
                 },
             });
-            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue({
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(Effect.succeed({
                 ...defaultResolvedRuntimeConfiguration(),
                 service: {
                     ...defaultResolvedRuntimeConfiguration().service,
@@ -1067,10 +908,10 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
-            });
+            }));
 
             mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
 
             const input = {
                 serviceId: 'service-1',
@@ -1318,9 +1159,9 @@ describe('DeploymentService', () => {
 
             mockRepository.create.mockResolvedValue(queuedDeployment);
             mockRepository.findById.mockResolvedValue(queuedDeployment);
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
             mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
-            mockTraefikService.getHealthStatus.mockResolvedValue({ healthy: true, route: 'https://app.example.com' });
+            mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true, route: 'https://app.example.com' }));
 
             const triggered = await service.triggerDeployment(
                 {
@@ -1884,13 +1725,13 @@ describe('DeploymentService', () => {
                 return Promise.resolve(null);
             });
 
-            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue({
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(Effect.succeed({
                 ...defaultResolvedRuntimeConfiguration(),
                 project: {
                     ...defaultResolvedRuntimeConfiguration().project,
                     metadata: { deploymentStateMachine: { rollback: { enabled: false } } },
                 },
-            });
+            }));
 
             await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
@@ -2130,7 +1971,7 @@ describe('DeploymentService', () => {
 
     describe('retryDeployment', () => {
         const enableRetryCheckout = () => {
-            mockGitService.validateRepository.mockResolvedValue(true);
+            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
         };
 
         it('should create a retry deployment for failed deployment', async () => {
@@ -2384,13 +2225,11 @@ describe('DeploymentService', () => {
 
     describe('streamQueryEvents', () => {
         it('should emit sequenced replay events before live events', async () => {
-            vi.spyOn(service, 'getFilteredReplayEvents').mockResolvedValue([
-                {
-                    type: 'statusChanged',
-                    deploymentId: 'deploy-1',
-                    status: 'queued',
-                } as any,
+            // The replay is read through the repository (the service calls its own method directly, so it cannot be spied).
+            mockRepository.findRecentDeployments.mockResolvedValue([
+                { deployment: { ...mockDeployment, phase: null, status: 'queued' }, projectId: undefined },
             ]);
+            mockRepository.findRecentLogs.mockResolvedValue([]);
 
             mockDeploymentEventService.subscribe.mockImplementation((name: string) => {
                 if (name === 'statusChanged') {
@@ -2406,6 +2245,7 @@ describe('DeploymentService', () => {
 
             const iterable = service.streamQueryEvents({
                 deploymentId: 'deploy-1',
+                eventType: 'statusChanged',
                 replay: true,
                 replayLimit: 10,
             });

@@ -1,4 +1,3 @@
-import { Injectable, Optional } from "@nestjs/common";
 import { Observable } from "rxjs";
 import * as z from "zod/v4";
 
@@ -7,7 +6,7 @@ import { setupStreamEventSchema } from "@deployer/contracts-entities";
 import type { SetupStreamEvent } from "@deployer/contracts-entities";
 import { contractBuilder } from "@deployer/events";
 
-import { CoreEventStreamPoolService } from "../../events/base/index";
+import { type CoreEventStreamPoolServiceShape } from "../../events/base/index";
 import { BasePooledEventService } from "../../events/base/index";
 
 export const setupEventContracts = {
@@ -19,12 +18,8 @@ export const setupEventContracts = {
 
 export type SetupEventContracts = typeof setupEventContracts;
 
-@Injectable()
 export class SetupEventService extends BasePooledEventService<SetupEventContracts, "setup"> {
-    constructor(
-        @Optional()
-        streamPool?: CoreEventStreamPoolService,
-    ) {
+    constructor(streamPool?: CoreEventStreamPoolServiceShape) {
         super("setup", setupEventContracts, streamPool);
     }
 

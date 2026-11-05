@@ -1,180 +1,192 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
-import { Injectable, Logger } from '@nestjs/common';
-import { Cause, Effect, Exit, Layer } from 'effect';
-import { simpleGit } from 'simple-git';
+import { Cause, Context, Effect, Layer } from "effect";
+import { simpleGit } from "simple-git";
 
-import { FileSystem, type FsError } from '@deployer/effect-infra';
-import { ArchiveExtractor, type ArchiveError } from '@deployer/effect-platform';
-import { AppError } from "@deployer/errors";
+import { FileSystem, type FsError } from "@deployer/effect-infra";
+import { ArchiveExtractor, type ArchiveError } from "@deployer/effect-platform";
+import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 
-import { assertGitRef, assertRepositoryUrl, repositoryUrlProblem } from './git-input';
-@Injectable()
-export class GitService {
-    /**
-     * Archive extraction runs on the Effect platform layer. `GitService` itself stays a
-     * Promise-API Nest class until its consumers migrate, so the layer is run here at the edge.
-     */
-    private static readonly extractorLayer = ArchiveExtractor.layer.pipe(Layer.provide(FileSystem.layer));
-    private readonly logger = new Logger(GitService.name);
-    private readonly workspaceDir = process.env.WORKSPACE_DIR ?? '/tmp/deployer-workspace';
-    constructor() {
-        // Ensure workspace directory exists
-        if (!fs.existsSync(this.workspaceDir)) {
-            fs.mkdirSync(this.workspaceDir, { recursive: true });
-        }
-    }
-    async cloneRepository(options: {
+import {
+    ArchiveExtractionFailure,
+    ArchiveRejected,
+    GitCommandFailure,
+    GitInputInvalid,
+    GitNoCommits,
+} from "../errors";
+
+import { gitRefProblem, repositoryUrlProblem, type GitRefField } from "./git-input";
+
+export type CommitInfo = { sha: string; message: string; author: string; date: Date };
+
+/**
+ * Local git operations over a per-deployment workspace directory: clone, extract an upload, describe the head commit,
+ * clean up, and probe a remote. Every input that reaches a `git` argv is validated first.
+ *
+ * It owns one resource (the workspace directory), so it is built once over its path and declares `onStart` to create it.
+ */
+export type GitServiceShape = ServiceLifecycleShape & {
+    /** Shallow-clone a repository (optionally detached at `commit`) into the deployment's workspace; the path. */
+    readonly cloneRepository: (options: {
         url: string;
         branch?: string;
         commit?: string;
         deploymentId: string;
-    }): Promise<string> {
-        const { deploymentId, commit } = options;
-        // Every value below reaches a `git` argv; validate before any filesystem work.
-        const url = assertRepositoryUrl(options.url);
-        const branch = assertGitRef(options.branch ?? 'main', 'branch');
-        const commitRef = commit === undefined ? undefined : assertGitRef(commit, 'commit');
-        const repoPath = path.join(this.workspaceDir, `deployment-${deploymentId}`);
-        this.logger.log(`Cloning repository ${url} to ${repoPath}`);
-        // Clean up existing directory
-        if (fs.existsSync(repoPath)) {
-            fs.rmSync(repoPath, { recursive: true, force: true });
-        }
-        try {
-            const git = simpleGit();
-            // `--` ends option parsing, so a hostile URL can never become a git flag.
-            await git.raw(['clone', '--depth', '1', '--branch', branch, '--', url, repoPath]);
-            // If specific commit is requested, checkout that commit
-            if (commitRef !== undefined) {
-                const repoGit = simpleGit(repoPath);
-                await repoGit.raw(['checkout', '--detach', commitRef, '--']);
-            }
-            this.logger.log(`Repository cloned successfully to ${repoPath}`);
-            return repoPath;
-        }
-        catch (error) {
-            this.logger.error(`Failed to clone repository ${url}:`, error);
-            // Clean up on failure
-            if (fs.existsSync(repoPath)) {
-                fs.rmSync(repoPath, { recursive: true, force: true });
-            }
-            throw error;
-        }
-    }
-    async extractUploadedFile(options: {
+    }) => Effect.Effect<string, GitInputInvalid | GitCommandFailure>;
+    /** Extract an uploaded zip/tar/tar.gz (format sniffed from content) into the workspace; the path. */
+    readonly extractUploadedFile: (options: {
         filePath: string;
         deploymentId: string;
-    }): Promise<string> {
-        const { filePath, deploymentId } = options;
-        const extractPath = path.join(this.workspaceDir, `deployment-${deploymentId}`);
-        this.logger.log(`Extracting uploaded file ${filePath} to ${extractPath}`);
-        // Clean up existing directory
-        if (fs.existsSync(extractPath)) {
-            fs.rmSync(extractPath, { recursive: true, force: true });
-        }
-        fs.mkdirSync(extractPath, { recursive: true });
-        try {
-            // The format is sniffed from the content (zip / tar / tar.gz), never trusted from the file name.
-            await this.extractArchive(filePath, extractPath);
-            this.logger.log(`File extracted successfully to ${extractPath}`);
-            return extractPath;
-        }
-        catch (error) {
-            this.logger.error(`Failed to extract file ${filePath}:`, error);
-            // Clean up on failure
-            if (fs.existsSync(extractPath)) {
-                fs.rmSync(extractPath, { recursive: true, force: true });
-            }
-            throw error;
-        }
-    }
-    async getCommitInfo(repoPath: string): Promise<{
-        sha: string;
-        message: string;
-        author: string;
-        date: Date;
-    }> {
-        try {
-            const git = simpleGit(repoPath);
-            const log = await git.log({ maxCount: 1 });
-            const latestCommit = log.latest;
-            if (!latestCommit) {
-                throw new AppError('No commits found in repository', 'INTERNAL_ERROR');
-            }
-            return {
-                sha: latestCommit.hash,
-                message: latestCommit.message,
-                author: latestCommit.author_name,
-                date: new Date(latestCommit.date)
-            };
-        }
-        catch (error) {
-            this.logger.error(`Failed to get commit info from ${repoPath}:`, error);
-            throw error;
-        }
-    }
-    cleanupDeployment(deploymentId: string): void {
-        const repoPath = path.join(this.workspaceDir, `deployment-${deploymentId}`);
-        if (fs.existsSync(repoPath)) {
-            this.logger.log(`Cleaning up deployment workspace: ${repoPath}`);
-            fs.rmSync(repoPath, { recursive: true, force: true });
-        }
-    }
-    async validateRepository(url: string): Promise<boolean> {
-        const problem = repositoryUrlProblem(url);
-        if (problem !== undefined) {
-            // Callers turn `false` into "repository not reachable"; the reason is the log line.
-            this.logger.warn(`Rejected repository URL (${problem})`);
-            return false;
-        }
-        try {
-            const git = simpleGit();
-            await git.raw(['ls-remote', '--', url]);
-            return true;
-        }
-        catch (error) {
-            this.logger.error(`Repository validation failed for ${url}:`, error);
-            return false;
-        }
-    }
-    private async extractArchive(filePath: string, extractPath: string): Promise<void> {
-        const exit = await Effect.runPromiseExit(
-            Effect.gen(function* () {
-                return yield* (yield* ArchiveExtractor).extract(filePath, extractPath);
-            }).pipe(Effect.provide(GitService.extractorLayer)),
-        );
-        if (Exit.isSuccess(exit)) {
-            return;
-        }
-        const failure = exit.cause.reasons.find((reason) => reason._tag === 'Fail');
-        if (failure === undefined) {
-            // A defect or an interruption: not an archive problem, so do not blame the upload.
-            throw new AppError(`Failed to extract archive: ${Cause.pretty(exit.cause)}`, 'INTERNAL_ERROR');
-        }
-        throw GitService.toAppError(failure.error);
-    }
-    /** Hostile or malformed uploads are the caller's fault (400); our own filesystem failing is not. */
-    private static toAppError(error: ArchiveError | FsError): AppError {
-        switch (error._tag) {
-            case 'UnsafePath':
-                return new AppError(`Invalid archive: unsafe path "${error.entry}" (${error.reason})`, 'BAD_REQUEST');
-            case 'SymlinkEscape':
-                return new AppError(`Invalid archive: ${error.kind} entries are not allowed ("${error.entry}")`, 'BAD_REQUEST');
-            case 'TooManyEntries':
-                return new AppError(`Invalid archive: more than ${String(error.limit)} entries`, 'BAD_REQUEST');
-            case 'TooLarge':
-                return new AppError(`Invalid archive: ${error.what} exceeds the size limit`, 'BAD_REQUEST');
-            case 'NestingTooDeep':
-                return new AppError(`Invalid archive: path nested deeper than ${String(error.limit)} levels`, 'BAD_REQUEST');
-            case 'UnsupportedFormat':
-                return new AppError(`Unsupported archive: ${error.reason}`, 'BAD_REQUEST');
-            case 'Corrupt':
-                return new AppError(`Invalid archive: ${error.reason}`, 'BAD_REQUEST');
-            case 'DestinationNotEmpty':
-            case 'FsError':
-                return new AppError(`Failed to extract archive: ${error._tag === 'FsError' ? error.message : 'destination is not empty'}`, 'INTERNAL_ERROR');
-        }
+    }) => Effect.Effect<string, ArchiveRejected | ArchiveExtractionFailure>;
+    readonly getCommitInfo: (repoPath: string) => Effect.Effect<CommitInfo, GitNoCommits | GitCommandFailure>;
+    /** Remove the deployment's workspace. */
+    readonly cleanupDeployment: (deploymentId: string) => Effect.Effect<void>;
+    /** Whether the remote answers `ls-remote`. Never fails: a rejected URL or an unreachable remote is `false`. */
+    readonly validateRepository: (url: string) => Effect.Effect<boolean>;
+    readonly onStart: () => Effect.Effect<void>;
+};
+
+const extractorLayer = ArchiveExtractor.layer.pipe(Layer.provide(FileSystem.layer));
+
+const removeDir = (dir: string): Effect.Effect<void> =>
+    Effect.sync(() => {
+        if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+const checked = (value: string, field: GitRefField): Effect.Effect<string, GitInputInvalid> => {
+    const problem = gitRefProblem(value);
+    return problem === undefined ? Effect.succeed(value) : Effect.fail(new GitInputInvalid({ field, reason: `"${value}": ${problem}` }));
+};
+
+/** Hostile or malformed uploads are the caller's fault (400); our own filesystem failing is not. */
+function toExtractionError(error: ArchiveError | FsError): ArchiveRejected | ArchiveExtractionFailure {
+    switch (error._tag) {
+        case "UnsafePath":
+            return new ArchiveRejected({ reason: `Invalid archive: unsafe path "${error.entry}" (${error.reason})` });
+        case "SymlinkEscape":
+            return new ArchiveRejected({ reason: `Invalid archive: ${error.kind} entries are not allowed ("${error.entry}")` });
+        case "TooManyEntries":
+            return new ArchiveRejected({ reason: `Invalid archive: more than ${String(error.limit)} entries` });
+        case "TooLarge":
+            return new ArchiveRejected({ reason: `Invalid archive: ${error.what} exceeds the size limit` });
+        case "NestingTooDeep":
+            return new ArchiveRejected({ reason: `Invalid archive: path nested deeper than ${String(error.limit)} levels` });
+        case "UnsupportedFormat":
+            return new ArchiveRejected({ reason: `Unsupported archive: ${error.reason}` });
+        case "Corrupt":
+            return new ArchiveRejected({ reason: `Invalid archive: ${error.reason}` });
+        case "DestinationNotEmpty":
+            return new ArchiveExtractionFailure({ reason: "destination is not empty" });
+        case "FsError":
+            return new ArchiveExtractionFailure({ reason: error.message });
     }
 }
+
+export function makeGitService(options: { readonly workspaceDir: string }): GitServiceShape {
+    const { workspaceDir } = options;
+    const workspaceOf = (deploymentId: string): string => path.join(workspaceDir, `deployment-${deploymentId}`);
+
+    const git = (operation: string, run: () => Promise<unknown>) =>
+        Effect.tryPromise({ try: run, catch: (cause) => new GitCommandFailure({ operation, cause }) });
+
+    return {
+        onStart: () => Effect.sync(() => { fs.mkdirSync(workspaceDir, { recursive: true }); }),
+
+        cloneRepository: ({ url: rawUrl, branch: rawBranch, commit, deploymentId }) =>
+            Effect.gen(function* () {
+                // Every value below reaches a `git` argv; validate before any filesystem work.
+                const urlProblem = repositoryUrlProblem(rawUrl);
+                if (urlProblem !== undefined) {
+                    return yield* new GitInputInvalid({
+                        field: "repositoryUrl",
+                        reason: `${urlProblem}. Use https://host/path, ssh://git@host/path or git@host:path.`,
+                    });
+                }
+                const branch = yield* checked(rawBranch ?? "main", "branch");
+                const commitRef = commit === undefined ? undefined : yield* checked(commit, "commit");
+                const repoPath = workspaceOf(deploymentId);
+
+                yield* Effect.logInfo(`Cloning repository ${rawUrl} to ${repoPath}`);
+                yield* removeDir(repoPath);
+
+                yield* Effect.gen(function* () {
+                    // `--` ends option parsing, so a hostile URL can never become a git flag.
+                    yield* git("clone", () => simpleGit().raw(["clone", "--depth", "1", "--branch", branch, "--", rawUrl, repoPath]));
+                    if (commitRef !== undefined) {
+                        yield* git("checkout", () => simpleGit(repoPath).raw(["checkout", "--detach", commitRef, "--"]));
+                    }
+                }).pipe(
+                    // A failed clone leaves nothing behind.
+                    Effect.tapError((error) => Effect.logError(`Failed to clone repository ${rawUrl}: ${error.message}`).pipe(Effect.andThen(removeDir(repoPath)))),
+                );
+
+                yield* Effect.logInfo(`Repository cloned successfully to ${repoPath}`);
+                return repoPath;
+            }),
+
+        extractUploadedFile: ({ filePath, deploymentId }) =>
+            Effect.gen(function* () {
+                const extractPath = workspaceOf(deploymentId);
+                yield* Effect.logInfo(`Extracting uploaded file ${filePath} to ${extractPath}`);
+                yield* removeDir(extractPath);
+                yield* Effect.sync(() => { fs.mkdirSync(extractPath, { recursive: true }); });
+
+                yield* Effect.gen(function* () {
+                    const extractor = yield* ArchiveExtractor;
+                    // The format is sniffed from the content, never trusted from the file name.
+                    yield* extractor.extract(filePath, extractPath);
+                }).pipe(
+                    Effect.provide(extractorLayer),
+                    Effect.catchCause((cause) => {
+                        const failure = cause.reasons.find((reason) => reason._tag === "Fail");
+                        // A defect or an interruption is not an archive problem, so the upload is not blamed.
+                        return Effect.fail(
+                            failure === undefined
+                                ? new ArchiveExtractionFailure({ reason: Cause.pretty(cause) })
+                                : toExtractionError(failure.error),
+                        );
+                    }),
+                    Effect.tapError((error) => Effect.logError(`Failed to extract file ${filePath}: ${error.message}`).pipe(Effect.andThen(removeDir(extractPath)))),
+                );
+
+                yield* Effect.logInfo(`File extracted successfully to ${extractPath}`);
+                return extractPath;
+            }),
+
+        getCommitInfo: (repoPath) =>
+            Effect.gen(function* () {
+                const log = (yield* Effect.tryPromise({
+                    try: () => simpleGit(repoPath).log({ maxCount: 1 }),
+                    catch: (cause) => new GitCommandFailure({ operation: "log", cause }),
+                }));
+                const latest = log.latest;
+                if (!latest) return yield* new GitNoCommits({});
+                return { sha: latest.hash, message: latest.message, author: latest.author_name, date: new Date(latest.date) };
+            }).pipe(Effect.tapError((error) => Effect.logError(`Failed to get commit info from ${repoPath}: ${error.message}`))),
+
+        cleanupDeployment: (deploymentId) =>
+            Effect.suspend(() => {
+                const repoPath = workspaceOf(deploymentId);
+                return fs.existsSync(repoPath)
+                    ? Effect.logInfo(`Cleaning up deployment workspace: ${repoPath}`).pipe(Effect.andThen(removeDir(repoPath)))
+                    : Effect.void;
+            }),
+
+        validateRepository: (url) =>
+            Effect.gen(function* () {
+                const problem = repositoryUrlProblem(url);
+                if (problem !== undefined) {
+                    // Callers turn `false` into "repository not reachable"; the reason is the log line.
+                    yield* Effect.logWarning(`Rejected repository URL (${problem})`);
+                    return false;
+                }
+                return yield* git("ls-remote", () => simpleGit().raw(["ls-remote", "--", url])).pipe(
+                    Effect.as(true),
+                    Effect.catch((error) => Effect.logError(`Repository validation failed for ${url}: ${error.message}`).pipe(Effect.as(false))),
+                );
+            }),
+    };
+}
+
+export class GitService extends Context.Service<GitService, GitServiceShape>()("shared/GitService") {}

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Effect } from "effect";
 import z from "zod/v4";
 
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
@@ -28,27 +28,26 @@ const volumeStorageConfigSchema = z
     })
     .loose();
 
-@Injectable()
-export class VolumeStorageProviderService implements DeploymentStorageProvider {
-    readonly storageType = "volume" as const;
+export const volumeStorageProvider: DeploymentStorageProvider = {
+    storageType: "volume",
 
     resolveStorageBinding(
         input: DeploymentTriggerInput,
         serviceStorageConfig?: DeploymentStoragePolicy,
-    ): Promise<DeploymentStorageBinding | null> {
+    ): Effect.Effect<DeploymentStorageBinding | null, RuntimeInvalid> {
         const storageConfig = extractStorageConfig(input, serviceStorageConfig);
         const parsed = volumeStorageConfigSchema.safeParse(storageConfig);
 
         if (!parsed.success) {
             if (storageConfig?.type === "volume") {
-                throw new RuntimeInvalid({ reason: "Volume storage requires storage.volume.volumeName in sourceConfig.customData" });
+                return Effect.fail(new RuntimeInvalid({ reason: "Volume storage requires storage.volume.volumeName in sourceConfig.customData" }));
             }
-            return Promise.resolve(null);
+            return Effect.succeed(null);
         }
 
         const autoRedeployOnUpdate = resolveAutoRedeployOnUpdate(storageConfig);
 
-        return Promise.resolve(
+        return Effect.sync(() =>
             deploymentStorageBindingSchema.parse({
                 storageType: "volume",
                 autoRedeployOnUpdate,
@@ -61,4 +60,4 @@ export class VolumeStorageProviderService implements DeploymentStorageProvider {
             }),
         );
     }
-}
+};

@@ -588,7 +588,7 @@ Exported surface (`src/index.ts`): `collectEffectLayer`, `EffectRuntime`, `Effec
 |---|---|---|
 | `effect-core` | `CurrentActor`, `Correlation`; `domainError`, `fromAbortable`, `serviceOver`, `bindServices`, `runPromiseUnwrapped`, `runSyncUnwrapped` | `IdGen`, `RequestInfo`, branded ids, `ResiliencePolicy` |
 | `effect-infra` | `KeyRing`, `SecretBox`, `FileSystem`, `SafeHttp`, `CommandRunner` (+ 4 fakes) | `AppConfig`, `Logger`/`Observability`, `EventBus`, `Outbox`, `JobQueue`, `Scheduler`/`Lease`, `Readiness`/`Probes`, `Db<Owner>` tag, `SecretBox`/`PgDb` fakes |
-| `effect-orpc` | `handle`, `catchDomainErrors`, `mapDomainError`, `actorFromContext`, `correlationFromContext`, `provideRequest`, `createServe` | `HttpEdge`, `ServiceClients`, `ContractHarness`, `RequestInfo` tag |
+| `effect-orpc` | `handle`, `catchDomainErrors`, `mapDomainError`, `actorFromContext`, `correlationFromContext`, `provideRequest` | `HttpEdge`, `ServiceClients`, `ContractHarness`, `RequestInfo` tag |
 | `effect-platform` | `ArchiveExtractor` (+ `.fake`) | Docker/Swarm/Git/Traefik/DNS/Notifier adapters — they live in the standalone packages instead |
 | `effect-reachability` | functions only (`probeAddress`, `probePeer`) | a tag |
 

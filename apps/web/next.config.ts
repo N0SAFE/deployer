@@ -262,16 +262,23 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // postcss.config.mjs is intentionally disabled — Turbopack handles Tailwind v4
-  // natively via Lightning CSS. The CSS imports for tw-animate-css and shadcn
-  // are resolved via local copies in src/assets/css/ (relative @import paths),
-  // because Turbopack's CSS resolver does not support the "style" condition in
-  // package.json exports that these packages use.
-
+  // `postcss.config.mjs` MUST exist, with `@tailwindcss/postcss`.
+  //
+  // It used to be deleted on the theory that "Turbopack handles Tailwind v4
+  // natively via Lightning CSS". It does not for THIS setup: without the plugin
+  // the CSS is handed to the default PostCSS chain, which does not know v4
+  // syntax, and the dev server logs 20 parse warnings per compile:
+  //
+  //   Parsing CSS source code failed
+  //   Unknown at rule: @theme / @utility / @source / @custom-variant / @apply
+  //
+  // One warning is per USE SITE, so `@apply` alone accounted for ten of them.
+  // Restoring the one-line config drops the count to zero (measured: 20 -> 0 on
+  // `next build --experimental-build-mode=compile`); nothing else was needed.
+  //
   // Webpack config is conditionally included only for non-Turbopack runs.
   // When `next dev --turbopack` is used, we omit the webpack function entirely
   // to avoid a Next.js 16.2.9 Turbopack bug: PostCssTransformedAsset -> evaluate_webpack_loader crash.
-  // This keeps Turbopack handling CSS via Lightning CSS without webpack loader fallback.
   ...(process.env.WEBPACK
     ? {
         webpack: (config: any, context: any) => {

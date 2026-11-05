@@ -4,7 +4,7 @@ import { actionHash } from "@deployer/auth/server";
 import { ForbiddenError } from "@deployer/errors";
 import { approvalContract } from "@deployer/identity-contracts";
 
-import type { ServiceClient } from "../../../server/service-client";
+import type { ServiceClientShape } from "../../../server/service-client";
 
 /** What a peer service may ask before a protected action. */
 export type ApprovalGuardShape = {
@@ -35,7 +35,7 @@ export type ApprovalGuardShape = {
  */
 export class ApprovalGuard extends Context.Service<ApprovalGuard, ApprovalGuardShape>()("approval/Guard") {}
 
-export function makeApprovalGuard(services: ServiceClient): ApprovalGuardShape {
+export function makeApprovalGuard(services: ServiceClientShape): ApprovalGuardShape {
 	return {
 		require: (requesterId, permission, action, parts): Effect.Effect<void, ForbiddenError> =>
 			Effect.tryPromise({

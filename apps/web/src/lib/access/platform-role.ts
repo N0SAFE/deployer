@@ -1,6 +1,6 @@
 'use client'
 
-import type { PlatformRole } from '@deployer/auth/permissions'
+import type { PlatformRole } from '@deployer/auth'
 
 import { useSession } from '@/lib/auth'
 

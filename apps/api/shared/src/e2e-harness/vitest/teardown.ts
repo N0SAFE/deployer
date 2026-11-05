@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 
 import { stopAllSharedApiRuntimes } from "../shared-api-runtime";
 
-import { stopSharedPostgresContainer } from "./shared-postgres";
+import { E2E_CONTAINER_LABEL, stopSharedPostgresContainer } from "./shared-postgres";
 
 console.log("[e2e-teardown-load] vitest.teardown.e2e.ts module loaded");
 
@@ -33,10 +33,18 @@ function logGlobalTeardown(message: string): void {
  */
 function cleanupOrphanedDeployerContainers(): void {
   try {
-    // Remove ALL deployer-* containers — catches Postgres containers, nginx
-    // containers, scanner containers, and any other testcontainers orphans.
+    // Removal is by LABEL, not by name.
+    //
+    // ── WHY THE `name=deployer` FILTER IS GONE ──────────────────────────────
+    // It did not match the containers this harness starts — those had random
+    // Docker names (`relaxed_edison`), so a killed worker's Postgres was never
+    // swept and twenty-one of them were still running on the reference machine.
+    // What it DID match was the development stack's own database
+    // (`deployer-postgres.1.ug83g3esp…`), so every e2e teardown deleted a
+    // container the run never created. The label is set by
+    // `startSharedPostgresContainer` and matches only harness containers.
     const containerIds = execSync(
-      `docker ps --filter "name=deployer" --format "{{.ID}}" 2>/dev/null || true`,
+      `docker ps --filter "label=${E2E_CONTAINER_LABEL}" --format "{{.ID}}" 2>/dev/null || true`,
       { encoding: "utf-8", timeout: 10_000 },
     )
       .split("\n")

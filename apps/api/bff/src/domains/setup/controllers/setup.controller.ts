@@ -1,21 +1,18 @@
-import { Controller, Logger, Inject } from "@nestjs/common";
+import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { Effect } from "effect";
 import { Pool } from "pg";
 
+import { inBoundary, procedure } from "@deployer/nest-effect";
 import { setupContract } from "@deployer/bff-contracts";
-import { procedure } from "@deployer/nest-effect";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { domainErrorOptions } from "@deployer/orpc-utils";
+import { NodeConfigRepository } from "@deployer/node-state"
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import {  EgressService } from "@/core/modules/egress/egress.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { NodeConfigNotFound } from "@/core/modules/setup/setup.errors";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
-
-import { serveAnonymous } from "@/orpc/serve";
 
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService, type PostSetupVerificationPorts } from "../services/post-setup-verification.service";
@@ -38,11 +35,8 @@ const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
  */
 @Controller()
 export class SetupController {
-    private readonly logger = new Logger(SetupController.name);
     constructor(
-        private readonly initializationService: InitializationService,
         private readonly reachabilityService: ReachabilityService,
-        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         private readonly egress: EgressService,
     ) {}
 
@@ -52,14 +46,20 @@ export class SetupController {
     getState() {
         return procedure(setupContract.getState)
             .use(publicAccess())
-            .handler(async () => this.initializationService.getSetupState());
+            .effect(function* () {
+                const initialization = yield* InitializationService;
+                return yield* initialization.getSetupState();
+            });
     }
 
     @Implement(setupContract.getNodeStatus)
     getNodeStatus() {
         return procedure(setupContract.getNodeStatus)
             .use(publicAccess())
-            .handler(async () => this.initializationService.getNodeStatus());
+            .effect(function* () {
+                const initialization = yield* InitializationService;
+                return yield* initialization.getNodeStatus();
+            });
     }
 
     // ─── Pre-flight probes ────────────────────────────────────────────────────
@@ -72,34 +72,38 @@ export class SetupController {
     probeDatabase() {
         return procedure(setupContract.probeDatabase)
             .use(publicAccess())
-            .handler(async ({ input }) => {
-                await this.initializationService.assertSetupMutable();
-                await this.initializationService.assertDatabaseProbeAllowed(input.databaseUrl.trim());
+            .effect(function* ({ input }) {
+                const initialization = yield* InitializationService;
+                yield* initialization.assertSetupMutable();
+                yield* initialization.assertDatabaseProbeAllowed(input.databaseUrl.trim());
                 const start = Date.now();
-                const pool = new Pool({
-                    connectionString: input.databaseUrl.trim(),
-                    max: 1,
-                    connectionTimeoutMillis: 5_000,
+                // The probe opens a throwaway connection: its outcome (reachable or not) is the answer, never a failure.
+                return yield* Effect.promise(async () => {
+                    const pool = new Pool({
+                        connectionString: input.databaseUrl.trim(),
+                        max: 1,
+                        connectionTimeoutMillis: 5_000,
+                    });
+                    try {
+                        await pool.query("SELECT 1");
+                        return {
+                            status: 201 as const,
+                            headers: {},
+                            body: { reachable: true, latencyMs: Date.now() - start },
+                        };
+                    } catch (err: unknown) {
+                        return {
+                            status: 201 as const,
+                            headers: {},
+                            body: {
+                                reachable: false,
+                                error: err instanceof Error ? err.message : String(err),
+                            },
+                        };
+                    } finally {
+                        await pool.end().catch(() => undefined);
+                    }
                 });
-                try {
-                    await pool.query("SELECT 1");
-                    return {
-                        status: 201,
-                        headers: {},
-                        body: { reachable: true, latencyMs: Date.now() - start },
-                    };
-                } catch (err: unknown) {
-                    return {
-                        status: 201,
-                        headers: {},
-                        body: {
-                            reachable: false,
-                            error: err instanceof Error ? err.message : String(err),
-                        },
-                    };
-                } finally {
-                    await pool.end().catch(() => undefined);
-                }
             });
     }
 
@@ -111,10 +115,11 @@ export class SetupController {
     triggerInitialize() {
         return procedure(setupContract.triggerInitialize)
             .use(publicAccess())
-            .handler(async ({ input }) => {
-                await this.initializationService.assertSetupMutable();
+            .effect(function* ({ input }) {
+                const initialization = yield* InitializationService;
+                yield* initialization.assertSetupMutable();
                 // Credentials are stored inside initializationService.triggerInitialize()
-                const result = this.initializationService.triggerInitialize(input);
+                const result = yield* initialization.triggerInitialize(input);
                 return { status: 201 as const, headers: {}, body: result };
             });
     }
@@ -130,7 +135,10 @@ export class SetupController {
     getInitializeStream() {
         return procedure(setupContract.getInitializeStream)
             .use(publicAccess())
-            .handler(() => this.initializationService.getInitializeStream());
+            .effect(function* () {
+                const initialization = yield* InitializationService;
+                return initialization.getInitializeStream();
+            });
     }
 
     // ─── Post-setup hints (ORPC) ────────────────────────────────────────────
@@ -155,21 +163,15 @@ export class SetupController {
     setupDismissPostSetupHint() {
         return procedure(setupContract.dismissPostSetupHint)
             .use(publicAccess())
-            .handler(async ({ input, errors }) => {
-                await this.initializationService.assertSetupMutable();
-                this.logger.log(`Hint dismissed: ${input.hintId}`);
-                const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
-                if (!config) {
-                    throw errors.INTERNAL_SERVER_ERROR(
-                        domainErrorOptions(
-                            "INTERNAL_SERVER_ERROR",
-                            500,
-                            "Cannot dismiss hint — node config not found",
-                        ),
-                    );
-                }
+            .effect(function* ({ input }) {
+                const initialization = yield* InitializationService;
+                const nodeConfig = yield* NodeConfigRepository;
+                yield* initialization.assertSetupMutable();
+                yield* Effect.logInfo(`Hint dismissed: ${input.hintId}`);
+                const config = yield* nodeConfig.find();
+                if (!config) return yield* new NodeConfigNotFound({});
                 const flags = config.postSetupFlags ?? {};
-                await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
+                yield* nodeConfig.upsert({
                     nodeId: config.nodeId,
                     strategy: config.strategy,
                     setupState: config.setupState,
@@ -185,7 +187,7 @@ export class SetupController {
                     upgradedAtVersion: config.upgradedAtVersion,
                     postSetupFlags: { ...flags, [input.hintId]: "dismissed" },
                     updatedAt: new Date().toISOString(),
-                }));
+                });
                 return { status: 201 as const, headers: {}, body: { ok: true } };
             });
     }
@@ -206,9 +208,9 @@ export class SetupController {
     getPostSetupDestination() {
         return procedure(setupContract.getPostSetupDestination)
             .use(publicAccess())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const destination = yield* PostSetupDestinationService;
-                return yield* serveAnonymous(context)(destination.resolve());
+                return yield* destination.resolve();
             });
     }
 
@@ -223,9 +225,9 @@ export class SetupController {
     getPostSetupVerification() {
         return procedure(setupContract.getPostSetupVerification)
             .use(publicAccess())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const verification = yield* PostSetupVerificationService;
-                return yield* serveAnonymous(context)(verification.verify());
+                return yield* verification.verify();
             });
     }
 
@@ -235,10 +237,10 @@ export class SetupController {
             .use(publicAccess())
             .effect(function* ({ context }) {
                 const verification = yield* PostSetupVerificationService;
-                // The ports are captured once; each tick runs the probe over them at the request boundary.
+                // The ports are captured once; each tick re-enters the request boundary for the timer-driven probe.
                 const ports = yield* Effect.context<PostSetupVerificationPorts>();
                 return liveSnapshot(
-                    () => Effect.runPromise(serveAnonymous(context)(verification.verify()).pipe(Effect.provide(ports))),
+                    () => Effect.runPromise(inBoundary(context, verification.verify()).pipe(Effect.provide(ports))),
                     { intervalMs: POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS },
                 );
             });

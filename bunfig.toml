@@ -11,6 +11,7 @@ globalStore = true
 
 
 [lint]
+typeAware = true
 # Nearest `bunfig.toml` with a `[lint]` section wins, so every workspace under this
 # repo inherits these defaults while keeping its own `eslint.config.ts` policy.
 # A workspace that needs something different adds its own `bunfig.toml`; the

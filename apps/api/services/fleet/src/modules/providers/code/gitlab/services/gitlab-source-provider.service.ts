@@ -42,7 +42,7 @@ function makeGitlabSourceProviderService(git: GitShape) {
                 const resolvedBranch =
                     branch ?? (mergeRequestIid ? `refs/merge-requests/${mergeRequestIid}/head` : "main");
 
-                const isValidRepository = yield* attempt(() => git.validateRepository(repositoryUrl));
+                const isValidRepository = yield* git.validateRepository(repositoryUrl);
                 if (!isValidRepository) {
                     return yield* new FleetInvalid({ reason: `GitLab repository '${repositoryUrl}' is not accessible` });
                 }

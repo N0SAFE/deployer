@@ -1,6 +1,13 @@
+import type { Context } from "effect";
+
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { GitHubService } from "./services/github.service";
+import { DatabasePort } from "../../database/storage";
+
+import { GithubDeploymentCacheRepository, makeGithubDeploymentCacheRepository } from "./repositories/github-deployment-cache.repository";
+import { GithubDeploymentRulesRepository, makeGithubDeploymentRulesRepository } from "./repositories/github-deployment-rules.repository";
+import { GithubRepositoryConfigRepository, makeGithubRepositoryConfigRepository } from "./repositories/github-repository-config.repository";
+import { GitHubService, makeGitHubService } from "./services/github.service";
 
 /**
  * CORE MODULE: GitHub API Integration
@@ -20,6 +27,24 @@ import { GitHubService } from "./services/github.service";
  * - Feature modules import CoreModule or specific core modules they need
  */
 export class GitHubModule extends createModuleContext({
-  providers: [GitHubService],
-  exports: [GitHubService],
+  providers: [
+    // The App registry is in-memory state: one instance per process.
+    { provide: GitHubService, useFactory: makeGitHubService },
+    {
+      provide: GithubDeploymentCacheRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeGithubDeploymentCacheRepository({ database }),
+      inject: [DatabasePort],
+    },
+    {
+      provide: GithubDeploymentRulesRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeGithubDeploymentRulesRepository({ database }),
+      inject: [DatabasePort],
+    },
+    {
+      provide: GithubRepositoryConfigRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeGithubRepositoryConfigRepository({ database }),
+      inject: [DatabasePort],
+    },
+  ],
+  exports: [GitHubService, GithubDeploymentCacheRepository, GithubDeploymentRulesRepository, GithubRepositoryConfigRepository],
 }) {}

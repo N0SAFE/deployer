@@ -52,7 +52,7 @@ export const meshNodeMeshConfigSchema = z.object({
 /** The node's persisted configuration: the `node_config` row, minus what the agent owns itself. */
 export const meshNodeConfigSchema = z.object({
   /** The platform node id, assigned when the node is configured (a UUID). Null on an unconfigured node. */
-  nodeId: z.string().uuid().nullable(),
+  nodeId: z.uuid().nullable(),
   strategy: z.enum(["local", "remote"]),
   setupState: meshNodeSetupStateSchema,
   /** The deployer version at setup, and at the last successful upgrade. */

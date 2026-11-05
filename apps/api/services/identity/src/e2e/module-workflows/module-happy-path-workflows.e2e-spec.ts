@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { Actor, Correlation, CurrentActor, HttpRequest, systemRequest, type Ambient } from "@deployer/effect-core";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import { AnalyticsRepository } from "@/modules/analytics/repositories/analytics.repository";
@@ -113,7 +113,7 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 		const ownerId = `e2e-owner-${randomUUID()}`;
 		admin = { userId: ownerId, role: "admin" };
 
-		const globalDatabase = runtime.serviceMapper.get(GlobalDatabaseService);
+		const globalDatabase = runtime.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape;
 		const now = new Date();
 		await globalDatabase.db.insert(user).values({
 			id: ownerId,

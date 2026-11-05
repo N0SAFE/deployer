@@ -13,7 +13,7 @@ import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics
 import { EnvService } from "../../../../config/env/env.module";
 import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 import { requireAuth } from "../../auth/orpc/middlewares";
-import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
+import { CoreEventSyncService, type CoreEventSyncServiceShape } from "../../events/services/core-event-sync.service";
 
 
 
@@ -30,7 +30,7 @@ import { CoreEventSyncService } from "../../events/services/core-event-sync.serv
 @Controller()
 export class MeshController {
     constructor(
-        private readonly coreEventSyncService: CoreEventSyncService,
+        @Inject(CoreEventSyncService) private readonly coreEventSyncService: CoreEventSyncServiceShape,
         @Inject(SystemMetrics) private readonly systemMetrics: SystemMetricsShape,
         private readonly envService: EnvService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
@@ -109,8 +109,9 @@ export class MeshController {
     listEventStreams() {
         return procedure(meshContract.listEventStreams)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.coreEventSyncService.listStreams(input.query);
+            .effect(function* ({ input }) {
+                const sync = yield* CoreEventSyncService;
+                return yield* sync.listStreams(input.query);
             });
     }
 
@@ -118,8 +119,9 @@ export class MeshController {
     findEventStreamById() {
         return procedure(meshContract.findEventStreamById)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.coreEventSyncService.getStreamById(input.params.id);
+            .effect(function* ({ input }) {
+                const sync = yield* CoreEventSyncService;
+                return yield* sync.getStreamById(input.params.id);
             });
     }
 

@@ -1,13 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import z from "zod/v4";
 
-import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 import { githubSourceCheckoutContextSchema } from "@deployer/contracts-entities";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
-import { GitService } from "@deployer/shared/core/modules/git/index";
 
 import { RuntimeInvalid } from "../../../../../core/runtime.errors";
-import { CodeProvider } from "../../shared/code-provider.interface";
+import { SourceGitPort } from "../../../providers.ports";
+import { matchesSourceType, type CodeProviderShape } from "../../shared/code-provider.interface";
 
 const githubSourceContextSchema = z.object({
     repositoryUrl: z.string().min(1),
@@ -16,49 +14,46 @@ const githubSourceContextSchema = z.object({
     pullRequestNumber: z.number().int().positive().optional(),
 });
 
-@Injectable()
-export class GithubSourceProviderService extends CodeProvider {
-    readonly sourceType = "github";
+export class GithubSourceProvider extends Context.Service<GithubSourceProvider, CodeProviderShape>()(
+    "runtime/GithubSourceProvider",
+) {}
 
-    constructor(private readonly gitService: GitService) {
-        super();
-    }
+/** The github provider over its git port. */
+export function makeGithubSourceProvider(ports: { readonly git: SourceGitPort["Service"] }): CodeProviderShape {
+    const sourceType = "github";
+    return {
+        sourceType,
+        resolveSourceCheckout: (input) =>
+            Effect.gen(function* () {
+                if (!matchesSourceType(sourceType, input) || input.source.sourceType !== "github") {
+                    return null;
+                }
 
-    async resolveSourceCheckout(
-        input: DeploymentTriggerInput,
-    ): Promise<DeploymentSourceCheckoutContext | null> {
-        if (!this.matchesSourceType(input)) {
-            return null;
-        }
+                const parsed = githubSourceContextSchema.safeParse({
+                    repositoryUrl: input.source.repositoryUrl,
+                    branch: input.source.branch,
+                    commitSha: input.source.commitSha,
+                    pullRequestNumber: input.source.pullRequestNumber,
+                });
+                if (!parsed.success) {
+                    return yield* new RuntimeInvalid({ reason: "GitHub source requires source.repositoryUrl" });
+                }
 
-        if (input.source.sourceType !== "github") {
-            return null;
-        }
+                const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
+                const resolvedBranch = branch ?? (pullRequestNumber ? `refs/pull/${pullRequestNumber}/head` : "main");
 
-        const parsed = githubSourceContextSchema.safeParse({
-            repositoryUrl: input.source.repositoryUrl,
-            branch: input.source.branch,
-            commitSha: input.source.commitSha,
-            pullRequestNumber: input.source.pullRequestNumber,
-        });
-        if (!parsed.success) {
-            throw new RuntimeInvalid({ reason: "GitHub source requires source.repositoryUrl" });
-        }
+                const isValidRepository = yield* ports.git.validateRepository(repositoryUrl);
+                if (!isValidRepository) {
+                    return yield* new RuntimeInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
+                }
 
-        const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
-        const resolvedBranch = branch ?? (pullRequestNumber ? `refs/pull/${pullRequestNumber}/head` : "main");
-
-        const isValidRepository = await this.gitService.validateRepository(repositoryUrl);
-        if (!isValidRepository) {
-            throw new RuntimeInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
-        }
-
-        return githubSourceCheckoutContextSchema.parse({
-            provider: "github",
-            repositoryUrl,
-            branch: resolvedBranch,
-            ...(commitSha ? { commitSha } : {}),
-            ...(pullRequestNumber ? { pullRequestNumber } : {}),
-        });
-    }
+                return githubSourceCheckoutContextSchema.parse({
+                    provider: "github",
+                    repositoryUrl,
+                    branch: resolvedBranch,
+                    ...(commitSha ? { commitSha } : {}),
+                    ...(pullRequestNumber ? { pullRequestNumber } : {}),
+                });
+            }),
+    };
 }

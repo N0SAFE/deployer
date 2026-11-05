@@ -5,7 +5,6 @@ import { nodesContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "../../../core/orpc/serve";
 import { FleetService } from "../services/fleet.service";
 
 /**
@@ -13,7 +12,7 @@ import { FleetService } from "../services/fleet.service";
  * Backed by the cluster fleet tables (cluster_nodes, allocations, admission requests).
  *
  * Every handler resolves `FleetService` from the module's Effect context and runs its use case
- * through `serve`, which provides the actor and correlation id and maps failures.
+ * through the `.effect()` boundary, which provides the actor and correlation id and maps failures.
  *
  * NOTE: the contract must be referenced through `nodesContract.*`
  * so the `/nodes` router prefix is preserved in the mapped Nest routes.
@@ -28,9 +27,9 @@ export class FleetController {
     listServers() {
         return procedure(nodesContract.listServers)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const fleet = yield* FleetService;
-                return yield* serve(context)(fleet.listServers());
+                return yield* fleet.listServers();
             });
     }
 
@@ -39,9 +38,9 @@ export class FleetController {
         return procedure(nodesContract.setServerCapacity)
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const fleet = yield* FleetService;
-                const result = yield* serve(context)(fleet.setServerCapacity(input));
+                const result = yield* fleet.setServerCapacity(input);
                 return { status: 201 as const, body: result };
             });
     }
@@ -50,9 +49,9 @@ export class FleetController {
     listAllocations() {
         return procedure(nodesContract.listAllocations)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const fleet = yield* FleetService;
-                return yield* serve(context)(fleet.listAllocations(input.query ?? {}));
+                return yield* fleet.listAllocations(input.query ?? {});
             });
     }
 
@@ -60,9 +59,9 @@ export class FleetController {
     listMyAllocations() {
         return procedure(nodesContract.listMyAllocations)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const fleet = yield* FleetService;
-                return yield* serve(context)(fleet.listMyAllocations());
+                return yield* fleet.listMyAllocations();
             });
     }
 
@@ -72,7 +71,7 @@ export class FleetController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
-                const result = yield* serve(context)(fleet.checkMyAdmission(context.auth.user.id, input));
+                const result = yield* fleet.checkMyAdmission(context.auth.user.id, input);
                 return { status: 201 as const, headers: {}, body: result };
             });
     }
@@ -83,7 +82,7 @@ export class FleetController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
-                const result = yield* serve(context)(fleet.createMyAdmissionRequest(context.auth.user.id, input));
+                const result = yield* fleet.createMyAdmissionRequest(context.auth.user.id, input);
                 return { status: 201 as const, headers: {}, body: result };
             });
     }
@@ -94,7 +93,7 @@ export class FleetController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
-                return yield* serve(context)(fleet.listMyAdmissionRequests(context.auth.user.id, input.query ?? {}));
+                return yield* fleet.listMyAdmissionRequests(context.auth.user.id, input.query ?? {});
             });
     }
 
@@ -103,9 +102,9 @@ export class FleetController {
         return procedure(nodesContract.upsertAllocation)
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const fleet = yield* FleetService;
-                const result = yield* serve(context)(fleet.upsertAllocation(input));
+                const result = yield* fleet.upsertAllocation(input);
                 return { status: 201 as const, headers: {}, body: result };
             });
     }
@@ -115,9 +114,9 @@ export class FleetController {
         return procedure(nodesContract.deleteAllocation)
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const fleet = yield* FleetService;
-                const result = yield* serve(context)(fleet.deleteAllocation(input));
+                const result = yield* fleet.deleteAllocation(input);
                 return { status: 201 as const, headers: {}, body: result };
             });
     }
@@ -126,9 +125,9 @@ export class FleetController {
     listAdmissionRequests() {
         return procedure(nodesContract.listAdmissionRequests)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const fleet = yield* FleetService;
-                return yield* serve(context)(fleet.listAdmissionRequests(input.query ?? {}));
+                return yield* fleet.listAdmissionRequests(input.query ?? {});
             });
     }
 
@@ -137,9 +136,9 @@ export class FleetController {
         return procedure(nodesContract.resolveAdmissionRequest)
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const fleet = yield* FleetService;
-                const result = yield* serve(context)(fleet.resolveAdmissionRequest(input));
+                const result = yield* fleet.resolveAdmissionRequest(input);
                 return { status: 201 as const, headers: {}, body: result };
             });
     }

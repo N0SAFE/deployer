@@ -3,9 +3,7 @@ import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configura
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
-import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
-import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
@@ -14,9 +12,7 @@ import { ProjectDomainModule } from "@/modules/project/project.module";
 
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
-import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
 
 import { ServiceController } from "./controllers/service.controller";
 import { ServiceStore } from "./repositories/service.repository";
@@ -50,21 +46,16 @@ export class ServiceDomainModule extends createModuleContext({
 	controllers: [ServiceController],
 	providers: [
 		effectHostProvider(),
-		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,
 		},
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
-		{
-			provide: ServiceDomainMappingLookup,
-			useExisting: ServiceDomainMappingRepository,
-		},
 		// Registers the service namespace on the core event bus when the module is built.
 		{ provide: SERVICE_EVENT_REGISTRATION, useFactory: registerServiceEventAdapter, inject: [CoreEventSyncService, EffectHost] },
 		{
 			provide: ServiceEventService,
-			useFactory: (pool: CoreEventStreamPoolService) => new ServiceEventServiceImpl(pool),
+			useFactory: (pool: CoreEventStreamPoolServiceShape) => new ServiceEventServiceImpl(pool),
 			inject: [CoreEventStreamPoolService],
 		},
 		{ provide: ServiceStore, useValue: ServiceStore.live },

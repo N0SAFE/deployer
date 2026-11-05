@@ -19,7 +19,7 @@ import type {
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 
 import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "@/modules/project/domain/project.errors";
-import {  rule } from "@/modules/project/project-effects";
+import { configurationRule } from "@/modules/project/project-effects";
 
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
@@ -127,8 +127,7 @@ function resolveCreatePayload(input: ServiceCreateInput): Effect.Effect<
     return Effect.gen(function* () {
         const configuration = yield* RuntimeConfigurationAccessor;
 
-        const resolvedRuntimeConfiguration = yield* rule(() =>
-            configuration.resolveStrict({
+        const resolvedRuntimeConfiguration = yield* configurationRule(configuration.resolveStrict({
                 scope: "project",
                 context: {
                     projectId: input.projectId,
@@ -148,8 +147,7 @@ function resolveCreatePayload(input: ServiceCreateInput): Effect.Effect<
                           }
                         : null,
                 }),
-            }),
-        );
+            }));
 
         if (!resolvedRuntimeConfiguration.effective.constraints.providerAllowed) {
             return yield* Effect.fail(
@@ -528,8 +526,7 @@ export class ServiceServiceImpl {
                 }
             }
 
-            const resolvedRuntimeConfiguration = yield* rule(() =>
-                configuration.resolveStrict({
+            const resolvedRuntimeConfiguration = yield* configurationRule(configuration.resolveStrict({
                     scope: "service",
                     context: {
                         projectId: existing.projectId,
@@ -553,8 +550,7 @@ export class ServiceServiceImpl {
                               }
                             : (existing.resourceLimits as { memory?: string | null; cpu?: string | null } | null),
                     }),
-                }),
-            );
+                }));
 
             if (!resolvedRuntimeConfiguration.effective.constraints.providerAllowed) {
                 return yield* Effect.fail(

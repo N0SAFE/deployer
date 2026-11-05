@@ -12,14 +12,14 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 export { DATABASE_SERVICE_SUPERVISOR_ID };
 
 export type DatabaseServiceSupervisorDeps = {
 	readonly engine: DockerEngineShape;
 	readonly env: EnvService;
-	readonly bus: SupervisorEventBus;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 /** Instance names from `MANAGED_DATABASE_INSTANCES` ("db-a,db-b"), trimmed and without duplicates. */

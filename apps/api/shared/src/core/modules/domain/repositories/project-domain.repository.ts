@@ -1,209 +1,119 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { eq, and, ne } from 'drizzle-orm';
+import { and, eq, ne } from "drizzle-orm";
+import { Context, Effect } from "effect";
 
-import { AppError } from "@deployer/errors";
+import { serviceOver, type Over } from "@deployer/effect-core";
 import { projectDomains } from "@deployer/nest-schema/global/project/domain";
 
-import { GlobalDatabaseService } from '../../database/services/global-database.service';
+import { DatabasePort, StorageFailure, storage } from "../../database/storage";
+
 
 type ProjectDomain = typeof projectDomains.$inferSelect;
 type InsertProjectDomain = typeof projectDomains.$inferInsert;
 
-@Injectable()
-export class ProjectDomainRepository {
-  private readonly logger = new Logger(ProjectDomainRepository.name);
-
-  constructor(private readonly databaseService: GlobalDatabaseService) {}
-
-  /**
-   * Create a new project domain (domains attach directly to a project)
-   */
-  async create(data: InsertProjectDomain): Promise<ProjectDomain> {
-    const [domain] = await this.databaseService.db
-      .insert(projectDomains)
-      .values(data)
-      .returning();
-    
-    if (!domain) {
-      throw new AppError('Failed to create project domain', 'INTERNAL_ERROR');
-    }
-    
-    this.logger.debug(`Created project domain ${domain.domain} for project ${domain.projectId}`);
-    return domain;
-  }
-
-  /**
-   * Find project domain by ID
-   */
-  async findById(id: string): Promise<ProjectDomain | null> {
-    const [domain] = await this.databaseService.db
-      .select()
-      .from(projectDomains)
-      .where(eq(projectDomains.id, id))
-      .limit(1);
-    
-    return domain ?? null;
-  }
-
-  /**
-   * Find all domains for a project
-   */
-  async findByProjectId(projectId: string): Promise<ProjectDomain[]> {
-    return await this.databaseService.db
-      .select()
-      .from(projectDomains)
-      .where(eq(projectDomains.projectId, projectId));
-  }
-
-  /**
-   * Find project domain by project and domain name
-   */
-  async findByProjectAndDomain(
+export type ProjectDomainRepositoryShape = {
+  /** Domains attach directly to a project. */
+  readonly create: (data: InsertProjectDomain) => Effect.Effect<ProjectDomain, StorageFailure>;
+  readonly findById: (id: string) => Effect.Effect<ProjectDomain | null, StorageFailure>;
+  readonly findByProjectId: (projectId: string) => Effect.Effect<ProjectDomain[], StorageFailure>;
+  readonly findByProjectAndDomain: (projectId: string, domain: string) => Effect.Effect<ProjectDomain | null, StorageFailure>;
+  /** Whether the project already has this domain name (optionally ignoring one row). */
+  readonly hasProjectDomain: (projectId: string, domain: string, excludeId?: string) => Effect.Effect<boolean, StorageFailure>;
+  /** Pending domains, for the auto-verification sweep. */
+  readonly findPending: () => Effect.Effect<ProjectDomain[], StorageFailure>;
+  /** The project's own verified domains (direct-domain model, no org). */
+  readonly getAvailableDomainsForProject: (
     projectId: string,
-    domain: string
-  ): Promise<ProjectDomain | null> {
-    const [row] = await this.databaseService.db
-      .select()
-      .from(projectDomains)
-      .where(
-        and(
-          eq(projectDomains.projectId, projectId),
-          eq(projectDomains.domain, domain)
-        )
-      )
-      .limit(1);
-    
-    return row ?? null;
-  }
+  ) => Effect.Effect<{ id: string; domain: string; verifiedAt: Date }[], StorageFailure>;
+  /** `null` when the row does not exist. */
+  readonly update: (id: string, data: Partial<ProjectDomain>) => Effect.Effect<ProjectDomain | null, StorageFailure>;
+  readonly updateAllowedSubdomains: (id: string, allowedSubdomains: string[]) => Effect.Effect<ProjectDomain | null, StorageFailure>;
+  /** Whether a row was deleted. */
+  readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>;
+  readonly countByProjectId: (projectId: string) => Effect.Effect<number, StorageFailure>;
+};
 
-  /**
-   * Check if project already has this domain name
-   */
-  async hasProjectDomain(
-    projectId: string,
-    domain: string,
-    excludeId?: string
-  ): Promise<boolean> {
-    const baseConditions = [
-      eq(projectDomains.projectId, projectId),
-      eq(projectDomains.domain, domain),
-    ];
+type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> };
 
-    if (excludeId) {
-      baseConditions.push(ne(projectDomains.id, excludeId));
-    }
+export function makeProjectDomainRepository({ database }: Ports): ProjectDomainRepositoryShape {
+  const first = <A>(rows: A[]): A | null => rows[0] ?? null;
+  return {
+    create: (data) =>
+      storage(database, (db) => db.insert(projectDomains).values(data).returning()).pipe(
+        Effect.flatMap(([domain]) =>
+          domain
+            ? Effect.logDebug(`Created project domain ${domain.domain} for project ${domain.projectId}`).pipe(Effect.as(domain))
+            : Effect.fail(new StorageFailure({ cause: new Error("insert returned no row") })),
+        ),
+      ),
 
-    const [result] = await this.databaseService.db
-      .select({ id: projectDomains.id })
-      .from(projectDomains)
-      .where(and(...baseConditions))
-      .limit(1);
-    
-    return !!result;
-  }
+    findById: (id) =>
+      storage(database, (db) => db.select().from(projectDomains).where(eq(projectDomains.id, id)).limit(1)).pipe(Effect.map(first)),
 
-  /**
-   * Find all pending project domains (for auto-verification sweeps)
-   */
-  async findPending(): Promise<ProjectDomain[]> {
-    return await this.databaseService.db
-      .select()
-      .from(projectDomains)
-      .where(eq(projectDomains.verificationStatus, 'pending'));
-  }
+    findByProjectId: (projectId) =>
+      storage(database, (db) => db.select().from(projectDomains).where(eq(projectDomains.projectId, projectId))),
 
-  /**
-   * Get the project's OWN verified domains (direct-domain model — no org).
-   */
-  async getAvailableDomainsForProject(projectId: string): Promise<{
-    id: string;
-    domain: string;
-    verifiedAt: Date;
-  }[]> {
-    const rows = await this.databaseService.db
-      .select({
-        id: projectDomains.id,
-        domain: projectDomains.domain,
-        verifiedAt: projectDomains.verifiedAt,
-      })
-      .from(projectDomains)
-      .where(
-        and(
-          eq(projectDomains.projectId, projectId),
-          eq(projectDomains.verificationStatus, 'verified')
-        )
-      );
-    
-    return rows.filter((d): d is typeof d & { verifiedAt: Date } => d.verifiedAt !== null);
-  }
+    findByProjectAndDomain: (projectId, domain) =>
+      storage(database, (db) =>
+        db.select().from(projectDomains)
+          .where(and(eq(projectDomains.projectId, projectId), eq(projectDomains.domain, domain)))
+          .limit(1),
+      ).pipe(Effect.map(first)),
 
-  /**
-   * Update project domain
-   */
-  async update(
-    id: string,
-    data: Partial<ProjectDomain>
-  ): Promise<ProjectDomain | null> {
-    const [updated] = await this.databaseService.db
-      .update(projectDomains)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(projectDomains.id, id))
-      .returning();
-    
-    if (updated) {
-      this.logger.debug(`Updated project domain: ${id}`);
-    }
-    
-    return updated ?? null;
-  }
+    hasProjectDomain: (projectId, domain, excludeId) =>
+      storage(database, (db) =>
+        db.select({ id: projectDomains.id }).from(projectDomains)
+          .where(and(
+            eq(projectDomains.projectId, projectId),
+            eq(projectDomains.domain, domain),
+            ...(excludeId ? [ne(projectDomains.id, excludeId)] : []),
+          ))
+          .limit(1),
+      ).pipe(Effect.map((rows) => rows.length > 0)),
 
-  /**
-   * Update allowed subdomains for a project domain
-   */
-  async updateAllowedSubdomains(
-    id: string,
-    allowedSubdomains: string[]
-  ): Promise<ProjectDomain | null> {
-    const [updated] = await this.databaseService.db
-      .update(projectDomains)
-      .set({ allowedSubdomains, updatedAt: new Date() })
-      .where(eq(projectDomains.id, id))
-      .returning();
-    
-    if (updated) {
-      this.logger.log(`Updated allowed subdomains for project domain ${id}: [${allowedSubdomains.join(', ')}]`);
-    }
-    
-    return updated ?? null;
-  }
+    findPending: () =>
+      storage(database, (db) => db.select().from(projectDomains).where(eq(projectDomains.verificationStatus, "pending"))),
 
-  /**
-   * Delete project domain
-   */
-  async delete(id: string): Promise<boolean> {
-    const result = await this.databaseService.db
-      .delete(projectDomains)
-      .where(eq(projectDomains.id, id));
-    
-    const deleted = (result.rowCount ?? 0) > 0;
-    if (deleted) {
-      this.logger.debug(`Deleted project domain: ${id}`);
-    }
-    
-    return deleted;
-  }
+    getAvailableDomainsForProject: (projectId) =>
+      storage(database, (db) =>
+        db.select({ id: projectDomains.id, domain: projectDomains.domain, verifiedAt: projectDomains.verifiedAt })
+          .from(projectDomains)
+          .where(and(eq(projectDomains.projectId, projectId), eq(projectDomains.verificationStatus, "verified"))),
+      ).pipe(Effect.map((rows) => rows.filter((d): d is typeof d & { verifiedAt: Date } => d.verifiedAt !== null))),
 
-  /**
-   * Count domains for a project
-   */
-  async countByProjectId(projectId: string): Promise<number> {
-    const result = await this.databaseService.db
-      .select({ count: projectDomains.id })
-      .from(projectDomains)
-      .where(eq(projectDomains.projectId, projectId));
-    
-    return result.length;
-  }
+    update: (id, data) =>
+      storage(database, (db) =>
+        db.update(projectDomains).set({ ...data, updatedAt: new Date() }).where(eq(projectDomains.id, id)).returning(),
+      ).pipe(
+        Effect.map(first),
+        Effect.tap((updated) => (updated ? Effect.logDebug(`Updated project domain: ${id}`) : Effect.void)),
+      ),
 
+    updateAllowedSubdomains: (id, allowedSubdomains) =>
+      storage(database, (db) =>
+        db.update(projectDomains).set({ allowedSubdomains, updatedAt: new Date() }).where(eq(projectDomains.id, id)).returning(),
+      ).pipe(
+        Effect.map(first),
+        Effect.tap((updated) =>
+          updated ? Effect.logInfo(`Updated allowed subdomains for project domain ${id}: [${allowedSubdomains.join(", ")}]`) : Effect.void,
+        ),
+      ),
 
+    delete: (id) =>
+      storage(database, (db) => db.delete(projectDomains).where(eq(projectDomains.id, id))).pipe(
+        Effect.map((result) => (result.rowCount ?? 0) > 0),
+        Effect.tap((deleted) => (deleted ? Effect.logDebug(`Deleted project domain: ${id}`) : Effect.void)),
+      ),
+
+    countByProjectId: (projectId) =>
+      storage(database, (db) =>
+        db.select({ count: projectDomains.id }).from(projectDomains).where(eq(projectDomains.projectId, projectId)),
+      ).pipe(Effect.map((rows) => rows.length)),
+  };
+}
+
+export class ProjectDomainRepository extends Context.Service<
+  ProjectDomainRepository,
+  Over<ProjectDomainRepositoryShape, DatabasePort>
+>()("shared/ProjectDomainRepository") {
+  static readonly live = serviceOver(Effect.all({ database: DatabasePort }), makeProjectDomainRepository);
 }

@@ -1,7 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { DatabaseModule } from "../database/database.module";
-import { GlobalDatabaseService } from "../database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "../database/services/global-database.service";
 
 import { ProjectAccessRepository } from "./repositories/project-access.repository";
 import { ProjectAccessService } from "./services/project-access.service";
@@ -17,7 +17,7 @@ export class ProjectCoreModule extends createModuleContext({
 	providers: [
 		{
 			provide: ProjectAccessRepository,
-			useFactory: (database: GlobalDatabaseService) => new ProjectAccessRepository.live(database.handle),
+			useFactory: (database: GlobalDatabaseServiceShape) => new ProjectAccessRepository.live(database.handle),
 			inject: [GlobalDatabaseService],
 		},
 		{ provide: ProjectAccessService, useClass: ProjectAccessService.live },

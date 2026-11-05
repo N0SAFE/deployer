@@ -1,12 +1,20 @@
-import { createGlobalModule } from "@deployer/nest-effect"
+import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle"
+import { createGlobalModule, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect"
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision"
 
 import { EnvModule } from "../../../config/env/env.module"
 import { DatabaseModule } from '../database/database.module'
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from '../database/database-connection'
+import { BootstrapAdvisoryLockService, type BootstrapAdvisoryLockServiceShape } from '../database/services/bootstrap-advisory-lock.service'
+import { DatabaseStartupGuard, type DatabaseStartupGuardShape } from '../database/services/database-startup-guard.service'
+import type { GlobalDatabase } from '../database/global/global-database.service'
+import type { Pool } from 'pg'
 import { GlobalDatabaseModule } from '../database/global/global-database.module'
 import { SupervisorsModule } from "../supervision/index";
 import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supervisors.module'
 
-import { BootstrapOrchestratorService } from './bootstrap-orchestrator.service'
+import { BootstrapOrchestratorService, makeBootstrapOrchestratorService } from './bootstrap-orchestrator.service'
 
 /**
  * BootstrapModule — the global boot coordinator.
@@ -46,6 +54,22 @@ export const BootstrapModule = createGlobalModule({
     // has made.
     SupervisorsModule.forRoot(),
   ],
-  providers: [BootstrapOrchestratorService],
+  providers: [
+    effectHostProvider(),
+    {
+      provide: BootstrapOrchestratorService,
+      useFactory: (
+        pool: Pool,
+        db: GlobalDatabase,
+        nodeConfigRepository: NodeConfigRepositoryShape,
+        lifecycle: AppLifecycleShape,
+        startupGuard: DatabaseStartupGuardShape,
+        bootstrapLock: BootstrapAdvisoryLockServiceShape,
+        orchestrator: SupervisorOrchestratorShape,
+      ) => makeBootstrapOrchestratorService({ pool, db, nodeConfigRepository, lifecycle, startupGuard, bootstrapLock, orchestrator }),
+      inject: [GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION, NodeConfigRepository, AppLifecycle, DatabaseStartupGuard, BootstrapAdvisoryLockService, SupervisorOrchestrator],
+    },
+    serviceLifecycle(BootstrapOrchestratorService),
+  ],
   exports: [BootstrapOrchestratorService],
 });

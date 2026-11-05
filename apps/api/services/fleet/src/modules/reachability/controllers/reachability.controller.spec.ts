@@ -12,7 +12,7 @@ import { NodeReachabilityService, type NodeReachabilityServiceShape } from "../s
 import { ReachabilityController } from "./reachability.controller";
 
 // Authentication and role checks are the shared middlewares' concern; here they let the call
-// through so the rest of the chain (Effect context, `serve`, failure handling) runs for real.
+// through so the rest of the chain (Effect context, the `.effect()` boundary, failure handling) runs for real.
 vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
     const { os } = await import("@orpc/server");
     const passThrough = () => os.$context().middleware(({ next }) => next());

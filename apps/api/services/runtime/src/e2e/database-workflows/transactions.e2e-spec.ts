@@ -10,7 +10,7 @@ import {
 } from '@deployer/nest-schema/global/project/deployment'
 import { deployments } from '@deployer/nest-schema/global/runtime/deployment'
 import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
-import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@deployer/shared/core/modules/database/services/global-database.service'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
 
 
@@ -34,7 +34,7 @@ type Pool = {
  * query on the server instead of leaving it running on an orphaned connection.
  */
 describe('RuntimeDb e2e: transactions and cancellation', () => {
-    let database: GlobalDatabaseService
+    let database: GlobalDatabaseServiceShape
     let pool: Pool
     let repository: DeploymentRepository
     let serviceId: string
@@ -50,7 +50,7 @@ describe('RuntimeDb e2e: transactions and cancellation', () => {
 
     beforeAll(async () => {
         const context = await getSharedApiRuntimeContext()
-        database = context.serviceMapper.get(GlobalDatabaseService)
+        database = context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape
         repository = context.serviceMapper.get(DeploymentRepository)
         pool = (database.db as unknown as { $client: Pool }).$client
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "./deployment-provider-builder-runner-state-machine.service";
 
 describe("DeploymentProviderBuilderRunnerStateMachineService", () => {
-    const service = new DeploymentProviderBuilderRunnerStateMachineService();
+    const service = DeploymentProviderBuilderRunnerStateMachineService.live;
 
     it("normalizes custom/docker-registry provider to external builder", () => {
         const result = service.evaluate({

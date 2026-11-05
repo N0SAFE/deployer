@@ -10,7 +10,7 @@ import type { SwarmClusterShape } from "@deployer/swarm"
 
 import { SetupStepTracker } from "../utils/setup-runner.utils";
 
-import { LocalInitializationService } from "./local-initialization.service";
+import { makeLocalInitializationService, type LocalInitializationSteps } from "./local-initialization.service";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EmitEvent } from "../utils/setup-runner.utils";
@@ -47,21 +47,21 @@ function makeMocks() {
 	return { nodeConfigRepository, postgresProvisioner, dockerService, env, upsert };
 }
 
-function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationService {
-	const service = new LocalInitializationService(
-		mocks.postgresProvisioner,
-		mocks.dockerService,
-		mocks.env,
-		mocks.nodeConfigRepository,
+function makeService(mocks: ReturnType<typeof makeMocks>, steps: Partial<LocalInitializationSteps> = {}) {
+	return makeLocalInitializationService({
+		postgresProvisioner: mocks.postgresProvisioner,
+		dockerEngine: mocks.dockerService,
+		env: mocks.env,
+		nodeConfigRepository: mocks.nodeConfigRepository,
 		// The flow founds the swarm before provisioning (a locally-managed
 		// Postgres is a swarm service). These specs exercise the marker
 		// persistence, not convergence, so a silent no-op + inactive snapshot
 		// keeps them deterministic.
-		{ converge: vi.fn(() => Effect.void) } as unknown as SwarmBootstrapShape,
+		swarmBootstrap: { converge: vi.fn(() => Effect.void) } as unknown as SwarmBootstrapShape,
 		// "active" is REQUIRED for the local path: the swarm step correctly
 		// throws when the cluster never comes up, because a locally-managed
 		// Postgres is a swarm service that cannot be provisioned otherwise.
-		{
+		swarmCluster: {
 			getLocalClusterSnapshot: vi.fn(() => Effect.succeed({
 				localNodeState: "active",
 				nodeCount: 1,
@@ -74,17 +74,17 @@ function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationSe
 		// before the DSN is used so the overlay attach is not left to the
 		// supervisor's 30s cadence. These specs assert marker persistence, not
 		// network wiring, so a resolved no-op keeps them deterministic.
-		{ convergeNow: vi.fn(() => Effect.succeed(null)) } as unknown as SupervisorOrchestratorShape,
-	);
+		supervisors: { convergeNow: vi.fn(() => Effect.succeed(null)) } as unknown as SupervisorOrchestratorShape,
+		// Short-circuit the DB-heavy steps. The provision step sets the URL; the migrate/seed steps must be no-ops for a
+		// deterministic run.
+		steps: {
+			ensureDatabaseEmpty: () => Promise.resolve([]),
+			runMigrations: () => Promise.resolve(),
+			seedInitialData: () => Promise.resolve({ userId: "u1" }),
+			...steps,
+		},
+	});
 
-	// Short-circuit the DB-heavy steps. The provision step sets the URL; the
-	// migrate/seed steps must be no-ops for a deterministic run.
-	(service as unknown as { ensureDatabaseEmpty(): Promise<string[]> }).ensureDatabaseEmpty =
-		() => Promise.resolve([]);
-	(service as unknown as { runMigrations(): Promise<void> }).runMigrations = () => Promise.resolve();
-	(service as unknown as { seedInitialData(): Promise<{ userId: string }> }).seedInitialData =
-		() => Promise.resolve({ userId: "u1" });
-	return service;
 }
 
 const noopEmit: EmitEvent = () => undefined;
@@ -96,12 +96,10 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 
 	it('persists databaseProvisioning="local" when the API provisions its own Postgres container', async () => {
 		const mocks = makeMocks();
-		const service = makeService(mocks);
 		// No existingDatabaseUrl → provisionDockerDatabase path (locally managed).
-		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase =
-			() => Promise.resolve(LOCAL_URL);
+		const service = makeService(mocks, { provisionDockerDatabase: () => Promise.resolve(LOCAL_URL) });
 
-		await service.initialize(
+		await Effect.runPromise(service.initialize(
 			{
 				strategy: "local",
 				name: "Admin",
@@ -111,7 +109,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			},
 			new SetupStepTracker(),
 			noopEmit,
-		);
+		));
 
 		expect(mocks.upsert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -123,12 +121,10 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 
 	it('persists databaseProvisioning="external" when an existing database URL is supplied', async () => {
 		const mocks = makeMocks();
-		const service = makeService(mocks);
 		// existingDatabaseUrl → probeExistingDatabase path (externally managed).
-		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase =
-			() => Promise.resolve(EXTERNAL_URL);
+		const service = makeService(mocks, { probeExistingDatabase: () => Promise.resolve(EXTERNAL_URL) });
 
-		await service.initialize(
+		await Effect.runPromise(service.initialize(
 			{
 				strategy: "local",
 				name: "Admin",
@@ -139,7 +135,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			},
 			new SetupStepTracker(),
 			noopEmit,
-		);
+		));
 
 		expect(mocks.upsert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -163,15 +159,11 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		}) as never);
 
-		const service = makeService(mocks);
-		const probeSpy = vi.fn(() => Promise.resolve(EXTERNAL_URL));
-		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase = probeSpy;
-		const provisionSpy = vi.fn(() =>
-			Promise.reject(new Error("must not provision a container when a DB is provided")),
-		);
-		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase = provisionSpy;
+		const probeSpy = vi.fn((_url: string, _log: (message: string) => void) => Promise.resolve(EXTERNAL_URL));
+		const provisionSpy = vi.fn(() => Promise.reject(new Error("must not provision a container when a DB is provided")));
+		const service = makeService(mocks, { probeExistingDatabase: probeSpy, provisionDockerDatabase: provisionSpy });
 
-		await service.initialize(
+		await Effect.runPromise(service.initialize(
 			{
 				strategy: "local",
 				name: "Admin",
@@ -181,7 +173,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			},
 			new SetupStepTracker(),
 			noopEmit,
-		);
+		));
 
 		expect(provisionSpy).not.toHaveBeenCalled();
 		expect(probeSpy).toHaveBeenCalledWith(EXTERNAL_URL, expect.any(Function));
@@ -193,3 +185,97 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 		);
 	});
 });
+/**
+ * THE FOUNDING MATRIX: database source × who owns the platform services × swarm role × engine outcome.
+ *
+ * Rules pinned here (see `initialize`): the swarm is founded ONLY for a locally-provisioned database on a deployment
+ * that does not own every service; it is founded BEFORE the database; the operator's swarm choice is persisted BEFORE it
+ * is acted on; a swarm that does not come up stops the run before any database exists and before `setup_done`.
+ */
+type Source = "explicit" | "provided" | "provision";
+type Owner = "deployment owns everything" | "platform owns services";
+const OWNED_ENV = { MANAGED_TRAEFIK_ENABLED: "true", MANAGED_REDIS_ENABLED: "true", MANAGED_LOCAL_DB_ENABLED: "true" };
+
+function makeMatrixService(options: { source: Source; owner: Owner; snapshotState?: string; migrationsFail?: boolean }) {
+	const timeline: string[] = [];
+	const rows: Record<string, unknown>[] = [];
+	let stored: Record<string, unknown> | null =
+		options.source === "provided" ? { nodeId: "n", strategy: "local", setupState: "not_started", databaseUrl: EXTERNAL_URL, databaseProvisioning: "external" } : null;
+	const repo = {
+		find: () => Effect.succeed(stored),
+		upsert: (row: Record<string, unknown>) => {
+			timeline.push(row.setupState === "setup_done" ? "persist:setup_done" : "persist:swarm-choice");
+			stored = { ...(stored ?? {}), ...row };
+			rows.push(row);
+			return Effect.succeed(row);
+		},
+	} as unknown as NodeConfigRepositoryShape;
+	const flags: Record<string, string> = options.owner === "deployment owns everything" ? OWNED_ENV : {};
+	const env = { get: (key: string) => (key === "DEPLOYER_PREFIX" ? "" : key === "DB_DATABASE" ? "deployer" : flags[key]) } as unknown as EnvService;
+	const service = new LocalInitializationService(
+		{ ensure: vi.fn(() => Effect.succeed({ name: "pg" })) } as unknown as PostgresProvisionerShape,
+		{ swarmServices: { logs: vi.fn(() => Effect.succeed("")) } } as unknown as DockerEngineShape,
+		env,
+		repo,
+		{ converge: () => (timeline.push("swarm:converge"), Effect.void) } as unknown as SwarmBootstrapShape,
+		{
+			getLocalClusterSnapshot: () =>
+				Effect.succeed({ localNodeState: options.snapshotState ?? "active", nodeCount: 1, managerCount: 1, localNode: { swarmRole: "manager" }, master: { nodeId: "self" } }) as never,
+		} as unknown as SwarmClusterShape,
+		{ convergeNow: () => Effect.succeed(null) } as unknown as SupervisorOrchestratorShape,
+	);
+	const patch = service as unknown as Record<string, unknown>;
+	patch.provisionDockerDatabase = () => (timeline.push("database:provision"), Promise.resolve(LOCAL_URL));
+	patch.probeExistingDatabase = () => (timeline.push("database:probe"), Promise.resolve(EXTERNAL_URL));
+	patch.ensureDatabaseEmpty = () => Promise.resolve([]);
+	patch.runMigrations = () => (timeline.push("database:migrate"), options.migrationsFail === true ? Promise.reject(new Error("migration failed")) : Promise.resolve());
+	patch.seedInitialData = () => (timeline.push("database:seed"), Promise.resolve({ userId: "u1" }));
+	return { service, timeline, rows };
+}
+
+const sources: Source[] = ["explicit", "provided", "provision"];
+const owners: Owner[] = ["deployment owns everything", "platform owns services"];
+const policies = [{ mode: "create", policy: "auto", joinAddrs: [] }, { mode: "create", policy: "manager", joinAddrs: [] }, undefined] as const;
+const base = { strategy: "local" as const, name: "Admin", email: "admin@test.com", password: "password123", serverUrl: "http://127.0.0.1:3001" };
+
+describe.each(sources.flatMap((source) => owners.flatMap((owner) => policies.map((swarm) => [`${source} db · ${owner} · ${swarm?.policy ?? "no swarm choice"}`, source, owner, swarm] as const))))(
+	"founding matrix · %s",
+	(_name, source, owner, swarm) => {
+		const input = { ...base, ...(source === "explicit" ? { existingDatabaseUrl: EXTERNAL_URL } : {}), ...(swarm ? { swarm } : {}) } as never;
+		const foundsSwarm = source === "provision" && owner === "platform owns services";
+
+		it("founds the swarm only when it must, always before the database, and ends setup_done with the right marker", async () => {
+			const { service, timeline, rows } = makeMatrixService({ source, owner });
+			await service.initialize(input, new SetupStepTracker(), noopEmit);
+
+			expect(timeline.includes("swarm:converge")).toBe(foundsSwarm);
+			if (foundsSwarm) {
+				// Decision persisted, THEN acted on, THEN the database.
+				expect(timeline.indexOf("persist:swarm-choice")).toBeLessThan(timeline.indexOf("swarm:converge"));
+				expect(timeline.indexOf("swarm:converge")).toBeLessThan(timeline.indexOf("database:provision"));
+			}
+			expect(timeline.indexOf("database:migrate")).toBeLessThan(timeline.indexOf("persist:setup_done"));
+			const final = rows.at(-1) as { setupState: string; databaseProvisioning: string; swarmConfig?: { policy: string }; meshSharedSecret?: string };
+			expect(final.setupState).toBe("setup_done");
+			expect(final.databaseProvisioning).toBe(source === "provision" ? "local" : "external");
+			expect(final.meshSharedSecret).toBeTruthy();
+			// What the operator chose is what is stored, not a default.
+			expect(final.swarmConfig?.policy).toBe(swarm?.policy);
+		});
+
+		it("a failing migration never produces setup_done", async () => {
+			const { service, rows } = makeMatrixService({ source, owner, migrationsFail: true });
+			await expect(service.initialize(input, new SetupStepTracker(), noopEmit)).rejects.toThrow();
+			expect(rows.some((row) => row.setupState === "setup_done")).toBe(false);
+		});
+
+		if (foundsSwarm) {
+			it("a swarm that never becomes active stops the run: no database, no setup_done", async () => {
+				const { service, timeline, rows } = makeMatrixService({ source, owner, snapshotState: "inactive" });
+				await expect(service.initialize(input, new SetupStepTracker(), noopEmit)).rejects.toThrow(/did not become active/);
+				expect(timeline).not.toContain("database:provision");
+				expect(rows.some((row) => row.setupState === "setup_done")).toBe(false);
+			});
+		}
+	},
+);

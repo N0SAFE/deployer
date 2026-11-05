@@ -2,6 +2,8 @@ import { HttpException } from '@nestjs/common'
 import { Effect } from 'effect'
 import { ZodError } from 'zod/v4'
 
+import type { RuntimeConfigurationInvalid } from '@deployer/shared/core/modules/configuration/configuration.errors'
+
 import {
     BadRequestError,
     ForbiddenError,
@@ -39,6 +41,11 @@ export type AttemptFailure = ProjectInfraFailure | ResourceMissing | ProjectForb
  */
 export function attempt<A>(run: () => Promise<A>): Effect.Effect<A, AttemptFailure> {
 	return Effect.tryPromise({ try: run, catch: (cause): AttemptFailure => toFailure(cause) });
+}
+
+/** Lift an Effect from a shared service: its tagged failures become this service's domain failures. */
+export function refuse<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, AttemptFailure, R> {
+	return Effect.mapError(effect, (cause): AttemptFailure => toFailure(cause));
 }
 
 /**
@@ -115,4 +122,11 @@ export function rule<A>(
             }
         }
     )
+}
+
+/** A runtime configuration that does not resolve is the caller's invalid input: the project domain's refusal. */
+export function configurationRule<A>(
+    resolution: Effect.Effect<A, RuntimeConfigurationInvalid>,
+): Effect.Effect<A, ProjectInvalid> {
+    return resolution.pipe(Effect.mapError((error) => new ProjectInvalid({ reason: error.publicMessage() })));
 }

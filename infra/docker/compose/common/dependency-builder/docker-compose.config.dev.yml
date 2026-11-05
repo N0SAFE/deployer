@@ -50,6 +50,7 @@ x-watch-ignore: &watch-ignore
   - "**/*.tsbuildinfo"
   - "**/*.eslintcache"
   - "**/.pkg-build-types.*"
+  - "**/dist.staging-*"
   - "**/README.md"
   - "**/CHANGELOG.md"
   - "**/docs/"
@@ -192,6 +193,8 @@ services:
             - package.json
             - bun.lock*
             - turbo.json
+            # Baked into the image's git baseline: an ignore-rule change must re-run it.
+            - .gitignore
             - tooling/dependency-builder/package.json
             - tooling/dependency-builder/tsconfig.json
             - infra/docker/builder/dependency-builder/Dockerfile.dependency-builder.dev

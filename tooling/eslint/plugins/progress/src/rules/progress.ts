@@ -1,5 +1,5 @@
-import pc from 'picocolors';
 import type { Rule } from 'eslint';
+import pc from 'picocolors';
 
 /**
  * `file-progress` as a typed ESLint rule.
@@ -17,12 +17,16 @@ import type { Rule } from 'eslint';
  * therefore reads "files started" — which is what `bun check` counts too.
  *
  * ── WHY THE DENOMINATOR IS ESTIMATED FROM DISK ──────────────────────────────
- * ESLint does not publish its file list to plugins, and asking the runner
- * (`bun lint --list-files`) costs a second config load: measured 2s on a small
- * workspace and 8.6s on `apps/web`, against a 5.4s lint. A `Bun.Glob` scan of
- * the workspace costs ~8ms for 850 files and lands within a few percent of the
- * real list — and `done` widens it if the run overshoots, so a bad estimate
- * cannot pin the bar at 100%.
+ * ESLint does not publish its file list to plugins — probed: no Bun global or
+ * argv entry carries it — and asking the runner (`bun lint --list-files`) costs a
+ * second config load, measured 2.6–4.9s, more than the whole lint of a small
+ * workspace. A `Bun.Glob` scan costs 1–20ms instead, and lands within 3% on 66
+ * of this repo's 67 workspaces. The exception is `apps/doc`, which narrows its
+ * lint with `files: ["src/**"]` — a glob cannot see that, so the estimate there
+ * is a ceiling that the run never reaches. Accepted: a bar that finishes at 17%
+ * on one workspace beats the alternatives, which are a 2.6–4.9s second config
+ * load (`--list-files`, measured) or a cache that a truncated run can poison
+ * with a count it never actually linted.
  *
  * ── WHY THERE IS NO WORKER/PROCESS COORDINATION ANY MORE ────────────────────
  * This rule used to keep a registry in `os.tmpdir()`, elect a renderer among
@@ -45,6 +49,13 @@ const SOURCE_EXTENSIONS = '{ts,tsx,js,jsx,mjs,cjs,mts,cts}';
 const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.next|\.source|coverage|build)\//;
 
 /**
+ * Files `bun lint` never reports as linted: it drops configs and setups from its
+ * own file list. Measured across the repo: excluding these took the estimate
+ * from a mean 1.28x of the real count to a mean 1.03x.
+ */
+const NOT_LINTED = /(^|\/)(eslint\.config|[^/]*\.config|[^/]*\.setup)\.[cm]?[jt]s$/;
+
+/**
  * Auto-disable when eslint runs with `--debug`: debug output and a repainting
  * line cannot share a terminal.
  *
@@ -62,13 +73,26 @@ const isDebugEnabled = (): boolean =>
   Boolean(process.env.DEBUG);
 
 /**
- * A repainting line needs a terminal of its own. Turbo's task renderer prefixes
- * every frame (`a:lint: ⠋ …`) and turns each `\r` into a new line, so the bar
- * arrives as a wall of text; there, and in any piped run, print nothing and let
- * the runner's own summary carry the result.
+ * A repainting line needs a terminal it owns, and turbo only gives tasks one in
+ * the TUI.
+ *
+ * Measured, because `TURBO_HASH` cannot answer this: turbo sets it in BOTH UIs,
+ * and the task's stderr is a TTY in BOTH (probed with a pty). What separates them
+ * is what turbo does with the bytes. The TUI keeps a screen, positions each
+ * repaint with cursor moves (`\x1b[4;30H`) and leaves the bar intact, so a lint
+ * run there shows the same progress line it shows in a bare terminal. The stream
+ * UI prefixes every frame with `<task>: ` and has no screen to rewrite, so each
+ * `\r` lands on a new line and the bar becomes a wall of text — there, print
+ * nothing and let the runner's summary carry the result.
+ *
+ * `TURBO_IS_TUI` is the discriminator the task can actually see: it is set to
+ * `"true"` by the TUI and absent under `--ui=stream`. Outside turbo it is absent
+ * too, which is why the check is "not under turbo, OR under a turbo TUI".
  */
 const isInteractive = (): boolean =>
-  Boolean(process.stderr.isTTY) && !process.env.TURBO_HASH && !isDebugEnabled();
+  Boolean(process.stderr.isTTY) &&
+  !isDebugEnabled() &&
+  (process.env.TURBO_HASH === undefined || process.env.TURBO_IS_TUI === 'true');
 
 interface ProgressSettings {
   hide: boolean;
@@ -88,9 +112,14 @@ let totalScanned = false;
 /**
  * Count the files this workspace will lint, once per process.
  *
- * `src/**` plus root-level sources is the layout every workspace here follows.
- * A workspace that lints more (or less) gets an estimate a few percent off,
- * which is inaudible on a bar.
+ * The scan is deliberately repo-wide rather than `src/**`: workspaces here also
+ * keep sources in `modules/` (`packages/contracts/*`) and `app/`, and a
+ * `src`-only scan reported 3 of `packages/contracts/fleet`'s 24 files — a bar
+ * that would never have left 12%.
+ *
+ * The result is a ceiling, because a workspace can narrow its lint with
+ * `files: ["src/**"]` and a glob cannot see that. `done` widens the denominator
+ * on overshoot, so the bar can still reach 100% when the estimate is low.
  */
 const estimateTotal = (cwd: string): void => {
   if (totalScanned) return;
@@ -103,21 +132,19 @@ const estimateTotal = (cwd: string): void => {
   if (bun === undefined) return;
 
   const seen = new Set<string>();
-  for (const pattern of [
-    `src/**/*.${SOURCE_EXTENSIONS}`,
-    `*.${SOURCE_EXTENSIONS}`,
-  ]) {
-    try {
-      for (const file of new bun.Glob(pattern).scanSync({
-        cwd,
-        dot: false,
-        onlyFiles: true,
-      })) {
-        if (!IGNORED_DIRS.test(`${file}/`)) seen.add(file);
-      }
-    } catch {
-      // Unreadable cwd: fall back to showing only the completed count.
+  try {
+    for (const file of new bun.Glob(`**/*.${SOURCE_EXTENSIONS}`).scanSync({
+      cwd,
+      dot: false,
+      onlyFiles: true,
+    })) {
+      if (IGNORED_DIRS.test(`${file}/`)) continue;
+      if (NOT_LINTED.test(file)) continue;
+      seen.add(file);
     }
+  } catch {
+    // Unreadable cwd: fall back to showing only the completed count.
+    return;
   }
   total = seen.size;
 };

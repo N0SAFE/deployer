@@ -40,7 +40,7 @@ function makeGithubSourceProviderService(git: GitShape) {
                 const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
                 const resolvedBranch = branch ?? (pullRequestNumber ? `refs/pull/${pullRequestNumber}/head` : "main");
 
-                const isValidRepository = yield* attempt(() => git.validateRepository(repositoryUrl));
+                const isValidRepository = yield* git.validateRepository(repositoryUrl);
                 if (!isValidRepository) {
                     return yield* new FleetInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
                 }

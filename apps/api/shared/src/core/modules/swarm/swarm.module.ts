@@ -34,14 +34,13 @@
  * is what tells Swarm which address to bind (see `meshAddress` below).
  */
 
-import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
-import { Effect, Fiber } from "effect";
+import type { InjectionToken, OptionalFactoryDependency, Provider } from "@nestjs/common";
+import { Effect } from "effect";
 
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { splitManagedEnv } from "@deployer/env";
 import { nodeDoorFromEnv } from "@deployer/mesh-client";
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost, effectHostProvider, ServiceLifecycleRunner, type EffectHostShape } from "@deployer/nest-effect";
 import {
     ClusterNodeRepository,
     NodeConfigRepository,
@@ -67,26 +66,7 @@ import { NodeStateModule } from "../node-state/node-state.module";
 
 const SWARM_SERVICES = Symbol("SWARM_SERVICES");
 
-/**
- * Runs the swarm services' process-lifetime work: the election loop for the life of the context, and
- * the boot convergence (a no-op unless the app opted in). Provided once beside the Effect services.
- */
-@Injectable()
-class SwarmLifecycle implements OnModuleInit, OnModuleDestroy {
-    private electionFiber: Fiber.Fiber<void> | null = null;
-
-    constructor(@Inject(SWARM_SERVICES) private readonly services: SwarmServices) {}
-
-    async onModuleInit(): Promise<void> {
-        this.electionFiber ??= Effect.runFork(this.services.leadership.run);
-        await runPromiseUnwrapped(this.services.bootstrap.onBoot);
-    }
-
-    async onModuleDestroy(): Promise<void> {
-        if (this.electionFiber) await Effect.runPromise(Fiber.interrupt(this.electionFiber));
-        this.electionFiber = null;
-    }
-}
+const SWARM_LIFECYCLE = Symbol.for("shared/SwarmLifecycle");
 
 /** Provides each swarm Effect service under its own tag, all built once over one engine and one repository set. */
 const swarmProviders = (options: {
@@ -105,7 +85,15 @@ const swarmProviders = (options: {
     { provide: SwarmJoinGrant, useFactory: (s: SwarmServices) => s.joinGrant, inject: [SWARM_SERVICES] },
     { provide: SwarmBootstrap, useFactory: (s: SwarmServices) => s.bootstrap, inject: [SWARM_SERVICES] },
     { provide: SwarmLeadership, useFactory: (s: SwarmServices) => s.leadership, inject: [SWARM_SERVICES] },
-    SwarmLifecycle,
+    effectHostProvider(),
+    {
+        // The swarm services' process-lifetime work: the boot convergence (a no-op unless the app opted in) runs before
+        // serving, then the election loop runs for the life of the context.
+        provide: SWARM_LIFECYCLE,
+        useFactory: (services: SwarmServices, host: EffectHostShape) =>
+            new ServiceLifecycleRunner("SwarmLifecycle", { onStart: () => services.bootstrap.onBoot, run: () => services.leadership.run }, host),
+        inject: [SWARM_SERVICES, EffectHost],
+    },
 ];
 
 /**

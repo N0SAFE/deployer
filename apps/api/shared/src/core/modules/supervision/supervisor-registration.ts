@@ -1,7 +1,7 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
+import type { Provider } from "@nestjs/common";
 import { Effect, Fiber } from "effect";
 
-import { runPromiseUnwrapped, runSyncUnwrapped } from "@deployer/effect-core";
+import { EffectHost, ServiceLifecycleRunner, type EffectHostShape, type ServiceLifecycleShape } from "@deployer/nest-effect";
 import {
 	makeSupervisor,
 	SupervisorOrchestrator,
@@ -10,7 +10,7 @@ import {
 	type SupervisorSpec,
 } from "@deployer/supervision";
 
-import type { SupervisorEventBus } from "./supervisor-event.bus";
+import type { SupervisorEventBusFacade } from "./supervisor-event.bus";
 import type z from "zod/v4";
 
 /**
@@ -33,48 +33,53 @@ export type SupervisorRegistration = {
 /** The runtime of `spec`, publishing its events on the shared bus. */
 export const buildSupervisor = <TSchema extends z.ZodType, TProcess extends z.ZodType>(
 	spec: SupervisorSpec<TSchema, TProcess>,
-	bus: SupervisorEventBus,
+	bus: SupervisorEventBusFacade,
 	label: string,
 ) => makeSupervisor(spec, { bus: bus.core, label });
 
-/** Registers a module's supervisors with the orchestrator, runs their background loops, stops them on shutdown. */
-@Injectable()
-export class SupervisorRegistrar implements OnModuleInit, OnModuleDestroy {
-	private readonly logger = new Logger(SupervisorRegistrar.name);
-	private readonly fibers: Fiber.Fiber<unknown, unknown>[] = [];
+/**
+ * Registers a module's supervisors with the orchestrator, runs their background loops, stops them on shutdown.
+ *
+ * Stateful (it owns the loops' fibers), so it is built once over its registrations. `onStart` activates the blocking ones
+ * before the app serves; a supervisor whose activation fails is logged and skipped, never a failed boot.
+ */
+export type SupervisorRegistrarShape = ServiceLifecycleShape & {
+	readonly onStart: () => Effect.Effect<void>;
+	readonly onStop: () => Effect.Effect<void>;
+};
 
-	constructor(
-		private readonly registrations: readonly SupervisorRegistration[],
-		private readonly orchestrator: SupervisorOrchestratorShape,
-	) {}
+export function makeSupervisorRegistrar(
+	registrations: readonly SupervisorRegistration[],
+	orchestrator: SupervisorOrchestratorShape,
+): SupervisorRegistrarShape {
+	const fibers: Fiber.Fiber<unknown, unknown>[] = [];
 
-	async onModuleInit(): Promise<void> {
-		const starts = this.registrations.map((entry) => {
-			const start = this.start(entry);
-			return entry.blocking === false ? undefined : start;
-		});
-		await Promise.all(starts);
-	}
-
-	private async start(entry: SupervisorRegistration): Promise<void> {
-		try {
-			const activation = await runPromiseUnwrapped(entry.activate);
+	const start = (entry: SupervisorRegistration): Effect.Effect<void> =>
+		Effect.gen(function* () {
+			const activation = yield* entry.activate;
 			if (activation === null) return;
-			runSyncUnwrapped(this.orchestrator.register(entry.supervisor));
-			if (activation.background !== undefined) this.fibers.push(Effect.runFork(activation.background));
-		} catch (error: unknown) {
-			this.logger.warn(`Supervisor ${entry.supervisor.id} not registered: ${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
+			yield* orchestrator.register(entry.supervisor);
+			if (activation.background !== undefined) fibers.push(yield* Effect.forkDetach(activation.background));
+		}).pipe(
+			Effect.catch((error: unknown) =>
+				Effect.logWarning(`Supervisor ${entry.supervisor.id} not registered: ${error instanceof Error ? error.message : String(error)}`),
+			),
+		);
 
-	async onModuleDestroy(): Promise<void> {
-		await Promise.all(this.fibers.splice(0).map((fiber) => Effect.runPromise(Fiber.interrupt(fiber))));
-	}
+	return {
+		// A non-blocking registration (a connector whose provider is slow) starts in the background and does not hold the boot.
+		onStart: () =>
+			Effect.gen(function* () {
+				for (const entry of registrations.filter((e) => e.blocking === false)) yield* Effect.forkDetach(start(entry));
+				yield* Effect.all(registrations.filter((e) => e.blocking !== false).map(start), { concurrency: "unbounded" });
+			}),
+		onStop: () => Effect.forEach(fibers.splice(0), (fiber) => Fiber.interrupt(fiber), { concurrency: "unbounded" }).pipe(Effect.asVoid),
+	};
 }
 
 /**
- * Providers for a module's supervisors: the registrations under `token`, and the registrar that
- * activates them. `inject` are the registrations' dependencies, in the order `build` takes them.
+ * Providers for a module's supervisors: the registrations under `token`, and the lifecycle runner that activates them.
+ * `inject` are the registrations' dependencies, in the order `build` takes them.
  */
 export const supervisorProviders = (config: {
 	readonly token: symbol;
@@ -84,8 +89,12 @@ export const supervisorProviders = (config: {
 	{ provide: config.token, useFactory: config.build, inject: config.inject },
 	{
 		provide: Symbol(`SupervisorRegistrar:${config.token.description ?? "supervisors"}`),
-		useFactory: (registrations: readonly SupervisorRegistration[], orchestrator: SupervisorOrchestratorShape) =>
-			new SupervisorRegistrar(registrations, orchestrator),
-		inject: [config.token, SupervisorOrchestrator],
+		useFactory: (registrations: readonly SupervisorRegistration[], orchestrator: SupervisorOrchestratorShape, host: EffectHostShape) =>
+			new ServiceLifecycleRunner(
+				`SupervisorRegistrar:${config.token.description ?? "supervisors"}`,
+				makeSupervisorRegistrar(registrations, orchestrator),
+				host,
+			),
+		inject: [config.token, SupervisorOrchestrator, EffectHost],
 	},
 ];

@@ -21,55 +21,26 @@
 # Sources are synced in by `develop.watch` rather than bind-mounted; see the
 # compose service for why a bind mount cannot work.
 
+
+# >>> shared-dev-base (generated from ../Dockerfile.base by sync-base.ts; do not edit here)
 ARG BUN_VERSION=1.4.4
-
-FROM oven/bun:${BUN_VERSION}-alpine AS base
-
-# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
-# `bunfig.toml` sets `globalStore = true`, which points every
-# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
-# below. A BuildKit cache mount is not committed to the image layer, so those
-# links would ship without their targets and every import in the container would
-# fail with ENOENT. Measured in a built image: with the store on, `test -d
-# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
-# Full reasoning: AGENTS.md → "One bun download cache".
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-dev-base
 ENV BUN_INSTALL_GLOBAL_STORE=0
 
-RUN apk add --no-cache curl wget bash git python3 make g++ gcc musl-dev tar libc6-compat jq
+# The union of what the dev applications and the dependency builder need.
+RUN apk add --no-cache bash curl wget git tar jq python3 make g++ gcc musl-dev libc6-compat
 
-# Node is kept available: Turbo's CLI wrapper is a Node script, and the tool
-# spawns it through Bun because the native `@turbo/<platform>` binary is not
-# hoisted under Bun's isolated linker.
+# Node 22 in the shared base (not per application) so its ~120MB layer is stored once for every dev image.
 COPY --from=node:22-alpine /usr/local /usr/local
 
-RUN ln -sf /usr/local/bin/node /usr/bin/node && \
-    ln -sf /usr/local/bin/npm /usr/bin/npm && \
-    ln -sf /usr/local/bin/npx /usr/bin/npx
-
-# No global `turbo`: the tool runs the repository's OWN Turbo from node_modules,
-# so the version it uses is the version the repository pins. A global install
-# would silently drift from it.
-# ── `sharing=shared`, NOT `locked` ──────────────────────────────────────────
-# `locked` holds an exclusive lock on the bun cache for the WHOLE RUN, so this
-# image serialized against every other image build sharing the cache — the
-# dependency-builder could not install while an application was installing.
-# Bun's cache is content-addressed and written atomically, so several installs
-# share one safely.
-#
-# Contrast with the turbo cache mount below, which stays `locked`: that one is
-# a private per-build cache whose contents are mutated in place.
-#
-# ── WHY THE TARGET IS THE CACHE SUBDIR AND THE `id` IS EXPLICIT ─────────────
-# Mounting the WHOLE `/root/.bun` hides what the install just wrote: bun's global
-# bin dir is `/root/.bun/install/global` and `/usr/local/bin/<tool>` is a symlink
-# into it, so with the mount on the parent the symlink dangles (measured).
-# The `id` is explicit because the cache id DEFAULTS TO THE MOUNT TARGET, and a
-# different target is a different cache: one explicit id is what lets this image
-# and the application images share a single download cache.
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
-    bun install -g node-gyp
-
+    ln -sf /usr/local/bin/node /usr/bin/node && \
+    ln -sf /usr/local/bin/npm /usr/bin/npm && \
+    ln -sf /usr/local/bin/npx /usr/bin/npx && \
+    bun install -g turbo@^2 @nestjs/cli node-gyp
 WORKDIR /app
+# <<< shared-dev-base
+FROM shared-dev-base AS base
 
 # ── The env the build is hashed WITH, so the runtime can reuse the cache ────
 #

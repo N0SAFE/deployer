@@ -1,3 +1,5 @@
+import { domainError } from '@deployer/effect-core';
+
 import { TraefikError } from './config.error';
 
 /**
@@ -111,4 +113,15 @@ export class FileDeleteError extends FileSystemError {
       this.stack = `${this.stack ?? ''}\nCaused by: ${cause.stack}`;
     }
   }
+}
+
+// ── Tagged (Effect) errors of the virtual filesystem ────────────────────────────────────────────────────────────────
+/** The virtual file does not exist (no matching config, certificate, middleware, static file or project). */
+export class TraefikFileNotFound extends domainError("TraefikFileNotFound", "not_found")<{ readonly filePath: string }>() {
+  override publicMessage() { return `File not found: ${this.filePath}`; }
+}
+
+/** The path is not one the virtual filesystem can write. */
+export class TraefikFileWriteRefused extends domainError("TraefikFileWriteRefused", "validation")<{ readonly filePath: string }>() {
+  override publicMessage() { return `Cannot write to ${this.filePath}`; }
 }

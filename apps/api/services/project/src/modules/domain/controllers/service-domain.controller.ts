@@ -5,7 +5,6 @@ import { procedure } from "@deployer/nest-effect";
 import { domainContract } from "@deployer/project-contracts";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
 import { DomainServiceService } from "../services/domain-service.service";
@@ -17,11 +16,10 @@ export class ServiceDomainController {
 	checkSubdomainAvailability() {
 		return procedure(domainContract.checkSubdomainAvailability)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
-					.checkSubdomainAvailability(input)
-					.pipe(serve(context));
+					.checkSubdomainAvailability(input);
 			});
 	}
 
@@ -29,11 +27,10 @@ export class ServiceDomainController {
 	listServiceDomains() {
 		return procedure(domainContract.listServiceDomains)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
-					.listServiceDomains(input.params)
-					.pipe(serve(context));
+					.listServiceDomains(input.params);
 			});
 	}
 
@@ -47,8 +44,7 @@ export class ServiceDomainController {
 					.addServiceDomain(
 						{ ...input.params, ...input.body },
 						actorFromContext(context).userId,
-					)
-					.pipe(serve(context));
+					);
 			});
 	}
 
@@ -62,8 +58,7 @@ export class ServiceDomainController {
 					.updateServiceDomain(
 						{ ...input.params, ...input.body },
 						actorFromContext(context).userId,
-					)
-					.pipe(serve(context));
+					);
 			});
 	}
 
@@ -77,8 +72,7 @@ export class ServiceDomainController {
 					.setPrimaryServiceDomain({
 						...input.params,
 						requesterId: actorFromContext(context).userId,
-					})
-					.pipe(serve(context));
+					});
 			});
 	}
 
@@ -92,8 +86,7 @@ export class ServiceDomainController {
 					.removeServiceDomain({
 						...input.params,
 						requesterId: actorFromContext(context).userId,
-					})
-					.pipe(serve(context));
+					});
 			});
 	}
 }

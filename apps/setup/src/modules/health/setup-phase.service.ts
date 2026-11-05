@@ -1,6 +1,6 @@
 import { Logger } from "@nestjs/common";
 import { Context } from "effect";
-import { BehaviorSubject, Observable, Subject, filter, map, distinctUntilChanged } from "rxjs";
+import { BehaviorSubject, Observable, Subject, defer, filter, map, merge, of, distinctUntilChanged } from "rxjs";
 
 import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-phase.types";
 
@@ -119,11 +119,16 @@ export function makeSetupPhase(): SetupPhaseShape {
     current: () => ({ ...state$.value }),
     snapshot$: state$.asObservable(),
     events$,
+    // A subscriber arriving while already IN `phase` still gets that entry once: Nest runs boot hooks in an order
+    // unrelated to dependencies, and on a restart the gate opens inside its own hook before the handover subscribes.
     onEnter: (phase) =>
-      events$.pipe(
-        filter((event) => event.to === phase),
-        distinctUntilChanged((a, b) => a.at === b.at),
-      ),
+      defer(() => {
+        const current = state$.value;
+        const live = events$.pipe(filter((event) => event.to === phase));
+        return current.phase === phase
+          ? merge(of<SetupPhaseEvent>({ from: current.phase, to: phase, snapshot: current, at: current.updatedAt }), live)
+          : live;
+      }).pipe(distinctUntilChanged((a, b) => a.at === b.at)),
     phase$: state$.pipe(
       map((snapshot) => snapshot.phase),
       distinctUntilChanged(),

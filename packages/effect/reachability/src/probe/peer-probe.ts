@@ -1,7 +1,9 @@
 import { Effect } from "effect";
+
 import { SafeHttp } from "@deployer/effect-infra";
-import { PeerProbeResult, ProbePeerOptions } from "./types";
+
 import { decodeIdentity, originOf, requestOrReason } from "./http";
+import { PeerProbeResult, ProbePeerOptions } from "./types";
 
 /**
  * Probe a peer's identity endpoint, with an optional liveness fallback.

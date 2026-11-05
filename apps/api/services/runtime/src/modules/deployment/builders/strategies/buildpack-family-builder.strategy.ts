@@ -1,11 +1,10 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Effect } from "effect";
 
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
 
-import type { BuilderStrategy, BuilderStrategyContext, BuilderStrategyResult } from "../base/builder-strategy.interface";
+import type { BuilderStrategy } from "../base/builder-strategy.interface";
 
 export type BuildpackFamilyKind = "nixpacks" | "buildpack" | "railpack";
 
@@ -26,47 +25,34 @@ export type BuildpackFamilyKind = "nixpacks" | "buildpack" | "railpack";
  * REQUIRES custom commands, and the error must say so. Availability is per-deployment,
  * not global — `isAvailable()` cannot express it — so the precondition is enforced in
  * `build()`, where `dockerfileName !== null` means precisely "custom commands supplied".
+ *
+ * Always available: the artifact is an ordinary Docker build, which this platform
+ * always supports. The per-deployment precondition is checked in `build()`.
  */
-@Injectable()
-export class BuildpackFamilyBuilderStrategy implements BuilderStrategy {
-    readonly builderType: BuildpackFamilyKind;
+export function makeBuildpackFamilyBuilderStrategy(
+    builderType: BuildpackFamilyKind,
+    engine: DockerEngineShape,
+): BuilderStrategy {
+    return {
+        builderType,
+        isAvailable: () => true,
+        unavailableReason: () => "",
+        build: (context) =>
+            Effect.gen(function* () {
+                // Present only when the operator supplied custom commands — the caller writes it
+                // in `prepareCustomBuilderDockerfileIfNeeded`.
+                if (context.dockerfileName === null) {
+                    return yield* new RuntimeInvalid({ reason: `Builder '${builderType}' requires custom build and run commands: this platform ` +
+                            `runs no ${builderType} toolchain, so the artifact is produced from a generated ` +
+                            "Dockerfile. Set a build command (and run command), or use 'dockerfile' with a " +
+                            "committed Dockerfile instead." });
+                }
 
-    constructor(
-        builderType: BuildpackFamilyKind,
-        @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
-    ) {
-        this.builderType = builderType;
-    }
+                yield* engine.build.image(context.buildContextPath, context.imageTag, {
+                    dockerfileName: context.dockerfileName,
+                });
 
-    /**
-     * Always available: the artifact is an ordinary Docker build, which this platform
-     * always supports. The per-deployment precondition is checked in `build()`.
-     */
-    isAvailable(): boolean {
-        return true;
-    }
-
-    unavailableReason(): string {
-        return "";
-    }
-
-    async build(context: BuilderStrategyContext): Promise<BuilderStrategyResult> {
-        // Present only when the operator supplied custom commands — the caller writes it
-        // in `prepareCustomBuilderDockerfileIfNeeded`.
-        if (context.dockerfileName === null) {
-            throw new RuntimeInvalid({ reason: `Builder '${this.builderType}' requires custom build and run commands: this platform ` +
-                    `runs no ${this.builderType} toolchain, so the artifact is produced from a generated ` +
-                    "Dockerfile. Set a build command (and run command), or use 'dockerfile' with a " +
-                    "committed Dockerfile instead." });
-        }
-
-        await runPromiseUnwrapped(
-            this.dockerEngine.build.image(context.buildContextPath, context.imageTag, {
-                dockerfileName: context.dockerfileName,
+                return { image: context.imageTag };
             }),
-            { signal: context.signal },
-        );
-
-        return { image: context.imageTag };
-    }
+    };
 }

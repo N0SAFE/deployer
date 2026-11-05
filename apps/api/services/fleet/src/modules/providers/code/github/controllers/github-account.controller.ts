@@ -15,9 +15,8 @@ import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { parseComposeServices } from "@deployer/shared/core/modules/git/github/services/compose-parser";
 
-import { attempt, attemptSync, describeFailure, recover } from "@/core/effects";
+import { attempt, describeFailure, recover } from "@/core/effects";
 import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
-import { serve } from "@/core/orpc/serve";
 import { GitHub } from "@/core/ports/github.port";
 import { PublicAccessPoint } from "@/core/ports/public-access-point.port";
 
@@ -43,14 +42,12 @@ const ensureAppRegistered = Effect.fn("GitHubAppsController.ensureAppRegistered"
     }
     const gitHub = yield* GitHub;
     const { appId, privateKey } = row;
-    yield* attemptSync(() => {
-        gitHub.registerInstallation(row.id, {
-            appId,
-            privateKey,
-            ...(row.clientId ? { clientId: row.clientId } : {}),
-            ...(row.clientSecret ? { clientSecret: row.clientSecret } : {}),
-            ...(row.webhookSecret ? { webhookSecret: row.webhookSecret } : {}),
-        });
+    yield* gitHub.registerInstallation(row.id, {
+        appId,
+        privateKey,
+        ...(row.clientId ? { clientId: row.clientId } : {}),
+        ...(row.clientSecret ? { clientSecret: row.clientSecret } : {}),
+        ...(row.webhookSecret ? { webhookSecret: row.webhookSecret } : {}),
     });
 });
 
@@ -78,7 +75,7 @@ const resolveInstallationId = (
         if (!Number.isFinite(installationId) || installationId <= 0) {
             yield* recover(
                 Effect.gen(function* () {
-                    const installations = yield* attempt(() => gitHub.listInstallations(app.id));
+                    const installations = yield* gitHub.listInstallations(app.id);
                     const first = installations[0];
                     if (first) {
                         installationId = first.id;
@@ -126,9 +123,9 @@ export class GitHubAppsController {
     list() {
         return procedure(providersContract.code.github.list)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const apps = yield* GithubAppsStore;
-                const rows = yield* serve(context)(apps.list());
+                const rows = yield* apps.list();
 
                 return {
                     apps: rows.map(toAppView),
@@ -141,10 +138,9 @@ export class GitHubAppsController {
     create() {
         return procedure(providersContract.code.github.create)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
-                const row = yield* serve(context)(
-                    Effect.gen(function* () {
+                const row = yield* Effect.gen(function* () {
                         const created = yield* apps.create({
                             name: input.name,
                             appId: input.appId,
@@ -159,8 +155,8 @@ export class GitHubAppsController {
                             return yield* new FleetInvalid({ reason: "Failed to create GitHub App" });
                         }
                         return created;
-                    }),
-                );
+                    })
+                ;
 
                 return toAppView(row);
             });
@@ -170,7 +166,7 @@ export class GitHubAppsController {
     update() {
         return procedure(providersContract.code.github.update)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
                 const body = input.body;
                 const values: Partial<typeof import("@deployer/nest-schema/global").githubApps.$inferInsert> = {};
@@ -180,15 +176,14 @@ export class GitHubAppsController {
                 if (body?.privateKey) values.privateKey = body.privateKey;
                 if (body?.webhookSecret) values.webhookSecret = body.webhookSecret;
 
-                const row = yield* serve(context)(
-                    Effect.gen(function* () {
+                const row = yield* Effect.gen(function* () {
                         const updated = yield* apps.updateById(input.params.id, values);
                         if (!updated) {
                             return yield* new FleetNotFound({ reason: "GitHub App not found" });
                         }
                         return updated;
-                    }),
-                );
+                    })
+                ;
 
                 return toAppView(row);
             });
@@ -198,9 +193,9 @@ export class GitHubAppsController {
     delete() {
         return procedure(providersContract.code.github.delete)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
-                yield* serve(context)(apps.deleteById(input.params.id));
+                yield* apps.deleteById(input.params.id);
                 return { success: true };
             });
     }
@@ -211,11 +206,11 @@ export class GitHubAppsController {
     selfCheck() {
         return procedure(providersContract.code.github.selfCheck)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const accessPoint = yield* PublicAccessPoint;
                 // The public access point comes from the CORE service (global
                 // relay) — requested on demand, live-checked, then returned.
-                const state = yield* serve(context)(attempt(() => accessPoint.getAccessPoint()));
+                const state = yield* accessPoint.getAccessPoint();
                 if (!state.configured || !state.publicUrl) {
                     return {
                         reachable: false,
@@ -241,13 +236,12 @@ export class GitHubAppsController {
     manifestInit() {
         return procedure(providersContract.code.github.manifestInit)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const accessPoint = yield* PublicAccessPoint;
                 // The GitHub App manifest flow registers a callback URL on this
                 // node — requires a configured AND reachable public access point.
-                const state = yield* serve(context)(
-                    Effect.gen(function* () {
-                        const point = yield* attempt(() => accessPoint.getAccessPoint());
+                const state = yield* Effect.gen(function* () {
+                        const point = yield* accessPoint.getAccessPoint();
                         if (!point.configured || !point.publicUrl) {
                             return yield* new FleetInvalid({
                                 reason: point.error ?? "GitHub App manifest registration requires a configured public access point for this node.",
@@ -259,8 +253,8 @@ export class GitHubAppsController {
                             });
                         }
                         return { publicUrl: point.publicUrl };
-                    }),
-                );
+                    })
+                ;
                 const base = state.publicUrl.replace(/\/+$/, "");
 
                 // The browser lands on the WEB APP callback page (which holds
@@ -324,12 +318,11 @@ export class GitHubAppsController {
     manifestCallback() {
         return procedure(providersContract.code.github.manifestCallback)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const gitHub = yield* GitHub;
                 const apps = yield* GithubAppsStore;
-                const { result, row } = yield* serve(context)(
-                    Effect.gen(function* () {
-                        const created = yield* attempt(() => gitHub.createFromManifestCode(input.code));
+                const { result, row } = yield* Effect.gen(function* () {
+                        const created = yield* gitHub.createFromManifestCode(input.code);
                         const persisted = yield* apps.create({
                             name: created.name,
                             appId: String(created.id),
@@ -344,8 +337,8 @@ export class GitHubAppsController {
                             return yield* new FleetInvalid({ reason: "Failed to persist GitHub App from manifest" });
                         }
                         return { result: created, row: persisted };
-                    }),
-                );
+                    })
+                ;
                 return {
                     ...toAppView(row),
                     slug: result.slug,
@@ -360,10 +353,9 @@ export class GitHubAppsController {
     installCallback() {
         return procedure(providersContract.code.github.installCallback)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         // Guard: the installation id must be numeric (GitHub returns a number).
                         const parsed = Number(input.installationId);
                         if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -376,8 +368,8 @@ export class GitHubAppsController {
                         }
                         yield* Effect.logInfo(`GitHub App ${updated.appId} installation recorded: ${String(parsed)}`);
                         return { success: true, appName: input.appName, installationId: String(parsed) };
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -387,10 +379,9 @@ export class GitHubAppsController {
     createFromPat() {
         return procedure(providersContract.code.github.createFromPat)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
-                const row = yield* serve(context)(
-                    Effect.gen(function* () {
+                const row = yield* Effect.gen(function* () {
                         const created = yield* apps.create({
                             name: input.name,
                             appId: "pat",
@@ -405,8 +396,8 @@ export class GitHubAppsController {
                             return yield* new FleetInvalid({ reason: "Failed to create GitHub App from PAT" });
                         }
                         return created;
-                    }),
-                );
+                    })
+                ;
                 return toAppView(row);
             });
     }
@@ -417,11 +408,10 @@ export class GitHubAppsController {
     oauthInit() {
         return procedure(providersContract.code.github.oauthInit)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
                 const accessPoint = yield* PublicAccessPoint;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const app = yield* apps.findClientIdById(input.params.appId);
                         if (!app?.clientId) {
                             return yield* new FleetNotFound({ reason: "GitHub App not found" });
@@ -429,7 +419,7 @@ export class GitHubAppsController {
                         const state = `${app.id}:${crypto.randomUUID()}`;
                         // The OAuth redirect URI must point at THIS node's public access
                         // point (core service, global relay) — never env vars.
-                        const point = yield* attempt(() => accessPoint.getAccessPoint());
+                        const point = yield* accessPoint.getAccessPoint();
                         if (!point.configured || !point.publicUrl) {
                             return yield* new FleetInvalid({
                                 reason: point.error ?? "GitHub OAuth requires a configured public access point for this node.",
@@ -444,8 +434,8 @@ export class GitHubAppsController {
                         const redirectUri = `${publicUrl}/github/oauth/callback`;
                         const url = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(app.clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=repo%20read:org`;
                         return { url, state };
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -453,11 +443,10 @@ export class GitHubAppsController {
     oauthCallback() {
         return procedure(providersContract.code.github.oauthCallback)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GithubAppsStore;
                 const gitHub = yield* GitHub;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const app = yield* apps.findClientCredentialsById(input.appId);
                         if (!app) {
                             return yield* new FleetNotFound({ reason: "GitHub App not found" });
@@ -468,13 +457,13 @@ export class GitHubAppsController {
                         // only verify the exchange succeeded. The installation id is
                         // captured by the `installation` webhook (or auto-discovered
                         // by listRepos via the app credentials).
-                        const token = yield* attempt(() => gitHub.exchangeCodeForToken(app.id, input.code));
+                        const token = yield* gitHub.exchangeCodeForToken(app.id, input.code);
                         if (!token.access_token) {
                             return yield* new FleetInvalid({ reason: "GitHub OAuth code exchange returned no token" });
                         }
                         return { success: true, installationId: undefined };
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -484,10 +473,9 @@ export class GitHubAppsController {
     listRepos() {
         return procedure(providersContract.code.github.listRepos)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const gitHub = yield* GitHub;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const app = yield* findProviderApp(input.query?.providerAppId);
                         if (!app) return { repos: [] };
 
@@ -503,7 +491,7 @@ export class GitHubAppsController {
                                 _meta: { installed: false, appId: app.appId, appName: app.name, message: "This GitHub App is not yet installed on any repositories." },
                             };
                         }
-                        const repos = yield* attempt(() => gitHub.listInstallationRepositories(app.id, installationId));
+                        const repos = yield* gitHub.listInstallationRepositories(app.id, installationId);
                         return {
                             repos: repos.map((r) => ({
                                 id: r.id,
@@ -518,8 +506,8 @@ export class GitHubAppsController {
                             })),
                             _meta: { installed: true, appId: app.appId, appName: app.name },
                         };
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -529,10 +517,9 @@ export class GitHubAppsController {
     listBranches() {
         return procedure(providersContract.code.github.listBranches)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const gitHub = yield* GitHub;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const app = yield* findProviderApp(input.query?.providerAppId);
                         if (!app) return { owner: input.params.owner, repo: input.params.repo, branches: [] };
 
@@ -545,12 +532,10 @@ export class GitHubAppsController {
                             return { owner: input.params.owner, repo: input.params.repo, branches: [] };
                         }
 
-                        const branches = yield* attempt(() =>
-                            gitHub.listRepositoryBranches(app.id, installationId, input.params.owner, input.params.repo),
-                        );
+                        const branches = yield* gitHub.listRepositoryBranches(app.id, installationId, input.params.owner, input.params.repo);
                         return { owner: input.params.owner, repo: input.params.repo, branches };
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -560,10 +545,9 @@ export class GitHubAppsController {
     detectRunner() {
         return procedure(providersContract.code.github.detectRunner)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const gitHub = yield* GitHub;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const app = yield* findProviderApp(input.query?.providerAppId);
                         if (!app) {
                             return { detected: [], defaultBuilder: null };
@@ -584,12 +568,12 @@ export class GitHubAppsController {
 
                         yield* recover(
                             Effect.gen(function* () {
-                                const rootFiles = new Set(yield* attempt(() => gitHub.listRepositoryRoot(app.id, installationId, owner, repo)));
+                                const rootFiles = new Set(yield* gitHub.listRepositoryRoot(app.id, installationId, owner, repo));
                                 const readFile = (path: string) => gitHub.getRepositoryFileContent(app.id, installationId, owner, repo, path);
 
                                 // ── Node.js: package.json → framework, scripts, engines ──
                                 if (rootFiles.has("package.json")) {
-                                    const pkgText = yield* attempt(() => readFile("package.json"));
+                                    const pkgText = yield* readFile("package.json");
                                     const pkg = pkgText ? parsePackageJson(pkgText) : null;
                                     if (pkg) {
                                         hints.language = "node";
@@ -603,7 +587,7 @@ export class GitHubAppsController {
 
                                 // ── Docker: Dockerfile / compose → ports, paths, builder ──
                                 // 1. Search the WHOLE repo for compose files (prod first).
-                                const allFiles = yield* attempt(() => gitHub.listRepositoryFiles(app.id, installationId, owner, repo));
+                                const allFiles = yield* gitHub.listRepositoryFiles(app.id, installationId, owner, repo);
                                 const composeCandidates = findComposeFiles(allFiles);
 
                                 // 2. Pick the compose file: an explicit `composeFile` query
@@ -617,7 +601,7 @@ export class GitHubAppsController {
                                 const dockerfileName = findDockerfile(allFiles, composeName);
 
                                 if (composeName) {
-                                    const text = yield* attempt(() => readFile(composeName));
+                                    const text = yield* readFile(composeName);
                                     // Must match `deploymentBuilderKindSchema` (`docker_compose`,
                                     // underscore). `"docker-compose"` is not a member of it.
                                     builder = "docker_compose";
@@ -638,7 +622,7 @@ export class GitHubAppsController {
                                         const services = yield* attempt(() =>
                                             parseComposeServices(
                                                 text,
-                                                (path: string) => readFile(path),
+                                                (path: string) => Effect.runPromise(readFile(path).pipe(Effect.catch(() => Effect.succeed(null)))),
                                                 dir,
                                                 {},
                                             ),
@@ -651,7 +635,7 @@ export class GitHubAppsController {
                                         }));
                                     }
                                 } else if (dockerfileName) {
-                                    const text = yield* attempt(() => readFile(dockerfileName));
+                                    const text = yield* readFile(dockerfileName);
                                     builder = "dockerfile";
                                     hints.dockerfilePath = dockerfileName;
                                     if (text) {
@@ -665,7 +649,7 @@ export class GitHubAppsController {
                                     builder = "nixpacks";
                                     hints.rootPath = "/";
                                     hints.buildContext = ".";
-                                    const pkgText = yield* attempt(() => readFile("package.json"));
+                                    const pkgText = yield* readFile("package.json");
                                     const pkg = pkgText ? parsePackageJson(pkgText) : null;
                                     if (pkg) {
                                         const devPort = extractDevPort(pkg);
@@ -675,10 +659,10 @@ export class GitHubAppsController {
                                     builder = "nixpacks";
                                     hints.language = "python";
                                     if (rootFiles.has("pyproject.toml")) {
-                                        const text = yield* attempt(() => readFile("pyproject.toml"));
+                                        const text = yield* readFile("pyproject.toml");
                                         if (text) hints.startCommand = extractPythonStart(text);
                                     } else if (rootFiles.has("requirements.txt")) {
-                                        const text = yield* attempt(() => readFile("requirements.txt"));
+                                        const text = yield* readFile("requirements.txt");
                                         if (text) hints.startCommand = extractPythonStartFromRequirements(text);
                                     }
                                 } else if (rootFiles.has("go.mod")) {
@@ -726,8 +710,8 @@ export class GitHubAppsController {
                             }]
                             : [];
                         return { detected, defaultBuilder: builder };
-                    }),
-                );
+                    })
+                ;
             });
     }
 }

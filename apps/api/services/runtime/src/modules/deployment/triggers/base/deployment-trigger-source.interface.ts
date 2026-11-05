@@ -1,3 +1,5 @@
+import type { Effect } from "effect";
+
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
 /**
@@ -31,7 +33,7 @@ import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules
  * registry choose a source without paying for those lookups, and keeps the "no source
  * matched" answer cheap and explicit.
  */
-export type DeploymentTriggerSource = {
+export type DeploymentTriggerSource<R = never> = {
     /** Dispatch key, lowercase: "api" | "github-push" | "github-pull-request" | "schedule" | … */
     readonly sourceId: string;
 
@@ -48,10 +50,11 @@ export type DeploymentTriggerSource = {
      * Translate the event into the input `triggerDeployment` accepts.
      *
      * Called only after `matches()` returned true, so it may assume the event shape —
-     * and it SHOULD throw a domain error when the event is well-formed but the deployment
-     * cannot be built (e.g. no service is linked to that repository).
+     * and it SHOULD fail with a domain error when the event is well-formed but the deployment
+     * cannot be built. "Nothing to deploy" (e.g. no service is linked to that repository) is `null`.
+     * `R` is what the source reads while it runs (a lookup port); it is yielded, never injected.
      */
-    toTriggerInput(event: DeploymentTriggerEvent): Promise<DeploymentTriggerInput | null>;
+    toTriggerInput(event: DeploymentTriggerEvent): Effect.Effect<DeploymentTriggerInput | null, unknown, R>;
 
     /**
      * Whether this source can fire right now.

@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DeploymentExecutionWorkflowService } from "./deployment-execution-workflow.service";
+import { Effect } from "effect";
 
-describe("DeploymentExecutionWorkflowService", () => {
+import { makeDeploymentExecutionWorkflow } from "./deployment-execution-workflow.service";
+
+describe("DeploymentExecutionWorkflow", () => {
     let deploymentRepository: {
         findById: ReturnType<typeof vi.fn>;
         getServiceProjectId: ReturnType<typeof vi.fn>;
@@ -25,7 +27,11 @@ describe("DeploymentExecutionWorkflowService", () => {
         buildVariableMap: ReturnType<typeof vi.fn>;
     };
 
-    let service: DeploymentExecutionWorkflowService;
+    let service: {
+        persistBuildExecutionResult: (...args: Parameters<ReturnType<typeof makeDeploymentExecutionWorkflow>["persistBuildExecutionResult"]>) => Promise<void>;
+        persistDeploymentExecutionFailure: (...args: Parameters<ReturnType<typeof makeDeploymentExecutionWorkflow>["persistDeploymentExecutionFailure"]>) => Promise<void>;
+        probeDeployedDomain: (...args: Parameters<ReturnType<typeof makeDeploymentExecutionWorkflow>["probeDeployedDomain"]>) => Promise<void>;
+    };
     let egress: { external: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
@@ -98,19 +104,30 @@ describe("DeploymentExecutionWorkflowService", () => {
         };
 
         domainRoutingService = {
-            resolveServiceUrls: vi.fn().mockResolvedValue([]),
-            resolvePrimaryUrl: vi.fn().mockResolvedValue(null),
-            syncServiceRoutes: vi.fn().mockResolvedValue({ success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null }),
-            buildVariableMap: vi.fn().mockReturnValue({}),
+            resolveServiceUrls: vi.fn(() => Effect.succeed([])),
+            resolvePrimaryUrl: vi.fn(() => Effect.succeed(null)),
+            syncServiceRoutes: vi.fn(() => Effect.succeed({ success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null })),
+            buildVariableMap: vi.fn(() => Effect.succeed({})),
         };
 
-        service = new DeploymentExecutionWorkflowService(
-            deploymentRepository as never,
-            runtimeRunnerRegistryService as never,
-            deploymentEventService as never,
-            domainRoutingService as never,
-            egress as never,
-        );
+        const workflow = makeDeploymentExecutionWorkflow({
+            deploymentRepository: deploymentRepository as never,
+            runtimeRunnerRegistry: {
+                execute: (kind, input) => Effect.tryPromise({ try: () => (runtimeRunnerRegistryService.execute as (...a: unknown[]) => Promise<never>)(kind, input), catch: (cause) => cause }),
+            },
+            host: {
+                run: (effect) => Effect.runPromise(effect as Effect.Effect<never>),
+                runUnwrapped: (effect) => Effect.runPromise(effect as Effect.Effect<never>),
+            },
+            deploymentEventService: deploymentEventService as never,
+            domainRoutingService: domainRoutingService as never,
+            egress: egress as never,
+        });
+        service = {
+            persistBuildExecutionResult: (...args) => Effect.runPromise(workflow.persistBuildExecutionResult(...args)),
+            persistDeploymentExecutionFailure: (...args) => Effect.runPromise(workflow.persistDeploymentExecutionFailure(...args)),
+            probeDeployedDomain: (...args) => Effect.runPromise(workflow.probeDeployedDomain(...args)),
+        };
     });
 
     it("passes validated storageBinding from queue result to runtime runner", async () => {
@@ -479,12 +496,7 @@ describe("DeploymentExecutionWorkflowService", () => {
     });
 
     describe("post-deploy external probe", () => {
-        const probe = (url: string) =>
-            (service as unknown as { probeDeployedDomain(id: string, url: string, correlationId: string): Promise<void> }).probeDeployedDomain(
-                "deployment-1",
-                url,
-                "corr-1",
-            );
+        const probe = (url: string) => service.probeDeployedDomain("deployment-1", url, "corr-1");
 
         beforeEach(() => {
             deploymentRepository.persistBuildArtifacts = vi.fn().mockResolvedValue(undefined);
@@ -492,7 +504,7 @@ describe("DeploymentExecutionWorkflowService", () => {
         });
 
         it("probes /health of the user-supplied domain through the external egress policy", async () => {
-            egress.external.mockResolvedValue({ status: 200, headers: {}, body: new Uint8Array(), url: "" });
+            egress.external.mockReturnValue(Effect.succeed({ status: 200, headers: {}, body: new Uint8Array(), url: "" }));
             await probe("https://app.example.com/");
             expect(egress.external).toHaveBeenCalledWith({ url: "https://app.example.com/health" }, { timeoutMs: 10_000 });
             expect(deploymentRepository.insertLog).toHaveBeenCalledWith(
@@ -502,7 +514,7 @@ describe("DeploymentExecutionWorkflowService", () => {
         });
 
         it("a refused target is logged as a warning with the generic reason and never blocks the deployment", async () => {
-            egress.external.mockRejectedValue(new Error("Target not allowed by the network policy"));
+            egress.external.mockReturnValue(Effect.fail(new Error("Target not allowed by the network policy")));
             await expect(probe("http://169.254.169.254")).resolves.toBeUndefined();
             expect(deploymentRepository.insertLog).toHaveBeenCalledWith(
                 "deployment-1",
@@ -512,7 +524,7 @@ describe("DeploymentExecutionWorkflowService", () => {
         });
 
         it("a non-2xx answer is reported as unreachable", async () => {
-            egress.external.mockResolvedValue({ status: 503, headers: {}, body: new Uint8Array(), url: "" });
+            egress.external.mockReturnValue(Effect.succeed({ status: 503, headers: {}, body: new Uint8Array(), url: "" }));
             await probe("https://app.example.com");
             expect(deploymentRepository.insertLog).toHaveBeenCalledWith("deployment-1", expect.objectContaining({ level: "warn" }));
         });

@@ -160,8 +160,17 @@ function cleanupOrphanedDeployerContainers(): void {
 
   try {
     // Testcontainers orphans only: labelled by Testcontainers AND named deployer-*.
+    //
+    // ── WHY `deployer.e2e` IS A SECOND LABEL FILTER ─────────────────────────
+    // `--filter label=` values are ORed (same key), while `name=` is ANDed with
+    // them. `org.testcontainers=true` alone matched nothing this harness starts:
+    // `shared-postgres.ts` creates its container through raw Dockerode, not
+    // Testcontainers, so it carried neither that label nor a `deployer*` name
+    // (`relaxed_edison`), and twenty-one such containers were still running on the
+    // reference machine. It now sets `deployer.e2e` and names the container
+    // `deployer-e2e-postgres-<uuid>`, so both branches of this filter reach it.
     const containerIds = execSync(
-      `docker ps --filter "label=org.testcontainers=true" --filter "name=deployer" --format "{{.ID}}" 2>/dev/null || true`,
+      `docker ps --filter "label=org.testcontainers=true" --filter "label=deployer.e2e" --filter "name=deployer" --format "{{.ID}}" 2>/dev/null || true`,
       { encoding: "utf-8", timeout: 10_000 },
     )
       .split("\n")

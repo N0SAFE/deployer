@@ -56,7 +56,7 @@ describe("NodeState", () => {
         mesh: null,
       },
     });
-    expect(configured.config?.configuredAt).toBe(configured.config?.updatedAt);
+    expect(configured.config.configuredAt).toBe(configured.config.updatedAt);
     expect((await node.run(new NodeState.live().state())).config).toEqual(configured.config);
   });
 
@@ -74,7 +74,7 @@ describe("NodeState", () => {
       nodeId: null,
     });
     // The creation time survives every later write; only the last-write time moves.
-    expect(patched.config?.configuredAt).toBe(created?.configuredAt);
+    expect(patched.config.configuredAt).toBe(created?.configuredAt);
   });
 
   it("stores the node's mesh config, and keeps it across a patch that does not name it", async () => {
@@ -92,11 +92,11 @@ describe("NodeState", () => {
 
     expect((await node.run(new NodeState.live().state())).config).toBeNull();
     const written = await node.run(new NodeState.live().configure({ mesh }));
-    expect(written.config?.mesh).toEqual(mesh);
+    expect(written.config.mesh).toEqual(mesh);
     expect((await node.run(new NodeState.live().state())).config?.mesh).toEqual(mesh);
 
     const patched = await node.run(new NodeState.live().configure({ setupState: "setup_done" }));
-    expect(patched.config?.mesh).toEqual(mesh);
+    expect(patched.config.mesh).toEqual(mesh);
   });
 
   it("refuses to serve a config it cannot read instead of guessing", async () => {

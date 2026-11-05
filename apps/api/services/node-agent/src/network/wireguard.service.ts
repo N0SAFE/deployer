@@ -42,8 +42,8 @@ function spawn(command: string, args: readonly string[], input?: string) {
 		try {
 			const proc = Bun.spawn([command, ...args], { stdin: input === undefined ? "ignore" : "pipe", stdout: "pipe", stderr: "pipe" });
 			if (input !== undefined && proc.stdin !== undefined) {
-				proc.stdin.write(input);
-				proc.stdin.end();
+				await proc.stdin.write(input);
+				await proc.stdin.end();
 			}
 			const [stdout, stderr, code] = await Promise.all([
 				new Response(proc.stdout).text(),

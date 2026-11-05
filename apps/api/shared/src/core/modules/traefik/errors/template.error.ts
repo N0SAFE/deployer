@@ -1,3 +1,5 @@
+import { domainError } from '@deployer/effect-core';
+
 import { TraefikError } from './config.error';
 
 /**
@@ -93,4 +95,25 @@ export class TemplateRenderError extends TemplateError {
       this.stack = `${this.stack ?? ''}\nCaused by: ${cause.stack}`;
     }
   }
+}
+
+// ── Tagged (Effect) errors of the template service ──────────────────────────────────────────────────────────────────
+
+/** A service template does not exist. */
+export class TraefikTemplateNotFound extends domainError("TraefikTemplateNotFound", "not_found")<{ readonly templateId: string }>() {
+  override publicMessage() { return `Template not found: ${this.templateId}`; }
+}
+
+/** A template insert returned no row; the cause stays server-side. */
+export class TraefikTemplateCreateFailure extends domainError("TraefikTemplateCreateFailure", "dependency_missing")<{
+  readonly subject: string;
+}>() {
+  override publicMessage() { return `Failed to create the template for ${this.subject}`; }
+}
+
+/** Rendering a template needs variables that were not provided. */
+export class TraefikTemplateVariablesMissing extends domainError("TraefikTemplateVariablesMissing", "validation")<{
+  readonly missing: readonly string[];
+}>() {
+  override publicMessage() { return `Missing required variables: ${this.missing.join(", ")}`; }
 }

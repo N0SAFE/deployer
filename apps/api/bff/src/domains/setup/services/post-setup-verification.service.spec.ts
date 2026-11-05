@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 import { ManagedWebFlagUnreadable } from "../setup.errors";
 
@@ -43,10 +43,10 @@ function make(options: { webEnabled: boolean; webOrigin?: string | null; transpo
 	} as unknown as HostnameService;
 	const config = {
 		isManagedWebAppEnabled: vi.fn(() =>
-			options.flagThrows === true ? Promise.reject(new Error("relation does not exist")) : Promise.resolve(options.webEnabled),
+			options.flagThrows === true ? Effect.die(new Error("relation does not exist")) : Effect.succeed(options.webEnabled),
 		),
-		getManagedWebOrigin: vi.fn(() => Promise.resolve(options.webOrigin ?? null)),
-	} as unknown as PlatformConfigService;
+		getManagedWebOrigin: vi.fn(() => Effect.succeed(options.webOrigin ?? null)),
+	} as unknown as PlatformConfigServiceShape;
 	const shape = makePostSetupVerificationService({ env, hostnames, platformConfig: config, transport: options.transport });
 	return { verify: () => Effect.runPromise(shape.verify()), verifyExit: () => Effect.runPromiseExit(shape.verify()) };
 }

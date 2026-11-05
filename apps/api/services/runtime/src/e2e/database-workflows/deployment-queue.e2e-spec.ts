@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Effect } from "effect";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { runtimeDbOver } from "@/core/database/runtime-db";
 import { getSharedApiRuntimeContext } from "@/e2e/runtime";
@@ -18,7 +18,7 @@ import {
  * same time never receive the same row, and that every write ending a claim is refused once the lease is gone.
  */
 describe("DeploymentQueueRepository e2e", () => {
-	let database: GlobalDatabaseService;
+	let database: GlobalDatabaseServiceShape;
 	const run = <A, E>(use: (queue: DeploymentQueueRepositoryShape) => Effect.Effect<A, E>) =>
 		Effect.runPromise(
 			Effect.gen(function* () {
@@ -44,7 +44,7 @@ describe("DeploymentQueueRepository e2e", () => {
 
 	beforeAll(async () => {
 		const context = await getSharedApiRuntimeContext();
-		database = context.serviceMapper.get(GlobalDatabaseService);
+		database = context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape;
 	});
 
 	it("enqueues once per idempotency key and returns the first job the second time", async () => {

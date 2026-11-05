@@ -30,6 +30,15 @@ This file defines how AI coding agents must operate in this repository. It exist
 - Scoped to one workspace: `cd apps/<name> && bun lint` / `bun run type-check`, or `bun run <app> -- lint`.
 - For graph-impacting changes (dependencies, versions), also check reverse dependents via `repo://graph/used-by/{name}`.
 
+4b) Run every lint / type-check / test / build through Turbo (cache)
+- Never run these per-workspace with `bun run <script>` or `cd <ws> && …` when Turbo can run them: Turbo's cache only helps tasks it executes.
+- Scope with `--filter`, never run the whole repo for a local change: `bun x turbo run lint type-check test --filter=@deployer/<name>`.
+- Merge several tasks into ONE invocation (`turbo run lint type-check test --filter=…`) so Turbo schedules them in parallel and in dependency order; do not chain separate `turbo run` calls.
+- Multiple targets: repeat `--filter` (`--filter=@deployer/api-fleet --filter=@deployer/api-shared`); add `...` to include dependents (`--filter=...@deployer/<name>`) or `--affected` for everything changed.
+- Pass test args after `--` (`turbo run test --filter=@deployer/<name> -- <file>`). Don't use `--force` or `--no-cache` unless diagnosing a cache problem.
+- **Never loop** (`for p in …; do turbo run … --filter=$p; done`, `xargs`, `&&` chains): one `turbo run` process per target defeats scheduling, shares no task graph, and re-pays Turbo's startup each time. Always ONE process with every target as a repeated `--filter`. If memory is the worry, keep the single process and cap it with `--concurrency=1` (or `=2`) instead of looping.
+- Package names come from each workspace's `package.json`; verify with `repo://packages` before guessing a filter.
+
 5) Documentation is mandatory
 - If you add new concepts, patterns, or workflows, update documentation per `.github/copilot-instructions.md` “New Concept Documentation Protocol”.
 

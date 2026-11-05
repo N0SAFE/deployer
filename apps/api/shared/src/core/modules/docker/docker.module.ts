@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 
 import {
   DockerEngine,
@@ -13,8 +13,7 @@ import {
   type ScannerConfig,
   type ScannerPoolShape,
 } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule, EffectHost, effectHostProvider, ServiceLifecycleRunner, type EffectHostShape } from "@deployer/nest-effect";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 
@@ -31,16 +30,6 @@ import { EnvModule, EnvService } from "../../../config/env/env.module";
 
 /** Defaults live HERE, not in the package: what scanner image to run is a deployment decision. */
 const DEFAULT_SCANNER_APP_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-
-/** Stops the scanner containers this process started, when the context closes. */
-@Injectable()
-class ScannerPoolLifecycle implements OnModuleDestroy {
-  constructor(@Inject(ScannerPool) private readonly pool: ScannerPoolShape) {}
-
-  async onModuleDestroy(): Promise<void> {
-    await runPromiseUnwrapped(this.pool.stopAll);
-  }
-}
 
 export const CoreDockerModule = createGlobalModule({
   imports: [EnvModule],
@@ -71,7 +60,13 @@ export const CoreDockerModule = createGlobalModule({
       },
       inject: [DockerHost, EnvService],
     },
-    ScannerPoolLifecycle,
+    effectHostProvider(),
+    {
+      // Stops the scanner containers this process started, when the context closes.
+      provide: Symbol.for("shared/ScannerPoolLifecycle"),
+      useFactory: (pool: ScannerPoolShape, host: EffectHostShape) => new ServiceLifecycleRunner("ScannerPool", { onStop: () => pool.stopAll }, host),
+      inject: [ScannerPool, EffectHost],
+    },
     {
       // The provisioner needs only the engine: the Postgres IDENTITY is resolved per provisioning
       // call by the caller, because it depends on the deployment prefix decided at runtime.

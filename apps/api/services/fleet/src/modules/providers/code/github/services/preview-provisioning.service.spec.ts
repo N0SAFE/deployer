@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { provideTo } from "@deployer/effect-core";
 
+import { DomainRoutingFailure } from "@deployer/shared/core/modules/domain/errors/index";
+
 import { DomainRouting, type DomainRoutingShape } from "@/core/ports/domain-routing.port";
 import { PublicAccessPoint, type PublicAccessPointShape } from "@/core/ports/public-access-point.port";
 import { CloudflareDnsProviderService, type CloudflareDnsProviderServiceShape } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
@@ -22,12 +24,12 @@ function setup() {
         upsertPreview: vi.fn(() => Effect.void),
     };
     const routing = {
-        resolveServiceUrls: vi.fn(() => Promise.resolve([{ domain: "example.com", isPrimary: true }])),
-        addPreviewRoute: vi.fn(() => Promise.resolve<object | null>({})),
-        removePreviewRoute: vi.fn(() => Promise.resolve(true)),
+        resolveServiceUrls: vi.fn(() => Effect.succeed<object[]>([{ domain: "example.com", isPrimary: true }])),
+        addPreviewRoute: vi.fn((): Effect.Effect<object | null, DomainRoutingFailure> => Effect.succeed({})),
+        removePreviewRoute: vi.fn((): Effect.Effect<boolean, DomainRoutingFailure> => Effect.succeed(true)),
     };
     const accessPoint = {
-        getAccessPoint: vi.fn(() => Promise.resolve({ kind: "tunnel", address: "tun.cfargotunnel.com", configured: true })),
+        getAccessPoint: vi.fn(() => Effect.succeed({ kind: "tunnel", address: "tun.cfargotunnel.com", configured: true })),
     };
     const dns = {
         findFirstActiveProvider: vi.fn(() => Effect.succeed<typeof account | null>(account)),
@@ -74,7 +76,7 @@ describe("PreviewProvisioningService", () => {
         });
 
         it("is skipped when the service has no domain mapping", async () => {
-            t.routing.resolveServiceUrls.mockResolvedValue([]);
+            t.routing.resolveServiceUrls.mockReturnValue(Effect.succeed([]));
 
             const result = await Effect.runPromise(t.service.provisionPreview(input));
 
@@ -83,7 +85,7 @@ describe("PreviewProvisioningService", () => {
         });
 
         it("points an IP access point at an A record", async () => {
-            t.accessPoint.getAccessPoint.mockResolvedValue({ kind: "ip", address: "203.0.113.9", configured: true });
+            t.accessPoint.getAccessPoint.mockReturnValue(Effect.succeed({ kind: "ip", address: "203.0.113.9", configured: true }));
 
             const result = await Effect.runPromise(t.service.provisionPreview(input));
 
@@ -109,7 +111,7 @@ describe("PreviewProvisioningService", () => {
         });
 
         it("keeps going when the route step fails", async () => {
-            t.routing.addPreviewRoute.mockRejectedValue(new Error("traefik down"));
+            t.routing.addPreviewRoute.mockReturnValue(Effect.fail(new DomainRoutingFailure({ operation: "traefik down" })));
 
             const result = await Effect.runPromise(t.service.provisionPreview(input));
 
@@ -144,7 +146,7 @@ describe("PreviewProvisioningService", () => {
         });
 
         it("still marks the row inactive when the route and the DNS cleanup fail", async () => {
-            t.routing.removePreviewRoute.mockRejectedValue(new Error("traefik down"));
+            t.routing.removePreviewRoute.mockReturnValue(Effect.fail(new DomainRoutingFailure({ operation: "traefik down" })));
             t.dns.deleteRecord.mockReturnValue(Effect.fail(new Error("cloudflare down")) as never);
 
             const result = await Effect.runPromise(t.service.cleanupPreview(input));
@@ -154,7 +156,7 @@ describe("PreviewProvisioningService", () => {
         });
 
         it("is skipped when the service has no domain mapping", async () => {
-            t.routing.resolveServiceUrls.mockResolvedValue([]);
+            t.routing.resolveServiceUrls.mockReturnValue(Effect.succeed([]));
 
             expect(await Effect.runPromise(t.service.cleanupPreview(input))).toMatchObject({ action: "skipped" });
             expect(t.store.deactivateByFullDomain).not.toHaveBeenCalled();

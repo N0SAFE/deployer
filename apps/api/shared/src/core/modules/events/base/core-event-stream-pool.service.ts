@@ -1,5 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { Observable, ReplaySubject, Subscription } from "rxjs";
+import { Context } from "effect";
+import { Observable, ReplaySubject, type Subscription } from "rxjs";
 
 type StreamPoolEntry<T> = {
   subject: ReplaySubject<T>;
@@ -12,38 +12,32 @@ export type ObservePooledStreamOptions = {
   onError?: (error: unknown) => string;
 }
 
-@Injectable()
-export class CoreEventStreamPoolService {
-  private readonly logger = new Logger(CoreEventStreamPoolService.name);
-  private readonly streamPool = new Map<string, StreamPoolEntry<unknown>>();
-
-  observePooledStream<T>(
+export type CoreEventStreamPoolServiceShape = {
+  /**
+   * One upstream per key, shared by every subscriber: the last `bufferSize` values replay to a late subscriber, and the
+   * upstream is released when the last subscriber leaves. (A streaming surface: RxJS stays the contract.)
+   */
+  readonly observePooledStream: <T>(
     streamKey: string,
     streamFactory: () => Observable<T>,
     options?: ObservePooledStreamOptions,
-  ): Observable<T> {
-    return new Observable<T>((subscriber) => {
-      const entry = this.getOrCreateEntry(streamKey, streamFactory, options);
-      entry.subscriberCount += 1;
+  ) => Observable<T>;
+};
 
-      const downstreamSubscription = entry.subject.subscribe(subscriber);
+const defaultErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-      return () => {
-        downstreamSubscription.unsubscribe();
-        this.releaseEntry(streamKey);
-      };
-    });
-  }
+export function makeCoreEventStreamPoolService(
+  log: { readonly warn: (message: string) => void } = { warn: (message) => { console.warn(message); } },
+): CoreEventStreamPoolServiceShape {
+  const streamPool = new Map<string, StreamPoolEntry<unknown>>();
 
-  private getOrCreateEntry<T>(
+  const getOrCreateEntry = <T>(
     streamKey: string,
     streamFactory: () => Observable<T>,
     options?: ObservePooledStreamOptions,
-  ): StreamPoolEntry<T> {
-    const existing = this.streamPool.get(streamKey);
-    if (existing) {
-      return existing as StreamPoolEntry<T>;
-    }
+  ): StreamPoolEntry<T> => {
+    const existing = streamPool.get(streamKey);
+    if (existing) return existing as StreamPoolEntry<T>;
 
     const subject = new ReplaySubject<T>(Math.max(1, options?.bufferSize ?? 1));
     const upstreamSubscription = streamFactory().subscribe({
@@ -51,51 +45,50 @@ export class CoreEventStreamPoolService {
         subject.next(value);
       },
       error: (error) => {
-        const message = options?.onError
-          ? options.onError(error)
-          : this.defaultErrorMessage(error);
-        this.logger.warn(`Pooled stream '${streamKey}' failed: ${message}`);
+        const message = options?.onError ? options.onError(error) : defaultErrorMessage(error);
+        log.warn(`Pooled stream '${streamKey}' failed: ${message}`);
         subject.error(error);
-        this.streamPool.delete(streamKey);
+        streamPool.delete(streamKey);
       },
       complete: () => {
         subject.complete();
-        this.streamPool.delete(streamKey);
+        streamPool.delete(streamKey);
       },
     });
 
-    const createdEntry: StreamPoolEntry<T> = {
-      subject,
-      upstreamSubscription,
-      subscriberCount: 0,
-    };
-
-    this.streamPool.set(streamKey, createdEntry as StreamPoolEntry<unknown>);
-
+    const createdEntry: StreamPoolEntry<T> = { subject, upstreamSubscription, subscriberCount: 0 };
+    streamPool.set(streamKey, createdEntry as StreamPoolEntry<unknown>);
     return createdEntry;
-  }
+  };
 
-  private releaseEntry(streamKey: string): void {
-    const entry = this.streamPool.get(streamKey);
-    if (!entry) {
-      return;
-    }
+  const releaseEntry = (streamKey: string): void => {
+    const entry = streamPool.get(streamKey);
+    if (!entry) return;
 
     entry.subscriberCount = Math.max(0, entry.subscriberCount - 1);
-    if (entry.subscriberCount > 0) {
-      return;
-    }
+    if (entry.subscriberCount > 0) return;
 
     entry.upstreamSubscription.unsubscribe();
     entry.subject.complete();
-    this.streamPool.delete(streamKey);
-  }
+    streamPool.delete(streamKey);
+  };
 
-  private defaultErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
+  return {
+    observePooledStream: <T>(streamKey: string, streamFactory: () => Observable<T>, options?: ObservePooledStreamOptions) =>
+      new Observable<T>((subscriber) => {
+        const entry = getOrCreateEntry(streamKey, streamFactory, options);
+        entry.subscriberCount += 1;
 
-    return String(error);
-  }
+        const downstreamSubscription = entry.subject.subscribe(subscriber);
+
+        return () => {
+          downstreamSubscription.unsubscribe();
+          releaseEntry(streamKey);
+        };
+      }),
+  };
 }
+
+export class CoreEventStreamPoolService extends Context.Service<CoreEventStreamPoolService, CoreEventStreamPoolServiceShape>()(
+  "shared/CoreEventStreamPoolService",
+) {}

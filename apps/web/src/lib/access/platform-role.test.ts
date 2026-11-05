@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { PLATFORM_ROLES } from '@deployer/auth/permissions'
+import { PLATFORM_ROLES } from '@deployer/auth'
 
 import {
 	isPlatformAdminRole,

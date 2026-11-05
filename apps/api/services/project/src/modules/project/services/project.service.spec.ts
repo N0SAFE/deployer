@@ -685,9 +685,11 @@ describe("ProjectService", () => {
 		beforeEach(() => {
 			repository.findById.mockReturnValue(Effect.succeed(projectWithSecrets));
 			configuration.projectConfigFromSettings.mockReturnValue(undefined);
-			configuration.resolveStrict.mockReturnValue({
-				effective: { routing: { forceHttps: true } },
-			});
+			configuration.resolveStrict.mockReturnValue(
+				Effect.succeed({
+					effective: { routing: { forceHttps: true } },
+				}),
+			);
 		});
 
 		/**

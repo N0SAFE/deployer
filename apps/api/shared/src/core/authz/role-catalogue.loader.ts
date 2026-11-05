@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { authzEpoch, roles } from "@deployer/nest-schema/global/identity/index";
 
-import type { GlobalDatabaseService } from "../modules/database/services/global-database.service";
+import type { GlobalDatabase } from "../modules/database/global/global-database.service";
 
 import type { CatalogueRole } from "./role-catalog";
 
@@ -20,7 +20,7 @@ export type RoleCatalogue = {
  *
  * Two statements, no join: the epoch row is a singleton and the roles are a handful of rows.
  */
-export async function loadRoleCatalogue(db: GlobalDatabaseService["db"]): Promise<RoleCatalogue> {
+export async function loadRoleCatalogue(db: GlobalDatabase): Promise<RoleCatalogue> {
 	const [epochRow] = await db.select().from(authzEpoch).where(eq(authzEpoch.id, "global")).limit(1);
 	const rows = await db
 		.select({ name: roles.name, permissions: roles.permissions })

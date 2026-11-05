@@ -1,7 +1,8 @@
+import { Effect } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { ConfigurationDefinitionService } from "./configuration-definition.service";
-import { ConfigurationResolverService } from "./configuration-resolver.service";
+import { makeConfigurationDefinitionService } from "./configuration-definition.service";
+import { makeConfigurationResolverService } from "./configuration-resolver.service";
 
 import type {
     RuntimeConfigurationResolverInputByScope,
@@ -9,8 +10,8 @@ import type {
 } from "../schemas/runtime-configuration.schema";
 
 describe("ConfigurationResolverService", () => {
-    const definitionService = new ConfigurationDefinitionService();
-    const service = new ConfigurationResolverService(definitionService);
+    const definitionService = makeConfigurationDefinitionService();
+    const service = makeConfigurationResolverService(definitionService);
 
     it("exposes typed definitions for all scopes", () => {
         const definitions = service.listDefinitions();
@@ -24,7 +25,7 @@ describe("ConfigurationResolverService", () => {
     });
 
     it("merges mesh/project/service/user layers with precedence", () => {
-                const result = service.resolveStrict({
+                const result = Effect.runSync(service.resolveStrict({
             scope: "service",
             context: {
                 projectId: "proj-1",
@@ -60,7 +61,7 @@ describe("ConfigurationResolverService", () => {
                 featureFlagOverrides: { userFlag: true },
                 deployment: {},
             },
-        });
+        }));
 
         expect(result.effective.deployment.strategy).toBe("blue_green");
         expect(result.effective.deployment.autoDeployEnabled).toBe(false);
@@ -84,7 +85,7 @@ describe("ConfigurationResolverService", () => {
     });
 
     it("applies dynamic deployment constraints from requested environment", () => {
-                const result = service.resolveStrict({
+                const result = Effect.runSync(service.resolveStrict({
             scope: "project",
             context: {
                 projectId: "proj-1",
@@ -95,7 +96,7 @@ describe("ConfigurationResolverService", () => {
                     enablePreviewEnvironments: false,
                 },
             },
-        });
+        }));
 
         expect(result.effective.deployment.previewEnabled).toBe(false);
         expect(result.effective.constraints.canDeployToRequestedEnvironment).toBe(false);
@@ -103,7 +104,7 @@ describe("ConfigurationResolverService", () => {
     });
 
     it("dispatches granular rules from multiple runtime inputs", () => {
-                const result = service.resolveStrict({
+                const result = Effect.runSync(service.resolveStrict({
             scope: "service",
             context: {
                 projectId: "proj-1",
@@ -165,7 +166,7 @@ describe("ConfigurationResolverService", () => {
                     },
                 ],
             },
-        });
+        }));
 
         expect(result.effective.deployment.strategy).toBe("blue_green");
         expect(result.effective.deployment.requireApprovalForProduction).toBe(true);
@@ -178,7 +179,7 @@ describe("ConfigurationResolverService", () => {
     });
 
     it("resolves provider/runner/resources/replicas/traefik/lifecycle with constraints", () => {
-                const result = service.resolveStrict({
+                const result = Effect.runSync(service.resolveStrict({
             scope: "service",
             context: {
                 projectId: "proj-1",
@@ -260,7 +261,7 @@ describe("ConfigurationResolverService", () => {
                     },
                 ],
             },
-        });
+        }));
 
         expect(result.effective.execution.providerType).toBe("github");
         expect(result.effective.execution.runnerType).toBe("docker");
@@ -282,7 +283,7 @@ describe("ConfigurationResolverService", () => {
     });
 
     it("resolves environment by domain and flattens for runtime compatibility", () => {
-                const result = service.resolveStrict({
+                const result = Effect.runSync(service.resolveStrict({
             scope: "service",
             context: {
                         projectId: "proj-1",
@@ -311,7 +312,7 @@ describe("ConfigurationResolverService", () => {
                     runtime: { SERVICE_MODE: "api" },
                 },
             },
-        });
+        }));
 
         expect(result.effective.environmentDomains.build.NODE_ENV).toBe("production");
         expect(result.effective.environmentDomains.runtime.API_BASE_URL).toBe(
@@ -327,7 +328,7 @@ describe("ConfigurationResolverService", () => {
     });
 
     it("applies discriminated environment mutations (flat + domain)", () => {
-                const result = service.resolveStrict({
+                const result = Effect.runSync(service.resolveStrict({
             scope: "service",
             context: {
                 projectId: "proj-1",
@@ -367,7 +368,7 @@ describe("ConfigurationResolverService", () => {
                     },
                 ],
             },
-        });
+        }));
 
         expect(result.effective.environment.KEEP_ME).toBe("1");
         expect(result.effective.environment.REMOVE_ME).toBeUndefined();

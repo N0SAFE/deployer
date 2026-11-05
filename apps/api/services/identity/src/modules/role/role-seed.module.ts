@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { declareModule } from "@deployer/nest-effect";
 import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 
 import { DatabasePortModule } from "@identity/core/database/database.module";
@@ -17,4 +18,10 @@ import { RoleSeeder } from "./role.seed";
 	imports: [DatabasePortModule, RoleCatalogueModule],
 	providers: [RoleSeeder],
 })
-export class RoleSeedModule {}
+class RoleSeed {}
+
+/**
+ * Declared, not bare: the module owns no Effect service (seeding is a boot task), and `declareModule` is what says so in
+ * the type flow. Without it an importer sees `never` rather than "this contributes nothing".
+ */
+export const RoleSeedModule = declareModule(RoleSeed, { exports: [] });

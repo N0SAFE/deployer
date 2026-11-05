@@ -1,5 +1,7 @@
 import { Effect, Option, Schema } from "effect";
+
 import type { EgressPolicy, HttpRes, SafeHttpShape } from "@deployer/effect-infra";
+
 import { PeerIdentity } from "./peer-identity";
 
 export type Attempted = { readonly ok: true; readonly response: HttpRes } | { readonly ok: false; readonly reason: string };

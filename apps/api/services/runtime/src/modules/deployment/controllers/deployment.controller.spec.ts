@@ -1,12 +1,10 @@
-import { Test } from "@nestjs/testing";
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 import { DeploymentService } from "../services/deployment.service";
 
 import { DeploymentController } from "./deployment.controller";
-
-import type { TestingModule } from "@nestjs/testing";
 
 /**
  * Resolve a built procedure's handler.
@@ -56,6 +54,18 @@ vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
     requireSystemActor: vi.fn(() => ({})),
 }));
 
+/** Drive an Effect handler with the deployment service (and the orchestrator) faked in the context. */
+function runHandler(handler: (...args: unknown[]) => unknown, args: unknown, services: { deployments: unknown; orchestrator?: unknown }) {
+    return Effect.runPromise(
+        Effect.gen(function* () {
+            return yield* handler(args) as Generator<never, unknown>;
+        }).pipe(
+            Effect.provideService(DeploymentService, services.deployments as never),
+            Effect.provideService(DeploymentStreamOrchestratorService, (services.orchestrator ?? {}) as never),
+        ),
+    );
+}
+
 describe("DeploymentController", () => {
     let controller: DeploymentController;
     let mockDeploymentService: {
@@ -78,7 +88,7 @@ describe("DeploymentController", () => {
         openDeploymentStream: ReturnType<typeof vi.fn>;
     };
 
-    beforeEach(async () => {
+    beforeEach(() => {
         mockDeploymentService = {
             listDeployments: vi.fn(),
             getDeploymentById: vi.fn(),
@@ -101,18 +111,7 @@ describe("DeploymentController", () => {
         };
 
 
-        const module: TestingModule = await Test.createTestingModule({
-            controllers: [DeploymentController],
-            providers: [
-                { provide: DeploymentService, useFactory: () => mockDeploymentService },
-                {
-                    provide: DeploymentStreamOrchestratorService,
-                    useFactory: () => mockDeploymentStreamOrchestratorService,
-                },
-            ],
-        }).compile();
-
-        controller = module.get<DeploymentController>(DeploymentController);
+        controller = new DeploymentController();
     });
 
     it("should expose all handlers", () => {
@@ -145,10 +144,10 @@ describe("DeploymentController", () => {
 
     it("getLogs should forward pagination and filters to deployment service", async () => {
         const expected = { logs: [], total: 0, hasMore: false };
-        mockDeploymentService.getDeploymentLogs.mockResolvedValue(expected);
+        mockDeploymentService.getDeploymentLogs.mockReturnValue(Effect.succeed(expected));
 
         const impl = controller.getLogs() as any;
-        const result = await procedureHandler(impl)({
+        const result = await runHandler(procedureHandler(impl), {
             input: {
                 params: { id: "00000000-0000-0000-0000-000000000010" },
                 query: {
@@ -160,8 +159,11 @@ describe("DeploymentController", () => {
                     step: "convergence_policy",
                 },
             },
-            context: {},
-        });
+            context: {
+                auth: { isLoggedIn: true, session: { id: "s1" }, user: { id: "u1", role: "admin" } },
+                request: { headers: new Headers({ authorization: "Bearer test-token" }) },
+            },
+        }, { deployments: mockDeploymentService });
 
         expect(mockDeploymentService.getDeploymentLogs).toHaveBeenCalledWith(
             "00000000-0000-0000-0000-000000000010",
@@ -177,35 +179,28 @@ describe("DeploymentController", () => {
         expect(result).toEqual(expected);
     });
 
-    it("stream should delegate orchestration to deployment stream orchestrator", () => {
-        const proxiedStream = {
-            async *[Symbol.asyncIterator]() {
-                await Promise.resolve();
-                yield {
-                    type: "statusChanged",
-                    status: "queued",
-                    replayed: false,
-                    sequence: 1,
-                };
-            },
-        };
-        mockDeploymentStreamOrchestratorService.openDeploymentStream.mockReturnValue(proxiedStream);
+    it("stream should delegate orchestration to deployment stream orchestrator", async () => {
+        const proxiedStream = { subscribe: vi.fn() };
+        mockDeploymentStreamOrchestratorService.openDeploymentStream.mockReturnValue(Effect.succeed(proxiedStream));
 
-        const impl = controller.stream() as any;
-        const returnedStream = procedureHandler(impl)({
-            input: {
-                params: { id: "00000000-0000-0000-0000-000000000010" },
-                query: { replay: true, replayLimit: 25 },
-            },
-            context: {
-                request: {
-                    headers: new Headers({
-                        authorization: "Bearer test-token",
-                        cookie: "sid=abc",
-                    }),
-                },
-            },
-        });
+        // The handler is an Effect generator: drive it with the orchestrator in the context.
+        const handler = procedureHandler(controller.stream());
+        const returnedStream = await Effect.runPromise(
+            Effect.gen(function* () {
+                return yield* handler({
+                    input: {
+                        params: { id: "00000000-0000-0000-0000-000000000010" },
+                        query: { replay: true, replayLimit: 25 },
+                    },
+                    context: {
+                        auth: { isLoggedIn: true, session: { id: "s1" }, user: { id: "u1", role: "admin" } },
+                        request: { headers: new Headers({ authorization: "Bearer test-token" }) },
+                    },
+                } as never) as Generator<never, unknown>;
+            }).pipe(
+                Effect.provideService(DeploymentStreamOrchestratorService, mockDeploymentStreamOrchestratorService as never),
+            ),
+        );
 
         expect(mockDeploymentStreamOrchestratorService.openDeploymentStream).toHaveBeenCalledWith({
             deploymentId: "00000000-0000-0000-0000-000000000010",
@@ -215,7 +210,7 @@ describe("DeploymentController", () => {
         expect(returnedStream).toBe(proxiedStream);
     });
 
-    it("streamQuery should delegate stream creation to deployment service", () => {
+    it("streamQuery should delegate stream creation to deployment service", async () => {
         const serviceStream = {
             async *[Symbol.asyncIterator]() {
                 await Promise.resolve();
@@ -225,7 +220,7 @@ describe("DeploymentController", () => {
         mockDeploymentService.streamQueryEvents.mockReturnValue(serviceStream);
 
         const impl = controller.streamQuery() as any;
-        const returned = procedureHandler(impl)({
+        const returned = await runHandler(procedureHandler(impl), {
             input: {
                 query: {
                     deploymentId: "00000000-0000-0000-0000-000000000001",
@@ -234,7 +229,7 @@ describe("DeploymentController", () => {
                 },
             },
             context: {},
-        });
+        }, { deployments: mockDeploymentService });
 
         expect(mockDeploymentService.streamQueryEvents).toHaveBeenCalledWith({
             deploymentId: "00000000-0000-0000-0000-000000000001",
@@ -250,7 +245,7 @@ describe("DeploymentController", () => {
         expect(returned).toBe(serviceStream);
     });
 
-    it("streamInternal should delegate stream creation to deployment service", () => {
+    it("streamInternal should delegate stream creation to deployment service", async () => {
         const serviceStream = {
             async *[Symbol.asyncIterator]() {
                 await Promise.resolve();
@@ -260,13 +255,13 @@ describe("DeploymentController", () => {
         mockDeploymentService.streamDeploymentEvents.mockReturnValue(serviceStream);
 
         const impl = controller.streamInternal() as any;
-        const returned = procedureHandler(impl)({
+        const returned = await runHandler(procedureHandler(impl), {
             input: {
                 params: { id: "00000000-0000-0000-0000-000000000001" },
                 query: { replay: false, replayLimit: 10 },
             },
             context: {},
-        });
+        }, { deployments: mockDeploymentService });
 
         expect(mockDeploymentService.streamDeploymentEvents).toHaveBeenCalledWith({
             deploymentId: "00000000-0000-0000-0000-000000000001",

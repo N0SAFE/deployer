@@ -1,7 +1,9 @@
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { defaultIngressLanes, type PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
 
+import { EdgeLaneInvalid, EdgeProviderAlreadyRegistered, EdgeProviderUnknown } from "./edge.errors";
 import { NO_PUBLIC_EDGE } from "./edge-provider.registry";
 import { TEST_TUNNEL_ID, testEdgeRegistry, TestTunnelEdgeProvider } from "./testing/edge-registry.fixture";
 
@@ -14,6 +16,9 @@ const direct = (options: PublicLane["options"] = {}, acknowledgedInboundPorts = 
 	options,
 });
 
+/** The typed refusal of an Effect that must fail. */
+const refusal = <A, E>(effect: Effect.Effect<A, E>): E => Effect.runSync(Effect.flip(effect));
+
 describe("EdgeProviderRegistry", () => {
 	it("lists the catalog with port-opening providers last", () => {
 		const { registry } = testEdgeRegistry();
@@ -22,35 +27,35 @@ describe("EdgeProviderRegistry", () => {
 
 	it("refuses a provider registered twice", () => {
 		const { registry } = testEdgeRegistry();
-		expect(() => { registry.register(new TestTunnelEdgeProvider()); }).toThrow(/registered twice/);
+		expect(Effect.runSync(Effect.flip(registry.register(new TestTunnelEdgeProvider())))).toBeInstanceOf(EdgeProviderAlreadyRegistered);
 	});
 
 	describe("normalize", () => {
 		it("fills boolean defaults and drops nothing it was given", () => {
 			const { registry } = testEdgeRegistry();
-			expect(registry.normalize(direct()).options).toEqual({ tls: true });
-			expect(registry.normalize(direct({ tls: false })).options).toEqual({ tls: false });
+			expect(Effect.runSync(registry.normalize(direct())).options).toEqual({ tls: true });
+			expect(Effect.runSync(registry.normalize(direct({ tls: false }))).options).toEqual({ tls: false });
 		});
 
 		it("requires the operator's acknowledgement for a provider that opens ports", () => {
 			const { registry } = testEdgeRegistry();
-			expect(() => registry.normalize(direct({}, false))).toThrow(/acknowledgedInboundPorts/);
+			expect(refusal(registry.normalize(direct({}, false))).message).toMatch(/acknowledgedInboundPorts/);
 		});
 
 		it("never records an acknowledgement a provider does not need", () => {
 			const { registry } = testEdgeRegistry();
-			const lane = registry.normalize({ provider: TEST_TUNNEL_ID, domain: "a.example.com", acknowledgedInboundPorts: true, options: { account: "x" } });
+			const lane = Effect.runSync(registry.normalize({ provider: TEST_TUNNEL_ID, domain: "a.example.com", acknowledgedInboundPorts: true, options: { account: "x" } }));
 			expect(lane.acknowledgedInboundPorts).toBe(false);
 		});
 
 		it("rejects unknown providers, unknown options, wrong types and missing required options", () => {
 			const { registry } = testEdgeRegistry();
-			expect(() => registry.normalize({ ...direct(), provider: "nope" })).toThrow(/Unknown edge provider/);
-			expect(() => registry.normalize(direct({ port: 8080 }))).toThrow(/does not take/);
-			expect(() => registry.normalize(direct({ tls: "yes" }))).toThrow(/true or false/);
-			expect(() =>
-				registry.normalize({ provider: TEST_TUNNEL_ID, domain: "a.example.com", acknowledgedInboundPorts: false, options: {} }),
-			).toThrow(/required/);
+			expect(refusal(registry.normalize({ ...direct(), provider: "nope" }))).toBeInstanceOf(EdgeProviderUnknown);
+			expect(refusal(registry.normalize(direct({ port: 8080 }))).message).toMatch(/does not take/);
+			expect(refusal(registry.normalize(direct({ tls: "yes" }))).message).toMatch(/true or false/);
+			const missing = refusal(registry.normalize({ provider: TEST_TUNNEL_ID, domain: "a.example.com", acknowledgedInboundPorts: false, options: {} }));
+			expect(missing).toBeInstanceOf(EdgeLaneInvalid);
+			expect(missing.message).toMatch(/required/);
 		});
 	});
 
@@ -94,7 +99,7 @@ describe("DirectEdgeProvider", () => {
 		nodes,
 		resourceName: "deployer-stack",
 	});
-	const provider = () => testEdgeRegistry().registry.get("direct");
+	const provider = () => testEdgeRegistry().registry.find("direct")!;
 
 	it("points the wildcard at every declared public IP — never at a hostname", async () => {
 		const records = await provider().dnsRecords(

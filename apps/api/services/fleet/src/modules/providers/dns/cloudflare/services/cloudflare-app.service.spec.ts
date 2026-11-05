@@ -62,7 +62,7 @@ function setup(rows: Record<string, ReturnType<typeof row>> = { p1: row() }) {
 		updateById: vi.fn((id: string, values: Record<string, unknown>) => Effect.succeed(rows[id] ? { ...rows[id], ...values } : null)),
 		deleteById: vi.fn(() => Effect.void),
 	};
-	const lanes = { getLanes: vi.fn(() => Promise.resolve({})) };
+	const lanes = { getLanes: vi.fn(() => Effect.succeed({})) };
 	const edges = { accountsInUse: vi.fn((): string[] => []) };
 	// The fakes need nothing from the context beyond what is provided here.
 	const service = provideTo(CloudflareAppService.live, (effect) =>

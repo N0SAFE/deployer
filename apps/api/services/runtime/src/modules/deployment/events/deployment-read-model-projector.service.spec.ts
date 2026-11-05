@@ -1,8 +1,12 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import type { LocalEventOutboxRepository } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
+import type { LocalEventOutboxRepositoryShape } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
 
-import { DeploymentReadModelProjectorService } from "./deployment-read-model-projector.service";
+import {
+    makeDeploymentReadModelProjector,
+    type DeploymentReadModelProjectorServiceShape,
+} from "./deployment-read-model-projector.service";
 
 import type { DeploymentRepository } from "../repositories/deployment.repository";
 
@@ -40,22 +44,22 @@ function createEventRow(input: {
 
 describe("DeploymentReadModelProjectorService", () => {
     let outboxQueue: unknown[][];
-    let mockOutboxRepository: LocalEventOutboxRepository;
+    let mockOutboxRepository: LocalEventOutboxRepositoryShape;
     let mockRepository: DeploymentRepository;
-    let service: DeploymentReadModelProjectorService;
+    let service: DeploymentReadModelProjectorServiceShape;
 
     beforeEach(() => {
         outboxQueue = [];
 
         mockOutboxRepository = {
-            findByTopic: vi.fn(async () => outboxQueue.shift() ?? []),
-        } as unknown as LocalEventOutboxRepository;
+            findByTopic: vi.fn(() => Effect.succeed(outboxQueue.shift() ?? [])),
+        } as unknown as LocalEventOutboxRepositoryShape;
 
         mockRepository = {
             findLogs: vi.fn(async () => []),
         } as unknown as DeploymentRepository;
 
-        service = new DeploymentReadModelProjectorService(mockOutboxRepository, mockRepository);
+        service = makeDeploymentReadModelProjector({ outbox: mockOutboxRepository, logs: mockRepository });
     });
 
     it("processes canonical outbox envelopes into deployment projections", async () => {
@@ -68,10 +72,10 @@ describe("DeploymentReadModelProjectorService", () => {
             }),
         ]);
 
-        const processed = await service.processOutboxBatch(10);
+        const processed = await Effect.runPromise(service.processOutboxBatch(10));
 
         expect(processed).toBe(1);
-        expect(service.getProjection("deploy-1")).toMatchObject({
+        expect(Effect.runSync(service.getProjection("deploy-1"))).toMatchObject({
             deploymentId: "deploy-1",
             lastLogId: "log-1",
             lastEventType: "deployment.lifecycle.build.build_completed",
@@ -100,10 +104,10 @@ describe("DeploymentReadModelProjectorService", () => {
             [],
         );
 
-        const replayed = await service.rebuildAll();
+        const replayed = await Effect.runPromise(service.rebuildAll());
 
         expect(replayed).toBe(2);
-        expect(service.getProjection("deploy-1")).toMatchObject({
+        expect(Effect.runSync(service.getProjection("deploy-1"))).toMatchObject({
             lastLogId: "log-2",
             lastEventType: "deployment.lifecycle.runtime.runtime_completed",
         });
@@ -119,7 +123,7 @@ describe("DeploymentReadModelProjectorService", () => {
             }),
         ]);
 
-        await service.processOutboxBatch(10);
+        await Effect.runPromise(service.processOutboxBatch(10));
 
         vi.mocked(mockRepository.findLogs).mockResolvedValue([
             {
@@ -139,7 +143,7 @@ describe("DeploymentReadModelProjectorService", () => {
             },
         ]);
 
-        const report = await service.detectDrift("deploy-1");
+        const report = await Effect.runPromise(service.detectDrift("deploy-1"));
 
         expect(report).toEqual({
             deploymentId: "deploy-1",

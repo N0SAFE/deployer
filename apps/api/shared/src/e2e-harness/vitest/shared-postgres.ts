@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -19,6 +20,21 @@ import { SHARED_POSTGRES_CONNECTION_URI_ENV } from "../shared-api-runtime/types"
 export const SHARED_POSTGRES_URI_FILE = resolve(tmpdir(), "deployer-e2e-shared-postgres-uri.txt");
 
 const POSTGRES_IMAGE = "postgres:16-alpine";
+
+/**
+ * Label put on every container this harness starts.
+ *
+ * ── WHY THE CONTAINER ALSO GETS A NAME ──────────────────────────────────────
+ * `createContainer` was called without `name`, so Docker minted a random one
+ * (`relaxed_edison`, `interesting_cannon`). The teardown safety net sweeps
+ * `docker ps --filter name=deployer`, which never matched those names, and
+ * `AutoRemove: true` only fires on a clean stop — a killed worker left the
+ * container running forever. Twenty-one orphaned `postgres:16-alpine`
+ * containers, each with `max_connections=300`, were still up on the reference
+ * machine. A name that starts with `deployer` makes the existing sweep catch it;
+ * the label makes the sweep exact, so it can also be run by hand.
+ */
+export const E2E_CONTAINER_LABEL = "deployer.e2e" as const;
 
 type SharedPostgresContainer = {
   container: Dockerode.Container;
@@ -235,6 +251,10 @@ export async function startSharedPostgresContainer(): Promise<void> {
   await pullPostgresImage(docker);
 
   const container = await docker.createContainer({
+    // Per-run name: the singleton above is per vitest MAIN process, and each app
+    // runs its own e2e project, so a fixed name would collide across apps.
+    name: `deployer-e2e-postgres-${randomUUID()}`,
+    Labels: { [E2E_CONTAINER_LABEL]: "postgres" },
     Image: POSTGRES_IMAGE,
     Env: [
       "POSTGRES_DB=deployer_e2e",

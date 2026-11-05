@@ -8,7 +8,7 @@ import {
   clusterAdmissionRequests,
   clusterNodeMetrics,
 } from "@deployer/nest-schema/global/fleet/cluster";
-import type { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import type { GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { attempt } from "../../../core/effects";
 
@@ -25,7 +25,7 @@ import { attempt } from "../../../core/effects";
  * Each method is lifted into an Effect that fails with whatever the driver raised (an
  * infrastructure failure the boundary answers as internal). The query builders return rows when awaited.
  */
-function makeFleetRepository(database: GlobalDatabaseService) {
+function makeFleetRepository(database: GlobalDatabaseServiceShape) {
     return {
         listServersWithMetrics: () => attempt(async () => {
         return database.db
@@ -226,7 +226,7 @@ function makeFleetRepository(database: GlobalDatabaseService) {
 export type FleetRepositoryShape = Over<ReturnType<typeof makeFleetRepository>, FleetDatabasePort>;
 
 /** The database the fleet module reads and writes: the shared global one (a Nest provider). */
-export class FleetDatabasePort extends Context.Service<FleetDatabasePort, GlobalDatabaseService>()(
+export class FleetDatabasePort extends Context.Service<FleetDatabasePort, GlobalDatabaseServiceShape>()(
     "fleet/FleetDatabasePort",
 ) {}
 

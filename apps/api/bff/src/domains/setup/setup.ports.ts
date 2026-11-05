@@ -2,7 +2,7 @@ import { Context } from "effect";
 
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 import type { IngressTransport } from "./services/post-setup-verification.service";
 
 /**
@@ -11,6 +11,6 @@ import type { IngressTransport } from "./services/post-setup-verification.servic
  */
 export class SetupEnvPort extends Context.Service<SetupEnvPort, EnvService>()("bff/SetupEnvPort") {}
 export class SetupHostnamePort extends Context.Service<SetupHostnamePort, HostnameService>()("bff/SetupHostnamePort") {}
-export class SetupPlatformConfigPort extends Context.Service<SetupPlatformConfigPort, PlatformConfigService>()("bff/SetupPlatformConfigPort") {}
+export class SetupPlatformConfigPort extends Context.Service<SetupPlatformConfigPort, PlatformConfigServiceShape>()("bff/SetupPlatformConfigPort") {}
 /** How the verification reaches the cluster ingress (node `http` in production, a fake in a spec). */
 export class SetupTransportPort extends Context.Service<SetupTransportPort, IngressTransport>()("bff/SetupTransportPort") {}

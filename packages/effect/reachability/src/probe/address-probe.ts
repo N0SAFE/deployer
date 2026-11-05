@@ -1,5 +1,7 @@
 import { Effect } from "effect";
+
 import { SafeHttp, toOrigin } from "@deployer/effect-infra";
+
 import { AddressProbeResult, ProbeAddressOptions } from "./types";
 
 /**

@@ -16,7 +16,6 @@
  *   9. Cleanup and teardown
  */
 
-import { Test, type TestingModule } from '@nestjs/testing';
 import { Effect } from "effect";
 import {  Observable } from 'rxjs';
 import {
@@ -29,16 +28,7 @@ import {
   type MockInstance,
 } from 'vitest';
 
-import { AppLifecycle } from "@deployer/lifecycle";
-import { NodeConfigRepository } from "@deployer/node-state"
-
-import { EnvService } from "../../../../../config/env/env.module";
-import { MeshInitializationService } from '../../../mesh/initialization/services/mesh-initialization.service';
-import { ReachabilityService } from '../../../reachability/services/reachability.service';
-import { InitializationService } from '../initialization.service';
-import { LocalInitializationService } from '../local-initialization.service';
-import { RemoteInitializationService } from '../remote-initialization.service';
-import { SetupEventService } from '../setup-event.service';
+import { makeInitializationService } from '../initialization.service';
 
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
@@ -74,11 +64,25 @@ function createMockSetupEventService() {
   };
 }
 
+function promised(real: ReturnType<typeof makeInitializationService>) {
+  return {
+    getSetupState: () => Effect.runPromise(real.getSetupState()),
+    getNodeStatus: () => Effect.runPromise(real.getNodeStatus()),
+    checkConfigAndEmit: () => Effect.runPromise(real.checkConfigAndEmit()),
+    waitForSetup: () => Effect.runPromise(real.waitForSetup()),
+    assertSetupMutable: () => Effect.runPromise(real.assertSetupMutable()),
+    assertDatabaseProbeAllowed: (url: string) => Effect.runPromise(real.assertDatabaseProbeAllowed(url)),
+    triggerInitialize: (input: Parameters<typeof real.triggerInitialize>[0]) => Effect.runSync(real.triggerInitialize(input)),
+    getInitializeStream: () => real.getInitializeStream(),
+  };
+}
+
 // ─── Test suite ───────────────────────────────────────────────────────────────
 
 describe('Startup Flow Integration', { timeout: 30_000 }, () => {
-  let service: InitializationService;
-  let module: TestingModule;
+  /** The service as the flow reads it: its Effects run to Promises, so the cases below read as they always did. */
+  let service: ReturnType<typeof promised>;
+  let module: { init: () => Promise<void>; close: () => Promise<void> };
   let mockNodeConfigRepo: ReturnType<typeof createMockNodeConfigRepository>;
   let mockEnvService: { get: MockInstance; _set: (key: string, val: any) => void };
   let mockSetupEventService: ReturnType<typeof createMockSetupEventService>;
@@ -126,21 +130,19 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       markMeshConnectedNow: vi.fn(),
     };
 
-    module = await Test.createTestingModule({
-      providers: [
-        InitializationService,
-        { provide: NodeConfigRepository, useValue: mockNodeConfigRepo },
-        { provide: EnvService, useValue: mockEnvService },
-        { provide: SetupEventService, useValue: mockSetupEventService },
-        { provide: LocalInitializationService, useValue: mockLocalInit },
-        { provide: RemoteInitializationService, useValue: mockRemoteInit },
-        { provide: MeshInitializationService, useValue: mockMeshInit },
-        { provide: ReachabilityService, useValue: mockReachability },
-        { provide: AppLifecycle, useValue: mockLifecycle },
-      ],
-    }).compile();
-
-    service = module.get<InitializationService>(InitializationService);
+    const real = makeInitializationService({
+      nodeConfigRepository: mockNodeConfigRepo as never,
+      // The flows are mocked as Promises (they are async work); the service sees them as Effects.
+      localInitializationService: { initialize: (...args: unknown[]) => Effect.tryPromise(() => (mockLocalInit.initialize as unknown as (...a: unknown[]) => Promise<never>)(...args)) } as never,
+      remoteInitializationService: { initialize: (...args: unknown[]) => Effect.tryPromise(() => (mockRemoteInit.initialize as unknown as (...a: unknown[]) => Promise<never>)(...args)) } as never,
+      setupEventService: mockSetupEventService as never,
+      lifecycle: mockLifecycle as never,
+    });
+    service = promised(real);
+    module = {
+      init: () => Effect.runPromise(real.onStart?.() ?? Effect.void),
+      close: () => Promise.resolve(),
+    };
     vi.clearAllMocks();
   });
 

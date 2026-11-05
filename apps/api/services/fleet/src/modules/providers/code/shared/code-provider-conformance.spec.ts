@@ -37,7 +37,7 @@ function setup(overrides: { findByUploadId?: ReturnType<typeof vi.fn>; validateR
         }),
       ),
   };
-  const git = { validateRepository: overrides.validateRepository ?? vi.fn().mockResolvedValue(true) };
+  const git = { validateRepository: overrides.validateRepository ?? vi.fn(() => Effect.succeed(true)) };
   // The fakes need nothing from the context beyond what is provided here.
   const ports = (effect: Effect.Effect<unknown, unknown, unknown>) =>
     effect.pipe(
@@ -149,7 +149,7 @@ describe('Source provider conformance', () => {
   });
 
   it('github provider refuses a repository that is not accessible', async () => {
-    const { github } = setup({ validateRepository: vi.fn().mockResolvedValue(false) });
+    const { github } = setup({ validateRepository: vi.fn(() => Effect.succeed(false)) });
 
     await expect(
       run(github.resolveSourceCheckout({

@@ -6,7 +6,7 @@ import { Command, CommandRunner } from 'nest-commander'
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
 import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 
-import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@/core/modules/database/global/global-database.service';
 
 /*
  * ─── Exit codes ──────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ export class MigrateCommand extends CommandRunner {
 
     constructor(
         @Inject(LocalDatabase) private readonly localDatabase: LocalDatabaseShape,
-        @Inject(GlobalDatabaseService) private readonly globalDatabaseService: GlobalDatabaseService,
+        @Inject(GlobalDatabaseService) private readonly globalDatabaseService: GlobalDatabaseServiceShape,
     ) {
         super();
     }

@@ -1,20 +1,20 @@
-import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
-import { EnvService } from "@deployer/shared/config/env/env.module";
+import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { heavyWorkSnapshot } from "@deployer/shared/core/utils/heavy-work.registry";
 
-import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service";
-import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
-import { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
+import type { DockerRuntimeEventsStreamShape } from "../../../common/events/docker-runtime-events-stream.service";
+import type { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
+import type { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
 import {
 	planScanConcurrency,
 	readScanPressure,
 	resolveScanConcurrencyCeiling,
 } from "../../../services/scan-concurrency";
-import { DOCKER_NODE_MESH, type DockerNodeMesh } from "../../containers/mesh/docker-node-mesh";
-import { DockerImagesApplicationService } from "../application/docker-images-application.service";
+import type { DockerNodeMesh } from "../../containers/mesh/docker-node-mesh";
+import type { DockerImagesApplicationService } from "../application/docker-images-application.service";
 
 import type { Subscription } from "rxjs";
 
@@ -30,11 +30,34 @@ const DEFAULT_IMAGE_QUEUE_PARALLELISM = 1;
  */
 const AUTO_SCAN_CAPACITY_RETRY_MS = 30_000;
 
-@Injectable()
-export class DockerImageAutoScanListenerService implements OnModuleInit, OnModuleDestroy {
-	private readonly apiLogger = new AppLogger("api").scope(DockerImageAutoScanListenerService.name);
+/** Scans the images of started containers in the background while the service is started. It has no methods, only a lifetime. */
+export type DockerImageAutoScanListenerShape = {
+	readonly onStart: () => Effect.Effect<void>;
+	readonly onStop: () => Effect.Effect<void>;
+};
+
+export class DockerImageAutoScanListenerService extends Context.Service<
+	DockerImageAutoScanListenerService,
+	DockerImageAutoScanListenerShape
+>()("runtime/DockerImageAutoScanListener") {
+	static readonly make = makeDockerImageAutoScanListener;
+}
+
+function makeDockerImageAutoScanListener(
+	...deps: ConstructorParameters<typeof AutoScanQueue>
+): DockerImageAutoScanListenerShape {
+	const queue = new AutoScanQueue(...deps);
+	return {
+		onStart: () => Effect.sync(() => { queue.start(); }),
+		onStop: () => Effect.sync(() => { queue.stop(); }),
+	};
+}
+
+/** The queue's state and loop; the tag above exposes only its start and stop. */
+class AutoScanQueue {
+	private readonly apiLogger = new AppLogger("api").scope("DockerImageAutoScanListenerService");
 	private readonly debugLogger = this.apiLogger.createContextFilterLogger({
-		defaultClassName: DockerImageAutoScanListenerService.name,
+		defaultClassName: "DockerImageAutoScanListenerService",
 		filterEnvVar: "APP_DEBUG_CONTEXT_FILTER",
 		channel: "docker-image-auto-scan-listener",
 	});
@@ -51,21 +74,21 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 
 	constructor(
 		/** Names this node: the id its agent gave it, known once the runtime has joined the mesh. */
-		@Inject(DOCKER_NODE_MESH) private readonly nodeMesh: Pick<DockerNodeMesh, "selfNodeId">,
-		private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
-		private readonly dockerRuntimeMeshRelayService: DockerRuntimeMeshRelayService,
-		private readonly dockerImagesApplicationService: DockerImagesApplicationService,
-		private readonly dockerImageSecurityRepository: DockerImageSecurityRepository,
-		private readonly envService: EnvService,
+		private readonly nodeMesh: Pick<DockerNodeMesh, "selfNodeId">,
+		private readonly dockerRuntimeEventsStreamService: Pick<DockerRuntimeEventsStreamShape, "observeEvents">,
+		private readonly dockerRuntimeMeshRelayService: Pick<DockerRuntimeMeshRelayService, "relayRuntimeEvent">,
+		private readonly dockerImagesApplicationService: Pick<DockerImagesApplicationService, "listImages" | "ensureImageSecurityScan">,
+		private readonly dockerImageSecurityRepository: Pick<DockerImageSecurityRepository, "reconcileImageLifecycleWithActiveSet" | "ensureImageAutoScanEligibility">,
+		private readonly envService: Pick<EnvService, "get">,
 	) {}
 
-	onModuleInit(): void {
+	start(): void {
 		if (this.runtimeEventSubscription) {
 			return;
 		}
 
 		if (this.isAutoScanDisabled()) {
-			this.debug("onModuleInit", {
+			this.debug("start", {
 				phase: "auto_scan_disabled_by_env",
 				envVar: "DISABLE_AUTO_SCAN",
 			});
@@ -77,14 +100,14 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 				void this.handleRuntimeEvent(event);
 			},
 			error: (error: unknown) => {
-				this.debug("onModuleInit", {
+				this.debug("start", {
 					phase: "runtime_event_subscription_error",
 					message: error instanceof Error ? error.message : String(error),
 				});
 			},
 		});
 
-		this.debug("onModuleInit", {
+		this.debug("start", {
 			phase: "runtime_event_subscription_started",
 		});
 
@@ -95,7 +118,7 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 		return this.envService.get("DISABLE_AUTO_SCAN");
 	}
 
-	onModuleDestroy(): void {
+	stop(): void {
 		this.runtimeEventSubscription?.unsubscribe();
 		this.runtimeEventSubscription = null;
 		this.inFlightByImage.clear();
@@ -106,7 +129,7 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 		this.activeAutoScanJobs = 0;
 		this.isBootstrapRunning = false;
 
-		this.debug("onModuleDestroy", {
+		this.debug("stop", {
 			phase: "runtime_event_subscription_stopped",
 		});
 	}

@@ -1,5 +1,4 @@
 
-import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
 import { Effect } from "effect";
 
 import type { DockerodeContainerList, DockerodeImageInspect } from "@deployer/contracts-entities";
@@ -26,8 +25,7 @@ import {
   type DockerRuntimeEvent,
   
 } from "@deployer/contracts-entities";
-import { DockerEngine, DockerHost, ScannerPool, type DockerEngineShape, type DockerHostShape, type ScannerPoolShape } from "@deployer/docker";
-import { CONTAINER_LINK_RESOLVER } from "@deployer/docker";
+import { DockerEngine, type DockerEngineShape, type DockerHostShape, type ScannerPoolShape } from "@deployer/docker";
 import type { IContainerLinkResolver } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
@@ -36,10 +34,11 @@ import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules
 import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
 import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
 import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import type { GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
-import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
+import { RuntimeNotFound } from "../../../../core/runtime.errors";
+import type { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
 import {
   
   
@@ -130,29 +129,27 @@ import type {
 
 
 
-@Injectable()
+/** Built by a factory in `DockerRepositoriesModule`: the module resolves the collaborators, the class only holds them. */
 export class DockerRepository {
-  private readonly logger = new Logger(DockerRepository.name);
   private localDockerDaemonId: string | null | undefined;
   private localDockerDaemonIdLoadPromise: Promise<string | null> | null = null;
   private readonly scanner: DockerImageScannerService;
 
   constructor(
-    @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
-    @Inject(ScannerPool) private readonly scannerPool: ScannerPoolShape,
-    @Inject(DockerHost) private readonly dockerHost: DockerHostShape,
-    private readonly globalDatabaseService: GlobalDatabaseService,
+    private readonly dockerEngine: DockerEngineShape,
+    private readonly scannerPool: ScannerPoolShape,
+    private readonly dockerHost: DockerHostShape,
+    private readonly globalDatabaseService: GlobalDatabaseServiceShape,
     private readonly normalizer: ContainerDockerodeNormalizer,
-    @Optional() @Inject(CONTAINER_LINK_RESOLVER)
     private readonly linkResolver?: IContainerLinkResolver,
-    @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = new DockerNetworksRepository.live(),
-    @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = new DockerVolumesRepository.live(),
-    @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = new DockerImagesRepository.live(),
-    @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = new DockerImageLifecycleRepository.live(),
-    @Inject(DockerContainersRepository) private readonly containers: DockerContainersRepositoryShape = new DockerContainersRepository.live(),
-    @Inject(DockerRuntimeActivitiesStore) private readonly activities: DockerRuntimeActivitiesStoreShape = new DockerRuntimeActivitiesStore.live(),
-    @Inject(DockerImageScansStore) private readonly scans: DockerImageScansStoreShape = new DockerImageScansStore.live(),
-    @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = new DockerContainerLinksLookup.live(),
+    private readonly networks: DockerNetworksRepositoryShape = new DockerNetworksRepository.live(),
+    private readonly volumes: DockerVolumesRepositoryShape = new DockerVolumesRepository.live(),
+    private readonly images: DockerImagesRepositoryShape = new DockerImagesRepository.live(),
+    private readonly lifecycle: DockerImageLifecycleRepositoryShape = new DockerImageLifecycleRepository.live(),
+    private readonly containers: DockerContainersRepositoryShape = new DockerContainersRepository.live(),
+    private readonly activities: DockerRuntimeActivitiesStoreShape = new DockerRuntimeActivitiesStore.live(),
+    private readonly scans: DockerImageScansStoreShape = new DockerImageScansStore.live(),
+    private readonly linkLookup: DockerContainerLinksLookupShape = new DockerContainerLinksLookup.live(),
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
       read: (identifiers) => this.readPersistedImageSecurityScan(identifiers),
@@ -287,7 +284,7 @@ export class DockerRepository {
       );
     } catch (error: unknown) {
       if (error instanceof ContainerNotFound) {
-        throw new NotFoundException(`Container '${containerId}' not found`);
+        throw new RuntimeNotFound({ reason: `Container '${containerId}' not found` });
       }
       throw error;
     }
@@ -525,7 +522,7 @@ export class DockerRepository {
       );
     } catch (error: unknown) {
       if (error instanceof ImageNotFound) {
-        throw new NotFoundException(`Image '${imageId}' not found`);
+        throw new RuntimeNotFound({ reason: `Image '${imageId}' not found` });
       }
       throw error;
     }

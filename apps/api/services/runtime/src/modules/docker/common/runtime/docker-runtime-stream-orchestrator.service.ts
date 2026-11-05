@@ -23,7 +23,7 @@ import { isRecord } from "@deployer/type-guards"
 import { DockerContainerMetricsStreamService } from "../../domains/containers/events/docker-container-metrics-stream.service";
 import { DockerContainerResolution } from "../../domains/containers/orchestration/docker-container-resolution";
 import { DockerRepository } from "../../repositories/facade/docker.repository";
-import { DockerRuntimeEventsStreamService } from "../events/docker-runtime-events-stream.service";
+import type { DockerRuntimeEventsStreamShape } from "../events/docker-runtime-events-stream.service";
 
 
 import {
@@ -80,7 +80,7 @@ export class DockerRuntimeStreamOrchestratorService {
     private readonly streamEventCounters = new Map<string, { relay: number; metrics: number; emitted: number }>();
 
     constructor(
-        private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
+        private readonly dockerRuntimeEventsStreamService: Pick<DockerRuntimeEventsStreamShape, "observeEvents">,
         private readonly host: EffectHostShape,
         private readonly dockerContainerMetricsStreamService: DockerContainerMetricsStreamService,
         private readonly dockerRepository: DockerRepository,

@@ -1,57 +1,53 @@
-import { Injectable, Inject, Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
+import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
-import { CodeProvider } from "./code-provider.interface";
+import type { RuntimeInvalid } from "../../../../core/runtime.errors";
 
-import type { OnModuleInit } from "@nestjs/common";
+import type { CodeProviderShape } from "./code-provider.interface";
 
-@Injectable()
-export class CodeProviderRegistryService implements OnModuleInit {
-    private readonly logger = new Logger(CodeProviderRegistryService.name);
-    private readonly providersByType = new Map<string, CodeProvider>();
-
-    constructor(
-        @Inject(CodeProvider) providers: CodeProvider[],
-    ) {
-        for (const provider of providers) {
-            const key = provider.sourceType.toLowerCase();
-            const existing = this.providersByType.get(key);
-            if (existing) {
-                this.logger.warn(
-                    `CodeProvider '${key}' already registered by ${existing.constructor.name}, overwriting with ${provider.constructor.name}`,
-                );
-            }
-            this.providersByType.set(key, provider);
-        }
-    }
-
-    onModuleInit() {
-        this.logger.log(
-            `Code provider registry initialized: ${[...this.providersByType.keys()].join(", ")}`,
-        );
-    }
-
+export type CodeProviderRegistryShape = ServiceLifecycleShape & {
     /** Registered provider types (e.g. ["github", "upload", "custom"]). */
-    listProviderTypes(): string[] {
-        return [...this.providersByType.keys()];
-    }
-
-    /** Get the adapter for a source type, or null when unsupported. */
-    getProvider(sourceType: string): CodeProvider | null {
-        return this.providersByType.get(sourceType.toLowerCase()) ?? null;
-    }
-
-    // ─── Shared dispatch method ─────────────────────────────────────────────
-
-    async resolveSourceCheckout(
+    readonly listProviderTypes: () => Effect.Effect<string[]>;
+    /** The adapter for a source type, or null when unsupported. */
+    readonly getProvider: (sourceType: string) => Effect.Effect<CodeProviderShape | null>;
+    /** Shared dispatch: null when no provider handles the source type. */
+    readonly resolveSourceCheckout: (
         input: DeploymentTriggerInput,
-    ): Promise<DeploymentSourceCheckoutContext | null> {
-        const provider = this.getProvider(input.source.sourceType);
-        if (!provider) {
-            return null;
-        }
-        return provider.resolveSourceCheckout(input);
+    ) => Effect.Effect<DeploymentSourceCheckoutContext | null, RuntimeInvalid>;
+};
+
+export class CodeProviderRegistry extends Context.Service<CodeProviderRegistry, CodeProviderRegistryShape>()(
+    "runtime/CodeProviderRegistry",
+) {}
+
+/** The registry over the collected providers; a later provider of the same type overwrites (and logs it). */
+export function makeCodeProviderRegistry(providers: readonly CodeProviderShape[]): CodeProviderRegistryShape {
+    const providersByType = new Map<string, CodeProviderShape>();
+    const overwritten: string[] = [];
+    for (const provider of providers) {
+        const key = provider.sourceType.toLowerCase();
+        if (providersByType.has(key)) overwritten.push(key);
+        providersByType.set(key, provider);
     }
+    const getProvider: CodeProviderRegistryShape["getProvider"] = (sourceType) =>
+        Effect.sync(() => providersByType.get(sourceType.toLowerCase()) ?? null);
+
+    return {
+        listProviderTypes: () => Effect.sync(() => [...providersByType.keys()]),
+        getProvider,
+        resolveSourceCheckout: (input) =>
+            Effect.flatMap(getProvider(input.source.sourceType), (provider) =>
+                provider ? provider.resolveSourceCheckout(input) : Effect.succeed(null),
+            ),
+        onStart: () =>
+            Effect.gen(function* () {
+                for (const key of overwritten) {
+                    yield* Effect.logWarning(`CodeProvider '${key}' registered twice, the last one wins`);
+                }
+                yield* Effect.logInfo(`Code provider registry initialized: ${[...providersByType.keys()].join(", ")}`);
+            }),
+    };
 }

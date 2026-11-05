@@ -1,4 +1,3 @@
-import { Logger } from "@nestjs/common";
 import { Effect } from "effect";
 
 import type { DockerEngineShape } from "@deployer/docker";
@@ -11,11 +10,11 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
+import type { AppInstanceServiceShape } from "../../platform-ingress/services/app-instance.service";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
-import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
 import { MANAGED_WEB_CONTAINER_BASE_NAME, platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 export { PLATFORM_MANAGED_WEB_SUPERVISOR_ID };
 
@@ -23,9 +22,9 @@ export type ManagedWebSupervisorDeps = {
 	readonly engine: DockerEngineShape;
 	readonly env: EnvService;
 	readonly hostnameService: HostnameService;
-	readonly platformConfig: PlatformConfigService;
-	readonly appInstances: AppInstanceService;
-	readonly bus: SupervisorEventBus;
+	readonly platformConfig: PlatformConfigServiceShape;
+	readonly appInstances: AppInstanceServiceShape;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 /**
@@ -53,14 +52,14 @@ export function makeManagedWebRegistration({ engine, env, hostnameService, platf
 				webOrigin: () => hostnameService.webOrigin(),
 				apiOrigin: () => hostnameService.apiOrigin(),
 			},
-			flagEnabled: Effect.tryPromise(() => platformConfig.isManagedWebAppEnabled()),
+			flagEnabled: platformConfig.isManagedWebAppEnabled(),
 			appInstances: {
-				mint: (label) => Effect.tryPromise(() => appInstances.create({ label, kind: "managed" })),
-				revokeManaged: Effect.tryPromise(async () => {
-					// Teardown kills trust immediately; a lookup that fails means there is nothing to revoke.
-					const managed = await appInstances.findManaged().catch(() => null);
-					if (managed !== null) await appInstances.revoke(managed.id);
-				}),
+				mint: (label) => appInstances.create({ label, kind: "managed" }),
+				// Teardown kills trust immediately; a lookup that fails means there is nothing to revoke.
+				revokeManaged: appInstances.findManaged().pipe(
+					Effect.catch(() => Effect.succeed(null)),
+					Effect.flatMap((managed) => (managed === null ? Effect.void : appInstances.revoke(managed.id).pipe(Effect.asVoid))),
+				),
 			},
 		},
 	});

@@ -44,8 +44,9 @@
 
 import { existsSync } from "node:fs";
 
-import { Injectable, Logger, Inject } from "@nestjs/common";
-import { Pool } from "pg";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
+import type { Pool } from "pg";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 // The migration directory is owned by the schema package; resolving it there is
@@ -53,75 +54,69 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 // finding nothing (see `resolveMigrationsFolder`).
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env";
 import { AppError } from "@deployer/errors";
-import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+import { AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import type { NodeConfigRepositoryShape } from "@deployer/node-state"
+import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
 import { adminBootstrapDecisionFromProcessEnv } from "../../admin-bootstrap/admin-bootstrap-policy";
 import { ensureDefaultAdmin } from "../../admin-bootstrap/default-admin.bootstrap";
-import {
-    GLOBAL_DATABASE_CONNECTION,
-    GLOBAL_DATABASE_POOL,
-} from "../database/database-connection"
 import { applyGlobalMigrations } from "../database/migrations/global-migrations";
-import { BootstrapAdvisoryLockService } from "../database/services/bootstrap-advisory-lock.service";
-import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
+import type { BootstrapAdvisoryLockServiceShape } from "../database/services/bootstrap-advisory-lock.service";
+import type { DatabaseStartupGuardShape } from "../database/services/database-startup-guard.service";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../supervisors/platform/swarm-app-wiring.supervisor";
 
+import { BootstrapFailed } from "./bootstrap.errors";
+
 import type { GlobalDatabase } from "../database/global/global-database.service";
-import type { OnApplicationBootstrap } from "@nestjs/common";
 
-@Injectable()
-export class BootstrapOrchestratorService implements OnApplicationBootstrap {
-    private readonly logger = new Logger(BootstrapOrchestratorService.name);
+export type BootstrapOrchestratorServiceShape = ServiceLifecycleShape;
 
-    constructor(
-        /**
-         * The shared `pg.Pool` and its Drizzle wrapper, injected by TOKEN.
-         *
-         * Both are bound by `GlobalDatabaseModule` and exported through the
-         * `@Global()` `DatabaseModule`. Resolving them by token (rather than
-         * reaching through `GlobalDatabaseService`) is what makes this service
-         * depend only on the connections it uses — and `GlobalDatabaseService`
-         * deliberately exposes no `pool` getter, because the pool's lifecycle
-         * belongs to the lifecycle service, not to the wrapper.
-         */
-        @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool,
-        @Inject(GLOBAL_DATABASE_CONNECTION) private readonly db: GlobalDatabase,
-        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-        @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
-        private readonly startupGuard: DatabaseStartupGuard,
-        /**
-         * Cross-replica guard around the boot-time side effects (migrations +
-         * default admin). The step before it (converging the DB supervisor)
-         * cannot be guarded: the lock IS a database session, so it can only be
-         * taken once the database that supervisor creates is reachable.
-         */
-        private readonly bootstrapLock: BootstrapAdvisoryLockService,
-        /**
-         * Converges the GLOBAL POSTGRES supervisor during boot.
-         *
-         * The database is a swarm service this API's own supervisor creates, so
-         * waiting for it without first asking that supervisor to converge waits
-         * for something nothing has made — see the step-2 note in
-         * `onApplicationBootstrap`.
-         */
-        @Inject(SupervisorOrchestrator) private readonly orchestrator: SupervisorOrchestratorShape,
-    ) {}
+type Ports = {
+    /**
+     * The shared `pg.Pool` and its Drizzle wrapper, injected by TOKEN. Both are bound by `GlobalDatabaseModule` and exported
+     * through the `@Global()` `DatabaseModule`. Resolving them by token (rather than reaching through
+     * `GlobalDatabaseService`) is what makes this service depend only on the connections it uses — and
+     * `GlobalDatabaseService` deliberately exposes no `pool` getter, because the pool's lifecycle belongs to the pool
+     * lifecycle, not to the wrapper.
+     */
+    readonly pool: Pool;
+    readonly db: GlobalDatabase;
+    readonly nodeConfigRepository: NodeConfigRepositoryShape;
+    /** Advanced to READY when the boot pipeline completes. */
+    readonly lifecycle: AppLifecycleShape;
+    readonly startupGuard: DatabaseStartupGuardShape;
+    /**
+     * Cross-replica guard around the boot-time side effects (migrations + default admin). The step before it (converging the
+     * DB supervisor) cannot be guarded: the lock IS a database session, so it can only be taken once the database that
+     * supervisor creates is reachable.
+     */
+    readonly bootstrapLock: BootstrapAdvisoryLockServiceShape;
+    /**
+     * Converges the GLOBAL POSTGRES supervisor during boot. The database is a swarm service this API's own supervisor
+     * creates, so waiting for it without first asking that supervisor to converge waits for something nothing has made.
+     */
+    readonly orchestrator: SupervisorOrchestratorShape;
+};
 
-    async onApplicationBootstrap(): Promise<void> {
-        this.logger.log("🚀 Bootstrap starting…");
+export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchestratorServiceShape {
+    const { pool, db, nodeConfigRepository, lifecycle, startupGuard, bootstrapLock, orchestrator } = ports;
+    const logger = new Logger("BootstrapOrchestratorService");
+
+
+    async function bootstrap(): Promise<void> {
+        logger.log("🚀 Bootstrap starting…");
 
         try {
-            const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
-            const databaseUrl = this.resolveDatabaseUrl(config?.databaseUrl?.trim() ?? null);
+            const config = await runPromiseUnwrapped(nodeConfigRepository.find());
+            const databaseUrl = resolveDatabaseUrl(config?.databaseUrl?.trim() ?? null);
 
             if (databaseUrl === null || databaseUrl.length === 0) {
                 // NOT an error: this happens on a node whose onboarding has not
                 // reached the database step. Reported as not-ready so compose
                 // keeps waiting for the gate (plan §7.3).
-                this.logger.warn(
+                logger.warn(
                     "⏳ No global database configured yet — the API will report NOT READY " +
                         "until onboarding (apps/setup) completes.",
                 );
@@ -145,7 +140,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             // node that a previous run brought up (see `checkConfigAndEmit`,
             // which unblocks the graph on exactly this condition).
             if (config?.setupState !== "setup_done") {
-                this.logger.log(
+                logger.log(
                     `⏳ Setup state is "${config?.setupState ?? "unknown"}" — the wizard is ` +
                         "provisioning this node; the boot pipeline will run on the next start.",
                 );
@@ -161,12 +156,12 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    fails against a database that is actually running. No-op while
             //    the engine is not in a swarm.
             try {
-                await runPromiseUnwrapped(this.orchestrator.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
+                await runPromiseUnwrapped(orchestrator.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
             } catch (error: unknown) {
                 // Non-fatal by design: pre-swarm on a single node there is
                 // nothing to wire, and failing the boot for it would make the
                 // simple case the fragile one.
-                this.logger.warn(
+                logger.warn(
                     `Swarm overlay wiring skipped: ${error instanceof Error ? error.message : String(error)}`,
                 );
             }
@@ -199,12 +194,12 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    there is no supervisor to converge, and the guard is the correct
             //    authority on whether the database is usable.
             try {
-                const databaseState = await runPromiseUnwrapped(this.orchestrator.convergeNow("global-db-postgres"));
+                const databaseState = await runPromiseUnwrapped(orchestrator.convergeNow("global-db-postgres"));
                 if (databaseState !== null) {
-                    this.logger.log(`Global Postgres supervisor converged (state=${databaseState})`);
+                    logger.log(`Global Postgres supervisor converged (state=${databaseState})`);
                 }
             } catch (error: unknown) {
-                this.logger.warn(
+                logger.warn(
                     `Global Postgres convergence skipped: ${error instanceof Error ? error.message : String(error)}`,
                 );
             }
@@ -217,7 +212,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    It also WAITS for the dependency: the database may be a swarm
             //    service whose task is still being scheduled, so a single-shot
             //    check would fail at random on a boot that is merely early.
-            await this.startupGuard.ensureDatabaseAvailable(this.pool);
+            await runPromiseUnwrapped(startupGuard.ensureDatabaseAvailable(pool));
 
             // 4. Migrations and the default admin, UNDER AN ADVISORY LOCK.
             //    Both are convergent but not atomic: two replicas booting at once
@@ -229,32 +224,32 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    A migration failure is FATAL: booting against a schema nobody
             //    verified fails later on an unrelated query, which is a much worse
             //    place to discover it. See `applyGlobalMigrations`.
-            const lockAcquired = await this.bootstrapLock.acquire();
+            const lockAcquired = await runPromiseUnwrapped(bootstrapLock.acquire());
             if (!lockAcquired) {
-                this.logger.warn(
+                logger.warn(
                     "⏭  Another replica holds the bootstrap lock — migrations and the " +
                         "default admin are being applied there; continuing to readiness.",
                 );
             } else {
                 try {
-                    await this.runGlobalMigrations(databaseUrl);
-                    await this.bootstrapSeededAdmin(databaseUrl);
+                    await runGlobalMigrations(databaseUrl);
+                    await bootstrapSeededAdmin(databaseUrl);
                 } finally {
-                    await this.bootstrapLock.release();
+                    await runPromiseUnwrapped(bootstrapLock.release());
                 }
             }
 
-            this.lifecycle.transitionNow(AppLifecyclePhase.READY, {
+            lifecycle.transitionNow(AppLifecyclePhase.READY, {
                 message: "Database reachable, migrations applied — the platform is ready",
                 databaseReachable: true,
             });
-            this.lifecycle.markReadyNow();
+            lifecycle.markReadyNow();
 
-            this.logger.log("✅ Bootstrap completed");
+            logger.log("✅ Bootstrap completed");
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            this.logger.error(`❌ Bootstrap failed: ${message}`);
-            this.lifecycle.markErrorNow(message);
+            logger.error(`❌ Bootstrap failed: ${message}`);
+            lifecycle.markErrorNow(message);
             throw err;
         }
     }
@@ -287,7 +282,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
      * persisted row only when no managed database is configured — so this
      * mirrors it exactly. Anything else reintroduces the split.
      */
-    private resolveDatabaseUrl(configuredUrl: string | null): string | null {
+    function resolveDatabaseUrl(configuredUrl: string | null): string | null {
         const managed = splitManagedEnv(process.env).globalDb;
         if (managed.enabled) {
             // With `MANAGED_GLOBAL_DB_ENABLED=true` the deployment owns the
@@ -320,7 +315,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
      * neither exists. A wrong migration path is otherwise invisible — the
      * migrator reports nothing to do, and the schema quietly stays stale.
      */
-    private resolveMigrationsFolder(): string {
+    function resolveMigrationsFolder(): string {
         // ── THE PACKAGE THAT OWNS THE MIGRATIONS RESOLVES THEM ──────────────
         // This used to try three hand-counted `../../..` candidates aimed at
         // `apps/<app>/src/config/drizzle/global/migrations`. When `src/config`
@@ -357,19 +352,19 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
      * `already-applied`, decided by SQLSTATE inside `applyGlobalMigrations` —
      * not by matching words in the driver's message.
      */
-    private async runGlobalMigrations(databaseUrl: string): Promise<void> {
-        const migrationsFolder = this.resolveMigrationsFolder();
+    async function runGlobalMigrations(databaseUrl: string): Promise<void> {
+        const migrationsFolder = resolveMigrationsFolder();
 
-        this.logger.log(
+        logger.log(
             `🔄 Running global Postgres migrations (${databaseUrl.replace(/:[^:@/]*@/, ":***@")})…`,
         );
-        this.logger.log(`   migrations: ${migrationsFolder}`);
+        logger.log(`   migrations: ${migrationsFolder}`);
 
-        const outcome = await applyGlobalMigrations(this.db, { migrationsFolder });
+        const outcome = await applyGlobalMigrations(db, { migrationsFolder });
         if (outcome === "already-applied") {
-            this.logger.log("✅ Global Postgres migrations: schema already current");
+            logger.log("✅ Global Postgres migrations: schema already current");
         } else {
-            this.logger.log("✅ Global Postgres migrations applied");
+            logger.log("✅ Global Postgres migrations applied");
         }
     }
 
@@ -387,18 +382,18 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
      * fails. An install that must be usable but has no credentials is orphaned,
      * and failing loudly here is the only way that becomes visible.
      */
-    private async bootstrapSeededAdmin(databaseUrl: string): Promise<void> {
+    async function bootstrapSeededAdmin(databaseUrl: string): Promise<void> {
         const { decision: admin, reason: adminReason } = adminBootstrapDecisionFromProcessEnv();
 
         if (admin === "never") {
-            this.logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`);
+            logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`);
             return;
         }
         if (adminReason.includes("deprecated alias")) {
-            this.logger.warn(`⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`);
+            logger.warn(`⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`);
         }
 
-        this.logger.log(`🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`);
+        logger.log(`🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`);
 
         const result = await ensureDefaultAdmin(databaseUrl);
 
@@ -409,11 +404,25 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             );
         }
         if (result.outcome === "created") {
-            this.logger.log(`✅ Default admin created (id=${result.userId})`);
+            logger.log(`✅ Default admin created (id=${result.userId})`);
         } else if (result.outcome === "promoted") {
-            this.logger.log(`✅ Existing user promoted to superAdmin (id=${result.userId})`);
+            logger.log(`✅ Existing user promoted to superAdmin (id=${result.userId})`);
         } else {
-            this.logger.log(`ℹ️  Default admin already exists (id=${result.userId})`);
+            logger.log(`ℹ️  Default admin already exists (id=${result.userId})`);
         }
     }
+
+    return {
+        // Runs once every module has finished initialising (the supervisors registered their work), and a failure fails the
+        // boot: refusing to report READY is correct, breaking the PROCESS is wrong only when the database is merely absent.
+        onReady: () =>
+            Effect.tryPromise({
+                try: () => bootstrap(),
+                catch: (cause) => new BootstrapFailed({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+            }),
+    };
 }
+
+export class BootstrapOrchestratorService extends Context.Service<BootstrapOrchestratorService, BootstrapOrchestratorServiceShape>()(
+    "shared/BootstrapOrchestratorService",
+) {}

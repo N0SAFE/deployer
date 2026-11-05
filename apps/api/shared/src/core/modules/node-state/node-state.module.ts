@@ -16,7 +16,7 @@
  * The providers ARE the Effect repositories from `@deployer/node-state`, provided under the package's
  * own tags; callers inject the tag and run the Effect they need.
  */
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
 import {
 	ClusterNodeInventoryRepository,
 	ClusterNodeRepository,
@@ -47,7 +47,9 @@ const repositories = [
 	},
 	// Synchronous cache of the config row for the seams that cannot do I/O (the pg pool's per-connect
 	// URL resolver, the global-db supervisor's synchronous config callbacks).
-	NodeConfigSnapshot,
+	NodeConfigSnapshot.provider,
+	serviceLifecycle(NodeConfigSnapshot),
+	effectHostProvider(),
 ];
 
 export const NodeStateModule = createGlobalModule({

@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { Effect } from "effect";
+import { Context, Effect } from "effect";
 import { Pool } from "pg";
 
 // ── WHY THE PACKAGE CONSTANT AND NOT A RELATIVE PATH ───────────────────────
@@ -27,23 +27,23 @@ import { provisionUserAccount } from "@deployer/auth/server";
 import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
 import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
 import { platformNetworkName } from "@deployer/docker";
-import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
+import type { DockerEngineShape, PostgresProvisionerShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { splitManagedEnv } from "@deployer/env";
 import { AppError, ConflictError } from "@deployer/errors";
 import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
 import * as globalSchema from "@deployer/nest-schema/global";
 import { user } from "@deployer/nest-schema/global/identity/auth";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
-import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
+import type { NodeConfigRepositoryShape } from "@deployer/node-state"
+import type { SupervisorOrchestratorShape } from "@deployer/supervision";
+import type { SwarmBootstrapShape, SwarmClusterShape } from "@deployer/swarm"
 
 import { createBetterAuth } from "../../../../config/auth/auth";
-import { EnvService } from "../../../../config/env/env.module";
+import type { EnvService } from "../../../../config/env/env.module";
 import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 import { resolvePostgresIdentity } from "../../docker/containers/postgres/postgres-identity";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor";
+import { SetupInitializationFailed } from "../setup.errors";
 import {
     SetupStepTracker,
     listMigrationNames,
@@ -74,12 +74,66 @@ import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
  * our own subjects — the core event service already does buffering,
  * persistence and subject management.
  */
-@Injectable()
-export class LocalInitializationService {
-    private readonly logger = new Logger(LocalInitializationService.name);
+export type LocalInitializationServiceShape = {
+    /**
+     * Run the full local bootstrap flow. Resolves the final `nodeId` and `databaseUrl` so the orchestration layer can emit
+     * the terminal `completed` event. The steps are async work (Postgres, migrations, seeding, swarm) driven through the
+     * step tracker; a stop is a `SetupInitializationFailed` carrying the step's message.
+     */
+    readonly initialize: (
+        input: SetupInitializeLocalInput,
+        tracker: SetupStepTracker,
+        emit: EmitEvent,
+    ) => Effect.Effect<{ nodeId: string; databaseUrl: string }, SetupInitializationFailed>;
+};
 
-    /** The env var set by globalSetup (e2e) pointing at a shared Postgres. */
-    private static readonly SHARED_PG_ENV = "E2E_SHARED_POSTGRES_CONNECTION_URI";
+/** The heavy steps, overridable so a spec can short-circuit them (they open real connections). */
+export type LocalInitializationSteps = {
+    readonly probeExistingDatabase: (databaseUrl: string, log: (message: string) => void) => Promise<string>;
+    readonly provisionDockerDatabase: (log: (message: string) => void, deploymentOwnsEverything: boolean) => Promise<string>;
+    readonly ensureDatabaseEmpty: (databaseUrl: string) => Promise<string[]>;
+    readonly runMigrations: (databaseUrl: string, migrationsFolder: string, log: (message: string) => void) => Promise<void>;
+    readonly seedInitialData: (
+        databaseUrl: string,
+        input: SetupInitializeLocalInput,
+        log: (message: string) => void,
+    ) => Promise<{ userId: string }>;
+};
+
+type Ports = {
+    readonly postgresProvisioner: PostgresProvisionerShape;
+    readonly dockerEngine: DockerEngineShape;
+    readonly env: EnvService;
+    readonly nodeConfigRepository: NodeConfigRepositoryShape;
+    /**
+     * FOUNDS the cluster. Provisioning Postgres as a SWARM SERVICE needs an active swarm, so this runs BEFORE the database
+     * step — the previous ordering called the provisioner while the engine was still inactive.
+     */
+    readonly swarmBootstrap: SwarmBootstrapShape;
+    /** Read-back of the engine state for the setup stream's report. */
+    readonly swarmCluster: SwarmClusterShape;
+    /**
+     * On-demand convergence of the app-wiring supervisor, so the overlay attach below happens BEFORE the DSN is used rather
+     * than on the supervisor's 30s cadence (see the call site).
+     */
+    readonly supervisors: SupervisorOrchestratorShape;
+    readonly steps?: Partial<LocalInitializationSteps>;
+};
+
+/** The env var set by globalSetup (e2e) pointing at a shared Postgres. */
+const SHARED_PG_ENV = "E2E_SHARED_POSTGRES_CONNECTION_URI";
+
+export function makeLocalInitializationService(ports: Ports): LocalInitializationServiceShape {
+    const { postgresProvisioner, dockerEngine, env, nodeConfigRepository, swarmBootstrap, swarmCluster, supervisors } = ports;
+    const logger = new Logger("LocalInitializationService");
+
+    const steps: LocalInitializationSteps = {
+        probeExistingDatabase: ports.steps?.probeExistingDatabase ?? ((databaseUrl, log) => probeExistingDatabase(databaseUrl, log)),
+        provisionDockerDatabase: ports.steps?.provisionDockerDatabase ?? ((log, owns) => provisionDockerDatabase(log, owns)),
+        ensureDatabaseEmpty: ports.steps?.ensureDatabaseEmpty ?? ((databaseUrl) => ensureDatabaseEmpty(databaseUrl)),
+        runMigrations: ports.steps?.runMigrations ?? ((databaseUrl, folder, log) => runMigrations(databaseUrl, folder, log)),
+        seedInitialData: ports.steps?.seedInitialData ?? ((databaseUrl, input, log) => seedInitialData(databaseUrl, input, log)),
+    };
 
     /**
      * Whether the DEPLOYMENT owns every platform service (compose / operator).
@@ -91,8 +145,8 @@ export class LocalInitializationService {
      * Read from the SAME `splitManagedEnv` source the supervisors use, so this
      * cannot disagree with them about who owns what.
      */
-    private deploymentOwnsAllServices(): boolean {
-        const managed = splitManagedEnv(this.env);
+    function deploymentOwnsAllServices(): boolean {
+        const managed = splitManagedEnv(env);
         return (
             managed.traefik.enabled &&
             managed.redis.enabled &&
@@ -100,26 +154,6 @@ export class LocalInitializationService {
         );
     }
 
-    constructor(
-        @Inject(PostgresProvisioner) private readonly postgresProvisioner: PostgresProvisionerShape,
-        @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
-        private readonly env: EnvService,
-        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-        /**
-         * FOUNDS the cluster. Provisioning Postgres as a SWARM SERVICE needs an
-         * active swarm, so this runs BEFORE the database step — the previous
-         * ordering called the provisioner while the engine was still inactive.
-         */
-        @Inject(SwarmBootstrap) private readonly swarmBootstrap: SwarmBootstrapShape,
-        /** Read-back of the engine state for the setup stream's report. */
-        @Inject(SwarmCluster) private readonly swarmCluster: SwarmClusterShape,
-        /**
-         * On-demand convergence of the app-wiring supervisor, so the overlay
-         * attach below happens BEFORE the DSN is used rather than on the
-         * supervisor's 30s cadence (see the call site).
-         */
-        @Inject(SupervisorOrchestrator) private readonly supervisors: SupervisorOrchestratorShape,
-    ) {}
 
     /**
      * Run the full local bootstrap flow.
@@ -127,7 +161,7 @@ export class LocalInitializationService {
      * Returns the final `nodeId` and `databaseUrl` so the orchestration
      * layer can emit the terminal `completed` event.
      */
-    async initialize(
+    async function initialize(
         input: SetupInitializeLocalInput,
         tracker: SetupStepTracker,
         emit: EmitEvent,
@@ -148,7 +182,7 @@ export class LocalInitializationService {
 
         const providedCfg = explicitUrl
             ? null
-            : await runPromiseUnwrapped(this.nodeConfigRepository.find());
+            : await runPromiseUnwrapped(nodeConfigRepository.find());
         const providedUrl = (() => {
             if (explicitUrl) return "";
             const cfg = providedCfg;
@@ -197,7 +231,7 @@ export class LocalInitializationService {
         // The operator's explicit swarm choice is still PERSISTED below, so a
         // later profile that does need a cluster converges from the same
         // decision — only the engine mutation is skipped.
-        const deploymentOwnsEverything = this.deploymentOwnsAllServices();
+        const deploymentOwnsEverything = deploymentOwnsAllServices();
 
         if (databaseProvisioning === "local" && !deploymentOwnsEverything) {
             await runStep(tracker, emit, "initialize_swarm", "Create the Swarm cluster", async (stepLog) => {
@@ -220,9 +254,9 @@ export class LocalInitializationService {
                 // operator explicitly did not ask for. `register_node` writes the
                 // same values later; this earlier write is what makes the DECISION
                 // authoritative at the moment it is acted on.
-                const cfg = await runPromiseUnwrapped(this.nodeConfigRepository.find());
+                const cfg = await runPromiseUnwrapped(nodeConfigRepository.find());
                 const nowIso = new Date().toISOString();
-                await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
+                await runPromiseUnwrapped(nodeConfigRepository.upsert({
                     ...(cfg ?? {}),
                     nodeId,
                     strategy: "local",
@@ -241,8 +275,8 @@ export class LocalInitializationService {
                 }));
                 stepLog("  → participation persisted (node_config.swarmConfig)");
 
-                await runPromiseUnwrapped(this.swarmBootstrap.converge("setup"));
-                const snapshot = await runPromiseUnwrapped(this.swarmCluster.getLocalClusterSnapshot());
+                await runPromiseUnwrapped(swarmBootstrap.converge("setup"));
+                const snapshot = await runPromiseUnwrapped(swarmCluster.getLocalClusterSnapshot());
 
                 if (snapshot.localNodeState !== "active") {
                     // A service-based database CANNOT be provisioned without a
@@ -268,20 +302,20 @@ export class LocalInitializationService {
                 stepLog("▸ Using database URL supplied in the setup request");
                 stepLog(`  host = ${redactUrl(explicitUrl)}`);
                 stepLog("▸ Opening probe connection (max 1 client)…");
-                return await this.probeExistingDatabase(explicitUrl, stepLog);
+                return await steps.probeExistingDatabase(explicitUrl, stepLog);
             }
             if (providedUrl) {
                 stepLog("▸ Using the database URL provided for this node (MANAGED_GLOBAL_DB_ENABLED / SETUP_AUTO)");
                 stepLog(`  host = ${redactUrl(providedUrl)}`);
                 stepLog("▸ Opening probe connection (max 1 client)…");
-                return await this.probeExistingDatabase(providedUrl, stepLog);
+                return await steps.probeExistingDatabase(providedUrl, stepLog);
             }
             stepLog("▸ Bootstrapping Docker Postgres 16…");
             stepLog("  image  = postgres:16-alpine");
             stepLog("  volume = deployer_postgres_data");
             stepLog("  port   = 5432 (host-assigned)");
             stepLog("▸ Pulling image (cached if present)…");
-            return await this.provisionDockerDatabase(stepLog, deploymentOwnsEverything);
+            return await steps.provisionDockerDatabase(stepLog, deploymentOwnsEverything);
         });
         const readyLine = `✅ Database ready at ${redactUrl(databaseUrl)}`;
         tracker.log("provision_database", readyLine);
@@ -292,7 +326,7 @@ export class LocalInitializationService {
             stepLog("▸ Querying information_schema.tables …");
             stepLog("  schema = public");
             stepLog("  type   = BASE TABLE");
-            const tables = await this.ensureDatabaseEmpty(databaseUrl);
+            const tables = await steps.ensureDatabaseEmpty(databaseUrl);
             if (tables.length === 0) {
                 stepLog("  result = 0 tables");
                 stepLog("✅ Database is empty");
@@ -319,7 +353,7 @@ export class LocalInitializationService {
                     stepLog(`  [${String(i + 1).padStart(2, "0")}/${String(migrationNames.length)}] ${name}`);
                 }
                 stepLog("▸ Handing off to drizzle migrator (every statement will be streamed below)…");
-                await this.runMigrations(databaseUrl, migrationsFolder, stepLog);
+                await steps.runMigrations(databaseUrl, migrationsFolder, stepLog);
                 stepLog(`✅ All ${String(migrationNames.length)} migration(s) applied successfully`);
             }, "Connecting to the database and applying every Drizzle migration one statement at a time.");
 
@@ -330,12 +364,12 @@ export class LocalInitializationService {
                 stepLog("▸ Hashing password (bcrypt, cost 12)…");
                 stepLog("▸ Inserting user record…");
                 stepLog("▸ Inserting credentials account…");
-                const seedResult = await this.seedInitialData(databaseUrl, input, stepLog);
+                const seedResult = await steps.seedInitialData(databaseUrl, input, stepLog);
                 stepLog(`✅ User ${input.email} created with super-admin role`);
                 stepLog(`  user.id  = ${seedResult.userId}`);
             });
         } else {
-            this.logger.log("⏭️  Database already initialized — skipping migration and seed steps");
+            logger.log("⏭️  Database already initialized — skipping migration and seed steps");
         }
 
         await runStep(tracker, emit, "register_node", "Register this node", async (stepLog) => {
@@ -350,7 +384,7 @@ export class LocalInitializationService {
             const meshSharedSecret = generateMeshSharedSecret();
             stepLog("▸ Persisting node config to global database…");
             const now = new Date().toISOString();
-            await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
+            await runPromiseUnwrapped(nodeConfigRepository.upsert({
                 nodeId,
                 strategy: "local",
                 setupState: "setup_done",
@@ -391,7 +425,7 @@ export class LocalInitializationService {
             // than the earlier step's result, so a cluster that degraded since
             // is reported honestly instead of echoing a stale success.
             stepLog("▸ Swarm summary…");
-            const swarmSnapshot = await runPromiseUnwrapped(this.swarmCluster.getLocalClusterSnapshot());
+            const swarmSnapshot = await runPromiseUnwrapped(swarmCluster.getLocalClusterSnapshot());
             if (swarmSnapshot.localNodeState === "active") {
                 stepLog("✅ Swarm cluster active");
                 stepLog(`  mode    = ${swarmChoice?.mode ?? "create"}`);
@@ -413,7 +447,7 @@ export class LocalInitializationService {
 
     // ─── Database helpers ─────────────────────────────────────────────────────
 
-    private async probeExistingDatabase(
+    async function probeExistingDatabase(
         databaseUrl: string,
         log: (message: string) => void,
     ): Promise<string> {
@@ -429,17 +463,17 @@ export class LocalInitializationService {
         }
     }
 
-    private async provisionDockerDatabase(
+    async function provisionDockerDatabase(
         log: (message: string) => void,
         deploymentOwnsEverything: boolean,
     ): Promise<string> {
         // If a shared Postgres URI is available (e.g., from e2e globalSetup),
         // create a database namespace inside it instead of a new service.
         // This keeps database isolation without spawning many services.
-        const sharedUri = process.env[LocalInitializationService.SHARED_PG_ENV];
+        const sharedUri = process.env[SHARED_PG_ENV];
         if (sharedUri) {
             log("detected E2E_SHARED_POSTGRES_CONNECTION_URI — using namespace mode");
-            return await this.provisionDatabaseNamespace(sharedUri, log);
+            return await provisionDatabaseNamespace(sharedUri, log);
         }
 
         // ── NO SWARM: use a plain container ────────────────────────────────────
@@ -449,7 +483,7 @@ export class LocalInitializationService {
         // Provisioning the SAME Postgres as a plain container keeps dev working
         // without inventing a cluster.
         if (deploymentOwnsEverything) {
-            return await this.provisionContainerDatabase(log);
+            return await provisionContainerDatabase(log);
         }
 
         // The global database is a SWARM SERVICE — the same object the
@@ -458,9 +492,9 @@ export class LocalInitializationService {
         // resolver, so setup and the supervisor can never drift into two
         // different Postgres instances (or two different credential sets).
         log("▸ Scheduling the global Postgres as a swarm service …");
-        const prefix = this.env.get("DEPLOYER_PREFIX");
+        const prefix = env.get("DEPLOYER_PREFIX");
         const serviceName = managedPostgresServiceName(prefix);
-        const identity = resolvePostgresIdentity(this.env);
+        const identity = resolvePostgresIdentity(env);
         log(`  service = ${serviceName}`);
         log(`  image   = ${identity.image}`);
         log(`  volume  = ${MANAGED_POSTGRES_VOLUME_NAME}`);
@@ -468,7 +502,7 @@ export class LocalInitializationService {
         log(`  db      = ${identity.databaseName}`);
         log("  port    = 5432 (host mode, node-local)");
 
-        const spec = await runPromiseUnwrapped(this.postgresProvisioner.ensure({ prefix, identity }));
+        const spec = await runPromiseUnwrapped(postgresProvisioner.ensure({ prefix, identity }));
         log(`✅ Service ${spec.name} has a running task`);
 
         // ── Attach THIS container to the overlay BEFORE using the DSN ──────
@@ -485,12 +519,12 @@ export class LocalInitializationService {
         // the aliases, handles the stale-endpoint re-attach case, and skips
         // cleanly when the engine is not swarm-active), so this triggers its
         // idempotent reconcile rather than duplicating the network call here.
-        await runPromiseUnwrapped(this.supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
+        await runPromiseUnwrapped(supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
         log("▸ Wired this container onto the platform overlay (global-db resolvable)");
 
         // Replay the task logs so the user sees Postgres booting.
         log("▸ Replaying recent service output …");
-        const initialLogs = await runPromiseUnwrapped(this.dockerEngine.swarmServices.logs(spec.name, {
+        const initialLogs = await runPromiseUnwrapped(dockerEngine.swarmServices.logs(spec.name, {
             stdout: true,
             stderr: true,
             tail: 30,
@@ -523,9 +557,9 @@ export class LocalInitializationService {
      * (`global-db`) so consumers cannot tell which incarnation provisioned it —
      * the DSN written to `node_config` is identical either way.
      */
-    private async provisionContainerDatabase(log: (message: string) => void): Promise<string> {        const prefix = this.env.get("DEPLOYER_PREFIX");
+    async function provisionContainerDatabase(log: (message: string) => void): Promise<string> {        const prefix = env.get("DEPLOYER_PREFIX");
         const name = managedPostgresServiceName(prefix);
-        const identity = resolvePostgresIdentity(this.env);
+        const identity = resolvePostgresIdentity(env);
         // The SAME network the platform's containers live on, so the alias
         // below is resolvable by the API and by every service it schedules.
         const network = platformNetworkName(prefix);
@@ -537,7 +571,7 @@ export class LocalInitializationService {
         log(`  user      = ${identity.username}`);
         log(`  db        = ${identity.databaseName}`);
 
-        const engine = this.dockerEngine;
+        const engine = dockerEngine;
 
         // Volume first: recreating the container must reuse the existing data,
         // so the volume is never removed here (only created when absent).
@@ -591,17 +625,17 @@ export class LocalInitializationService {
         // install of a cold database fails with ECONNREFUSED while Postgres is
         // still coming up — the database is fine, we simply asked too early.
         log("▸ Waiting for Postgres to accept connections …");
-        await this.waitForPostgres(url, log);
+        await waitForPostgres(url, log);
 
         log(`✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`);
         return url;
     }
 
-    private async provisionDatabaseNamespace(
+    async function provisionDatabaseNamespace(
         sharedUri: string,
         log: (message: string) => void,
     ): Promise<string> {
-        const adminUrl = this.buildAdminDatabaseUrl(sharedUri);
+        const adminUrl = buildAdminDatabaseUrl(sharedUri);
         const databaseName = `deployer_bootstrap_${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 
         log(`target database = ${databaseName}`);
@@ -610,7 +644,7 @@ export class LocalInitializationService {
         const adminPool = new Pool({ connectionString: adminUrl, max: 1 });
         try {
             log("▸ Probing shared Postgres admin endpoint …");
-            await this.waitForPostgres(adminUrl, log);
+            await waitForPostgres(adminUrl, log);
 
             const escapedName = `"${databaseName.replaceAll('"', '""')}"`;
             log(`▸ CREATE DATABASE ${escapedName} …`);
@@ -626,7 +660,7 @@ export class LocalInitializationService {
         return parsed.toString();
     }
 
-    private buildAdminDatabaseUrl(connectionUri: string): string {
+    function buildAdminDatabaseUrl(connectionUri: string): string {
         const parsed = new URL(connectionUri);
         if (parsed.hostname === "localhost") {
             parsed.hostname = "127.0.0.1";
@@ -635,7 +669,7 @@ export class LocalInitializationService {
         return parsed.toString();
     }
 
-    private async waitForPostgres(
+    async function waitForPostgres(
         connectionString: string,
         log?: (message: string) => void,
     ): Promise<void> {
@@ -653,7 +687,7 @@ export class LocalInitializationService {
                     throw lastError;
                 }
                 const msg = `Postgres not ready (attempt ${String(attempt)}/${String(maxRetries)}): ${lastError.message}`;
-                this.logger.debug(msg);
+                logger.debug(msg);
                 log?.(msg);
             } finally {
                 await pool.end().catch(() => undefined);
@@ -663,7 +697,7 @@ export class LocalInitializationService {
         throw lastError ?? new Error("Timed out waiting for Postgres to become ready");
     }
 
-    private async ensureDatabaseEmpty(databaseUrl: string): Promise<string[]> {
+    async function ensureDatabaseEmpty(databaseUrl: string): Promise<string[]> {
         const pool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 5_000 });
         try {
             const res = await pool.query<{
@@ -680,7 +714,7 @@ export class LocalInitializationService {
                 const hasMigrations = tables.includes('__drizzle_migrations') || tables.includes('schema_version');
                 if (hasMigrations) {
                     // Database was already initialized — allow proceeding
-                    this.logger.log(`Database already initialized (${String(tables.length)} tables found) — skipping fresh setup`);
+                    logger.log(`Database already initialized (${String(tables.length)} tables found) — skipping fresh setup`);
                 } else {
                     // Tables exist but no migration tracking — this is a leftover database, block
                     throw new ConflictError(`Database is not empty. Found tables: ${tables.join(", ")}`);
@@ -692,7 +726,7 @@ export class LocalInitializationService {
         }
     }
 
-    private async runMigrations(
+    async function runMigrations(
         databaseUrl: string,
         migrationsFolder: string,
         log: (message: string) => void,
@@ -740,7 +774,7 @@ export class LocalInitializationService {
         }
     }
 
-    private async seedInitialData(
+    async function seedInitialData(
         databaseUrl: string,
         input: SetupInitializeLocalInput,
         log: (message: string) => void,
@@ -821,5 +855,16 @@ export class LocalInitializationService {
             await pool.end().catch(() => undefined);
         }
     }
+
+    return {
+        initialize: (input, tracker, emit) =>
+            Effect.tryPromise({
+                try: () => initialize(input, tracker, emit),
+                catch: (cause) => new SetupInitializationFailed({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+            }),
+    };
 }
 
+export class LocalInitializationService extends Context.Service<LocalInitializationService, LocalInitializationServiceShape>()(
+    "shared/LocalInitializationService",
+) {}

@@ -31,14 +31,14 @@ const event: GithubPrEvent = {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function setup() {
-    const naming = { buildPreviewName: vi.fn(() => ({ previewName: "pr-7", resolvedUrl: "pr-7.example.com" })) };
+    const naming = { buildPreviewName: vi.fn(() => Effect.succeed({ previewName: "pr-7", resolvedUrl: "pr-7.example.com" })) };
     const cleanupPolicy = { shouldCleanup: vi.fn(() => ({ cleanup: true, reason: "pr_closed" })) };
     const lifecycle = { emitEffect: vi.fn(() => Effect.void) };
     const provisioning = {
         provisionPreview: vi.fn(() => Effect.succeed({})),
         cleanupPreview: vi.fn(() => Effect.succeed({})),
     };
-    const routing = { resolveServiceUrls: vi.fn(() => Promise.resolve([{ domain: "example.com", isPrimary: true }])) };
+    const routing = { resolveServiceUrls: vi.fn(() => Effect.succeed([{ domain: "example.com", isPrimary: true }])) };
     const rules = { resolveAction: vi.fn(() => Effect.succeed({ action: "deploy", reason: "no_rule_matched" })) };
     // The fakes need nothing from the context beyond what is provided here.
     const service = provideTo(GithubWebhookDispatchService.live, (effect) =>

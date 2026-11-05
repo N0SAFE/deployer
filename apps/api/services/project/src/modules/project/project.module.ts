@@ -4,8 +4,7 @@ import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configura
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
-import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 import { ServiceClient } from "@deployer/shared/server";
@@ -16,7 +15,6 @@ import { DatabasePort } from "@project/core/database/database.port";
 import { ProjectDb } from "@project/core/database/project-db";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 
 
@@ -45,7 +43,6 @@ export class ProjectDomainModule extends createModuleContext({
 		effectHostProvider(),
 		{ provide: DnsProvider, useFactory: makeDnsProviderGateway, inject: [ServiceClient] },
 		{ provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
-		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,
@@ -57,7 +54,7 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: ProjectDb, useValue: ProjectDb.live },
 		{
 			provide: ProjectEventService,
-			useFactory: (pool: CoreEventStreamPoolService) => new ProjectEventServiceImpl(pool),
+			useFactory: (pool: CoreEventStreamPoolServiceShape) => new ProjectEventServiceImpl(pool),
 			inject: [CoreEventStreamPoolService],
 		},
 		{ provide: ProjectStore, useValue: ProjectStore.live },

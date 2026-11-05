@@ -68,7 +68,7 @@ function makePreviewProvisioningService({ store, routing, accessPoint, dns }: Po
     /** The preview host under the service's primary domain, or null when the service has no domain mapping. */
     const resolveHost = (serviceId: string, previewName: string) =>
         Effect.gen(function* () {
-            const urls = yield* attempt(() => routing.resolveServiceUrls(serviceId));
+            const urls = yield* routing.resolveServiceUrls(serviceId);
             const primary = urls.find((u) => u.isPrimary) ?? urls[0];
             return primary ? `${previewName}.${primary.domain}` : null;
         });
@@ -79,7 +79,7 @@ function makePreviewProvisioningService({ store, routing, accessPoint, dns }: Po
      * hostname (CNAME), detected with node:net isIP. Never from env vars.
      */
     const resolveDnsTarget = Effect.fn("PreviewProvisioningService.resolveDnsTarget")(function* () {
-        const point = yield* attempt(() => accessPoint.getAccessPoint());
+        const point = yield* accessPoint.getAccessPoint();
         if (point.kind === "tunnel" && point.address) {
             return { kind: "hostname" as const, value: point.address };
         }
@@ -170,7 +170,7 @@ function makePreviewProvisioningService({ store, routing, accessPoint, dns }: Po
 
         // Deactivate the route.
         const routeApplied = yield* recover(
-            attempt(() => routing.removePreviewRoute(input.serviceId, host)),
+            routing.removePreviewRoute(input.serviceId, host),
             (error) => Effect.logWarning(`Preview route cleanup failed for ${host}: ${describeFailure(error)}`).pipe(Effect.as(false)),
         );
 
@@ -214,7 +214,7 @@ function makePreviewProvisioningService({ store, routing, accessPoint, dns }: Po
 
             // 3. Temporary Traefik route.
             const routeApplied = yield* recover(
-                attempt(() => routing.addPreviewRoute(input.serviceId, host, { sslEnabled: true })).pipe(Effect.map((route) => route !== null)),
+                routing.addPreviewRoute(input.serviceId, host, { sslEnabled: true }).pipe(Effect.map((route) => route !== null)),
                 (error) => Effect.logWarning(`Preview route provisioning skipped for ${host}: ${describeFailure(error)}`).pipe(Effect.as(false)),
             );
 

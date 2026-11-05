@@ -1,3 +1,9 @@
+import type { Effect } from "effect";
+
+import type { DockerError } from "@deployer/docker";
+
+import type { RuntimeInvalid } from "../../../../core/runtime.errors";
+
 /**
  * BuilderStrategy — the public entry point for "how do we turn source into an artifact".
  *
@@ -47,8 +53,11 @@ export type BuilderStrategy = {
      * the caller because it is IDENTICAL for every strategy — duplicating it per
      * strategy would be the DRY violation this refactor removes.
      */
-    build(context: BuilderStrategyContext): Promise<BuilderStrategyResult>;
+    build(context: BuilderStrategyContext): Effect.Effect<BuilderStrategyResult, BuilderStrategyFailure>;
 }
+
+/** What a strategy can refuse with: a precondition of its own, or the Docker engine failing. */
+export type BuilderStrategyFailure = RuntimeInvalid | DockerError;
 
 export type BuilderStrategyContext = {
     /** Absolute path to the checked-out/extracted build context. */

@@ -18,7 +18,7 @@ import { ProjectEventService } from "@project/modules/project/services/project-e
 
 import { projectRules } from "../domain/project.entity";
 import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "../domain/project.errors";
-import { rule } from "../project-effects";
+import { configurationRule, rule } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
 
 import { assertProjectAccess, assertProjectAccessWithRole } from "./project-access";
@@ -697,15 +697,13 @@ export class ProjectServiceImpl {
 			const s = (project.settings ?? {}) as ProjectSettings;
 
 			const projectConfig = configuration.projectConfigFromSettings(project.settings ?? null);
-			const resolved = yield* rule(() =>
-				configuration.resolveStrict({
+			const resolved = yield* configurationRule(configuration.resolveStrict({
 					scope: "project",
 					context: {
 						projectId,
 					},
 					project: projectConfig,
-				}),
-			);
+				}));
 
 			return {
 				autoCleanupDays: s.autoCleanupDays ?? 30,
@@ -756,15 +754,13 @@ export class ProjectServiceImpl {
 			const s = (project.settings ?? {}) as ProjectSettings;
 
 			const projectConfig = configuration.projectConfigFromSettings(project.settings ?? null);
-			const resolved = yield* rule(() =>
-				configuration.resolveStrict({
+			const resolved = yield* configurationRule(configuration.resolveStrict({
 					scope: "project",
 					context: {
 						projectId,
 					},
 					project: projectConfig,
-				}),
-			);
+				}));
 
 			return {
 				webhookSecret: null,

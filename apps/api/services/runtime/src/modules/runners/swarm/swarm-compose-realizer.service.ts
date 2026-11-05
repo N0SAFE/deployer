@@ -19,11 +19,10 @@
  *      create secret/config once, create-or-update services).
  *
  * Everything past parsing is pure and unit-testable without a daemon; the
- * executor is the only thing touching `DockerService`.
+ * executor is the only thing touching the `DockerEngine`.
  */
 
-import { Injectable, Logger, Inject } from "@nestjs/common";
-import { Effect } from "effect";
+import { Context, Effect } from "effect";
 import { parse } from "yaml";
 
 
@@ -40,9 +39,7 @@ import type {
     SwarmServiceSpecInput,
 } from "@deployer/contracts-entities";
 import { composeModelSchema, composeServiceModelSchema } from "@deployer/contracts-entities";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { toDockerServiceSpec } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { DockerEngine, toDockerServiceSpec, type DockerError } from "@deployer/docker";
 import { AppError } from "@deployer/errors";
 
 import { RuntimeInvalid } from "../../../core/runtime.errors";
@@ -382,301 +379,313 @@ function topoOrder(services: ComposeServiceModel[]): ComposeServiceModel[] {
     ];
 }
 
-@Injectable()
-export class SwarmComposeRealizerService {
-    private readonly logger = new Logger(SwarmComposeRealizerService.name);
+export type ComposeApplySummary = {
+    networks: string[];
+    secrets: string[];
+    configs: string[];
+    createdServices: string[];
+    updatedServices: string[];
+};
 
-    /**
-     * Parse compose YAML into the canonical typed model. Throws
-     * `BadRequestError` with a readable message when the YAML is invalid or
-     * the shape is not a compose file (no `services` key).
-     */
-    parseComposeYaml(yamlText: string): ComposeModel {
-        let raw: unknown;
-        try {
-            raw = parse(yamlText);
-        } catch (error: unknown) {
-            throw new RuntimeInvalid({ reason: `Invalid compose YAML: ${error instanceof Error ? error.message : String(error)}` });
-        }
-        if (typeof raw !== "object" || raw === null) {
-            throw new RuntimeInvalid({ reason: "Compose file must contain a top-level object" });
-        }
-        const record = raw as Record<string, unknown>;
-        const servicesRaw = record.services;
-        if (typeof servicesRaw !== "object" || servicesRaw === null) {
-            throw new RuntimeInvalid({ reason: "Compose file has no `services` section" });
-        }
-        const services = Object.entries(servicesRaw as Record<string, unknown>)
-            .filter(([, value]) => typeof value === "object" && value !== null)
-            .map(([name, value]) => buildServiceModel(name, value as Record<string, unknown>));
-
-        const networksRaw = record.networks;
-        const networks: Record<string, { driver: string; attachable: boolean; labels: Record<string, string> }> = {};
-        if (typeof networksRaw === "object" && networksRaw !== null) {
-            for (const [name, value] of Object.entries(networksRaw as Record<string, unknown>)) {
-                const config = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
-                networks[name] = {
-                    driver: typeof config.driver === "string" ? config.driver : "overlay",
-                    attachable: config.attachable === false ? false : true,
-                    labels: normalizeLabels(config.labels),
-                };
-            }
-        }
-
-        return composeModelSchema.parse({
-            services,
-            networks,
-            secrets: normalizeStringMap(record.secrets),
-            configs: normalizeStringMap(record.configs),
-            volumes: typeof record.volumes === "object" && record.volumes !== null
-                ? Object.fromEntries(Object.keys(record.volumes as Record<string, unknown>).map((name) => [name, {}]))
-                : {},
-        });
-    }
-
-    /**
-     * Scan the model for swarm-incompatible constructs. Errors block
-     * realization; warns are actionable but non-blocking.
-     */
-    validateCompatibility(model: ComposeModel): ComposeCompatibilityReport {
-        const issues: ComposeCompatibilityIssue[] = [];
-        const push = (path: string, severity: ComposeCompatibilitySeverity, message: string) => {
-            issues.push({ path, severity, message });
-        };
-
-        for (const service of model.services) {
-            const base = `services.${service.name}`;
-            if (!service.image) {
-                push(
-                    `${base}.image`,
-                    "error",
-                    "Image-less (build-only) service is not supported on Swarm — build the image first and reference it by image name.",
-                );
-            }
-            const bindMounts = service.mounts.filter((mount) => mount.type === "bind");
-            if (bindMounts.length > 0) {
-                push(
-                    `${base}.volumes`,
-                    "error",
-                    "Bind mounts are not supported on Swarm (they pin tasks to a single host). Use named volumes instead.",
-                );
-            }
-            if (service.ports.some((port) => port.publishedPort !== undefined)) {
-                push(
-                    `${base}.ports`,
-                    "warn",
-                    "Host ports are not published: a swarm publish opens the port on every interface of every node. The service is reached on the overlay at its container port, and from outside through the ingress lanes.",
-                );
-            }
-            if (service.secretRefs.length > 0 || service.configRefs.length > 0) {
-                push(
-                    `${base}.secrets/configs`,
-                    "warn",
-                    "Secret/config objects are created at stack level; per-service mount references are a follow-up.",
-                );
-            }
-            const missingNetworks = service.networks.filter(
-                (name) => !model.networks[name] && name !== "default",
-            );
-            if (missingNetworks.length > 0) {
-                push(
-                    `${base}.networks`,
-                    "warn",
-                    `Network(s) ${missingNetworks.join(", ")} not declared at the top level — will be auto-created as overlay.`,
-                );
-            }
-        }
-
-        issues.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-        return { issues };
-    }
-
-    /**
-     * Pure transform: ComposeModel → realization plan. Service order is
-     * dependency-ordered (`depends_on` topological sort); each service is a
-     * full `SwarmServiceSpecInput` ready for `toDockerServiceSpec`.
-     */
-    realizeCompose(
+export type SwarmComposeRealizerShape = {
+    /** Parse compose YAML into the canonical typed model; fails with `RuntimeInvalid` when it is not a compose file. */
+    readonly parseComposeYaml: (yamlText: string) => Effect.Effect<ComposeModel, RuntimeInvalid>;
+    /** Scan the model for swarm-incompatible constructs. Errors block realization; warns are non-blocking. */
+    readonly validateCompatibility: (model: ComposeModel) => Effect.Effect<ComposeCompatibilityReport>;
+    /** Pure transform: model -> dependency-ordered realization plan. */
+    readonly realizeCompose: (
         model: ComposeModel,
         context: { projectId: string; deploymentId: string },
-    ): ComposeRealizationPlan {
-        const managedLabels: Record<string, string> = {
-            "deployer.managed": "true",
-            "deployer.managed_by": "compose_realizer",
-            "deployer.managed_reason": "compose_stack",
-            "deployer.project_id": context.projectId,
-            "deployer.deployment_id": context.deploymentId,
-        };
+    ) => Effect.Effect<ComposeRealizationPlan>;
+    /** Apply the plan idempotently through the engine: ensure networks, create secrets/configs once, create-or-update services. */
+    readonly executeComposePlan: (
+        plan: ComposeRealizationPlan,
+    ) => Effect.Effect<ComposeApplySummary, DockerError | AppError, DockerEngine>;
+};
 
-        const planNetworks = Object.entries(model.networks).map(([name, config]) => ({
-            name: `deployer-${context.projectId}-${name}`,
-            driver: config.driver,
-            attachable: config.attachable,
-            labels: { ...managedLabels, "deployer.compose_network": name },
-        }));
+export class SwarmComposeRealizer extends Context.Service<SwarmComposeRealizer, SwarmComposeRealizerShape>()(
+    "runtime/SwarmComposeRealizer",
+) {
+    /** Only `executeComposePlan` needs the engine, and it yields it when it runs, so this is a constant a module provides with `useValue`. */
+    static readonly live = class SwarmComposeRealizerImpl implements SwarmComposeRealizerShape {
+        parseComposeYaml = parseComposeYaml;
+        validateCompatibility = (model: ComposeModel) => Effect.sync(() => validateCompatibility(model));
+        realizeCompose = (model: ComposeModel, context: { projectId: string; deploymentId: string }) =>
+            Effect.sync(() => realizeCompose(model, context));
+        executeComposePlan = executeComposePlan;
+    };
+}
 
-        const secrets = Object.entries(model.secrets).map(([name, data]) => ({
-            name: `deployer-${context.projectId}-secret-${name}`,
-            data,
-        }));
-        const configs = Object.entries(model.configs).map(([name, data]) => ({
-            name: `deployer-${context.projectId}-config-${name}`,
-            data,
-        }));
+/** The thrown `RuntimeInvalid` (our own) or a zod/yaml failure, as the one typed error. */
+function toInvalid(error: unknown): RuntimeInvalid {
+    if (error instanceof RuntimeInvalid) return error;
+    return new RuntimeInvalid({ reason: `Invalid compose file: ${error instanceof Error ? error.message : String(error)}` });
+}
 
-        const baseNetworks = model.services.some((service) => service.networks.includes("default"))
-            ? ["default"]
-            : [];
+function parseComposeYaml(yamlText: string): Effect.Effect<ComposeModel, RuntimeInvalid> {
+    return Effect.try({ try: () => parseComposeModel(yamlText), catch: toInvalid });
+}
 
-        const services = topoOrder(model.services).map((service) => {
-            const spec: SwarmServiceSpecInput = {
-                name: `deployer-${context.projectId}-${service.name}`,
-                image: service.image ?? "busybox:latest",
-                mode: "replicated",
-                replicas: service.deploy.replicas,
-                env: service.env,
-                command: service.command,
-                args: service.args,
-                labels: { ...managedLabels, "deployer.compose_service": service.name, ...service.labels },
-                containerLabels: {},
-                mounts: service.mounts
-                    .filter((mount) => mount.type === "volume")
-                    .map((mount) => ({
-                        type: "volume" as const,
-                        source: `deployer-${context.projectId}-${mount.source}`,
-                        target: mount.target,
-                        readOnly: mount.readOnly,
-                    })),
-                placementPreferences: service.deploy.preferences.map((descriptor) => ({ spreadDescriptor: descriptor })),
-                placementConstraints: service.deploy.constraints,
-                resourcesLimits: {
-                    ...(service.deploy.cpuLimit !== undefined
-                        ? { nanoCpus: Math.trunc(service.deploy.cpuLimit * 1_000_000_000) }
-                        : {}),
-                    ...(service.deploy.memoryLimitBytes !== undefined
-                        ? { memoryBytes: service.deploy.memoryLimitBytes }
-                        : {}),
-                },
-                resourcesReservations: {},
-                // Swarm resolves a sibling service by its SERVICE name on a
-                // shared overlay, so no aliases are needed here.
-                networks: [
-                    ...baseNetworks,
-                    ...service.networks
-                        .filter((name) => name !== "default" && model.networks[name])
-                        .map((name) => `deployer-${context.projectId}-${name}`),
-                ].map((name) => ({ target: name, aliases: [] })),
-                healthcheck: service.healthcheck,
-                updateConfig: {
-                    parallelism: 1,
-                    delayMs: 0,
-                    order: service.deploy.updateOrder,
-                    failureAction: service.deploy.failureAction,
-                },
-                // NOTHING IS PUBLISHED. Even a target-only port entry makes Swarm
-                // auto-assign a published port on the routing mesh — i.e. on every
-                // interface of every node. Workloads are reached on the overlay at
-                // their container port and, from outside, only through the ingress
-                // lanes (`validateCompatibility` tells the operator their `ports:`
-                // are not published).
-                endpointPorts: [],
-                // USER WORKLOADS keep the default VIP endpoint: they may be scaled
-                // to many replicas, so the load-balanced name is what consumers want.
-                endpointMode: "vip",
-                stopGracePeriodSeconds: 30,
+function parseComposeModel(yamlText: string): ComposeModel {
+    let raw: unknown;
+    try {
+        raw = parse(yamlText);
+    } catch (error: unknown) {
+        throw new RuntimeInvalid({ reason: `Invalid compose YAML: ${error instanceof Error ? error.message : String(error)}` });
+    }
+    if (typeof raw !== "object" || raw === null) {
+        throw new RuntimeInvalid({ reason: "Compose file must contain a top-level object" });
+    }
+    const record = raw as Record<string, unknown>;
+    const servicesRaw = record.services;
+    if (typeof servicesRaw !== "object" || servicesRaw === null) {
+        throw new RuntimeInvalid({ reason: "Compose file has no `services` section" });
+    }
+    const services = Object.entries(servicesRaw as Record<string, unknown>)
+        .filter(([, value]) => typeof value === "object" && value !== null)
+        .map(([name, value]) => buildServiceModel(name, value as Record<string, unknown>));
+
+    const networksRaw = record.networks;
+    const networks: Record<string, { driver: string; attachable: boolean; labels: Record<string, string> }> = {};
+    if (typeof networksRaw === "object" && networksRaw !== null) {
+        for (const [name, value] of Object.entries(networksRaw as Record<string, unknown>)) {
+            const config = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
+            networks[name] = {
+                driver: typeof config.driver === "string" ? config.driver : "overlay",
+                attachable: config.attachable === false ? false : true,
+                labels: normalizeLabels(config.labels),
             };
-            return { serviceName: service.name, spec };
-        });
-
-        return {
-            networks: planNetworks,
-            secrets,
-            configs,
-            services,
-        };
+        }
     }
 
-    /**
-     * Apply the plan idempotently via the SDK. Networks are ensured (create
-     * once, reuse by name); secrets/configs are created only when absent;
-     * services are created-or-updated by name. Returns a summary.
-     */
-    async executeComposePlan(
-        plan: ComposeRealizationPlan,
-    ): Promise<{
-        networks: string[];
-        secrets: string[];
-        configs: string[];
-        createdServices: string[];
-        updatedServices: string[];
-    }> {
+    return composeModelSchema.parse({
+        services,
+        networks,
+        secrets: normalizeStringMap(record.secrets),
+        configs: normalizeStringMap(record.configs),
+        volumes: typeof record.volumes === "object" && record.volumes !== null
+            ? Object.fromEntries(Object.keys(record.volumes as Record<string, unknown>).map((name) => [name, {}]))
+            : {},
+    });
+}
+
+function validateCompatibility(model: ComposeModel): ComposeCompatibilityReport {
+    const issues: ComposeCompatibilityIssue[] = [];
+    const push = (path: string, severity: ComposeCompatibilitySeverity, message: string) => {
+        issues.push({ path, severity, message });
+    };
+
+    for (const service of model.services) {
+        const base = `services.${service.name}`;
+        if (!service.image) {
+            push(
+                `${base}.image`,
+                "error",
+                "Image-less (build-only) service is not supported on Swarm — build the image first and reference it by image name.",
+            );
+        }
+        const bindMounts = service.mounts.filter((mount) => mount.type === "bind");
+        if (bindMounts.length > 0) {
+            push(
+                `${base}.volumes`,
+                "error",
+                "Bind mounts are not supported on Swarm (they pin tasks to a single host). Use named volumes instead.",
+            );
+        }
+        if (service.ports.some((port) => port.publishedPort !== undefined)) {
+            push(
+                `${base}.ports`,
+                "warn",
+                "Host ports are not published: a swarm publish opens the port on every interface of every node. The service is reached on the overlay at its container port, and from outside through the ingress lanes.",
+            );
+        }
+        if (service.secretRefs.length > 0 || service.configRefs.length > 0) {
+            push(
+                `${base}.secrets/configs`,
+                "warn",
+                "Secret/config objects are created at stack level; per-service mount references are a follow-up.",
+            );
+        }
+        const missingNetworks = service.networks.filter(
+            (name) => !model.networks[name] && name !== "default",
+        );
+        if (missingNetworks.length > 0) {
+            push(
+                `${base}.networks`,
+                "warn",
+                `Network(s) ${missingNetworks.join(", ")} not declared at the top level — will be auto-created as overlay.`,
+            );
+        }
+    }
+
+    issues.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return { issues };
+}
+
+function realizeCompose(
+    model: ComposeModel,
+    context: { projectId: string; deploymentId: string },
+): ComposeRealizationPlan {
+    const managedLabels: Record<string, string> = {
+        "deployer.managed": "true",
+        "deployer.managed_by": "compose_realizer",
+        "deployer.managed_reason": "compose_stack",
+        "deployer.project_id": context.projectId,
+        "deployer.deployment_id": context.deploymentId,
+    };
+
+    const planNetworks = Object.entries(model.networks).map(([name, config]) => ({
+        name: `deployer-${context.projectId}-${name}`,
+        driver: config.driver,
+        attachable: config.attachable,
+        labels: { ...managedLabels, "deployer.compose_network": name },
+    }));
+
+    const secrets = Object.entries(model.secrets).map(([name, data]) => ({
+        name: `deployer-${context.projectId}-secret-${name}`,
+        data,
+    }));
+    const configs = Object.entries(model.configs).map(([name, data]) => ({
+        name: `deployer-${context.projectId}-config-${name}`,
+        data,
+    }));
+
+    const baseNetworks = model.services.some((service) => service.networks.includes("default"))
+        ? ["default"]
+        : [];
+
+    const services = topoOrder(model.services).map((service) => {
+        const spec: SwarmServiceSpecInput = {
+            name: `deployer-${context.projectId}-${service.name}`,
+            image: service.image ?? "busybox:latest",
+            mode: "replicated",
+            replicas: service.deploy.replicas,
+            env: service.env,
+            command: service.command,
+            args: service.args,
+            labels: { ...managedLabels, "deployer.compose_service": service.name, ...service.labels },
+            containerLabels: {},
+            mounts: service.mounts
+                .filter((mount) => mount.type === "volume")
+                .map((mount) => ({
+                    type: "volume" as const,
+                    source: `deployer-${context.projectId}-${mount.source}`,
+                    target: mount.target,
+                    readOnly: mount.readOnly,
+                })),
+            placementPreferences: service.deploy.preferences.map((descriptor) => ({ spreadDescriptor: descriptor })),
+            placementConstraints: service.deploy.constraints,
+            resourcesLimits: {
+                ...(service.deploy.cpuLimit !== undefined
+                    ? { nanoCpus: Math.trunc(service.deploy.cpuLimit * 1_000_000_000) }
+                    : {}),
+                ...(service.deploy.memoryLimitBytes !== undefined
+                    ? { memoryBytes: service.deploy.memoryLimitBytes }
+                    : {}),
+            },
+            resourcesReservations: {},
+            // Swarm resolves a sibling service by its SERVICE name on a
+            // shared overlay, so no aliases are needed here.
+            networks: [
+                ...baseNetworks,
+                ...service.networks
+                    .filter((name) => name !== "default" && model.networks[name])
+                    .map((name) => `deployer-${context.projectId}-${name}`),
+            ].map((name) => ({ target: name, aliases: [] })),
+            healthcheck: service.healthcheck,
+            updateConfig: {
+                parallelism: 1,
+                delayMs: 0,
+                order: service.deploy.updateOrder,
+                failureAction: service.deploy.failureAction,
+            },
+            // NOTHING IS PUBLISHED. Even a target-only port entry makes Swarm
+            // auto-assign a published port on the routing mesh — i.e. on every
+            // interface of every node. Workloads are reached on the overlay at
+            // their container port and, from outside, only through the ingress
+            // lanes (`validateCompatibility` tells the operator their `ports:`
+            // are not published).
+            endpointPorts: [],
+            // USER WORKLOADS keep the default VIP endpoint: they may be scaled
+            // to many replicas, so the load-balanced name is what consumers want.
+            endpointMode: "vip",
+            stopGracePeriodSeconds: 30,
+        };
+        return { serviceName: service.name, spec };
+    });
+
+    return {
+        networks: planNetworks,
+        secrets,
+        configs,
+        services,
+    };
+}
+
+function executeComposePlan(plan: ComposeRealizationPlan): ReturnType<SwarmComposeRealizerShape["executeComposePlan"]> {
+    return Effect.gen(function* () {
+        const { networks: networkOps, swarmSecrets, swarmConfigs, swarmServices } = yield* DockerEngine;
         const createdServices: string[] = [];
         const updatedServices: string[] = [];
         const networks: string[] = [];
         const secrets: string[] = [];
         const configs: string[] = [];
 
-        const { networks: networkOps, swarmSecrets, swarmConfigs, swarmServices } = this.dockerEngine;
-        const apply = Effect.gen(function* () {
-            for (const network of plan.networks) {
-                yield* networkOps.ensureOverlay({
-                    name: network.name,
-                    driver: network.driver,
-                    attachable: network.attachable,
-                    ingress: false,
-                    enableIpv6: false,
-                    labels: network.labels,
-                });
-                networks.push(network.name);
-            }
+        for (const network of plan.networks) {
+            yield* networkOps.ensureOverlay({
+                name: network.name,
+                driver: network.driver,
+                attachable: network.attachable,
+                ingress: false,
+                enableIpv6: false,
+                labels: network.labels,
+            });
+            networks.push(network.name);
+        }
 
-            const existingSecrets = new Set((yield* swarmSecrets.list()).map((secret) => secret.Spec.Name));
-            for (const secret of plan.secrets) {
-                if (!existingSecrets.has(secret.name)) {
-                    yield* swarmSecrets.create({ name: secret.name, data: secret.data, labels: { "deployer.managed": "true" } });
-                }
-                secrets.push(secret.name);
+        const existingSecrets = new Set((yield* swarmSecrets.list()).map((secret) => secret.Spec.Name));
+        for (const secret of plan.secrets) {
+            if (!existingSecrets.has(secret.name)) {
+                yield* swarmSecrets.create({ name: secret.name, data: secret.data, labels: { "deployer.managed": "true" } });
             }
+            secrets.push(secret.name);
+        }
 
-            const existingConfigs = new Set((yield* swarmConfigs.list()).map((config) => config.Spec.Name));
-            for (const config of plan.configs) {
-                if (!existingConfigs.has(config.name)) {
-                    yield* swarmConfigs.create({ name: config.name, data: config.data, labels: { "deployer.managed": "true" } });
-                }
-                configs.push(config.name);
+        const existingConfigs = new Set((yield* swarmConfigs.list()).map((config) => config.Spec.Name));
+        for (const config of plan.configs) {
+            if (!existingConfigs.has(config.name)) {
+                yield* swarmConfigs.create({ name: config.name, data: config.data, labels: { "deployer.managed": "true" } });
             }
+            configs.push(config.name);
+        }
 
-            for (const entry of plan.services) {
-                const serviceName = entry.spec.name;
-                const spec = toDockerServiceSpec(entry.spec);
-                // Updated in place when it exists, created when the engine says it does not.
-                const existing = yield* swarmServices.inspect(serviceName).pipe(
-                    Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
+        for (const entry of plan.services) {
+            const serviceName = entry.spec.name;
+            const spec = toDockerServiceSpec(entry.spec);
+            // Updated in place when it exists, created when the engine says it does not.
+            const existing = yield* swarmServices.inspect(serviceName).pipe(
+                Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
+            );
+            if (existing !== null) {
+                yield* swarmServices.update(serviceName, existing.Version.Index, spec, false);
+                updatedServices.push(serviceName);
+                continue;
+            }
+            const created = yield* swarmServices.create(spec);
+            if (created.ID === undefined) {
+                return yield* Effect.fail(
+                    new AppError(`Swarm service ${serviceName} was created without an ID`, "SWARM_SERVICE_MISSING_ID", { serviceName }),
                 );
-                if (existing !== null) {
-                    yield* swarmServices.update(serviceName, existing.Version.Index, spec, false);
-                    updatedServices.push(serviceName);
-                    continue;
-                }
-                const created = yield* swarmServices.create(spec);
-                if (created.ID === undefined) {
-                    return yield* Effect.fail(
-                        new AppError(`Swarm service ${serviceName} was created without an ID`, "SWARM_SERVICE_MISSING_ID", { serviceName }),
-                    );
-                }
-                createdServices.push(created.ID);
             }
-        });
-        await runPromiseUnwrapped(apply);
+            createdServices.push(created.ID);
+        }
 
-        this.logger.log(
+        yield* Effect.logInfo(
             `Compose realization applied: ${String(createdServices.length)} created / ${String(updatedServices.length)} updated services, ` +
                 `${String(networks.length)} networks, ${String(secrets.length)} secrets, ${String(configs.length)} configs`,
         );
         return { networks, secrets, configs, createdServices, updatedServices };
-    }
-
-    constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
+    });
 }
 
 function normalizeStringMap(raw: unknown): Record<string, string> {

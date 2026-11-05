@@ -7,13 +7,13 @@ import { approvalContract } from "@deployer/identity-contracts";
 
 import { makeApprovalGuard } from "./approval.guard";
 
-import type { ServiceClient } from "../../../server/service-client";
+import type { ServiceClientShape } from "../../../server/service-client";
 
 /** A client that records the call and answers with whatever the case needs (resolve or throw). */
 function client(answer: () => unknown) {
 	const require = vi.fn(() => Promise.resolve().then(answer));
-	const clientFor = vi.fn(() => ({ require })) as unknown as ServiceClient["clientFor"];
-	return { services: { clientFor } as unknown as ServiceClient, require, clientFor };
+	const clientFor = vi.fn(() => ({ require })) as unknown as ServiceClientShape["clientFor"];
+	return { services: { clientFor } as unknown as ServiceClientShape, require, clientFor };
 }
 
 describe("ApprovalGuard", () => {

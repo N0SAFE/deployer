@@ -11,8 +11,8 @@ import { EDGE_CONNECTOR_SUPERVISOR_ID, makeEdgeConnectorRegistration } from "./e
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EdgeConnectorSpec } from "../../edge/edge-provider";
-import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
-import type { PublicEdgeService } from "../../reachability/services/public-edge.service";
+import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
+import type { PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
 
 const connector: EdgeConnectorSpec = { image: "tunnel:1", env: ["TOKEN=secret"], command: ["tunnel"], args: ["run"], replicas: 2 };
 
@@ -34,10 +34,10 @@ function make(options: { desired?: { providerId: string; spec: EdgeConnectorSpec
 		},
 	};
 	const edge = {
-		connector: vi.fn(() => (options.connectorFails === true ? Promise.reject(new Error("provider down")) : Promise.resolve(options.desired ?? null))),
+		connector: vi.fn(() => (options.connectorFails === true ? Effect.fail(new Error("provider down")) : Effect.succeed(options.desired ?? null))),
 		ingressTarget: () => "http://deployer-traefik:8002",
-	} as unknown as PublicEdgeService;
-	const lanes = { getLanes: vi.fn(() => Promise.resolve(defaultIngressLanes())) } as unknown as IngressLanesService;
+	} as unknown as PublicEdgeServiceShape;
+	const lanes = { getLanes: vi.fn(() => Effect.succeed(defaultIngressLanes())) } as unknown as IngressLanesServiceShape;
 	const supervisor = harness(
 		makeEdgeConnectorRegistration({
 			engine: engine as unknown as DockerEngineShape,

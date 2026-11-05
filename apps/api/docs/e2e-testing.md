@@ -82,21 +82,29 @@ rows directly.
 
 ## Running
 
-From the app directory (there is no `test:e2e` script; `bun run test` runs both projects):
+From the app directory (there is no `test:e2e` script; the e2e project is opt-in, so `bun run test`
+runs only `<app>-unit` unless `VITEST_E2E=1` is set):
 
 ```bash
-bunx vitest run --project '*e2e*'                              # all e2e of the app
-bunx vitest run --project '*e2e*' src/e2e/module-workflows     # one folder or file
+VITEST_E2E=1 bunx vitest run --project '*e2e*'                 # all e2e of the app
+VITEST_E2E=1 bunx vitest run --project '*e2e*' src/e2e/module-workflows  # one folder or file
 bunx vitest run --project '*unit*'                             # unit only
 ```
 
-Docker must be reachable (Testcontainers starts one shared Postgres per run). Environment flags:
+> **The e2e project is opt-in.** It starts a real Postgres container. Fourteen apps share
+> `createServiceTestConfig`, so including it unconditionally started fourteen containers per run and
+> killed workers left them behind. `VITEST_E2E=1` includes it; everything else runs the unit
+> project alone.
+
+Docker must be reachable (the harness starts one shared Postgres per run). Environment flags:
 
 | Variable | Effect |
 |----------|--------|
+| `VITEST_E2E=1` | include the `<app>-e2e` project (and pay for its Postgres container) |
 | `E2E_SHARED_RUNTIME_LOGS=true` | show the harness and Nest logs (silenced by default) |
 | `E2E_SHARED_RUNTIME_MAX_CONCURRENCY` | how many runtimes may run at once (default 4) |
-| `E2E_DOCKER_CLEANUP` | default `true`: at teardown, force-removes orphaned containers that Testcontainers started AND that are named `deployer*` (label `org.testcontainers=true`). A real stack's containers do not carry that label, so they are never touched. Set `false` to keep the orphans for inspection |
+| `E2E_DOCKER_CLEANUP` | default `true`: at teardown, force-removes orphaned containers that carry the `org.testcontainers=true` or `deployer.e2e` label AND are named `deployer*`. A real stack's containers carry neither label, so they are never touched. Set `false` to keep the orphans for inspection |
+| `VITEST_MAX_WORKERS` | cap on Vitest workers (default `50%` of cores; the inlined-transform config is memory-bound, so more workers was slower) |
 
 `E2E_SHARED_POSTGRES_CONNECTION_URI` is not a setting: the harness sets it for the runtimes it starts so they share one Postgres in namespace mode.
 

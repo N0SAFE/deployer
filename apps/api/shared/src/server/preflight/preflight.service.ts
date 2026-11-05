@@ -1,9 +1,8 @@
 import { connect as tcpConnect } from "node:net";
 
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import { Pool } from "pg";
+import { Context, Effect } from "effect";
 
-import { GLOBAL_DATABASE_POOL } from "../../core/modules/database/database-connection"
+import type { Pool } from "pg";
 
 import { DEFAULT_CHECK_TIMEOUT_MS } from "./checks";
 import { WAIT_FOR_DEPENDENCIES, runPreflight, type PreflightPolicy } from "./runner";
@@ -14,16 +13,7 @@ import {
 	type PreflightReport,
 } from "./types";
 
-/**
- * The dependency set `forRoot` registers this service against.
- *
- * An opaque token rather than a bare array so a module cannot accidentally
- * satisfy the constructor with some unrelated array of strings.
- */
-export const PREFLIGHT_DEPENDENCIES = Symbol("api-server:preflight-dependencies");
 
-/** Policy token, so an app can choose to report rather than wait. */
-export const PREFLIGHT_POLICY = Symbol("api-server:preflight-policy");
 
 /**
  * Proves an app's dependencies are ready, and answers readiness for it.
@@ -47,132 +37,100 @@ export const PREFLIGHT_POLICY = Symbol("api-server:preflight-policy");
  * not-yet-bound port reports the task as dead and restarts it, which is exactly
  * the failure this ordering avoids.
  */
-@Injectable()
-export class PreflightService {
-	private readonly logger = new Logger("Preflight");
-	private verdict: PreflightReport | null = null;
+export type PreflightServiceShape = {
+	/** Runs the checks once (the verdict is cached) and logs the report. Never fails: a dependency that is not up is in the report. */
+	readonly run: () => Effect.Effect<PreflightReport>;
+	/** The readiness answer: false until a run succeeded. */
+	readonly isReady: () => Effect.Effect<boolean>;
+	readonly reportOrNull: () => PreflightReport | null;
+};
 
-	constructor(
-		@Inject(PREFLIGHT_DEPENDENCIES) private readonly dependencies: readonly PreflightDependency[],
-		@Optional() @Inject(PREFLIGHT_POLICY) private readonly policy: PreflightPolicy | null,
-		// `undefined` when the app binds no pool: `@Optional()` produces `undefined`,
-		// not `null`, and an app that declares a database dependency without wiring
-		// one must get a clear message rather than an internal TypeError.
-		// ── WHY THIS INJECTS THE POOL AND NOT THE CONNECTION ────────────────────
-		// `GLOBAL_DATABASE_CONNECTION` is the DRIZZLE handle (a query builder), while
-		// `GLOBAL_DATABASE_POOL` is the raw `pg.Pool`. This check runs `SELECT 1` before any
-		// schema is known, so it needs the pool — and injecting the connection produced a
-		// failure that named the wrong thing entirely:
-		//
-		//   ✗ database  this.pool.query is not a function
-		//
-		// That reads as "the pool is broken" when the truth was "the pool was never
-		// injected". The message below is kept specific for the same reason.
-		@Optional() @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool | null | undefined,
-	) {}
-
+type Ports = {
+	readonly dependencies: readonly PreflightDependency[];
+	readonly policy: PreflightPolicy | null;
 	/**
-	 * Run the checks and report. Safe to call twice — the second call returns the
-	 * first verdict rather than re-probing.
+	 * `undefined`/`null` when the app binds no pool: an app that declares a database dependency without wiring one must get
+	 * a clear message rather than an internal TypeError. It is the raw `pg.Pool` (not the Drizzle handle): the check runs
+	 * `SELECT 1` before any schema is known.
 	 */
-	async run(): Promise<PreflightReport> {
-		if (this.verdict !== null) return this.verdict;
+	readonly pool: Pool | null | undefined;
+};
 
-		if (this.dependencies.length === 0) {
-			this.verdict = { ready: true, results: [], durationMs: 0 };
-			return this.verdict;
+export function makePreflightService({ dependencies, policy, pool }: Ports): PreflightServiceShape {
+	let verdict: PreflightReport | null = null;
+
+	const report = (result: PreflightReport) => {
+		const lines = formatPreflightReport(result);
+		if (result.ready) {
+			return Effect.logInfo(`Dependencies ready (${String(result.durationMs)}ms)`).pipe(
+				Effect.andThen(Effect.forEach(lines, (line) => Effect.logInfo(line), { discard: true })),
+			);
 		}
+		// A failed preflight is FATAL, not a warning: the app was started against dependencies that are not there, and
+		// serving would mean failing every request with a less useful error. Exiting lets the orchestrator (or the swarm)
+		// see a dead task and act, instead of a live one that lies.
+		return Effect.logError(`Dependencies NOT ready after ${String(result.durationMs)}ms`).pipe(
+			Effect.andThen(Effect.forEach(lines, (line) => Effect.logError(line), { discard: true })),
+		);
+	};
 
-		const report = await runPreflight({
-			context: this.buildContext(),
-			dependencies: this.dependencies,
-			policy: this.policy ?? WAIT_FOR_DEPENDENCIES,
-		});
+	const buildContext = (): CheckContext => ({
+		env: (key) => process.env[key],
+		query: async (sql) => {
+			if (pool === undefined || pool === null) {
+				throw new Error("no database pool is bound — declare DatabaseModule (or provide GLOBAL_DATABASE_POOL) in this app's root module");
+			}
+			const result = await pool.query<Record<string, unknown>>(sql);
+			return result.rows;
+		},
+		tcp: (host, port, timeoutMs) =>
+			new Promise<void>((resolve, reject) => {
+				const socket = tcpConnect({ host, port });
+				// Bounded: a connect to a black-holed host must fail the check, not hang the boot past its own deadline.
+				socket.setTimeout(timeoutMs);
+				socket.once("connect", () => {
+					socket.destroy();
+					resolve();
+				});
+				socket.once("timeout", () => {
+					socket.destroy();
+					reject(new Error(`connect to ${host}:${String(port)} timed out after ${String(timeoutMs)}ms`));
+				});
+				socket.once("error", (error) => {
+					socket.destroy();
+					reject(error);
+				});
+			}),
+		// `console` rather than the app logger: preflight retries log DURING boot, and this is the one place a dependency
+		// failure must be visible even if the logger itself failed to configure.
+		log: (message) => {
+			console.log(`[preflight] ${message}`);
+		},
+	});
 
-		this.verdict = report;
-		this.report(report);
-		return report;
-	}
+	return {
+		run: () =>
+			Effect.gen(function* () {
+				if (verdict !== null) return verdict;
 
-	/**
-	 * The readiness answer, for binding as `SERVICE_READINESS`.
-	 *
-	 * `false` before {@link run} — an app that has not proved its dependencies
-	 * must not be routed to, and "not ready yet" is the honest answer.
-	 */
-	async isReady(): Promise<boolean> {
-		return this.verdict?.ready ?? false;
-	}
-
-	/** The last verdict, or `null` if preflight has not run. */
-	reportOrNull(): PreflightReport | null {
-		return this.verdict;
-	}
-
-	private report(report: PreflightReport): void {
-		const lines = formatPreflightReport(report);
-		if (report.ready) {
-			this.logger.log(`Dependencies ready (${String(report.durationMs)}ms)`);
-			for (const line of lines) this.logger.log(line);
-			return;
-		}
-		// A failed preflight is FATAL, not a warning: the app was started against
-		// dependencies that are not there, and serving would mean failing every
-		// request with a less useful error. Exiting lets the orchestrator (or the
-		// swarm) see a dead task and act, instead of a live one that lies.
-		this.logger.error(`Dependencies NOT ready after ${String(report.durationMs)}ms`);
-		for (const line of lines) this.logger.error(line);
-	}
-
-	/**
-	 * The real context: the app's own pool, a real TCP connect, and `process.env`.
-	 *
-	 * `process.env` directly — not `EnvService` — because preflight runs during
-	 * boot, and the checks must be able to report a missing/invalid environment
-	 * rather than depend on the module that validates it having already loaded.
-	 */
-	private buildContext(): CheckContext {
-		return {
-			env: (key) => process.env[key],
-			query: async (sql) => {
-				// `@Optional()` injects `undefined` (not `null`) when no provider
-				// exists, so both must be rejected — otherwise the check falls through
-				// and throws "cannot read properties of undefined", which reports an
-				// internal error where an actionable one belongs.
-				if (this.pool === undefined || this.pool === null) {
-					throw new Error(
-						"no database pool is bound — declare DatabaseModule (or provide GLOBAL_DATABASE_POOL) in this app's root module",
-					);
+				if (dependencies.length === 0) {
+					verdict = { ready: true, results: [], durationMs: 0 };
+					return verdict;
 				}
-				const result = await this.pool.query<Record<string, unknown>>(sql);
-				return result.rows;
-			},
-			tcp: (host, port, timeoutMs) =>
-				new Promise<void>((resolve, reject) => {
-					const socket = tcpConnect({ host, port });
-					// Bounded: a connect to a black-holed host must fail the check, not
-					// hang the boot past its own deadline.
-					socket.setTimeout(timeoutMs);
-					socket.once("connect", () => {
-						socket.destroy();
-						resolve();
-					});
-					socket.once("timeout", () => {
-						socket.destroy();
-						reject(new Error(`connect to ${host}:${String(port)} timed out after ${String(timeoutMs)}ms`));
-					});
-					socket.once("error", (error) => {
-						socket.destroy();
-						reject(error);
-					});
-				}),
-			// `console` rather than the app logger: preflight retries log DURING
-			// boot, and this is the one place a dependency failure must be visible
-			// even if the logger itself failed to configure.
-			log: (message) => { console.log(`[preflight] ${message}`); },
-		};
-	}
+
+				const result = yield* Effect.promise(() =>
+					runPreflight({ context: buildContext(), dependencies, policy: policy ?? WAIT_FOR_DEPENDENCIES }),
+				);
+				verdict = result;
+				yield* report(result);
+				return result;
+			}),
+		isReady: () => Effect.sync(() => verdict?.ready ?? false),
+		reportOrNull: () => verdict,
+	};
 }
+
+export class PreflightService extends Context.Service<PreflightService, PreflightServiceShape>()("shared/PreflightService") {}
 
 /**
  * The dependency sets the platform's apps declare.

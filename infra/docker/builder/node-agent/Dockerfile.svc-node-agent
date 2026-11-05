@@ -19,19 +19,27 @@
 # this image until the launcher is repointed; compose only makes the tag exist
 # (`build-svc-node-agent`, tag `${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}`).
 
-FROM oven/bun:1.4.4-alpine AS base
-# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
-# `bunfig.toml` sets `globalStore = true`, so `node_modules/.bun/<pkg>` would
-# point at an absolute path UNDER the bun cache mount. A BuildKit cache mount is
-# not committed to the image layer, so those links ship without their targets.
-# The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
+# >>> shared-prod-base (generated from ../Dockerfile.base by sync-base.ts; do not edit here)
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-prod-base
+
+# BuildKit cache mounts break `install.globalStore`: `bunfig.toml` sets it, which points `node_modules/.bun/<pkg>` at an
+# absolute path under the cache mount used below; a cache mount is not committed to the layer, so those links would ship
+# without their targets (ENOENT on every runtime import). The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
 ENV BUN_INSTALL_GLOBAL_STORE=0
-RUN apk add --no-cache libc6-compat
-# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
-# without it this file gets its own download cache instead of the shared one.
+
+# The union of what the production images need: `nodejs` for Turbo's wrapper script, `jq` to read package exports, `wget`
+# for healthchecks, `dumb-init` for the Next runners.
+RUN apk add --no-cache libc6-compat tar jq nodejs wget dumb-init
+
+# ONE cache `id` for the whole directory (it otherwise defaults to the mount target, i.e. a second download cache per
+# Dockerfile), mounted on the cache SUBDIR (mounting `/root/.bun` masks the global bin dir the install just wrote), and
+# `sharing=shared` so concurrent builds stay parallel — bun publishes cache entries atomically.
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
-    bun install -g turbo@^2
+    bun install -g turbo@^2 node-gyp
 WORKDIR /app
+# <<< shared-prod-base
+FROM shared-prod-base AS base
 
 FROM base AS pruner-json
 COPY turbo.json package.json ./
@@ -77,6 +85,9 @@ COPY scripts ./scripts
 # which its manifest lists under devDependencies today. A production install
 # would delete them and the agent would fail at startup. Drop the `bun ci` for
 # `bun ci --production` only after those move to `dependencies`.
+# `patchedDependencies` in the root package.json: bun refuses to install when
+# the patch file it names is not in the build context.
+COPY patches ./patches
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared bun ci
 # The workspace packages publish `dist/` and their `exports` point at it, so they
 # are built here; the agent itself is NOT built — it runs from `src/` (see the

@@ -306,7 +306,7 @@ export function makeTraefikSupervisor({ engine, config, logger }: TraefikDeps): 
 		Effect.catch((error) =>
 			Effect.sync(() => {
 				// The ingress itself is up; without the doors only the loopback/mesh listeners are missing.
-				logger.warn(`Node doors not published (${error instanceof Error ? error.message : String(error)}) — the local lane has no listener yet`);
+				logger.warn(`Node doors not published (${describeWithCause(error)}) — the local lane has no listener yet`);
 			}),
 		),
 	);
@@ -462,3 +462,15 @@ export function makeTraefikSupervisor({ engine, config, logger }: TraefikDeps): 
 
 	return { spec, reload, providerEndpoint, background };
 }
+
+/**
+ * `Effect.tryPromise` wraps whatever its promise rejected with in an error whose message is only
+ * "An error occurred in Effect.tryPromise"; the reason is on `cause`. Show both, so the log says why.
+ */
+export function describeWithCause(error: unknown): string {
+	if (!(error instanceof Error)) return String(error);
+	const cause: unknown = error.cause;
+	if (cause === undefined) return error.message;
+	return `${error.message}: ${cause instanceof Error ? cause.message : String(cause)}`;
+}
+

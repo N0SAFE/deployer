@@ -5,7 +5,6 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { NotFoundException } from "@nestjs/common";
 import { ReplaySubject } from "rxjs";
 
 import { dockerTerminalProfileSchema, type DockerTerminalProfile } from "@deployer/contracts-entities";
@@ -16,6 +15,8 @@ import type {
   DockerContainerTerminalOpenBodyInput,
   DockerContainerTerminalStreamQueryInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
+
+import { RuntimeNotFound } from "../../../../../core/runtime.errors";
 
 import { execInContainer } from "./container-exec";
 import {
@@ -150,7 +151,7 @@ export class TerminalSessionManager {
   async sendContainerTerminalInput(input: DockerContainerTerminalInputBodyInput) {
     const session = this.getTerminalSessionOrThrow(input.sessionId);
     if (session.closed) {
-      throw new NotFoundException(`Terminal session '${input.sessionId}' not found`);
+      throw new RuntimeNotFound({ reason: `Terminal session '${input.sessionId}' not found` });
     }
 
     session.queue = session.queue
@@ -302,7 +303,7 @@ export class TerminalSessionManager {
     }
 
     if (!session.stream) {
-      throw new NotFoundException(`Terminal session '${session.sessionId}' is not active`);
+      throw new RuntimeNotFound({ reason: `Terminal session '${session.sessionId}' is not active` });
     }
 
     const stream = session.stream;
@@ -440,7 +441,7 @@ export class TerminalSessionManager {
   private getTerminalSessionOrThrow(sessionId: string): TerminalSession {
     const session = this.terminalSessions.get(sessionId);
     if (!session) {
-      throw new NotFoundException(`Terminal session '${sessionId}' not found`);
+      throw new RuntimeNotFound({ reason: `Terminal session '${sessionId}' not found` });
     }
 
     return session;

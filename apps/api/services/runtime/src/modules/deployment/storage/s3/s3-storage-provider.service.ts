@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Effect } from "effect";
 import z from "zod/v4";
 
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
@@ -30,27 +30,26 @@ const s3StorageConfigSchema = z
     })
     .loose();
 
-@Injectable()
-export class S3StorageProviderService implements DeploymentStorageProvider {
-    readonly storageType = "s3" as const;
+export const s3StorageProvider: DeploymentStorageProvider = {
+    storageType: "s3",
 
     resolveStorageBinding(
         input: DeploymentTriggerInput,
         serviceStorageConfig?: DeploymentStoragePolicy,
-    ): Promise<DeploymentStorageBinding | null> {
+    ): Effect.Effect<DeploymentStorageBinding | null, RuntimeInvalid> {
         const storageConfig = extractStorageConfig(input, serviceStorageConfig);
         const parsed = s3StorageConfigSchema.safeParse(storageConfig);
 
         if (!parsed.success) {
             if (storageConfig?.type === "s3") {
-                throw new RuntimeInvalid({ reason: "S3 storage requires storage.s3.bucket in sourceConfig.customData" });
+                return Effect.fail(new RuntimeInvalid({ reason: "S3 storage requires storage.s3.bucket in sourceConfig.customData" }));
             }
-            return Promise.resolve(null);
+            return Effect.succeed(null);
         }
 
         const autoRedeployOnUpdate = resolveAutoRedeployOnUpdate(storageConfig);
 
-        return Promise.resolve(
+        return Effect.sync(() =>
             deploymentStorageBindingSchema.parse({
                 storageType: "s3",
                 autoRedeployOnUpdate,
@@ -65,4 +64,4 @@ export class S3StorageProviderService implements DeploymentStorageProvider {
             }),
         );
     }
-}
+};

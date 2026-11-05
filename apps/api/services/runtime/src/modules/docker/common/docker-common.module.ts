@@ -1,7 +1,7 @@
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { createModuleContext, effectHostProvider, EffectHost, type EffectHostShape } from "@deployer/nest-effect";
+import { createModuleContext, effectHostProvider, EffectHost, serviceLifecycle, type EffectHostShape } from "@deployer/nest-effect";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 
 import { DockerContainersModule } from "../domains/containers/docker-containers.module";
@@ -12,7 +12,7 @@ import { DockerRepository } from "../repositories/facade/docker.repository";
 
 import { DockerRuntimeActivityPersistenceService } from "./events/docker-runtime-activity-persistence.service";
 import { DockerRuntimeEventsSourceService } from "./events/docker-runtime-events-source.service";
-import { DockerRuntimeEventsStreamService } from "./events/docker-runtime-events-stream.service";
+import { DockerRuntimeEventsStreamService, type DockerRuntimeEventsStreamShape } from "./events/docker-runtime-events-stream.service";
 import { DockerRuntimeMeshRelayService } from "./mesh/docker-runtime-mesh-relay.service";
 import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime-stream-orchestrator.service";
 
@@ -22,7 +22,7 @@ export class DockerCommonModule extends createModuleContext({
     effectHostProvider(),
     {
       provide: DockerRuntimeEventsSourceService,
-      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerRuntimeEventsSourceService(engine, pool),
+      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolServiceShape) => new DockerRuntimeEventsSourceService(engine, pool),
       inject: [DockerEngine, CoreEventStreamPoolService],
     },
     {
@@ -33,25 +33,28 @@ export class DockerCommonModule extends createModuleContext({
     },
     {
       provide: DockerRuntimeEventsStreamService,
-      useFactory: (relay: DockerRuntimeMeshRelayService) => new DockerRuntimeEventsStreamService(relay),
+      useFactory: (relay: DockerRuntimeMeshRelayService) => DockerRuntimeEventsStreamService.make(relay),
       inject: [DockerRuntimeMeshRelayService],
     },
     {
       provide: DockerRuntimeActivityPersistenceService,
-      useFactory: (events: DockerRuntimeEventsStreamService, host: EffectHostShape) =>
-        new DockerRuntimeActivityPersistenceService(events, host),
+      useFactory: (events: DockerRuntimeEventsStreamShape, host: EffectHostShape) =>
+        DockerRuntimeActivityPersistenceService.make(events, host),
       inject: [DockerRuntimeEventsStreamService, EffectHost],
     },
     {
       provide: DockerRuntimeStreamOrchestratorService,
       useFactory: (
-        events: DockerRuntimeEventsStreamService,
+        events: DockerRuntimeEventsStreamShape,
         host: EffectHostShape,
         metrics: DockerContainerMetricsStreamService,
         repository: DockerRepository,
       ) => new DockerRuntimeStreamOrchestratorService(events, host, metrics, repository),
       inject: [DockerRuntimeEventsStreamService, EffectHost, DockerContainerMetricsStreamService, DockerRepository],
     },
+    // Both declare their lifetime in their shape; one generic runner binds it to the app's start and stop.
+    serviceLifecycle(DockerRuntimeEventsStreamService),
+    serviceLifecycle(DockerRuntimeActivityPersistenceService),
   ],
   exports: [
     DockerRuntimeEventsSourceService,

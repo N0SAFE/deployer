@@ -4,7 +4,7 @@
  * HTTP endpoints for URL/domain reachability, a node's own public address, and the STACK's ingress
  * lanes. Thin: probes live in `NodeReachabilityService`, the lanes, the public edge, DNS and the
  * mesh view in `IngressEdgeService`; this file resolves them from the module's Effect context and
- * runs each use case through `serve`.
+ * runs each use case through the `.effect()` boundary.
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
@@ -13,7 +13,6 @@ import { reachabilityContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "../../../core/orpc/serve";
 import { IngressEdgeService } from "../services/ingress-edge.service";
 import { NodeReachabilityService } from "../services/node-reachability.service";
 
@@ -31,9 +30,9 @@ export class ReachabilityController {
         return procedure(reachabilityContract.check)
             .use(requireAuth())
             .use(requirePlatformRole(PROBE_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.check(input.url));
+                return yield* reachability.check(input.url);
             });
     }
 
@@ -41,9 +40,9 @@ export class ReachabilityController {
     getConfig() {
         return procedure(reachabilityContract.getConfig)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.probePublicUrl());
+                return yield* reachability.probePublicUrl();
             });
     }
 
@@ -52,9 +51,9 @@ export class ReachabilityController {
         return procedure(reachabilityContract.updateConfig)
             .use(requireAuth())
             .use(requirePlatformRole(PROBE_OPERATOR_ROLES))
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.probePublicUrl());
+                return yield* reachability.probePublicUrl();
             });
     }
 
@@ -62,9 +61,9 @@ export class ReachabilityController {
     checkDomain() {
         return procedure(reachabilityContract.checkDomain)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.checkDomain(input.domain, input.expectedIp));
+                return yield* reachability.checkDomain(input.domain, input.expectedIp);
             });
     }
 
@@ -72,9 +71,9 @@ export class ReachabilityController {
     getPublicIp() {
         return procedure(reachabilityContract.getPublicIp)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.getPublicIp());
+                return yield* reachability.getPublicIp();
             });
     }
 
@@ -82,9 +81,9 @@ export class ReachabilityController {
     getNodeNetworkConfig() {
         return procedure(reachabilityContract.getNodeNetworkConfig)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.getNodeNetworkConfig(input.nodeId));
+                return yield* reachability.getNodeNetworkConfig(input.nodeId);
             });
     }
 
@@ -92,9 +91,9 @@ export class ReachabilityController {
     listNodeNetworkConfigs() {
         return procedure(reachabilityContract.listNodeNetworkConfigs)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.listNodeNetworkConfigs());
+                return yield* reachability.listNodeNetworkConfigs();
             });
     }
 
@@ -103,9 +102,9 @@ export class ReachabilityController {
         return procedure(reachabilityContract.updateNodeNetworkConfig)
             .use(requireAuth())
             .use(requirePlatformRole(PROBE_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.updateNodeNetworkConfig({ nodeId: input.nodeId, publicAddress: input.publicAddress }));
+                return yield* reachability.updateNodeNetworkConfig({ nodeId: input.nodeId, publicAddress: input.publicAddress });
             });
     }
 
@@ -113,9 +112,9 @@ export class ReachabilityController {
     checkDomainGate() {
         return procedure(reachabilityContract.checkDomainGate)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.checkDomainGate());
+                return yield* reachability.checkDomainGate();
             });
     }
 
@@ -123,9 +122,9 @@ export class ReachabilityController {
     getIngress() {
         return procedure(reachabilityContract.getIngress)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const ingress = yield* IngressEdgeService;
-                return yield* serve(context)(ingress.getState());
+                return yield* ingress.getState();
             });
     }
 
@@ -134,9 +133,9 @@ export class ReachabilityController {
         return procedure(reachabilityContract.updateIngress)
             .use(requireAuth())
             .use(requirePlatformRole(EDGE_ADMIN_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const ingress = yield* IngressEdgeService;
-                return yield* serve(context)(ingress.update(input));
+                return yield* ingress.update(input);
             });
     }
 
@@ -145,9 +144,9 @@ export class ReachabilityController {
         return procedure(reachabilityContract.teardownPublicEdge)
             .use(requireAuth())
             .use(requirePlatformRole(EDGE_ADMIN_ROLES))
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const ingress = yield* IngressEdgeService;
-                return yield* serve(context)(ingress.teardownPublicEdge());
+                return yield* ingress.teardownPublicEdge();
             });
     }
 
@@ -156,9 +155,9 @@ export class ReachabilityController {
         return procedure(reachabilityContract.revokeMeshMember)
             .use(requireAuth())
             .use(requirePlatformRole(EDGE_ADMIN_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const ingress = yield* IngressEdgeService;
-                return yield* serve(context)(ingress.revokeMeshMember(input.memberId, input.reason));
+                return yield* ingress.revokeMeshMember(input.memberId, input.reason);
             });
     }
 
@@ -166,9 +165,9 @@ export class ReachabilityController {
     getPublicAccessPoint() {
         return procedure(reachabilityContract.getPublicAccessPoint)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.getPublicAccessPoint());
+                return yield* reachability.getPublicAccessPoint();
             });
     }
 
@@ -176,9 +175,9 @@ export class ReachabilityController {
     watchPublicAccessPoint() {
         return procedure(reachabilityContract.watchPublicAccessPoint)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const reachability = yield* NodeReachabilityService;
-                return yield* serve(context)(reachability.watchPublicAccessPoint());
+                return yield* reachability.watchPublicAccessPoint();
             });
     }
 }

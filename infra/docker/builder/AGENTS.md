@@ -55,6 +55,14 @@ flowchart TB
 
 > **Note**: The `source-copier` stage from the previous architecture was removed. The pruner already produces the exact pruned source in `out/full/`, so the runner/builder can copy directly from there (local image-to-image COPY, no build-context transfer).
 
+## Shared base stages (`Dockerfile.base` + `sync-base.ts`)
+
+A Dockerfile cannot include another, and BuildKit keys a layer on the text of its instruction, so images share base layers only if that text is identical. `Dockerfile.base` is the single source of two stages, `shared-prod-base` (api, web, doc, setup, node-agent) and `shared-dev-base` (app, dependency-builder); each Dockerfile carries a verbatim copy between `# >>> shared-*-base` markers and then adds only its own on top (`FROM shared-prod-base AS base` + `NODE_ENV`, build args).
+
+- Edit the base in `Dockerfile.base`, then run `bun infra/docker/builder/sync-base.ts` (`--check` fails on drift).
+- Never put a build arg or anything app-specific inside a shared block: it would make the layer per-application.
+- Prod and dev stay separate bases: a union would ship git/python/g++/node 22 in every production runner.
+
 ## The `dev-dependency-builder` profile's two images
 
 The `dev-dependency-builder` compose profile uses a different pair of images. It
@@ -150,7 +158,7 @@ and the applications' prune volumes are not mounted into it at all.
 
 ### The builder image's layers are ordered for its own rebuilds
 
-Four rules, each measured on the real image:
+Five rules, each measured on the real image:
 
 1. **Manifests before sources, in two COPYs.** `bun install` reads manifests and
    the lockfile and nothing else, so the source trees come AFTER it. With one
@@ -159,11 +167,16 @@ Four rules, each measured on the real image:
 2. **`bunfig.toml` is copied with the manifests.** It is install policy
    (`linker`, `globalStore`, `prefere`), and leaving it out installed the image
    with bun's defaults while the host used the repository's.
-3. **The `apps/**` strip runs between install and sources.** It reads the root
+3. **`patches/` is copied just before every install stage.** The root manifest
+   carries `patchedDependencies` (currently `tw-animate-css`, whose `exports`
+   needs a `default` condition for Turbopack's CSS resolver), and `bun install` /
+   `bun ci` abort with `patch file not found` when the patch is outside the build
+   context.
+4. **The `apps/**` strip runs between install and sources.** It reads the root
    manifest only, so below the source COPYs it re-ran on every source edit for
    nothing. It must still precede the bake (see the graph note in the tool's
    AGENTS), and it must FOLLOW the install, which needs the full workspace list.
-4. **The bake writes into a BuildKit cache mount, then copies the entries into
+5. **The bake writes into a BuildKit cache mount, then copies the entries into
    the layer at `/opt/turbo-cache`.** A source edit invalidates the bake layer,
    and its parent holds no cache, so the bake used to be cold every time (71 s
    for 42 packages). With the mount it is `FULL TURBO` on a rebuild, and the copy

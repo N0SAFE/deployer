@@ -1,8 +1,9 @@
 import { lookup } from "node:dns/promises"
 
-import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
+import { Logger } from '@nestjs/common'
 import { Pool } from 'pg'
-import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
+import { ReplaySubject, firstValueFrom, interval, map, merge, type Observable } from 'rxjs'
+import { Context, Effect } from 'effect'
 
 import type {
     SetupInitializeInput,
@@ -10,17 +11,18 @@ import type {
     SetupStateSnapshot,
 } from '@deployer/contracts-entities'
 import { runPromiseUnwrapped } from "@deployer/effect-core";
+import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 import { classifyAddress, isIpLiteral, stripBrackets } from "@deployer/effect-infra"
-import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle";
-import { NodeConfigRepository, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state"
-import { standardErrorActions } from "@deployer/orpc-utils"
+import type { AppLifecycleShape } from "@deployer/lifecycle";
+import type { NodeConfigRepositoryShape, NodeConfigRow } from "@deployer/node-state"
 
 
+import { DatabaseProbeRefused, SetupAlreadyComplete } from '../setup.errors'
 import { SetupStepTracker } from '../utils/setup-runner.utils'
 
-import { LocalInitializationService } from './local-initialization.service'
-import { RemoteInitializationService } from './remote-initialization.service'
-import { SetupEventService } from './setup-event.service'
+import type { LocalInitializationServiceShape } from './local-initialization.service'
+import type { RemoteInitializationServiceShape } from './remote-initialization.service'
+import type { SetupEventService } from './setup-event.service'
 
 
 import type { EmitEvent } from '../utils/setup-runner.utils'
@@ -95,54 +97,166 @@ const sameDatabaseServer = (url: URL, platformDatabaseUrl: string): boolean => {
 const serverKey = (url: URL): string =>
     `${stripBrackets(url.hostname).toLowerCase()}:${url.port || "5432"}`
 
-@Injectable()
-export class InitializationService implements OnModuleInit {
-    private readonly logger = new Logger(InitializationService.name)
-    private readonly completedSubject = new ReplaySubject<SetupCompletionStatus>(1)
+type NodeConfigReadFailure = Effect.Error<ReturnType<NodeConfigRepositoryShape['find']>>
+
+export type InitializationServiceShape = ServiceLifecycleShape & {
+    /** Checks the node config at boot and, when the node is configured, unblocks everything waiting on setup. Never fails. */
+    readonly checkConfigAndEmit: () => Effect.Effect<void>
+    readonly getSetupState: () => Effect.Effect<SetupStateSnapshot, NodeConfigReadFailure>
+    readonly getNodeStatus: () => Effect.Effect<
+        | { isConfigured: true; nodeId: string; strategy: 'local' | 'remote'; meshUrlsSnapshot: string[]; configuredAt: Date }
+        | { isConfigured: false; nodeId: null; strategy: null; meshUrlsSnapshot: string[]; configuredAt: null },
+        NodeConfigReadFailure
+    >
+    /**
+     * Refuse a setup MUTATION once this node is configured (SEC-012 / SETUP-002). `/setup/*` is anonymous by design because
+     * the wizard runs before any account exists; after completion nothing on it has a reason to run. One implementation,
+     * called by every mutating handler.
+     */
+    readonly assertSetupMutable: () => Effect.Effect<void, NodeConfigReadFailure | SetupAlreadyComplete>
+    /**
+     * Refuse a database probe the SSRF policy forbids (SEC-012). A hostname is not an address but it becomes one, so the
+     * name the operator typed is resolved too.
+     */
+    readonly assertDatabaseProbeAllowed: (databaseUrl: string) => Effect.Effect<void, NodeConfigReadFailure | DatabaseProbeRefused>
+    /**
+     * Start the initialization in the background and answer at once; live progress comes from `getInitializeStream`. If a
+     * run is already going, `{ accepted: false }`. `delivered` is always true here (this is the API's OWN service); it keeps
+     * the response shape identical to the SETUP app's proxy, where the trigger can be accepted before the API is reachable.
+     */
+    readonly triggerInitialize: (input: SetupInitializeInput) => Effect.Effect<{ accepted: boolean; delivered: boolean }>
+    /**
+     * The progress stream, with replay of recent events and a heartbeat merged in (so a quiet window is distinguishable
+     * from a dead socket). Safe to call before `triggerInitialize`. A streaming surface: RxJS stays the contract.
+     */
+    readonly getInitializeStream: () => Observable<SetupStreamEvent>
+    /** Resolves once setup completed (immediately for a node that already is). */
+    readonly waitForSetup: () => Effect.Effect<SetupCompletionStatus>
+}
+
+type Ports = {
+    readonly nodeConfigRepository: NodeConfigRepositoryShape
+    readonly localInitializationService: LocalInitializationServiceShape
+    readonly remoteInitializationService: RemoteInitializationServiceShape
+    readonly setupEventService: Pick<SetupEventService, 'emit' | 'observeProgress$'>
+    /**
+     * Advanced to READY when setup completes — see `emitCompleted`. Injected rather than signalled through an event: the
+     * lifecycle is what readiness READS, so setting it at the moment the platform actually becomes usable keeps the fact
+     * and the report in one place.
+     */
+    readonly lifecycle: Pick<AppLifecycleShape, 'markDatabaseProbeNow' | 'markMeshConnectedNow' | 'markReadyNow'>
+}
+
+/** How often to prove the socket is alive while provisioning is quiet. */
+const HEARTBEAT_INTERVAL_MS = 3_000
+const HAS_USERS_PROBE_TIMEOUT_MS = 1_500
+const HAS_USERS_CACHE_TTL_MS = 30_000
+
+export function makeInitializationService(ports: Ports): InitializationServiceShape {
+    const { nodeConfigRepository, localInitializationService, remoteInitializationService, setupEventService, lifecycle } = ports
+    const logger = new Logger('InitializationService')
+    const completedSubject = new ReplaySubject<SetupCompletionStatus>(1)
 
     /** Track whether an initialization is currently running. */
-    private initializationPromise: Promise<void> | null = null
+    let initializationPromise: Promise<void> | null = null
 
     /**
      * Cached knowledge of whether the global DB actually contains users.
      *
-     * hasUsers in the snapshot is NOT derived from the config row (that was a
-     * hardcoded guess). It is refreshed by a cheap, cached background probe of
-     * the "user" table whenever the node is configured, and set to true the
-     * moment a setup completes (local seeding or remote join). Between boot and
-     * the probe landing the value stays optimistically true for a configured
-     * node (the common case) — never a false negative that would block sign-in.
+     * hasUsers in the snapshot is NOT derived from the config row (that was a hardcoded guess). It is refreshed by a cheap,
+     * cached background probe of the "user" table whenever the node is configured, and set to true the moment a setup
+     * completes (local seeding or remote join). Between boot and the probe landing the value stays optimistically true for
+     * a configured node (the common case) — never a false negative that would block sign-in.
      */
-    private usersPresence: { known: boolean; checkedAt: number } | null = null
-    private usersProbePromise: Promise<void> | null = null
-    private readonly HAS_USERS_PROBE_TIMEOUT_MS = 1_500
-    private readonly HAS_USERS_CACHE_TTL_MS = 30_000
+    let usersPresence: { known: boolean; checkedAt: number } | null = null
+    let usersProbePromise: Promise<void> | null = null
 
-    constructor(
-        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-        private readonly localInitializationService: LocalInitializationService,
-        private readonly remoteInitializationService: RemoteInitializationService,
-        private readonly setupEventService: SetupEventService,
-        /**
-         * Advanced to READY when setup completes — see `emitCompleted`.
-         *
-         * Injected rather than signalled through an event: the lifecycle is what
-         * readiness READS, so setting it at the moment the platform actually
-         * becomes usable keeps the fact and the report in one place.
-         */
-        @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
-    ) {}
+
+    const readConfig = nodeConfigRepository.find
+
+    const NOT_STARTED: SetupStateSnapshot = {
+        state: 'not_started',
+        needsSetup: true,
+        hasUsers: false,
+        bootstrapStrategy: null,
+        availableStrategies: ['local', 'remote'],
+        currentStep: 'choose_strategy',
+        progressPercent: 0,
+        steps: [
+            { id: 'choose_strategy', title: 'Choose bootstrap strategy', status: 'pending' },
+            { id: 'configure_account', title: 'Configure account', status: 'pending' },
+        ],
+        completedAt: null,
+    }
+
+    const getSetupState = (): Effect.Effect<SetupStateSnapshot, NodeConfigReadFailure> =>
+        readConfig().pipe(
+            Effect.map((config): SetupStateSnapshot => {
+                // configuredAt without a database URL (or no config) → needs setup.
+                if (!isSetupComplete(config)) return NOT_STARTED
+                return {
+                    state: 'completed',
+                    needsSetup: false,
+                    // Truthful — see usersPresence. Optimistically true until the background probe resolves; never a false negative.
+                    hasUsers: usersPresence?.known ?? true,
+                    bootstrapStrategy: config.strategy,
+                    availableStrategies: ['local', 'remote'],
+                    currentStep: null,
+                    progressPercent: 100,
+                    steps: [],
+                    completedAt: new Date(config.configuredAt),
+                }
+            }),
+        )
+
+    const getNodeStatus: InitializationServiceShape['getNodeStatus'] = () =>
+        readConfig().pipe(
+            Effect.map((config) =>
+                isSetupComplete(config)
+                    ? {
+                          isConfigured: true as const,
+                          nodeId: config.nodeId,
+                          strategy: config.strategy,
+                          meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
+                          configuredAt: new Date(config.configuredAt),
+                      }
+                    : {
+                          isConfigured: false as const,
+                          nodeId: null,
+                          strategy: null,
+                          meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
+                          configuredAt: null,
+                      },
+            ),
+        )
+
+    const assertSetupMutable: InitializationServiceShape['assertSetupMutable'] = () =>
+        readConfig().pipe(
+            Effect.flatMap((config) => (isSetupComplete(config) ? Effect.fail(new SetupAlreadyComplete({})) : Effect.void)),
+        )
+
+    const assertDatabaseProbeAllowed: InitializationServiceShape['assertDatabaseProbeAllowed'] = (databaseUrl) =>
+        Effect.gen(function* () {
+            const config = yield* readConfig()
+            const stored = config?.databaseUrl?.trim()
+            // An empty stored URL is not a URL: `||` was doing that job, spelled out here so the types stay honest.
+            const refusal = databaseProbeRefusal(databaseUrl, stored === undefined || stored === '' ? null : stored)
+            if (refusal !== null) return yield* new DatabaseProbeRefused({ reason: refusal })
+
+            const host = stripBrackets(new URL(databaseUrl).hostname)
+            if (isIpLiteral(host)) return
+            // A lookup failure is not a refusal: the pool will report the same name-resolution error with a message the
+            // operator can act on.
+            const answers = yield* Effect.promise(() => lookup(host, { all: true, verbatim: true }).catch(() => []))
+            if (answers.some((answer) => classifyAddress(answer.address) !== 'public')) {
+                return yield* new DatabaseProbeRefused({
+                    reason: `"${host}" resolves to a private address, which the setup probe does not reach. Use the database's public address.`,
+                })
+            }
+        })
+
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
-
-    async onModuleInit(): Promise<void> {
-        this.logger.log(
-            '🔍 InitializationService: checking existing node config…'
-        )
-        // Perform the eager setup check that may have been skipped by
-        // the pool factory (run during construction, before onModuleInit).
-        await this.checkConfigAndEmit()
-    }
 
     /**
      * Check the SQLite node config and emit completion if the node is configured.
@@ -157,15 +271,15 @@ export class InitializationService implements OnModuleInit {
      * global database is mandatory. Such rows are treated as needing setup so
      * the wizard can re-provision from scratch.
      */
-    async checkConfigAndEmit(): Promise<void> {
+    async function checkConfigAndEmit(): Promise<void> {
         try {
-            const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
+            const config = await runPromiseUnwrapped(nodeConfigRepository.find())
             const storedUrl = config?.databaseUrl?.trim() ?? ''
             if (config?.configuredAt && storedUrl.length > 0) {
-                this.logger.log(
+                logger.log(
                     '✅ Node already configured — unblocking dependent modules'
                 )
-                this.emitCompleted({
+                emitCompleted({
                     nodeId: config.nodeId,
                     connectedAt: new Date(config.configuredAt),
                     databaseUrl: storedUrl,
@@ -173,160 +287,26 @@ export class InitializationService implements OnModuleInit {
                 })
                 // Refresh the real user-presence answer in the background so
                 // hasUsers on /setup/state is truthful shortly after boot.
-                void this.refreshUserPresence(storedUrl).catch(() => undefined)
+                void refreshUserPresence(storedUrl).catch(() => undefined)
             } else if (config?.configuredAt) {
-                this.logger.warn(
+                logger.warn(
                     '⚠️ Node config has configuredAt but NO database URL — treating as unconfigured (global DB is mandatory)'
                 )
             } else {
-                this.logger.log('⏳ No config found — setup wizard required')
+                logger.log('⏳ No config found — setup wizard required')
             }
         } catch (err: unknown) {
-            this.logger.error('Failed to read node config:', err)
+            logger.error('Failed to read node config:', err)
         }
     }
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
-    async getSetupState(): Promise<SetupStateSnapshot> {
-        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
 
-        if (!config) {
-            return {
-                state: 'not_started',
-                needsSetup: true,
-                hasUsers: false,
-                bootstrapStrategy: null,
-                availableStrategies: ['local', 'remote'],
-                currentStep: 'choose_strategy',
-                progressPercent: 0,
-                steps: [
-                    {
-                        id: 'choose_strategy',
-                        title: 'Choose bootstrap strategy',
-                        status: 'pending',
-                    },
-                    {
-                        id: 'configure_account',
-                        title: 'Configure account',
-                        status: 'pending',
-                    },
-                ],
-                completedAt: null,
-            }
-        }
-
-        if (isSetupComplete(config)) {
-            return {
-                state: 'completed',
-                needsSetup: false,
-                // Truthful — see usersPresence. Optimistically true until the
-                // background probe resolves; never a false negative.
-                hasUsers: this.usersPresence?.known ?? true,
-                bootstrapStrategy: config.strategy,
-                availableStrategies: ['local', 'remote'],
-                currentStep: null,
-                progressPercent: 100,
-                steps: [],
-                completedAt: new Date(config.configuredAt),
-            }
-        }
-
-        // configuredAt without a database URL (or no config) → needs setup.
-        return {
-            state: 'not_started',
-            needsSetup: true,
-            hasUsers: false,
-            bootstrapStrategy: null,
-            availableStrategies: ['local', 'remote'],
-            currentStep: 'choose_strategy',
-            progressPercent: 0,
-            steps: [
-                {
-                    id: 'choose_strategy',
-                    title: 'Choose bootstrap strategy',
-                    status: 'pending',
-                },
-                {
-                    id: 'configure_account',
-                    title: 'Configure account',
-                    status: 'pending',
-                },
-            ],
-            completedAt: null,
-        }
-    }
-
-    async getNodeStatus() {
-        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
-        if (isSetupComplete(config)) {
-            return {
-                isConfigured: true,
-                nodeId: config.nodeId,
-                strategy: config.strategy,
-                meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
-                configuredAt: new Date(config.configuredAt),
-            }
-        }
-        return {
-            isConfigured: false,
-            nodeId: null,
-            strategy: null,
-            meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
-            configuredAt: null,
-        }
-    }
 
     // ─── Post-setup refusal (SEC-012 / SETUP-002) ─────────────────────────────
 
-    /**
-     * Refuse a setup MUTATION once this node is configured.
-     *
-     * `/setup/*` is anonymous by design because the wizard runs before any
-     * account exists, and it must stay reachable DURING onboarding. After
-     * completion nothing on it has a reason to run: a second trigger would
-     * provision another database, the probe would be an unauthenticated port
-     * scanner, and dismissing a hint writes operator state. Read-only
-     * procedures (state, node status, destination, verification) stay open —
-     * the wizard reads them on its last step.
-     *
-     * One implementation, called by every mutating handler: the rule lives here,
-     * not in the controllers.
-     */
-    async assertSetupMutable(): Promise<void> {
-        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
-        if (isSetupComplete(config)) {
-            throw standardErrorActions.CONFLICT(
-                "Setup is already complete on this node, so setup procedures are closed. Use the dashboard, or reset the node from the host to run setup again.",
-            )
-        }
-    }
 
-    /**
-     * Refuse a database probe the SSRF policy forbids (SEC-012).
-     *
-     * A hostname is not an address but it becomes one, so the name the operator
-     * typed is resolved too: a public-looking name pointing at `127.0.0.1` is
-     * the same scanner as typing the loopback literal.
-     */
-    async assertDatabaseProbeAllowed(databaseUrl: string): Promise<void> {
-        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
-        const stored = config?.databaseUrl?.trim()
-        // An empty stored URL is not a URL: `||` was doing that job, spelled out here so the types stay honest.
-        const refusal = databaseProbeRefusal(databaseUrl, stored === undefined || stored === "" ? null : stored)
-        if (refusal !== null) throw standardErrorActions.BAD_REQUEST(refusal)
-
-        const host = stripBrackets(new URL(databaseUrl).hostname)
-        if (isIpLiteral(host)) return
-        // A lookup failure is not a refusal: the pool will report the same
-        // name-resolution error with a message the operator can act on.
-        const answers = await lookup(host, { all: true, verbatim: true }).catch(() => [])
-        if (answers.some((answer) => classifyAddress(answer.address) !== "public")) {
-            throw standardErrorActions.BAD_REQUEST(
-                `"${host}" resolves to a private address, which the setup probe does not reach. Use the database's public address.`,
-            )
-        }
-    }
 
     // ─── Trigger + Stream ─────────────────────────────────────────────────────
 
@@ -344,30 +324,30 @@ export class InitializationService implements OnModuleInit {
      * trigger can be accepted while the API is not yet reachable (the handover
      * delivers it later) — one contract, two implementers.
      */
-    triggerInitialize(input: SetupInitializeInput): { accepted: boolean; delivered: boolean } {
-        if (this.initializationPromise) {
-            this.logger.warn('triggerInitialize called but initialization already in progress')
+    function triggerInitialize(input: SetupInitializeInput): { accepted: boolean; delivered: boolean } {
+        if (initializationPromise) {
+            logger.warn('triggerInitialize called but initialization already in progress')
             return { accepted: false, delivered: true }
         }
 
-        this.logger.log(`🚀 Starting initialization (strategy=${input.strategy})`)
+        logger.log(`🚀 Starting initialization (strategy=${input.strategy})`)
 
         // One tracker per run — owns the canonical step state. The
         // event service handles the actual emission (buffering,
         // persistence, Subjects).
         const tracker = new SetupStepTracker()
         const emit: EmitEvent = (event) => {
-            this.setupEventService.emit('progress', {}, event)
+            setupEventService.emit('progress', {}, event)
         }
 
-        this.initializationPromise = this.runInitialize(input, tracker, emit)
+        initializationPromise = runInitialize(input, tracker, emit)
             .catch((err: unknown) => {
                 const message = err instanceof Error ? err.message : String(err)
-                this.logger.error(`❌ Initialization failed: ${message}`)
+                logger.error(`❌ Initialization failed: ${message}`)
                 emit(tracker.abortEvent(message))
             })
             .finally(() => {
-                this.initializationPromise = null
+                initializationPromise = null
             })
 
         return { accepted: true, delivered: true }
@@ -396,10 +376,10 @@ export class InitializationService implements OnModuleInit {
      * heartbeat carries no state, and recording one every few seconds would evict
      * real events from the replay buffer that a reconnecting client depends on.
      */
-    getInitializeStream(): Observable<SetupStreamEvent> {
+    function getInitializeStream(): Observable<SetupStreamEvent> {
         return merge(
-            this.setupEventService.observeProgress$(),
-            interval(InitializationService.HEARTBEAT_INTERVAL_MS).pipe(
+            setupEventService.observeProgress$(),
+            interval(HEARTBEAT_INTERVAL_MS).pipe(
                 map(() => ({
                     type: "heartbeat" as const,
                     seq: 0,
@@ -409,8 +389,6 @@ export class InitializationService implements OnModuleInit {
         )
     }
 
-    /** How often to prove the socket is alive while provisioning is quiet. */
-    private static readonly HEARTBEAT_INTERVAL_MS = 3_000;
 
     /**
      * Internal — runs the initialization process, driving a fresh
@@ -425,14 +403,14 @@ export class InitializationService implements OnModuleInit {
      * inside each service, so the UI learns about every step dynamically —
      * no hardcoded templates or config-based flow files needed.
      */
-    private async runInitialize(
+    async function runInitialize(
         input: SetupInitializeInput,
         tracker: SetupStepTracker,
         emit: EmitEvent,
     ): Promise<void> {
         const finish = input.strategy === 'remote'
-            ? await this.runRemoteFlow(input, tracker, emit)
-            : await this.runLocalFlow(input, tracker, emit)
+            ? await runRemoteFlow(input, tracker, emit)
+            : await runLocalFlow(input, tracker, emit)
 
         // Always emit the terminal completed event.
         emit(tracker.finishEvent({
@@ -441,9 +419,9 @@ export class InitializationService implements OnModuleInit {
             databaseUrl: finish.databaseUrl,
         }))
 
-        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
+        const config = await runPromiseUnwrapped(nodeConfigRepository.find())
         if (config) {
-            this.emitCompleted({
+            emitCompleted({
                 nodeId: config.nodeId,
                 connectedAt: config.configuredAt ? new Date(config.configuredAt) : null,
                 databaseUrl: config.databaseUrl,
@@ -452,32 +430,24 @@ export class InitializationService implements OnModuleInit {
         }
     }
 
-    private async runRemoteFlow(
+    async function runRemoteFlow(
         input: Extract<SetupInitializeInput, { strategy: 'remote' }>,
         tracker: SetupStepTracker,
         emit: EmitEvent,
     ): Promise<{ nodeId: string; databaseUrl: string }> {
-        return await this.remoteInitializationService.initialize(
-            input,
-            tracker,
-            emit,
-        )
+        return await runPromiseUnwrapped(remoteInitializationService.initialize(input, tracker, emit))
     }
 
-    private async runLocalFlow(
+    async function runLocalFlow(
         input: Extract<SetupInitializeInput, { strategy: 'local' }>,
         tracker: SetupStepTracker,
         emit: EmitEvent,
     ): Promise<{ nodeId: string; databaseUrl: string }> {
-        return await this.localInitializationService.initialize(
-            input,
-            tracker,
-            emit,
-        )
+        return await runPromiseUnwrapped(localInitializationService.initialize(input, tracker, emit))
     }
 
-    waitForSetup(): Promise<SetupCompletionStatus> {
-        return firstValueFrom(this.completedSubject.asObservable())
+    function waitForSetup(): Promise<SetupCompletionStatus> {
+        return firstValueFrom(completedSubject.asObservable())
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -487,38 +457,38 @@ export class InitializationService implements OnModuleInit {
      * Cheap (SELECT EXISTS … LIMIT 1), cached for HAS_USERS_CACHE_TTL_MS,
      * never throws. On probe failure the previous answer is kept (unknown).
      */
-    private async refreshUserPresence(databaseUrl: string): Promise<void> {
+    async function refreshUserPresence(databaseUrl: string): Promise<void> {
         const now = Date.now()
         if (
-            this.usersPresence &&
-            now - this.usersPresence.checkedAt < this.HAS_USERS_CACHE_TTL_MS
+            usersPresence &&
+            now - usersPresence.checkedAt < HAS_USERS_CACHE_TTL_MS
         ) {
             return
         }
-        if (this.usersProbePromise) {
-            await this.usersProbePromise
+        if (usersProbePromise) {
+            await usersProbePromise
             return
         }
-        this.usersProbePromise = (async () => {
-            const found = await this.probeUsersExist(databaseUrl)
+        usersProbePromise = (async () => {
+            const found = await probeUsersExist(databaseUrl)
             if (found !== null) {
-                this.usersPresence = { known: found, checkedAt: Date.now() }
+                usersPresence = { known: found, checkedAt: Date.now() }
             }
         })().finally(() => {
-            this.usersProbePromise = null
+            usersProbePromise = null
         })
-        await this.usersProbePromise
+        await usersProbePromise
     }
 
     /**
      * SELECT EXISTS … on the "user" table. Returns true/false when the DB
      * answers, null when the DB is unreachable (keep the previous answer).
      */
-    private async probeUsersExist(databaseUrl: string): Promise<boolean | null> {
+    async function probeUsersExist(databaseUrl: string): Promise<boolean | null> {
         const pool = new Pool({
             connectionString: databaseUrl,
             max: 1,
-            connectionTimeoutMillis: this.HAS_USERS_PROBE_TIMEOUT_MS,
+            connectionTimeoutMillis: HAS_USERS_PROBE_TIMEOUT_MS,
         })
         try {
             const res = await pool.query<{ exists: boolean }>(
@@ -532,10 +502,10 @@ export class InitializationService implements OnModuleInit {
         }
     }
 
-    private emitCompleted(status: SetupCompletionStatus): void {
+    function emitCompleted(status: SetupCompletionStatus): void {
         // A completed setup always seeded/joined a DB that has the admin user.
-        this.usersPresence = { known: true, checkedAt: Date.now() }
-        this.logger.log(
+        usersPresence = { known: true, checkedAt: Date.now() }
+        logger.log(
             `🚀 Setup complete — strategy=${status.strategy} nodeId=${status.nodeId}`
         )
 
@@ -556,16 +526,32 @@ export class InitializationService implements OnModuleInit {
         //
         // Publishing both facts here also covers the RESTART path, where setup
         // is already complete and `emitCompleted` is what runs first.
-        this.lifecycle.markDatabaseProbeNow(status.databaseUrl ?? "", status.databaseUrl !== null)
+        lifecycle.markDatabaseProbeNow(status.databaseUrl ?? "", status.databaseUrl !== null)
         // The mesh is SETTLED once onboarding is done, even with no peers: a
         // single-node cluster is legitimately "connected" (see the `mesh`
         // indicator). This is the writer that was lost when the old
         // orchestrator was deleted — without it `meshConnected` stayed null and
         // the indicator reported `down` forever.
-        this.lifecycle.markMeshConnectedNow(true)
-        this.lifecycle.markReadyNow()
+        lifecycle.markMeshConnectedNow(true)
+        lifecycle.markReadyNow()
 
-        this.completedSubject.next(status)
-        this.completedSubject.complete()
+        completedSubject.next(status)
+        completedSubject.complete()
+    }
+
+    return {
+        onStart: () => Effect.promise(() => checkConfigAndEmit()),
+        checkConfigAndEmit: () => Effect.promise(() => checkConfigAndEmit()),
+        getSetupState,
+        getNodeStatus,
+        assertSetupMutable,
+        assertDatabaseProbeAllowed,
+        triggerInitialize: (input) => Effect.sync(() => triggerInitialize(input)),
+        getInitializeStream: () => getInitializeStream(),
+        waitForSetup: () => Effect.promise(() => waitForSetup()),
     }
 }
+
+export class InitializationService extends Context.Service<InitializationService, InitializationServiceShape>()(
+    'shared/InitializationService',
+) {}

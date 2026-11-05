@@ -1,3 +1,6 @@
+import { DomainConflictService } from "@deployer/shared/core/modules/domain/services/domain-conflict.service";
+import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
+import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { Context, Effect } from "effect";
 
 import { DomainAdapter } from "@deployer/shared/core/modules/domain/adapters/domain.adapter";
@@ -12,11 +15,8 @@ import {
 } from "@deployer/shared/core/modules/domain/errors/index";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 
-import { attempt, toFailure } from "@/modules/project/project-effects";
+import { attempt, toFailure, refuse } from "@/modules/project/project-effects";
 
-import { DomainConflict } from "@project/core/ports/domain-conflict.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
-import { ServiceDomainMappingRepo } from "@project/core/ports/service-domain-mapping-repository.port";
 
 export type CheckSubdomainInput = {
 	readonly projectDomainId: string;
@@ -61,8 +61,8 @@ function assertAccess(projectId: string, requesterId: string) {
 export class DomainServiceServiceImpl {
 	checkSubdomainAvailability(input: CheckSubdomainInput) {
 		return Effect.gen(function* () {
-			const conflicts = yield* DomainConflict;
-			return yield* attempt(() =>
+			const conflicts = yield* DomainConflictService;
+			return yield* refuse(
 				conflicts.checkSubdomainAvailability(
 					input.projectDomainId,
 					input.subdomain,
@@ -75,21 +75,21 @@ export class DomainServiceServiceImpl {
 
 	listServiceDomains(input: { readonly serviceId: string }) {
 		return Effect.gen(function* () {
-			const mappings = yield* ServiceDomainMappingRepo;
-			const domains = yield* ProjectDomainRepo;
+			const mappings = yield* ServiceDomainMappingRepository;
+			const domains = yield* ProjectDomainRepository;
 
-			const rows = yield* attempt(() =>
+			const rows = yield* refuse(
 				mappings.findByServiceIdWithUrls(input.serviceId),
 			);
 
 			return yield* Effect.all(
 				rows.map((mapping) =>
 					Effect.gen(function* () {
-						const projectDomain = yield* attempt(() =>
+						const projectDomain = yield* refuse(
 							domains.findById(mapping.projectDomainId),
 						);
 						if (!projectDomain) {
-							return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
+							return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: mapping.projectDomainId })));
 						}
 
 						return {
@@ -107,20 +107,20 @@ export class DomainServiceServiceImpl {
 
 	addServiceDomain(input: AddServiceDomainInput, requesterId: string) {
 		return Effect.gen(function* () {
-			const mappings = yield* ServiceDomainMappingRepo;
-			const domains = yield* ProjectDomainRepo;
-			const conflicts = yield* DomainConflict;
+			const mappings = yield* ServiceDomainMappingRepository;
+			const domains = yield* ProjectDomainRepository;
+			const conflicts = yield* DomainConflictService;
 
-			const projectDomain = yield* attempt(() =>
+			const projectDomain = yield* refuse(
 				domains.findById(input.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(input.projectDomainId)));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: input.projectDomainId })));
 			}
 
 			yield* assertAccess(projectDomain.projectId, requesterId);
 
-			const availability = yield* attempt(() =>
+			const availability = yield* refuse(
 				conflicts.checkSubdomainAvailability(
 					input.projectDomainId,
 					input.subdomain,
@@ -133,15 +133,10 @@ export class DomainServiceServiceImpl {
 					(conflict) =>
 						`${conflict.subdomain ?? "root"}.domain${conflict.basePath ?? "/"} (${conflict.serviceName})`,
 				);
-				return yield* Effect.fail(toFailure(new SubdomainConflictError(
-						input.subdomain,
-						input.basePath,
-						taken,
-						availability.suggestions.availableBasePaths,
-					)));
+				return yield* Effect.fail(toFailure(new SubdomainConflictError({ subdomain: input.subdomain, basePath: input.basePath, conflicts: taken, availableBasePaths: availability.suggestions.availableBasePaths })));
 			}
 
-			const mapping = yield* attempt(() =>
+			const mapping = yield* refuse(
 				mappings.create({
 					serviceId: input.serviceId,
 					projectDomainId: input.projectDomainId,
@@ -153,12 +148,12 @@ export class DomainServiceServiceImpl {
 				}),
 			);
 
-			const fullUrl = yield* attempt(() => mappings.getFullUrl(mapping.id));
+			const fullUrl = yield* refuse( mappings.getFullUrl(mapping.id));
 			if (!fullUrl) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(mapping.id)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError({ identifier: mapping.id })));
 			}
 
-			const sharedMappings = yield* attempt(() =>
+			const sharedMappings = yield* refuse(
 				mappings.findBySubdomain(input.projectDomainId, input.subdomain),
 			);
 
@@ -186,26 +181,26 @@ export class DomainServiceServiceImpl {
 
 	updateServiceDomain(input: UpdateServiceDomainInput, requesterId: string) {
 		return Effect.gen(function* () {
-			const mappings = yield* ServiceDomainMappingRepo;
-			const domains = yield* ProjectDomainRepo;
-			const conflicts = yield* DomainConflict;
+			const mappings = yield* ServiceDomainMappingRepository;
+			const domains = yield* ProjectDomainRepository;
+			const conflicts = yield* DomainConflictService;
 
-			const mapping = yield* attempt(() => mappings.findById(input.mappingId));
+			const mapping = yield* refuse( mappings.findById(input.mappingId));
 			if (!mapping) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(input.mappingId)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError({ identifier: input.mappingId })));
 			}
 
-			const projectDomain = yield* attempt(() =>
+			const projectDomain = yield* refuse(
 				domains.findById(mapping.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: mapping.projectDomainId })));
 			}
 
 			yield* assertAccess(projectDomain.projectId, requesterId);
 
 			if (input.subdomain !== undefined || input.basePath !== undefined) {
-				const availability = yield* attempt(() =>
+				const availability = yield* refuse(
 					conflicts.checkSubdomainAvailability(
 						mapping.projectDomainId,
 						input.subdomain ?? mapping.subdomain,
@@ -218,16 +213,11 @@ export class DomainServiceServiceImpl {
 						(conflict) =>
 							`${conflict.subdomain ?? "root"}.domain${conflict.basePath ?? "/"} (${conflict.serviceName})`,
 					);
-					return yield* Effect.fail(toFailure(new SubdomainConflictError(
-							input.subdomain ?? mapping.subdomain,
-							input.basePath ?? mapping.basePath,
-							taken,
-							availability.suggestions.availableBasePaths,
-						)));
+					return yield* Effect.fail(toFailure(new SubdomainConflictError({ subdomain: input.subdomain ?? mapping.subdomain, basePath: input.basePath ?? mapping.basePath, conflicts: taken, availableBasePaths: availability.suggestions.availableBasePaths })));
 				}
 			}
 
-			const updated = yield* attempt(() =>
+			const updated = yield* refuse(
 				mappings.update(input.mappingId, {
 					...(input.subdomain !== undefined
 						? { subdomain: input.subdomain }
@@ -247,12 +237,12 @@ export class DomainServiceServiceImpl {
 				}),
 			);
 			if (!updated) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingUpdateError(input.mappingId)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingUpdateError({ mappingId: input.mappingId })));
 			}
 
-			const fullUrl = yield* attempt(() => mappings.getFullUrl(updated.id));
+			const fullUrl = yield* refuse( mappings.getFullUrl(updated.id));
 			if (!fullUrl) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(updated.id)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError({ identifier: updated.id })));
 			}
 
 			return {
@@ -268,27 +258,27 @@ export class DomainServiceServiceImpl {
 		readonly requesterId: string;
 	}) {
 		return Effect.gen(function* () {
-			const mappings = yield* ServiceDomainMappingRepo;
-			const domains = yield* ProjectDomainRepo;
+			const mappings = yield* ServiceDomainMappingRepository;
+			const domains = yield* ProjectDomainRepository;
 
-			const mapping = yield* attempt(() => mappings.findById(input.mappingId));
+			const mapping = yield* refuse( mappings.findById(input.mappingId));
 			if (!mapping) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(input.mappingId)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError({ identifier: input.mappingId })));
 			}
 			if (mapping.serviceId !== input.serviceId) {
-				return yield* Effect.fail(toFailure(new ServiceMappingMismatchError(input.mappingId, input.serviceId)));
+				return yield* Effect.fail(toFailure(new ServiceMappingMismatchError({ mappingId: input.mappingId, serviceId: input.serviceId })));
 			}
 
-			const projectDomain = yield* attempt(() =>
+			const projectDomain = yield* refuse(
 				domains.findById(mapping.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: mapping.projectDomainId })));
 			}
 
 			yield* assertAccess(projectDomain.projectId, input.requesterId);
 
-			const allMappings = yield* attempt(() =>
+			const allMappings = yield* refuse(
 				mappings.findByServiceId(input.serviceId),
 			);
 			yield* Effect.all(
@@ -299,29 +289,29 @@ export class DomainServiceServiceImpl {
 							serviceMapping.isPrimary,
 					)
 					.map((serviceMapping) =>
-						attempt(() =>
+						refuse(
 							mappings.update(serviceMapping.id, { isPrimary: false }),
 						),
 					),
 			);
 
-			const updated = yield* attempt(() =>
+			const updated = yield* refuse(
 				mappings.update(input.mappingId, { isPrimary: true }),
 			);
 			if (!updated) {
-				return yield* Effect.fail(toFailure(new SetPrimaryDomainError(input.serviceId, input.mappingId)));
+				return yield* Effect.fail(toFailure(new SetPrimaryDomainError({ serviceId: input.serviceId, mappingId: input.mappingId })));
 			}
 
-			const fullUrl = yield* attempt(() => mappings.getFullUrl(updated.id));
+			const fullUrl = yield* refuse( mappings.getFullUrl(updated.id));
 			if (!fullUrl) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(updated.id)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError({ identifier: updated.id })));
 			}
 
-			const domain = yield* attempt(() =>
+			const domain = yield* refuse(
 				domains.findById(updated.projectDomainId),
 			);
 			if (!domain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(updated.projectDomainId)));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: updated.projectDomainId })));
 			}
 
 			return {
@@ -337,29 +327,29 @@ export class DomainServiceServiceImpl {
 		readonly requesterId: string;
 	}) {
 		return Effect.gen(function* () {
-			const mappings = yield* ServiceDomainMappingRepo;
-			const domains = yield* ProjectDomainRepo;
+			const mappings = yield* ServiceDomainMappingRepository;
+			const domains = yield* ProjectDomainRepository;
 
-			const mapping = yield* attempt(() => mappings.findById(input.mappingId));
+			const mapping = yield* refuse( mappings.findById(input.mappingId));
 			if (!mapping) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(input.mappingId)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError({ identifier: input.mappingId })));
 			}
 			if (mapping.serviceId !== input.serviceId) {
-				return yield* Effect.fail(toFailure(new ServiceMappingMismatchError(input.mappingId, input.serviceId)));
+				return yield* Effect.fail(toFailure(new ServiceMappingMismatchError({ mappingId: input.mappingId, serviceId: input.serviceId })));
 			}
 
-			const projectDomain = yield* attempt(() =>
+			const projectDomain = yield* refuse(
 				domains.findById(mapping.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: mapping.projectDomainId })));
 			}
 
 			yield* assertAccess(projectDomain.projectId, input.requesterId);
 
-			const deleted = yield* attempt(() => mappings.delete(input.mappingId));
+			const deleted = yield* refuse( mappings.delete(input.mappingId));
 			if (!deleted) {
-				return yield* Effect.fail(toFailure(new ServiceDomainMappingDeletionError(input.mappingId)));
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingDeletionError({ mappingId: input.mappingId })));
 			}
 
 			return {

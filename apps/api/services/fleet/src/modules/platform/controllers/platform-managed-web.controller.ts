@@ -7,7 +7,7 @@
  * keep working logged-out — the parallel API HTML console is anonymous, and
  * the state query doubles as the "is the web app down?" fallback status.
  * All logic delegates to PlatformManagedWebService, resolved from the module's
- * Effect context and run through `serve` (which provides an anonymous actor
+ * Effect context and run through the `.effect()` boundary (which provides an anonymous actor
  * for these public calls).
  */
 
@@ -17,7 +17,6 @@ import { Implement } from "@orpc/nest";
 import { platformContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
 
-import { serveAnonymous } from "../../../core/orpc/serve";
 import { PlatformManagedWebService } from "../services/platform-managed-web.service";
 
 @Controller()
@@ -25,18 +24,18 @@ export class PlatformManagedWebController {
 	@Implement(platformContract.getManagedWebState)
 	state() {
 		return procedure(platformContract.getManagedWebState)
-			.effect(function* ({ context }) {
+			.effect(function* () {
 				const managedWeb = yield* PlatformManagedWebService;
-				return yield* serveAnonymous(context)(managedWeb.state());
+				return yield* managedWeb.state();
 			});
 	}
 
 	@Implement(platformContract.toggleManagedWeb)
 	toggle() {
 		return procedure(platformContract.toggleManagedWeb)
-			.effect(function* ({ context }) {
+			.effect(function* () {
 				const managedWeb = yield* PlatformManagedWebService;
-				const state = yield* serveAnonymous(context)(managedWeb.toggle());
+				const state = yield* managedWeb.toggle();
 				return { status: 201 as const, body: { state } };
 			});
 	}
@@ -44,9 +43,9 @@ export class PlatformManagedWebController {
 	@Implement(platformContract.restartManagedWeb)
 	restart() {
 		return procedure(platformContract.restartManagedWeb)
-			.effect(function* ({ context }) {
+			.effect(function* () {
 				const managedWeb = yield* PlatformManagedWebService;
-				const state = yield* serveAnonymous(context)(managedWeb.restart());
+				const state = yield* managedWeb.restart();
 				return { status: 201 as const, body: { state } };
 			});
 	}
@@ -54,9 +53,9 @@ export class PlatformManagedWebController {
 	@Implement(platformContract.setManagedWebOrigin)
 	setOrigin() {
 		return procedure(platformContract.setManagedWebOrigin)
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const managedWeb = yield* PlatformManagedWebService;
-				const state = yield* serveAnonymous(context)(managedWeb.setOrigin(input.origin));
+				const state = yield* managedWeb.setOrigin(input.origin);
 				return { status: 201 as const, body: { state } };
 			});
 	}
@@ -64,9 +63,9 @@ export class PlatformManagedWebController {
 	@Implement(platformContract.enableManagedWebTunnel)
 	enableTunnel() {
 		return procedure(platformContract.enableManagedWebTunnel)
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const managedWeb = yield* PlatformManagedWebService;
-				const state = yield* serveAnonymous(context)(managedWeb.enableTunnel(input.hostname));
+				const state = yield* managedWeb.enableTunnel(input.hostname);
 				return { status: 201 as const, body: { state } };
 			});
 	}
@@ -74,9 +73,9 @@ export class PlatformManagedWebController {
 	@Implement(platformContract.disableManagedWebTunnel)
 	disableTunnel() {
 		return procedure(platformContract.disableManagedWebTunnel)
-			.effect(function* ({ context }) {
+			.effect(function* () {
 				const managedWeb = yield* PlatformManagedWebService;
-				const state = yield* serveAnonymous(context)(managedWeb.disableTunnel());
+				const state = yield* managedWeb.disableTunnel();
 				return { status: 201 as const, body: { state } };
 			});
 	}

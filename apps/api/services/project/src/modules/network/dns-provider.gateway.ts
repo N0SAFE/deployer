@@ -2,7 +2,7 @@
 // does not resolve a directory's `index.ts`, so `modules/providers` is not importable
 // even though the file exists.
 import { providersContract } from "@deployer/fleet-contracts";
-import type { ServiceClient } from "@deployer/shared/server";
+import type { ServiceClientShape } from "@deployer/shared/server";
 
 /**
  * The DNS/provider facts `project` needs, reached through fleet's CONTRACT.
@@ -22,7 +22,7 @@ import type { ServiceClient } from "@deployer/shared/server";
  * on a screen that is actually broken.
  */
 /** The fleet DNS calls project needs. A plain object over the service client: nothing here needs a lifecycle. */
-export function makeDnsProviderGateway(clients: Pick<ServiceClient, "clientFor">) {
+export function makeDnsProviderGateway(clients: Pick<ServiceClientShape, "clientFor">) {
     /** The provider apps an operator can pin a project to, with their live state. */
     const listProviders = async () => {
         const client = clients.clientFor("fleet", providersContract);

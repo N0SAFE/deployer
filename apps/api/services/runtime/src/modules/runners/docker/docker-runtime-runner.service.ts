@@ -2,12 +2,10 @@ import { Context, Effect } from "effect";
 
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
-import type { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
+import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 
-import { attempt } from "../../../core/effects";
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
-import { RunnerTraefikPort } from "../runners.ports";
 
 import {
     buildFallbackSubdomain,
@@ -32,7 +30,7 @@ const RUNNER_TYPE = "docker" as const;
  */
 export class DockerRuntimeRunner extends Context.Service<
     DockerRuntimeRunner,
-    DeploymentRuntimeRunner<DockerEngine | RunnerTraefikPort>
+    DeploymentRuntimeRunner<DockerEngine | TraefikService>
 >()("runtime/DockerRuntimeRunner") {
     /** The engine and traefik are yielded when a run starts, so this is a constant a module provides with `useValue`. */
     static readonly live = class DockerRuntimeRunnerImpl {
@@ -40,7 +38,7 @@ export class DockerRuntimeRunner extends Context.Service<
         executeRuntime = (input) =>
             Effect.gen(function* () {
                 const docker = yield* DockerEngine;
-                const traefik = yield* RunnerTraefikPort;
+                const traefik = yield* TraefikService;
                 return yield* buildDockerRuntimeRunner({ docker, traefik }).executeRuntime(input);
             })
     };
@@ -48,29 +46,29 @@ export class DockerRuntimeRunner extends Context.Service<
 
 function buildDockerRuntimeRunner(ports: {
     readonly docker: DockerEngineShape;
-    readonly traefik: TraefikService;
+    readonly traefik: Context.Service.Shape<typeof TraefikService>;
 }): DeploymentRuntimeRunner {
     const { docker, traefik } = ports;
 
     const bootstrapDefaultTraefikConfiguration = (serviceId: string) =>
-        attempt(() =>
-            traefik.createServiceConfiguration(serviceId, {
+        traefik
+            .createServiceConfiguration(serviceId, {
                 domain: "localhost",
                 subdomain: buildFallbackSubdomain(serviceId),
                 port: 80,
                 sslEnabled: false,
                 pathPrefix: "/",
                 isActive: true,
-            }),
-        );
+            })
+            .pipe(Effect.mapError((error) => new RuntimeInvalid({ reason: error.message })));
 
     const syncRoute = (serviceId: string) =>
         Effect.gen(function* () {
-            const syncResult = yield* attempt(() => traefik.syncServiceConfiguration(serviceId));
+            const syncResult = yield* traefik.syncServiceConfiguration(serviceId);
             if (!syncResult.success) {
                 return yield* Effect.fail(new RuntimeInvalid({ reason: syncResult.message }));
             }
-            const healthSummary = yield* attempt(() => traefik.getHealthStatus());
+            const healthSummary = yield* traefik.getHealthStatus();
             return { syncResult, healthSummary };
         });
 

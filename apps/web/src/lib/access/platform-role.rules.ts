@@ -11,8 +11,8 @@
  * and the check compared array indexes.
  */
 
+import { PLATFORM_ROLES, type PlatformRole } from '@deployer/auth'
 import { isPlatformAdministrator, platformRoleRank } from '@deployer/auth/authz'
-import { PLATFORM_ROLES, type PlatformRole } from '@deployer/auth/permissions'
 
 /**
  * Is `value` a role the platform defines?

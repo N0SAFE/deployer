@@ -288,7 +288,7 @@ function makeCloudflareAppService({ store, lanes, edges }: Ports, stateCache: St
         // deleted while in use — the edge would keep a credential whose account is
         // gone and fail with no obvious cause. Generic: the registry knows which
         // lane options are DNS accounts, whatever the edge provider.
-        const current = yield* attempt(() => lanes.getLanes());
+        const current = yield* lanes.getLanes();
         const inUse = yield* attemptSync(() => edges.accountsInUse(current));
         if (inUse.includes(providerId)) {
             return yield* new FleetConflict({ reason: "Cannot delete: the stack's public edge runs on this account. Switch or tear down the public edge in Network → Ingress first." });

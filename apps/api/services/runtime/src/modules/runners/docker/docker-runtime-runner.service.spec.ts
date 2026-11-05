@@ -1,3 +1,4 @@
+import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -7,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DockerEngine } from "@deployer/docker";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
 
-import { RunnerTraefikPort } from "../runners.ports";
 import { provideTo, run } from "../testing";
 
 import { DockerRuntimeRunner } from "./docker-runtime-runner.service";
@@ -42,22 +42,22 @@ describe("DockerRuntimeRunner", () => {
         };
 
         traefikService = {
-            syncServiceConfiguration: vi.fn().mockResolvedValue({
+            syncServiceConfiguration: vi.fn(() => Effect.succeed({
                 success: true,
                 configId: "cfg-1",
                 configName: "service-route",
                 action: "updated",
                 message: "ok",
                 syncedAt: new Date().toISOString(),
-            }),
-            getHealthStatus: vi.fn().mockResolvedValue({ healthy: true }),
-            createServiceConfiguration: vi.fn().mockResolvedValue({ id: "cfg-generated" }),
+            })),
+            getHealthStatus: vi.fn(() => Effect.succeed({ healthy: true })),
+            createServiceConfiguration: vi.fn(() => Effect.succeed({ id: "cfg-generated" })),
         };
 
         service = provideTo(new DockerRuntimeRunner.live(), (effect) =>
             effect.pipe(
                 Effect.provideService(DockerEngine, { containers } as never),
-                Effect.provideService(RunnerTraefikPort, traefikService as never),
+                Effect.provideService(TraefikService, traefikService as never),
             ),
         );
     });
@@ -388,22 +388,22 @@ describe("DockerRuntimeRunner", () => {
 
     it("retries Traefik sync on transient failure and succeeds", async () => {
         traefikService.syncServiceConfiguration
-            .mockResolvedValueOnce({
+            .mockReturnValueOnce(Effect.succeed({
                 success: false,
                 configId: "cfg-failed",
                 configName: "service-route",
                 action: "updated",
                 message: "temporary traefik issue",
                 syncedAt: new Date().toISOString(),
-            })
-            .mockResolvedValueOnce({
+            }))
+            .mockReturnValueOnce(Effect.succeed({
                 success: true,
                 configId: "cfg-2",
                 configName: "service-route",
                 action: "updated",
                 message: "ok",
                 syncedAt: new Date().toISOString(),
-            });
+            }));
 
         const result = await run(service.executeRuntime({
             deployment: {
@@ -436,15 +436,15 @@ describe("DockerRuntimeRunner", () => {
 
     it("auto-creates Traefik service configuration when missing then retries sync", async () => {
         traefikService.syncServiceConfiguration
-            .mockRejectedValueOnce(new ConfigNotFoundError("service-bootstrap-1", "service"))
-            .mockResolvedValueOnce({
+            .mockReturnValueOnce(Effect.fail(new ConfigNotFoundError({ configId: "service-bootstrap-1", configType: "service" })))
+            .mockReturnValueOnce(Effect.succeed({
                 success: true,
                 configId: "cfg-bootstrap-1",
                 configName: "service-bootstrap-1",
                 action: "created",
                 message: "auto-bootstrap",
                 syncedAt: new Date().toISOString(),
-            });
+            }));
 
         const result = await run(service.executeRuntime({
             deployment: {
@@ -488,14 +488,14 @@ describe("DockerRuntimeRunner", () => {
     });
 
     it("respects typed convergence max attempts for Traefik sync failure", async () => {
-        traefikService.syncServiceConfiguration.mockResolvedValue({
+        traefikService.syncServiceConfiguration.mockReturnValue(Effect.succeed({
             success: false,
             configId: "cfg-failed",
             configName: "service-route",
             action: "updated",
             message: "still unavailable",
             syncedAt: new Date().toISOString(),
-        });
+        }));
 
         await expect(
             run(service.executeRuntime({

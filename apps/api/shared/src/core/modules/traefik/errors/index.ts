@@ -39,6 +39,8 @@ export {
   ConfigSyncError,
   ConfigValidationError,
   ConfigNotFoundError,
+  ConfigFileWriteFailure,
+  ConfigSyncFailure,
 } from './config.error';
 
 // File system errors
@@ -51,6 +53,8 @@ export {
   FileWriteError,
   FileReadError,
   FileDeleteError,
+  TraefikFileNotFound,
+  TraefikFileWriteRefused,
 } from './file-system.error';
 
 // Template errors
@@ -60,6 +64,9 @@ export {
   TemplateVariableError,
   TemplateNotFoundError,
   TemplateRenderError,
+  TraefikTemplateNotFound,
+  TraefikTemplateCreateFailure,
+  TraefikTemplateVariablesMissing,
 } from './template.error';
 
 // Middleware errors
@@ -67,6 +74,8 @@ export {
   MiddlewareError,
   MiddlewareNotFoundError,
   MiddlewareConfigurationError,
+  MiddlewareOptionsInvalid,
+  MiddlewareConfigurationInvalid,
 } from './middleware.error';
 
 // SSL/TLS errors

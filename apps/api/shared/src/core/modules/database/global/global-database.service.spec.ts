@@ -1,22 +1,17 @@
-import { Test } from '@nestjs/testing';
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
-import { GlobalDatabaseService } from './global-database.service';
-
-import type { TestingModule } from '@nestjs/testing';
+import { makeGlobalDatabaseService } from './global-database.service';
 
 describe('GlobalDatabaseService', () => {
-  let service: GlobalDatabaseService;
+  it('is not initialized until a connection is given, and refuses to hand out a database before', () => {
+    const service = makeGlobalDatabaseService();
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [{ provide: GlobalDatabaseService, useFactory: () => new GlobalDatabaseService() }],
-    }).compile();
+    expect(service.isInitialized).toBe(false);
+    expect(() => service.db).toThrowError(/has not been initialized yet/);
 
-    service = module.get<GlobalDatabaseService>(GlobalDatabaseService);
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+    const db = {} as never;
+    service.init(db);
+    expect(service.isInitialized).toBe(true);
+    expect(service.db).toBe(db);
   });
 });

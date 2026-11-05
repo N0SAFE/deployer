@@ -1,80 +1,15 @@
 import { createModuleContext } from "@deployer/nest-effect";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 
-import { DEPLOYMENT_STORAGE_POLICY_RESOLVERS } from "./base/storage-policy-resolver.token";
-import { DEPLOYMENT_STORAGE_PROVIDERS } from "./base/storage-provider.token";
-import { LocalStorageProviderService } from "./local/local-storage-provider.service";
-import { NfsStorageProviderService } from "./nfs/nfs-storage-provider.service";
-import { RuntimeConfigurationStoragePolicyResolverService } from "./policy/runtime-configuration-storage-policy-resolver.service";
-import { ServiceCustomDataStoragePolicyResolverService } from "./policy/service-custom-data-storage-policy-resolver.service";
-import { ServiceTopLevelStoragePolicyResolverService } from "./policy/service-top-level-storage-policy-resolver.service";
-import { StoragePolicyResolverRegistryService } from "./policy/storage-policy-resolver-registry.service";
-import { S3StorageProviderService } from "./s3/s3-storage-provider.service";
-import { StorageProviderRegistryService } from "./storage-provider-registry.service";
-import { VolumeStorageProviderService } from "./volume/volume-storage-provider.service";
+import { StoragePolicyResolverRegistry } from "./policy/storage-policy-resolver-registry.service";
+import { StorageProviderRegistry } from "./storage-provider-registry.service";
 
-import type { DeploymentStoragePolicyResolver } from "./base/storage-policy-resolver.interface";
-import type { DeploymentStorageProvider } from "./base/storage-provider.interface";
-
+/** The providers and policy resolvers are fixed constants held by the two registries, which are Effect services. */
 export class DeploymentStorageProvidersModule extends createModuleContext({
     imports: [ConfigurationCoreModule],
     providers: [
-        LocalStorageProviderService,
-        S3StorageProviderService,
-        NfsStorageProviderService,
-        VolumeStorageProviderService,
-        ServiceCustomDataStoragePolicyResolverService,
-        ServiceTopLevelStoragePolicyResolverService,
-        RuntimeConfigurationStoragePolicyResolverService,
-        {
-            provide: DEPLOYMENT_STORAGE_PROVIDERS,
-            useFactory: (
-                localStorageProviderService: LocalStorageProviderService,
-                s3StorageProviderService: S3StorageProviderService,
-                nfsStorageProviderService: NfsStorageProviderService,
-                volumeStorageProviderService: VolumeStorageProviderService,
-            ) => [
-                localStorageProviderService,
-                s3StorageProviderService,
-                nfsStorageProviderService,
-                volumeStorageProviderService,
-            ],
-            inject: [
-                LocalStorageProviderService,
-                S3StorageProviderService,
-                NfsStorageProviderService,
-                VolumeStorageProviderService,
-            ],
-        },
-        {
-            provide: StorageProviderRegistryService,
-            useFactory: (providers: DeploymentStorageProvider[]) =>
-                new StorageProviderRegistryService(providers),
-            inject: [DEPLOYMENT_STORAGE_PROVIDERS],
-        },
-        {
-            provide: DEPLOYMENT_STORAGE_POLICY_RESOLVERS,
-            useFactory: (
-                runtimeConfigurationStoragePolicyResolverService: RuntimeConfigurationStoragePolicyResolverService,
-                serviceCustomDataStoragePolicyResolverService: ServiceCustomDataStoragePolicyResolverService,
-                serviceTopLevelStoragePolicyResolverService: ServiceTopLevelStoragePolicyResolverService,
-            ) => [
-                runtimeConfigurationStoragePolicyResolverService,
-                serviceCustomDataStoragePolicyResolverService,
-                serviceTopLevelStoragePolicyResolverService,
-            ],
-            inject: [
-                RuntimeConfigurationStoragePolicyResolverService,
-                ServiceCustomDataStoragePolicyResolverService,
-                ServiceTopLevelStoragePolicyResolverService,
-            ],
-        },
-        {
-            provide: StoragePolicyResolverRegistryService,
-            useFactory: (resolvers: DeploymentStoragePolicyResolver[]) =>
-                new StoragePolicyResolverRegistryService(resolvers),
-            inject: [DEPLOYMENT_STORAGE_POLICY_RESOLVERS],
-        },
+        { provide: StorageProviderRegistry, useValue: StorageProviderRegistry.live },
+        { provide: StoragePolicyResolverRegistry, useValue: StoragePolicyResolverRegistry.live },
     ],
-    exports: [StorageProviderRegistryService, StoragePolicyResolverRegistryService],
+    exports: [StorageProviderRegistry, StoragePolicyResolverRegistry],
 }) {}

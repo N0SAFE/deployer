@@ -1,7 +1,6 @@
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost, EffectHostModule, EffectRuntimeModule } from "@deployer/nest-effect";
 import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
 import {
@@ -11,9 +10,8 @@ import {
 	ServiceHealthModule,
 } from "@deployer/shared/server";
 
-import { createBetterAuth } from "@/config/auth/auth";
 import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
-import { EnvModule, EnvService } from "@/config/env/env.module";
+import { EnvModule } from "@/config/env/env.module";
 import { AuthModule } from "@/core/modules/auth/auth.module";
 import { BootstrapModule } from "@/core/modules/bootstrap/bootstrap.module";
 import { DatabaseModule } from "@/core/modules/database/database.module";
@@ -97,11 +95,7 @@ export class BffModule extends createModuleContext({
 		// The authz gate decides from the `roles` table; without this it falls back to the code table and would refuse
 		// every custom role (`SEC-062`, `SEC-055`).
 		RoleCatalogueModule,
-		AuthModule.forRootAsync({
-			imports: [EnvModule],
-			useFactory: createBetterAuth,
-			inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
-		}),
+		AuthModule,
 		// The dependency gate. Binds `SERVICE_READINESS`, so `/health/ready` and
 		// the boot check are the same answer by construction.
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
@@ -113,7 +107,19 @@ export class BffModule extends createModuleContext({
 		// it unsatisfiable. Every service imports this; the BFF is the one app
 		// that answers for the platform, so it needs it most.
 		ServiceHealthModule,
-		createOrpcModule(),
+		// `.effect()` handlers (the setup wizard, the mesh controller) resolve services from `effect/context`: the host
+		// contributes the context of the module that owns the controller, per request.
+		EffectHostModule,
+		createOrpcModule({
+			boundary: { service: "bff" },
+			extraContext: {
+				inject: [EffectHost],
+				resolve: (executionContext, host) => ({
+					"effect/context": host.contextFor(executionContext.getClass()),
+				}),
+			},
+		}),
+		EffectRuntimeModule,
 
 		// ── THE PLATFORM SUPERVISORS (WHAT "SUPERVISED" MEANS) ──────────────
 		// Ordered ahead of the feature modules by INTENT; Nest resolves the graph

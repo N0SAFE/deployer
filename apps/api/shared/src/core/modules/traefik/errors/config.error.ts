@@ -1,3 +1,4 @@
+import { domainError } from "@deployer/effect-core";
 import { AppError } from '@deployer/errors';
 import type { ValidationIssue } from '@deployer/errors';
 
@@ -78,19 +79,24 @@ export class ConfigValidationError extends TraefikError {
   }
 }
 
-/**
- * Error thrown when a configuration is not found
- */
-export class ConfigNotFoundError extends TraefikError {
-  constructor(
-    public readonly configId: string,
-    public readonly configType = 'service'
-  ) {
-    super(
-      `${configType} configuration not found: ${configId}`,
-      'CONFIG_NOT_FOUND',
-      { configId, configType }
-    );
-    this.name = ConfigNotFoundError.name;
-  }
+/** A Traefik configuration does not exist. */
+export class ConfigNotFoundError extends domainError("ConfigNotFoundError", "not_found")<{
+  readonly configId: string;
+  readonly configType?: string;
+}>() {
+  override publicMessage() { return `${this.configType ?? "service"} configuration not found: ${this.configId}`; }
+}
+
+/** Writing a generated configuration file to the Traefik config directory failed; the cause stays server-side. */
+export class ConfigFileWriteFailure extends domainError("ConfigFileWriteFailure", "dependency_missing")<{
+  readonly filePath: string;
+}>() {
+  override publicMessage() { return `Could not write the Traefik configuration file ${this.filePath}`; }
+}
+
+/** A bulk sync or cleanup could not start (the database or the config directory failed); the cause stays server-side. */
+export class ConfigSyncFailure extends domainError("ConfigSyncFailure", "dependency_missing")<{
+  readonly operation: string;
+}>() {
+  override publicMessage() { return `Traefik configuration ${this.operation} failed`; }
 }

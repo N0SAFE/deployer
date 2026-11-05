@@ -1,26 +1,26 @@
-import { Test } from '@nestjs/testing';
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { defaultIngressLanes, type IngressLanes } from '@deployer/contracts-entities/entities/ingress/index';
-import { NodeConfigRepository } from "@deployer/node-state"
 
-import { EdgeProviderRegistry } from '../../edge/edge-provider.registry';
 import { TEST_TUNNEL_ID, testEdgeRegistry, type TestTunnelEdgeProvider } from '../../edge/testing/edge-registry.fixture';
-import { EgressRequestError, EgressService } from '../../egress/egress.service';
-import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service';
-import { NodeNetworkConfigRepository } from '../repositories/node-network-config.repository';
+import { EgressRequestError } from '../../egress/egress.service';
 
-import { PublicEdgeService } from './public-edge.service';
-import { ReachabilityService } from './reachability.service';
-
-import type { TestingModule } from '@nestjs/testing';
+import { makePublicEdgeService } from './public-edge.service';
+import { makeReachabilityService, type ReachabilityServiceShape } from './reachability.service';
 
 const tunnelLane = { provider: TEST_TUNNEL_ID, domain: 'apps.example.com', acknowledgedInboundPorts: false, options: { account: 'acc-1' } };
 const directLane = (tls: boolean) => ({ provider: 'direct', domain: 'apps.example.com', acknowledgedInboundPorts: true, options: { tls } });
 
+/** The service's Effects, run to Promises: the assertions below read like the calls they check. */
+type Promised<S> = { [K in keyof S]: S[K] extends (...args: infer A) => Effect.Effect<infer R, unknown> ? (...args: A) => Promise<R> : S[K] };
+const promised = <S extends object>(service: S): Promised<S> =>
+  new Proxy(service, {
+    get: (target, key) => (...args: unknown[]) => Effect.runPromise((Reflect.get(target, key) as (...a: unknown[]) => Effect.Effect<unknown>)(...args)),
+  }) as Promised<S>;
+
 describe('ReachabilityService', () => {
-  let service: ReachabilityService;
+  let service: Promised<ReachabilityServiceShape>;
   let lanes: IngressLanes;
   let tunnel: TestTunnelEdgeProvider;
   let egress: {
@@ -31,39 +31,33 @@ describe('ReachabilityService', () => {
     probeOperatorPeer: Mock;
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     lanes = defaultIngressLanes();
     const edges = testEdgeRegistry();
     tunnel = edges.tunnel;
-    const env = { get: vi.fn(() => '') };
     egress = {
       external: vi.fn(),
       operator: vi.fn(),
       fixedExternal: vi.fn(),
-      probeUserAddress: vi.fn().mockResolvedValue({ valid: false }),
-      probeOperatorPeer: vi.fn().mockResolvedValue({ url: '', reachable: false, probeUrl: '', latencyMs: 0 }),
+      probeUserAddress: vi.fn().mockReturnValue(Effect.succeed({ valid: false })),
+      probeOperatorPeer: vi.fn().mockReturnValue(Effect.succeed({ url: '', reachable: false, probeUrl: '', latencyMs: 0 })),
     };
-    const nodeConfigs = {
-      findByNodeId: vi.fn().mockResolvedValue(null),
-      list: vi.fn().mockResolvedValue([]),
-      upsert: vi.fn().mockResolvedValue(undefined),
+    const nodeNetworkConfigs = {
+      findByNodeId: vi.fn(() => Effect.succeed(null)),
+      list: vi.fn(() => Effect.succeed([])),
+      upsert: vi.fn(() => Effect.void),
     };
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ReachabilityService,
-        { provide: NodeNetworkConfigRepository, useValue: nodeConfigs },
-        { provide: NodeConfigRepository, useValue: { find: vi.fn(() => Effect.succeed({ nodeId: '00000000-0000-0000-0000-000000000001' })) } },
-        { provide: IngressLanesService, useValue: { getLanes: vi.fn(() => Promise.resolve(lanes)) } },
-        { provide: EdgeProviderRegistry, useValue: edges.registry },
-        { provide: EgressService, useValue: egress },
-        {
-          provide: PublicEdgeService,
-          useFactory: () => new PublicEdgeService(edges.registry, nodeConfigs as unknown as NodeNetworkConfigRepository, env as never),
-        },
-      ],
-    }).compile();
-
-    service = module.get<ReachabilityService>(ReachabilityService);
+    const publicEdge = makePublicEdgeService({ registry: edges.registry, nodeConfigs: nodeNetworkConfigs, prefix: '' });
+    service = promised(
+      makeReachabilityService({
+        nodeNetworkConfigs,
+        nodeConfig: { find: vi.fn(() => Effect.succeed({ nodeId: '00000000-0000-0000-0000-000000000001' })) } as never,
+        lanes: { getLanes: vi.fn(() => Effect.succeed(lanes)) },
+        edges: edges.registry,
+        publicEdge,
+        egress: egress,
+      }),
+    );
   });
 
   describe('getNodePublicUrl', () => {
@@ -117,22 +111,22 @@ describe('ReachabilityService', () => {
 
   describe('outbound requests go through the egress policy', () => {
     const body = (text: string) => ({ status: 200, headers: {}, url: '', body: new TextEncoder().encode(text) });
-    const denied = () => new EgressRequestError('Target not allowed by the network policy', 'external');
+    const denied = () => new EgressRequestError({ target: 'external', reason: 'Target not allowed by the network policy', failure: 'denied' });
 
     it('getPublicIp asks only the fixed echo hosts, with no redirects of its own choosing', async () => {
-      egress.fixedExternal.mockResolvedValueOnce(body('203.0.113.7\n'));
+      egress.fixedExternal.mockReturnValueOnce(Effect.succeed(body('203.0.113.7\n')));
       expect(await service.getPublicIp()).toBe('203.0.113.7');
       expect(egress.fixedExternal).toHaveBeenCalledWith({ url: 'https://checkip.amazonaws.com' }, ['checkip.amazonaws.com']);
     });
 
     it('getPublicIp ignores an answer that is not an IP and tries the next host', async () => {
-      egress.fixedExternal.mockResolvedValueOnce(body('<html>captive portal</html>')).mockResolvedValueOnce(body('198.51.100.9'));
+      egress.fixedExternal.mockReturnValueOnce(Effect.succeed(body('<html>captive portal</html>'))).mockReturnValueOnce(Effect.succeed(body('198.51.100.9')));
       expect(await service.getPublicIp()).toBe('198.51.100.9');
       expect(egress.fixedExternal).toHaveBeenCalledTimes(2);
     });
 
     it('getPublicIp is null when every host is refused or down', async () => {
-      egress.fixedExternal.mockRejectedValue(denied());
+      egress.fixedExternal.mockReturnValue(Effect.fail(denied()));
       expect(await service.getPublicIp()).toBeNull();
     });
 
@@ -157,21 +151,21 @@ describe('ReachabilityService', () => {
     it('a refused mesh target is unreachable with the generic reason, not a resolved address', async () => {
       // The egress layer is where a refusal becomes a generic message; the service only
       // forwards the probe's verdict, so a caller never sees a resolved address.
-      egress.probeOperatorPeer.mockResolvedValue({
+      egress.probeOperatorPeer.mockReturnValue(Effect.succeed({
         url: 'http://169.254.169.254',
         reachable: false,
         probeUrl: 'http://169.254.169.254/mesh/ping',
         latencyMs: 0,
         error: 'Target not allowed by the network policy',
-      });
+      }));
       const result = await service.checkMeshUrlReachability('http://169.254.169.254');
       expect(result.reachable).toBe(false);
       expect(result.error).toBe('Target not allowed by the network policy');
     });
 
     it('checkDomainReachability: the DNS-over-HTTPS name is URL-encoded, not interpolated', async () => {
-      egress.fixedExternal.mockResolvedValue(body('{"Answer":[{"data":"203.0.113.1"},{"data":"not-an-ip"}]}'));
-      egress.external.mockRejectedValue(denied());
+      egress.fixedExternal.mockReturnValue(Effect.succeed(body('{"Answer":[{"data":"203.0.113.1"},{"data":"not-an-ip"}]}')));
+      egress.external.mockReturnValue(Effect.fail(denied()));
       // a name that would inject a parameter if it were concatenated into the query
       const result = await service.checkDomainReachability('nx-domain.invalid&type=TXT');
       const url = new URL((egress.fixedExternal.mock.calls[0]?.[0] as { url: string }).url);
@@ -182,8 +176,8 @@ describe('ReachabilityService', () => {
     });
 
     it('checkDomainReachability: a refused HTTP probe means not reachable, over https then http', async () => {
-      egress.fixedExternal.mockRejectedValue(denied());
-      egress.external.mockRejectedValue(denied());
+      egress.fixedExternal.mockReturnValue(Effect.fail(denied()));
+      egress.external.mockReturnValue(Effect.fail(denied()));
       const result = await service.checkDomainReachability('internal.corp.example');
       expect(result.httpReachable).toBe(false);
       expect(egress.external).toHaveBeenCalledTimes(2);
@@ -191,8 +185,8 @@ describe('ReachabilityService', () => {
     });
 
     it('checkDomainReachability: any HTTP status counts as reachable', async () => {
-      egress.fixedExternal.mockRejectedValue(denied());
-      egress.external.mockResolvedValueOnce({ ...body(''), status: 404 });
+      egress.fixedExternal.mockReturnValue(Effect.fail(denied()));
+      egress.external.mockReturnValueOnce(Effect.succeed({ ...body(''), status: 404 }));
       const result = await service.checkDomainReachability('app.example.com');
       expect(result.httpReachable).toBe(true);
       expect(result.httpStatusCode).toBe(404);

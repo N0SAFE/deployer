@@ -219,6 +219,9 @@
             }
         }
     },
+    "patchedDependencies": {
+        "tw-animate-css@1.4.0": "patches/tw-animate-css@1.4.0.patch"
+    },
     "scripts": {
         "dev": "dotenv -e .env -e .env.local -- bun scripts/compose.ts --file docker-compose.services.dev.yml",
         "dev:filter": "dotenv -e .env -e .env.local -- bun scripts/compose.ts --file docker-compose.services.dev.yml --require-profile",
@@ -305,6 +308,7 @@
         ".": "dotenv -e .env -- bun --bun --cwd=./ run --",
         "rm:node_modules": "bun --bun x rimraf --glob ./**/node_modules",
         "check": "bun x turbo run compile lint test type-check --continue",
+        "check:e2e": "VITEST_E2E=1 bun x turbo run test:e2e --continue",
         "knip": "knip",
         "knip:fix": "knip --fix",
         "knip:production": "knip --production",

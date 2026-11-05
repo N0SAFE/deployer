@@ -1,9 +1,9 @@
-import { Injectable } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
+import { Context, Effect } from "effect";
 
 import { coreEventLogs } from "@deployer/nest-schema/global/platform/events";
 
-import { GlobalDatabaseService } from "../../database/services/global-database.service";
+import { storage, type DatabasePort, type StorageFailure } from "../../database/storage";
 
 export type CoreEventLogPersistInput = {
     namespace: string;
@@ -72,88 +72,81 @@ export function sanitizeForPostgres<T>(value: T): T {
     return value;
 }
 
-@Injectable()
-export class CoreEventLogRepository {
-    constructor(private readonly databaseService: GlobalDatabaseService) {}
-
-    async insertMany(logs: CoreEventLogPersistInput[]): Promise<void> {
-        if (logs.length === 0) {
-            return;
-        }
-
-        await this.databaseService.db.insert(coreEventLogs).values(
-            logs.map((log) => ({
-                namespace: sanitizeForPostgres(log.namespace),
-                eventName: sanitizeForPostgres(log.eventName),
-                eventKey: sanitizeForPostgres(log.eventKey),
-                sequence: log.sequence,
-                input: sanitizeForPostgres(log.input),
-                output: sanitizeForPostgres(log.output),
-                emittedAt: log.emittedAt,
-                createdAt: new Date(),
-            })),
-        );
-    }
-
-    async findRecentByEventKey(input: {
+export type CoreEventLogRepositoryShape = {
+    readonly insertMany: (logs: CoreEventLogPersistInput[]) => Effect.Effect<void, StorageFailure>;
+    /** The most recent events of one key, oldest first. */
+    readonly findRecentByEventKey: (input: {
         namespace: string;
         eventName: string;
         eventKey: string;
         limit: number;
-    }): Promise<CoreEventLogRecord[]> {
-        const rows = await this.databaseService.db
-            .select()
-            .from(coreEventLogs)
-            .where(
-                and(
-                    eq(coreEventLogs.namespace, input.namespace),
-                    eq(coreEventLogs.eventName, input.eventName),
-                    eq(coreEventLogs.eventKey, input.eventKey),
-                ),
-            )
-            .orderBy(desc(coreEventLogs.emittedAt), desc(coreEventLogs.sequence))
-            .limit(input.limit);
-
-        return rows
-            .map((row) => ({
-                namespace: row.namespace,
-                eventName: row.eventName,
-                eventKey: row.eventKey,
-                sequence: row.sequence,
-                input: row.input,
-                output: row.output,
-                emittedAt: row.emittedAt,
-            }))
-            .reverse();
-    }
-
-    async findRecentByEventName(input: {
+    }) => Effect.Effect<CoreEventLogRecord[], StorageFailure>;
+    /** The most recent events of one name, oldest first. */
+    readonly findRecentByEventName: (input: {
         namespace: string;
         eventName: string;
         limit: number;
-    }): Promise<CoreEventLogRecord[]> {
-        const rows = await this.databaseService.db
-            .select()
-            .from(coreEventLogs)
-            .where(
-                and(
-                    eq(coreEventLogs.namespace, input.namespace),
-                    eq(coreEventLogs.eventName, input.eventName),
-                ),
-            )
-            .orderBy(desc(coreEventLogs.emittedAt), desc(coreEventLogs.sequence))
-            .limit(input.limit);
+    }) => Effect.Effect<CoreEventLogRecord[], StorageFailure>;
+};
 
-        return rows
-            .map((row) => ({
-                namespace: row.namespace,
-                eventName: row.eventName,
-                eventKey: row.eventKey,
-                sequence: row.sequence,
-                input: row.input,
-                output: row.output,
-                emittedAt: row.emittedAt,
-            }))
-            .reverse();
-    }
+const toRecord = (row: typeof coreEventLogs.$inferSelect): CoreEventLogRecord => ({
+    namespace: row.namespace,
+    eventName: row.eventName,
+    eventKey: row.eventKey,
+    sequence: row.sequence,
+    input: row.input,
+    output: row.output,
+    emittedAt: row.emittedAt,
+});
+
+export function makeCoreEventLogRepository(database: Context.Service.Shape<typeof DatabasePort>): CoreEventLogRepositoryShape {
+    return {
+        insertMany: (logs) =>
+            logs.length === 0
+                ? Effect.void
+                : storage(database, (db) =>
+                      db.insert(coreEventLogs).values(
+                          logs.map((log) => ({
+                              namespace: sanitizeForPostgres(log.namespace),
+                              eventName: sanitizeForPostgres(log.eventName),
+                              eventKey: sanitizeForPostgres(log.eventKey),
+                              sequence: log.sequence,
+                              input: sanitizeForPostgres(log.input),
+                              output: sanitizeForPostgres(log.output),
+                              emittedAt: log.emittedAt,
+                              createdAt: new Date(),
+                          })),
+                      ),
+                  ).pipe(Effect.asVoid),
+
+        findRecentByEventKey: (input) =>
+            storage(database, (db) =>
+                db
+                    .select()
+                    .from(coreEventLogs)
+                    .where(
+                        and(
+                            eq(coreEventLogs.namespace, input.namespace),
+                            eq(coreEventLogs.eventName, input.eventName),
+                            eq(coreEventLogs.eventKey, input.eventKey),
+                        ),
+                    )
+                    .orderBy(desc(coreEventLogs.emittedAt), desc(coreEventLogs.sequence))
+                    .limit(input.limit),
+            ).pipe(Effect.map((rows) => rows.map(toRecord).reverse())),
+
+        findRecentByEventName: (input) =>
+            storage(database, (db) =>
+                db
+                    .select()
+                    .from(coreEventLogs)
+                    .where(and(eq(coreEventLogs.namespace, input.namespace), eq(coreEventLogs.eventName, input.eventName)))
+                    .orderBy(desc(coreEventLogs.emittedAt), desc(coreEventLogs.sequence))
+                    .limit(input.limit),
+            ).pipe(Effect.map((rows) => rows.map(toRecord).reverse())),
+    };
 }
+
+export class CoreEventLogRepository extends Context.Service<CoreEventLogRepository, CoreEventLogRepositoryShape>()(
+    "shared/CoreEventLogRepository",
+) {}

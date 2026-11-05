@@ -12,7 +12,7 @@ export {
 	type CreateMeshOrpcModuleOptions,
 	type MeshCredentialVerifier,
 } from "./mesh-orpc-host";
-export { ServiceClient, ServiceClientModule } from "./service-client";
+export { makeServiceClient, ServiceClient, ServiceClientModule, type ServiceClientShape } from "./service-client";
 export {
 	apiAppOptions,
 	bootstrapApiServer,

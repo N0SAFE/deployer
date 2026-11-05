@@ -159,13 +159,13 @@ export class ClusterController {
       .use(requireAuth())                            // middleware (§4, §6)
       .effect(function* ({ input, context }) {
         const cluster = yield* ClusterService;       // the need is in the type
-        return yield* serve(context)(cluster.listNodes(input.includeDown));
+        return yield* cluster.listNodes(input.includeDown);
       });
   }
 }
 ```
 
-`yield* ClusterService` is the whole of "dependency injection" here. `serve(context)` is the request boundary (§3, §7).
+`yield* ClusterService` is the whole of "dependency injection" here. The request boundary (actor, correlation, error mapping, defect hiding) is applied by `.effect()` itself, configured once in `createOrpcModule({ boundary })`; a handler wraps nothing. An effect that outlives the request (a `liveSnapshot` tick) re-enters it with `inBoundary(context, effect)`.
 
 ### 2.6 Checklist: turning an `@Injectable` into this
 
@@ -209,7 +209,7 @@ export class SwarmConflict extends domainError("SwarmConflict", "conflict")<{ re
 - **Do not `throw new Error(...)` in a service.** Fail with a tagged error: `yield* new SwarmConflict({ service })`. (The
   `effectConventions` config already bans `throw new Error` in `services/`.) A repository may throw at its own boundary,
   inside the `Effect.tryPromise` that turns it into a typed failure.
-- **Where the mapping happens:** once, at the request boundary — `serve(context)` (from `createServe`) for Effects, and
+- **Where the mapping happens:** once, at the request boundary — the `.effect()` boundary for Effects, and
   `domainErrorInterceptor()` for code that *throws* a domain error (Promise-based services, middleware).
 - **This replaces the exception filter.** An `ExceptionFilter` existed to turn "whatever was thrown" into a status. Typed
   failures make that a table lookup instead. The old `InternalErrorExceptionFilter` was never registered (no `APP_FILTER`, no
@@ -309,7 +309,7 @@ in the order that reads best; each middleware touches only its own context key.
 **Around an Effect — Effect combinators**, not a wrapper class: `Effect.withSpan("name")`, `Effect.annotateLogs(...)`,
 `Effect.timeout(...)`, `Effect.retry(...)`. They are visible in the code they affect and appear in the type.
 
-**After / response shaping and error mapping** — `serve(context)` (§3). **Logging a request** — a middleware that logs on
+**After / response shaping and error mapping** — the `.effect()` boundary (§3). **Logging a request** — a middleware that logs on
 completion, using the Effect `Logger` (not `new Logger(Class.name)`); the current `LoggerMiddleware` is the thing being
 replaced, and its safelist (`/health`, `/metrics`, `/favicon.ico`) becomes a constant of the new one.
 
@@ -320,7 +320,7 @@ replaced, and its safelist (`/health`, `/metrics`, `/favicon.ico`) becomes a con
 ### 7.1 `Ambient` ✅
 
 `@deployer/effect-core` defines what a request carries: `CurrentActor`, `Correlation`, `HttpRequest`. They have **no
-default**: a method that reads one carries it in `R`, and only a boundary can provide it — `serve(context)` for a request,
+default**: a method that reads one carries it in `R`, and only a boundary can provide it — `.effect()` for a request,
 `systemRequest` for a worker or a boot task. So "is there a request?" is never an `if`; it is a type.
 
 This replaces `REQUEST`-scoped providers (`Scope.REQUEST`): a service stays a singleton and reads the request from the
@@ -428,7 +428,7 @@ streamSnapshot() {
     .use(requireAuth())
     .effect(function* ({ context }) {
       const events = yield* ClusterEventsPort;                                  // the stream hub, as a port
-      return yield* serve(context)(attemptSync(() => events.observeSnapshot()));
+      return yield* attemptSync(() => events.observeSnapshot());
     });
 }
 ```

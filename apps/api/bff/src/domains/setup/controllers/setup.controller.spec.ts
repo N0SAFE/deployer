@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { Test } from "@nestjs/testing";
 import { ORPCError } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,15 +11,26 @@ import { InitializationService } from "@/core/modules/setup/services/initializat
 
 
 
+
 import { SetupController } from "./setup.controller";
 
 
 import type { TestingModule } from "@nestjs/testing";
 
+/** Every handler the controller registers, in order: a Promise `handler` or an Effect generator `effect`. */
+const registered: { kind: "handler" | "effect"; fn: unknown }[] = [];
+
 function createImplementMock() {
     const chainable = {
         use: vi.fn().mockReturnThis(),
-        handler: vi.fn((fn: unknown) => ({ handler: fn })),
+        handler: vi.fn((fn: unknown) => {
+            registered.push({ kind: "handler", fn });
+            return { handler: fn };
+        }),
+        effect: vi.fn((fn: unknown) => {
+            registered.push({ kind: "effect", fn });
+            return { effect: fn };
+        }),
     };
 
     return chainable;
@@ -78,9 +90,9 @@ describe("SetupController", () => {
         mockInitializationService = {
             getSetupState: vi.fn(),
             getNodeStatus: vi.fn(),
-            assertSetupMutable: vi.fn(() => Promise.resolve(undefined)),
-            assertDatabaseProbeAllowed: vi.fn(() => Promise.resolve(undefined)),
-            triggerInitialize: vi.fn(() => ({ accepted: true, delivered: true })),
+            assertSetupMutable: vi.fn(() => Effect.void),
+            assertDatabaseProbeAllowed: vi.fn(() => Effect.void),
+            triggerInitialize: vi.fn(() => Effect.succeed({ accepted: true, delivered: true })),
         };
         mockReachabilityService = {
             checkMeshUrlReachability: vi.fn(),
@@ -126,15 +138,25 @@ describe("SetupController", () => {
             steps: [],
             completedAt: null,
         };
-        mockInitializationService.getSetupState.mockReturnValue(mockState);
+        mockInitializationService.getSetupState.mockReturnValue(Effect.succeed(mockState));
         controller.getState();
-        const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as () => Promise<unknown>;
-        expect(await handler()).toBe(mockState);
+        expect(await lastHandler()({})).toBe(mockState);
     });
 
     /** The handler the controller registered last. */
-    const lastHandler = () =>
-        implementChainable.handler.mock.calls.at(-1)?.[0] as (args: unknown) => Promise<unknown>;
+    const lastHandler = () => {
+        const last = registered.at(-1);
+        if (last === undefined) throw new Error("no handler registered");
+        if (last.kind === "handler") return last.fn as (args: unknown) => Promise<unknown>;
+        // An Effect handler: run it with the collaborators the module would provide.
+        return (args: unknown) =>
+            Effect.runPromise(
+                Effect.gen(() => (last.fn as (a: unknown) => Generator<never, unknown>)(args) as never).pipe(
+                    Effect.provideService(InitializationService, mockInitializationService as never),
+                    Effect.provideService(NodeConfigRepository, { find: vi.fn(), upsert: vi.fn() } as never),
+                ) as never,
+            );
+    };
 
     /**
      * SEC-012 / SETUP-002 — `/setup/*` is anonymous. Once the node is
@@ -146,7 +168,7 @@ describe("SetupController", () => {
             new ORPCError("CONFLICT", { message: "Setup is already complete on this node" });
 
         beforeEach(() => {
-            mockInitializationService.assertSetupMutable.mockRejectedValue(conflict());
+            mockInitializationService.assertSetupMutable.mockReturnValue(Effect.fail(conflict()));
         });
 
         it("refuses triggerInitialize", async () => {
@@ -175,7 +197,7 @@ describe("SetupController", () => {
         });
 
         it("still allows triggerInitialize while setup is in progress", async () => {
-            mockInitializationService.assertSetupMutable.mockResolvedValue(undefined);
+            mockInitializationService.assertSetupMutable.mockReturnValue(Effect.void);
             controller.triggerInitialize();
 
             await expect(lastHandler()({ input: { strategy: "local" } })).resolves.toMatchObject({
@@ -185,8 +207,8 @@ describe("SetupController", () => {
     });
 
     it("refuses a probe target the network policy forbids", async () => {
-        mockInitializationService.assertDatabaseProbeAllowed.mockRejectedValue(
-            new ORPCError("BAD_REQUEST", { message: "127.0.0.1 is a loopback address" }),
+        mockInitializationService.assertDatabaseProbeAllowed.mockReturnValue(
+            Effect.fail(new ORPCError("BAD_REQUEST", { message: "127.0.0.1 is a loopback address" })),
         );
         controller.probeDatabase();
 

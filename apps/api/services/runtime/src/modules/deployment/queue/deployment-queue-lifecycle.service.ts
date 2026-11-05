@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Cause, Context, Effect, Fiber, Schedule } from "effect";
 import { Subject } from "rxjs";
 
 import type {
@@ -17,24 +17,14 @@ import type {
     DeploymentQueueJob,
     DeploymentQueueTransitionResult,
 } from "@deployer/contracts-entities";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import type { DbError } from "@deployer/effect-infra";
+import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 
-import { runtimeDbOver } from "../../../core/database/runtime-db";
 import { RuntimeNotFound } from "../../../core/runtime.errors";
 
-import { DeploymentQueueEventService } from "./deployment-queue-event.service";
-import {
-    makeDeploymentQueueRepository,
-    type DeploymentQueueRepositoryShape,
-    type QueueListFilters,
-} from "./repositories/deployment-queue.repository";
-
-import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import type { DeploymentQueueEventService } from "./deployment-queue-event.service";
+import type { DeploymentQueueRepositoryShape, QueueListFilters } from "./repositories/deployment-queue.repository";
 import type { Observable } from "rxjs";
-
-/** DI token for substituting the repository (specs only). */
-export const DEPLOYMENT_QUEUE_REPOSITORY = Symbol("DEPLOYMENT_QUEUE_REPOSITORY");
 
 type QueueListOutput = {
     items: DeploymentQueueJob[];
@@ -42,337 +32,360 @@ type QueueListOutput = {
     hasMore: boolean;
 };
 
+/** Interval between lease reaps and claimable-job announcements. */
+const SWEEP_INTERVAL = "15 seconds";
+/** How many claimable jobs one sweep announces. */
+const SWEEP_BATCH = 100;
+
 /**
  * The deployment queue's lifecycle, over the durable `deployment_queue_jobs` table.
  *
  * Every transition is a guarded database write (`DeploymentQueueRepository`): claims use `FOR UPDATE SKIP
  * LOCKED`, and a worker that lost its lease can no longer heartbeat, complete or fail the job. What stays
  * here is what is not storage: the typed events, the best-effort mesh replication, and the RxJS
- * `onJobQueued` channel the worker subscribes to. Jobs survive a restart: a sweep at boot and then on a
- * cadence returns expired leases to the pool and re-announces every job that is claimable.
+ * `jobQueued$` channel the worker subscribes to. Jobs survive a restart: a sweep at boot and then on a
+ * cadence (`run`) returns expired leases to the pool and re-announces every job that is claimable.
+ *
+ * A method fails with `DbError` when the table refuses, and with `RuntimeNotFound` when a dead letter is unknown.
  */
-@Injectable()
-export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(DeploymentQueueLifecycleService.name);
-
-    /** Interval (ms) between lease reaps and claimable-job announcements. */
-    private static readonly SWEEP_INTERVAL_MS = 15_000;
-    /** How many claimable jobs one sweep announces. */
-    private static readonly SWEEP_BATCH = 100;
-
-    private readonly retryTimers = new Map<string, NodeJS.Timeout>();
-    private sweepTimer: NodeJS.Timeout | null = null;
-    private repository: DeploymentQueueRepositoryShape | undefined;
-
+export type DeploymentQueueLifecycleShape = ServiceLifecycleShape & {
     /**
-     * Typed job-queued channel: every newly claimable job is emitted here as the typed Zod shape, the single
-     * source the worker subscribes to. A deduplicated enqueue does NOT re-emit.
+     * Every newly claimable job, as the typed Zod shape: the single source the worker subscribes to. A
+     * deduplicated enqueue does NOT re-emit.
      */
-    private readonly jobQueued$ = new Subject<DeploymentQueueJob>();
-
+    readonly jobQueued$: Observable<DeploymentQueueJob>;
     /** Jobs that were cancelled; the worker subscribes to stop the one it is executing. */
-    private readonly jobCancelled$ = new Subject<DeploymentQueueJob>();
-
-    constructor(
-        private readonly databaseService: GlobalDatabaseService,
-        private readonly deploymentQueueEventService: DeploymentQueueEventService,
-        /** Unit specs inject an in-memory repository; the app builds the Postgres one lazily. */
-        @Optional() @Inject(DEPLOYMENT_QUEUE_REPOSITORY) repository?: DeploymentQueueRepositoryShape,
-    ) {
-        this.repository = repository;
-    }
-
-    private get queue(): DeploymentQueueRepositoryShape {
-        this.repository ??= makeDeploymentQueueRepository(runtimeDbOver(this.databaseService));
-        return this.repository;
-    }
-
-    onModuleInit(): void {
-        // Boot reconcile and the steady-state sweep are the same pass: release abandoned leases, then announce
-        // what is claimable (including jobs enqueued before a restart).
-        void this.sweep();
-        this.sweepTimer = setInterval(() => void this.sweep(), DeploymentQueueLifecycleService.SWEEP_INTERVAL_MS);
-    }
-
-    onModuleDestroy(): void {
-        if (this.sweepTimer) {
-            clearInterval(this.sweepTimer);
-            this.sweepTimer = null;
-        }
-        for (const [, timer] of this.retryTimers) clearTimeout(timer);
-        this.retryTimers.clear();
-    }
-
-    /** Observable of cancelled jobs, so the worker can interrupt the one it is running. */
-    onJobCancelled(): Observable<DeploymentQueueJob> {
-        return this.jobCancelled$.asObservable();
-    }
-
-    /** Observable of newly-claimable typed jobs. */
-    onJobQueued(): Observable<DeploymentQueueJob> {
-        return this.jobQueued$.asObservable();
-    }
-
-    /** One reap and announce pass. Never throws: a database blip is retried on the next tick. */
-    async sweep(): Promise<void> {
-        try {
-            await this.reapExpiredLeases();
-            const claimable = await runPromiseUnwrapped(
-                this.queue.list({ status: "queued", limit: DeploymentQueueLifecycleService.SWEEP_BATCH, offset: 0 }),
-            );
-            const now = Date.now();
-            for (const job of claimable.items) {
-                if (new Date(job.availableAt).getTime() <= now) this.jobQueued$.next(job);
-            }
-        } catch (error) {
-            this.logger.warn(`Queue sweep failed: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    async hasLiveJobForDeployment(deploymentId: string): Promise<boolean> {
-        return runPromiseUnwrapped(this.queue.hasLiveJobForDeployment(deploymentId));
-    }
-
-    async enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult> {
-        const { job, deduplicated } = await runPromiseUnwrapped(this.queue.enqueue(input));
-        if (deduplicated) return { enqueued: true, deduplicated: true, job };
-
-        this.jobQueued$.next(job);
-        this.deploymentQueueEventService.emit(
-            "jobEnqueued",
-            { queue: "deployment" },
-            { ...this.eventFields(job), deduplicated: false, job, timestamp: job.updatedAt },
-        );
-        return { enqueued: true, deduplicated: false, job };
-    }
-
-    async claimQueueJobs(input: DeploymentQueueClaimInput): Promise<DeploymentQueueClaimResult> {
-        const claimed = await runPromiseUnwrapped(this.queue.claim(input));
-        for (const job of claimed) this.announceClaim(job);
-        return { claimed };
-    }
-
-    async claimQueueJobByIdempotencyKey(
+    readonly jobCancelled$: Observable<DeploymentQueueJob>;
+    /** One reap and announce pass. Never fails: a database blip is retried on the next tick. */
+    readonly sweep: () => Effect.Effect<void>;
+    readonly hasLiveJobForDeployment: (deploymentId: string) => Effect.Effect<boolean, DbError>;
+    readonly enqueueQueueJob: (input: DeploymentQueueEnqueueInput) => Effect.Effect<DeploymentQueueEnqueueResult, DbError>;
+    readonly claimQueueJobs: (input: DeploymentQueueClaimInput) => Effect.Effect<DeploymentQueueClaimResult, DbError>;
+    readonly claimQueueJobByIdempotencyKey: (
         idempotencyKey: string,
         input: DeploymentQueueClaimInput,
-    ): Promise<DeploymentQueueJob | null> {
-        const job = await runPromiseUnwrapped(this.queue.claimByIdempotencyKey(idempotencyKey, input));
-        if (job !== null) this.announceClaim(job);
-        return job;
-    }
-
-    async heartbeatQueueJob(
+    ) => Effect.Effect<DeploymentQueueJob | null, DbError>;
+    readonly heartbeatQueueJob: (
         jobId: string,
         input: DeploymentQueueHeartbeatInput,
-    ): Promise<DeploymentQueueHeartbeatResult | null> {
-        const job = await runPromiseUnwrapped(this.queue.heartbeat(jobId, input));
-        if (job === null) return null;
-
-        this.deploymentQueueEventService.emit(
-            "jobHeartbeat",
-            { queue: "deployment" },
-            { ...this.eventFields(job), leaseExpiresAt: job.leaseExpiresAt, timestamp: job.updatedAt },
-        );
-
-        return {
-            acknowledged: true,
-            leaseExpiresAt: job.leaseExpiresAt,
-            lastHeartbeatAt: job.lastHeartbeatAt,
-            observedConnectivityStatus: job.connectivityStatus,
-            observedAt: new Date().toISOString(),
-        };
-    }
-
-    async completeQueueJob(
+    ) => Effect.Effect<DeploymentQueueHeartbeatResult | null, DbError>;
+    readonly completeQueueJob: (
         jobId: string,
         workerId: string,
         lockToken: string,
         result: Record<string, unknown> | undefined,
-    ): Promise<DeploymentQueueTransitionResult | null> {
-        const job = await runPromiseUnwrapped(this.queue.complete(jobId, workerId, lockToken, result));
-        if (job === null) return null;
-
-        this.deploymentQueueEventService.emit(
-            "jobCompleted",
-            { queue: "deployment" },
-            { ...this.eventFields(job), job, timestamp: job.updatedAt },
-        );
-        return { updated: true, job };
-    }
-
-    async failQueueJob(
+    ) => Effect.Effect<DeploymentQueueTransitionResult | null, DbError>;
+    readonly failQueueJob: (
         jobId: string,
         input: DeploymentQueueFailInput,
-    ): Promise<{ transition: DeploymentQueueTransitionResult; failedJob: DeploymentQueueJob; movedToDeadLetter: boolean } | null> {
-        const outcome = await runPromiseUnwrapped(this.queue.fail(jobId, input));
-        if (outcome === null) return null;
-        const { job, movedToDeadLetter, deadLetterJob } = outcome;
-
-        this.deploymentQueueEventService.emit(
-            "jobFailed",
-            { queue: "deployment" },
-            {
-                ...this.eventFields(job),
-                error: input.error,
-                movedToDeadLetter,
-                job,
-                deadLetterJob,
-                timestamp: job.updatedAt,
-            },
-        );
-        if (!movedToDeadLetter) this.scheduleRetryReEmit(job);
-
-        return { transition: { updated: true, job }, failedJob: job, movedToDeadLetter };
-    }
-
+    ) => Effect.Effect<
+        { transition: DeploymentQueueTransitionResult; failedJob: DeploymentQueueJob; movedToDeadLetter: boolean } | null,
+        DbError
+    >;
     /** Cancels a job that has not finished. Null when it is unknown or already terminal. */
-    async cancelQueueJob(jobId: string, reason: string): Promise<DeploymentQueueJob | null> {
-        const job = await runPromiseUnwrapped(this.queue.cancel(jobId, reason));
-        if (job === null) return null;
-        this.clearRetryTimer(job.id);
-        this.jobCancelled$.next(job);
-        return job;
-    }
-
+    readonly cancelQueueJob: (jobId: string, reason: string) => Effect.Effect<DeploymentQueueJob | null, DbError>;
     /** Cancels every live job of a deployment; the worker stops whichever one is executing. */
-    async cancelJobsForDeployment(deploymentId: string, reason: string): Promise<DeploymentQueueJob[]> {
-        const live = await runPromiseUnwrapped(this.queue.liveJobsForDeployment(deploymentId));
-        const cancelled: DeploymentQueueJob[] = [];
-        for (const job of live) {
-            const result = await this.cancelQueueJob(job.id, reason);
-            if (result !== null) cancelled.push(result);
-        }
-        return cancelled;
-    }
-
-    async findQueueJobById(jobId: string): Promise<DeploymentQueueJob | null> {
-        return runPromiseUnwrapped(this.queue.findById(jobId));
-    }
-
-    async listQueueJobs(input: QueueListFilters): Promise<QueueListOutput> {
-        const page = await runPromiseUnwrapped(this.queue.list(input));
-        return { items: page.items, total: page.total, hasMore: input.offset + page.items.length < page.total };
-    }
-
-    async listDeadLetterJobs(input: DeploymentDeadLetterListInput): Promise<DeploymentDeadLetterListResult> {
-        const page = await runPromiseUnwrapped(this.queue.listDeadLetters(input));
-        return { items: page.items, total: page.total, hasMore: input.offset + page.items.length < page.total };
-    }
-
-    async findDeadLetterJobById(deadLetterJobId: string): Promise<DeploymentDeadLetterJob | null> {
-        return runPromiseUnwrapped(this.queue.findDeadLetter(deadLetterJobId));
-    }
-
-    async replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): Promise<DeploymentDeadLetterReplayResult> {
-        const item = await runPromiseUnwrapped(this.queue.findDeadLetter(input.deadLetterJobId));
-        if (item === null) {
-            throw new RuntimeNotFound({ reason: `Dead-letter job '${input.deadLetterJobId}' not found` });
-        }
-
-        const payload = input.replayMode === "patched_payload" ? { ...item.payload, ...(input.payloadPatch ?? {}) } : item.payload;
-        const replayed = await runPromiseUnwrapped(
-            this.queue.replayDeadLetter(item.id, {
-                payload,
-                availableAt: input.scheduledAt,
-                metadata: {
-                    deadLetterJobId: item.id,
-                    replayMode: input.replayMode,
-                    reason: input.reason,
-                    requestedBy: input.requestedBy,
-                },
-            }),
-        );
-        if (replayed === null) {
-            throw new RuntimeNotFound({ reason: `Dead-letter job '${input.deadLetterJobId}' not found` });
-        }
-
-        this.jobQueued$.next(replayed.job);
-        this.deploymentQueueEventService.emit(
-            "deadLetterReplayed",
-            { queue: "deployment" },
-            {
-                queue: "deployment",
-                deadLetterJobId: item.id,
-                replayJobId: replayed.job.id,
-                replayCount: replayed.deadLetter.replayCount,
-                timestamp: replayed.deadLetter.lastReplayAt ?? new Date().toISOString(),
-            },
-        );
-
-        return {
-            replayed: true,
-            deadLetterJobId: item.id,
-            replayJobId: replayed.job.id,
-            replayCount: replayed.deadLetter.replayCount,
-            message: "Dead-letter job replayed successfully",
-        };
-    }
-
+    readonly cancelJobsForDeployment: (deploymentId: string, reason: string) => Effect.Effect<DeploymentQueueJob[], DbError>;
+    readonly findQueueJobById: (jobId: string) => Effect.Effect<DeploymentQueueJob | null, DbError>;
+    readonly listQueueJobs: (input: QueueListFilters) => Effect.Effect<QueueListOutput, DbError>;
+    readonly listDeadLetterJobs: (input: DeploymentDeadLetterListInput) => Effect.Effect<DeploymentDeadLetterListResult, DbError>;
+    readonly findDeadLetterJobById: (deadLetterJobId: string) => Effect.Effect<DeploymentDeadLetterJob | null, DbError>;
+    readonly replayDeadLetterJob: (
+        input: DeploymentDeadLetterReplayInput,
+    ) => Effect.Effect<DeploymentDeadLetterReplayResult, DbError | RuntimeNotFound>;
     /**
      * Returns claims whose lease expired (the worker died without heartbeating) to the claimable pool.
      * `attempts` are untouched: an interrupted execution is not a failure.
      */
-    async reapExpiredLeases(now: Date = new Date()): Promise<number> {
-        const released = await runPromiseUnwrapped(this.queue.reapExpiredLeases(now));
-        for (const job of released) {
-            this.deploymentQueueEventService.emit(
-                "jobFailed",
+    readonly reapExpiredLeases: (now?: Date) => Effect.Effect<number, DbError>;
+};
+
+export class DeploymentQueueLifecycle extends Context.Service<DeploymentQueueLifecycle, DeploymentQueueLifecycleShape>()(
+    "runtime/DeploymentQueueLifecycle",
+) {}
+
+export type DeploymentQueueLifecyclePorts = {
+    /** The durable store; specs hand in the in-memory one. */
+    readonly repository: DeploymentQueueRepositoryShape;
+    /** The typed event bus the transitions are announced on. */
+    readonly events: Pick<DeploymentQueueEventService, "emit">;
+};
+
+/** Builds the lifecycle over its ports; the Rx channels and the retry fibers live in this closure. */
+export function makeDeploymentQueueLifecycle({ repository: queue, events }: DeploymentQueueLifecyclePorts): DeploymentQueueLifecycleShape {
+    const jobQueued$ = new Subject<DeploymentQueueJob>();
+    const jobCancelled$ = new Subject<DeploymentQueueJob>();
+    /** One fiber per re-queued job, waiting for the moment it becomes claimable again. */
+    const retryFibers = new Map<string, Fiber.Fiber<void>>();
+
+    const eventFields = (job: DeploymentQueueJob) => ({
+        jobId: job.id,
+        workerId: job.workerId,
+        jobType: job.type,
+        status: job.status,
+        deploymentId: job.payload.deploymentId,
+        serviceId: job.payload.serviceId,
+        projectId: job.payload.projectId,
+    });
+
+    const announceClaim = (job: DeploymentQueueJob) =>
+        Effect.sync(() =>
+            events.emit(
+                "jobClaimed",
                 { queue: "deployment" },
-                {
-                    ...this.eventFields(job),
-                    error: "Execution lease expired — worker lost; job released for re-execution",
-                    movedToDeadLetter: false,
-                    job,
-                    deadLetterJob: null,
-                    timestamp: job.updatedAt,
-                },
-            );
-                this.scheduleRetryReEmit(job);
-        }
-        return released.length;
-    }
-
-    private announceClaim(job: DeploymentQueueJob): void {
-        this.deploymentQueueEventService.emit(
-            "jobClaimed",
-            { queue: "deployment" },
-            { ...this.eventFields(job), claimedCount: 1, job, timestamp: job.updatedAt },
+                { ...eventFields(job), claimedCount: 1, job, timestamp: job.updatedAt },
+            ),
         );
-    }
 
-    private eventFields(job: DeploymentQueueJob) {
-        return {
-            jobId: job.id,
-            workerId: job.workerId,
-            jobType: job.type,
-            status: job.status,
-            deploymentId: job.payload.deploymentId,
-            serviceId: job.payload.serviceId,
-            projectId: job.payload.projectId,
-        };
-    }
+    const clearRetry = (jobId: string) =>
+        Effect.suspend(() => {
+            const existing = retryFibers.get(jobId);
+            retryFibers.delete(jobId);
+            return existing ? Fiber.interrupt(existing) : Effect.void;
+        });
 
-    private clearRetryTimer(jobId: string): void {
-        const existing = this.retryTimers.get(jobId);
-        if (existing) {
-            clearTimeout(existing);
-            this.retryTimers.delete(jobId);
-        }
-    }
+    const findQueueJobById: DeploymentQueueLifecycleShape["findQueueJobById"] = (jobId) => queue.findById(jobId);
 
     /** Re-announces a re-queued job at the moment it becomes claimable (the sweep covers a restart). */
-    private scheduleRetryReEmit(retryJob: DeploymentQueueJob): void {
-        this.clearRetryTimer(retryJob.id);
-        const delayMs = Math.max(0, new Date(retryJob.availableAt).getTime() - Date.now());
-        const timer = setTimeout(() => {
-            this.retryTimers.delete(retryJob.id);
-            void this.findQueueJobById(retryJob.id)
-                .then((current) => {
-                    if (current?.status === "queued" && current.attempts === retryJob.attempts) this.jobQueued$.next(current);
-                })
-                .catch(() => undefined);
-        }, delayMs);
-        this.retryTimers.set(retryJob.id, timer);
-    }
+    const scheduleRetryReEmit = (retryJob: DeploymentQueueJob) =>
+        Effect.gen(function* () {
+            yield* clearRetry(retryJob.id);
+            const delayMs = Math.max(0, new Date(retryJob.availableAt).getTime() - Date.now());
+            const fiber = yield* Effect.sleep(delayMs).pipe(
+                Effect.andThen(findQueueJobById(retryJob.id)),
+                Effect.tap((current) =>
+                    Effect.sync(() => {
+                        if (current?.status === "queued" && current.attempts === retryJob.attempts) jobQueued$.next(current);
+                    }),
+                ),
+                Effect.ignore,
+                Effect.forkDetach,
+            );
+            retryFibers.set(retryJob.id, fiber);
+            fiber.addObserver(() => {
+                if (retryFibers.get(retryJob.id) === fiber) retryFibers.delete(retryJob.id);
+            });
+        });
 
+    const reapExpiredLeases: DeploymentQueueLifecycleShape["reapExpiredLeases"] = (now = new Date()) =>
+        Effect.gen(function* () {
+            const released = yield* queue.reapExpiredLeases(now);
+            for (const job of released) {
+                events.emit(
+                    "jobFailed",
+                    { queue: "deployment" },
+                    {
+                        ...eventFields(job),
+                        error: "Execution lease expired — worker lost; job released for re-execution",
+                        movedToDeadLetter: false,
+                        job,
+                        deadLetterJob: null,
+                        timestamp: job.updatedAt,
+                    },
+                );
+                yield* scheduleRetryReEmit(job);
+            }
+            return released.length;
+        });
+
+    const sweep: DeploymentQueueLifecycleShape["sweep"] = () =>
+        Effect.gen(function* () {
+            yield* reapExpiredLeases();
+            const claimable = yield* queue.list({ status: "queued", limit: SWEEP_BATCH, offset: 0 });
+            const now = Date.now();
+            for (const job of claimable.items) {
+                if (new Date(job.availableAt).getTime() <= now) jobQueued$.next(job);
+            }
+        }).pipe(
+            Effect.catchCause((cause) => Effect.logWarning(`Queue sweep failed: ${Cause.pretty(cause)}`)),
+        );
+
+    const cancelQueueJob: DeploymentQueueLifecycleShape["cancelQueueJob"] = (jobId, reason) =>
+        Effect.gen(function* () {
+            const job = yield* queue.cancel(jobId, reason);
+            if (job === null) return null;
+            yield* clearRetry(job.id);
+            jobCancelled$.next(job);
+            return job;
+        });
+
+    return {
+        jobQueued$: jobQueued$.asObservable(),
+        jobCancelled$: jobCancelled$.asObservable(),
+
+        // Boot reconcile and the steady-state sweep are the same pass: release abandoned leases, then announce
+        // what is claimable (including jobs enqueued before a restart).
+        run: () => sweep().pipe(Effect.repeat(Schedule.spaced(SWEEP_INTERVAL)), Effect.asVoid),
+        onStop: () =>
+            Effect.suspend(() => {
+                const pending = [...retryFibers.values()];
+                retryFibers.clear();
+                return Fiber.interruptAll(pending);
+            }),
+
+        sweep,
+        hasLiveJobForDeployment: (deploymentId) => queue.hasLiveJobForDeployment(deploymentId),
+
+        enqueueQueueJob: (input) =>
+            Effect.gen(function* () {
+                const { job, deduplicated } = yield* queue.enqueue(input);
+                if (deduplicated) return { enqueued: true, deduplicated: true, job };
+
+                jobQueued$.next(job);
+                events.emit(
+                    "jobEnqueued",
+                    { queue: "deployment" },
+                    { ...eventFields(job), deduplicated: false, job, timestamp: job.updatedAt },
+                );
+                return { enqueued: true, deduplicated: false, job };
+            }),
+
+        claimQueueJobs: (input) =>
+            Effect.gen(function* () {
+                const claimed = yield* queue.claim(input);
+                for (const job of claimed) yield* announceClaim(job);
+                return { claimed };
+            }),
+
+        claimQueueJobByIdempotencyKey: (idempotencyKey, input) =>
+            Effect.gen(function* () {
+                const job = yield* queue.claimByIdempotencyKey(idempotencyKey, input);
+                if (job !== null) yield* announceClaim(job);
+                return job;
+            }),
+
+        heartbeatQueueJob: (jobId, input) =>
+            Effect.gen(function* () {
+                const job = yield* queue.heartbeat(jobId, input);
+                if (job === null) return null;
+
+                events.emit(
+                    "jobHeartbeat",
+                    { queue: "deployment" },
+                    { ...eventFields(job), leaseExpiresAt: job.leaseExpiresAt, timestamp: job.updatedAt },
+                );
+
+                return {
+                    acknowledged: true as const,
+                    leaseExpiresAt: job.leaseExpiresAt,
+                    lastHeartbeatAt: job.lastHeartbeatAt,
+                    observedConnectivityStatus: job.connectivityStatus,
+                    observedAt: new Date().toISOString(),
+                };
+            }),
+
+        completeQueueJob: (jobId, workerId, lockToken, result) =>
+            Effect.gen(function* () {
+                const job = yield* queue.complete(jobId, workerId, lockToken, result);
+                if (job === null) return null;
+
+                events.emit(
+                    "jobCompleted",
+                    { queue: "deployment" },
+                    { ...eventFields(job), job, timestamp: job.updatedAt },
+                );
+                return { updated: true as const, job };
+            }),
+
+        failQueueJob: (jobId, input) =>
+            Effect.gen(function* () {
+                const outcome = yield* queue.fail(jobId, input);
+                if (outcome === null) return null;
+                const { job, movedToDeadLetter, deadLetterJob } = outcome;
+
+                events.emit(
+                    "jobFailed",
+                    { queue: "deployment" },
+                    {
+                        ...eventFields(job),
+                        error: input.error,
+                        movedToDeadLetter,
+                        job,
+                        deadLetterJob,
+                        timestamp: job.updatedAt,
+                    },
+                );
+                if (!movedToDeadLetter) yield* scheduleRetryReEmit(job);
+
+                return { transition: { updated: true as const, job }, failedJob: job, movedToDeadLetter };
+            }),
+
+        cancelQueueJob,
+
+        cancelJobsForDeployment: (deploymentId, reason) =>
+            Effect.gen(function* () {
+                const live = yield* queue.liveJobsForDeployment(deploymentId);
+                const cancelled: DeploymentQueueJob[] = [];
+                for (const job of live) {
+                    const result = yield* cancelQueueJob(job.id, reason);
+                    if (result !== null) cancelled.push(result);
+                }
+                return cancelled;
+            }),
+
+        findQueueJobById,
+
+        listQueueJobs: (input) =>
+            Effect.map(queue.list(input), (page) => ({
+                items: page.items,
+                total: page.total,
+                hasMore: input.offset + page.items.length < page.total,
+            })),
+
+        listDeadLetterJobs: (input) =>
+            Effect.map(queue.listDeadLetters(input), (page) => ({
+                items: page.items,
+                total: page.total,
+                hasMore: input.offset + page.items.length < page.total,
+            })),
+
+        findDeadLetterJobById: (deadLetterJobId) => queue.findDeadLetter(deadLetterJobId),
+
+        replayDeadLetterJob: (input) =>
+            Effect.gen(function* () {
+                const item = yield* queue.findDeadLetter(input.deadLetterJobId);
+                if (item === null) {
+                    return yield* new RuntimeNotFound({ reason: `Dead-letter job '${input.deadLetterJobId}' not found` });
+                }
+
+                const payload =
+                    input.replayMode === "patched_payload" ? { ...item.payload, ...(input.payloadPatch ?? {}) } : item.payload;
+                const replayed = yield* queue.replayDeadLetter(item.id, {
+                    payload,
+                    availableAt: input.scheduledAt,
+                    metadata: {
+                        deadLetterJobId: item.id,
+                        replayMode: input.replayMode,
+                        reason: input.reason,
+                        requestedBy: input.requestedBy,
+                    },
+                });
+                if (replayed === null) {
+                    return yield* new RuntimeNotFound({ reason: `Dead-letter job '${input.deadLetterJobId}' not found` });
+                }
+
+                jobQueued$.next(replayed.job);
+                events.emit(
+                    "deadLetterReplayed",
+                    { queue: "deployment" },
+                    {
+                        queue: "deployment",
+                        deadLetterJobId: item.id,
+                        replayJobId: replayed.job.id,
+                        replayCount: replayed.deadLetter.replayCount,
+                        timestamp: replayed.deadLetter.lastReplayAt ?? new Date().toISOString(),
+                    },
+                );
+
+                return {
+                    replayed: true as const,
+                    deadLetterJobId: item.id,
+                    replayJobId: replayed.job.id,
+                    replayCount: replayed.deadLetter.replayCount,
+                    message: "Dead-letter job replayed successfully",
+                };
+            }),
+
+        reapExpiredLeases,
+    };
 }

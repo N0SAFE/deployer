@@ -6,7 +6,6 @@ import { userContract } from '@deployer/identity-contracts'
 import { procedure } from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-import { serve, serveAnonymous } from '@identity/core/orpc/serve'
 
 import { UserService } from '../services/user.service'
 
@@ -18,7 +17,7 @@ import type { UserPatch } from '../domain/user.types'
  * The user domain's oRPC surface.
  *
  * Every method binds a contract procedure, takes the actor from the context and
- * delegates to `UserService`, resolved from `effect/context`, through `serve`, which provides
+ * delegates to `UserService`, resolved from `effect/context`, through the `.effect()` boundary, which provides
  * the actor and maps failures to the errors the contract declares.
  */
 @Controller()
@@ -27,19 +26,19 @@ export class UserController {
     list() {
         return procedure(userContract.list)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
 
                 const limit = input.query.limit
                 const offset = input.query.offset
 
-                const page = yield* serve(context)(users.list({
+                const page = yield* users.list({
                         limit,
                         offset,
                         sortField: readSortField(input.query.sortBy),
                         sortDirection: input.query.sortDirection ?? 'desc',
                         filter: readFilter(input.query.filter),
-                    }))
+                    })
 
                 return {
                     data: page.data,
@@ -57,9 +56,9 @@ export class UserController {
     findById() {
         return procedure(userContract.findById)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                return yield* serve(context)(users.findById(input.params.id))
+                return yield* users.findById(input.params.id)
             })
     }
 
@@ -68,9 +67,9 @@ export class UserController {
     deleteSelf() {
         return procedure(userContract.deleteSelf)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const users = yield* UserService
-                yield* serve(context)(users.deleteSelf())
+                yield* users.deleteSelf()
                 return { deleted: true as const }
             })
     }
@@ -85,9 +84,9 @@ export class UserController {
     exportSelf() {
         return procedure(userContract.exportSelf)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const users = yield* UserService
-                return yield* serve(context)(users.exportSelf())
+                return yield* users.exportSelf()
             })
     }
 
@@ -96,9 +95,9 @@ export class UserController {
     listSessions() {
         return procedure(userContract.listSessions)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                const data = yield* serve(context)(users.listSessions(input.params.id))
+                const data = yield* users.listSessions(input.params.id)
                 return { data }
             })
     }
@@ -108,9 +107,9 @@ export class UserController {
     revokeSession() {
         return procedure(userContract.revokeSession)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                yield* serve(context)(users.revokeSession(input.params.id, input.params.sessionId))
+                yield* users.revokeSession(input.params.id, input.params.sessionId)
                 return { revoked: true as const }
             })
     }
@@ -120,9 +119,9 @@ export class UserController {
     setPassword() {
         return procedure(userContract.setPassword)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                yield* serve(context)(users.setPassword(input.params.id, input.body.password))
+                yield* users.setPassword(input.params.id, input.body.password)
                 return { updated: true as const }
             })
     }
@@ -131,14 +130,14 @@ export class UserController {
     create() {
         return procedure(userContract.create)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
 
-                const created = yield* serve(context)(users.create({
+                const created = yield* users.create({
                         name: input.name,
                         email: input.email,
                         image: input.image ?? null,
-                    }))
+                    })
 
                 return { status: 201 as const, headers: {}, body: created }
             })
@@ -148,7 +147,7 @@ export class UserController {
     update() {
         return procedure(userContract.update)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
                 const { id, ...rest } = input
 
@@ -164,7 +163,7 @@ export class UserController {
                         : { banned: rest.banned }),
                 }
 
-                return yield* serve(context)(users.update(id, patch, rest))
+                return yield* users.update(id, patch, rest)
             })
     }
 
@@ -172,9 +171,9 @@ export class UserController {
     delete() {
         return procedure(userContract.delete)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                yield* serve(context)(users.delete(input.params.id))
+                yield* users.delete(input.params.id)
 
                 return { success: true, message: undefined }
             })
@@ -184,9 +183,9 @@ export class UserController {
     setRole() {
         return procedure(userContract.setRole)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                const updated = yield* serve(context)(users.setRole(input.params.id, input.body.role))
+                const updated = yield* users.setRole(input.params.id, input.body.role)
                 return updated
             })
     }
@@ -195,9 +194,9 @@ export class UserController {
     setBanned() {
         return procedure(userContract.setBanned)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                return yield* serve(context)(users.setBanned(input.params.id, input.body.banned))
+                return yield* users.setBanned(input.params.id, input.body.banned)
             })
     }
 
@@ -205,9 +204,9 @@ export class UserController {
     revokeSessions() {
         return procedure(userContract.revokeSessions)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                yield* serve(context)(users.revokeSessions(input.params.id))
+                yield* users.revokeSessions(input.params.id)
                 return { revoked: true as const }
             })
     }
@@ -216,9 +215,9 @@ export class UserController {
     @Implement(userContract.checkEmail)
     checkEmail() {
         return procedure(userContract.checkEmail)
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
-                const exists = yield* serveAnonymous(context)(users.checkEmail(input.email))
+                const exists = yield* users.checkEmail(input.email)
                 return { exists }
             })
     }
@@ -227,7 +226,7 @@ export class UserController {
     count() {
         return procedure(userContract.count)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const users = yield* UserService
 
                 const query: unknown = input.query
@@ -238,7 +237,7 @@ export class UserController {
                         ? (query as { filter?: unknown }).filter
                         : undefined
 
-                const count = yield* serve(context)(users.count(readFilter(filter)))
+                const count = yield* users.count(readFilter(filter))
                 return { count }
             })
     }

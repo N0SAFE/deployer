@@ -1,10 +1,10 @@
 import { Context } from "effect";
 
-import type { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
+import type { CoreEventSyncServiceShape } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
 
 /** Effect view of the cross-service event sync. */
 export type CoreEventSyncShape = Pick<
-	CoreEventSyncService,
+	CoreEventSyncServiceShape,
 	"registerNamespaceAdapter" | "selectMany"
 >;
 

@@ -1,18 +1,15 @@
 import { ConfigService } from '@nestjs/config';
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 
-import { createBetterAuth } from '@/config/auth/auth';
 import { EnvModule } from "@/config/env/env.module";
-import { EnvService } from "@/config/env/env.module";
 import { AuthModule } from '@/core/modules/auth/auth.module';
-import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
+import { AuthCoreService, type AuthCoreServiceShape } from '@/core/modules/auth/services/auth-core.service';
 import { DatabaseModule } from "@/core/modules/database/database.module";
-import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@/core/modules/database/global/global-database.service';
 import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
-import { MigrationJournalService } from '@/core/utils/migration-journal.service';
+import { MigrationJournalService, makeMigrationJournalService } from '@/core/utils/migration-journal.service';
 
 import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
 import { MigrateCommand } from './commands/migrate.command';
@@ -49,20 +46,14 @@ export class CLIModule extends createModuleContext({
     // CLI runs as its OWN Nest context, so the node-state owner is imported
     // explicitly (one declaration per repository — SC8 guard).
     NodeStateModule,
-    AuthModule.forRootAsync({
-      imports: [EnvModule],
-      useFactory: createBetterAuth,
-      inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
-      disableBodyParser: true,
-      disableTrustedOriginsCors: true,
-    }),
+    AuthModule,
   ],
   providers: [
     // ── CLI Commands ────────────────────────────────────────────────────
     // A plain class over its collaborators (the CLI has no request and nothing to scope): the module builds it.
     {
       provide: CliAuthService,
-      useFactory: (database: GlobalDatabaseService, auth: AuthCoreService, config: ConfigService) =>
+      useFactory: (database: GlobalDatabaseServiceShape, auth: AuthCoreServiceShape, config: ConfigService) =>
         new CliAuthService(database, auth, config),
       inject: [GlobalDatabaseService, AuthCoreService, ConfigService],
     },
@@ -73,6 +64,6 @@ export class CLIModule extends createModuleContext({
     CreateDefaultAdminCommand,
     NodeStartupCheckCommand,
     ResealSecretsCommand,
-    MigrationJournalService,
+    { provide: MigrationJournalService, useFactory: () => makeMigrationJournalService() },
   ],
 }) {}

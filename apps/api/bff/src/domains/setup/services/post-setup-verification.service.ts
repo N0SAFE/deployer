@@ -1,6 +1,6 @@
 import { request as httpRequest } from "node:http";
 
-import { Context, Effect } from "effect";
+import { Cause, Context, Effect } from "effect";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
 
@@ -12,7 +12,7 @@ import { SetupEnvPort, SetupHostnamePort, SetupPlatformConfigPort, SetupTranspor
 import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities";
 import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 /** One answer from an ingress for one request, before it is judged. */
 export type IngressAnswer = {
@@ -96,7 +96,7 @@ export type PostSetupVerificationPorts = SetupEnvPort | SetupHostnamePort | Setu
 type Ports = {
 	readonly env: EnvService;
 	readonly hostnames: HostnameService;
-	readonly platformConfig: PlatformConfigService;
+	readonly platformConfig: PlatformConfigServiceShape;
 	readonly transport: IngressTransport;
 };
 
@@ -107,11 +107,14 @@ export type PostSetupVerificationServiceShape = {
 
 export function makePostSetupVerificationService({ env, hostnames, platformConfig, transport }: Ports): PostSetupVerificationServiceShape {
 	/** The dashboard's browser-facing origin: an operator-set origin wins over the generated hostname. */
-	const webOrigin = async (): Promise<string> => {
-		const configured = (await platformConfig.getManagedWebOrigin().catch(() => null))?.trim() ?? "";
-		if (configured.length === 0) return hostnames.webOrigin();
-		return /^https?:\/\//i.test(configured) ? configured : `http://${configured}`;
-	};
+	const webOrigin = platformConfig.getManagedWebOrigin().pipe(
+		Effect.catchCause(() => Effect.succeed(null)),
+		Effect.map((origin) => {
+			const configured = origin?.trim() ?? "";
+			if (configured.length === 0) return hostnames.webOrigin();
+			return /^https?:\/\//i.test(configured) ? configured : `http://${configured}`;
+		}),
+	);
 
 	/** Ingress addresses to try: the platform's swarm service, then a compose-managed one. */
 	const ingressAddresses = (): { address: string; port: number }[] => {
@@ -171,11 +174,10 @@ export function makePostSetupVerificationService({ env, hostnames, platformConfi
 	return {
 		verify: () =>
 			Effect.gen(function* () {
-				const webExpected = yield* Effect.tryPromise({
-					try: () => platformConfig.isManagedWebAppEnabled(),
-					catch: (cause) => new ManagedWebFlagUnreadable({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
-				});
-				const web = webExpected ? yield* Effect.promise(webOrigin) : null;
+				const webExpected = yield* platformConfig.isManagedWebAppEnabled().pipe(
+					Effect.catchCause((cause) => Effect.fail(new ManagedWebFlagUnreadable({ reason: Cause.pretty(cause), cause }))),
+				);
+				const web = webExpected ? yield* webOrigin : null;
 
 				const [apiTarget, webTarget] = yield* Effect.all(
 					[

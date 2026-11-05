@@ -5,7 +5,6 @@ import { stepUpStatusContract } from "@deployer/identity-contracts";
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@identity/core/orpc/serve";
 
 import { StepUpService } from "../step-up.service";
 
@@ -16,9 +15,9 @@ export class StepUpController {
 	status() {
 		return procedure(stepUpStatusContract)
 			.use(requireAuth())
-			.effect(function* ({ context }) {
+			.effect(function* () {
 				const stepUp = yield* StepUpService;
-				return yield* serve(context)(stepUp.status());
+				return yield* stepUp.status();
 			});
 	}
 }

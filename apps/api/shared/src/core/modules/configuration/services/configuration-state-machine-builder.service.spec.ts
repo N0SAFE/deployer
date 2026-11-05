@@ -1,9 +1,10 @@
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { ConfigurationStateMachineBuilderService } from "./configuration-state-machine-builder.service";
+import { makeConfigurationStateMachineBuilderService } from "./configuration-state-machine-builder.service";
 
 describe("ConfigurationStateMachineBuilderService", () => {
-    const service = new ConfigurationStateMachineBuilderService();
+    const service = makeConfigurationStateMachineBuilderService();
 
     it("builds typed state-machine definitions with dependencies, transitions, and rules", () => {
         const machine = service
@@ -39,7 +40,7 @@ describe("ConfigurationStateMachineBuilderService", () => {
                     },
                 },
             })
-            .build();
+            .build().pipe(Effect.runSync);
 
         expect(machine.nodes).toHaveLength(1);
         expect(machine.transitions).toHaveLength(1);
@@ -82,7 +83,7 @@ describe("ConfigurationStateMachineBuilderService", () => {
                 envPolicyValid: true,
             })
             .done()
-            .build();
+            .build().pipe(Effect.runSync);
 
         expect(machine.nodes).toHaveLength(1);
         expect(machine.nodes[0]?.dependsOnScopes).toEqual(["project"]);
@@ -90,5 +91,12 @@ describe("ConfigurationStateMachineBuilderService", () => {
         expect(machine.dispatch.rules[0]?.id).toBe("prod-guard");
         expect(machine.dispatch.rules[0]?.priority).toBe(200);
         expect(machine.dispatch.rules[0]?.when.scopeIn).toEqual(["service"]);
+    });
+
+    it("fails with every violation named when the definition breaks the schema", () => {
+        const failure = Effect.runSync(
+            Effect.flip(service.create().defineNode({ scope: "nope" } as never).build()),
+        );
+        expect(failure._tag).toBe("RuntimeConfigurationStateMachineInvalid");
     });
 });

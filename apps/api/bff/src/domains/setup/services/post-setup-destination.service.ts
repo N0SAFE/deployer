@@ -1,4 +1,4 @@
-import { Context, Effect } from "effect";
+import { Cause, Context, Effect } from "effect";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
 import type { SetupPostSetupDestination } from "@deployer/contracts-entities";
@@ -6,11 +6,11 @@ import type { SetupPostSetupDestination } from "@deployer/contracts-entities";
 import { SetupHostnamePort, SetupPlatformConfigPort } from "../setup.ports";
 
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 type Ports = {
   readonly hostnameService: HostnameService;
-  readonly platformConfig: PlatformConfigService;
+  readonly platformConfig: PlatformConfigServiceShape;
 };
 
 /** What the destination reads from the Effect context while it runs. */
@@ -65,22 +65,22 @@ export function makePostSetupDestinationService({ hostnameService, platformConfi
   // The flag lives in the global DB, which is provisioned DURING setup. A read can legitimately fail if this is called
   // before that finished — the console page is the safe answer, and it is the page that lets the operator turn a
   // dashboard on.
-  const readManagedWebEnabled = Effect.tryPromise(() => platformConfig.isManagedWebAppEnabled()).pipe(
-    Effect.catch((error) =>
-      Effect.logWarning(`Could not read the managed-web flag (${String(error.cause)}) — directing to the API console`).pipe(
+  const readManagedWebEnabled = platformConfig.isManagedWebAppEnabled().pipe(
+    Effect.catchCause((cause) =>
+      Effect.logWarning(`Could not read the managed-web flag (${Cause.pretty(cause)}) — directing to the API console`).pipe(
         Effect.as(false),
       ),
     ),
   );
 
-  const readManagedWebOrigin = Effect.tryPromise(() => platformConfig.getManagedWebOrigin()).pipe(
+  const readManagedWebOrigin = platformConfig.getManagedWebOrigin().pipe(
     Effect.map((origin) => {
       if (origin === null || origin.trim().length === 0) return null;
       // `getManagedWebOrigin` stores a bare host (scheme stripped when set), so
       // it must be given one back before it can be navigated to.
       return /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
     }),
-    Effect.catch(() => Effect.succeed(null)),
+    Effect.catchCause(() => Effect.succeed(null)),
   );
 
   return {

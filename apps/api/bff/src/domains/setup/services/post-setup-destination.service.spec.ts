@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
 import { makePostSetupDestinationService } from "./post-setup-destination.service";
 
@@ -19,9 +19,9 @@ function makeService(options: {
 	origin?: string | null;
 }) {
 	const isManagedWebAppEnabled = vi.fn(() =>
-		options.enabledThrows === true ? Promise.reject(new Error("relation does not exist")) : Promise.resolve(options.enabled ?? false),
+		options.enabledThrows === true ? Effect.die(new Error("relation does not exist")) : Effect.succeed(options.enabled ?? false),
 	);
-	const getManagedWebOrigin = vi.fn(() => Promise.resolve(options.origin ?? null));
+	const getManagedWebOrigin = vi.fn(() => Effect.succeed(options.origin ?? null));
 
 	// The ports are plain objects: each carries only the members this unit exercises, and the cast states the narrowing.
 	const shape = makePostSetupDestinationService({
@@ -29,7 +29,7 @@ function makeService(options: {
 			webOrigin: () => "http://web.deployer.localhost",
 			apiOrigin: () => "http://api.deployer.localhost",
 		} as unknown as HostnameService,
-		platformConfig: { isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigService,
+		platformConfig: { isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigServiceShape,
 	});
 	// `resolve` never fails (its error type is `never`), so the result is the value itself.
 	const service = { resolve: () => Effect.runPromise(shape.resolve()) };

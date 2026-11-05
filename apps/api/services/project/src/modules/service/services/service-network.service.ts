@@ -1,3 +1,5 @@
+import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
+import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { Logger } from "@nestjs/common";
 import { Context, Effect } from "effect";
 import z from "zod/v4";
@@ -11,12 +13,10 @@ import {
 import { type ServiceNetworkView, type ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
 
 import { ResourceNotFound, ProjectInvalid } from "@/modules/project/domain/project.errors";
-import { attempt } from "@/modules/project/project-effects";
+import { attempt, refuse } from "@/modules/project/project-effects";
 import { ProjectStore } from "@/modules/project/repositories/project.repository";
 
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
-import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
-import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
 
 import { ServiceStore } from "../repositories/service.repository";
 
@@ -80,8 +80,8 @@ function loadNetworkView(serviceId: string) {
     return Effect.gen(function* () {
         const services = yield* ServiceStore;
         const dns = yield* DnsProvider;
-        const domains = yield* ProjectDomainRepo;
-        const mappings = yield* ServiceDomainMappingLookup;
+        const domains = yield* ProjectDomainRepository;
+        const mappings = yield* ServiceDomainMappingRepository;
 
         const service = yield* services.findById(serviceId);
         if (!service) {
@@ -111,11 +111,11 @@ function loadNetworkView(serviceId: string) {
         // Registered project domains (already bound to this project) with their
         // allowed subdomains + existing service mappings — the autocomplete
         // source for this service's domain bindings.
-        const rawProjectDomains = yield* attempt(() => domains.findByProjectId(service.projectId));
+        const rawProjectDomains = yield* refuse( domains.findByProjectId(service.projectId));
         const projectDomains: ServiceNetworkView["projectDomains"] = [];
         for (const pd of rawProjectDomains) {
             const domain = pd.domain;
-            const existing = yield* attempt(() =>
+            const existing = yield* refuse(
                 mappings.findByProjectDomainAndPathWithServiceNames(pd.id, null),
             );
             projectDomains.push({

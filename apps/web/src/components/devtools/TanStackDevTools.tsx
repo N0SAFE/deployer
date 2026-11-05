@@ -11,11 +11,15 @@ import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import React, { useState } from "react";
 import z from "zod/v4";
 
+import { hasMasterTokenPlugin } from "@deployer/auth/client";
+// The provider is a Client Component and pulls `react`/`createContext`. It is NOT
+// in the `@deployer/auth/client` barrel on purpose: that barrel is also loaded by
+// `proxy.ts` (Next.js middleware), where a `createContext` dependency is a build
+// error. Import the component from its own module.
 import {
-  hasMasterTokenPlugin,
   MasterTokenProvider,
   useMasterToken,
-} from "@deployer/auth/client";
+} from "@deployer/auth/client/plugins/masterToken/components/provider";
 import { logger } from "@deployer/logger";
 import { isRecord } from "@deployer/type-guards";
 import { Button } from "@deployer/ui/components/shadcn/button";
