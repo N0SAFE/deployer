@@ -109,8 +109,9 @@ export class MeshController {
     listEventStreams() {
         return procedure(meshContract.listEventStreams)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return runPromiseUnwrapped(this.coreEventSyncService.listStreams(input.query));
+            .effect(function* ({ input }) {
+                const sync = yield* CoreEventSyncService;
+                return yield* sync.listStreams(input.query);
             });
     }
 
@@ -118,8 +119,9 @@ export class MeshController {
     findEventStreamById() {
         return procedure(meshContract.findEventStreamById)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return runPromiseUnwrapped(this.coreEventSyncService.getStreamById(input.params.id));
+            .effect(function* ({ input }) {
+                const sync = yield* CoreEventSyncService;
+                return yield* sync.getStreamById(input.params.id);
             });
     }
 

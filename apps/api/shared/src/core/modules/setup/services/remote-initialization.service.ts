@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common'
 import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
@@ -63,7 +62,6 @@ type Ports = {
 
 export function makeRemoteInitializationService(ports: Ports): RemoteInitializationServiceShape {
     const { nodeConfigRepository, envService, swarmBootstrap, swarmCluster } = ports
-    const logger = new Logger('RemoteInitializationService')
     const nodeDoor = ports.nodeDoor ?? (() => nodeDoorFromEnv(envService))
     const agentLink = ports.agentLink ?? (() => nodeAgentLink())
 

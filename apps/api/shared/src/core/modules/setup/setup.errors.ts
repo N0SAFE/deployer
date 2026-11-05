@@ -19,3 +19,8 @@ export class SetupAlreadyComplete extends domainError("SetupAlreadyComplete", "c
 export class DatabaseProbeRefused extends domainError("DatabaseProbeRefused", "validation")<{ readonly reason: string }>() {
 	override publicMessage() { return this.reason; }
 }
+
+/** The node config row setup writes to is not there (it should exist by the time a post-setup hint is dismissed). */
+export class NodeConfigNotFound extends domainError("NodeConfigNotFound", "dependency_missing")() {
+	override publicMessage() { return "Cannot dismiss hint — node config not found"; }
+}

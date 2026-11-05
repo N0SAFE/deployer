@@ -9,7 +9,7 @@
  * The HTML management console lives in PlatformConsoleController.
  */
 
-import { Controller, Inject, Logger } from "@nestjs/common";
+import { Controller, Inject } from "@nestjs/common";
 import { Effect } from "effect";
 import { Implement } from "@orpc/nest";
 
@@ -38,37 +38,37 @@ export class PlatformController {
 	) {}
 	@Implement(registerAppInstanceContract)
 	register() {
+		// Better Auth is not an Effect service: its instance is the controller's own (Nest-injected) collaborator.
+		const authCore = this.authCoreService;
 		return procedure(registerAppInstanceContract)
 			.use(rateLimit({
 				...REGISTER_RATE_LIMIT,
 				message: "Too many registration attempts — try again later",
 			}))
-			.handler(async ({ input, errors }) => {
+			.effect(function* ({ input, errors }) {
+				const appInstances = yield* AppInstanceService;
 				// Verify the account exists on THIS API — the anti-abuse boundary:
 				// only legitimate account holders can introduce web instances.
-				try {
-					await this.authCoreService.api.signInEmail({
-						body: { email: input.email, password: input.password },
-					});
-				} catch (error) {
-					// Log the underlying cause (request-id correlated) — never
-					// swallow infrastructure failures as "bad credentials".
-					const detail =
-						error instanceof Error ? error.message : String(error);
-					new Logger(PlatformController.name).error(
-						`credential verification failed: ${detail}`,
-					);
-					throw errors.UNAUTHORIZED(
-						standardErrorOptions("unauthorized", "Invalid account credentials"),
-					);
-				}
-
-				const minted = await Effect.runPromise(
-					this.appInstances.create({ label: input.instanceLabel, kind: "external" }),
+				yield* Effect.tryPromise(() =>
+					authCore.api.signInEmail({ body: { email: input.email, password: input.password } }),
+				).pipe(
+					Effect.catch((error) =>
+						// Log the underlying cause (request-id correlated) — never swallow infrastructure failures as
+						// "bad credentials".
+						Effect.logError(
+							`credential verification failed: ${error.cause instanceof Error ? error.cause.message : String(error.cause)}`,
+						).pipe(
+							Effect.andThen(
+								Effect.fail(errors.UNAUTHORIZED(standardErrorOptions("unauthorized", "Invalid account credentials"))),
+							),
+						),
+					),
 				);
 
+				const minted = yield* appInstances.create({ label: input.instanceLabel, kind: "external" });
+
 				return {
-					status: 201,
+					status: 201 as const,
 					body: {
 						instanceId: minted.instanceId,
 						appToken: minted.appToken,
@@ -96,9 +96,10 @@ export class PlatformController {
 	list() {
 		return procedure(listAppInstancesContract)
 			.use(requireAuth())
-			.handler(async () => {
-				await Effect.runPromise(this.appInstances.sweepStale());
-				const instances = await Effect.runPromise(this.appInstances.list());
+			.effect(function* () {
+				const appInstances = yield* AppInstanceService;
+				yield* appInstances.sweepStale();
+				const instances = yield* appInstances.list();
 				return {
 					instances: instances.map((row) => ({
 						id: row.id,
@@ -116,9 +117,10 @@ export class PlatformController {
 	revoke() {
 		return procedure(revokeAppInstanceContract)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
+			.effect(function* ({ input }) {
+				const appInstances = yield* AppInstanceService;
 				// Delete verbs envelope the input: body + default params.
-				return { revoked: await Effect.runPromise(this.appInstances.revoke(input.body.instanceId)) };
+				return { revoked: yield* appInstances.revoke(input.body.instanceId) };
 			});
 	}
 }

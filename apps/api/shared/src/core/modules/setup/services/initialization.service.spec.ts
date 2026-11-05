@@ -35,7 +35,7 @@ describe('InitializationService', () => {
         configuredAt: '2026-01-01T00:00:00.000Z',
         meshUrlsSnapshot: [],
         updatedAt: '2026-01-01T00:00:00.000Z',
-      }) as never);
+      }));
 
       await Effect.runPromise(service.checkConfigAndEmit());
 

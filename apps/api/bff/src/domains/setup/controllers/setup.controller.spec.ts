@@ -19,10 +19,20 @@ import { SetupController } from "./setup.controller";
 
 import type { TestingModule } from "@nestjs/testing";
 
+/** Every handler the controller registers, in order: a Promise `handler` or an Effect generator `effect`. */
+const registered: { kind: "handler" | "effect"; fn: unknown }[] = [];
+
 function createImplementMock() {
     const chainable = {
         use: vi.fn().mockReturnThis(),
-        handler: vi.fn((fn: unknown) => ({ handler: fn })),
+        handler: vi.fn((fn: unknown) => {
+            registered.push({ kind: "handler", fn });
+            return { handler: fn };
+        }),
+        effect: vi.fn((fn: unknown) => {
+            registered.push({ kind: "effect", fn });
+            return { effect: fn };
+        }),
     };
 
     return chainable;
@@ -151,13 +161,23 @@ describe("SetupController", () => {
         };
         mockInitializationService.getSetupState.mockReturnValue(Effect.succeed(mockState));
         controller.getState();
-        const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as () => Promise<unknown>;
-        expect(await handler()).toBe(mockState);
+        expect(await lastHandler()({})).toBe(mockState);
     });
 
     /** The handler the controller registered last. */
-    const lastHandler = () =>
-        implementChainable.handler.mock.calls.at(-1)?.[0] as (args: unknown) => Promise<unknown>;
+    const lastHandler = () => {
+        const last = registered.at(-1);
+        if (last === undefined) throw new Error("no handler registered");
+        if (last.kind === "handler") return last.fn as (args: unknown) => Promise<unknown>;
+        // An Effect handler: run it with the collaborators the module would provide.
+        return (args: unknown) =>
+            Effect.runPromise(
+                Effect.gen(() => (last.fn as (a: unknown) => Generator<never, unknown>)(args) as never).pipe(
+                    Effect.provideService(InitializationService, mockInitializationService as never),
+                    Effect.provideService(NodeConfigRepository, { find: vi.fn(), upsert: vi.fn() } as never),
+                ) as never,
+            );
+    };
 
     /**
      * SEC-012 / SETUP-002 — `/setup/*` is anonymous. Once the node is
