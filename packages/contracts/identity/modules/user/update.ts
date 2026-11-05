@@ -1,4 +1,3 @@
-import { access } from '@deployer/auth/authz/meta'
 import { userSchema } from '@deployer/contracts-entities'
 import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
@@ -21,5 +20,4 @@ export const userUpdateContract = userOps
         // 404 for unknown user id.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: 'user:update' }))
     .build()

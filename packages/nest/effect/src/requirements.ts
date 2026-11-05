@@ -155,7 +155,9 @@ export type RequirementProcedure<
         middleware: Middleware<
             MergedContext<TInitialContext, TInjectedContext>,
             Out,
-            any,
+            // The procedure's own input: a middleware that locates something by an input field (`accessRequired`) is
+            // refused by a procedure whose input lacks it, instead of failing at call time.
+            InferSchemaOutput<Parts<TContract>['input']>,
             any,
             any
         >
@@ -182,7 +184,10 @@ export type RequirementProcedure<
         // initial slot would make `@Implement` reject it (`ContractedRouter<T, DefaultInitialContext>`), because
         // `requireAuth()` narrows `auth` to the authenticated variant. The middleware still types the handler.
         TInitialContext,
-        TInjectedContext & Marked<ServicesOf<TYield>>,
+        // A middleware may have contributed requirements of its own (the scope plugins an access check reads): they join
+        // the handler's, in ONE marker, because two markers would intersect where requirements must union.
+        Omit<TInjectedContext, typeof Required> &
+            Marked<ServicesOf<TYield> | DeclaredIn<TInjectedContext>>,
         Parts<TContract>['input'],
         Parts<TContract>['output'],
         Parts<TContract>['error']

@@ -1,8 +1,7 @@
 import { Context } from 'effect'
 
-import type { Effect } from 'effect'
-
 import type { ScopeKind } from '@deployer/auth/authz'
+import type { Effect } from 'effect'
 
 /** A node of a lineage: a scope kind and, except for the platform, the id of the thing. */
 export type ScopeRef = { readonly kind: ScopeKind; readonly id?: string }
@@ -68,8 +67,9 @@ export type ScopeTagOf<K extends ScopeKind> = K extends 'platform'
     ? never
     : (typeof scopeTags)[Extract<K, keyof typeof scopeTags>]
 
-/** The Effect identifier a kind's plugin registers: the `R` the middleware adds to a procedure. */
-export type ScopeServiceOf<K extends ScopeKind> =
-    ScopeTagOf<K> extends Context.Service<infer Identifier, any>
-        ? Identifier
-        : never
+/** The Effect identifier a kind's plugin registers: the `R` the middleware adds to a procedure. `never` for the platform. */
+export type ScopeServiceOf<K extends ScopeKind> = [ScopeTagOf<K>] extends [never]
+    ? never
+    : ScopeTagOf<K> extends Context.Service<infer Identifier, ScopeResolverShape>
+      ? Identifier
+      : never

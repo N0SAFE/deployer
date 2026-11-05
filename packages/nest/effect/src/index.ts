@@ -52,3 +52,5 @@ export {
 } from './effect-lifecycle'
 
 export { configureBoundary, inBoundary, type BoundaryOptions } from './boundary'
+
+export * from './access'

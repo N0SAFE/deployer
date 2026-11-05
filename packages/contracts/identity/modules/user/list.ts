@@ -1,4 +1,3 @@
-import { access } from '@deployer/auth/authz/meta'
 import { userSchema } from '@deployer/contracts-entities'
 import {
     createFilterConfig,
@@ -46,7 +45,6 @@ export const userListConfigSchemas = userListConfig
 export const userListContract = userOps
     .list(userListConfig)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'user:list' }))
     .build()
 
 // Export input type helper - computed from the config

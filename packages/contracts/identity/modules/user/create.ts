@@ -1,6 +1,5 @@
 import z from 'zod/v4'
 
-import { access } from '@deployer/auth/authz/meta'
 import { userSchema } from '@deployer/contracts-entities'
 import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
@@ -24,5 +23,4 @@ export const userCreateContract = userOps
         // Email already registered (409) or invalid payload (400).
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: 'user:create' }))
     .build()

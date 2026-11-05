@@ -55,9 +55,13 @@ describe('authz gate', () => {
         const done = vi.fn((result?: unknown) => result ?? 'next')
         const gate = authzGate({ store: options.store ?? store, ...options })
         const outcome = await gate(
-            { procedure: withDeclaration(declaration), context, path: [] },
-            undefined,
-            done
+            {
+                procedure: withDeclaration(declaration),
+                context,
+                path: [],
+                next: done,
+            },
+            undefined
         )
         return { outcome, done }
     }
@@ -154,9 +158,13 @@ describe('authz gate', () => {
         })
 
         await gate(
-            { procedure: {}, context: caller('viewer'), path: [] },
-            undefined,
-            done
+            {
+                procedure: {},
+                context: caller('viewer'),
+                path: [],
+                next: done,
+            },
+            undefined
         )
 
         expect(done).toHaveBeenCalled()
@@ -212,14 +220,15 @@ describe('authz gate', () => {
             )
         ).rejects.toMatchObject({ code: 'FORBIDDEN' })
 
-        // The allowed case must not refuse; what a Promise handler returns through `call` is not the point here.
+        // The allowed case runs the handler: the gate continues the chain with `next()`. (It used to call oRPC's `done()`,
+        // which ends the chain early, so every permitted call returned `undefined` once `AUTHZ_MODE` was not `off`.)
         await expect(
             call(
                 procedure(execContract).handler(() => ({ ok: true as const })),
                 undefined,
                 { context: caller('operator') }
             )
-        ).resolves.toSatisfy(() => true)
+        ).resolves.toEqual({ ok: true })
     })
 })
 

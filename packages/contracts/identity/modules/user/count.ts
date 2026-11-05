@@ -1,4 +1,3 @@
-import { access } from '@deployer/auth/authz/meta'
 import { userSchema } from '@deployer/contracts-entities'
 import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
@@ -18,5 +17,4 @@ const userOps = standard.zod(userSchema, 'user')
 export const userCountContract = userOps
     .count()
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'user:list' }))
     .build()

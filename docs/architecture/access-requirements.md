@@ -2,7 +2,7 @@
 
 Status: **accepted design, 2026-11-05** (operator review of the proposals recorded in
 [`docs/qa/permissions/access-requirements-2026-11-05.md`](../qa/permissions/access-requirements-2026-11-05.md)).
-Nothing here is built yet except where marked *exists*. Items and phases are in
+**First slice implemented 2026-11-05** (section 12); everything else is design, except where marked *exists*. Items and phases are in
 [`PERMISSIONS-ROADMAP.md`](../audit-2026-10-25/PERMISSIONS-ROADMAP.md) (`AUTHZ-0xx`). This file supersedes the parts of
 that roadmap that put the declaration on the contract (`.access()` / `.meta(access(...))`).
 
@@ -335,3 +335,38 @@ Unverified until the spike (`AUTHZ-016`):
 - Better Auth's admin plugin driven by grants instead of `user.role`.
 - Per-request cost of the lineage walk and `.notAbove()` (needs a per-request cache; no measurement yet).
 - Cross-service scope resolution latency and its invalidation.
+
+## 12. What is implemented, and what the spike found (2026-11-05)
+
+Implemented in `packages/nest/effect/src/access/` (exported from `@deployer/nest-effect`), with type tests next to the
+behaviour tests, and used by identity's user controller (all 15 procedures; the contract declarations were removed):
+
+| Piece | State |
+|---|---|
+| `defineResource`, `Resource.can(action)` typed by the catalog, `.on(field or dotted path)`, `.as(name)`, `.orSelf()` | done |
+| `accessRequired(...)` (variadic, authenticated-first, typed `context.access`, duplicate names are a compile error), `accessSelf`, `accessPublic`, `accessDeferred` | done |
+| scope plugin tags (`ProjectScope`, `EnvironmentScope`, `ServiceScope`, `NodeScope`) and the scope plugin's contribution to the procedure's `R` | done; no `live` implementation exists yet (the project service writes them) |
+| boot audit: `auditRouter`, `auditController`, `assertAccessDeclared` (with a ledger) | done as library functions; **not yet wired into the host** |
+| `X.require(...)` in a handler, `Authorized<…>` proofs, `onEach`, `anyOf`, `.notAbove()`, `.requiring(...)`, `.loaded()` | not built |
+| removal of the `Proxy` auto-append in `procedure()` | not done: the legacy gate now defers to an access proof when one is present |
+| lint rule requiring an access middleware in every `procedure(...)` chain, with a per-app ledger | not built |
+
+Spike results (`AUTHZ-016`):
+
+- **`.on` is enforced by the type system, once `RequirementProcedure.use` carries the procedure's input.** It was typed
+  `any` there, so a middleware locating by an input field was never checked. It now is: a procedure whose input lacks the
+  field does not accept the middleware. Dotted paths (`params.id`) are typed (`NestedInput`).
+- **Authenticated-first holds with the real `requireAuth()`** (identity compiles). In a package without the
+  `DefaultInitialContext` augmentation the ordering is a compile error. *Unverified:* in services where the augmentation
+  already carries `auth`, whether placing `accessRequired` before `requireAuth()` is still refused; the boot audit and the
+  runtime `UNAUTHORIZED` are the backstops.
+- **Sequential `.use(accessRequired(...))` calls replace each other's `access` key** (oRPC merges contexts with `Omit`), so
+  several requirements are one variadic call. This is now a rule, not a preference.
+- **The requirement flow works unchanged.** A procedure's requirements are one `Marked` union of the handler's yields and the
+  middleware's scope plugins; a platform requirement contributes none (asserted with `RequiredBy`).
+- **A platform resource's id is a subject, not a scope.** `User.can('list')` takes none; `.on('params.id')` names the subject
+  `.orSelf()` compares with the caller.
+- **The catalog's own action set is the vocabulary**; the runtime also refuses a name the catalog lacks (`isPermission`).
+- **A bug in the previous gate was found and fixed.** `authzGate` continued with oRPC's `done()`, which ends the chain early
+  with no output, so with `AUTHZ_MODE` at `shadow` or `enforce` every permitted call returned `undefined` and the handler never
+  ran. It now calls `next()`, and the existing spec asserts the handler's result. It went unnoticed because the default is `off`.

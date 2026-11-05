@@ -1,6 +1,5 @@
 import { ORPCError } from '@orpc/server'
 import { Context, Effect, Layer, Ref } from 'effect'
-
 import {
     AuthzDenied,
     SYSTEM_ROLES_TABLE,
@@ -15,6 +14,15 @@ import {
     type RoleTable,
     type Scope,
 } from '@deployer/auth/authz'
+
+/** An access middleware (`accessRequired`, …) already ran: it left its proof under `context.access`. */
+function hasAccessProof(context: unknown): boolean {
+    return (
+        context !== null &&
+        typeof context === 'object' &&
+        Reflect.get(context, 'access') !== undefined
+    )
+}
 
 /**
  * Authorization, as an Effect service plus one oRPC middleware.
@@ -271,14 +279,19 @@ export function authzGate(options: AuthzOptions) {
         readonly procedure: unknown
         readonly context: unknown
         readonly path: readonly string[]
+        /**
+         * Continue the chain. NOT `done`: oRPC's third middleware argument terminates the chain early with an output, so
+         * "allowed" must call `next()` or the handler never runs and the caller gets `undefined`.
+         */
+        readonly next: () => unknown
     }
-    type MiddlewareDone = (result?: { readonly context?: unknown }) => unknown
 
     return async (
         opts: MiddlewareOptions,
-        _input: unknown,
-        done: MiddlewareDone
+        _input: unknown
     ): Promise<unknown> => {
+        // The controller declared its access with an access middleware (`accessRequired`, …): that middleware decided.
+        if (hasAccessProof(opts.context)) return opts.next()
         const declaration = accessOf(opts.procedure)
         const actor = actorOf(opts.context)
 
@@ -320,7 +333,7 @@ export function authzGate(options: AuthzOptions) {
                     undeclared: true,
                 })
             }
-            return done()
+            return opts.next()
         }
 
         // A caller acting on their own record (`DEC-AUTH-27`): authentication is the whole check. There is no permission
@@ -344,10 +357,10 @@ export function authzGate(options: AuthzOptions) {
                 enforced: options.mode === 'enforce',
                 undeclared: false,
             })
-            return done()
+            return opts.next()
         }
 
-        if (declaration.public === true) return done()
+        if (declaration.public === true) return opts.next()
 
         if (actor === null) {
             throw new ORPCError('UNAUTHORIZED', {
@@ -377,6 +390,6 @@ export function authzGate(options: AuthzOptions) {
             return refuse(declaration.permission, scope, decision.reason, false)
         }
 
-        return done()
+        return opts.next()
     }
 }

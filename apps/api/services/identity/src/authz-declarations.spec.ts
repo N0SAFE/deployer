@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import { accessOf } from '@deployer/auth/authz/meta'
 import { identityContract } from '@deployer/identity-contracts'
+import { auditController } from '@deployer/nest-effect'
+
+import { UserController } from './modules/user/controllers/user.controller'
 
 /**
  * Every procedure this service exposes declares what it requires (`SEC-062`, `SEC-064`).
@@ -33,6 +36,13 @@ const UNDECLARED = new Map<string, string>([
     ['analytics.updateReportConfig', 'reports: see analytics.generateReport'],
     ['analytics.deleteReportConfig', 'reports: see analytics.generateReport'],
 ])
+
+/**
+ * Controllers that declare access themselves (`accessRequired`, `accessSelf`, `accessPublic`), so their contracts carry no
+ * declaration. The audit calls each controller method and reads the middleware chain the host would mount. This list only
+ * grows until it covers every controller (`AUTHZ-012`); then this whole file is replaced by the boot audit.
+ */
+const converted = auditController(new UserController(), 'user')
 
 /** A mounted route: a procedure contract, not a router. */
 function isProcedure(
@@ -71,12 +81,25 @@ describe('identity authz declarations', () => {
     it('declares access on every procedure, except the named exceptions', () => {
         const undeclared = paths
             .filter((path) => !UNDECLARED.has(path))
+            .filter((path) => !converted.declared.includes(path))
             .filter(
                 (path) =>
                     declared(identityContract, path.split('.')) === undefined
             )
 
         expect(undeclared).toEqual([])
+    })
+
+    it('has every user procedure declared in its controller, with the public surface named', () => {
+        expect(converted.undeclared).toEqual([])
+        expect(converted.declared.length).toBeGreaterThanOrEqual(14)
+        expect(converted.publicSurface.map((entry) => entry.path)).toEqual([
+            'user.checkEmail',
+        ])
+        // every converted path is a real contract procedure: a rename must not strand a declaration
+        expect(
+            converted.declared.filter((path) => !paths.includes(path))
+        ).toEqual([])
     })
 
     it('keeps the exception list honest: each entry really is undeclared', () => {

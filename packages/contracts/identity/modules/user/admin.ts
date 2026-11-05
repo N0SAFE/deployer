@@ -1,6 +1,5 @@
 import z from 'zod/v4'
 
-import { access } from '@deployer/auth/authz/meta'
 import { userSchema } from '@deployer/contracts-entities'
 import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
@@ -23,7 +22,6 @@ export const userSetRoleContract = userOps
     .output(userSchema)
     .tags('User')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'user:set-role' }))
     .build()
 
 /** Ban or unban a user. Banning ends their credentials. */
@@ -38,7 +36,6 @@ export const userSetBannedContract = userOps
     .output(userSchema)
     .tags('User')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'user:ban' }))
     .build()
 
 /** End every credential (sessions and API keys) a user holds. */
@@ -49,7 +46,6 @@ export const userRevokeSessionsContract = userOps
     .output(z.object({ revoked: z.literal(true) }))
     .tags('User')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'session:delete' }))
     .build()
 
 /**
@@ -69,7 +65,6 @@ export const userSetPasswordContract = userOps
     .output(z.object({ updated: z.literal(true) }))
     .tags('User')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'user:set-password' }))
     .build()
 
 /** One session of a user, as an operator sees it: no token — that is credential material. */
@@ -90,7 +85,6 @@ export const userSessionsListContract = userOps
     .output(z.object({ data: z.array(userSessionSchema) }))
     .tags('User')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'session:list' }))
     .build()
 
 /** End ONE session (`session:revoke`), with a passkey proof — it may be the session an intruder is using. */
@@ -105,5 +99,4 @@ export const userSessionRevokeContract = userOps
     .output(z.object({ revoked: z.literal(true) }))
     .tags('User')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: 'session:revoke' }))
     .build()

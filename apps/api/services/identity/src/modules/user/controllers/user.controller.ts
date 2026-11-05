@@ -2,9 +2,15 @@ import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 
 import { userContract } from '@deployer/identity-contracts'
-import { procedure } from '@deployer/nest-effect'
+import {
+    accessPublic,
+    accessRequired,
+    accessSelf,
+    procedure,
+} from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
+import { Session, User } from '../access/user.resource'
 import { UserService } from '../services/user.service'
 
 import { readFilter, readSortField } from './user.filters'
@@ -24,6 +30,7 @@ export class UserController {
     list() {
         return procedure(userContract.list)
             .use(requireAuth())
+            .use(accessRequired(User.can('list')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
 
@@ -54,6 +61,7 @@ export class UserController {
     findById() {
         return procedure(userContract.findById)
             .use(requireAuth())
+            .use(accessRequired(User.can('get').on('params.id')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 return yield* users.findById(input.params.id)
@@ -65,6 +73,7 @@ export class UserController {
     deleteSelf() {
         return procedure(userContract.deleteSelf)
             .use(requireAuth())
+            .use(accessSelf('the caller deletes their own account (last-superAdmin guard in the service)'))
             .effect(function* () {
                 const users = yield* UserService
                 yield* users.deleteSelf()
@@ -82,6 +91,7 @@ export class UserController {
     exportSelf() {
         return procedure(userContract.exportSelf)
             .use(requireAuth())
+            .use(accessSelf('the caller exports their own account'))
             .effect(function* () {
                 const users = yield* UserService
                 return yield* users.exportSelf()
@@ -93,6 +103,7 @@ export class UserController {
     listSessions() {
         return procedure(userContract.listSessions)
             .use(requireAuth())
+            .use(accessRequired(Session.can('list')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 const data = yield* users.listSessions(input.params.id)
@@ -105,6 +116,7 @@ export class UserController {
     revokeSession() {
         return procedure(userContract.revokeSession)
             .use(requireAuth())
+            .use(accessRequired(Session.can('revoke')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 yield* users.revokeSession(
@@ -120,6 +132,7 @@ export class UserController {
     setPassword() {
         return procedure(userContract.setPassword)
             .use(requireAuth())
+            .use(accessRequired(User.can('set-password')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 yield* users.setPassword(input.params.id, input.body.password)
@@ -131,6 +144,7 @@ export class UserController {
     create() {
         return procedure(userContract.create)
             .use(requireAuth())
+            .use(accessRequired(User.can('create')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
 
@@ -148,6 +162,7 @@ export class UserController {
     update() {
         return procedure(userContract.update)
             .use(requireAuth())
+            .use(accessRequired(User.can('update')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 const { id, ...rest } = input
@@ -172,6 +187,7 @@ export class UserController {
     delete() {
         return procedure(userContract.delete)
             .use(requireAuth())
+            .use(accessRequired(User.can('delete')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 yield* users.delete(input.params.id)
@@ -184,6 +200,7 @@ export class UserController {
     setRole() {
         return procedure(userContract.setRole)
             .use(requireAuth())
+            .use(accessRequired(User.can('set-role')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 const updated = yield* users.setRole(
@@ -198,6 +215,7 @@ export class UserController {
     setBanned() {
         return procedure(userContract.setBanned)
             .use(requireAuth())
+            .use(accessRequired(User.can('ban')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 return yield* users.setBanned(
@@ -211,6 +229,7 @@ export class UserController {
     revokeSessions() {
         return procedure(userContract.revokeSessions)
             .use(requireAuth())
+            .use(accessRequired(Session.can('delete')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
                 yield* users.revokeSessions(input.params.id)
@@ -221,17 +240,24 @@ export class UserController {
     /** Public by design: the signup form's "is this address taken" probe. */
     @Implement(userContract.checkEmail)
     checkEmail() {
-        return procedure(userContract.checkEmail).effect(function* ({ input }) {
-            const users = yield* UserService
-            const exists = yield* users.checkEmail(input.email)
-            return { exists }
-        })
+        return procedure(userContract.checkEmail)
+            .use(
+                accessPublic(
+                    'pre-signup email availability probe: anonymous and rate-limited'
+                )
+            )
+            .effect(function* ({ input }) {
+                const users = yield* UserService
+                const exists = yield* users.checkEmail(input.email)
+                return { exists }
+            })
     }
 
     @Implement(userContract.count)
     count() {
         return procedure(userContract.count)
             .use(requireAuth())
+            .use(accessRequired(User.can('list')))
             .effect(function* ({ input }) {
                 const users = yield* UserService
 

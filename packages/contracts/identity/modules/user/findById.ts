@@ -1,4 +1,3 @@
-import { access } from '@deployer/auth/authz/meta'
 import { userSchema } from '@deployer/contracts-entities'
 import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
@@ -13,7 +12,6 @@ export const userFindByIdContract = userOps
         // 404 for unknown user id.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: 'user:get' }))
     .build()
 
 // type i = typeof userFindByIdContract['~orpc']["inputSchema"];
