@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
 import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@deployer/contracts-entities";
 import { runSyncUnwrapped } from "@deployer/effect-core";
@@ -44,11 +45,10 @@ import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
  *
  * What must NOT be duplicated is the provisioning flow, and it is not.
  */
-@Injectable()
-export class WizardStateService {
-  private readonly logger = new Logger(WizardStateService.name);
+export class WizardStateServiceImpl {
+  private readonly logger = new Logger("WizardStateService");
 
-  constructor(@Inject(NODE_CONFIG_READER) private readonly nodeConfig: NodeConfigReader) {}
+  constructor(private readonly nodeConfig: NodeConfigReader) {}
 
   /**
    * Whether this node has a COMPLETED platform.
@@ -152,3 +152,9 @@ export class WizardStateService {
       : "not configured — the wizard will collect the details";
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`WizardStateService["Service"]` is its type). */
+export class WizardStateService extends Context.Service<WizardStateService, WizardStateServiceImpl>()("setup/WizardStateService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeWizardStateService = (...args: ConstructorParameters<typeof WizardStateServiceImpl>): WizardStateServiceImpl => new WizardStateServiceImpl(...args);

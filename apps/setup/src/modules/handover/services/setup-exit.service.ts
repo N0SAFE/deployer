@@ -1,7 +1,8 @@
-import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import { Subject, Subscription, firstValueFrom, takeUntil } from "rxjs";
 
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import type { SetupPhaseService } from "@/modules/health/setup-phase.service";
 
 /**
  * Decides WHEN the setup app is finished and may stop.
@@ -26,9 +27,8 @@ import { SetupPhaseService } from "@/modules/health/setup-phase.service";
  * Exiting on failure would leave a dead container and no surface to retry from —
  * and the healthcheck would never turn green, so the platform would never start.
  */
-@Injectable()
-export class SetupExitService implements OnApplicationBootstrap, OnModuleDestroy {
-  private readonly logger = new Logger(SetupExitService.name);
+export class SetupExitServiceImpl {
+  private readonly logger = new Logger("SetupExitService");
 
   /**
    * Fires once the handover is complete, carrying the grace period that must
@@ -56,35 +56,36 @@ export class SetupExitService implements OnApplicationBootstrap, OnModuleDestroy
    */
   private static readonly GRACE_PERIOD_MS = 2_000;
 
-  constructor(private readonly phases: SetupPhaseService) {}
+  constructor(private readonly phases: SetupPhaseService["Service"]) {}
 
   /**
    * Subscribe before the handover can reach `ready`.
    *
-   * `onApplicationBootstrap` rather than the constructor: subscriptions created
-   * in a constructor run during dependency resolution, which is before Nest has
-   * finished wiring the container — and a phase event published during that
-   * window would be missed.
+   * `onStart` rather than the constructor: subscriptions created in a constructor run during dependency
+   * resolution — and a phase event published during that window would be missed. The lifecycle runner calls it
+   * before the app serves.
    */
-  onApplicationBootstrap(): void {
-    this.readySubscription = this.phases
-      .onEnter("ready")
-      .pipe(takeUntil(this.destroyed$))
-      .subscribe(() => {
-        this.logger.log(
-          `Handover complete — stopping in ${String(SetupExitService.GRACE_PERIOD_MS)}ms ` +
-            "(Traefik reload + final stream frames)",
-        );
-        this.exitRequested$.next();
-      });
-  }
+  readonly onStart = (): Effect.Effect<void> =>
+    Effect.sync(() => {
+      this.readySubscription = this.phases
+        .onEnter("ready")
+        .pipe(takeUntil(this.destroyed$))
+        .subscribe(() => {
+          this.logger.log(
+            `Handover complete — stopping in ${String(SetupExitServiceImpl.GRACE_PERIOD_MS)}ms ` +
+              "(Traefik reload + final stream frames)",
+          );
+          this.exitRequested$.next();
+        });
+    });
 
-  onModuleDestroy(): void {
-    this.destroyed$.next();
-    this.destroyed$.complete();
-    this.readySubscription?.unsubscribe();
-    this.readySubscription = null;
-  }
+  readonly onStop = (): Effect.Effect<void> =>
+    Effect.sync(() => {
+      this.destroyed$.next();
+      this.destroyed$.complete();
+      this.readySubscription?.unsubscribe();
+      this.readySubscription = null;
+    });
 
   /**
    * Resolve once this app should stop, after the grace period.
@@ -95,6 +96,12 @@ export class SetupExitService implements OnApplicationBootstrap, OnModuleDestroy
    */
   async waitForExit(): Promise<void> {
     await firstValueFrom(this.exitRequested$);
-    await new Promise((resolve) => setTimeout(resolve, SetupExitService.GRACE_PERIOD_MS));
+    await new Promise((resolve) => setTimeout(resolve, SetupExitServiceImpl.GRACE_PERIOD_MS));
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`SetupExitService["Service"]` is its type). */
+export class SetupExitService extends Context.Service<SetupExitService, SetupExitServiceImpl>()("setup/SetupExitService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeSetupExitService = (...args: ConstructorParameters<typeof SetupExitServiceImpl>): SetupExitServiceImpl => new SetupExitServiceImpl(...args);

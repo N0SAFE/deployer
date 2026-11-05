@@ -5,6 +5,12 @@ import { AnalyticsClient } from "./identity/analytics.client";
 import { IdentityClient } from "./identity/identity.client";
 import { ProjectClient } from "./project/project.client";
 import { RuntimeClient } from "./runtime/runtime.client";
+import { ServiceClientRegistry } from "./service-registry";
+
+/** A client is a plain class over the registry, so the module builds it; no decorator, no constructor metadata. */
+function clientOf(Client: new (registry: ServiceClientRegistry) => object) {
+	return { provide: Client, useFactory: (registry: ServiceClientRegistry) => new Client(registry), inject: [ServiceClientRegistry] };
+}
 
 /**
  * Every typed service client, provided once for the whole application.
@@ -23,11 +29,11 @@ import { RuntimeClient } from "./runtime/runtime.client";
  */
 export const ServiceClientsModule = createGlobalModule({
 	providers: [
-		IdentityClient,
-		AnalyticsClient,
-		ProjectClient,
-		RuntimeClient,
-		FleetClient,
+		clientOf(IdentityClient),
+		clientOf(AnalyticsClient),
+		clientOf(ProjectClient),
+		clientOf(RuntimeClient),
+		clientOf(FleetClient),
 	],
 	exports: [
 		IdentityClient,

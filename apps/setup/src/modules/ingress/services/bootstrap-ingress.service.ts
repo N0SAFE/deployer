@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
 
-import { Injectable, Logger, type OnApplicationBootstrap, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { DEFAULT_DOCKER_SOCKET_PATH, DockerEngine, resolveDockerClient, type DockerEngineShape } from "@deployer/docker";
 import { DockerNotFound, platformNetworkName } from "@deployer/docker";
@@ -56,9 +57,11 @@ import { EnvService } from "@/config/env/env.module";
  * through the shared config volume rather than through this service. This file
  * is only the PROCESS.
  */
-@Injectable()
-export class BootstrapIngressService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(BootstrapIngressService.name);
+export class BootstrapIngressServiceImpl {
+  /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
+  readonly onStart = (): Effect.Effect<void, unknown> => Effect.tryPromise({ try: () => this.bootstrap(), catch: (error) => error });
+
+  private readonly logger = new Logger("BootstrapIngressService");
 
   /**
    * Container name Traefik must have.
@@ -126,7 +129,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   private static readonly SERVE_TIMEOUT_MS = 60_000;
 
   constructor(
-    @Inject(DockerEngine) private readonly docker: DockerEngineShape,
+    private readonly docker: DockerEngineShape,
     private readonly env: EnvService,
   ) {}
 
@@ -145,7 +148,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    * ONLY surface that can tell an operator what is wrong. Failing the boot here
    * would turn a diagnosable ingress problem into a crash-loop with no output.
    */
-  async onApplicationBootstrap(): Promise<void> {
+  async bootstrap(): Promise<void> {
     // The deployment already runs an ingress (plain `dev`: compose publishes its
     // own Traefik on the same host port). Starting a second one cannot work — the
     // port is exclusively bound — so this app only ROUTES through the existing
@@ -196,7 +199,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     if (existing !== null) {
       if (existing.running && this.matchesDesired(existing)) {
         this.logger.log(
-          `Bootstrap ingress already running (${BootstrapIngressService.CONTAINER_NAME} → :${String(this.entryPort())})`,
+          `Bootstrap ingress already running (${BootstrapIngressServiceImpl.CONTAINER_NAME} → :${String(this.entryPort())})`,
         );
         return;
       }
@@ -223,7 +226,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     await this.verifyReachable();
 
     this.logger.log(
-      `Bootstrap ingress running (${BootstrapIngressService.CONTAINER_NAME} → :${String(this.entryPort())}) — ` +
+      `Bootstrap ingress running (${BootstrapIngressServiceImpl.CONTAINER_NAME} → :${String(this.entryPort())}) — ` +
         this.ingressStateNote(),
     );
   }
@@ -270,7 +273,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
       return true;
     }
 
-    const name = BootstrapIngressService.CONTAINER_NAME;
+    const name = BootstrapIngressServiceImpl.CONTAINER_NAME;
     const existing = await this.inspect();
     if (existing === null) {
       // Nothing holds the port from our side — the swarm service may already
@@ -357,7 +360,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    * caller turns into a RETRYABLE failure rather than a success it cannot back up.
    */
   async waitForEntryPointToServe(hostname: string): Promise<boolean> {
-    const deadline = Date.now() + BootstrapIngressService.SERVE_TIMEOUT_MS;
+    const deadline = Date.now() + BootstrapIngressServiceImpl.SERVE_TIMEOUT_MS;
     let lastReason = "the entry port never accepted a connection";
 
     while (Date.now() < deadline) {
@@ -367,12 +370,12 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
         return true;
       }
       lastReason = attempt.reason;
-      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressService.READY_POLL_MS));
+      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS));
     }
 
     this.logger.warn(
       `The cluster ingress did not route ${hostname} within ` +
-        `${String(BootstrapIngressService.SERVE_TIMEOUT_MS / 1000)}s of the handover — ${lastReason}`,
+        `${String(BootstrapIngressServiceImpl.SERVE_TIMEOUT_MS / 1000)}s of the handover — ${lastReason}`,
     );
     return false;
   }
@@ -406,8 +409,8 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   private async probeRoutedThroughEntryPort(hostname: string): Promise<{ ok: boolean; reason: string }> {
     // Candidate 1: the swarm service on the overlay (provider-independent).
     const viaOverlay = await this.probeIngress(
-      BootstrapIngressService.SWARM_SERVICE_NAME,
-      BootstrapIngressService.SWARM_SERVICE_PORT,
+      BootstrapIngressServiceImpl.SWARM_SERVICE_NAME,
+      BootstrapIngressServiceImpl.SWARM_SERVICE_PORT,
       hostname,
     );
     if (viaOverlay.ok) return viaOverlay;
@@ -425,7 +428,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     // Reaching it by SERVICE NAME is the reliable form: it does not depend on how
     // the host publishes the port, and setup already shares a network with it.
     const viaComposeIngress = await this.probeIngress(
-      BootstrapIngressService.COMPOSE_INGRESS_NAME,
+      BootstrapIngressServiceImpl.COMPOSE_INGRESS_NAME,
       80,
       hostname,
     );
@@ -529,14 +532,14 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    * surfacing, not a lost race.
    */
   private async waitForSwarmIngressRunning(): Promise<boolean> {
-    const deadline = Date.now() + BootstrapIngressService.PROMOTION_TIMEOUT_MS;
+    const deadline = Date.now() + BootstrapIngressServiceImpl.PROMOTION_TIMEOUT_MS;
     let lastDetail = "the swarm ingress service was never observed";
 
     while (Date.now() < deadline) {
       const state = await this.swarmIngressState();
       if (state.running) return true;
       lastDetail = state.detail;
-      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressService.READY_POLL_MS));
+      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS));
     }
 
     // Fall back to the port probe: a task can be `running` yet not yet bound, and
@@ -597,7 +600,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   /** `deployer-traefik`, per prefix — the same name the API's supervisor uses. */
   private swarmServiceName(): string {
     const prefix = this.env.get("DEPLOYER_PREFIX");
-    return prefix === "" ? BootstrapIngressService.CONTAINER_NAME : `${BootstrapIngressService.CONTAINER_NAME}-${prefix}`;
+    return prefix === "" ? BootstrapIngressServiceImpl.CONTAINER_NAME : `${BootstrapIngressServiceImpl.CONTAINER_NAME}-${prefix}`;
   }
 
   /**
@@ -678,7 +681,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     return [
       "--providers.docker=true",
       "--providers.docker.exposedbydefault=false",
-      `--providers.file.directory=${BootstrapIngressService.CONFIG_MOUNT}`,
+      `--providers.file.directory=${BootstrapIngressServiceImpl.CONFIG_MOUNT}`,
       "--providers.file.watch=true",
       "--entrypoints.web.address=:80",
     ];
@@ -686,7 +689,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
 
   /** Create (not start) the ingress container from the desired state. */
   private async create(): Promise<void> {
-    const name = BootstrapIngressService.CONTAINER_NAME;
+    const name = BootstrapIngressServiceImpl.CONTAINER_NAME;
     this.logger.log(`Creating bootstrap ingress ${name} from ${this.image()}`);
 
     await runPromiseUnwrapped(this.docker.containers.create({
@@ -708,7 +711,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
         // and nowhere else — the same posture as the platform's `local` lane that
         // replaces it after the handover. Binding 0.0.0.0 here put a pre-auth
         // wizard on every interface of a fresh machine.
-        PortBindings: { "80/tcp": [{ HostIp: BootstrapIngressService.BIND_ADDRESS, HostPort: String(this.entryPort()) }] },
+        PortBindings: { "80/tcp": [{ HostIp: BootstrapIngressServiceImpl.BIND_ADDRESS, HostPort: String(this.entryPort()) }] },
         // `unless-stopped`, matching every other platform service AND the
         // compose-managed ingress: the ingress must come back after a host
         // reboot, because nothing else can serve the wizard that would
@@ -718,7 +721,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
           // Dynamic config, shared with this app. READ-ONLY: the file provider
           // only reads, and a writable mount would let a malformed write from
           // inside Traefik corrupt the routes.
-          `${this.configVolume()}:${BootstrapIngressService.CONFIG_MOUNT}:ro`,
+          `${this.configVolume()}:${BootstrapIngressServiceImpl.CONFIG_MOUNT}:ro`,
           // Container discovery for the docker provider.
           `${this.socketPath()}:/var/run/docker.sock:ro`,
         ],
@@ -740,7 +743,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     networks: string[];
   } | null> {
     try {
-      const info = await runPromiseUnwrapped(this.docker.containers.inspect(BootstrapIngressService.CONTAINER_NAME));
+      const info = await runPromiseUnwrapped(this.docker.containers.inspect(BootstrapIngressServiceImpl.CONTAINER_NAME));
       const bindings = info.HostConfig?.PortBindings ?? {};
       return {
         running: info.State.Running,
@@ -766,7 +769,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   private matchesDesired(state: { image: string; port: string | null; hostIp: string | null; networks: string[] }): boolean {
     // A container from before the loopback rule is bound on every interface: it
     // must be recreated, not adopted.
-    const portMatches = state.port === String(this.entryPort()) && state.hostIp === BootstrapIngressService.BIND_ADDRESS;
+    const portMatches = state.port === String(this.entryPort()) && state.hostIp === BootstrapIngressServiceImpl.BIND_ADDRESS;
     const imageMatches = state.image === this.image();
     const networkMatches = state.networks.includes(this.platformNetwork());
     return portMatches && imageMatches && networkMatches;
@@ -775,7 +778,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   /** Force-remove the container, tolerating "already gone". */
   private async remove(): Promise<void> {
     // `removeIfExists` already treats "no such container" and "removal already in progress" as removed.
-    await runPromiseUnwrapped(this.docker.containers.removeIfExists(BootstrapIngressService.CONTAINER_NAME));
+    await runPromiseUnwrapped(this.docker.containers.removeIfExists(BootstrapIngressServiceImpl.CONTAINER_NAME));
   }
 
   /**
@@ -794,11 +797,11 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    * Assert the ingress answers within the boot budget, or throw.
    */
   private async verifyReachable(): Promise<void> {
-    const reachable = await this.portAnswers(BootstrapIngressService.READY_TIMEOUT_MS);
+    const reachable = await this.portAnswers(BootstrapIngressServiceImpl.READY_TIMEOUT_MS);
     if (!reachable) {
       throw new Error(
         `ingress started but did not answer on port ${String(this.entryPort())} within ` +
-          `${String(BootstrapIngressService.READY_TIMEOUT_MS / 1000)}s`,
+          `${String(BootstrapIngressServiceImpl.READY_TIMEOUT_MS / 1000)}s`,
       );
     }
   }
@@ -814,9 +817,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   private async portAnswers(budgetMs: number): Promise<boolean> {
     const deadline = Date.now() + budgetMs;
     while (Date.now() < deadline) {
-      if (await this.tcpAnswers(BootstrapIngressService.CONTAINER_NAME, 80)) return true;
+      if (await this.tcpAnswers(BootstrapIngressServiceImpl.CONTAINER_NAME, 80)) return true;
       if (await this.tcpAnswers(this.hostGateway(), this.entryPort())) return true;
-      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressService.READY_POLL_MS));
+      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS));
     }
     return false;
   }
@@ -915,3 +918,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     return "wizard reachable through the ingress";
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`BootstrapIngressService["Service"]` is its type). */
+export class BootstrapIngressService extends Context.Service<BootstrapIngressService, BootstrapIngressServiceImpl>()("setup/BootstrapIngressService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeBootstrapIngressService = (...args: ConstructorParameters<typeof BootstrapIngressServiceImpl>): BootstrapIngressServiceImpl => new BootstrapIngressServiceImpl(...args);

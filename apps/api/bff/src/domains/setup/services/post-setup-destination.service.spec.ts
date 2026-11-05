@@ -1,11 +1,10 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import type { EnvService } from "@/config/env/env.module";
 import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 
-import { PostSetupDestinationService } from "./post-setup-destination.service";
+import { makePostSetupDestinationService } from "./post-setup-destination.service";
 
 /**
  * The destination the wizard's final click uses.
@@ -24,18 +23,16 @@ function makeService(options: {
 	);
 	const getManagedWebOrigin = vi.fn(() => Effect.succeed(options.origin ?? null));
 
-	const service = new PostSetupDestinationService(
-		// `EnvService` is a full parsed-env provider, not just a `get()` accessor. The
-		// mock supplies the single member this unit exercises and casts the rest away,
-		// which states the narrowing instead of pretending a one-method object is the
-		// whole service.
-		{ get: vi.fn() } as unknown as EnvService,
-		{
+	// The ports are plain objects: each carries only the members this unit exercises, and the cast states the narrowing.
+	const shape = makePostSetupDestinationService({
+		hostnameService: {
 			webOrigin: () => "http://web.deployer.localhost",
 			apiOrigin: () => "http://api.deployer.localhost",
 		} as unknown as HostnameService,
-		{ isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigServiceShape,
-	);
+		platformConfig: { isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigServiceShape,
+	});
+	// `resolve` never fails (its error type is `never`), so the result is the value itself.
+	const service = { resolve: () => Effect.runPromise(shape.resolve()) };
 	return { service, isManagedWebAppEnabled, getManagedWebOrigin };
 }
 

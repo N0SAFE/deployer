@@ -11,8 +11,6 @@ import { InitializationService } from "@/core/modules/setup/services/initializat
 
 
 
-import { PostSetupDestinationService } from "../services/post-setup-destination.service";
-import { PostSetupVerificationService } from "../services/post-setup-verification.service";
 
 import { SetupController } from "./setup.controller";
 
@@ -47,7 +45,7 @@ const implementChainable = createImplementMock();
 // oRPC v2 split these across packages: the `Implement` DECORATOR stays
 // in `@orpc/nest`, lowercase `implement` lives in `@orpc/server`.
 vi.mock("@orpc/nest", () => ({
-    Implement: vi.fn(() => () => {}),
+    Implement: vi.fn(() => () => undefined),
 }));
 vi.mock("@orpc/server", async (importOriginal) => ({
     // Spread the REAL module: these specs also import `ORPCError` from
@@ -119,25 +117,6 @@ describe("SetupController", () => {
                 {
                     provide: NodeConfigRepository,
                     useValue: { find: vi.fn(), upsert: vi.fn() },
-                },
-                {
-                    // The controller's new dependency: it resolves where the
-                    // wizard's final click lands. Stubbed here because this spec
-                    // is about the controller's FORWARDING behaviour, and the
-                    // resolver has its own concerns (the managed-web flag).
-                    provide: PostSetupVerificationService,
-                    // Stubbed for the same reason: the verification has its own spec.
-                    useValue: { verify: vi.fn(async () => ({ checkedAt: new Date(0).toISOString(), targets: [] })) },
-                },
-                {
-                    provide: PostSetupDestinationService,
-                    useValue: {
-                        resolve: vi.fn(async () => ({
-                            kind: "dashboard" as const,
-                            url: "http://web.deployer.localhost",
-                            managedWebEnabled: true,
-                        })),
-                    },
                 },
             ],
         }).compile();

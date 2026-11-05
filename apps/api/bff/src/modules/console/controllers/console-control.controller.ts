@@ -1,8 +1,8 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 
-import { procedure } from "@deployer/nest-effect";
 import { bffConsoleContract } from "@deployer/bff-contracts";
+import { procedure } from "@deployer/nest-effect";
 
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 

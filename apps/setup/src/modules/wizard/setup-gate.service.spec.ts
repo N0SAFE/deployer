@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { NodeConfigRow } from "@deployer/node-state";
 
 import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { makeSetupPhase } from "@/modules/health/setup-phase.service";
+import { makeOrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import { makeEnvService } from "@/test-support/env";
 
-import { SetupGateService } from "./setup-gate.service";
+import { makeSetupGateService } from "./setup-gate.service";
 
 import type { NodeConfigStore } from "./node-config.port";
 
@@ -64,7 +64,7 @@ describe("SetupGateService", () => {
    * separately — it is the one profile that must NOT touch the engine.
    */
   function makeGate(env: Record<string, string> = { SETUP_MODE: "prod" }) {
-    const phases = new SetupPhaseService();
+    const phases = makeSetupPhase();
     const repo = makeRepository(null);
     // The cluster is stubbed: the gate's job is to ASK for convergence, and the
     // engine's own spec covers whether that succeeds. What this spec pins down is
@@ -73,12 +73,12 @@ describe("SetupGateService", () => {
     const envService = makeEnvService(env);
     // Real, not stubbed: it validates the step ids against the contract's enum,
     // so a typo here is a failing test rather than a blank progress view.
-    const orchestration = new OrchestrationStreamService(envService);
-    const gate = new SetupGateService(
+    const orchestration = makeOrchestrationStreamService(envService);
+    const gate = makeSetupGateService(
       phases,
       repo,
       envService,
-      cluster as unknown as ClusterOrchestratorService,
+      cluster as unknown as ClusterOrchestratorService["Service"],
       orchestration,
     );
     return { gate, phases, repo, cluster };
@@ -86,16 +86,16 @@ describe("SetupGateService", () => {
 
   /** A gate whose repository already holds a row (a restart). */
   function makeRestartGate(row: Partial<NodeConfigRow>) {
-    const phases = new SetupPhaseService();
+    const phases = makeSetupPhase();
     const repo = makeRepository({ ...defaults, ...row } as Partial<NodeConfigRow>);
     const cluster = { start: vi.fn() };
     const envService = makeEnvService({ SETUP_MODE: "prod" });
-    const gate = new SetupGateService(
+    const gate = makeSetupGateService(
       phases,
       repo,
       envService,
-      cluster as unknown as ClusterOrchestratorService,
-      new OrchestrationStreamService(envService),
+      cluster as unknown as ClusterOrchestratorService["Service"],
+      makeOrchestrationStreamService(envService),
     );
     return { gate, phases, repo, cluster };
   }
@@ -245,7 +245,7 @@ describe("SetupGateService", () => {
         databaseProvisioning: "local",
       });
 
-      gate.onApplicationBootstrap();
+      Effect.runSync(gate.onStart());
 
       // Same flow as a fresh install minus the collecting step. The gate is NOT
       // open yet: the cluster pipeline opens it once the engine is active, which
@@ -266,7 +266,7 @@ describe("SetupGateService", () => {
         swarmConfig: { mode: "create" } as unknown as NodeConfigRow["swarmConfig"],
       });
 
-      gate.onApplicationBootstrap();
+      Effect.runSync(gate.onStart());
 
       // Overwriting from an EMPTY payload (a restart passes none) would erase
       // the database URL and the swarm participation the API is about to read.
@@ -282,7 +282,7 @@ describe("SetupGateService", () => {
         databaseProvisioning: "external",
       });
 
-      gate.onApplicationBootstrap();
+      Effect.runSync(gate.onStart());
 
       // A `databaseUrl` alone is an UNPROVISIONED candidate. Skipping the wizard
       // on that basis would leave an empty schema with no surface to fix it — and
@@ -294,19 +294,19 @@ describe("SetupGateService", () => {
     });
 
     it("keeps the gate closed and converges nothing when there is no config row", () => {
-      const phases = new SetupPhaseService();
+      const phases = makeSetupPhase();
       const repo = makeRepository(null);
       const cluster = { start: vi.fn() };
       const envService = makeEnvService({ SETUP_MODE: "prod" });
-      const gate = new SetupGateService(
+      const gate = makeSetupGateService(
         phases,
         repo,
         envService,
-        cluster as unknown as ClusterOrchestratorService,
-        new OrchestrationStreamService(envService),
+        cluster as unknown as ClusterOrchestratorService["Service"],
+        makeOrchestrationStreamService(envService),
       );
 
-      gate.onApplicationBootstrap();
+      Effect.runSync(gate.onStart());
 
       expect(cluster.start).not.toHaveBeenCalled();
       expect(phases.isReady()).toBe(false);

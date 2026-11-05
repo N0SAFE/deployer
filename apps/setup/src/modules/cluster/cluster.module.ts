@@ -1,10 +1,9 @@
-import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
-import { Effect, Fiber } from "effect";
+import { type InjectionToken, type OptionalFactoryDependency, type Provider } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { nodeDoorFromEnv } from "@deployer/mesh-client";
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, serviceLifecycle } from "@deployer/nest-effect";
 import { ClusterNodeRepository, NodeConfigRepository, type ClusterNodeRepositoryShape, type NodeConfigRepositoryShape } from "@deployer/node-state";
 import {
   makeSwarmServices,
@@ -22,34 +21,30 @@ import { NodeStateModule } from "@/config/database/node-state.module";
 import { DockerModule } from "@/config/docker/docker.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 
-import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
-import { NodeAgentLauncherService } from "./services/node-agent-launcher.service";
-import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
+import {
+  ClusterOrchestratorService,
+  makeClusterOrchestratorService,
+} from "./services/cluster-orchestrator.service";
+import { makeNodeAgentLauncherService, NodeAgentLauncherService } from "./services/node-agent-launcher.service";
+import { makeSwarmBootstrapService, SwarmBootstrapService } from "./services/swarm-bootstrap.service";
 
 const SWARM_SERVICES = Symbol("SWARM_SERVICES");
 
 /**
- * Runs the swarm services' process-lifetime work: the election loop for the life of the context, and
- * the boot convergence (a no-op here: setup founds the cluster from its own flow).
+ * The swarm services' process-lifetime work, declared as a lifecycle in the shape: the boot convergence (a no-op
+ * here: setup founds the cluster from its own flow) runs in `onStart`, and the election loop is `run`, which the
+ * runner forks after `onStart` and interrupts on shutdown.
  */
-@Injectable()
-class SwarmLifecycle implements OnModuleInit, OnModuleDestroy {
-  private electionFiber: Fiber.Fiber<void> | null = null;
+export type SwarmLifecycleShape = {
+  readonly onStart: () => Effect.Effect<void, unknown>;
+  readonly run: () => Effect.Effect<void, unknown>;
+};
 
-  constructor(@Inject(SWARM_SERVICES) private readonly services: SwarmServices) {}
-
-  async onModuleInit(): Promise<void> {
-    this.electionFiber ??= Effect.runFork(this.services.leadership.run);
-    await runPromiseUnwrapped(this.services.bootstrap.onBoot);
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.electionFiber) await Effect.runPromise(Fiber.interrupt(this.electionFiber));
-    this.electionFiber = null;
-  }
-}
+export class SwarmLifecycle extends Context.Service<SwarmLifecycle, SwarmLifecycleShape>()("setup/SwarmLifecycle") {}
 
 /** Provides each swarm Effect service under its own tag, all built once over one engine and one repository set. */
 const swarmProviders = (config: {
@@ -68,7 +63,15 @@ const swarmProviders = (config: {
   { provide: SwarmJoinGrant, useFactory: (s: SwarmServices) => s.joinGrant, inject: [SWARM_SERVICES] },
   { provide: SwarmBootstrap, useFactory: (s: SwarmServices) => s.bootstrap, inject: [SWARM_SERVICES] },
   { provide: SwarmLeadership, useFactory: (s: SwarmServices) => s.leadership, inject: [SWARM_SERVICES] },
-  SwarmLifecycle,
+  {
+    provide: SwarmLifecycle,
+    useFactory: (services: SwarmServices): SwarmLifecycleShape => ({
+      onStart: () => services.bootstrap.onBoot,
+      run: () => services.leadership.run,
+    }),
+    inject: [SWARM_SERVICES],
+  },
+  serviceLifecycle(SwarmLifecycle),
 ];
 
 /**
@@ -157,9 +160,17 @@ export class SetupClusterModule extends createModuleContext({
         join: { quorumMax: env.get("SWARM_QUORUM_MAX") ?? 3 },
       }),
     }),
-    SwarmBootstrapService,
-    ClusterOrchestratorService,
-    NodeAgentLauncherService,
+    { provide: NodeAgentLauncherService, useFactory: makeNodeAgentLauncherService, inject: [DockerEngine, EnvService] },
+    {
+      provide: SwarmBootstrapService,
+      useFactory: makeSwarmBootstrapService,
+      inject: [SwarmCluster, SwarmParticipation, NodeAgentLauncherService],
+    },
+    {
+      provide: ClusterOrchestratorService,
+      useFactory: makeClusterOrchestratorService,
+      inject: [SwarmBootstrapService, SetupPhaseService, OrchestrationStreamService],
+    },
   ],
   // `ClusterOrchestratorService` is exported because the handover REACTS to the
   // cluster result: it subscribes to `stream$` rather than polling a phase,

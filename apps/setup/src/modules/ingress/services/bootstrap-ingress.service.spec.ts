@@ -6,7 +6,7 @@ import type { DockerEngineShape } from "@deployer/docker";
 
 import type { EnvService } from "@/config/env/env.module";
 
-import { BootstrapIngressService } from "./bootstrap-ingress.service";
+import { makeBootstrapIngressService } from "./bootstrap-ingress.service";
 
 /**
  * `releaseEntryPort` is the handover of the host port from setup's bootstrap
@@ -41,7 +41,7 @@ function makeService(options: { restoreError?: Error; promoted?: boolean } = {})
 	const docker = {
 	} as unknown as DockerEngineShape;
 
-	const service = new BootstrapIngressService(docker, env);
+	const service = makeBootstrapIngressService(docker, env);
 
 	// `inspect()` returning a value models "the bootstrap container exists".
 	vi.spyOn(service as unknown as { inspect(): Promise<unknown> }, "inspect").mockResolvedValue({
@@ -121,7 +121,7 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 					listTasks: () => Effect.succeed(tasks),
 				},
 			}) as unknown as DockerEngineShape;
-		const service = new BootstrapIngressService(docker, env);
+		const service = makeBootstrapIngressService(docker, env);
 		vi.spyOn(service as unknown as { portAnswers(ms: number): Promise<boolean> }, "portAnswers").mockResolvedValue(
 			portAnswers,
 		);
@@ -173,7 +173,7 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 					listTasks,
 				},
 			}) as unknown as DockerEngineShape;
-		const service = new BootstrapIngressService(docker, env);
+		const service = makeBootstrapIngressService(docker, env);
 		vi.spyOn(service as unknown as { portAnswers(ms: number): Promise<boolean> }, "portAnswers").mockResolvedValue(
 			false,
 		);

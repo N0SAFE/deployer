@@ -1,4 +1,4 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectHostModule, EffectRuntimeModule } from "@deployer/nest-effect";
 
 import { EnvModule } from "./config/env/env.module";
 import { SetupClusterModule } from "./modules/cluster/cluster.module";
@@ -31,6 +31,9 @@ import { WizardModule } from "./modules/wizard/wizard.module";
  */
 export class SetupAppModule extends createModuleContext({
   imports: [
+    // The Effect runtime and the process-wide host the lifecycle runners (`serviceLifecycle`) fork their loops on.
+    EffectRuntimeModule,
+    EffectHostModule,
     EnvModule,
     SetupIngressModule,
     SetupHealthModule,

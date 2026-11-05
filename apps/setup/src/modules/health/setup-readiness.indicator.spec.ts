@@ -1,8 +1,8 @@
 import { HealthIndicatorService } from "@nestjs/terminus";
 import { describe, expect, it } from "vitest";
 
-import { SetupPhaseService } from "./setup-phase.service";
-import { SetupReadinessIndicator } from "./setup-readiness.indicator";
+import { makeSetupPhase, type SetupPhaseShape } from "./setup-phase.service";
+import { makeSetupReadinessIndicator, type SetupReadinessIndicatorShape } from "./setup-readiness.indicator";
 
 /**
  * The indicator is the last step before compose decides. Its whole job is to
@@ -14,9 +14,9 @@ import { SetupReadinessIndicator } from "./setup-readiness.indicator";
  * The real `HealthIndicatorService` is used, not a stub: the `up`/`down` payload
  * shape is the contract the operator reads, so faking it would test nothing.
  */
-function makeIndicator(): { indicator: SetupReadinessIndicator; phases: SetupPhaseService } {
-  const phases = new SetupPhaseService();
-  const indicator = new SetupReadinessIndicator(new HealthIndicatorService(), phases);
+function makeIndicator(): { indicator: SetupReadinessIndicatorShape; phases: SetupPhaseShape } {
+  const phases = makeSetupPhase();
+  const indicator = makeSetupReadinessIndicator(new HealthIndicatorService(), phases);
   return { indicator, phases };
 }
 

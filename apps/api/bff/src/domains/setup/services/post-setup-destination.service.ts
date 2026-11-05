@@ -1,11 +1,28 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import { Effect } from "effect";
+import { Cause, Context, Effect } from "effect";
 
+import { serviceOver, type Over } from "@deployer/effect-core";
 import type { SetupPostSetupDestination } from "@deployer/contracts-entities";
 
-import { EnvService } from "@/config/env/env.module";
-import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import { PlatformConfigService, type PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
+import { SetupHostnamePort, SetupPlatformConfigPort } from "../setup.ports";
+
+import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
+import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
+
+type Ports = {
+  readonly hostnameService: HostnameService;
+  readonly platformConfig: PlatformConfigServiceShape;
+};
+
+/** What the destination reads from the Effect context while it runs. */
+export type PostSetupDestinationPorts = SetupHostnamePort | SetupPlatformConfigPort;
+
+export type PostSetupDestinationServiceShape = {
+  /** Where the final click lands. Never fails: an unreadable flag means "no dashboard". */
+  readonly resolve: () => Effect.Effect<SetupPostSetupDestination>;
+};
+
+/** The API's own management page for the web app. */
+const CONSOLE_PATH = "/manage/web-app";
 
 /**
  * Decides where the wizard's final "continue to dashboard" click lands.
@@ -34,62 +51,54 @@ import { PlatformConfigService, type PlatformConfigServiceShape } from "@/core/m
  * the operator has just completed setup and needs somewhere to go, and the
  * console page is always answerable.
  */
-@Injectable()
-export class PostSetupDestinationService {
-  private readonly logger = new Logger(PostSetupDestinationService.name);
+export class PostSetupDestinationService extends Context.Service<
+  PostSetupDestinationService,
+  Over<PostSetupDestinationServiceShape, PostSetupDestinationPorts>
+>()("bff/PostSetupDestinationService") {
+  static readonly live = serviceOver(
+    Effect.all({ hostnameService: SetupHostnamePort, platformConfig: SetupPlatformConfigPort }),
+    makePostSetupDestinationService,
+  );
+}
 
-  constructor(
-    private readonly env: EnvService,
-    private readonly hostnameService: HostnameService,
-    @Inject(PlatformConfigService) private readonly platformConfig: PlatformConfigServiceShape,
-  ) {}
+export function makePostSetupDestinationService({ hostnameService, platformConfig }: Ports): PostSetupDestinationServiceShape {
+  // The flag lives in the global DB, which is provisioned DURING setup. A read can legitimately fail if this is called
+  // before that finished — the console page is the safe answer, and it is the page that lets the operator turn a
+  // dashboard on.
+  const readManagedWebEnabled = platformConfig.isManagedWebAppEnabled().pipe(
+    Effect.catchCause((cause) =>
+      Effect.logWarning(`Could not read the managed-web flag (${Cause.pretty(cause)}) — directing to the API console`).pipe(
+        Effect.as(false),
+      ),
+    ),
+  );
 
-  async resolve(): Promise<SetupPostSetupDestination> {
-    const managedWebEnabled = await this.readManagedWebEnabled();
-
-    if (managedWebEnabled) {
-      // An explicit operator origin (custom domain / tunnel) wins over the
-      // derived hostname — the same precedence the ingress uses to publish the
-      // web router, so the URL and the route cannot disagree.
-      const origin = await this.readManagedWebOrigin();
-      const webUrl = origin ?? this.hostnameService.webOrigin();
-      return { kind: "dashboard", url: webUrl, managedWebEnabled: true };
-    }
-
-    return {
-      kind: "api-console",
-      // Served by this API, on the API's own public origin.
-      url: `${this.hostnameService.apiOrigin()}${PostSetupDestinationService.CONSOLE_PATH}`,
-      managedWebEnabled: false,
-    };
-  }
-
-  /** The API's own management page for the web app. */
-  private static readonly CONSOLE_PATH = "/manage/web-app";
-
-  private async readManagedWebEnabled(): Promise<boolean> {
-    try {
-      return await Effect.runPromise(this.platformConfig.isManagedWebAppEnabled());
-    } catch (error: unknown) {
-      // The flag lives in the global DB, which is provisioned DURING setup. A
-      // read can legitimately fail if this is called before that finished — the
-      // console page is the safe answer, and it is the page that lets the
-      // operator turn a dashboard on.
-      const reason = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Could not read the managed-web flag (${reason}) — directing to the API console`);
-      return false;
-    }
-  }
-
-  private async readManagedWebOrigin(): Promise<string | null> {
-    try {
-      const origin = await Effect.runPromise(this.platformConfig.getManagedWebOrigin());
+  const readManagedWebOrigin = platformConfig.getManagedWebOrigin().pipe(
+    Effect.map((origin) => {
       if (origin === null || origin.trim().length === 0) return null;
       // `getManagedWebOrigin` stores a bare host (scheme stripped when set), so
       // it must be given one back before it can be navigated to.
       return /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
-    } catch {
-      return null;
-    }
-  }
+    }),
+    Effect.catchCause(() => Effect.succeed(null)),
+  );
+
+  return {
+    resolve: () =>
+      Effect.gen(function* () {
+        if (yield* readManagedWebEnabled) {
+          // An explicit operator origin (custom domain / tunnel) wins over the
+          // derived hostname — the same precedence the ingress uses to publish the
+          // web router, so the URL and the route cannot disagree.
+          const origin = yield* readManagedWebOrigin;
+          return { kind: "dashboard" as const, url: origin ?? hostnameService.webOrigin(), managedWebEnabled: true };
+        }
+        return {
+          kind: "api-console" as const,
+          // Served by this API, on the API's own public origin.
+          url: `${hostnameService.apiOrigin()}${CONSOLE_PATH}`,
+          managedWebEnabled: false,
+        };
+      }),
+  };
 }

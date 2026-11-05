@@ -47,7 +47,7 @@ async function bootstrap(): Promise<void> {
   // keep serving the wizard so the operator can fix the cause and retry. An
   // exit here would leave the platform unreachable with no surface to recover
   // from, and the compose healthcheck would never turn green (§10.4).
-  await app.get(SetupExitService).waitForExit();
+  await app.get<typeof SetupExitService, SetupExitService["Service"]>(SetupExitService).waitForExit();
 
   log.info("✅ Handover complete — shutting down the setup app");
   await app.close();

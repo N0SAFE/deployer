@@ -1,8 +1,9 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { DockerEngine } from "@deployer/docker";
+import { createModuleContext, serviceLifecycle } from "@deployer/nest-effect";
 
-import { EnvModule } from "@/config/env/env.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
-import { BootstrapIngressService } from "./services/bootstrap-ingress.service";
+import { BootstrapIngressService, makeBootstrapIngressService } from "./services/bootstrap-ingress.service";
 
 /**
  * The INGRESS half of setup: the bootstrap Traefik that makes this app
@@ -29,7 +30,10 @@ import { BootstrapIngressService } from "./services/bootstrap-ingress.service";
  */
 export class SetupIngressModule extends createModuleContext({
   imports: [EnvModule],
-  providers: [BootstrapIngressService],
+  providers: [
+    { provide: BootstrapIngressService, useFactory: makeBootstrapIngressService, inject: [DockerEngine, EnvService] },
+    serviceLifecycle(BootstrapIngressService),
+  ],
   // The handover releases the entry port, so it needs this service. Exporting
   // rather than redeclaring keeps ONE owner of the ingress process.
   exports: [BootstrapIngressService],

@@ -38,9 +38,9 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 export function resetLocal(localDb: BunSQLiteDatabase<typeof localSchema>): void {
   const logger = new Logger('resetLocal');
 
-  const tables = localDb.all(
+  const tables = localDb.all<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-  ) as { name: string }[];
+  );
 
   localDb.run("PRAGMA foreign_keys=OFF");
   // Quoted because the names come from the database rather than from literals —

@@ -10,7 +10,7 @@ vi.mock("@nestjs-ssr/react", () => ({
 import { SetupAppModule } from "./app.module";
 import { ApiServiceProvisioner } from "./modules/handover/services/api-service-provisioner.service";
 import { IngressHandoverService } from "./modules/handover/services/ingress-handover.service";
-import { SetupPhaseService } from "./modules/health/setup-phase.service";
+import { SetupPhaseService, type SetupPhaseShape } from "./modules/health/setup-phase.service";
 import { BootstrapIngressService } from "./modules/ingress/services/bootstrap-ingress.service";
 import { NODE_CONFIG_STORE } from "./modules/wizard/node-config.port";
 
@@ -33,14 +33,14 @@ describe("boot order on a restart (setup_done)", () => {
       .useValue({ ensureApi })
       // Without this the real service starts a Traefik container on the host engine.
       .overrideProvider(BootstrapIngressService)
-      .useValue({ onApplicationBootstrap: () => undefined, onModuleInit: () => undefined })
+      .useValue({ onStart: () => Effect.void, onStop: () => Effect.void })
       .overrideProvider(IngressHandoverService)
-      .useValue({ onApplicationBootstrap: () => undefined, onModuleInit: () => undefined })
+      .useValue({ onStart: () => Effect.void, onStop: () => Effect.void })
       .compile();
 
     await moduleRef.init();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const phase = moduleRef.get(SetupPhaseService).current().phase;
+    const phase = moduleRef.get<SetupPhaseShape>(SetupPhaseService).current().phase;
     await moduleRef.close();
 
     // The gate opened AND the handover picked it up: the phase moved past `launching`.

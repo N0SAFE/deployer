@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-
 import { IdentityClient } from "@/clients/identity/identity.client";
 import { ProjectClient } from "@/clients/project/project.client";
 import { RuntimeClient } from "@/clients/runtime/runtime.client";
@@ -54,7 +52,6 @@ export async function optional<T>(
  * `{ field: { operator, value } }`. That is easy to get subtly wrong in a way that
  * still compiles and silently returns UNFILTERED rows, so it is written once here.
  */
-@Injectable()
 export class ScreenReadService {
 	constructor(
 		private readonly identity: IdentityClient,

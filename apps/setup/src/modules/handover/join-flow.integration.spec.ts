@@ -4,17 +4,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { NodeConfigRow } from "@deployer/node-state";
 
-import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import { makeClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
 import type { SwarmBootstrapService } from "@/modules/cluster/services/swarm-bootstrap.service";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import { makeSetupPhase } from "@/modules/health/setup-phase.service";
 import type { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { makeOrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import type { NodeConfigStore } from "@/modules/wizard/node-config.port";
-import { SetupGateService } from "@/modules/wizard/setup-gate.service";
+import { makeSetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
 import { makeEnvService } from "@/test-support/env";
 
-import { HandoverOrchestratorService } from "./services/handover-orchestrator.service";
+import { makeHandoverOrchestratorService } from "./services/handover-orchestrator.service";
 
 import type { ApiReadinessWatcherService } from "./services/api-readiness-watcher.service";
 import type { ApiServiceProvisioner } from "./services/api-service-provisioner.service";
@@ -66,8 +66,8 @@ function makeNode(options: {
 }) {
   const timeline: string[] = [];
   const env = makeEnvService({ SETUP_MODE: options.mode, ...options.env });
-  const phases = new SetupPhaseService();
-  const orchestration = new OrchestrationStreamService(env);
+  const phases = makeSetupPhase();
+  const orchestration = makeOrchestrationStreamService(env);
   const store = options.store ?? makeStore(null);
 
   const swarm = {
@@ -78,10 +78,10 @@ function makeNode(options: {
         mode,
       );
     },
-  } as unknown as SwarmBootstrapService;
-  const cluster = new ClusterOrchestratorService(swarm, phases, orchestration);
+  } as unknown as SwarmBootstrapService["Service"];
+  const cluster = makeClusterOrchestratorService(swarm, phases, orchestration);
 
-  const gate = new SetupGateService(phases, store, env, cluster, orchestration);
+  const gate = makeSetupGateService(phases, store, env, cluster, orchestration);
 
   const provisioner = {
     ensureApi: () => {
@@ -89,26 +89,26 @@ function makeNode(options: {
       timeline.push("api:start");
       return Promise.resolve({ kind: "container" as const, url: "http://bff:3005", detail: "test" });
     },
-  } as unknown as ApiServiceProvisioner;
+  } as unknown as ApiServiceProvisioner["Service"];
   const readiness = {
     waitUntilReady: () => {
       timeline.push("api:poll-ready");
       return of(options.apiReady === false ? { ready: false as const, reason: "503" } : { ready: true as const, reason: "ready" });
     },
-  } as unknown as ApiReadinessWatcherService;
+  } as unknown as ApiReadinessWatcherService["Service"];
   const ingress = {
     pointApiAt: (url: string) => (timeline.push(`ingress:api->${url}`), Promise.resolve()),
     pointSetupAtDonePage: () => (timeline.push("ingress:setup-done-page"), Promise.resolve()),
     webHostname: () => "web.deployer.localhost",
     apiHostname: () => "api.deployer.localhost",
-  } as unknown as IngressHandoverService;
+  } as unknown as IngressHandoverService["Service"];
   const bootstrapIngress = {
     releaseEntryPort: () => Promise.resolve(true),
     waitForEntryPointToServe: () => Promise.resolve(true),
-  } as unknown as BootstrapIngressService;
-  const stream = { attachWhenReachable: () => Promise.resolve() } as unknown as WizardStreamService;
+  } as unknown as BootstrapIngressService["Service"];
+  const stream = { attachWhenReachable: () => Promise.resolve() } as unknown as WizardStreamService["Service"];
 
-  const handover = new HandoverOrchestratorService(provisioner, readiness, ingress, phases, gate, bootstrapIngress, orchestration, stream, env);
+  const handover = makeHandoverOrchestratorService(provisioner, readiness, ingress, phases, gate, bootstrapIngress, orchestration, stream, env);
   handover.triggerTransport = ((_url: string | URL | Request, init?: RequestInit) => {
     timeline.push(`api:trigger ${typeof init?.body === "string" ? init.body : ""}`);
     return Promise.resolve(new Response("{}", { status: options.triggerStatus ?? 201 }));
@@ -116,8 +116,8 @@ function makeNode(options: {
 
   /** What the app does at boot: the gate reads the persisted row, the handover subscribes to the gate edge. */
   const boot = () => {
-    gate.onApplicationBootstrap();
-    handover.onApplicationBootstrap();
+    Effect.runSync(gate.onStart());
+    Effect.runSync(handover.onStart());
   };
 
   return { timeline, phases, gate, handover, store, boot, result: () => firstValueFrom(handover.stream$) };

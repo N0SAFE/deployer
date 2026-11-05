@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
 import { Command, CommandRunner } from 'nest-commander';
 
 import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
@@ -6,7 +6,6 @@ import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 import { resetLocal } from './local';
 
 
-@Injectable()
 @Command({ 
   name: 'reset', 
   description: 'Reset the database by dropping and recreating the public schema',

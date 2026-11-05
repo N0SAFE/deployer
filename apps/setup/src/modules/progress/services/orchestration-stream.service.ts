@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 import { defer, ReplaySubject, skip, type Observable } from "rxjs";
 
 import type { SetupStreamEvent, SetupStepId } from "@deployer/contracts-entities";
@@ -64,9 +65,8 @@ type StepStatus = "pending" | "in_progress" | "completed" | "failed";
  * API and the engine is never touched. Emitting a "founding the cluster" step
  * there would misdescribe what that profile does, so it is skipped.
  */
-@Injectable()
-export class OrchestrationStreamService {
-  private readonly logger = new Logger(OrchestrationStreamService.name);
+export class OrchestrationStreamServiceImpl {
+  private readonly logger = new Logger("OrchestrationStreamService");
 
   /** Monotonic sequence, shared by every event this service emits. */
   private seq = 0;
@@ -462,3 +462,9 @@ const TITLES: Record<OrchestrationStepId, string> = {
   await_api_boot: "Waiting for the API to boot",
   promote_ingress: "Switching to the cluster ingress",
 };
+
+/** The tag: what a module provides and a consumer asks for (`OrchestrationStreamService["Service"]` is its type). */
+export class OrchestrationStreamService extends Context.Service<OrchestrationStreamService, OrchestrationStreamServiceImpl>()("setup/OrchestrationStreamService") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeOrchestrationStreamService = (...args: ConstructorParameters<typeof OrchestrationStreamServiceImpl>): OrchestrationStreamServiceImpl => new OrchestrationStreamServiceImpl(...args);

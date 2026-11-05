@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
@@ -38,7 +38,6 @@ export type CliAuthContext = {
  * 
  * This service is designed to work in CLI context where there's no HTTP request.
  */
-@Injectable()
 export class CliAuthService {
   private readonly logger = new Logger(CliAuthService.name);
   constructor(
@@ -392,7 +391,7 @@ export class CliAuthService {
         // AUTH-005: an existing account is never promoted by matching DEFAULT_ADMIN_EMAIL. Promotion is an explicit
         // grant, not a side effect of an environment variable. Say so and leave the row alone.
         this.logger.warn(
-          `⚠️  ${defaultAdminEmail} exists with role "${existing.role ?? "user"}" — not promoting it to superAdmin. Grant the role explicitly.`,
+          `⚠️  ${defaultAdminEmail} exists with role "${existing.role}" — not promoting it to superAdmin. Grant the role explicitly.`,
         );
       } else {
         this.logger.log(`✅ Default admin user already exists: ${defaultAdminEmail} (ID: ${existing.id})`);

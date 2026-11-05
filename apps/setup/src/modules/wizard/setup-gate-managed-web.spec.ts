@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SetupGateService } from "./setup-gate.service";
+import { SetupGateServiceImpl } from "./setup-gate.service";
 
 /**
  * `managedWebEnabled()` is the bridge between the wizard's dashboard question
@@ -15,10 +15,10 @@ import { SetupGateService } from "./setup-gate.service";
  * Collapsing null into `false` would silently disable the dashboard on every
  * restart, which is why it is asserted separately.
  */
-function makeGate(pending: unknown): SetupGateService {
+function makeGate(pending: unknown): SetupGateServiceImpl {
 	// Constructed directly: this test is about the payload projection, not the
 	// persistence or the swarm convergence those dependencies drive.
-	const gate = Object.create(SetupGateService.prototype) as SetupGateService;
+	const gate = Object.create(SetupGateServiceImpl.prototype) as SetupGateServiceImpl;
 	(gate as unknown as { pendingTrigger: unknown }).pendingTrigger = pending;
 	return gate;
 }

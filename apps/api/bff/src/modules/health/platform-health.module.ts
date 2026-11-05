@@ -12,6 +12,6 @@ import { PlatformHealthService } from "./services/platform-health.service";
  */
 export class PlatformHealthModule extends createModuleContext({
 	controllers: [PlatformHealthController],
-	providers: [PlatformHealthService],
+	providers: [{ provide: PlatformHealthService, useValue: PlatformHealthService.live }],
 	exports: [PlatformHealthService],
 }) {}

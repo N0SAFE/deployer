@@ -1,4 +1,4 @@
-import { Controller, Get, HttpException, HttpStatus } from "@nestjs/common";
+import { Controller, Get, Res } from "@nestjs/common";
 import { Render as SsrRender } from "@nestjs-ssr/react";
 
 import type { ManagedWebState } from "@deployer/fleet-contracts";
@@ -8,6 +8,12 @@ import LoginView from "@/views/pages/login";
 import ManagedWebAppView from "@/views/pages/manage-web-app";
 
 import { ManagedWebClient } from "../clients/managed-web.client";
+
+import type { Response } from "express";
+
+/** Why the fallback console refuses to render while an external web app owns the URL. */
+const CONSOLE_DISABLED_MESSAGE =
+	"Management console disabled: MANAGED_WEB_APP_EXTERNAL=true (an externally managed dev web app is running)";
 
 /**
  * The management console — the API-rendered fallback for `/manage/*`.
@@ -39,12 +45,12 @@ export class PlatformConsoleController {
 	 */
 	@Get("web-app")
 	@SsrRender(ManagedWebAppView)
-	async consolePage(): Promise<{ state: ManagedWebState }> {
+	async consolePage(@Res({ passthrough: true }) res: Response): Promise<{ state: ManagedWebState }> {
 		if (this.env.get("MANAGED_WEB_APP_EXTERNAL")) {
-			throw new HttpException(
-				"Management console disabled: MANAGED_WEB_APP_EXTERNAL=true (an externally managed dev web app is running)",
-				HttpStatus.NOT_FOUND,
-			);
+			// A string result is sent as is by the SSR renderer (no view), so the status and the reason are all the caller gets.
+			res.status(404);
+			// `never`: the renderer's typing only knows view props, but it passes a string through untouched.
+			return CONSOLE_DISABLED_MESSAGE as never;
 		}
 		return { state: await this.managedWeb.state() };
 	}

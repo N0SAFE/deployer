@@ -11,7 +11,8 @@ import {
  * the roster for the ingress and issues the enrollment token. Every other service keeps the service door only.
  */
 const ADMIN_DOOR_APPS: ReadonlySet<string> = new Set(["fleet"]);
-import { Injectable, Logger, Inject, type OnModuleInit } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
@@ -89,9 +90,11 @@ export interface ScheduledApp {
  * produced the 401s and the split database described in
  * `docker-compose.config.services.yml`.
  */
-@Injectable()
-export class ServicesTierProvisioner implements OnModuleInit {
-	private readonly logger = new Logger(ServicesTierProvisioner.name);
+export class ServicesTierProvisionerImpl {
+  /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
+  readonly onStart = (): Effect.Effect<void, unknown> => Effect.tryPromise({ try: () => this.bootstrap(), catch: (error) => error });
+
+	private readonly logger = new Logger("ServicesTierProvisioner");
 	/**
 	 * The host this node's agent advertises, resolved ONCE at boot.
 	 *
@@ -103,8 +106,8 @@ export class ServicesTierProvisioner implements OnModuleInit {
 
 	constructor(
 		private readonly env: EnvService,
-		@Inject(DockerEngine) private readonly docker: DockerEngineShape,
-		private readonly gate: SetupGateService,
+		private readonly docker: DockerEngineShape,
+		private readonly gate: SetupGateService["Service"],
 	) {}
 
 	/** The agent's node door. Overridden by tests, which run without an agent socket. */
@@ -118,7 +121,7 @@ export class ServicesTierProvisioner implements OnModuleInit {
 	 * A silent door is an answer, not a failure: provisioning continues without the variable and the services join
 	 * the mesh under their swarm name instead — worse routing, still a working tier.
 	 */
-	async onModuleInit(): Promise<void> {
+	async bootstrap(): Promise<void> {
 		const status = await this.door().status();
 		this.advertiseHost = hostOf(status?.advertiseAddress);
 		if (this.advertiseHost === null) {
@@ -546,3 +549,9 @@ function hostOf(address: string | undefined): string | null {
 		return null;
 	}
 }
+
+/** The tag: what a module provides and a consumer asks for (`ServicesTierProvisioner["Service"]` is its type). */
+export class ServicesTierProvisioner extends Context.Service<ServicesTierProvisioner, ServicesTierProvisionerImpl>()("setup/ServicesTierProvisioner") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeServicesTierProvisioner = (...args: ConstructorParameters<typeof ServicesTierProvisionerImpl>): ServicesTierProvisionerImpl => new ServicesTierProvisionerImpl(...args);

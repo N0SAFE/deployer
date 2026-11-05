@@ -1,9 +1,8 @@
 import { Logger, Module } from "@nestjs/common";
-import { HttpException } from "@nestjs/common";
-import { REQUEST } from "@nestjs/core";
 import { ORPCModule, type ORPCModuleConfig } from "@orpc/nest";
 import { onError, ORPCError } from "@orpc/server";
 
+import { isDomainError } from "@deployer/effect-core";
 import { declareModule } from "@deployer/nest-effect";
 
 /**
@@ -33,61 +32,32 @@ type ModuleInterceptor = NonNullable<ORPCModuleConfig["interceptors"]>[number];
  *     "message": "Internal Server Error" }
  *
  * That is what made the reported `POST /setup/trigger` failure undiagnosable:
- * the real reason (`HttpException` from a forward, a raw SQLite error from
+ * the real reason (a domain failure from a forward, a raw SQLite error from
  * `persist()`) was discarded on the way out. The token this module provides is
  * global, so `ImplementInterceptor` resolves for every `@Implement` handler in
  * the app.
  *
- * `request` is carried as context because the handlers need the caller's host to
- * decide where to send the browser after setup.
  */
-export interface WizardContext {
-  request: Request;
-  [key: string]: unknown;
-  [key: symbol]: unknown;
-}
 
 /**
- * Map a NestJS `HttpException` onto a contract-declared oRPC error.
+ * Map a `dependency_missing` domain failure onto the contract-declared `SERVICE_UNAVAILABLE`.
  *
- * `setupAppErrorContracts` declares `SERVICE_UNAVAILABLE` (503), `BAD_GATEWAY`
- * (502), `GATEWAY_TIMEOUT` (504) and `INTERNAL_SERVER_ERROR` (500), all carrying
- * `standardDomainErrorPayloadSchema`. oRPC marks a thrown error as DEFINED on the
- * client only when its `code` is declared AND its `data` validates — so the
- * payload is built to that exact shape, and the handler's own status map turns
- * the code back into the HTTP status.
+ * `setupAppErrorContracts` declares `SERVICE_UNAVAILABLE` (503), `BAD_GATEWAY` (502), `GATEWAY_TIMEOUT` (504) and
+ * `INTERNAL_SERVER_ERROR` (500), all carrying `standardDomainErrorPayloadSchema`. oRPC marks a thrown error as
+ * DEFINED on the client only when its `code` is declared AND its `data` validates — so the payload is built to that
+ * exact shape.
  *
- * This is what keeps "the API is not reachable yet" a 503 the wizard renders as
- * progress, instead of collapsing it into a 500 the operator reads as a fault.
+ * This is what keeps "the API is not reachable yet" a 503 the wizard renders as progress, instead of collapsing it
+ * into a 500 the operator reads as a fault. The kind, not a Nest status, carries that meaning now.
  */
-function transformHttpException(error: unknown): void {
-  if (!(error instanceof HttpException)) return;
+function transformDomainError(error: unknown): void {
+  if (!isDomainError(error) || error.kind !== "dependency_missing") return;
 
-  const status = error.getStatus();
-  const response = error.getResponse();
-  const raw =
-    typeof response === "object" && response !== null && "message" in response
-      ? (response as { message?: unknown }).message
-      : undefined;
-  // Validation pipes produce `string[]`; the declared payload requires a string.
-  const message = Array.isArray(raw)
-    ? raw.filter((entry): entry is string => typeof entry === "string").join("; ")
-    : typeof raw === "string"
-      ? raw
-      : error.message;
-
-  const code =
-    status === 503
-      ? "SERVICE_UNAVAILABLE"
-      : status === 502
-        ? "BAD_GATEWAY"
-        : status === 504
-          ? "GATEWAY_TIMEOUT"
-          : "INTERNAL_SERVER_ERROR";
-
+  const message = error.publicMessage();
+  const code = "SERVICE_UNAVAILABLE";
   throw new ORPCError(code, {
     message,
-    data: { statusCode: status, code, message, orpcCode: code },
+    data: { statusCode: 503, code, message, orpcCode: code },
     cause: error,
   });
 }
@@ -129,8 +99,8 @@ const orpcLogger = new Logger("ORPC Errors");
  * it does not read as a fault.
  */
 function logOrpcError(error: unknown): void {
-  if (error instanceof HttpException && error.getStatus() === 503) {
-    orpcLogger.warn(`[SERVICE_UNAVAILABLE] ${error.message}`);
+  if (isDomainError(error) && error.kind === "dependency_missing") {
+    orpcLogger.warn(`[SERVICE_UNAVAILABLE] ${error.publicMessage()}`);
     return;
   }
   if (error instanceof ORPCError && error.code !== "INTERNAL_SERVER_ERROR") {
@@ -150,7 +120,7 @@ function errorMappingInterceptors(): ModuleInterceptor[] {
   return [
     onError((error: unknown) => {
       logOrpcError(error);
-      transformHttpException(error);
+      transformDomainError(error);
       transformUnknownError(error);
     }),
   ];
@@ -164,9 +134,9 @@ export class WizardOrpcModule {
       module: WizardOrpcModule,
       imports: [
         ORPCModule.forRootAsync({
-          inject: [REQUEST],
-          useFactory: (request: Request) => ({
-            context: { request },
+          // No request in the context: nothing reads it, and a `REQUEST`-scoped factory would make every
+          // handler's module request-scoped. A procedure that needs the caller reads the Effect context instead.
+          useFactory: () => ({
             interceptors: errorMappingInterceptors(),
           }),
         }),

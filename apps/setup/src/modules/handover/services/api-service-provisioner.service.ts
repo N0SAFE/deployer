@@ -1,7 +1,8 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { Context } from "effect";
 
 import type { SwarmOverlayNetworkRequest } from "@deployer/contracts-entities";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { DockerConflict, platformOverlayForPrefix } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { apiServiceName } from "@deployer/env";
@@ -39,9 +40,8 @@ import { ServicesTierProvisioner } from "./services-tier-provisioner.service";
  * engine does not manage — no restart policy across nodes, no `service ls` visibility, no
  * placement. Scheduling services is what makes the API part of the cluster the operator just built.
  */
-@Injectable()
-export class ApiServiceProvisioner {
-  private readonly logger = new Logger(ApiServiceProvisioner.name);
+export class ApiServiceProvisionerImpl {
+  private readonly logger = new Logger("ApiServiceProvisioner");
 
   /**
    * How long to keep retrying the connect of THIS container to the overlay.
@@ -68,8 +68,8 @@ export class ApiServiceProvisioner {
 
   constructor(
     private readonly env: EnvService,
-    @Inject(DockerEngine) private readonly docker: DockerEngineShape,
-    private readonly tier: ServicesTierProvisioner,
+    private readonly docker: DockerEngineShape,
+    private readonly tier: ServicesTierProvisioner["Service"],
   ) {}
 
   /**
@@ -245,7 +245,7 @@ export class ApiServiceProvisioner {
       return;
     }
 
-    let deadline = Date.now() + ApiServiceProvisioner.ATTACH_TIMEOUT_MS;
+    let deadline = Date.now() + ApiServiceProvisionerImpl.ATTACH_TIMEOUT_MS;
     let lastMessage = "the engine refused the join without an error message";
     let datapathFailures = 0;
     let repairs = 0;
@@ -307,20 +307,20 @@ export class ApiServiceProvisioner {
         if (/vxlan|file exists|context deadline exceeded/i.test(message)) {
           datapathFailures += 1;
           if (
-            datapathFailures >= ApiServiceProvisioner.DATAPATH_FAILURES_BEFORE_REPAIR &&
-            repairs < ApiServiceProvisioner.MAX_OVERLAY_REPAIRS
+            datapathFailures >= ApiServiceProvisionerImpl.DATAPATH_FAILURES_BEFORE_REPAIR &&
+            repairs < ApiServiceProvisionerImpl.MAX_OVERLAY_REPAIRS
           ) {
             repairs += 1;
             datapathFailures = 0;
             this.logger.warn(
-              `Overlay ${overlay} has an unusable data path (${message}) — rebuilding it on a fresh VXLAN id (repair ${String(repairs)}/${String(ApiServiceProvisioner.MAX_OVERLAY_REPAIRS)})`,
+              `Overlay ${overlay} has an unusable data path (${message}) — rebuilding it on a fresh VXLAN id (repair ${String(repairs)}/${String(ApiServiceProvisionerImpl.MAX_OVERLAY_REPAIRS)})`,
             );
             const rebuilt = await runPromiseUnwrapped(this.docker.networks.recreateOverlay(this.overlayRequest(overlay), {
               detachContainerIds: [selfId],
               avoidVxlanIds: poisonedVnis,
             }));
             poisonedVnis = rebuilt.avoidedVxlanIds;
-            deadline = Date.now() + ApiServiceProvisioner.ATTACH_TIMEOUT_MS;
+            deadline = Date.now() + ApiServiceProvisionerImpl.ATTACH_TIMEOUT_MS;
             continue;
           }
         } else {
@@ -331,7 +331,7 @@ export class ApiServiceProvisioner {
         this.logger.log(
           `Overlay ${overlay} not ready for this container yet — retrying (engine said: ${message})`,
         );
-        await new Promise((resolve) => setTimeout(resolve, ApiServiceProvisioner.ATTACH_POLL_MS));
+        await new Promise((resolve) => setTimeout(resolve, ApiServiceProvisionerImpl.ATTACH_POLL_MS));
       }
     }
 
@@ -344,7 +344,13 @@ export class ApiServiceProvisioner {
     // seconds, at the step that actually failed.
     throw new Error(
       `Cannot reach the platform overlay ${overlay} — this container could not be attached within ` +
-        `${String(ApiServiceProvisioner.ATTACH_TIMEOUT_MS / 1000)}s. Engine said: ${lastMessage}`,
+        `${String(ApiServiceProvisionerImpl.ATTACH_TIMEOUT_MS / 1000)}s. Engine said: ${lastMessage}`,
     );
   }
 }
+
+/** The tag: what a module provides and a consumer asks for (`ApiServiceProvisioner["Service"]` is its type). */
+export class ApiServiceProvisioner extends Context.Service<ApiServiceProvisioner, ApiServiceProvisionerImpl>()("setup/ApiServiceProvisioner") {}
+
+/** The one way to build it — the module's `useFactory` and a spec both call this. */
+export const makeApiServiceProvisioner = (...args: ConstructorParameters<typeof ApiServiceProvisionerImpl>): ApiServiceProvisionerImpl => new ApiServiceProvisionerImpl(...args);

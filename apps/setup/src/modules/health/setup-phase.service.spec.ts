@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SetupPhaseService } from "./setup-phase.service";
+import { makeSetupPhase, type SetupPhaseShape } from "./setup-phase.service";
 
 /**
  * `SetupPhaseService` is the single source of truth the compose gate reads, so
@@ -8,8 +8,8 @@ import { SetupPhaseService } from "./setup-phase.service";
  * dashboard on a half-built platform (a false `ready`) or deadlocks the boot
  * (a `ready` that never arrives).
  */
-function makeService(): SetupPhaseService {
-  return new SetupPhaseService();
+function makeService(): SetupPhaseShape {
+  return makeSetupPhase();
 }
 
 describe("SetupPhaseService", () => {
@@ -136,7 +136,7 @@ describe("SetupPhaseService", () => {
 
 describe("SetupPhaseService.onEnter — late subscribers", () => {
   it("delivers the entry that already happened, exactly once, then later entries live", () => {
-    const phases = new SetupPhaseService();
+    const phases = makeSetupPhase();
     phases.record("launching", "gate opened before anyone listened");
     const seen: string[] = [];
 
@@ -149,7 +149,7 @@ describe("SetupPhaseService.onEnter — late subscribers", () => {
   });
 
   it("stays silent when the node is in another phase", () => {
-    const phases = new SetupPhaseService();
+    const phases = makeSetupPhase();
     const seen: string[] = [];
     phases.onEnter("launching").subscribe((event) => seen.push(event.to));
     expect(seen).toEqual([]);

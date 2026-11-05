@@ -1,5 +1,6 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
+import { ServiceClientRegistry } from "@/clients/service-registry";
 import { EnvModule } from "@/config/env/env.module";
 import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
 
@@ -26,5 +27,7 @@ import { SetupDoneController } from "./controllers/setup-done.controller";
 export class PlatformConsoleModule extends createModuleContext({
 	imports: [EnvModule, CorePlatformIngressModule],
 	controllers: [PlatformConsoleController, SetupDoneController, ConsoleControlController],
-	providers: [ManagedWebClient],
+	providers: [
+		{ provide: ManagedWebClient, useFactory: (registry: ServiceClientRegistry) => new ManagedWebClient(registry), inject: [ServiceClientRegistry] },
+	],
 }) {}

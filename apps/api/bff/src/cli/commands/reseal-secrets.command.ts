@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Logger } from "@nestjs/common";
 import { Command, CommandRunner, Option } from "nest-commander";
 
 import {
@@ -43,7 +43,6 @@ type ResealOptions = {
  * empty key (an AUTH_SECRET that is not hex) were effectively unprotected until now, so
  * rotate them at their provider after this runs (docs/runbooks/secrets-encryption.md).
  */
-@Injectable()
 @Command({
   name: "reseal-secrets",
   description: "Re-encrypt legacy ciphertext in every encrypted column (dry-run unless --apply)",

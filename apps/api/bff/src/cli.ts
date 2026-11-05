@@ -11,7 +11,7 @@ const logger = new Logger("CLI");
 function resolveDeployerVersion(): string {
   try {
     const raw = readFileSync(new URL("../package.json", import.meta.url), "utf-8");
-    return JSON.parse(raw).version ?? "0.0.0";
+    return (JSON.parse(raw) as { version?: string }).version ?? "0.0.0";
   } catch {
     return "0.0.0";
   }

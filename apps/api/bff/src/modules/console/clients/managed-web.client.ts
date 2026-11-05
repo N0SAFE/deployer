@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-
 import { platformContract, type ManagedWebState } from "@deployer/fleet-contracts";
 
 import { ServiceClientRegistry } from "../../../clients/service-registry";
@@ -26,7 +24,6 @@ import { ServiceClientRegistry } from "../../../clients/service-registry";
  * BFF's `console.*` procedures the only surface the browser addresses, instead of the
  * browser reaching a service namespace directly.
  */
-@Injectable()
 export class ManagedWebClient {
 	constructor(private readonly clients: ServiceClientRegistry) {}
 
