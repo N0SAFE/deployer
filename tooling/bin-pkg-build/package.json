@@ -23,7 +23,7 @@
         "format:check": "bun fmt --check .",
         "type-check": "bun check --no-script",
         "test": "bun --bun x vitest run",
-        "test:watch": "vitest"
+        "test:watch": "bun --bun vitest"
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",

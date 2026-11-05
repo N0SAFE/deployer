@@ -54,9 +54,9 @@ After scaffolding, update the generated files:
     "start": "node dist/main.js",
     "dev": "nest start --watch",
     "type-check": "tsgo --noEmit",
-    "test": "vitest run",
+    "test": "bun --bun vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "bun --bun vitest run --coverage"
   },
   "dependencies": {
     "@nestjs/common": "catalog:nestjs",

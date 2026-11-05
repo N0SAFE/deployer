@@ -6,7 +6,7 @@
     "dev": "bun --watch src/main.ts",
     "start": "bun src/main.ts",
     "demo": "bun src/demo.ts",
-    "test": "vitest run",
+    "test": "bun --bun vitest run",
     "type-check": "tsc --noEmit",
     "type-check:requirements": "tsc -p requirements-demo/tsconfig.json",
     "test:requirements": "cd requirements-demo && vitest run",

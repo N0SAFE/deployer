@@ -188,7 +188,7 @@ Each app is a workspace package under `apps/api/`, matched by the root glob
   "start":     "bun --bun src/main.ts",
   "type-check":"tsc --noEmit",
   "lint":      "bun lint --fix",
-  "test":      "vitest run"
+  "test":      "bun --bun vitest run"
 }
 ```
 

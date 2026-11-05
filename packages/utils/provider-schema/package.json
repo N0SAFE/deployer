@@ -34,7 +34,7 @@
     },
     "scripts": {
         "type-check": "bun check --no-script",
-        "test": "vitest run",
+        "test": "bun --bun vitest run",
         "prettify": "bun fmt .",
         "format": "bun run prettify",
         "format:check": "bun fmt --check .",

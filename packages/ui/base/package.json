@@ -53,9 +53,9 @@
         "lint:fix": "bun lint \"**/*.ts*\" --no-script --fix --type-aware",
         "lint:fix+": "bun lint \"**/*.ts*\" --no-script --fix-suggestions --type-aware",
         "type-check": "bun check --no-script",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
+        "test:coverage": "bun --bun vitest run --coverage",
         "ui:add": "bun x --bun shadcn@latest add --",
         "build:types": "bun --bun pkg-build --types"
     },

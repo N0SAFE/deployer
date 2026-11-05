@@ -30,8 +30,8 @@
 		"dev": "bun --bun pkg-build --watch",
 		"clean": "rimraf dist",
 		"build:types": "bun --bun pkg-build --types",
-		"test": "vitest run",
-		"test:watch": "vitest"
+		"test": "bun --bun vitest run",
+		"test:watch": "bun --bun vitest"
 	},
 	"dependencies": {
 		"@deployer/nest-effect": "*",

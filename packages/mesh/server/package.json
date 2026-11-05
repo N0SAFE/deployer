@@ -30,9 +30,9 @@
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage"
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
+        "test:coverage": "bun --bun vitest run --coverage"
     },
     "dependencies": {
         "@orpc/server": "catalog:orpc",

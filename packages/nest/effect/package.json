@@ -68,8 +68,8 @@
 		"lint:fix": "bun lint --no-script --fix --type-aware",
 		"lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
 		"prettify": "bun fmt .",
-		"test": "vitest run",
-		"test:watch": "vitest",
+		"test": "bun --bun vitest run",
+		"test:watch": "bun --bun vitest",
 		"type-check": "bun check --no-script"
 	},
 	"types": "./dist/types/index.d.ts",

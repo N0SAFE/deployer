@@ -19,9 +19,9 @@
     },
     "scripts": {
         "type-check": "bun check --no-script",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
+        "test:coverage": "bun --bun vitest run --coverage",
         "prettify": "bun fmt .",
         "format": "bun run prettify",
         "format:check": "bun fmt --check .",

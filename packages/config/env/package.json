@@ -53,7 +53,7 @@
         "check": "bun src/cli.ts check",
         "load": "bun src/cli.ts load",
         "mock": "bun src/cli.ts mock",
-        "test": "vitest run",
+        "test": "bun --bun vitest run",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
