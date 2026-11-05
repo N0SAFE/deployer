@@ -150,7 +150,7 @@ and the applications' prune volumes are not mounted into it at all.
 
 ### The builder image's layers are ordered for its own rebuilds
 
-Four rules, each measured on the real image:
+Five rules, each measured on the real image:
 
 1. **Manifests before sources, in two COPYs.** `bun install` reads manifests and
    the lockfile and nothing else, so the source trees come AFTER it. With one
@@ -159,11 +159,16 @@ Four rules, each measured on the real image:
 2. **`bunfig.toml` is copied with the manifests.** It is install policy
    (`linker`, `globalStore`, `prefere`), and leaving it out installed the image
    with bun's defaults while the host used the repository's.
-3. **The `apps/**` strip runs between install and sources.** It reads the root
+3. **`patches/` is copied just before every install stage.** The root manifest
+   carries `patchedDependencies` (currently `tw-animate-css`, whose `exports`
+   needs a `default` condition for Turbopack's CSS resolver), and `bun install` /
+   `bun ci` abort with `patch file not found` when the patch is outside the build
+   context.
+4. **The `apps/**` strip runs between install and sources.** It reads the root
    manifest only, so below the source COPYs it re-ran on every source edit for
    nothing. It must still precede the bake (see the graph note in the tool's
    AGENTS), and it must FOLLOW the install, which needs the full workspace list.
-4. **The bake writes into a BuildKit cache mount, then copies the entries into
+5. **The bake writes into a BuildKit cache mount, then copies the entries into
    the layer at `/opt/turbo-cache`.** A source edit invalidates the bake layer,
    and its parent holds no cache, so the bake used to be cold every time (71 s
    for 42 packages). With the mount it is `FULL TURBO` on a rebuild, and the copy

@@ -77,6 +77,9 @@ COPY scripts ./scripts
 # which its manifest lists under devDependencies today. A production install
 # would delete them and the agent would fail at startup. Drop the `bun ci` for
 # `bun ci --production` only after those move to `dependencies`.
+# `patchedDependencies` in the root package.json: bun refuses to install when
+# the patch file it names is not in the build context.
+COPY patches ./patches
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared bun ci
 # The workspace packages publish `dist/` and their `exports` point at it, so they
 # are built here; the agent itself is NOT built — it runs from `src/` (see the

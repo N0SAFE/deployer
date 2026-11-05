@@ -293,6 +293,9 @@ COPY --from=pruner-full /app/bun.lock ./bun.lock
 # So the order must be: install everything → build the packages → THEN drop what
 # only the build needed. See `APP_INSTALL_PRODUCTION` in the runner stage, which
 # does the removal AFTER the bake and after this stage's tree is copied across.
+# `patchedDependencies` in the root package.json: bun refuses to install when
+# the patch file it names is not in the build context.
+COPY patches ./patches
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache,sharing=shared \
     bun ci

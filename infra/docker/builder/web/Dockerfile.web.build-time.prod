@@ -144,6 +144,9 @@ COPY scripts ./scripts
 # would die with `Script not found "pkg-build"`.
 COPY tooling/bin-pkg-build/bin ./tooling/bin-pkg-build/bin
 
+# `patchedDependencies` in the root package.json: bun refuses to install when
+# the patch file it names is not in the build context.
+COPY patches ./patches
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
   bun ci
 
