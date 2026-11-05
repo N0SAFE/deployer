@@ -4,7 +4,6 @@ import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configura
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
-import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
 import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
@@ -44,7 +43,6 @@ export class ProjectDomainModule extends createModuleContext({
 		effectHostProvider(),
 		{ provide: DnsProvider, useFactory: makeDnsProviderGateway, inject: [ServiceClient] },
 		{ provide: ApprovalGuard, useFactory: makeApprovalGuard, inject: [ServiceClient] },
-		{ provide: ProjectDomainRepository, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,

@@ -1,7 +1,4 @@
-import { Logger } from '@nestjs/common';
-
 import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository } from "@deployer/node-state"
 
 import { EnvModule } from "@/config/env/env.module";
 import { AuthModule } from '@/core/modules/auth/auth.module';

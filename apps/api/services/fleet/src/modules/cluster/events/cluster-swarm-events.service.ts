@@ -33,7 +33,7 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
 import { type ClusterMasterView } from "@deployer/fleet-contracts";
 import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
-import { type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { SwarmFleet, type SwarmFleetShape } from "@deployer/swarm"
@@ -73,7 +73,7 @@ export class ClusterSwarmEventsService
     private eventAbortController: AbortController | null = null;
 
     constructor(
-        streamPool: CoreEventStreamPoolServiceShape,
+        @Inject(CoreEventStreamPoolService) streamPool: CoreEventStreamPoolServiceShape,
         @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
         @Inject(SwarmCluster) private readonly swarmClusterService: SwarmClusterShape,
         @Inject(SwarmFleet) private readonly swarmFleetService: SwarmFleetShape,

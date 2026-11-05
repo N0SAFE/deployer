@@ -19,7 +19,7 @@ import { DomainRoutingService } from "@deployer/shared/core/modules/domain/servi
 import { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { TraefikConfigRefresher, type TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { EnvService } from "@deployer/shared/config/env/env.module";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { GitModule } from "@deployer/shared/core/modules/git/git/git.module";
 import { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
@@ -90,6 +90,8 @@ import { DeploymentContainerLinkService } from "./services/container-link.servic
 
 export class DeploymentDomainModule extends createModuleContext({
     imports: [
+        // `QueueEnvPort` aliases `EnvService`, which this module has to be able to resolve on its own.
+        EnvModule,
         DatabaseModule,
         ConfigurationCoreModule,
         // ── WHY A @Global MODULE STILL HAS TO BE IMPORTED ───────────────────

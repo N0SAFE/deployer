@@ -95,8 +95,8 @@ export class ClusterController {
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
                 const ports = yield* Effect.context<ClusterServicePorts>();
-                // Each evaluation runs through the `.effect()` boundary, so a poll provides the actor like any request.
-                return liveSnapshot(() => Effect.runPromise(cluster.getSwarmConfig().pipe(Effect.provideContext(ports))), {
+                // A poll runs on a timer, outside the request fiber: it re-enters the request boundary so it has the actor like any request.
+                return liveSnapshot(() => Effect.runPromise(inBoundary(context, cluster.getSwarmConfig().pipe(Effect.provideContext(ports)))), {
                     intervalMs: SWARM_CONFIG_STREAM_INTERVAL_MS,
                 });
             });

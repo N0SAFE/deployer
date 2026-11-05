@@ -44,7 +44,7 @@ import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/
 
 import type { DnsProviderRegistryServices } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 
-import { attempt, attemptSync } from "../../../core/effects";
+import { attempt } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
 import { NodeAgentUnsupported } from "../reachability.errors";
 import {

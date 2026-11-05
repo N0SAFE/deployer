@@ -1,5 +1,5 @@
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost, EffectHostModule, EffectRuntimeModule } from "@deployer/nest-effect";
 import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
@@ -107,7 +107,19 @@ export class BffModule extends createModuleContext({
 		// it unsatisfiable. Every service imports this; the BFF is the one app
 		// that answers for the platform, so it needs it most.
 		ServiceHealthModule,
-		createOrpcModule(),
+		// `.effect()` handlers (the setup wizard, the mesh controller) resolve services from `effect/context`: the host
+		// contributes the context of the module that owns the controller, per request.
+		EffectHostModule,
+		createOrpcModule({
+			boundary: { service: "bff" },
+			extraContext: {
+				inject: [EffectHost],
+				resolve: (executionContext, host) => ({
+					"effect/context": host.contextFor(executionContext.getClass()),
+				}),
+			},
+		}),
+		EffectRuntimeModule,
 
 		// ── THE PLATFORM SUPERVISORS (WHAT "SUPERVISED" MEANS) ──────────────
 		// Ordered ahead of the feature modules by INTENT; Nest resolves the graph

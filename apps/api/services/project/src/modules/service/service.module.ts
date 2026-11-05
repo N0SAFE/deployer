@@ -3,8 +3,6 @@ import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configura
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
-import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
-import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
 import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/services/core-event-sync.service";
@@ -48,16 +46,11 @@ export class ServiceDomainModule extends createModuleContext({
 	controllers: [ServiceController],
 	providers: [
 		effectHostProvider(),
-		{ provide: ProjectDomainRepository, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,
 		},
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
-		{
-			provide: ServiceDomainMappingRepository,
-			useExisting: ServiceDomainMappingRepository,
-		},
 		// Registers the service namespace on the core event bus when the module is built.
 		{ provide: SERVICE_EVENT_REGISTRATION, useFactory: registerServiceEventAdapter, inject: [CoreEventSyncService, EffectHost] },
 		{

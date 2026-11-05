@@ -1,3 +1,6 @@
+// `.effect()` on an implementer comes from this extension: loaded here so no app has to remember to.
+import "@orpc/effect/extensions/effect";
+
 import { implement, ORPCError, os } from "@orpc/server";
 import { Context as EffectContext, Effect as EffectRuntimeApi } from "effect";
 
