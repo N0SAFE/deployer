@@ -55,8 +55,6 @@ function pickNuqsOptions(
 ): Omit<UseSafeQueryParamStatesOptions, 'delay' | 'resetKeys'> | undefined {
     if (!options) return undefined
     const { delay: _delay, resetKeys: _resetKeys, ...nuqsOptions } = options
-    _delay
-    _resetKeys
     return nuqsOptions
 }
 

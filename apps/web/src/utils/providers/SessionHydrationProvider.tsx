@@ -70,13 +70,17 @@ export interface SessionHydrationProviderProps {
 export async function SessionHydrationProvider({ 
     children 
 }: SessionHydrationProviderProps): Promise<React.ReactElement> {
-    // Fast path: no session cookie → skip the session fetch entirely.
-    // This avoids TanStack Query's setQueryData (which stamps dataUpdatedAt
-    // with Date.now()) during static prerendering — the source of the
-    // blocking-prerender-current-time insight on the home page. The client
-    // useSession() hook falls back to Better Auth's own fetch when the
-    // cache is empty, so skipping hydration here is safe.
-    let hasCookie = false
+    // A session cookie is the cheap signal that a session MIGHT exist, so it
+    // decides whether to decrypt one. It must NOT decide whether to write the
+    // cache: `shouldFetch: false` used to skip `setQueryData` entirely, leaving
+    // no query entry at all. `useSession()` then fell through to Better Auth's
+    // own client fetch, where the server had rendered `isPending: true`
+    // (skeleton) and the client resolved to `data: null` (Sign In link) — the
+    // hydration mismatch in MainNavigation's SessionNav.
+    //
+    // Passing `false` still skips the decrypt; SessionHydration now always
+    // seeds the cache, so "no cookie" becomes a known `null` on both sides.
+    let hasCookie: boolean
     try {
         hasCookie = await hasSessionCookie()
     } catch (e) {
