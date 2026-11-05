@@ -20,29 +20,28 @@
 # ===================================
 # Stage 1: Base
 # ===================================
-FROM oven/bun:1.4.4-alpine AS base
-ENV NODE_ENV=production
+# >>> shared-prod-base (generated from ../Dockerfile.base by sync-base.ts; do not edit here)
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-prod-base
 
-# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
-# `bunfig.toml` sets `globalStore = true`, which points every
-# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
-# below. A BuildKit cache mount is not committed to the image layer, so those
-# links would ship without their targets and every runtime import would fail
-# with ENOENT. Measured in a built image: with the store on, `test -d
-# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
-# Full reasoning: AGENTS.md → "One bun download cache".
+# BuildKit cache mounts break `install.globalStore`: `bunfig.toml` sets it, which points `node_modules/.bun/<pkg>` at an
+# absolute path under the cache mount used below; a cache mount is not committed to the layer, so those links would ship
+# without their targets (ENOENT on every runtime import). The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
 ENV BUN_INSTALL_GLOBAL_STORE=0
 
-# jq is needed to parse package.json exports in the runner stage; wget is the
-# compose healthcheck's probe (Terminus returns a real status code, so a plain
-# --spider is correct and no grep wrapper is needed).
-RUN apk add --no-cache libc6-compat tar jq wget
-# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
-# a different target would be a second download cache instead of the one shared
-# with every other Dockerfile here. See AGENTS.md → "One bun download cache".
+# The union of what the production images need: `nodejs` for Turbo's wrapper script, `jq` to read package exports, `wget`
+# for healthchecks, `dumb-init` for the Next runners.
+RUN apk add --no-cache libc6-compat tar jq nodejs wget dumb-init
+
+# ONE cache `id` for the whole directory (it otherwise defaults to the mount target, i.e. a second download cache per
+# Dockerfile), mounted on the cache SUBDIR (mounting `/root/.bun` masks the global bin dir the install just wrote), and
+# `sharing=shared` so concurrent builds stay parallel — bun publishes cache entries atomically.
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
-    bun install -g turbo@^2
+    bun install -g turbo@^2 node-gyp
 WORKDIR /app
+# <<< shared-prod-base
+FROM shared-prod-base AS base
+ENV NODE_ENV=production
 
 # ===================================
 # Stage 2a: pruner-json — manifests only (very stable cache)

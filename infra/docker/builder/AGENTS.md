@@ -55,6 +55,14 @@ flowchart TB
 
 > **Note**: The `source-copier` stage from the previous architecture was removed. The pruner already produces the exact pruned source in `out/full/`, so the runner/builder can copy directly from there (local image-to-image COPY, no build-context transfer).
 
+## Shared base stages (`Dockerfile.base` + `sync-base.ts`)
+
+A Dockerfile cannot include another, and BuildKit keys a layer on the text of its instruction, so images share base layers only if that text is identical. `Dockerfile.base` is the single source of two stages, `shared-prod-base` (api, web, doc, setup, node-agent) and `shared-dev-base` (app, dependency-builder); each Dockerfile carries a verbatim copy between `# >>> shared-*-base` markers and then adds only its own on top (`FROM shared-prod-base AS base` + `NODE_ENV`, build args).
+
+- Edit the base in `Dockerfile.base`, then run `bun infra/docker/builder/sync-base.ts` (`--check` fails on drift).
+- Never put a build arg or anything app-specific inside a shared block: it would make the layer per-application.
+- Prod and dev stay separate bases: a union would ship git/python/g++/node 22 in every production runner.
+
 ## The `dev-dependency-builder` profile's two images
 
 The `dev-dependency-builder` compose profile uses a different pair of images. It

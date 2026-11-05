@@ -67,77 +67,29 @@
 # package is scoped.
 
 ARG APP
-ARG BUN_VERSION=1.4.4
 
 # ===================================
 # Stage 1: Base — shared by every application
 # ===================================
-FROM oven/bun:${BUN_VERSION}-alpine AS base
-
-# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
-# `bunfig.toml` sets `globalStore = true`, which points every
-# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
-# below. A BuildKit cache mount is not committed to the image layer, so those
-# links would ship without their targets and every runtime import would fail
-# with ENOENT. Measured in a built image: with the store on, `test -d
-# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml, so
-# the host keeps the fast `rm -rf node_modules` install and the image gets real
-# directories. Full reasoning: AGENTS.md → "One bun download cache".
+# >>> shared-dev-base (generated from ../Dockerfile.base by sync-base.ts; do not edit here)
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-dev-base
 ENV BUN_INSTALL_GLOBAL_STORE=0
 
-# The UNION of what the four applications need, so there is one list and one set
-# of layers instead of two:
-#   * `wget` (api/setup healthchecks), `git`, `pkg-config`-less `make`/`g++`
-#   * `gcc` and `musl-dev` for native addons
-#   * `jq` for the shared-output entrypoint, which reads each package's NAME out
-#     of its manifest to build the volume path
-RUN apk add --no-cache \
-        bash curl wget git tar jq \
-        python3 make g++ gcc musl-dev libc6-compat
+# The union of what the dev applications and the dependency builder need.
+RUN apk add --no-cache bash curl wget git tar jq python3 make g++ gcc musl-dev libc6-compat
 
-# Node 22. The NestJS applications need a real `node` for `nest start`, and
-# Turbo's CLI wrapper is a Node script. Installing it in the shared base rather
-# than in a per-application stage is what keeps this layer shared: BuildKit
-# stores these ~120MB once for all four images, where a conditional install would
-# store them per application.
+# Node 22 in the shared base (not per application) so its ~120MB layer is stored once for every dev image.
 COPY --from=node:22-alpine /usr/local /usr/local
 
-# Merged with the global install below: two adjacent RUNs with no cacheable
-# boundary between them were two layers for one unit of work.
-#
-# `@nestjs/cli` is used only by api/setup. A conditional install would make this
-# layer per-application and cost more than the unused CLI does, since BuildKit
-# stores it once for all four.
-# ── `sharing=shared`, NOT `locked` ──────────────────────────────────────────
-# `locked` holds an exclusive lock on the bun cache for the WHOLE RUN, so the
-# four application images build SERIALLY at every bun step: one waits for the
-# other's command to finish before its own begins. Bun's cache is
-# content-addressed and written atomically, so concurrent installs can share
-# it safely.
-#
-# The OTHER caches keep `locked` — `/var/cache/apk`, `/tmp/turbo-restore` and
-# `.next/cache` are mutable and write-heavy, where concurrent writers corrupt
-# existing entries rather than adding new ones.
-#
-# ── WHY THE TARGET IS THE CACHE SUBDIR AND THE `id` IS EXPLICIT ─────────────
-# Mounting the WHOLE `/root/.bun` hides what the install just wrote: bun's global
-# bin dir is `/root/.bun/install/global` and `/usr/local/bin/<tool>` is a symlink
-# into it, so with the mount on the parent the symlink dangles and
-# `command -v turbo` finds nothing (measured). Mounting only the cache keeps the
-# global install in the layer, where the symlink resolves.
-# The `id` is explicit because the cache id DEFAULTS TO THE MOUNT TARGET
-# (`/root/.bun` and `/root/.bun/install/cache` are different ids, i.e. two
-# separate download caches). One id, shared with every other Dockerfile here,
-# is what makes the packages downloadable once for the whole repository.
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     ln -sf /usr/local/bin/node /usr/bin/node && \
     ln -sf /usr/local/bin/npm /usr/bin/npm && \
     ln -sf /usr/local/bin/npx /usr/bin/npx && \
     bun install -g turbo@^2 @nestjs/cli node-gyp
-
-# Every stage below is `FROM base`, so they all inherit this working directory.
-# None of them re-declares it: a redundant WORKDIR is still a layer.
 WORKDIR /app
+# <<< shared-dev-base
+FROM shared-dev-base AS base
 
 # ===================================
 # Stage 2a: Pruner JSON — manifests only

@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1-labs
+# The shared base stages of every image built from this directory — the SINGLE SOURCE.
+#
+# A Dockerfile cannot include another, and BuildKit keys a layer on the text of its instruction (and its parent), so the only
+# way for api, web, doc, setup, node-agent and the dev images to share their apk / node / turbo layers is for that text to be
+# identical. The blocks between the markers are copied verbatim into each Dockerfile by `sync-base.ts`; edit them HERE, then
+# run `bun infra/docker/builder/sync-base.ts` (`--check` fails on drift). Each Dockerfile then adds only what is its own on top:
+#
+#   FROM shared-prod-base AS base       # NODE_ENV, build args, app-specific packages
+#
+# Two bases, not one: the dev images carry a toolchain (git, python, g++, a full node 22) that has no business in a production
+# runtime, and every prod runner is `FROM base`, so a union would ship it.
+#
+# Nothing in a base may depend on a build arg or the app: that would make the layer per-application and share nothing.
+# (`BUN_VERSION` is a global ARG — it picks the parent image, it is not in any instruction's cache key.)
+
+# >>> shared-prod-base
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-prod-base
+
+# BuildKit cache mounts break `install.globalStore`: `bunfig.toml` sets it, which points `node_modules/.bun/<pkg>` at an
+# absolute path under the cache mount used below; a cache mount is not committed to the layer, so those links would ship
+# without their targets (ENOENT on every runtime import). The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
+
+# The union of what the production images need: `nodejs` for Turbo's wrapper script, `jq` to read package exports, `wget`
+# for healthchecks, `dumb-init` for the Next runners.
+RUN apk add --no-cache libc6-compat tar jq nodejs wget dumb-init
+
+# ONE cache `id` for the whole directory (it otherwise defaults to the mount target, i.e. a second download cache per
+# Dockerfile), mounted on the cache SUBDIR (mounting `/root/.bun` masks the global bin dir the install just wrote), and
+# `sharing=shared` so concurrent builds stay parallel — bun publishes cache entries atomically.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2 node-gyp
+WORKDIR /app
+# <<< shared-prod-base
+
+# >>> shared-dev-base
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-dev-base
+ENV BUN_INSTALL_GLOBAL_STORE=0
+
+# The union of what the dev applications and the dependency builder need.
+RUN apk add --no-cache bash curl wget git tar jq python3 make g++ gcc musl-dev libc6-compat
+
+# Node 22 in the shared base (not per application) so its ~120MB layer is stored once for every dev image.
+COPY --from=node:22-alpine /usr/local /usr/local
+
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    ln -sf /usr/local/bin/node /usr/bin/node && \
+    ln -sf /usr/local/bin/npm /usr/bin/npm && \
+    ln -sf /usr/local/bin/npx /usr/bin/npx && \
+    bun install -g turbo@^2 @nestjs/cli node-gyp
+WORKDIR /app
+# <<< shared-dev-base

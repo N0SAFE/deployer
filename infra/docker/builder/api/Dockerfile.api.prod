@@ -34,45 +34,34 @@ ARG APP_PORT
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.4.4-alpine AS base
+# >>> shared-prod-base (generated from ../Dockerfile.base by sync-base.ts; do not edit here)
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-alpine AS shared-prod-base
+
+# BuildKit cache mounts break `install.globalStore`: `bunfig.toml` sets it, which points `node_modules/.bun/<pkg>` at an
+# absolute path under the cache mount used below; a cache mount is not committed to the layer, so those links would ship
+# without their targets (ENOENT on every runtime import). The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
+
+# The union of what the production images need: `nodejs` for Turbo's wrapper script, `jq` to read package exports, `wget`
+# for healthchecks, `dumb-init` for the Next runners.
+RUN apk add --no-cache libc6-compat tar jq nodejs wget dumb-init
+
+# ONE cache `id` for the whole directory (it otherwise defaults to the mount target, i.e. a second download cache per
+# Dockerfile), mounted on the cache SUBDIR (mounting `/root/.bun` masks the global bin dir the install just wrote), and
+# `sharing=shared` so concurrent builds stay parallel — bun publishes cache entries atomically.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2 node-gyp
+WORKDIR /app
+# <<< shared-prod-base
+FROM shared-prod-base AS base
 ARG PRUNE_SCOPE
 ARG APP_DIR
 ENV NODE_ENV=production
-
-# No defaults on purpose (see the header): fail here, in seconds, not after a long build.
 RUN test -n "${PRUNE_SCOPE}" && test -n "${APP_DIR}" || { \
       echo "PRUNE_SCOPE and APP_DIR build args are required (e.g. @deployer/bff + apps/api/bff)" >&2; \
       exit 1; \
     }
-
-# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
-# `bunfig.toml` sets `globalStore = true`, which points every
-# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
-# below. A BuildKit cache mount is not committed to the image layer, so those
-# links would ship without their targets and every runtime import would fail
-# with ENOENT. Measured in a built image: with the store on, `test -d
-# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
-# Full reasoning: AGENTS.md → "One bun download cache".
-ENV BUN_INSTALL_GLOBAL_STORE=0
-
-# Install system dependencies and Node.js
-# jq is needed to parse package.json exports in runner stage
-RUN apk add --no-cache libc6-compat tar nodejs jq
-
-# Install global tools with cache mount.
-#
-# ONE `id`, shared by every Dockerfile in this directory. The cache id otherwise
-# DEFAULTS TO THE MOUNT TARGET, so a second Dockerfile mounting a different path
-# (`/root/.bun` instead of `/root/.bun/install/cache`) silently gets a second,
-# independent download cache — and a mount on `/root/.bun` is worse than
-# useless: bun puts its global bin dir at `/root/.bun/install/global` and links
-# `/usr/local/bin/<tool>` into it, so mounting `/root/.bun` masks the tool it
-# just installed (measured: `command -v turbo` finds nothing).
-# `sharing=shared` keeps concurrent builds parallel — the download cache is
-# content-addressed and bun publishes entries atomically.
-RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
-    bun install -g turbo@^2 node-gyp
-WORKDIR /app
 
 # ===================================
 # Stage 2a: pruner-json — manifests only (very stable cache)
