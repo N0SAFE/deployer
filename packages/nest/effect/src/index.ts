@@ -29,7 +29,6 @@ export {
     assertRequirementsMet,
     GlobalServicesOf,
     procedure,
-    requires,
     UnmetRequirementsOf,
     type AnyService,
     type Collaborators,

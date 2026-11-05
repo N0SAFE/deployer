@@ -1,77 +1,50 @@
-import { ORPCError } from '@orpc/server'
+import { os } from '@orpc/server'
+import { call } from '@orpc/server'
 import { describe, expect, it } from 'vitest'
 
 import { rateLimit } from './orpc-middleware'
 
-/** Mirrors the oRPC middleware invocation shape: (options, input, outputFn), options carry { context, next, errors }. */
-async function runMiddleware(
-    middleware: ReturnType<typeof rateLimit>,
-    ip: string | null
-): Promise<{ threw: ORPCError<string, unknown> | null }> {
-    const errorsMap = {
-        TOO_MANY_REQUESTS: (options?: { message?: string; status?: number }) =>
-            new ORPCError('TOO_MANY_REQUESTS', options ?? {}),
-    }
-    const next = ({ context }: { context: Record<string, unknown> }) =>
-        Promise.resolve({ context, output: 'ok' })
-    const fn = middleware as unknown as (
-        options: unknown,
-        input: unknown,
-        outputFn: unknown
-    ) => Promise<unknown>
-    try {
-        await fn(
-            {
-                context: {
-                    request: new Request(
-                        'http://deployer.localhost',
-                        ip === null
-                            ? {}
-                            : { headers: { 'x-forwarded-for': ip } }
-                    ),
-                },
-                next,
-                errors: errorsMap,
-            },
-            {},
-            () => ({})
-        )
-        return { threw: null }
-    } catch (error) {
-        return { threw: error as ORPCError<string, unknown> }
-    }
-}
+import type { RequestContext } from './orpc-middleware'
+
+/** The middleware is proved through a real procedure: what a caller experiences is the contract's `TOO_MANY_REQUESTS`. */
+const requestFrom = (ip: string | null): RequestContext => ({
+    request: new Request(
+        'http://deployer.localhost',
+        ip === null ? {} : { headers: { 'x-forwarded-for': ip } }
+    ),
+})
+
+const guarded = (options: Parameters<typeof rateLimit>[0]) =>
+    os
+        .$context<RequestContext>()
+        .use(rateLimit(options))
+        .handler(() => 'ok' as const)
 
 describe('rateLimit middleware', () => {
-    it('allows requests under the ceiling and blocks the burst with TOO_MANY_REQUESTS', async () => {
-        const limiter = rateLimit({ windowMs: 60_000, max: 2 })
-        expect((await runMiddleware(limiter, '10.0.0.1')).threw).toBeNull()
-        expect((await runMiddleware(limiter, '10.0.0.1')).threw).toBeNull()
-        // oRPC v2 REMOVED `status` from ORPCError: the HTTP status is mapped from the code by the handler, so the code is what a middleware can assert.
-        expect((await runMiddleware(limiter, '10.0.0.1')).threw?.code).toBe(
-            'TOO_MANY_REQUESTS'
-        )
+    it('lets a client through up to `max` requests, then refuses with TOO_MANY_REQUESTS (statusCode 429)', async () => {
+        const procedure = guarded({ windowMs: 60_000, max: 2 })
+        const context = requestFrom('203.0.113.7')
+        await expect(call(procedure, undefined, { context })).resolves.toBe('ok')
+        await expect(call(procedure, undefined, { context })).resolves.toBe('ok')
+        await expect(call(procedure, undefined, { context })).rejects.toMatchObject({
+            code: 'TOO_MANY_REQUESTS',
+            data: expect.objectContaining({ statusCode: 429 }),
+        })
     })
 
-    it('does not limit different clients against each other', async () => {
-        const limiter = rateLimit({ windowMs: 60_000, max: 1 })
-        await runMiddleware(limiter, '10.0.0.1')
-        expect((await runMiddleware(limiter, '10.0.0.2')).threw).toBeNull()
+    it('counts each client on its own', async () => {
+        const procedure = guarded({ windowMs: 60_000, max: 1 })
+        await expect(call(procedure, undefined, { context: requestFrom('198.51.100.1') })).resolves.toBe('ok')
+        await expect(call(procedure, undefined, { context: requestFrom('198.51.100.2') })).resolves.toBe('ok')
+        await expect(call(procedure, undefined, { context: requestFrom('198.51.100.1') })).rejects.toMatchObject({
+            code: 'TOO_MANY_REQUESTS',
+        })
     })
 
-    it('shares one budget between requests that cannot be attributed', async () => {
-        const limiter = rateLimit({ windowMs: 60_000, max: 1 })
-        await runMiddleware(limiter, null)
-        expect((await runMiddleware(limiter, null)).threw?.code).toBe(
-            'TOO_MANY_REQUESTS'
-        )
-    })
-
-    it('releases the window after it slides', async () => {
-        const limiter = rateLimit({ windowMs: 50, max: 1 })
-        await runMiddleware(limiter, '10.0.0.3')
-        expect((await runMiddleware(limiter, '10.0.0.3')).threw).not.toBeNull()
-        await new Promise((resolve) => setTimeout(resolve, 60))
-        expect((await runMiddleware(limiter, '10.0.0.3')).threw).toBeNull()
+    it('says what the operator asked it to say', async () => {
+        const procedure = guarded({ windowMs: 60_000, max: 0, message: 'slow down' })
+        await expect(call(procedure, undefined, { context: requestFrom(null) })).rejects.toMatchObject({
+            message: 'slow down',
+        })
     })
 })

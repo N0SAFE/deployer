@@ -9,7 +9,7 @@
  * The HTML management console lives in PlatformConsoleController.
  */
 
-import { Controller, Inject } from '@nestjs/common'
+import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 import { Effect } from 'effect'
 
@@ -27,7 +27,6 @@ import { AuthCoreService } from '@deployer/shared/core/modules/auth/services/aut
 import {
     AppInstanceService,
     STALE_AFTER_MS,
-    type AppInstanceServiceShape,
 } from '@deployer/shared/core/modules/platform-ingress/services/app-instance.service'
 
 import { requireAppInstance } from '../orpc/middlewares'
@@ -37,10 +36,6 @@ const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const
 
 @Controller()
 export class PlatformController {
-    constructor(
-        @Inject(AppInstanceService)
-        private readonly appInstances: AppInstanceServiceShape
-    ) {}
     @Implement(registerAppInstanceContract)
     register() {
         return procedure(registerAppInstanceContract)
@@ -101,13 +96,11 @@ export class PlatformController {
         // after it, `context.appInstance` is guaranteed present — never
         // null-checked in the handler.
         return procedure(heartbeatAppInstanceContract)
-            .use(requireAppInstance(this.appInstances))
-            .handler(async () => {
-                return {
-                    status: 201,
-                    body: { renewUntil: new Date(Date.now() + STALE_AFTER_MS) },
-                }
-            })
+            .use(requireAppInstance())
+            .handler(() => ({
+                status: 201,
+                body: { renewUntil: new Date(Date.now() + STALE_AFTER_MS) },
+            }))
     }
 
     @Implement(listAppInstancesContract)

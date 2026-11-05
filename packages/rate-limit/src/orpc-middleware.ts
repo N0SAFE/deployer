@@ -1,9 +1,8 @@
-import { os } from '@orpc/server'
+import { middlewareGen } from '@orpc/effect'
+import { ORPCError } from '@orpc/server'
+import { Effect } from 'effect'
 
-import {
-    domainErrorOptions,
-    standardDomainErrorPayloadSchema,
-} from '@deployer/orpc-utils'
+import { domainErrorOptions } from '@deployer/orpc-utils'
 
 import { clientKey } from './client-key'
 import { makeSlidingWindowLimiter } from './sliding-window'
@@ -23,35 +22,28 @@ export type RateLimitOptions = {
 }
 
 /**
- * An oRPC middleware that limits each client (see `clientKey`) to `max` requests per `windowMs`.
+ * An oRPC middleware, written as an Effect, that limits each client (see `clientKey`) to `max` requests per `windowMs`.
  *
- * The thrown error is ALWAYS the contract-declared `TOO_MANY_REQUESTS` (declared on the procedures that
- * use it); the middleware declares the same code through `.errors(...)`, so only that one code can be
- * thrown. It lives in one place so every endpoint that needs "how many requests may you make" is
- * protected by the same implementation.
+ * The refusal is ALWAYS the contract-declared `TOO_MANY_REQUESTS` (declared on the procedures that use it), failed in the
+ * Effect's error channel before the handler runs. It lives in one place so every endpoint that needs "how many requests may
+ * you make" is protected by the same implementation.
  */
 export function rateLimit(options: RateLimitOptions) {
     const limiter = makeSlidingWindowLimiter(options)
 
-    return os
-        .$context<RequestContext>()
-        .errors({
-            TOO_MANY_REQUESTS: {
-                message: 'Too many requests',
-                status: 429,
-                data: standardDomainErrorPayloadSchema,
-            },
-        })
-        .middleware(({ context, next, errors }) => {
-            if (!limiter.consumeNow(clientKey(context.request)).allowed) {
-                throw errors.TOO_MANY_REQUESTS(
+    return middlewareGen<RequestContext>(function* ({ context, next }) {
+        if (!limiter.consumeNow(clientKey(context.request)).allowed) {
+            return yield* Effect.fail(
+                new ORPCError(
+                    'TOO_MANY_REQUESTS',
                     domainErrorOptions(
                         'TOO_MANY_REQUESTS',
                         429,
                         options.message ?? 'Too many requests — try again later'
                     )
                 )
-            }
-            return next({ context })
-        })
+            )
+        }
+        return yield* next()
+    })
 }

@@ -1,7 +1,7 @@
 // `.effect()` on an implementer comes from this extension: loaded here so no app has to remember to.
 import '@orpc/effect/extensions/effect'
 
-import { implement, ORPCError, os } from '@orpc/server'
+import { implement } from '@orpc/server'
 import { Context as EffectContext, Effect as EffectRuntimeApi } from 'effect'
 
 import { trackDecisions } from './access/ledger'
@@ -343,35 +343,6 @@ function isImplementer(value: unknown): value is object {
     }
 
     return 'effect' in value || 'use' in value || 'router' in value
-}
-
-const root = os.$context()
-
-/**
- * The runtime guard, optional.
- *
- * `procedure(...).effect()` types the handler from its body, so nothing is declared. Apply this only when the request
- * context is not guaranteed to carry `effect/context`: it fails with a clear error instead of an untyped defect.
- */
-export function requires<const S extends readonly AnyService[]>(
-    ..._services: S
-) {
-    return root.middleware(({ context, next }) => {
-        const effectContext = (
-            context as {
-                readonly 'effect/context'?: EffectContext.Context<ServedBy<S>>
-            }
-        )['effect/context']
-
-        if (effectContext === undefined) {
-            throw new ORPCError('INTERNAL_SERVER_ERROR', {
-                message:
-                    'effect/context is not configured — did the app pass a context to `ORPCModule.forRootAsync`?',
-            })
-        }
-
-        return next({ context: { 'effect/context': effectContext } })
-    })
 }
 
 /** A module's requirements, as the union of `[controller, services]` pairs it still needs. */

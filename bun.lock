@@ -1580,6 +1580,7 @@
       "dependencies": {
         "@deployer/effect-core": "*",
         "@deployer/orpc-utils": "*",
+        "@orpc/effect": "catalog:orpc",
         "@orpc/server": "catalog:orpc",
         "effect": "catalog:effect",
       },
