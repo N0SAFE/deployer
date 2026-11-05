@@ -35,6 +35,8 @@
     "NODE_AGENT_SOCKET",
     "VITEST_WORKER_ID",
     "VITEST_POOL_ID",
+    "VITEST_MAX_WORKERS",
+    "VITEST_E2E",
     "ADMIN_BOOTSTRAP",
     "APP_BOOT_SNAPSHOT",
     "APP_DOCKER_IMAGE_SCAN_IMAGE_PARALLELISM",
@@ -162,6 +164,15 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!**/dist/**",
+        "!.next/**",
+        "!**/.next/**",
+        "!out/**",
+        "!**/out/**",
+        "!coverage/**",
+        "!**/coverage/**",
+        "!**/.turbo/**",
         "src/**",
         "public/**",
         "!public/sitemap.xml",
@@ -178,6 +189,18 @@
       ],
       "outputs": [
         "dist/types/**"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!**/dist/**",
+        "!.next/**",
+        "!**/.next/**",
+        "!out/**",
+        "!**/out/**",
+        "!coverage/**",
+        "!**/coverage/**",
+        "!**/.turbo/**"
       ]
     },
     "compile": {
@@ -192,6 +215,15 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "!dist/**",
+        "!**/dist/**",
+        "!.next/**",
+        "!**/.next/**",
+        "!out/**",
+        "!**/out/**",
+        "!coverage/**",
+        "!**/coverage/**",
+        "!**/.turbo/**",
         "src/**",
         "public/**",
         "!public/sitemap.xml",
@@ -258,6 +290,9 @@
     "test:e2e": {
       "dependsOn": [
         "@deployer/config-vitest#build"
+      ],
+      "env": [
+        "VITEST_E2E"
       ],
       "cache": false
     },

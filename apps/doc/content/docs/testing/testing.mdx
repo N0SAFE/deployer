@@ -44,11 +44,15 @@ Each API app (`apps/api/bff` and `services/*`) has two Vitest projects: `<app>-u
 
 ```bash
 cd apps/api/services/identity
-bunx vitest run --project '*e2e*'   # e2e only
-bunx vitest run --project '*unit*'  # unit only
+VITEST_E2E=1 bunx vitest run --project '*e2e*'   # e2e only
+bunx vitest run --project '*unit*'               # unit only
 ```
 
-Docker must be reachable. The harness lives in `apps/api/shared/src/e2e-harness`; the full guide (writing a spec, the per-app `@/e2e/runtime` binding, environment flags, troubleshooting) is `apps/api/docs/e2e-testing.md`. The default `E2E_DOCKER_CLEANUP=true` removes only orphaned containers that Testcontainers started and that are named `deployer*`; a real stack on the same Docker host is not affected.
+<DocCallout title="The e2e project is opt-in" tone="warn">
+The e2e project starts a real Postgres container from its `globalSetup`. Fourteen apps share `createServiceTestConfig`, so making it unconditional started fourteen containers per run and they outlived killed workers. Set `VITEST_E2E=1` to include it; plain `test` runs only the unit project.
+
+Docker must be reachable. The harness lives in `apps/api/shared/src/e2e-harness`; the full guide (writing a spec, the per-app `@/e2e/runtime` binding, environment flags, troubleshooting) is `apps/api/docs/e2e-testing.md`. The default `E2E_DOCKER_CLEANUP=true` removes only orphaned containers that Testcontainers started and that carry the `deployer.e2e` label; a real stack on the same Docker host is not affected.
+</DocCallout>
 
 ## Coverage workflow
 

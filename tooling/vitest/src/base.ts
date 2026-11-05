@@ -127,6 +127,14 @@ export const createBaseConfig = (overrides: ViteUserConfigExport = {}): ViteUser
     ? [...overrideAlias, ...baseAliases]
     : { ...Object.fromEntries(baseAliases.map((entry) => [String(entry.find), entry.replacement])), ...(overrideAlias ?? {}) }
 
+  // ── WHY THE WORKER COUNT IS CAPPED ───────────────────────────────────────
+  // Every service/web project runs with `server.deps.inline: true` and
+  // `esbuild: false` + the SWC decorator plugin, so each worker re-transforms the
+  // whole inlined `node_modules` graph in its own heap. Defaulting to one worker
+  // per core (12 on the reference machine) did not make the suite faster:
+  // measured 449% CPU over 5m05s with a 1.37 GB peak, i.e. memory-bound
+  // thrashing rather than parallelism. Half the cores keeps each heap below the
+  // point where v8 spends its time in major GC.
   const merged: ViteUserConfigExport = {
     ...overrides,
     resolve: {
@@ -135,7 +143,7 @@ export const createBaseConfig = (overrides: ViteUserConfigExport = {}): ViteUser
     },
   }
 
-  return defineConfig({
+  const result = defineConfig({
     test: {
       globals: true,
       environment: 'node',
@@ -172,6 +180,7 @@ export const createBaseConfig = (overrides: ViteUserConfigExport = {}): ViteUser
       },
       // Common setup files
       setupFiles: [],
+      maxWorkers: maxWorkersSetting(),
       // Timeout settings
       testTimeout: 10000,
       hookTimeout: 10000,
@@ -180,6 +189,37 @@ export const createBaseConfig = (overrides: ViteUserConfigExport = {}): ViteUser
     // overrides.
     ...merged,
   })
+
+  // ── WHY THIS IS SET AFTER THE SPREAD ─────────────────────────────────────
+  // `...merged` is shallow, so a consumer that passes its own `test` block — every
+  // service app does, through `createServiceTestConfig` — replaces the base `test`
+  // block wholesale and would drop the cap. Applying it here keeps the cap on both
+  // paths without changing the merge semantics the consumers already rely on
+  // (notably: a config that declares `projects` must NOT inherit the base
+  // `include`, or the root run would collect every spec a second time). A consumer
+  // that sets its own `maxWorkers` keeps it.
+  const resultTest = (result as { test?: { maxWorkers?: number | string } }).test
+  if (resultTest !== undefined && resultTest.maxWorkers === undefined) {
+    resultTest.maxWorkers = maxWorkersSetting()
+  }
+
+  return result
+}
+
+/**
+ * The worker cap for this run.
+ *
+ * `50%` rather than a fixed number so a small CI box is not oversubscribed and a
+ * large one still gains. `VITEST_MAX_WORKERS` wins so a beefy machine can raise
+ * it without a code change.
+ */
+function maxWorkersSetting(): number | string {
+  const fromEnv = process.env.VITEST_MAX_WORKERS
+  if (fromEnv !== undefined && fromEnv.length > 0) {
+    const asNumber = Number(fromEnv)
+    return Number.isInteger(asNumber) && asNumber > 0 ? asNumber : fromEnv
+  }
+  return '50%'
 }
 
 export const defaultConfig = createBaseConfig()

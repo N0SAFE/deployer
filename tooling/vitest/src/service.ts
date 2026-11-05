@@ -1,7 +1,5 @@
 /// <reference types="vitest" />
-import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
-import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { defineConfig, type ViteUserConfigExport } from "vitest/config";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -34,17 +32,47 @@ const IS_BUN_RUNTIME = Boolean(process.versions.bun);
  * `api/services/shared` for a service and `apps/shared` for the BFF. Walking
  * up until the layout is recognisable is depth-independent.
  */
-function resolveWorkspacePaths(): { sharedSrc: string } {
+function resolveWorkspacePaths(): { sharedSrc: string; workspaceRoot: string } {
     let dir = process.cwd();
     for (let i = 0; i < 6; i++) {
         const sharedSrc = path.join(dir, "apps/api/shared/src");
-        if (isDirectory(sharedSrc)) return { sharedSrc };
+        if (isDirectory(sharedSrc)) return { sharedSrc, workspaceRoot: dir };
         dir = path.dirname(dir);
     }
     throw new Error(
         `@deployer/config-vitest: could not locate apps/api/shared/src ` +
             `by walking up from ${process.cwd()}`,
     );
+}
+
+/**
+ * The app's own `src`, independent of the cwd.
+ *
+ * ── WHY NOT `process.cwd()` ─────────────────────────────────────────────────
+ * vitest is run both from the app directory (`bun test` in the app) and from the
+ * workspace root (the root `vitest.config.mts` project list, turbo, the VS Code
+ * test runner). With `cwd` the root run resolved `@/core/...` against `<root>/src`,
+ * which does not exist, so every spec that imports `@/` failed with
+ * `Cannot find package '@/core/...'` while the same spec passed from the app
+ * directory. That is the "sometimes" in the reports.
+ */
+function resolveAppSrc(
+    service: string,
+    workspaceRoot: string,
+): string {
+    const candidates = [
+        path.resolve(process.cwd(), "src"),
+        path.join(workspaceRoot, "apps/api/services", service, "src"),
+        path.join(workspaceRoot, "apps/api", service, "src"),
+    ];
+    const found = candidates.find(isDirectory);
+    if (found === undefined) {
+        throw new Error(
+            `@deployer/config-vitest: could not locate src for service "${service}". ` +
+                `Tried: ${candidates.join(", ")}`,
+        );
+    }
+    return found;
 }
 
 function isDirectory(p: string): boolean {
@@ -69,11 +97,11 @@ export const createServiceTestConfig = (
     options: ServiceTestConfigOptions,
 ): ViteUserConfigExport => {
     const { service } = options;
-    const { sharedSrc } = resolveWorkspacePaths();
+    const { sharedSrc, workspaceRoot } = resolveWorkspacePaths();
     // The e2e harness (shared Postgres container, global setup/teardown, bun:sqlite shim) lives in
     // `shared`, not in the app: it is the same for the BFF and every service.
     const harness = path.join(sharedSrc, "e2e-harness/vitest");
-    const appSrc = path.resolve(process.cwd(), "src");
+    const appSrc = resolveAppSrc(service, workspaceRoot);
 
     // ── THE ARRAY FORM, AND THE ORDER IS THE POINT ────────────────────────────
     // An OBJECT alias is matched by prefix with no guaranteed specificity order, so
@@ -148,6 +176,18 @@ export const createServiceTestConfig = (
                 // are `e2e-spec` and `ts`), so e2e specs were collected by nothing and the
                 // suite reported green without running them. An explicit second project
                 // makes the e2e inclusion visible instead of implied by a glob that misses.
+                //
+                // ── WHY IT IS OPT-IN ───────────────────────────────────────────
+                // That project's `globalSetup` starts a REAL Postgres container
+                // (`shared-postgres.ts`). Fourteen apps call `createServiceTestConfig`,
+                // so every ordinary `test` run started fourteen containers with
+                // `max_connections=300` each, to run specs most runs do not need;
+                // twenty-one had leaked on the reference machine because `AutoRemove`
+                // only fires on a clean stop. Opt in deliberately:
+                //
+                //   VITEST_E2E=1 bun --bun run <app> -- test
+                //
+                // `--project <app>-e2e` still works for a targeted run.
                 projects: [
                     {
                         extends: true,
@@ -165,62 +205,84 @@ export const createServiceTestConfig = (
                             hookTimeout: 15000,
                         },
                     },
-                    {
-                        extends: true,
-                        resolve: resolveConfig,
-                        test: {
-                            name: `${service}-e2e`,
-                            environment: "node",
-                            globals: true,
-                            // ── WHY `env` AND NOT ONLY THE SETUP FILE ──────────
-                            // `setupFiles` runs AFTER vitest loads the spec's imports, and the
-                            // e2e harness imports the composed contract as a VALUE, whose graph
-                            // parses the env schema. That parse applies the default
-                            // `NODE_LOCAL_DB_PATH=/app/data/local.db` — the path INSIDE the
-                            // container — and CACHES it, so a setup-file assignment is too late
-                            // to win. On any non-container machine the local-SQLite factory then
-                            // dies with `EACCES: permission denied, mkdir '/app/data'`.
-                            //
-                            // `test.env` is applied to the worker BEFORE any import, so this
-                            // placeholder is what the schema sees during that early parse. The
-                            // e2e harness then re-points each RUNTIME at its own
-                            // `deployer-api-e2e-<instanceKey>-<uuid>.db` — see
-                            // `shared-api-runtime/manager.ts`, which is what keeps two specs in
-                            // one worker off the same SQLite file. This value only has to be a
-                            // writable path that is not the container's.
-                            env: { NODE_LOCAL_DB_PATH: `/tmp/deployer-${service}-e2e-local.db` },
-                            // ── WHY THE E2E PROJECT IS SERIAL ───────────────────
-                            // The local SQLite file is a single path shared by every spec in
-                            // this project, and two specs booting at once contend for it during
-                            // migration: SQLite has one writer, and the loser fails with
-                            // `database is locked` rather than waiting (the lock is taken by way
-                            // of DDL, which `busy_timeout` does not retry).
-                            //
-                            // Per-runtime isolation is not available here: the harness DOES
-                            // build an isolated database per runtime, but for SQLite it does so
-                            // through `NODE_LOCAL_DB_PATH`, and that value is cached when the
-                            // contract graph is first imported — BEFORE the harness runs. So
-                            // every spec in the project ends up on the one path above.
-                            //
-                            // Postgres is unaffected (the harness creates one database per
-                            // runtime), and the unit project stays parallel. E2E files are few
-                            // and already boot a full Nest app, so serialising them costs
-                            // little and makes the suite deterministic.
-                            fileParallelism: false,
-                            // Referenced from `shared`, not copied: their imports are relative
-                            // to their own directory, so a copy per app would be six identical
-                            // files to keep in step.
-                            globalSetup: [path.join(harness, "global-setup.ts")],
-                            setupFiles: [path.join(harness, "setup.ts")],
-                            include: ["src/**/*.e2e-spec.ts"],
-                            exclude: ["node_modules", "dist"],
-                            testTimeout: 120000,
-                            hookTimeout: 120000,
-                        },
-                    },
+                    ...(e2eEnabled()
+                        ? [
+                              {
+                                  extends: true,
+                                  resolve: resolveConfig,
+                                  test: {
+                                      name: `${service}-e2e`,
+                                      environment: "node",
+                                      globals: true,
+                                      // ── WHY `env` AND NOT ONLY THE SETUP FILE ────
+                                      // `setupFiles` runs AFTER vitest loads the spec's
+                                      // imports, and the e2e harness imports the composed
+                                      // contract as a VALUE, whose graph parses the env
+                                      // schema. That parse applies the default
+                                      // `NODE_LOCAL_DB_PATH=/app/data/local.db` — the path
+                                      // INSIDE the container — and CACHES it, so a
+                                      // setup-file assignment is too late to win. On any
+                                      // non-container machine the local-SQLite factory then
+                                      // dies with `EACCES: permission denied, mkdir
+                                      // '/app/data'`.
+                                      //
+                                      // `test.env` is applied to the worker BEFORE any
+                                      // import, so this placeholder is what the schema sees
+                                      // during that early parse. The e2e harness then
+                                      // re-points each RUNTIME at its own
+                                      // `deployer-api-e2e-<instanceKey>-<uuid>.db` — see
+                                      // `shared-api-runtime/manager.ts`, which is what keeps
+                                      // two specs in one worker off the same SQLite file.
+                                      // This value only has to be a writable path that is
+                                      // not the container's.
+                                      env: { NODE_LOCAL_DB_PATH: `/tmp/deployer-${service}-e2e-local.db` },
+                                      // ── WHY THE E2E PROJECT IS SERIAL ────────────
+                                      // The local SQLite file is a single path shared by
+                                      // every spec in this project, and two specs booting at
+                                      // once contend for it during migration: SQLite has one
+                                      // writer, and the loser fails with `database is locked`
+                                      // rather than waiting (the lock is taken by way of DDL,
+                                      // which `busy_timeout` does not retry).
+                                      //
+                                      // Per-runtime isolation is not available here: the
+                                      // harness DOES build an isolated database per runtime,
+                                      // but for SQLite it does so through
+                                      // `NODE_LOCAL_DB_PATH`, and that value is cached when
+                                      // the contract graph is first imported — BEFORE the
+                                      // harness runs. So every spec in the project ends up on
+                                      // the one path above.
+                                      //
+                                      // Postgres is unaffected (the harness creates one
+                                      // database per runtime), and the unit project stays
+                                      // parallel. E2E files are few and already boot a full
+                                      // Nest app, so serialising them costs little and makes
+                                      // the suite deterministic.
+                                      fileParallelism: false,
+                                      // Referenced from `shared`, not copied: their imports
+                                      // are relative to their own directory, so a copy per
+                                      // app would be six identical files to keep in step.
+                                      globalSetup: [path.join(harness, "global-setup.ts")],
+                                      setupFiles: [path.join(harness, "setup.ts")],
+                                      include: ["src/**/*.e2e-spec.ts"],
+                                      exclude: ["node_modules", "dist"],
+                                      testTimeout: 120000,
+                                      hookTimeout: 120000,
+                                  },
+                              },
+                          ]
+                        : []),
                 ],
             },
             resolve: resolveConfig,
         } as ViteUserConfigExport),
     );
 };
+
+/**
+ * Whether this run includes the e2e project, and therefore boots a Postgres
+ * container. `VITEST_E2E=1` (or `true`/`yes`/`on`) turns it on.
+ */
+function e2eEnabled(): boolean {
+    const value = process.env.VITEST_E2E?.trim().toLowerCase();
+    return value === "1" || value === "true" || value === "yes" || value === "on";
+}
