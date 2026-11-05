@@ -16,6 +16,8 @@ import type {
 	userActivitySchema,
 } from "@deployer/identity-contracts";
 
+import type { DatabasePort } from "@identity/core/database/database.port";
+
 import { analyticsRules, type AnalyticsDataSource } from "../domain/analytics.entity";
 import { AnalyticsReportNotFound, AnalyticsReportNotReady } from "../domain/analytics.errors";
 import {
@@ -903,6 +905,17 @@ export type AnalyticsServiceShape = Over<
 	ReturnType<typeof makeAnalyticsService>,
 	AnalyticsRepository
 >;
+
+/**
+ * What a caller must have in the Effect context to run an analytics use case.
+ *
+ * `AnalyticsRepository` resolves over `DatabasePort` (`serviceOver`), so both are needed — the
+ * repository for the query methods and the port for the connection it opens. Named once here so a
+ * boundary that re-provides the context (`liveSnapshot`, a worker, a test) states the requirement
+ * instead of restating the pair, and so a missing member is a compile error rather than a runtime
+ * "Service not found".
+ */
+export type AnalyticsServicePorts = AnalyticsRepository | DatabasePort;
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
 export class AnalyticsService extends Context.Service<AnalyticsService, AnalyticsServiceShape>()(
