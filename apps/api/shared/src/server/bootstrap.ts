@@ -12,6 +12,7 @@ import {
     CORS_ALLOWED_HEADERS,
 } from '../core/utils/cors.utils'
 
+import { enforceAccessAudit, modulesOf } from './access-audit'
 import {
     containerHttpEdge,
     mountHttpEdge,
@@ -168,7 +169,11 @@ export function mountLiveness(gateway: express.Express): void {
  */
 export async function createApiServerApp(
     rootModule: Type<unknown>,
-    options: { readonly edge?: readonly HttpEdgeEntry[] } = {}
+    options: {
+        readonly edge?: readonly HttpEdgeEntry[]
+        /** Procedures still allowed to have no access middleware while the migration runs (`AUTHZ-012`); only shrinks. */
+        readonly accessLedger?: readonly string[]
+    } = {}
 ): Promise<INestApplication> {
     const gateway = createGateway()
     mountLiveness(gateway)
@@ -184,6 +189,7 @@ export async function createApiServerApp(
     mountHttpEdge(app, [...containerHttpEdge(app), ...(options.edge ?? [])])
     app.enableShutdownHooks()
     await app.init()
+    enforceAccessAudit(modulesOf(app), { ledger: options.accessLedger })
 
     return app
 }
@@ -257,9 +263,12 @@ export async function bootstrapApiServer<M extends Type<unknown>>(options: {
     dependencies?: readonly PreflightDependency[]
     /** Extra HTTP-edge pieces for this app (plain functions, mounted after the container's own). */
     edge?: readonly HttpEdgeEntry[]
+    /** Procedures still allowed to have no access middleware (`ACCESS_AUDIT=strict` refuses any other). */
+    accessLedger?: readonly string[]
 }): Promise<INestApplication> {
     const app = await createApiServerApp(options.rootModule, {
         edge: options.edge,
+        accessLedger: options.accessLedger,
     })
 
     // `init()` already ran inside `createApiServerApp`, so the container is live.

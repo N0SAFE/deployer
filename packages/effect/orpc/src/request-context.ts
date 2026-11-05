@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 
 import {
     Actor,
@@ -108,7 +108,12 @@ export const provideRequest =
         effect: Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | E2, Exclude<R, Ambient>> =>
         Effect.gen(function* () {
-            const actor = actorFromContext(context) ?? (yield* onAnonymous())
+            // An actor an earlier middleware already established and provided (`authenticated()`) is the actor: the boundary
+            // only falls back to the request's own session when nothing validated one.
+            const established = yield* Effect.serviceOption(CurrentActor)
+            const actor = Option.isSome(established)
+                ? established.value
+                : (actorFromContext(context) ?? (yield* onAnonymous()))
             return yield* effect.pipe(
                 Effect.provideService(CurrentActor, actor),
                 Effect.provideService(Correlation, {

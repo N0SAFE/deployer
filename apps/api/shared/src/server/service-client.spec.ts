@@ -23,6 +23,10 @@ async function load(socket: string | undefined) {
     return (await import('./service-client')).makeServiceClient
 }
 
+// Each case re-imports the module from cold (`vi.resetModules()`), and the first transform of its import graph can exceed the
+// default 5 s on a loaded machine: that is the cost of the fixture, not a failure of the client.
+vi.setConfig({ testTimeout: 30_000 })
+
 describe('ServiceClient', () => {
     let directory: string
     const fetchSpy = vi.fn()

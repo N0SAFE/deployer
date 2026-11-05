@@ -1,3 +1,4 @@
+export { Authentication, authenticated, Unauthenticated } from './authenticate'
 export { Authorized } from './authorized'
 export { AccessDenied } from './errors'
 export { DecisionLedger, trackDecisions } from './ledger'
