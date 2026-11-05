@@ -36,6 +36,7 @@ vi.mock('drizzle-orm/node-postgres', () => ({
 
 vi.mock('../../config/auth/auth', () => ({
     // Synchronous: the real factory returns the instance, it does not await it.
+    provisioningSecret: () => 'test-secret',
     createBetterAuth: vi.fn(() => ({
         auth: { $context: Promise.resolve({}) },
     })),

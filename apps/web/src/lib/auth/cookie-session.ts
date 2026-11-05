@@ -1,16 +1,9 @@
 /**
  * Cookie-based Session Retrieval
  *
- * This module provides functions to read the Better Auth session directly from cookies
- * without making an HTTP request to the API. This is much faster for server-side rendering
- * since it avoids the network round-trip.
- *
- * The session is encrypted in the cookie using the BETTER_AUTH_SECRET, and this module
- * decrypts it locally using the getCookieCache function from better-auth/cookies.
- *
- * Requirements:
- * - Cookie cache must be enabled in the API's Better Auth config
- * - BETTER_AUTH_SECRET environment variable must be set
+ * This module reads the Better Auth session on the server by asking the API (`/api/auth/get-session`) with the caller's
+ * cookie. It does NOT decrypt the cookie locally: that needed the platform secret, which the API generates on first boot
+ * and keeps in its own `node_config` (SEC-100), so the web app has no copy and must not have one.
  *
  * Note: This module uses unstable_rethrow() to properly handle Next.js internal errors.
  * With PPR enabled, cookies() throws a special error that Next.js uses to determine
@@ -21,7 +14,7 @@
  */
 import 'server-only'
 
-import { getCookieCache, getSessionCookie } from 'better-auth/cookies'
+import { getSessionCookie } from 'better-auth/cookies'
 import { cookies } from 'next/headers'
 import { unstable_rethrow } from 'next/navigation'
 
@@ -35,14 +28,6 @@ import { validateEnvSafe } from '#/env'
 const env = validateEnvSafe(process.env).data
 
 const cookieLogger = new AppLogger('web').scope('CookieSession')
-
-/**
- * Cached session type from Better Auth cookie
- * The cookie cache stores session with additional metadata
- */
-export type CachedSession = Session & {
-    updatedAt: number
-}
 
 /**
  * Check if a session cookie exists.
@@ -76,51 +61,31 @@ export async function getRawSessionCookie(): Promise<string | null> {
 }
 
 /**
- * Get session from cookie cache without making an HTTP request.
+ * The session for the request's cookie, as the API answers it, or null when there is none or the API refuses it.
  *
- * This function:
- * 1. Checks if the session cookie exists
- * 2. If it exists, decrypts and parses the cached session from the cookie
- * 3. Returns the session data or null
- *
- * This is MUCH faster than getSession() which makes an HTTP call to the API.
- * The typical improvement is from ~1500ms to <5ms.
- *
- * @returns The session if authenticated, null otherwise
- * @throws If BETTER_AUTH_SECRET is not configured
- *
- * @example
- * ```tsx
- * // Server component
- * import { getSessionFromCookie } from '@/lib/auth/cookie-session'
- *
- * export default async function Page() {
- *   const session = await getSessionFromCookie()
- *   if (!session) return <LoginPrompt />
- *   return <div>Hello {session.user.name}</div>
- * }
- * ```
+ * An unreachable API answers null: it must never look like an authenticated user.
  */
 export async function getSessionFromCookie(): Promise<Session | null> {
-    if (!env?.BETTER_AUTH_SECRET) {
+    if (!env?.NEXT_PUBLIC_API_URL) {
         cookieLogger.log.warn(
-            'getSessionFromCookie: BETTER_AUTH_SECRET not configured'
+            'getSessionFromCookie: NEXT_PUBLIC_API_URL not configured'
         )
         return null
     }
 
     try {
-        const cookiesList = await cookies()
-        const cookieString = cookiesList.toString()
-        const headersObj = new Headers({ cookie: cookieString })
+        const cookie = (await cookies()).toString()
+        if (getSessionCookie(new Headers({ cookie })) === null) return null
 
-        const cachedSession = await getCookieCache<CachedSession>(headersObj, {
-            secret: env.BETTER_AUTH_SECRET,
-            // Match the cookie security setting from the API
-            // In Docker without HTTPS termination, use non-secure cookies
-            isSecure: env.NEXT_PUBLIC_API_URL.startsWith('https://'),
-        })
-        return cachedSession ?? null
+        const response = await fetch(
+            `${env.NEXT_PUBLIC_API_URL}/api/auth/get-session`,
+            { headers: { cookie }, cache: 'no-store' }
+        )
+        if (!response.ok) return null
+        const body = (await response.json()) as Session | null
+        return body !== null && typeof body === 'object' && 'user' in body
+            ? body
+            : null
     } catch (error) {
         // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
         unstable_rethrow(error)

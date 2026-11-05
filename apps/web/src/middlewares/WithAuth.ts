@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-import { getCookieCache, getSessionCookie } from 'better-auth/cookies'
+import { getSessionCookie } from 'better-auth/cookies'
 import { NextFetchEvent, NextProxy, NextRequest } from 'next/server'
 
-import type { Session } from '@deployer/auth'
 import { isPlatformAdministrator } from '@deployer/auth/authz'
 
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
@@ -42,7 +41,7 @@ export type AuthGateDecision = 'allow' | 'signin' | 'forbidden'
 export interface AuthGateInput {
     /** A session cookie is present (signed by the API, but not verified here on its own). */
     readonly hasSessionCookie: boolean
-    /** The verified session: the cookie cache when it is live, otherwise the API's answer. */
+    /** The session the API verified. */
     readonly session: {
         readonly user?: { readonly role?: string | null }
     } | null
@@ -70,12 +69,11 @@ export function authGateDecision(input: AuthGateInput): AuthGateDecision {
 }
 
 /**
- * The session, when the cookie cache does not answer for it.
+ * The session, as the API verifies it.
  *
- * The cache lives 60 seconds (the API's `session.cookieCache.maxAge`), so a user who has been idle for a minute would
- * otherwise be bounced to sign-in on every navigation. Asking the API is the server-side validation the cache stands in
- * for: same trust boundary, one request, only when the cache is cold. A failed call answers `null` — an unreachable API
- * must not look like an authenticated user.
+ * The web app holds no copy of the platform secret (the API generates it on first boot, SEC-100), so it cannot read the
+ * cookie cache itself: it asks the API, which is the server-side validation anyway. A failed call answers `null` — an
+ * unreachable API must not look like an authenticated user.
  */
 async function verifyWithApi(
     request: NextRequest,
@@ -127,30 +125,10 @@ const withAuth: MiddlewareFactory = (next: NextProxy) => {
 
         const sessionCookie = getSessionCookie(request)
 
-        let cached: SessionLike | null = null
-        try {
-            cached = await getCookieCache<Session & { updatedAt: number }>(
-                request,
-                {
-                    secret: env.BETTER_AUTH_SECRET,
-                    // Match the cookie security setting from the API
-                    // In Docker without HTTPS termination, use non-secure cookies
-                    isSecure:
-                        env.NEXT_PUBLIC_API_URL?.startsWith('https://') ??
-                        false,
-                }
-            )
-        } catch (error) {
-            debugAuthError('Error reading the session cookie cache', {
-                error: error instanceof Error ? error.message : error,
-            })
-        }
-
         const session =
-            cached ??
-            (sessionCookie !== null && env.NEXT_PUBLIC_API_URL
+            sessionCookie !== null && env.NEXT_PUBLIC_API_URL
                 ? await verifyWithApi(request, env.NEXT_PUBLIC_API_URL)
-                : null)
+                : null
 
         const decision = authGateDecision({
             hasSessionCookie: sessionCookie !== null,

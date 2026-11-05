@@ -153,8 +153,8 @@ describe('AuthzBuilder', () => {
                     service: actions(['read'] as const),
                 }))
                 // `deploy` is not an action of `service`
-                // @ts-expect-error — the builder validates bundles at build time too
                 .bundles(({ permissions }) => ({
+                    // @ts-expect-error — the builder validates bundles at build time too
                     bad: permissions({ service: ['deploy'] }),
                 }))
                 .build()
@@ -170,12 +170,12 @@ describe('AuthzBuilder', () => {
                 .bundles(({ permissions }) => ({
                     read: permissions({ service: ['read'] }),
                 }))
-                // @ts-expect-error — `nope` is not a declared bundle
                 .roles(() => ({
                     viewer: {
                         scope: 'platform',
                         rank: 0,
                         label: 'Viewer',
+                        // @ts-expect-error — `nope` is not a declared bundle
                         bundles: ['nope'],
                     },
                 }))

@@ -1,3 +1,5 @@
+import { Effect } from 'effect'
+
 import { AccessPolicy, createGlobalModule } from '@deployer/nest-effect'
 
 import { accessPolicy } from '../../authz/access-policy'
@@ -9,6 +11,7 @@ import {
     MODULE_OPTIONS_TOKEN,
     type AuthModuleOptions,
 } from './definitions/auth-module-definition'
+import { PlatformSecret, type SecretShape } from './orpc/secrets'
 import { makeSessionResolver, SessionResolver } from './orpc/session-resolver'
 import {
     AuthCoreService,
@@ -36,13 +39,22 @@ export class AuthModule extends createGlobalModule(
         providers: [
             {
                 provide: MODULE_OPTIONS_TOKEN,
-                useFactory: (
+                // The session secret is the node's platform secret, generated on its first boot and stored in `node_config`: the
+                // instance is built once it is known, and a node that has none cannot start serving sessions.
+                useFactory: async (
                     database: NodePgDatabase<Record<string, unknown>>,
-                    env: EnvService
-                ): AuthModuleOptions => ({
-                    auth: createBetterAuth(database, env).auth,
-                }),
-                inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
+                    env: EnvService,
+                    secrets: SecretShape
+                ): Promise<AuthModuleOptions> => {
+                    const secret = await Effect.runPromise(secrets.get())
+                    if (secret === null) {
+                        throw new Error(
+                            'Cannot start Better Auth: this node has no platform secret (its node_config is not set up yet)'
+                        )
+                    }
+                    return { auth: createBetterAuth(database, env, secret).auth }
+                },
+                inject: [GLOBAL_DATABASE_CONNECTION, EnvService, PlatformSecret],
             },
             {
                 provide: AuthCoreService,

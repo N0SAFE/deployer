@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import { Logger } from '@nestjs/common'
 
 import type { AuthAuditEvent, AuthAuditSink } from '@deployer/auth/audit'
@@ -47,9 +49,27 @@ function drizzleAuditSink<TSchema extends Record<string, unknown>>(
     return { record: insert }
 }
 
+/** What the factory reads from the environment: everything but the secret, which is passed on its own. */
+type AuthEnvValues = Omit<
+    Parameters<typeof betterAuthFactory>[1],
+    'BETTER_AUTH_SECRET'
+>
+
+/**
+ * @param platformSecret - the node's platform secret (`PlatformSecret`, generated on first boot). It is never read from the
+ *   environment: the same value must sign sessions on every node, so it comes from the node's own stored config.
+ */
+/**
+ * A secret for an instance that only PROVISIONS an account (the setup wizard, the admin bootstrap): it uses Better Auth's
+ * internal adapter to hash a password and write a user, and signs nothing that leaves the process, so it needs no shared
+ * secret, only one that is unguessable.
+ */
+export const provisioningSecret = (): string => randomBytes(32).toString('hex')
+
 export const createBetterAuth = <TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,
-    envService: EnvService | Parameters<typeof betterAuthFactory>[1]
+    envService: EnvService | AuthEnvValues,
+    platformSecret: string
 ) => {
     return betterAuthFactory(
         database,
@@ -59,7 +79,7 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
                   DEFAULT_ADMIN_EMAIL: envService.get('DEFAULT_ADMIN_EMAIL'),
                   NODE_ENV: envService.get('NODE_ENV'),
                   ENABLE_MASTER_TOKEN: envService.get('ENABLE_MASTER_TOKEN'),
-                  BETTER_AUTH_SECRET: envService.get('BETTER_AUTH_SECRET'),
+                  BETTER_AUTH_SECRET: platformSecret,
                   BASE_URL: envService.get('NEXT_PUBLIC_API_URL'),
                   TRUSTED_ORIGINS: envService.get('TRUSTED_ORIGINS'),
                   NEXT_PUBLIC_APP_URL: envService.get('NEXT_PUBLIC_APP_URL'),
@@ -78,7 +98,7 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
                       envService.get('GITHUB_CLIENT_SECRET')
                   ),
               }
-            : envService,
+            : { ...envService, BETTER_AUTH_SECRET: platformSecret },
         {
             audit: drizzleAuditSink(database),
             stepUp: drizzleStepUpSink(database),

@@ -9,7 +9,6 @@ describe('WithAuth middleware', () => {
     const mockMatcherHandler = vi.fn()
     const mockCreateContextFilterDebugLogger = vi.fn(() => vi.fn())
     const mockGetSessionCookie = vi.fn()
-    const mockGetCookieCache = vi.fn()
 
     beforeEach(() => {
         vi.resetModules()
@@ -20,7 +19,6 @@ describe('WithAuth middleware', () => {
                 NODE_ENV: 'test',
                 API_URL: 'http://localhost:3001',
                 NEXT_PUBLIC_API_URL: 'http://localhost:3001',
-                BETTER_AUTH_SECRET: 'secret',
             },
             success: true,
         })
@@ -52,7 +50,6 @@ describe('WithAuth middleware', () => {
 
         vi.doMock('better-auth/cookies', () => ({
             getSessionCookie: mockGetSessionCookie,
-            getCookieCache: mockGetCookieCache,
         }))
 
         vi.doMock('@/routes/index', () => ({
@@ -67,7 +64,6 @@ describe('WithAuth middleware', () => {
         }))
 
         mockMatcherHandler.mockReturnValue({ hit: false })
-        mockGetCookieCache.mockResolvedValue({ updatedAt: Date.now() })
     })
 
     const createRequest = (url: string) => new NextRequest(url)
@@ -185,9 +181,8 @@ describe('WithAuth middleware', () => {
         })
     })
 
-    it('verifies a cold cookie cache against the API instead of trusting the cookie alone', async () => {
+    it('verifies the session against the API instead of trusting the cookie alone', async () => {
         mockGetSessionCookie.mockReturnValue('session-token')
-        mockGetCookieCache.mockResolvedValue(null)
         const fetchMock = vi.fn(() =>
             Promise.resolve({
                 ok: true,
@@ -212,9 +207,8 @@ describe('WithAuth middleware', () => {
         vi.unstubAllGlobals()
     })
 
-    it('sends the request to sign-in when the API refuses the cold session', async () => {
+    it('sends the request to sign-in when the API refuses the session', async () => {
         mockGetSessionCookie.mockReturnValue('session-token')
-        mockGetCookieCache.mockResolvedValue(null)
         vi.stubGlobal(
             'fetch',
             vi.fn(() =>
@@ -240,8 +234,17 @@ describe('WithAuth middleware', () => {
         vi.unstubAllGlobals()
     })
 
-    it('passes through when session exists', async () => {
+    it('passes through when the API confirms the session', async () => {
         mockGetSessionCookie.mockReturnValue('session-token')
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+                Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ user: { role: 'viewer' } }),
+                })
+            )
+        )
 
         const { default: withAuth } = await import('../WithAuth')
         const nextResponse = NextResponse.next()
@@ -253,5 +256,7 @@ describe('WithAuth middleware', () => {
 
         expect(next).toHaveBeenCalled()
         expect(response).toBe(nextResponse)
+
+        vi.unstubAllGlobals()
     })
 })

@@ -46,7 +46,7 @@ import type { NodeConfigRepositoryShape } from '@deployer/node-state'
 import type { SupervisorOrchestratorShape } from '@deployer/supervision'
 import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
 
-import { createBetterAuth } from '../../../../config/auth/auth'
+import { createBetterAuth, provisioningSecret } from '../../../../config/auth/auth'
 import { DEPLOYER_VERSION } from '../../../utils/deployer-version'
 import { resolvePostgresIdentity } from '../../docker/containers/postgres/postgres-identity'
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from '../../supervisors/platform/swarm-app-wiring.supervisor'
@@ -1025,14 +1025,12 @@ export function makeLocalInitializationService(
                 DEV_AUTH_KEY: process.env.DEV_AUTH_KEY,
                 DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
                 NODE_ENV: process.env.NODE_ENV ?? 'development',
-                BETTER_AUTH_SECRET:
-                    process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
                 BASE_URL: process.env.NEXT_PUBLIC_API_URL,
                 APP_URL: process.env.APP_URL,
                 NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
                 TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS,
                 AUTH_BASE_DOMAIN: process.env.AUTH_BASE_DOMAIN,
-            })
+            }, provisioningSecret())
 
             log(
                 "▸ Provisioning the super-admin through Better Auth's internal adapter …"

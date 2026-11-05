@@ -32,7 +32,8 @@ export interface AuthFactoryEnv {
     DEFAULT_ADMIN_EMAIL: string | undefined
     NODE_ENV: string
     ENABLE_MASTER_TOKEN?: boolean
-    BETTER_AUTH_SECRET?: string
+    /** The platform secret: required, never read from `process.env` here (the app generates it on first boot, SEC-100). */
+    BETTER_AUTH_SECRET: string
     BASE_URL?: string
     APP_URL?: string
     NEXT_PUBLIC_APP_URL?: string
@@ -173,10 +174,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
     ]
 
     return {
-        secret:
-            BETTER_AUTH_SECRET ??
-            process.env.BETTER_AUTH_SECRET ??
-            process.env.AUTH_SECRET,
+        secret: BETTER_AUTH_SECRET,
         baseURL: BASE_URL ?? process.env.NEXT_PUBLIC_API_URL,
         trustedOrigins: origins.length > 0 ? origins : undefined,
         advanced: {

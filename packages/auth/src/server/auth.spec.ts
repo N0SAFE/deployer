@@ -66,7 +66,7 @@ describe('betterAuthFactory', () => {
         DEFAULT_ADMIN_EMAIL: string | undefined
         NODE_ENV: string
         ENABLE_MASTER_TOKEN?: boolean
-        BETTER_AUTH_SECRET?: string
+        BETTER_AUTH_SECRET: string
         BASE_URL?: string
         APP_URL?: string
         NEXT_PUBLIC_APP_URL?: string
@@ -419,13 +419,6 @@ describe('betterAuthFactory', () => {
     })
 
     describe('Edge Cases', () => {
-        it('should handle missing BETTER_AUTH_SECRET', () => {
-            delete mockEnv.BETTER_AUTH_SECRET
-            const result = betterAuthFactory(mockDb, mockEnv)
-
-            expect(result).toBeDefined()
-        })
-
         it('should handle missing BASE_URL', () => {
             delete mockEnv.BASE_URL
             const result = betterAuthFactory(mockDb, mockEnv)
