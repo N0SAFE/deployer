@@ -1,9 +1,1 @@
-{
-  "noInjectableService": [],
-  "noNestExceptionFilter": [
-    "src/core/middlewares/internal-error/internal-error-insight.service.ts",
-    "src/core/modules/auth/orpc/interceptors.ts"
-  ],
-  "noNestLifecycleHook": [],
-  "noNestRequestScope": []
-}
+{}

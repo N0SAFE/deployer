@@ -1,5 +1,3 @@
-import { HttpException } from '@nestjs/common'
-
 // oRPC v2 moved these from `@orpc/nest` to `@orpc/server`. `@orpc/nest` no
 // longer re-exports them, so the import must name the package that declares
 // them.
@@ -15,96 +13,6 @@ import type { InternalErrorInsightServiceShape } from '../../../middlewares/inte
 import type { Logger } from '@nestjs/common';
 import type { ORPCErrorCode } from '@orpc/client'
 import type { Interceptor } from '@orpc/shared'
-
-/**
- * Maps NestJS HTTP status codes to ORPC error codes
- */
-export function httpStatusToORPCCode(status: number): ORPCErrorCode {
-    switch (status) {
-        case 400:
-            return 'BAD_REQUEST'
-        case 401:
-            return 'UNAUTHORIZED'
-        case 403:
-            return 'FORBIDDEN'
-        case 404:
-            return 'NOT_FOUND'
-        case 405:
-            return 'METHOD_NOT_SUPPORTED'
-        case 408:
-            return 'TIMEOUT'
-        case 409:
-            return 'CONFLICT'
-        case 413:
-            return 'PAYLOAD_TOO_LARGE'
-        case 415:
-            return 'UNSUPPORTED_MEDIA_TYPE'
-        case 422:
-            return 'UNPROCESSABLE_CONTENT'
-        case 429:
-            return 'TOO_MANY_REQUESTS'
-        case 499:
-            return 'CLIENT_CLOSED_REQUEST'
-        case 501:
-            return 'NOT_IMPLEMENTED'
-        case 502:
-            return 'BAD_GATEWAY'
-        case 503:
-            return 'SERVICE_UNAVAILABLE'
-        case 504:
-            return 'GATEWAY_TIMEOUT'
-        default:
-            return status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST'
-    }
-}
-
-/**
- * Extract a single human-readable message from a NestJS exception response.
- * Validation pipes produce `string[]` messages — join them so the wire
- * payload always satisfies `standardDomainErrorPayloadSchema` (`message:
- * string`).
- */
-function resolveExceptionMessage(response: unknown, fallback: string): string {
-    if (typeof response === 'string') return response
-    if (typeof response === 'object' && response !== null && 'message' in response) {
-        const message = (response as { message?: unknown }).message
-        if (typeof message === 'string') return message
-        if (Array.isArray(message)) return message.filter(m => typeof m === 'string').join('; ')
-    }
-    return fallback
-}
-
-/**
- * Transforms NestJS HttpException to ORPCError
- *
- * The emitted `data` payload mirrors `standardDomainErrorPayloadSchema`
- * (`{ statusCode, code, message, orpcCode }`) — the exact shape every
- * contract declares via `.errors(standardDomainErrorContracts(e))`. ORPC
- * marks a thrown error as "defined" (typed on the client) ONLY when its
- * data validates against the contract's declared schema, so deviating from
- * this shape would downgrade every service-thrown exception to an unknown
- * error on the web app.
- *
- * This allows proper HTTP status codes to be returned instead of 500.
- */
-export function transformHttpExceptionToORPCError(error: unknown): void {
-    if (error instanceof HttpException) {
-        const status = error.getStatus()
-        const orpcCode = httpStatusToORPCCode(status)
-        const message = resolveExceptionMessage(error.getResponse(), error.message)
-
-        throw new ORPCError(orpcCode, {
-            message,
-            data: {
-                statusCode: status,
-                code: orpcCode,
-                message,
-                orpcCode,
-            },
-            cause: error,
-        })
-    }
-}
 
 /**
  * Transforms MeshBaseDomainError to ORPCError
@@ -173,16 +81,16 @@ function toOrpcErrorCode(code: string): ORPCErrorCode {
 }
 
 /**
- * ORPC interceptor that transforms NestJS HttpException, MeshBaseDomainError and
- * `@deployer/errors` AppError into ORPCError
- * This ensures proper HTTP status codes are returned instead of generic 500 errors
+ * ORPC interceptor that transforms MeshBaseDomainError and `@deployer/errors` AppError into ORPCError
+ * This ensures proper HTTP status codes are returned instead of generic 500 errors. (Nothing throws a NestJS
+ * `HttpException` inside a procedure any more: failures are tagged domain errors, mapped by `domainErrorInterceptor`.)
  *
  * @example
  * ```ts
  * ORPCModule.forRootAsync({
  *   useFactory: () => ({
  *     interceptors: [
- *       transformNestJSErrorToOrpcError(),
+ *       transformDomainErrorToOrpcError(),
  *     ],
  *   }),
  * })
@@ -191,9 +99,8 @@ function toOrpcErrorCode(code: string): ORPCErrorCode {
 // oRPC bounds `Interceptor`'s generics to its own context types, which `unknown` does not satisfy; the function is
 // generic over the caller's context by construction.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformNestJSErrorToOrpcError(): Interceptor<any, any> {
+export function transformDomainErrorToOrpcError(): Interceptor<any, any> {
     return onError((error: unknown) => {
-        transformHttpExceptionToORPCError(error)
         transformMeshDomainErrorToORPCError(error)
         transformAppErrorToORPCError(error)
     })

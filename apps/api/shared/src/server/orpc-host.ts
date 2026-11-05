@@ -20,7 +20,7 @@ import { permissionsOfRole } from "../core/authz/role-catalog";
 import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import {
 	logOrpcErrors,
-	transformNestJSErrorToOrpcError,
+	transformDomainErrorToOrpcError,
 } from "../core/modules/auth/orpc/index";
 import { AuthPlugin } from "../core/modules/auth/orpc/plugins/auth.plugin";
 import { SessionResolver, type SessionResolverShape } from "../core/modules/auth/orpc/session-resolver";
@@ -206,7 +206,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 
 			return {
 				interceptors: [
-					transformNestJSErrorToOrpcError(),
+					transformDomainErrorToOrpcError(),
 					logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
 					// Innermost, so a thrown `DomainError` (Promise-based services) is already its oRPC error
 					// by kind when the translation and logging interceptors above see it.

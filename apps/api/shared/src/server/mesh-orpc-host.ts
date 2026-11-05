@@ -9,7 +9,7 @@ import { domainErrorInterceptor } from "@deployer/effect-orpc";
 
 
 import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
-import { logOrpcErrors, transformNestJSErrorToOrpcError } from "../core/modules/auth/orpc/index";
+import { logOrpcErrors, transformDomainErrorToOrpcError } from "../core/modules/auth/orpc/index";
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { ORPCAuthContext } from "../core/modules/auth/orpc/types";
@@ -102,7 +102,7 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 				interceptors: [
 					// Outermost, so an unauthenticated request is refused before anything is parsed or logged as an error.
 					meshCredentialInterceptor(verify),
-					transformNestJSErrorToOrpcError(),
+					transformDomainErrorToOrpcError(),
 					logOrpcErrors(new Logger("ORPC Errors"), insight),
 					domainErrorInterceptor(),
 				],

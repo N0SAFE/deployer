@@ -129,3 +129,8 @@ User decision M: nothing is pruned; every traefik class is migrated. (a9827042 h
 - `DatabaseProbeService` (`probe`, `probeWithRetry` Effects, never fail), `DatabaseStartupGuard` (`ensureDatabaseAvailable(pool)` fails with `DatabaseStartupBlocked`, replaces `AppError("DATABASE_STARTUP_BLOCKED")`), `DatabaseFailureTracker` (sync observer + `onStop`), `BootstrapAdvisoryLockService` (`acquire` fails with `AdvisoryLockFailed`; `release` never fails; `onStop` releases): factories + tags, new `database/database.errors.ts`.
 - `BootstrapOrchestratorService`: `makeBootstrapOrchestratorService({ pool, db, nodeConfigRepository, lifecycle, startupGuard, bootstrapLock, orchestrator })`, an `onReady` lifecycle (was `onApplicationBootstrap`); a failure is `BootstrapFailed` and fails the boot as before.
 - `EnvHostnameService`: no `@Injectable`; the module builds it with `useFactory`. `HostnameService` stays an abstract class (pure string grammar).
+
+## Commit: exception filters (ledger now `{}`)
+- `auth/orpc/interceptors.ts`: removed `transformHttpExceptionToORPCError`, `httpStatusToORPCCode` and the `HttpException` branch (nothing throws a Nest exception inside a procedure any more); `transformNestJSErrorToOrpcError()` is now `transformDomainErrorToOrpcError()` (mesh domain errors + `AppError`), updated in both oRPC hosts.
+- `InternalErrorInsight`: dropped the `nest-http` module and the `"nest-http"` capture source.
+- `services/project/src/modules/project/project-effects.ts` still translates a legacy `HttpException` (project's own file, not shared): the next project pass can drop it.

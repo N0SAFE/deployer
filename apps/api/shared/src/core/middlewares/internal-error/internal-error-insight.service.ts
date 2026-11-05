@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { HttpException, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import { ORPCError } from "@orpc/server";
 import { APIError } from "better-auth/api";
 
@@ -21,7 +21,7 @@ export type InternalErrorInsightModule = {
 }
 
 export type InternalErrorCaptureOptions = {
-    source: "nest-http" | "orpc" | "better-auth" | "mesh-domain" | "unknown";
+    source: "orpc" | "better-auth" | "mesh-domain" | "unknown";
     request?: Request;
 }
 
@@ -95,7 +95,6 @@ export function makeInternalErrorInsightService(): InternalErrorInsightServiceSh
     registerModule(createOrpcModule());
     registerModule(createBetterAuthModule());
     registerModule(createMeshDomainModule());
-    registerModule(createNestHttpModule());
     registerModule(createFallbackModule());
 
     return { registerModule, capture, shouldExposeDebugPayload, buildClientDebugPayload };
@@ -248,21 +247,6 @@ function createMeshDomainModule(): InternalErrorInsightModule {
                 };
             }
             return {};
-        },
-    };
-}
-
-function createNestHttpModule(): InternalErrorInsightModule {
-    return {
-        id: "nest-http",
-        supports: (error: unknown) => error instanceof HttpException,
-        describe: (error: unknown) => {
-            const httpException = error as HttpException;
-
-            return {
-                status: httpException.getStatus(),
-                response: httpException.getResponse(),
-            };
         },
     };
 }
