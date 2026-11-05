@@ -7,6 +7,7 @@ import { Authorized, mint } from './authorized'
 import { type AccessArgs } from './context'
 import { evaluate } from './decision'
 import { DecisionLedger } from './ledger'
+import { AccessPolicy } from './policy'
 import {
     EnvironmentScope,
     NodeScope,
@@ -244,7 +245,7 @@ type DefaultInput<
       : object
 
 /** The plugin a scope kind resolves through, as an Effect: the plugin is an ordinary service in the request's context. */
-function resolverService(
+export function resolverService(
     kind: Exclude<ScopeKind, 'platform'>
 ): Effect.Effect<
     ScopeResolverShape,
@@ -306,7 +307,7 @@ export type Resource<
     ): Effect.Effect<
         Authorized<Extract<`${R}:${A}`, Permission>, K>,
         AccessDenied | ScopeNotFound,
-        CurrentActor | ScopeServiceOf<K>
+        CurrentActor | AccessPolicy | ScopeServiceOf<K>
     >
 }
 
@@ -367,7 +368,7 @@ export function defineResource<
             requireNow(action, ...id) as Effect.Effect<
                 Authorized<Extract<`${R}:${A}`, Permission>, K>,
                 AccessDenied | ScopeNotFound,
-                CurrentActor | ScopeServiceOf<K>
+                CurrentActor | AccessPolicy | ScopeServiceOf<K>
             >,
         can: <const A extends ActionOf<R>>(action: A) => {
             const permission = `${name}:${action}`

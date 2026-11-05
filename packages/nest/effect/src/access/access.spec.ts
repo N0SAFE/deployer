@@ -8,10 +8,13 @@ import z from 'zod/v4'
 
 import type { Actor, CapabilitySet, Permission } from '@deployer/auth/authz'
 
-import { configureAuthz, type DecisionEvent, type PermissionStore } from '../authz'
+import { Actor as CoreActor, CurrentActor } from '@deployer/effect-core'
+
+import { type AuthzOptions, type DecisionEvent, type PermissionStore } from '../authz'
 import { procedure, type RequiredBy } from '../requirements'
 
 import {
+    AccessPolicy,
     accessDeferred,
     accessDescriptorOf,
     accessOfProcedure,
@@ -46,10 +49,23 @@ type Ctx = AuthenticatedContext & {
     readonly 'effect/context'?: Context.Context<never>
 }
 
-const caller = (id: string, effectContext?: Context.Context<never>): Ctx => ({
-    auth: { isLoggedIn: true, user: { id } },
-    ...(effectContext === undefined ? {} : { 'effect/context': effectContext }),
-})
+/** The policy every case runs under; a case sets it before it calls, and the next case starts from `off` again. */
+const OFF: AuthzOptions = { store: { capabilities: () => Promise.resolve({ permissions: [], sources: [] }) }, mode: 'off' }
+let policy: AuthzOptions = OFF
+const setPolicy = (next: AuthzOptions | null): void => {
+    policy = next ?? OFF
+}
+
+/** A request as it reaches the access check: `requireAuth()` has run (an actor, provided), the policy and any plugins are in the Effect context. */
+const caller = (id: string, extra?: Context.Context<never>): Ctx => {
+    const base = Context.make(AccessPolicy, policy).pipe(
+        Context.add(CurrentActor, CoreActor.user(id, 'user'))
+    )
+    return {
+        auth: { isLoggedIn: true, user: { id } },
+        'effect/context': extra === undefined ? base : Context.merge(base, extra),
+    }
+}
 
 /** A store that grants by (kind, id): the stand-in for grants until the database-backed store lands. */
 const storeOf = (
@@ -77,7 +93,7 @@ const serviceScope: ScopeResolverShape = {
 const withScope = Context.make(ServiceScope, serviceScope)
 
 afterEach(() => {
-    configureAuthz(null)
+    setPolicy(null)
 })
 
 describe('accessRequired', () => {
@@ -92,7 +108,7 @@ describe('accessRequired', () => {
         call(deployProcedure(), input, { context: ctx })
 
     it('allows a caller who holds the permission on a scope above the service', async () => {
-        configureAuthz({
+        setPolicy({
             store: storeOf({ 'project:p1': ['service:deploy'] }),
             mode: 'enforce',
         })
@@ -102,37 +118,35 @@ describe('accessRequired', () => {
     })
 
     it('refuses a caller who holds it only on a sibling', async () => {
-        configureAuthz({ store: storeOf({ 'project:p2': ['service:deploy'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'project:p2': ['service:deploy'] }), mode: 'enforce' })
         await expect(
             run(caller('u1', withScope))
         ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     })
 
     it('lets a platform grant reach every service', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['service:deploy'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['service:deploy'] }), mode: 'enforce' })
         await expect(
             run(caller('u1', withScope))
         ).resolves.toMatchObject({ via: 'permission' })
     })
 
     it('conceals a scope that does not exist as a 404', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['service:deploy'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['service:deploy'] }), mode: 'enforce' })
         await expect(
             run(caller('u1', withScope), { serviceId: 'ghost' })
         ).rejects.toMatchObject({ code: 'NOT_FOUND' })
     })
 
-    it('fails loudly when the service forgot to provide the scope plugin', async () => {
-        configureAuthz({ store: storeOf({}), mode: 'enforce' })
-        await expect(run(caller('u1'))).rejects.toMatchObject({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: expect.stringContaining('no service scope plugin'),
-        })
+    it('fails loudly, as a missing service, when the service forgot to provide the scope plugin', async () => {
+        // The type system already refuses this at boot (the plugin is a requirement of the procedure); this is the runtime backstop.
+        setPolicy({ store: storeOf({}), mode: 'enforce' })
+        await expect(run(caller('u1'))).rejects.toThrow('Service not found: access/ServiceScope')
     })
 
     it('logs but does not block in shadow mode, and records the decision', async () => {
         const events: DecisionEvent[] = []
-        configureAuthz({
+        setPolicy({
             store: storeOf({}),
             mode: 'shadow',
             onDecision: (e) => events.push(e),
@@ -145,13 +159,13 @@ describe('accessRequired', () => {
 
     it('records `off` instead of hiding it, and does no lookup', async () => {
         const capabilities = vi.fn()
-        configureAuthz({ store: { capabilities }, mode: 'off' })
+        setPolicy({ store: { capabilities }, mode: 'off' })
         await expect(run(caller('u1'))).resolves.toMatchObject({ via: 'off' })
         expect(capabilities).not.toHaveBeenCalled()
     })
 
     it('answers 401 when there is no actor, whatever the mode', async () => {
-        configureAuthz({ store: storeOf({}), mode: 'off' })
+        setPolicy({ store: storeOf({}), mode: 'off' })
         await expect(
             // @ts-expect-error an anonymous caller is exactly what the types forbid; the runtime must still answer 401
             call(deployProcedure(), { serviceId: 's' }, { context: {} })
@@ -161,7 +175,7 @@ describe('accessRequired', () => {
 
 describe('platform resources and the subject', () => {
     it('checks a platform permission with no id', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
         const p = procedure<typeof list, Ctx>(list)
             .use(accessRequired(User.can('list')))
             .effect(function* ({ context }) {
@@ -173,7 +187,7 @@ describe('platform resources and the subject', () => {
     })
 
     it('refuses without the permission, and passes `.orSelf()` for the caller\'s own id', async () => {
-        configureAuthz({ store: storeOf({}), mode: 'enforce' })
+        setPolicy({ store: storeOf({}), mode: 'enforce' })
         const p = procedure<typeof update, Ctx>(update)
             .use(accessRequired(User.can('update').orSelf()))
             .effect(function* ({ context }) {
@@ -202,12 +216,12 @@ describe('a nested id', () => {
             })
 
     it('reads the id at the dotted path', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['user:set-role'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['user:set-role'] }), mode: 'enforce' })
         await expect(
             call(setRole(), { params: { id: 'other' }, body: { role: 'admin' } }, { context: caller('u1') })
         ).resolves.toBe('permission')
         // the caller's own id passes through `.orSelf()` without any permission
-        configureAuthz({ store: storeOf({}), mode: 'enforce' })
+        setPolicy({ store: storeOf({}), mode: 'enforce' })
         await expect(
             call(setRole(), { params: { id: 'u1' }, body: { role: 'admin' } }, { context: caller('u1') })
         ).resolves.toBe('self')
@@ -373,7 +387,7 @@ describe('boot audit', () => {
 })
 
 describe('types', () => {
-    it('adds the scope plugin a requirement reads to the procedure\'s requirements, and nothing for the platform', () => {
+    it('adds the policy and the scope plugin a requirement reads to the procedure\'s requirements', () => {
         const platformOnly = procedure<typeof list, Ctx>(list)
             .use(accessRequired(User.can('list')))
             .effect(function* () {
@@ -387,8 +401,9 @@ describe('types', () => {
                 return 1
             })
         const requirementsOf = <P>(_procedure: P) => expectTypeOf<RequiredBy<P>>()
-        requirementsOf(platformOnly).toBeNever()
-        requirementsOf(scoped).toEqualTypeOf<ServiceScope>()
+        // the policy is always a requirement; the scope plugin only when the requirement is scoped
+        requirementsOf(platformOnly).toEqualTypeOf<AccessPolicy>()
+        requirementsOf(scoped).toEqualTypeOf<AccessPolicy | ServiceScope>()
     })
 
     it('catalogs the actions of a resource and nothing else', () => {
@@ -460,7 +475,7 @@ describe('accessSelf is checked, not assumed', () => {
 
     it('refuses an id that is not the caller\'s, whatever the mode', async () => {
         for (const mode of ['off', 'shadow', 'enforce'] as const) {
-            configureAuthz({ store: storeOf({}), mode })
+            setPolicy({ store: storeOf({}), mode })
             await expect(
                 call(deleteOwnSession(), { params: { id: 'someone-else' }, body: { role: 'x' } }, { context: caller('u1') })
             ).rejects.toMatchObject({ code: 'FORBIDDEN' })
@@ -492,14 +507,14 @@ describe('Resource.require inside a handler', () => {
             })
 
     it('succeeds with an Authorized proof when the caller holds the permission above the service', async () => {
-        configureAuthz({ store: storeOf({ 'project:p1': ['service:update'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'project:p1': ['service:update'] }), mode: 'enforce' })
         await expect(
             call(handlerFor('update'), { serviceId: 's1' }, { context: caller('u1', withScope) })
         ).resolves.toEqual({ kind: 'service', id: 's1' })
     })
 
     it('fails with a 403 when it does not, and a 404 for a scope that does not exist', async () => {
-        configureAuthz({ store: storeOf({ 'project:p1': ['service:read'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'project:p1': ['service:read'] }), mode: 'enforce' })
         await expect(
             call(handlerFor('update'), { serviceId: 's1' }, { context: caller('u1', withScope) })
         ).rejects.toMatchObject({ code: 'FORBIDDEN' })
@@ -509,7 +524,7 @@ describe('Resource.require inside a handler', () => {
     })
 
     it('takes no id on a platform resource', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
         const p = procedure<typeof list, Ctx>(list)
             .use(accessDeferred('decided in the handler'))
             .effect(function* () {
@@ -532,14 +547,14 @@ describe('Resource.require inside a handler', () => {
                 yield* Effect.void
                 return 'served'
             })
-        configureAuthz({ store: storeOf({}), mode: 'enforce' })
+        setPolicy({ store: storeOf({}), mode: 'enforce' })
         await expect(call(silent, {}, { context: caller('u1') })).rejects.toBeDefined()
-        configureAuthz({ store: storeOf({}), mode: 'shadow' })
+        setPolicy({ store: storeOf({}), mode: 'shadow' })
         await expect(call(silent, {}, { context: caller('u1') })).resolves.toBe('served')
     })
 
     it('does not hold a normal procedure to anything', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
         const p = procedure<typeof list, Ctx>(list)
             .use(accessRequired(User.can('list')))
             .effect(function* () {
@@ -561,14 +576,14 @@ describe('the inferred mapping: accessRequired(({ input }) => Resource.can(…).
             })
 
     it('infers `input` from the procedure and reads the mapped id at request time', async () => {
-        configureAuthz({ store: storeOf({ 'platform:': ['user:get'] }), mode: 'enforce' })
+        setPolicy({ store: storeOf({ 'platform:': ['user:get'] }), mode: 'enforce' })
         await expect(
             call(get(), { params: { id: 'u9' }, body: { role: 'x' } }, { context: caller('u1') })
         ).resolves.toBe('u9')
     })
 
     it('refuses without the permission, and passes the caller\'s own id through `.orSelf()`', async () => {
-        configureAuthz({ store: storeOf({}), mode: 'enforce' })
+        setPolicy({ store: storeOf({}), mode: 'enforce' })
         const own = procedure<typeof nested, Ctx>(nested)
             .use(
                 accessRequired(({ input }) => SubjectUser.can('get').on(input.params.id).orSelf())
@@ -586,7 +601,7 @@ describe('the inferred mapping: accessRequired(({ input }) => Resource.can(…).
     })
 
     it('accepts several requirements as an array, keyed by name', async () => {
-        configureAuthz({
+        setPolicy({
             store: storeOf({ 'platform:': ['user:get', 'user:list'] }),
             mode: 'enforce',
         })

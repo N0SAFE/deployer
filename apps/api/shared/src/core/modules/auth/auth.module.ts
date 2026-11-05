@@ -1,5 +1,6 @@
-import { createGlobalModule } from '@deployer/nest-effect'
+import { AccessPolicy, createGlobalModule } from '@deployer/nest-effect'
 
+import { accessPolicy } from '../../authz/access-policy'
 import { createBetterAuth } from '../../../config/auth/auth'
 import { EnvModule, EnvService } from '../../../config/env/env.module'
 import { GLOBAL_DATABASE_CONNECTION } from '../database/database-connection'
@@ -57,6 +58,8 @@ export class AuthModule extends createGlobalModule(
                     makeSessionResolver(core.instance),
                 inject: [AuthCoreService],
             },
+            // How access is decided in this process: every access check depends on it, so an app cannot run unprotected by omission.
+            { provide: AccessPolicy, useFactory: accessPolicy },
             // The platform secret system-actor claims are signed with (see the shortcut in `secrets.ts`).
             { provide: PlatformSecret, useValue: envPlatformSecret },
         ],
@@ -65,6 +68,7 @@ export class AuthModule extends createGlobalModule(
             AuthCoreService,
             SessionResolver,
             PlatformSecret,
+            AccessPolicy,
         ],
     },
     AuthCoreService,

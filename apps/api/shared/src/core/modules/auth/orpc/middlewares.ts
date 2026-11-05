@@ -6,12 +6,11 @@ import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
 import { secretsMatch } from '@deployer/auth/server'
 import { Actor, CurrentActor } from '@deployer/effect-core'
 import { actorFromContext } from '@deployer/effect-orpc'
-import { effectMiddleware } from '@deployer/nest-effect'
+import { effectMiddleware, Forbidden, Unauthenticated } from '@deployer/nest-effect'
 
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
 
 import { AuthUtils, AuthUtilsEmpty } from './auth-utils'
-import { Forbidden, Unauthenticated } from './auth.errors'
 import { MeshSecret, PlatformSecret } from './secrets'
 import { SessionResolver } from './session-resolver'
 import {

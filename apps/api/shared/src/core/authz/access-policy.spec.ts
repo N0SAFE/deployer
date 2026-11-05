@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
     clearRoleSnapshot,
     installRoleSnapshot,
-} from '../core/authz/role-catalog'
+} from './role-catalog'
 
-import { roleTableStore } from './orpc-host'
+import { roleTableStore } from './access-policy'
 
 /**
  * The gate's capability source (`SEC-062`), which is where an enforcement flip actually gets its answers.

@@ -1,5 +1,6 @@
 export { Authorized } from './authorized'
-export { AccessDenied } from './errors'
+export { AccessDenied, Forbidden, Unauthenticated } from './errors'
+export { AccessPolicy } from './policy'
 export { DecisionLedger, trackDecisions } from './ledger'
 export {
     accessOfProcedure,

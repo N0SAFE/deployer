@@ -1,26 +1,28 @@
-import { ORPCError, os } from '@orpc/server'
-import { Cause, Context as EffectContext, Effect, Exit } from 'effect'
+import { Effect, Option } from 'effect'
+
+import { CurrentActor } from '@deployer/effect-core'
 
 import type { Decision, Permission, ScopeKind } from '@deployer/auth/authz'
 
-import { actorOf } from '../authz'
+import { effectMiddleware } from '../effect-middleware'
 
 import { type AccessArgs, type AuthenticatedContext } from './context'
-import { evaluate, type Caller, type LineageOf } from './decision'
+import { evaluate } from './decision'
 import { describe } from './descriptor'
-import { AccessDenied } from './errors'
-import { RequirementBuilder } from './resource'
-import {
+import { Forbidden, Unauthenticated } from './errors'
+import { RequirementBuilder, resolverService } from './resource'
+
+import type { Marked } from '../requirements'
+import type { AccessPolicy } from './policy'
+import type {
     EnvironmentScope,
     NodeScope,
     ProjectScope,
-    ScopeNotFound,
+    ScopeRef,
     ServiceScope,
-    type ScopeRef,
-    type ScopeResolverShape,
 } from './scope'
-
-import type { Marked } from '../requirements'
+import type { ErrorMap } from '@orpc/contract'
+import type { Middleware } from '@orpc/server'
 import type {
     AnyRequirement,
     InputOf,
@@ -87,51 +89,6 @@ function valueAt(input: unknown, path: string): unknown {
         )
 }
 
-function wiring(permission: string, message: string): ORPCError<string, unknown> {
-    return new ORPCError('INTERNAL_SERVER_ERROR', {
-        message: `access ${permission}: ${message}`,
-    })
-}
-
-/** The plugin that resolves a scope kind, read from the request's Effect context. */
-function resolverFor(
-    kind: Exclude<ScopeKind, 'platform'>,
-    effectContext: EffectContext.Context<never>
-): ScopeResolverShape | undefined {
-    switch (kind) {
-        case 'project':
-            return EffectContext.getOrUndefined(effectContext, ProjectScope)
-        case 'environment':
-            return EffectContext.getOrUndefined(effectContext, EnvironmentScope)
-        case 'service':
-            return EffectContext.getOrUndefined(effectContext, ServiceScope)
-        case 'node':
-            return EffectContext.getOrUndefined(effectContext, NodeScope)
-    }
-}
-
-/** Where a scope sits, through the plugin this service provides; a service that forgot it fails loudly, not as a 403. */
-function lineageThrough(spec: RequirementSpec, context: unknown): LineageOf<never> {
-    return (id) => {
-        const effectContext: unknown =
-            context !== null && typeof context === 'object'
-                ? Reflect.get(context, 'effect/context')
-                : undefined
-        const resolver =
-            spec.scope !== 'platform' && EffectContext.isContext(effectContext)
-                ? resolverFor(spec.scope, effectContext)
-                : undefined
-        return resolver === undefined
-            ? Effect.die(
-                  wiring(
-                      spec.permission,
-                      `no ${spec.scope} scope plugin is provided to this service (provide the owner's \`live\` or a \`remote\` Layer)`
-                  )
-              )
-            : resolver.lineage(id)
-    }
-}
-
 /** The id a requirement is about: what the controller mapped from the request, else the resource's default input field. */
 function idOf(
     requirement: AnyRequirement,
@@ -148,56 +105,14 @@ function idOf(
     return typeof raw === 'string' ? raw : undefined
 }
 
-async function check(
-    requirement: AnyRequirement,
-    input: unknown,
-    context: AuthenticatedContext,
-    caller: Caller
-): Promise<AccessEntry<Permission, ScopeKind>> {
-    const { spec } = requirement
-    const id = idOf(requirement, input, context)
-    if ((spec.mapped || spec.key !== null) && id === undefined) {
-        // The contract's schema validated the input before any middleware ran; a missing id is a wiring mistake.
-        throw wiring(spec.permission, 'the request has no id to locate this by')
-    }
-    const exit = await Effect.runPromiseExit(
-        evaluate(spec, id, caller, lineageThrough(spec, context))
-    )
-    if (Exit.isSuccess(exit)) return exit.value
-    const failure: unknown = Cause.squash(exit.cause)
-    if (failure instanceof AccessDenied) {
-        throw new ORPCError('FORBIDDEN', {
-            message: 'You do not have permission for this action',
-            data: {
-                permission: failure.permission,
-                scope: failure.scope,
-                reason: failure.reason,
-            },
-        })
-    }
-    if (failure instanceof ScopeNotFound) {
-        // Concealment: a scope the caller cannot be told exists reads as absent (DEC-AUTH-14).
-        throw new ORPCError('NOT_FOUND', { message: failure.publicMessage() })
-    }
-    throw failure
-}
-
-function requireActor(context: unknown) {
-    const actor = actorOf(context)
-    if (actor === null) {
-        throw new ORPCError('UNAUTHORIZED', { message: 'Authentication required' })
-    }
-    return actor
-}
-
-function assertUniqueNames(specs: readonly RequirementSpec[]): void {
+/** The first name two requirements share, or `undefined` when every name is distinct. */
+function duplicateName(specs: readonly RequirementSpec[]): string | undefined {
     const seen = new Set<string>()
     for (const spec of specs) {
-        if (seen.has(spec.name)) {
-            throw wiring(spec.permission, `two requirements share the name "${spec.name}"; give one .as("…")`)
-        }
+        if (seen.has(spec.name)) return spec.name
         seen.add(spec.name)
     }
+    return undefined
 }
 
 /** A function that returns one requirement or several, however the controller wrote it. */
@@ -242,32 +157,70 @@ function specsOfMapping(
     }
 }
 
+/** Everything the access checks may ask of the request's Effect context; only the kinds a requirement uses are REQUIRED of a module. */
+type AccessDeps = AccessPolicy | ProjectScope | EnvironmentScope | ServiceScope | NodeScope
+
+/** The caller as the decision knows them. No validated actor is a 401: it means `requireAuth()` did not run before this. */
+const callerOf = Effect.gen(function* () {
+    const actor = yield* Effect.serviceOption(CurrentActor)
+    if (Option.isNone(actor)) return yield* new Unauthenticated({})
+    return {
+        id: actor.value.id,
+        role: actor.value.kind === 'user' ? actor.value.role : 'system',
+    }
+})
+
 function middlewareOf<const Rs extends readonly AnyRequirement[], In>(
     resolve: (args: AccessArgs<unknown>) => readonly AnyRequirement[]
-) {
-    return os
-        .$context<AuthenticatedContext>()
-        .middleware<
-            { readonly access: AccessRecord<Rs> } & Marked<ScopeServicesOf<Rs>>,
-            In
-        >(async ({ context, next }, input) => {
-            const actor = requireActor(context)
+): Middleware<
+    AuthenticatedContext,
+    { readonly access: AccessRecord<Rs> } & Marked<AccessPolicy | ScopeServicesOf<Rs>>,
+    In,
+    unknown,
+    ErrorMap
+> {
+    // The middleware yields every plugin kind at runtime, by the scope each requirement names; the requirement it advertises is
+    // the narrower set its `Rs` implies (`ScopeServicesOf`). They agree by construction, and a downcast is what says so.
+    return effectMiddleware<AccessDeps, { readonly access: AccessRecord<Rs> }, In, AuthenticatedContext>(
+        function* ({ context, next }, input) {
+            const caller = yield* callerOf
             const requirements = resolve({ input, context })
-            assertUniqueNames(requirements.map((requirement) => requirement.spec))
+            const duplicate = duplicateName(requirements.map((requirement) => requirement.spec))
+            if (duplicate !== undefined) {
+                return yield* Effect.die(
+                    new Error(`two requirements share the name "${duplicate}"; give one .as("…")`)
+                )
+            }
             const entries: [string, AccessEntry<Permission, ScopeKind>][] = []
             for (const requirement of requirements) {
-                entries.push([
-                    requirement.spec.name,
-                    await check(requirement, input, context, actor),
-                ])
+                const { spec } = requirement
+                const id = idOf(requirement, input, context)
+                if ((spec.mapped || spec.key !== null) && id === undefined) {
+                    // The contract's schema validated the input before any middleware ran; a missing id is a wiring mistake.
+                    return yield* Effect.die(
+                        new Error(`access ${spec.permission}: the request has no id to locate this by`)
+                    )
+                }
+                const entry = yield* evaluate(spec, id, caller, (scopeId) =>
+                    spec.scope === 'platform'
+                        ? Effect.succeed([])
+                        : Effect.flatMap(resolverService(spec.scope), (resolver) =>
+                              resolver.lineage(scopeId)
+                          )
+                )
+                entries.push([spec.name, entry])
             }
-            // The proofs are keyed by names only the types know; `Marked` is a phantom no runtime value carries. This is
-            // the one place the dynamic record meets its mapped type.
+            // The proofs are keyed by names only the types know. This is the one place the dynamic record meets its mapped type.
             const access = Object.fromEntries(entries) as AccessRecord<Rs>
-            return next({
-                context: { access } as { readonly access: AccessRecord<Rs> } & Marked<ScopeServicesOf<Rs>>,
-            })
-        })
+            return yield* next({ context: { access } })
+        }
+    ) as Middleware<
+        AuthenticatedContext,
+        { readonly access: AccessRecord<Rs> } & Marked<AccessPolicy | ScopeServicesOf<Rs>>,
+        In,
+        unknown,
+        ErrorMap
+    >
 }
 
 /**
@@ -321,32 +274,24 @@ export function accessRequired(...args: readonly unknown[]): unknown {
  * - `accessSelf(reason)`: the procedure takes no id at all (`deleteSelf`, `exportSelf`). There is nothing to tamper with, and
  *   the proof carries `context.access.self.id`, the one id the handler may act on: the session's own.
  * - `accessSelf(reason, ({ input }) => input.params.id)`: the input names a record; the middleware refuses with 403 unless that
- *   id is the caller's. It does not depend on `AUTHZ_MODE`: whose record it is is an identity fact, not a rollout.
+ *   id is the caller's. It does not depend on the rollout mode: whose record it is is an identity fact, not a rollout.
  */
 export function accessSelf<I extends object = object>(
     reason: string,
     on?: (args: AccessArgs<I>) => string
 ) {
-    const middleware = os
-        .$context<AuthenticatedContext>()
-        .middleware<
-            {
-                readonly access: {
-                    readonly self: { readonly reason: string; readonly id: string }
-                }
-            },
-            I
-        >(({ context, next }, input) => {
-            const actor = requireActor(context)
-            if (on !== undefined && on({ input, context }) !== actor.id) {
-                throw new ORPCError('FORBIDDEN', {
-                    message: 'You can only act on your own record',
-                })
-            }
-            return next({
-                context: { access: { self: { reason, id: actor.id } } },
-            })
-        })
+    const middleware = effectMiddleware<
+        never,
+        { readonly access: { readonly self: { readonly reason: string; readonly id: string } } },
+        I,
+        AuthenticatedContext
+    >(function* ({ context, next }, input) {
+        const caller = yield* callerOf
+        if (on !== undefined && on({ input, context }) !== caller.id) {
+            return yield* new Forbidden({ reason: 'You can only act on your own record' })
+        }
+        return yield* next({ context: { access: { self: { reason, id: caller.id } } } })
+    })
     return describe(middleware, { kind: 'self', reason })
 }
 
@@ -355,12 +300,12 @@ export function accessPublic(reason: string) {
     if (reason.trim() === '') {
         throw new Error('accessPublic needs a reason: why is this route open?')
     }
-    const middleware = os
-        .$context<object>()
-        .middleware<
-            { readonly access: { readonly public: { readonly reason: string } } },
-            unknown
-        >(({ next }) => next({ context: { access: { public: { reason } } } }))
+    const middleware = effectMiddleware<
+        never,
+        { readonly access: { readonly public: { readonly reason: string } } }
+    >(function* ({ next }) {
+        return yield* next({ context: { access: { public: { reason } } } })
+    })
     return describe(middleware, { kind: 'public', reason })
 }
 
@@ -369,14 +314,14 @@ export function accessDeferred(reason: string) {
     if (reason.trim() === '') {
         throw new Error('accessDeferred needs a reason: why is it not known here?')
     }
-    const middleware = os
-        .$context<AuthenticatedContext>()
-        .middleware<
-            { readonly access: { readonly deferred: { readonly reason: string } } },
-            unknown
-        >(({ context, next }) => {
-            requireActor(context)
-            return next({ context: { access: { deferred: { reason } } } })
-        })
+    const middleware = effectMiddleware<
+        never,
+        { readonly access: { readonly deferred: { readonly reason: string } } },
+        unknown,
+        AuthenticatedContext
+    >(function* ({ next }) {
+        yield* callerOf
+        return yield* next({ context: { access: { deferred: { reason } } } })
+    })
     return describe(middleware, { kind: 'deferred', reason })
 }

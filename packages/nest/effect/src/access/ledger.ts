@@ -1,6 +1,6 @@
-import { Context, Effect, Ref } from 'effect'
+import { Context, Effect, Option, Ref } from 'effect'
 
-import { authzConfigured } from '../authz'
+import { AccessPolicy } from './policy'
 
 /**
  * Where a handler reports that it decided. Provided per request around an `accessDeferred` procedure only, so a normal
@@ -42,7 +42,8 @@ export function trackDecisions<A, E, R>(
         if ((yield* Ref.get(decisions)) === 0) {
             const message =
                 'access never decided: an accessDeferred procedure finished without a Resource.require(...)'
-            if (authzConfigured()?.mode === 'enforce') {
+            const policy = yield* Effect.serviceOption(AccessPolicy)
+            if (Option.isSome(policy) && policy.value.mode === 'enforce') {
                 return yield* Effect.die(new Error(message))
             }
             yield* Effect.logWarning(message)

@@ -7,9 +7,8 @@ import {
     type ScopeKind,
 } from '@deployer/auth/authz'
 
-import { authzConfigured } from '../authz'
-
 import { AccessDenied } from './errors'
+import { AccessPolicy } from './policy'
 
 import type { AccessEntry } from './middleware'
 import type { RequirementSpec } from './resource'
@@ -43,16 +42,20 @@ export function evaluate<R>(
     id: string | undefined,
     caller: Caller,
     lineageOf: LineageOf<R>
-): Effect.Effect<AccessEntry<Permission, ScopeKind>, AccessDenied | ScopeNotFound, R> {
+): Effect.Effect<
+    AccessEntry<Permission, ScopeKind>,
+    AccessDenied | ScopeNotFound,
+    R | AccessPolicy
+> {
     return Effect.gen(function* () {
-        const options = authzConfigured()
-        const mode = options?.mode ?? 'off'
+        const options = yield* AccessPolicy
+        const mode = options.mode
         const base = { permission: spec.permission, id }
 
         if (spec.orSelf && id !== undefined && id === caller.id) {
             return { ...base, scope: scopeOf(spec, id), via: 'self', decision: null } as const
         }
-        if (options === null || mode === 'off') {
+        if (mode === 'off') {
             return { ...base, scope: scopeOf(spec, id), via: 'off', decision: null } as const
         }
 
