@@ -1,8 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Context, type Effect } from 'effect';
 
 import { makeDatabaseHandle, type DatabaseHandleShape } from "@deployer/database";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { AppError } from "@deployer/errors";
+import { DatabaseNotInitialized } from "../database.errors";
 import * as globalSchema from '@deployer/nest-schema/global';
 
 import type { ExtractTablesWithRelations } from 'drizzle-orm';
@@ -29,45 +28,49 @@ export type GlobalTransaction = PgTransaction<
 /**
  * Typed handle on the GLOBAL Postgres database.
  *
- * The connection is a SINGLE shared `pg.Pool` created by `GlobalDatabaseModule`
- * and injected as `GLOBAL_DATABASE_CONNECTION`; this service is a thin typed
- * wrapper over that Drizzle instance. It deliberately does NOT own the pool —
- * the pool's lifecycle belongs to `GlobalDatabaseLifecycleService`, so the
- * connection can never be duplicated (a second pool would double the connection
- * count and keep the event loop alive at shutdown).
+ * The connection is a SINGLE shared `pg.Pool` created by `GlobalDatabaseModule` and injected as
+ * `GLOBAL_DATABASE_CONNECTION`; this service is a thin typed wrapper over that Drizzle instance. It deliberately does NOT
+ * own the pool — the pool's lifecycle belongs to the module's pool lifecycle, so the connection can never be duplicated (a
+ * second pool would double the connection count and keep the event loop alive at shutdown).
  */
-@Injectable()
-export class GlobalDatabaseService {
-    protected readonly logger = new Logger(GlobalDatabaseService.name);
-
+export type GlobalDatabaseServiceShape = {
     /** The Effect handle (`@deployer/database`) this service holds the connection in. */
     readonly handle: DatabaseHandleShape<GlobalDatabase>;
-
-    constructor(db?: GlobalDatabase) {
-        this.handle = makeDatabaseHandle<GlobalDatabase>(GlobalDatabaseService.name, db);
-    }
-
     /** Initialize (or re-initialize) the database connection. */
-    init(db: GlobalDatabase): void {
-        this.handle.initNow(db);
-    }
-
+    readonly init: (db: GlobalDatabase) => void;
     /** Whether this service has been initialized with a database connection. */
-    get isInitialized(): boolean {
-        return this.handle.dbNow() !== undefined;
-    }
-
-    /** The underlying Drizzle database handle. Throws if not yet initialized. */
-    get db(): GlobalDatabase {
-        const db = this.handle.dbNow();
-        if (db === undefined) {
-            throw new AppError(`${GlobalDatabaseService.name} has not been initialized yet`, "DATABASE_NOT_INITIALIZED");
-        }
-        return db;
-    }
-
+    readonly isInitialized: boolean;
+    /**
+     * The underlying Drizzle database handle. A synchronous accessor (it is what `DatabasePort` hands every repository), so
+     * reading it before initialisation throws a `DatabaseNotInitialized`.
+     */
+    readonly db: GlobalDatabase;
     /** Runs `SELECT 1` and resolves to whether the database answered. */
-    async probe(): Promise<boolean> {
-        return await runPromiseUnwrapped(this.handle.healthy);
-    }
+    readonly probe: () => Effect.Effect<boolean>;
+};
+
+const OWNER = "GlobalDatabaseService";
+
+export function makeGlobalDatabaseService(initial?: GlobalDatabase): GlobalDatabaseServiceShape {
+    const handle = makeDatabaseHandle<GlobalDatabase>(OWNER, initial);
+
+    return {
+        handle,
+        init: (db) => {
+            handle.initNow(db);
+        },
+        get isInitialized() {
+            return handle.dbNow() !== undefined;
+        },
+        get db() {
+            const db = handle.dbNow();
+            if (db === undefined) throw new DatabaseNotInitialized({ owner: OWNER });
+            return db;
+        },
+        probe: () => handle.healthy,
+    };
 }
+
+export class GlobalDatabaseService extends Context.Service<GlobalDatabaseService, GlobalDatabaseServiceShape>()(
+    "shared/GlobalDatabaseService",
+) {}

@@ -2,7 +2,7 @@ import { CONTAINER_LINK_RESOLVER, DockerEngine, DockerHost, ScannerPool, type Do
 import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { RuntimeDb } from "../../../core/database/runtime-db";
 import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
@@ -31,7 +31,7 @@ export class DockerRepositoriesModule extends createModuleContext({
         engine: DockerEngineShape,
         scannerPool: ScannerPoolShape,
         host: DockerHostShape,
-        database: GlobalDatabaseService,
+        database: GlobalDatabaseServiceShape,
         normalizer: ContainerDockerodeNormalizer,
         linkResolver: IContainerLinkResolver | undefined,
         networks: DockerNetworksRepositoryShape,

@@ -34,7 +34,7 @@ import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules
 import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
 import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
 import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
-import type { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import type { GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
 import { RuntimeNotFound } from "../../../../core/runtime.errors";
@@ -139,7 +139,7 @@ export class DockerRepository {
     private readonly dockerEngine: DockerEngineShape,
     private readonly scannerPool: ScannerPoolShape,
     private readonly dockerHost: DockerHostShape,
-    private readonly globalDatabaseService: GlobalDatabaseService,
+    private readonly globalDatabaseService: GlobalDatabaseServiceShape,
     private readonly normalizer: ContainerDockerodeNormalizer,
     private readonly linkResolver?: IContainerLinkResolver,
     private readonly networks: DockerNetworksRepositoryShape = new DockerNetworksRepository.live(),

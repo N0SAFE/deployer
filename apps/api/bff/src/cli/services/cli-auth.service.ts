@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid';
 import * as schema from '@deployer/nest-schema/global';
 
 import { AuthCoreService, type AuthCoreServiceShape } from '@/core/modules/auth/services/auth-core.service';
-import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@/core/modules/database/global/global-database.service';
 
 // Temporary seed user email for when other auth methods fail
 const TEMP_SEED_USER_EMAIL = '__seed_temp_user__@internal.seed';
@@ -42,7 +42,7 @@ export type CliAuthContext = {
 export class CliAuthService {
   private readonly logger = new Logger(CliAuthService.name);
   constructor(
-    private readonly databaseService: GlobalDatabaseService,
+    @Inject(GlobalDatabaseService) private readonly databaseService: GlobalDatabaseServiceShape,
     @Inject(AuthCoreService) private readonly authCoreService: AuthCoreServiceShape,
     private readonly configService: ConfigService,
   ) {}

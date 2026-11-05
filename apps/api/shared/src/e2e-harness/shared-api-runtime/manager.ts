@@ -9,6 +9,7 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import Dockerode from 'dockerode'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
+import { Effect } from 'effect'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
 
@@ -20,7 +21,7 @@ import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
 } from "../../core/modules/database/database-connection"
-import { GlobalDatabaseService } from '../../core/modules/database/global/global-database.service'
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '../../core/modules/database/global/global-database.service'
 import { TraefikFileSystemService, type TraefikFileSystemShape } from '../../core/modules/traefik/services/traefik-file-system.service'
 
 import {
@@ -287,8 +288,8 @@ async function assertRuntimeDatabaseBinding(
     moduleRef: TestingModule,
     expectedDatabaseUrl: string
 ): Promise<void> {
-    const databaseService = moduleRef.get(GlobalDatabaseService)
-    if (!(await databaseService.probe())) {
+    const databaseService = moduleRef.get<typeof GlobalDatabaseService, GlobalDatabaseServiceShape>(GlobalDatabaseService)
+    if (!(await Effect.runPromise(databaseService.probe()))) {
         throw new Error('GlobalDatabaseService is not connected after app bootstrap')
     }
 

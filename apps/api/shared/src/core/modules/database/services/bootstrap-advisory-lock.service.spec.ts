@@ -1,6 +1,7 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-import { BootstrapAdvisoryLockService } from "./bootstrap-advisory-lock.service";
+import { makeBootstrapAdvisoryLockService } from "./bootstrap-advisory-lock.service";
 
 import type { Pool, PoolClient } from "pg";
 
@@ -14,14 +15,14 @@ function fakePool(locked: boolean) {
 		release: vi.fn(),
 	};
 	const pool = { connect: vi.fn(() => Promise.resolve(client)) };
-	return { pool, client, service: new BootstrapAdvisoryLockService(pool as unknown as Pool) };
+	return { pool, client, service: makeBootstrapAdvisoryLockService(pool as unknown as Pool) };
 }
 
 describe("BootstrapAdvisoryLockService", () => {
 	it("acquires the lock on a dedicated session connection", async () => {
 		const { pool, client, service } = fakePool(true);
 
-		await expect(service.acquire()).resolves.toBe(true);
+		await expect(Effect.runPromise(service.acquire())).resolves.toBe(true);
 
 		expect(pool.connect).toHaveBeenCalledTimes(1);
 		// Session-scoped lock: it must be a bigint-free two-int key, held on the
@@ -32,18 +33,18 @@ describe("BootstrapAdvisoryLockService", () => {
 		);
 
 		// Already held: a second acquire is a no-op, not a second connection.
-		await expect(service.acquire()).resolves.toBe(true);
+		await expect(Effect.runPromise(service.acquire())).resolves.toBe(true);
 		expect(pool.connect).toHaveBeenCalledTimes(1);
 	});
 
 	it("skips when another replica holds the lock", async () => {
 		const { client, service } = fakePool(false);
 
-		await expect(service.acquire()).resolves.toBe(false);
+		await expect(Effect.runPromise(service.acquire())).resolves.toBe(false);
 
 		// The connection is handed back immediately; nothing is held.
 		expect(client.release).toHaveBeenCalledTimes(1);
-		await service.release();
+		await Effect.runPromise(service.release());
 		expect(client.query).not.toHaveBeenCalledWith(
 			expect.stringContaining("pg_advisory_unlock"),
 			expect.anything(),
@@ -53,8 +54,8 @@ describe("BootstrapAdvisoryLockService", () => {
 	it("releases the same connection it locked", async () => {
 		const { client, service } = fakePool(true);
 
-		await service.acquire();
-		await service.release();
+		await Effect.runPromise(service.acquire());
+		await Effect.runPromise(service.release());
 
 		expect(client.query).toHaveBeenLastCalledWith(
 			expect.stringContaining("pg_advisory_unlock($1, $2)"),
@@ -63,15 +64,15 @@ describe("BootstrapAdvisoryLockService", () => {
 		expect(client.release).toHaveBeenCalledTimes(1);
 
 		// Idempotent: a second release must not unlock a connection that is gone.
-		await service.release();
+		await Effect.runPromise(service.release());
 		expect(client.release).toHaveBeenCalledTimes(1);
 	});
 
 	it("releases on scope teardown", async () => {
 		const { client, service } = fakePool(true);
 
-		await service.acquire();
-		await service.onModuleDestroy();
+		await Effect.runPromise(service.acquire());
+		await Effect.runPromise(service.onStop?.() ?? Effect.void);
 
 		expect(client.query).toHaveBeenCalledWith(
 			expect.stringContaining("pg_advisory_unlock"),
@@ -83,9 +84,11 @@ describe("BootstrapAdvisoryLockService", () => {
 	it("hands the connection back when the lock query itself fails", async () => {
 		const client = { query: vi.fn(() => Promise.reject(new Error("boom"))), release: vi.fn() };
 		const pool = { connect: vi.fn(() => Promise.resolve(client)) };
-		const service = new BootstrapAdvisoryLockService(pool as unknown as Pool);
+		const service = makeBootstrapAdvisoryLockService(pool as unknown as Pool);
 
-		await expect(service.acquire()).rejects.toThrow("boom");
+		const failure = await Effect.runPromise(Effect.flip(service.acquire()));
+		expect(failure._tag).toBe("AdvisoryLockFailed");
+		expect((failure.cause as Error).message).toBe("boom");
 		expect((client as unknown as PoolClient).release).toHaveBeenCalledTimes(1);
 	});
 });

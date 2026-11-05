@@ -18,7 +18,7 @@ import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/de
 import type {
     DeploymentStreamListInput,
 } from "@deployer/runtime-contracts/modules/deployment/stream";
-import { GlobalDatabaseService, type GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { type GlobalDatabaseServiceShape, type GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
 import { isRecord } from "@deployer/type-guards"
 
@@ -167,7 +167,7 @@ function toStreamDto(row: DeploymentStreamRow) {
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 export class DeploymentRepository {
-    constructor(private readonly databaseService: GlobalDatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseServiceShape) {}
 
     private runtimeDb: DbShape<GlobalDatabase> | undefined;
 

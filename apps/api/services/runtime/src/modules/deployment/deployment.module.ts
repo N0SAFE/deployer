@@ -20,7 +20,7 @@ import { EgressService } from "@deployer/shared/core/modules/egress/egress.servi
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { TraefikConfigRefresher, type TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import { EnvService } from "@deployer/shared/config/env/env.module";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { GitModule } from "@deployer/shared/core/modules/git/git/git.module";
 import { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
@@ -121,7 +121,7 @@ export class DeploymentDomainModule extends createModuleContext({
     providers: [
         {
             provide: DeploymentRepository,
-            useFactory: (database: GlobalDatabaseService) => new DeploymentRepository(database),
+            useFactory: (database: GlobalDatabaseServiceShape) => new DeploymentRepository(database),
             inject: [GlobalDatabaseService],
         },
         // The event buses are typed plain classes built over the shared stream pool.
@@ -243,7 +243,7 @@ export class DeploymentDomainModule extends createModuleContext({
         // boot reconciliation. Each declares its own start/run/stop; `serviceLifecycle` binds them to the app's.
         {
             provide: DeploymentQueueLifecycle,
-            useFactory: (database: GlobalDatabaseService, events: DeploymentQueueEventService) =>
+            useFactory: (database: GlobalDatabaseServiceShape, events: DeploymentQueueEventService) =>
                 makeDeploymentQueueLifecycle({
                     repository: makeDeploymentQueueRepository(runtimeDbOver(database)),
                     events,

@@ -33,7 +33,7 @@ import { makePlatformWebTargetService, PlatformWebTargetService } from "./servic
 export const CorePlatformIngressModule = createGlobalModule({
 	imports: [CoreDockerModule, EnvModule],
 	providers: [
-		{ provide: HostnameService, useClass: EnvHostnameService },
+		{ provide: HostnameService, useFactory: (env: EnvService) => new EnvHostnameService(env), inject: [EnvService] },
 		{
 			provide: IngressLanesService,
 			useFactory: (settings: ClusterSettingsShape, env: EnvService) =>

@@ -31,7 +31,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Client, Pool } from 'pg'
 
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env"
-import { createGlobalModule } from "@deployer/nest-effect"
+import { createGlobalModule, EffectHost, effectHostProvider, ServiceLifecycleRunner, type EffectHostShape } from "@deployer/nest-effect"
 import * as globalSchema from '@deployer/nest-schema/global'
 
 import { EnvModule } from "../../../../config/env/env.module"
@@ -41,8 +41,8 @@ import { NodeStateModule } from '../../node-state/node-state.module'
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
 import { LocalDatabaseModule } from "../local/local-database.module"
 
-import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
-import { GlobalDatabaseService } from './global-database.service'
+import { makeGlobalDatabasePoolLifecycle } from './global-database-lifecycle.service'
+import { GlobalDatabaseService, makeGlobalDatabaseService } from './global-database.service'
 
 
 const logger = new Logger('GlobalDatabaseModule')
@@ -198,7 +198,13 @@ export const GlobalDatabaseModule = createGlobalModule({
         // factory, while database supervisors are registered only for a
         // locally-managed database — and never inside the setup-wizard /
         // mesh-initializer contexts, which each build their own pool.
-        GlobalDatabaseLifecycleService,
+        effectHostProvider(),
+        {
+            provide: Symbol.for('shared/GlobalDatabasePoolLifecycle'),
+            useFactory: (pool: Pool | undefined, host: EffectHostShape) =>
+                new ServiceLifecycleRunner('GlobalDatabasePool', makeGlobalDatabasePoolLifecycle(pool), host),
+            inject: [GLOBAL_DATABASE_POOL, EffectHost],
+        },
         {
             provide: GLOBAL_DATABASE_POOL,
             useFactory: buildSharedPool,
@@ -211,7 +217,7 @@ export const GlobalDatabaseModule = createGlobalModule({
         },
         {
             provide: GlobalDatabaseService,
-            useFactory: (pool: Pool) => new GlobalDatabaseService(drizzle(pool, { schema: globalSchema })),
+            useFactory: (pool: Pool) => makeGlobalDatabaseService(drizzle(pool, { schema: globalSchema })),
             inject: [GLOBAL_DATABASE_POOL],
         },
     ],
