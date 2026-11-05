@@ -88,6 +88,7 @@ export class RuntimeServiceModule extends createModuleContext({
 		// context per request without changing the shared transport policy.
 		EffectHostModule,
 		createOrpcModule({
+			boundary: { service: 'svc-runtime', passThroughFailures: true },
 			extraContext: {
 				inject: [EffectHost],
 				// The request context is the context of the module that owns the controller being called: the

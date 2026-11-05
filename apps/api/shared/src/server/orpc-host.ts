@@ -15,6 +15,7 @@ import {
 	type DecisionEvent,
 	type PermissionStore,
 } from "@deployer/nest-effect/authz";
+import { configureBoundary, type BoundaryOptions } from "@deployer/nest-effect";
 
 import { permissionsOfRole } from "../core/authz/role-catalog";
 import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
@@ -147,6 +148,11 @@ export type CreateOrpcModuleOptions<ExtraD extends ExtraTokens = []> = {
 	 * parameters — no cast at the call site.
 	 */
 	extraContext?: ExtraContext<ExtraD>;
+	/**
+	 * The request boundary of this app's `.effect()` handlers: defect log prefix, whether non-domain typed failures reach
+	 * the host's interceptors, and where refusals are reported. Controllers wrap nothing themselves.
+	 */
+	boundary?: BoundaryOptions;
 }
 
 export function createOrpcModule<ExtraD extends ExtraTokens = []>(
@@ -158,6 +164,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 	// without a controller remembering to apply it. `shadow` evaluates and logs without refusing (the rollout mode from
 	// PERMISSIONS-ROADMAP.md); `enforce` refuses; unset/`off` installs nothing and leaves the app byte-identical.
 	configureAuthz(authzFromEnv());
+	if (options.boundary !== undefined) configureBoundary(options.boundary);
 
 	return ORPCModule.forRootAsync({
 		useFactory: (

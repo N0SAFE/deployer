@@ -11,7 +11,7 @@ import { ProviderSchemaService } from "../services/provider-schema.service";
 import { ProviderSchemaController } from "./provider-schema.controller";
 
 // Authentication is the shared middleware's concern; here it lets the call through so the rest of
-// the chain (Effect context, `serve`, error mapping) runs for real.
+// the chain (Effect context, the `.effect()` boundary, error mapping) runs for real.
 vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
     const { os } = await import("@orpc/server");
     return { requireAuth: () => os.$context().middleware(({ next }) => next()) };

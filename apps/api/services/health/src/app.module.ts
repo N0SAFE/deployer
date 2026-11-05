@@ -86,6 +86,7 @@ export class HealthServiceModule extends createModuleContext({
 		// contributes that context per request without changing the shared policy.
 		EffectHostModule,
 		createOrpcModule({
+			boundary: { service: 'svc-health' },
 			extraContext: {
 				inject: [EffectHost],
 				// The request context is the context of the module that owns the controller being called: this app's

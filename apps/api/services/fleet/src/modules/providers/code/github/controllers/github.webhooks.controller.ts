@@ -17,7 +17,6 @@ import { type PullRequestEvent, type InstallationEvent, type InstallationReposit
 import { procedure } from "@deployer/nest-effect";
 
 import { FleetInvalid } from "@/core/fleet.errors";
-import { serveAnonymous } from "@/core/orpc/serve";
 import { guardGithubWebhook } from "@/modules/providers/middleware/github-webhook-auth.middleware";
 
 import { GithubAppsStore } from "../repositories/github-apps.repository";
@@ -117,9 +116,8 @@ export class GithubWebhooksController {
     @Implement(providersContract.code.github.webhook)
     receive() {
         return procedure(providersContract.code.github.webhook)
-            .effect(function* ({ context, input }) {
-                return yield* serveAnonymous(context)(
-                    Effect.gen(function* () {
+            .effect(function* ({ input }) {
+                return yield* Effect.gen(function* () {
                         const { eventType, deliveryId, skippedReason } = yield* guardGithubWebhook(input);
 
                         // T036: duplicate delivery — the guard short-circuited
@@ -168,8 +166,8 @@ export class GithubWebhooksController {
                             action: "deployed",
                             reason: `trigger:${relayed.sourceId ?? "unknown"}:${relayed.deploymentId ?? ""}`,
                         } satisfies WebhookAck;
-                    }),
-                );
+                    })
+                ;
             });
     }
 }

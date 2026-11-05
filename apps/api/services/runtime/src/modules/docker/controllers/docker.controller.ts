@@ -10,7 +10,6 @@ import { dockerContract } from "@deployer/runtime-contracts";
 import { ApprovalGuard } from "@deployer/shared/core/modules/approval/approval.guard";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "../../../core/orpc/serve";
 import { DockerCatalog } from "../catalog/docker-catalog";
 import { DockerContainerResolution, type DockerContainerResolutionPorts } from "../domains/containers/orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "../domains/containers/orchestration/docker-containers-orchestrator.service";
@@ -49,11 +48,10 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const resolution = yield* DockerContainerResolution;
         const ports = yield* Effect.context<DockerContainerResolutionPorts>();
-        return yield* serve(context)(
-          resolution
+        return yield* resolution
             .listContainers(input.query)
-            .pipe(Effect.provideContext(ports)),
-        );
+            .pipe(Effect.provideContext(ports))
+        ;
       });
   }
 
@@ -64,11 +62,10 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const resolution = yield* DockerContainerResolution;
         const ports = yield* Effect.context<DockerContainerResolutionPorts>();
-        return yield* serve(context)(
-          resolution
+        return yield* resolution
             .listContainersGrouped(input.query)
-            .pipe(Effect.provideContext(ports)),
-        );
+            .pipe(Effect.provideContext(ports))
+        ;
       });
   }
 
@@ -79,9 +76,8 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        return yield* serve(context)(
-          containers.listLinked(input.query, context.auth.user.role ?? null).pipe(Effect.provideContext(ports)),
-        );
+        return yield* containers.listLinked(input.query, context.auth.user.role ?? null).pipe(Effect.provideContext(ports))
+        ;
       });
   }
 
@@ -92,7 +88,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const resolution = yield* DockerContainerResolution;
         const ports = yield* Effect.context<DockerContainerResolutionPorts>();
-        return yield* serve(context)(resolution.inspectContainer(input.query.containerId).pipe(Effect.provideContext(ports)));
+        return yield* resolution.inspectContainer(input.query.containerId).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -104,7 +100,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.runAction(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.runAction(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -122,7 +118,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const images = yield* DockerImages;
         const ports = yield* Effect.context<DockerImagesPorts>();
-        return yield* serve(context)(images.inspect(input.query).pipe(Effect.provideContext(ports)));
+        return yield* images.inspect(input.query).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -147,7 +143,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const snapshot = yield* serve(context)(containers.listLogs(input.query).pipe(Effect.provideContext(ports)));
+        const snapshot = yield* containers.listLogs(input.query).pipe(Effect.provideContext(ports));
         return {
           ...snapshot,
           generatedAt: timestampOf(snapshot.generatedAt),
@@ -162,7 +158,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const snapshot = yield* serve(context)(containers.listProcesses(input.query).pipe(Effect.provideContext(ports)));
+        const snapshot = yield* containers.listProcesses(input.query).pipe(Effect.provideContext(ports));
         return {
           ...snapshot,
           generatedAt: timestampOf(snapshot.generatedAt),
@@ -197,7 +193,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const listing = yield* serve(context)(containers.listFiles(input.query).pipe(Effect.provideContext(ports)));
+        const listing = yield* containers.listFiles(input.query).pipe(Effect.provideContext(ports));
         return {
           ...listing,
           generatedAt: timestampOf(listing.generatedAt),
@@ -212,7 +208,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const file = yield* serve(context)(containers.readFile(input.query).pipe(Effect.provideContext(ports)));
+        const file = yield* containers.readFile(input.query).pipe(Effect.provideContext(ports));
         return {
           ...file,
           generatedAt: timestampOf(file.generatedAt),
@@ -228,7 +224,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.writeFile(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.writeFile(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -247,7 +243,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.deletePath(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.deletePath(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -266,7 +262,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.renamePath(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.renamePath(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -285,7 +281,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.createDirectory(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.createDirectory(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -309,7 +305,7 @@ export class DockerController {
 
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const session = yield* serve(context)(containers.openTerminal(input).pipe(Effect.provideContext(ports)));
+        const session = yield* containers.openTerminal(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -335,7 +331,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.sendTerminalInput(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.sendTerminalInput(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -354,7 +350,7 @@ export class DockerController {
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
-        const ack = yield* serve(context)(containers.closeTerminal(input).pipe(Effect.provideContext(ports)));
+        const ack = yield* containers.closeTerminal(input).pipe(Effect.provideContext(ports));
         return {
           status: 201,
           body: {
@@ -387,7 +383,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const images = yield* DockerImages;
         const ports = yield* Effect.context<DockerImagesPorts>();
-        return yield* serve(context)(images.list(input.query).pipe(Effect.provideContext(ports)));
+        return yield* images.list(input.query).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -398,7 +394,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const catalog = yield* DockerCatalog;
         const ports = yield* Effect.context<DockerCatalogPorts>();
-        return yield* serve(context)(catalog.listNetworks(input.query).pipe(Effect.provideContext(ports)));
+        return yield* catalog.listNetworks(input.query).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -409,7 +405,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const catalog = yield* DockerCatalog;
         const ports = yield* Effect.context<DockerCatalogPorts>();
-        return yield* serve(context)(catalog.listVolumes(input.query).pipe(Effect.provideContext(ports)));
+        return yield* catalog.listVolumes(input.query).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -420,7 +416,7 @@ export class DockerController {
       .effect(function* ({ context }) {
         const activity = yield* DockerRuntimeActivity;
         const ports = yield* Effect.context<DockerRuntimeActivityPorts>();
-        return yield* serve(context)(activity.snapshot().pipe(Effect.provideContext(ports)));
+        return yield* activity.snapshot().pipe(Effect.provideContext(ports));
       });
   }
 
@@ -438,7 +434,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const activity = yield* DockerRuntimeActivity;
         const ports = yield* Effect.context<DockerRuntimeActivityPorts>();
-        return yield* serve(context)(activity.list(input.query).pipe(Effect.provideContext(ports)));
+        return yield* activity.list(input.query).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -449,7 +445,7 @@ export class DockerController {
       .effect(function* ({ input, context }) {
         const activity = yield* DockerRuntimeActivity;
         const ports = yield* Effect.context<DockerRuntimeActivityPorts>();
-        return yield* serve(context)(activity.getById(input.query).pipe(Effect.provideContext(ports)));
+        return yield* activity.getById(input.query).pipe(Effect.provideContext(ports));
       });
   }
 
@@ -473,13 +469,13 @@ export class DockerController {
         const ports = yield* Effect.context<DockerEntityPorts>();
         switch (input.kind) {
           case "container":
-            return yield* serve(context)(entities.listContainers(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.listContainers(input).pipe(Effect.provideContext(ports));
           case "image":
-            return yield* serve(context)(entities.listImages(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.listImages(input).pipe(Effect.provideContext(ports));
           case "network":
-            return yield* serve(context)(entities.listNetworks(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.listNetworks(input).pipe(Effect.provideContext(ports));
           case "volume":
-            return yield* serve(context)(entities.listVolumes(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.listVolumes(input).pipe(Effect.provideContext(ports));
           default:
             return yield* Effect.fail(
               errors.BAD_REQUEST(standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`)),
@@ -497,13 +493,13 @@ export class DockerController {
         const ports = yield* Effect.context<DockerEntityPorts>();
         switch (input.kind) {
           case "container":
-            return yield* serve(context)(entities.inspectContainer(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.inspectContainer(input).pipe(Effect.provideContext(ports));
           case "image":
-            return yield* serve(context)(entities.inspectImage(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.inspectImage(input).pipe(Effect.provideContext(ports));
           case "network":
-            return yield* serve(context)(entities.inspectNetwork(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.inspectNetwork(input).pipe(Effect.provideContext(ports));
           case "volume":
-            return yield* serve(context)(entities.inspectVolume(input).pipe(Effect.provideContext(ports)));
+            return yield* entities.inspectVolume(input).pipe(Effect.provideContext(ports));
           default:
             return yield* Effect.fail(
               errors.BAD_REQUEST(standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`)),

@@ -4,12 +4,11 @@ import { Context, Effect } from "effect";
 
 import type { RequestContextInput } from "@deployer/effect-orpc";
 import { analyticsContract } from "@deployer/identity-contracts";
-import { procedure } from "@deployer/nest-effect";
+import { inBoundary, procedure } from "@deployer/nest-effect";
 import { roleNamesWithPermission } from "@deployer/shared/core/authz/role-catalog";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
-import { serve } from "@identity/core/orpc/serve";
 
 import { AnalyticsFieldRequired } from "../domain/analytics.errors";
 import { AnalyticsService, type AnalyticsServicePorts, type MetricsQuery } from "../services/analytics.service";
@@ -36,7 +35,7 @@ import { AnalyticsService, type AnalyticsServicePorts, type MetricsQuery } from 
 const snapshotOf =
 	(ports: Context.Context<AnalyticsServicePorts>, context: RequestContextInput) =>
 	<A, E>(effect: Effect.Effect<A, E, AnalyticsServicePorts>): Promise<A> =>
-		Effect.runPromise(serve(context)(effect.pipe(Effect.provideContext(ports))) as Effect.Effect<A, E>);
+		Effect.runPromise(inBoundary(context, effect.pipe(Effect.provideContext(ports))) as Effect.Effect<A, E>);
 
 /**
  * Re-evaluation cadence for the streaming (`…/stream`) siblings.
@@ -88,9 +87,9 @@ export class AnalyticsController {
 	getResourceMetrics() {
 		return procedure(analyticsContract.getResourceMetrics)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.resourceMetrics(readMetricsQuery(input)));
+				return yield* analytics.resourceMetrics(readMetricsQuery(input));
 			});
 	}
 
@@ -113,9 +112,9 @@ export class AnalyticsController {
 	getApplicationMetrics() {
 		return procedure(analyticsContract.getApplicationMetrics)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.applicationMetrics(readMetricsQuery(input)));
+				return yield* analytics.applicationMetrics(readMetricsQuery(input));
 			});
 	}
 
@@ -123,9 +122,9 @@ export class AnalyticsController {
 	getDatabaseMetrics() {
 		return procedure(analyticsContract.getDatabaseMetrics)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.databaseMetrics(readMetricsQuery(input)));
+				return yield* analytics.databaseMetrics(readMetricsQuery(input));
 			});
 	}
 
@@ -133,9 +132,9 @@ export class AnalyticsController {
 	getDeploymentMetrics() {
 		return procedure(analyticsContract.getDeploymentMetrics)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)));
+				return yield* analytics.deploymentMetrics(readMetricsQuery(input));
 			});
 	}
 
@@ -156,9 +155,9 @@ export class AnalyticsController {
 	getServiceHealth() {
 		return procedure(analyticsContract.getServiceHealth)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.serviceHealth(readServices(input)));
+				return yield* analytics.serviceHealth(readServices(input));
 			});
 	}
 
@@ -179,9 +178,9 @@ export class AnalyticsController {
 	getRealTimeMetrics() {
 		return procedure(analyticsContract.getRealTimeMetrics)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.realtimeMetrics(readServices(input)));
+				return yield* analytics.realtimeMetrics(readServices(input));
 			});
 	}
 
@@ -204,13 +203,13 @@ export class AnalyticsController {
 	getResourceUsage() {
 		return procedure(analyticsContract.getResourceUsage)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.resourceUsage({
+				return yield* analytics.resourceUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					resource: readString(input, "resource", "all"),
 					aggregation: readString(input, "aggregation", "average"),
-				}));
+				});
 			});
 	}
 
@@ -235,16 +234,16 @@ export class AnalyticsController {
 	getUserActivity() {
 		return procedure(analyticsContract.getUserActivity)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.userActivity({
+				return yield* analytics.userActivity({
 					timeRange: readString(input, "timeRange", "1d"),
 					...readOptionalString(input, "userId"),
 					...readOptionalString(input, "action"),
 					...readOptionalString(input, "resource"),
 					limit: readNumber(input, "limit", 100),
 					offset: readNumber(input, "offset", 0),
-				}));
+				});
 			});
 	}
 
@@ -252,16 +251,15 @@ export class AnalyticsController {
 	getActivitySummary() {
 		return procedure(analyticsContract.getActivitySummary)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				const query = readQuery(input);
-				return yield* serve(context)(
-					analytics.activitySummary({
+				return yield* analytics.activitySummary({
 						...(typeof query.period === "string" ? { period: query.period } : {}),
 						...(typeof query.granularity === "string" ? { granularity: query.granularity } : {}),
 						...(typeof query.limit === "number" ? { limit: query.limit } : {}),
-					}),
-				);
+					})
+				;
 			});
 	}
 
@@ -269,13 +267,13 @@ export class AnalyticsController {
 	getApiUsage() {
 		return procedure(analyticsContract.getApiUsage)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.apiUsage({
+				return yield* analytics.apiUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					groupBy: readString(input, "groupBy", "endpoint"),
 					limit: readNumber(input, "limit", 20),
-				}));
+				});
 			});
 	}
 
@@ -283,13 +281,13 @@ export class AnalyticsController {
 	getDeploymentUsage() {
 		return procedure(analyticsContract.getDeploymentUsage)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.deploymentUsage({
+				return yield* analytics.deploymentUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					...readOptionalString(input, "projectId"),
 					...readOptionalString(input, "userId"),
-				}));
+				});
 			});
 	}
 
@@ -314,12 +312,12 @@ export class AnalyticsController {
 	getStorageUsage() {
 		return procedure(analyticsContract.getStorageUsage)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				return yield* serve(context)(analytics.storageUsage({
+				return yield* analytics.storageUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					breakdown: readString(input, "breakdown", "total"),
-				}));
+				});
 			});
 	}
 
@@ -330,13 +328,12 @@ export class AnalyticsController {
 		return procedure(analyticsContract.generateReport)
 			.use(requireAuth())
 			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				// The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
 				// shape is a handle so a caller polls `getReport` and a later move to background generation does
 				// not change the contract.
-				const report = yield* serve(context)(
-					analytics.generateReport({
+				const report = yield* analytics.generateReport({
 						period: input.period,
 						includeResourceUsage: input.includeResourceUsage,
 						includeApplicationMetrics: input.includeApplicationMetrics,
@@ -345,8 +342,8 @@ export class AnalyticsController {
 						includeServiceHealth: input.includeServiceHealth,
 						includeUserActivity: input.includeUserActivity,
 						format: input.format,
-					}),
-				);
+					})
+				;
 
 				return {
 					reportId: report.id,
@@ -363,9 +360,9 @@ export class AnalyticsController {
 	getReport() {
 		return procedure(analyticsContract.getReport)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				const report = yield* serve(context)(analytics.findReport(input.params.reportId));
+				const report = yield* analytics.findReport(input.params.reportId);
 
 				// A `failed` report returns the status stub, which carries the error, so a caller learns why it
 				// failed instead of receiving a half-empty report object.
@@ -396,11 +393,11 @@ export class AnalyticsController {
 	listReports() {
 		return procedure(analyticsContract.listReports)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				const limit = input.query?.limit ?? 20;
 				const offset = input.query?.offset ?? 0;
-				const page = yield* serve(context)(analytics.listReports(limit, offset, input.query?.status));
+				const page = yield* analytics.listReports(limit, offset, input.query?.status);
 
 				return {
 					data: page.data.map((report) => ({
@@ -424,9 +421,9 @@ export class AnalyticsController {
 		return procedure(analyticsContract.deleteReport)
 			.use(requireAuth())
 			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				yield* serve(context)(analytics.deleteReport(input.params.reportId));
+				yield* analytics.deleteReport(input.params.reportId);
 				return { success: true, message: "report deleted" };
 			});
 	}
@@ -435,9 +432,9 @@ export class AnalyticsController {
 	downloadReport() {
 		return procedure(analyticsContract.downloadReport)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				const report = yield* serve(context)(analytics.downloadReport(input.params.reportId));
+				const report = yield* analytics.downloadReport(input.params.reportId);
 				return {
 					downloadUrl: `/analytics/reports/${input.params.reportId}/content`,
 					// A SHORT expiry on purpose: the URL is not signed, so it is only safe because the content route
@@ -453,11 +450,11 @@ export class AnalyticsController {
 	getReportContent() {
 		return procedure(analyticsContract.getReportContent)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				// The service refuses a report that did not complete, so the file a caller saves is never an empty
 				// shell of a failed run.
-				const report = yield* serve(context)(analytics.downloadReport(input.params.reportId));
+				const report = yield* analytics.downloadReport(input.params.reportId);
 				const text = JSON.stringify(report.content ?? {}, null, 2);
 				return new File([text], `report-${input.params.reportId}.json`, {
 					type: "application/json; charset=utf-8",
@@ -472,13 +469,12 @@ export class AnalyticsController {
 		return procedure(analyticsContract.createReportConfig)
 			.use(requireAuth())
 			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				// The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
 				// Every field is optional in the schema, but a stored configuration needs a name and a metric selection:
 				// the check names the missing field instead of surfacing a NOT NULL violation.
-				const config = yield* serve(context)(
-					Effect.gen(function* () {
+				const config = yield* Effect.gen(function* () {
 						const name = yield* requireField(input.name, "name");
 						const metrics = yield* requireField(input.metrics, "metrics");
 						return yield* analytics.createReportConfig({
@@ -488,8 +484,8 @@ export class AnalyticsController {
 							schedule: input.schedule,
 							recipients: input.recipients,
 						});
-					}),
-				);
+					})
+				;
 				return toConfigOutput(config);
 			});
 	}
@@ -498,11 +494,11 @@ export class AnalyticsController {
 	listReportConfigs() {
 		return procedure(analyticsContract.listReportConfigs)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				const limit = input.query?.limit ?? 20;
 				const offset = input.query?.offset ?? 0;
-				const page = yield* serve(context)(analytics.listReportConfigs(limit, offset));
+				const page = yield* analytics.listReportConfigs(limit, offset);
 				return {
 					data: page.data.map(toConfigOutput),
 					total: page.total,
@@ -517,19 +513,18 @@ export class AnalyticsController {
 		return procedure(analyticsContract.updateReportConfig)
 			.use(requireAuth())
 			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
 				// The update contract declares its patch under `body`, alongside the path parameter.
 				const body = input.body ?? {};
-				const updated = yield* serve(context)(
-					analytics.updateReportConfig(input.params.configId, {
+				const updated = yield* analytics.updateReportConfig(input.params.configId, {
 						...(body.name === undefined ? {} : { name: body.name }),
 						...(body.description === undefined ? {} : { description: body.description }),
 						...(body.metrics === undefined ? {} : { metrics: body.metrics }),
 						...(body.schedule === undefined ? {} : { schedule: body.schedule }),
 						...(body.recipients === undefined ? {} : { recipients: body.recipients }),
-					}),
-				);
+					})
+				;
 				return toConfigOutput(updated);
 			});
 	}
@@ -539,9 +534,9 @@ export class AnalyticsController {
 		return procedure(analyticsContract.deleteReportConfig)
 			.use(requireAuth())
 			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const analytics = yield* AnalyticsService;
-				yield* serve(context)(analytics.deleteReportConfig(input.params.configId));
+				yield* analytics.deleteReportConfig(input.params.configId);
 				return { success: true, message: "report configuration deleted" };
 			});
 	}

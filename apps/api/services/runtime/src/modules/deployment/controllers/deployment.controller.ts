@@ -7,7 +7,6 @@ import { procedure } from "@deployer/nest-effect";
 import { deploymentContract } from "@deployer/runtime-contracts";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole, requireSystemActor } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "../../../core/orpc/serve";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 import { DeploymentService } from "../services/deployment.service";
 import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
@@ -49,7 +48,7 @@ export class DeploymentController {
             .use(requireSystemActor("runtime"))
             .effect(function* ({ input, context }) {
                 const trigger = yield* DeploymentEventTriggerService;
-                return yield* serve(context)(trigger.trigger(input, context.systemActor.deliveryId));
+                return yield* trigger.trigger(input, context.systemActor.deliveryId);
             });
     }
 
@@ -58,9 +57,9 @@ export class DeploymentController {
         return procedure(deploymentContract.list)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listDeployments(input.query));
+                return yield* deployments.listDeployments(input.query);
             });
     }
 
@@ -68,9 +67,9 @@ export class DeploymentController {
     listServicePreviews() {
         return procedure(deploymentContract.listServicePreviews)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listServicePreviews(input.params.serviceId));
+                return yield* deployments.listServicePreviews(input.params.serviceId);
             });
     }
 
@@ -80,14 +79,13 @@ export class DeploymentController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(
-                    deployments.promoteServicePreview(
+                return yield* deployments.promoteServicePreview(
                         input.params.serviceId,
                         input.body.previewName,
                         callerId(context),
                         DeploymentController.resolvePlatformRole(context),
-                    ),
-                );
+                    )
+                ;
             });
     }
 
@@ -96,9 +94,9 @@ export class DeploymentController {
         return procedure(deploymentContract.findById)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getDeploymentById(input.params.id));
+                return yield* deployments.getDeploymentById(input.params.id);
             });
     }
 
@@ -108,9 +106,8 @@ export class DeploymentController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const deployments = yield* DeploymentService;
-                const deployment = yield* serve(context)(
-                    deployments.triggerDeployment(input, callerId(context), DeploymentController.resolvePlatformRole(context)),
-                );
+                const deployment = yield* deployments.triggerDeployment(input, callerId(context), DeploymentController.resolvePlatformRole(context))
+                ;
                 return {
                     deploymentId: deployment.id,
                     status: deployment.status,
@@ -123,9 +120,9 @@ export class DeploymentController {
     uploadBundle() {
         return procedure(deploymentContract.uploadBundle)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.uploadBundle({ file: input.file, fileName: input.fileName }));
+                return yield* deployments.uploadBundle({ file: input.file, fileName: input.fileName });
             });
     }
 
@@ -135,14 +132,13 @@ export class DeploymentController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const deployments = yield* DeploymentService;
-                const result = yield* serve(context)(
-                    deployments.cancelDeployment(
+                const result = yield* deployments.cancelDeployment(
                         input.params.id,
                         callerId(context),
                         input.body?.reason,
                         DeploymentController.resolvePlatformRole(context),
-                    ),
-                );
+                    )
+                ;
                 return {
                     success: true,
                     message: "Deployment cancelled successfully",
@@ -158,15 +154,14 @@ export class DeploymentController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const deployments = yield* DeploymentService;
-                const rollback = yield* serve(context)(
-                    deployments.rollbackDeployment(
+                const rollback = yield* deployments.rollbackDeployment(
                         input.params.id,
                         input.body.targetDeploymentId,
                         callerId(context),
                         input.body.reason,
                         DeploymentController.resolvePlatformRole(context),
-                    ),
-                );
+                    )
+                ;
                 return {
                     rollbackDeploymentId: rollback.id,
                     message: "Rollback deployment queued successfully",
@@ -179,9 +174,9 @@ export class DeploymentController {
         return procedure(deploymentContract.getLogs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getDeploymentLogs(
+                return yield* deployments.getDeploymentLogs(
                     input.params.id,
                     input.query.limit,
                     input.query.offset,
@@ -193,7 +188,7 @@ export class DeploymentController {
                     {
                         includeRetrySummary: input.query.includeRetrySummary,
                     },
-                ));
+                );
             });
     }
 
@@ -203,9 +198,8 @@ export class DeploymentController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const deployments = yield* DeploymentService;
-                const retry = yield* serve(context)(
-                    deployments.retryDeployment(input.params.id, callerId(context), DeploymentController.resolvePlatformRole(context)),
-                );
+                const retry = yield* deployments.retryDeployment(input.params.id, callerId(context), DeploymentController.resolvePlatformRole(context))
+                ;
                 return {
                     retryDeploymentId: retry.id,
                     message: "Retry deployment queued successfully",
@@ -217,9 +211,9 @@ export class DeploymentController {
     getRollbackHistory() {
         return procedure(deploymentContract.getRollbackHistory)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getRollbackHistory(input.params.id));
+                return yield* deployments.getRollbackHistory(input.params.id);
             });
     }
 
@@ -228,15 +222,14 @@ export class DeploymentController {
         return procedure(deploymentContract.stream)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const orchestrator = yield* DeploymentStreamOrchestratorService;
-                return yield* serve(context)(
-                    orchestrator.openDeploymentStream({
+                return yield* orchestrator.openDeploymentStream({
                         deploymentId: input.params.id,
                         replay: input.query.replay,
                         replayLimit: input.query.replayLimit,
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -295,9 +288,9 @@ export class DeploymentController {
     streamsList() {
         return procedure(deploymentContract.streamsList)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listStreamDefinitions(input.query));
+                return yield* deployments.listStreamDefinitions(input.query);
             });
     }
 
@@ -305,9 +298,9 @@ export class DeploymentController {
     streamFindById() {
         return procedure(deploymentContract.streamFindById)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getStreamDefinitionById(input.params.id));
+                return yield* deployments.getStreamDefinitionById(input.params.id);
             });
     }
 
@@ -315,9 +308,9 @@ export class DeploymentController {
     getTemplateProvenance() {
         return procedure(deploymentContract.getTemplateProvenance)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getTemplateProvenance(input.params.id));
+                return yield* deployments.getTemplateProvenance(input.params.id);
             });
     }
 
@@ -325,9 +318,9 @@ export class DeploymentController {
     upsertTemplateProvenance() {
         return procedure(deploymentContract.upsertTemplateProvenance)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.upsertTemplateProvenance(input.params.id, input.body));
+                return yield* deployments.upsertTemplateProvenance(input.params.id, input.body);
             });
     }
 
@@ -335,9 +328,9 @@ export class DeploymentController {
     getTemplateProvenanceByRun() {
         return procedure(deploymentContract.getTemplateProvenanceByRun)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getTemplateProvenanceByRun(input.params.runId));
+                return yield* deployments.getTemplateProvenanceByRun(input.params.runId);
             });
     }
 
@@ -346,9 +339,9 @@ export class DeploymentController {
         return procedure(deploymentContract.createCompiledPlanSnapshot)
             .use(authMiddleware())
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.createCompiledPlanSnapshot(input.params.id, input.body));
+                return yield* deployments.createCompiledPlanSnapshot(input.params.id, input.body);
             });
     }
 
@@ -356,9 +349,9 @@ export class DeploymentController {
     listCompiledPlanSnapshots() {
         return procedure(deploymentContract.listCompiledPlanSnapshots)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listCompiledPlanSnapshots(input.params.id));
+                return yield* deployments.listCompiledPlanSnapshots(input.params.id);
             });
     }
 
@@ -366,9 +359,9 @@ export class DeploymentController {
     getCompiledPlanSnapshot() {
         return procedure(deploymentContract.getCompiledPlanSnapshot)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getCompiledPlanSnapshot(input.params.snapshotId));
+                return yield* deployments.getCompiledPlanSnapshot(input.params.snapshotId);
             });
     }
 
@@ -376,9 +369,9 @@ export class DeploymentController {
     getCompiledPlanSnapshotByRun() {
         return procedure(deploymentContract.getCompiledPlanSnapshotByRun)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getCompiledPlanSnapshotByRun(input.params.runId));
+                return yield* deployments.getCompiledPlanSnapshotByRun(input.params.runId);
             });
     }
 
@@ -386,9 +379,9 @@ export class DeploymentController {
     compilePlan() {
         return procedure(deploymentContract.compilePlan)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.compilePlan(input));
+                return yield* deployments.compilePlan(input);
             });
     }
 
@@ -396,9 +389,9 @@ export class DeploymentController {
     compilePlanPreview() {
         return procedure(deploymentContract.compilePlanPreview)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.compilePlan(input));
+                return yield* deployments.compilePlan(input);
             });
     }
 
@@ -406,9 +399,9 @@ export class DeploymentController {
     compileRollbackEdges() {
         return procedure(deploymentContract.compileRollbackEdges)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.compileRollbackEdges(input));
+                return yield* deployments.compileRollbackEdges(input);
             });
     }
 
@@ -417,9 +410,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueEnqueueJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.enqueueQueueJob(input));
+                return yield* deployments.enqueueQueueJob(input);
             });
     }
 
@@ -428,9 +421,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueClaimJobs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.claimQueueJobs(input));
+                return yield* deployments.claimQueueJobs(input);
             });
     }
 
@@ -439,9 +432,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueHeartbeatJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.heartbeatQueueJob(input.params.jobId, input.body));
+                return yield* deployments.heartbeatQueueJob(input.params.jobId, input.body);
             });
     }
 
@@ -450,9 +443,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueCompleteJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.completeQueueJob(input.params.jobId, input.body));
+                return yield* deployments.completeQueueJob(input.params.jobId, input.body);
             });
     }
 
@@ -461,9 +454,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueFailJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.failQueueJob(input.params.jobId, input.body));
+                return yield* deployments.failQueueJob(input.params.jobId, input.body);
             });
     }
 
@@ -471,9 +464,9 @@ export class DeploymentController {
     queueFindJobById() {
         return procedure(deploymentContract.queueFindJobById)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.findQueueJobById(input.params.jobId));
+                return yield* deployments.findQueueJobById(input.params.jobId);
             });
     }
 
@@ -481,9 +474,9 @@ export class DeploymentController {
     queueListJobs() {
         return procedure(deploymentContract.queueListJobs)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listQueueJobs(input.query));
+                return yield* deployments.listQueueJobs(input.query);
             });
     }
 
@@ -491,9 +484,9 @@ export class DeploymentController {
     queueListDeadLetterJobs() {
         return procedure(deploymentContract.queueListDeadLetterJobs)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listDeadLetterJobs(input.query));
+                return yield* deployments.listDeadLetterJobs(input.query);
             });
     }
 
@@ -501,9 +494,9 @@ export class DeploymentController {
     queueFindDeadLetterJobById() {
         return procedure(deploymentContract.queueFindDeadLetterJobById)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.findDeadLetterJobById(input.params.deadLetterJobId));
+                return yield* deployments.findDeadLetterJobById(input.params.deadLetterJobId);
             });
     }
 
@@ -512,9 +505,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueReplayDeadLetterJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.replayDeadLetterJob(input));
+                return yield* deployments.replayDeadLetterJob(input);
             });
     }
 
@@ -522,9 +515,9 @@ export class DeploymentController {
     listRetryPolicies() {
         return procedure(deploymentContract.listRetryPolicies)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listRetryPolicies(input.query));
+                return yield* deployments.listRetryPolicies(input.query);
             });
     }
 
@@ -532,9 +525,9 @@ export class DeploymentController {
     resolveRetryPolicy() {
         return procedure(deploymentContract.resolveRetryPolicy)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.resolveRetryPolicy(input));
+                return yield* deployments.resolveRetryPolicy(input);
             });
     }
 
@@ -543,9 +536,9 @@ export class DeploymentController {
         return procedure(deploymentContract.cancelExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.cancelExecution(input.params.id, input.body));
+                return yield* deployments.cancelExecution(input.params.id, input.body);
             });
     }
 
@@ -554,9 +547,9 @@ export class DeploymentController {
         return procedure(deploymentContract.resumeExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.resumeExecution(input.params.id, input.body));
+                return yield* deployments.resumeExecution(input.params.id, input.body);
             });
     }
 
@@ -564,9 +557,9 @@ export class DeploymentController {
     getExecutionCheckpoint() {
         return procedure(deploymentContract.getExecutionCheckpoint)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getExecutionCheckpoint(input.params.id));
+                return yield* deployments.getExecutionCheckpoint(input.params.id);
             });
     }
 
@@ -574,9 +567,9 @@ export class DeploymentController {
     getExecutionCheckpointByRun() {
         return procedure(deploymentContract.getExecutionCheckpointByRun)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.getExecutionCheckpointByRun(input.params.runId));
+                return yield* deployments.getExecutionCheckpointByRun(input.params.runId);
             });
     }
 
@@ -585,9 +578,9 @@ export class DeploymentController {
         return procedure(deploymentContract.emitNodeLifecycleEvent)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.emitNodeLifecycleEvent(input.params.runId, input.body));
+                return yield* deployments.emitNodeLifecycleEvent(input.params.runId, input.body);
             });
     }
 
@@ -595,9 +588,9 @@ export class DeploymentController {
     listNodeLifecycleEvents() {
         return procedure(deploymentContract.listNodeLifecycleEvents)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listNodeLifecycleEvents(input.params.runId, input.query));
+                return yield* deployments.listNodeLifecycleEvents(input.params.runId, input.query);
             });
     }
 
@@ -620,9 +613,9 @@ export class DeploymentController {
     listPhaseTransitions() {
         return procedure(deploymentContract.listPhaseTransitions)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.listPhaseTransitions(input.query ?? {}));
+                return yield* deployments.listPhaseTransitions(input.query ?? {});
             });
     }
 
@@ -630,9 +623,9 @@ export class DeploymentController {
     validatePhaseTransition() {
         return procedure(deploymentContract.validatePhaseTransition)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.validatePhaseTransition(input));
+                return yield* deployments.validatePhaseTransition(input);
             });
     }
 
@@ -641,9 +634,9 @@ export class DeploymentController {
         return procedure(deploymentContract.applyPhaseTransition)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService;
-                return yield* serve(context)(deployments.applyPhaseTransition(input.params.id, input.body));
+                return yield* deployments.applyPhaseTransition(input.params.id, input.body);
             });
     }
 
@@ -653,13 +646,12 @@ export class DeploymentController {
             .use(requireAuth())
             .effect(function* ({ input, context }) {
                 const deployments = yield* DeploymentService;
-                yield* serve(context)(
-                    deployments.deleteDeployment(
+                yield* deployments.deleteDeployment(
                         input.params.id,
                         callerId(context),
                         DeploymentController.resolvePlatformRole(context),
-                    ),
-                );
+                    )
+                ;
                 return { success: true };
             });
     }

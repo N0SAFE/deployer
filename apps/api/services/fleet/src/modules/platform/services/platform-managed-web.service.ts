@@ -48,7 +48,7 @@ const CONSOLE_SUPERVISOR_ID = PLATFORM_MANAGED_WEB_SUPERVISOR_ID;
 /**
  * A use case fails with `FleetInvalid` of its own, a `ServiceUnavailableError` when the tunnel's
  * ingress cannot be configured (after rolling the tunnel back), or whatever a platform collaborator
- * refused with (left as thrown; `serve` lets it through for the host to translate).
+ * refused with (left as thrown; the `.effect()` boundary lets it through for the host to translate).
  */
 export type PlatformManagedWebServiceShape = {
 	/** Full console state — the shared data model of both visuals. */

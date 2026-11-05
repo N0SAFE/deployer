@@ -15,7 +15,6 @@ import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { FleetConflict, FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
-import { serve } from "@/core/orpc/serve";
 
 import { GitlabAppsStore } from "../repositories/gitlab-apps.repository";
 
@@ -28,9 +27,9 @@ export class GitlabAppsController {
     list() {
         return procedure(providersContract.code.gitlab.list)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const apps = yield* GitlabAppsStore;
-                const rows = yield* serve(context)(apps.list());
+                const rows = yield* apps.list();
 
                 return {
                     apps: rows.map((r) => ({
@@ -50,10 +49,9 @@ export class GitlabAppsController {
     create() {
         return procedure(providersContract.code.gitlab.create)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GitlabAppsStore;
-                const row = yield* serve(context)(
-                    Effect.gen(function* () {
+                const row = yield* Effect.gen(function* () {
                         const urlCheck = URL_SCHEMA.safeParse(input.url);
                         if (!urlCheck.success) {
                             return yield* new FleetInvalid({ reason: `Invalid GitLab URL: ${input.url}` });
@@ -74,8 +72,8 @@ export class GitlabAppsController {
                             return yield* new FleetInvalid({ reason: "Failed to create GitLab account" });
                         }
                         return created;
-                    }),
-                );
+                    })
+                ;
 
                 return {
                     id: row.id,
@@ -92,18 +90,17 @@ export class GitlabAppsController {
     delete() {
         return procedure(providersContract.code.gitlab.delete)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* GitlabAppsStore;
                 const id = input.params.id;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const removed = yield* apps.deleteById(id);
                         if (!removed) {
                             return yield* new FleetNotFound({ reason: `GitLab account '${id}' not found` });
                         }
                         return { success: true };
-                    }),
-                );
+                    })
+                ;
             });
     }
 }

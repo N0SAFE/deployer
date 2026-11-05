@@ -3,12 +3,12 @@ import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs
 import { authAuditEvents } from "@deployer/nest-schema/global/identity/audit";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
-import { setDenialSink } from "@identity/core/orpc/serve";
+import { setDenialSink } from "@identity/core/orpc/denial";
 
 /**
  * Records every refusal an authorized caller received (`SEC-068`).
  *
- * The producer is the request boundary (`serve`), which knows the actor and the correlation id; this provider only gives
+ * The producer is the request boundary, which knows the actor and the correlation id; this provider only gives
  * it a destination. Fire-and-forget, like the auth-side sink: a failed audit write must not turn a 403 into a 500.
  */
 @Injectable()

@@ -90,6 +90,7 @@ export class ProjectServiceModule extends createModuleContext({
 		// contributes that context per request without changing the shared policy.
 		EffectHostModule,
 		createOrpcModule({
+			boundary: { service: 'svc-project' },
 			extraContext: {
 				inject: [EffectHost],
 				resolve: (executionContext, host) => ({

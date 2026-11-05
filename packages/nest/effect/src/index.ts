@@ -46,3 +46,5 @@ export {
 	type UnmetOf,
 } from "./requirements";
 export { ServiceLifecycleRunner, serviceLifecycle, type ServiceLifecycleShape } from "./effect-lifecycle";
+
+export { configureBoundary, inBoundary, type BoundaryOptions } from "./boundary";

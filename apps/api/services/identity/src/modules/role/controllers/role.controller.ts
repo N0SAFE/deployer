@@ -5,7 +5,6 @@ import { roleCreateContract, roleDeleteContract, roleListContract, roleUpdateCon
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@identity/core/orpc/serve";
 
 import { RoleService } from "../role.service";
 
@@ -16,9 +15,9 @@ export class RoleController {
 	list() {
 		return procedure(roleListContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const roles = yield* RoleService;
-				const data = yield* serve(context)(roles.list(input.query?.scope));
+				const data = yield* roles.list(input.query?.scope);
 				return { data };
 			});
 	}
@@ -27,9 +26,9 @@ export class RoleController {
 	create() {
 		return procedure(roleCreateContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const roles = yield* RoleService;
-				return yield* serve(context)(roles.create(input));
+				return yield* roles.create(input);
 			});
 	}
 
@@ -37,9 +36,9 @@ export class RoleController {
 	update() {
 		return procedure(roleUpdateContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const roles = yield* RoleService;
-				return yield* serve(context)(roles.update(input.params.id, input.body ?? {}));
+				return yield* roles.update(input.params.id, input.body ?? {});
 			});
 	}
 
@@ -47,9 +46,9 @@ export class RoleController {
 	remove() {
 		return procedure(roleDeleteContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const roles = yield* RoleService;
-				yield* serve(context)(roles.remove(input.params.id));
+				yield* roles.remove(input.params.id);
 				return { deleted: true as const };
 			});
 	}

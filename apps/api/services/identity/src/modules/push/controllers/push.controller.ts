@@ -5,7 +5,6 @@ import { pushContract } from '@deployer/identity-contracts'
 import { procedure } from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-import { serve } from '@identity/core/orpc/serve'
 
 import { pushRules } from '../domain/push.rules'
 import { PushService } from '../services/push.service'
@@ -34,9 +33,9 @@ export class PushController {
     getPublicKey() {
         return procedure(pushContract.getPublicKey)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const push = yield* PushService
-                return yield* serve(context)(push.publicKey())
+                return yield* push.publicKey()
             })
     }
 
@@ -51,9 +50,9 @@ export class PushController {
     subscribe() {
         return procedure(pushContract.subscribe)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const push = yield* PushService
-                return yield* serve(context)(push.subscribe(input))
+                return yield* push.subscribe(input)
             })
     }
 
@@ -62,9 +61,9 @@ export class PushController {
     unsubscribe() {
         return procedure(pushContract.unsubscribe)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const push = yield* PushService
-                return yield* serve(context)(push.unsubscribe(input.endpoint))
+                return yield* push.unsubscribe(input.endpoint)
             })
     }
 
@@ -73,9 +72,9 @@ export class PushController {
     getSubscriptions() {
         return procedure(pushContract.getSubscriptions)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const push = yield* PushService
-                const subscriptions = yield* serve(context)(push.list())
+                const subscriptions = yield* push.list()
                 return { subscriptions }
             })
     }
@@ -90,9 +89,9 @@ export class PushController {
     getStats() {
         return procedure(pushContract.getStats)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const push = yield* PushService
-                return yield* serve(context)(push.stats())
+                return yield* push.stats()
             })
     }
 
@@ -110,13 +109,12 @@ export class PushController {
     sendTestNotification() {
         return procedure(pushContract.sendTestNotification)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const push = yield* PushService
 
-                const devices = yield* serve(context)(push.list())
-                const deliverable = yield* serve(context)(
-                    push.deliverableCount()
-                )
+                const devices = yield* push.list()
+                const deliverable = yield* push.deliverableCount()
+                
 
                 return pushRules.deliveryReport(devices.length, deliverable)
             })

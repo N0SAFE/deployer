@@ -5,7 +5,6 @@ import { procedure } from "@deployer/nest-effect";
 import { serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
 import { ServiceNetworkService } from "../services/service-network.service";
@@ -28,9 +27,9 @@ export class ServiceController {
 	list() {
 		return procedure(serviceContract.crud.list)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const services = yield* ServiceService;
-				return yield* services.listServices(input.query).pipe(serve(context));
+				return yield* services.listServices(input.query);
 			});
 	}
 
@@ -38,9 +37,9 @@ export class ServiceController {
 	findById() {
 		return procedure(serviceContract.crud.findById)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const services = yield* ServiceService;
-				return yield* services.getServiceById(input.params.id).pipe(serve(context));
+				return yield* services.getServiceById(input.params.id);
 			});
 	}
 
@@ -51,8 +50,7 @@ export class ServiceController {
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				const service = yield* services
-					.createService(input, actorFromContext(context).userId)
-					.pipe(serve(context));
+					.createService(input, actorFromContext(context).userId);
 				return { status: 201 as const, headers: {}, body: service };
 			});
 	}
@@ -65,8 +63,7 @@ export class ServiceController {
 				const services = yield* ServiceService;
 				const { id, ...data } = input;
 				return yield* services
-					.updateService(id, data, actorFromContext(context).userId)
-					.pipe(serve(context));
+					.updateService(id, data, actorFromContext(context).userId);
 			});
 	}
 
@@ -77,8 +74,7 @@ export class ServiceController {
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				yield* services
-					.deleteService(input.params.id, actorFromContext(context).userId)
-					.pipe(serve(context));
+					.deleteService(input.params.id, actorFromContext(context).userId);
 				return { success: true };
 			});
 	}
@@ -90,8 +86,7 @@ export class ServiceController {
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
-					.listChildren(input.params.id, actorFromContext(context).userId)
-					.pipe(serve(context));
+					.listChildren(input.params.id, actorFromContext(context).userId);
 			});
 	}
 
@@ -102,8 +97,7 @@ export class ServiceController {
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
-					.getSubtree(input.params.id, actorFromContext(context).userId)
-					.pipe(serve(context));
+					.getSubtree(input.params.id, actorFromContext(context).userId);
 			});
 	}
 
@@ -118,8 +112,7 @@ export class ServiceController {
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
-					.toggleActive(input.params.id, input.body.isActive, actorFromContext(context).userId)
-					.pipe(serve(context));
+					.toggleActive(input.params.id, input.body.isActive, actorFromContext(context).userId);
 			});
 	}
 
@@ -131,9 +124,9 @@ export class ServiceController {
 	getDependencies() {
 		return procedure(serviceContract.dependencies.list)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const services = yield* ServiceService;
-				return yield* services.getDependencies(input.params.id).pipe(serve(context));
+				return yield* services.getDependencies(input.params.id);
 			});
 	}
 
@@ -149,8 +142,7 @@ export class ServiceController {
 						input.body.dependsOnServiceId,
 						input.body.isRequired,
 						actorFromContext(context).userId,
-					)
-					.pipe(serve(context));
+					);
 			});
 	}
 
@@ -165,8 +157,7 @@ export class ServiceController {
 						input.params.id,
 						input.params.dependencyId,
 						actorFromContext(context).userId,
-					)
-					.pipe(serve(context));
+					);
 				return { success: true };
 			});
 	}
@@ -179,9 +170,9 @@ export class ServiceController {
 	streamQuery() {
 		return procedure(serviceContract.streams.query)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const services = yield* ServiceService;
-				return yield* services.streamQueryEvents(input.query).pipe(serve(context));
+				return yield* services.streamQueryEvents(input.query);
 			});
 	}
 
@@ -200,8 +191,7 @@ export class ServiceController {
 						input.params.serviceId,
 						actorFromContext(context).userId,
 						input.body,
-					)
-					.pipe(serve(context));
+					);
 			});
 	}
 
@@ -213,9 +203,9 @@ export class ServiceController {
 	networkGet() {
 		return procedure(serviceContract.network.get)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const network = yield* ServiceNetworkService;
-				return yield* network.getNetwork(input.params.id).pipe(serve(context));
+				return yield* network.getNetwork(input.params.id);
 			});
 	}
 
@@ -223,12 +213,11 @@ export class ServiceController {
 	networkUpdate() {
 		return procedure(serviceContract.network.update)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const network = yield* ServiceNetworkService;
 				// Optional update body — coalesce to {}.
 				return yield* network
-					.updateNetwork(input.params.id, input.body ?? {})
-					.pipe(serve(context));
+					.updateNetwork(input.params.id, input.body ?? {});
 			});
 	}
 
@@ -236,11 +225,10 @@ export class ServiceController {
 	networkProvisionRecord() {
 		return procedure(serviceContract.network.provisionRecord)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const network = yield* ServiceNetworkService;
 				return yield* network
-					.provisionDnsRecord(input.params.id, input.body)
-					.pipe(serve(context));
+					.provisionDnsRecord(input.params.id, input.body);
 			});
 	}
 }

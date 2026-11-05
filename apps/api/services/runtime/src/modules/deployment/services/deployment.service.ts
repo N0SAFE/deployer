@@ -2556,7 +2556,7 @@ export function makeDeploymentService(ports: DeploymentServicePorts) {
  * The deployment core: triggers, cancels, rollbacks and retries, the queue's claim/heartbeat/complete/fail, the
  * compiled plans and execution checkpoints, and the progress streams.
  *
- * Every method is an Effect that fails with what the body threw (the `Runtime*` refusals reach `serve` as they are);
+ * Every method is an Effect that fails with what the body threw (the `Runtime*` refusals reach the `.effect()` boundary as they are);
  * the four `stream*` methods return RxJS Observables. It holds in-memory state (provenance, snapshots, checkpoints),
  * so a module builds it once with `useFactory`, and it registers the deployment event namespace in `onStart`.
  */

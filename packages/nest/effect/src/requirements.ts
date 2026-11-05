@@ -1,7 +1,8 @@
 import { implement, ORPCError, os } from "@orpc/server";
-import { Context as EffectContext } from "effect";
+import { Context as EffectContext, Effect as EffectRuntimeApi } from "effect";
 
 import { authzConfigured, authzGate } from "./authz";
+import { inBoundary } from "./boundary";
 
 
 import type { InferSchemaInput, InferSchemaOutput } from "@orpc/contract";
@@ -162,24 +163,42 @@ export function procedure<
 	contract: TContract,
 	config?: ProcedureConfig,
 ): RequirementImplementer<TContract, TInitialContext & object> {
-	const wrapped = wrap(implement(contract, config)) as unknown as Record<PropertyKey, unknown>;
-	const gated = new Proxy(wrapped, {
-		get(target, property, receiver) {
-			// `.use()` returns a fresh implementer, so the gate is applied at terminal time, after every middleware the
-			// controller declared: it must see the actor those middlewares resolved.
-			if (property !== "effect" && property !== "handler") return Reflect.get(target, property, receiver);
-			return (handler: unknown) => {
-				const options = authzConfigured();
-				// `authzGate` is structurally a middleware; oRPC types it against the implementer's context, which this
-				// generic wrapper cannot name.
-				const target = options === null || options.mode === "off" ? wrapped : (Reflect.get(wrapped, "use", receiver) as (m: unknown) => Record<PropertyKey, unknown>)(authzGate(options));
-				const terminal = Reflect.get(target, property) as (h: unknown) => unknown;
-				// The whole implementer is cast at the end of this function: oRPC's handler type is generic in a context
-				// this wrapper cannot name, so the call is typed here rather than invented.
-				return terminal.call(target, handler) as never;
-			};
-		},
-	});
+	// Every implementer on the chain is gated, not only the first: `.use()` returns a fresh one, and the controller's
+	// `.use(requireAuth()).effect(...)` must reach the same terminal as `.effect(...)`.
+	const gate = (wrapped: Record<PropertyKey, unknown>): Record<PropertyKey, unknown> =>
+		new Proxy(wrapped, {
+			get(target, property, receiver) {
+				if (property === "use") {
+					return (...args: unknown[]) => gate((Reflect.get(target, "use", receiver) as (...a: unknown[]) => Record<PropertyKey, unknown>)(...args));
+				}
+				// The gate is applied at terminal time, after every middleware the controller declared: it must see the
+				// actor those middlewares resolved.
+				if (property !== "effect" && property !== "handler") return Reflect.get(target, property, receiver);
+				return (rawHandler: unknown) => {
+					// Every `.effect()` body runs inside the request boundary (actor, correlation, error mapping): no controller wraps it.
+					const handler =
+						property === "effect"
+							? function* (options: { readonly context?: unknown }, input: unknown) {
+									return yield* inBoundary(
+										options.context as never,
+										EffectRuntimeApi.gen(function* () {
+											return yield* (rawHandler as (o: unknown, i: unknown) => Generator<Effect.Effect<unknown, unknown, unknown>, unknown>)(options, input);
+										}),
+									);
+								}
+							: rawHandler;
+					const options = authzConfigured();
+					// `authzGate` is structurally a middleware; oRPC types it against the implementer's context, which this
+					// generic wrapper cannot name.
+					const terminalTarget = options === null || options.mode === "off" ? target : (Reflect.get(target, "use", receiver) as (m: unknown) => Record<PropertyKey, unknown>)(authzGate(options));
+					const terminal = Reflect.get(terminalTarget, property) as (h: unknown) => unknown;
+					// The whole implementer is cast at the end of this function: oRPC's handler type is generic in a context
+					// this wrapper cannot name, so the call is typed here rather than invented.
+					return terminal.call(terminalTarget, handler) as never;
+				};
+			},
+		});
+	const gated = gate(wrap(implement(contract, config)) as unknown as Record<PropertyKey, unknown>);
 	return gated as unknown as RequirementImplementer<TContract, TInitialContext & object>;
 }
 

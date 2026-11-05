@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 
+import { declareModule } from "@deployer/nest-effect";
+
 import {
 	type ASYNC_OPTIONS_TYPE,
 	ConfigurableModuleClass,
@@ -21,20 +23,27 @@ import type { DynamicModule } from "@nestjs/common";
  * procedure (`requireAuth()`, `access({ permission, scope })`), so a Nest guard would be a second gate that can disagree
  * with the first.
  */
-@Module({
-	providers: [
-		{ provide: AuthCoreService, useFactory: (options: AuthModuleOptions) => makeAuthCoreService(options), inject: [MODULE_OPTIONS_TOKEN] },
-		// Better Auth answers `getSession`; the oRPC auth plugin asks through this Effect service.
-		{ provide: SessionResolver, useFactory: (core: AuthCoreServiceShape) => makeSessionResolver(core.instance), inject: [AuthCoreService] },
-	],
-	exports: [AuthCoreService, SessionResolver],
-})
+@Module({})
 export class AuthModule extends ConfigurableModuleClass {
-	static forRootAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
-		return { ...super.forRootAsync(options) };
+	static forRootAsync(options: typeof ASYNC_OPTIONS_TYPE) {
+		return effectAware(super.forRootAsync(options));
 	}
 
-	static forRoot(options: typeof OPTIONS_TYPE): DynamicModule {
-		return { ...super.forRoot(options) };
+	static forRoot(options: typeof OPTIONS_TYPE) {
+		return effectAware(super.forRoot(options));
 	}
+}
+
+const PROVIDERS = [
+	{ provide: AuthCoreService, useFactory: (options: AuthModuleOptions) => makeAuthCoreService(options), inject: [MODULE_OPTIONS_TOKEN] },
+	// Better Auth answers `getSession`; the oRPC auth plugin asks through this Effect service.
+	{ provide: SessionResolver, useFactory: (core: AuthCoreServiceShape) => makeSessionResolver(core.instance), inject: [AuthCoreService] },
+];
+
+/** Puts the module in the Effect flow: its handlers (and its importers') can `yield* AuthCoreService`. */
+function effectAware(module: DynamicModule) {
+	return declareModule(
+		{ ...module, providers: [...(module.providers ?? []), ...PROVIDERS], exports: [...(module.exports ?? []), AuthCoreService, SessionResolver] },
+		{ provides: [AuthCoreService, SessionResolver], exports: [AuthCoreService, SessionResolver] },
+	);
 }

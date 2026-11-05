@@ -74,7 +74,7 @@ const describe = (error: unknown) => (error instanceof Error ? error.message : S
 
 /**
  * A use case fails with a `FleetInvalid` refusal of its own, or with what a platform collaborator
- * refused with (left as thrown; `serve` lets it through for the host to translate).
+ * refused with (left as thrown; the `.effect()` boundary lets it through for the host to translate).
  */
 /**
  * What the ingress edge reads from the Effect context while it runs.

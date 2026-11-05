@@ -11,7 +11,6 @@ import {
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requireMesh } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve, serveAnonymous } from "@identity/core/orpc/serve";
 
 import { ApprovalService } from "../approval.service";
 
@@ -26,9 +25,9 @@ export class ApprovalController {
 	request() {
 		return procedure(approvalRequestContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const approvals = yield* ApprovalService;
-				return yield* serve(context)(approvals.request(input));
+				return yield* approvals.request(input);
 			});
 	}
 
@@ -36,9 +35,9 @@ export class ApprovalController {
 	list() {
 		return procedure(approvalListContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const approvals = yield* ApprovalService;
-				const data = yield* serve(context)(approvals.list(input.query));
+				const data = yield* approvals.list(input.query);
 				return { data };
 			});
 	}
@@ -47,27 +46,26 @@ export class ApprovalController {
 	decide() {
 		return procedure(approvalDecideContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const approvals = yield* ApprovalService;
-				return yield* serve(context)(approvals.decide(input.params.id, input.body.decision));
+				return yield* approvals.decide(input.params.id, input.body.decision);
 			});
 	}
 
 	/**
 	 * The guard a PEER service calls (`SEC-069`): mesh-authenticated, and it names the actor the peer verified.
 	 *
-	 * A mesh call carries no browser session, so `serveAnonymous` is the honest boundary — the identity comes from the
+	 * A mesh call carries no browser session, so the anonymous actor is the honest boundary — the identity comes from the
 	 * body, and the MESH trust is what makes that claim usable.
 	 */
 	@Implement(approvalRequireContract)
 	requireApproval() {
 		return procedure(approvalRequireContract)
 			.use(requireMesh())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const approvals = yield* ApprovalService;
-				yield* serveAnonymous(context)(
-					approvals.requireFor(input.requesterId, input.permission, input.actionHash),
-				);
+				yield* approvals.requireFor(input.requesterId, input.permission, input.actionHash)
+				;
 				return { allowed: true as const };
 			});
 	}
@@ -76,9 +74,9 @@ export class ApprovalController {
 	consume() {
 		return procedure(approvalConsumeContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const approvals = yield* ApprovalService;
-				return yield* serve(context)(approvals.consume(input.actionHash));
+				return yield* approvals.consume(input.actionHash);
 			});
 	}
 }

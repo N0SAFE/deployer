@@ -1,3 +1,4 @@
+import { reportDenial } from "@identity/core/orpc/denial";
 import {
 	createModuleContext,
 	EffectRuntimeModule,
@@ -79,6 +80,7 @@ export class IdentityServiceModule extends createModuleContext({
         // contributes that context per request without changing the shared policy.
         EffectHostModule,
         createOrpcModule({
+			boundary: { service: 'svc-identity', onDomainFailure: reportDenial },
             extraContext: {
                 inject: [EffectHost],
                 resolve: (executionContext, host) => ({

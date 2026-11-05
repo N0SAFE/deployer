@@ -116,6 +116,7 @@ export class FleetServiceModule extends createModuleContext({
 		// imports' exports and the global modules, which is exactly what `UnmetOf` claimed at compile time. Reading the
 		// whole container here let a handler reach a service its module never imported, and the type audit could not see it.
 		createOrpcModule({
+			boundary: { service: 'svc-fleet', passThroughFailures: true },
 			extraContext: {
 				inject: [EffectHost],
 				resolve: (_executionContext, host) =>
