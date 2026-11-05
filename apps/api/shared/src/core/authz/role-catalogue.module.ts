@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger, Module, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 
+import { declareModule } from "@deployer/nest-effect";
+
 import { GlobalDatabaseService } from "../modules/database/services/global-database.service";
 
 import { installRoleSnapshot } from "./role-catalog";
@@ -61,4 +63,10 @@ export class RoleCatalogueRefresher implements OnApplicationBootstrap, OnModuleD
 	providers: [RoleCatalogueRefresher],
 	exports: [RoleCatalogueRefresher],
 })
-export class RoleCatalogueModule {}
+class RoleCatalogue {}
+
+/**
+ * Declared: the refresher is a Nest lifecycle provider, not an Effect service, so the module exports nothing to the
+ * Effect context — and `declareModule` is the annotation that says that on purpose instead of by omission.
+ */
+export const RoleCatalogueModule = declareModule(RoleCatalogue, { exports: [] });

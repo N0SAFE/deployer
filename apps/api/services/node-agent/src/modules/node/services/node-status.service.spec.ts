@@ -80,7 +80,7 @@ function statusFixture(options: { readonly dump?: WireguardDump | null; readonly
       Effect.provideService(AgentLoad, new AgentLoad.live({ now: () => 0, eventLoopLagMs: () => 3 })),
       Effect.provideService(RelayMetrics, new RelayMetrics.live()),
       Effect.provideService(AdvertisedAddress, { address: ADVERTISED }),
-    ) as Effect.Effect<A, E>;
+    );
     return Effect.runPromise(withPorts);
   };
 

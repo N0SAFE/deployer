@@ -39,7 +39,7 @@ export class NodeLabels extends Context.Service<NodeLabels, NodeLabelsShape>()("
       });
     }
 
-    merge(labels) {
+    merge(labels: Record<string, string>) {
       return Effect.gen(function* () {
         const store = yield* AgentStore;
         const merged = { ...parse(yield* store.secret(NODE_LABELS_SECRET)), ...labels };

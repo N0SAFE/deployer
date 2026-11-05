@@ -10,7 +10,6 @@ import { Controller, Get, Headers, UnauthorizedException } from "@nestjs/common"
 import { ApiOkResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { AllowAnonymous } from "../../auth/decorators/decorators";
 import {
 	INGRESS_TOKEN_HEADER,
 	ingressTokenMatches,
@@ -20,8 +19,6 @@ import {
 import { TraefikIngressConfigService } from "../services/traefik-ingress-config.service";
 
 import type { LaneTraefikConfig } from "../../platform-ingress/services/lane-traefik-config";
-
-@AllowAnonymous()
 @Controller()
 export class TraefikIngressConfigController {
 	constructor(

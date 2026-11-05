@@ -22,6 +22,11 @@ import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/
 
 import { EnvService } from "../../../config/env/env.module";
 
+/** shortcut: matches the daemon error text, so a rewording of it brings the warning back; upgrade when the engine error carries a code. */
+export function isDockerSocketMissing(message: string): boolean {
+	return message.includes("ENOENT") && message.includes("docker.sock");
+}
+
 @Injectable()
 export class NodeAgentBootstrapService implements OnApplicationBootstrap {
 	private readonly logger = new Logger(NodeAgentBootstrapService.name);
@@ -34,7 +39,14 @@ export class NodeAgentBootstrapService implements OnApplicationBootstrap {
 
 	onApplicationBootstrap(): void {
 		void this.ensure().catch((error: unknown) => {
-			this.logger.warn(`Mesh agent not ensured: ${error instanceof Error ? error.message : String(error)}`);
+			const message = error instanceof Error ? error.message : String(error);
+			// A service without the Docker socket (project, identity, health) cannot own the agent by design: fleet and
+			// runtime do. Warning there on every boot reads as a fault and is not one.
+			if (isDockerSocketMissing(message)) {
+				this.logger.debug(`Mesh agent not ensured here, no Docker engine in this service: ${message}`);
+				return;
+			}
+			this.logger.warn(`Mesh agent not ensured: ${message}`);
 		});
 	}
 

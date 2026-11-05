@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 
 import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { HttpAdapterHost } from "@nestjs/core";
+import { AbstractHttpAdapter, HttpAdapterHost } from "@nestjs/core";
 import { Effect } from "effect";
 
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
@@ -74,7 +74,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
     private readonly config: ConfigService<NodeAgentEnv, true>,
     @Inject(EffectHost) private readonly host: EffectHost["Service"],
     @Inject(MeshRouterResolver) private readonly resolver: MeshRouterResolver["Service"],
-    private readonly adapterHost: HttpAdapterHost,
+    private readonly adapterHost: HttpAdapterHost<AbstractHttpAdapter<Server | undefined>>,
     @Inject(MESH_CREDENTIAL_VERIFIER) private readonly verify: MeshCredentialVerifier,
     @Inject(MESH_TRANSPORT_OPTIONS) private readonly options: MeshTransportOptions,
   ) {}
@@ -262,7 +262,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
 
   /** The http server Nest owns: the peer websocket shares its port. */
   private getHttpServer(): Server {
-    const server = this.adapterHost.httpAdapter?.getHttpServer() as Server | undefined;
+    const server = this.adapterHost.httpAdapter.getHttpServer();
     if (server === undefined) throw new Error("The mesh transport needs the HTTP server: it starts after the app is created");
     return server;
   }

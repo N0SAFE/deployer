@@ -8,7 +8,7 @@ import type {
   CorsMiddlewareOptions,
   SecurityHeadersOptions,
   CompressionOptions,
-  BasicAuthOptions,
+  BasicAuthOptions, 
   ForwardAuthOptions,
   RetryOptions,
   CircuitBreakerOptions,

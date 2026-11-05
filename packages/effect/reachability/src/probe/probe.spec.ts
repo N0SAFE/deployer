@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
+import { describe, expect, it } from "vitest";
+
 import { EgressPolicy, SafeHttp } from "@deployer/effect-infra";
+
 import { probeAddress, probePeer } from "./index";
 
 /**

@@ -20,6 +20,8 @@ const engineNode = (id: string) => ({
     Version: { Index: 1 },
     Spec: { Name: id, Labels: {}, Role: "worker", Availability: "active" },
     Description: { Hostname: `host-${id}` },
+    // `toEngineNodeRow` reads `Status.State`; without it every sync threw.
+    Status: { State: "ready" },
     ManagerStatus: null,
 });
 

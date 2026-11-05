@@ -89,6 +89,20 @@ export const freshDataDir = () => mkdtempSync(join(tmpdir(), "node-agent-"));
  *
  * The transport is a module: `app.listen` starts it, and `app.close()` stops it. The loops run fast because their
  * intervals are environment settings, which is the only thing a test changes.
+ *
+ * ── WHY `vi.resetModules()` IS THE EXPENSIVE PART ────────────────────────────
+ * Measured on the reference machine: a boot is 300-400ms of real work, but the six
+ * specs under `src/boot/` (58 `bootAgent()` calls between them) account for 60 of
+ * the suite's 65 seconds of file time, and `node-door.spec.ts` alone spends 11.5s
+ * importing against 5.5s testing. The reset discards the module cache, so the NEXT
+ * `await import` re-executes and re-transforms the whole Nest graph per boot, and
+ * the discarded graph stays resident: +25 MB RSS per call, uncollected
+ * (397 → 421 → 448 MB over three boots).
+ *
+ * So prefer ONE boot per spec file and read-only assertions on it. A spec that
+ * boots per `it()` pays the graph again for each case. Where a case genuinely needs
+ * a fresh environment (a different data dir, a pin, a restart) pass `dataDir` to
+ * reuse the directory rather than re-booting an unchanged node.
  */
 export async function bootAgent(options: BootOptions = {}): Promise<BootedAgent> {
   const port = await freePort();

@@ -31,7 +31,7 @@ export class NodeAgentServiceModule extends createModuleContext({
     createMeshOrpcModule({
       extraContext: {
         inject: [EffectHost],
-        resolve: async (executionContext, host) => ({
+        resolve: (executionContext, host) => ({
           "effect/context": host.contextFor(executionContext.getClass()),
         }),
       },

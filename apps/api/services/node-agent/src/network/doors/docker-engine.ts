@@ -48,14 +48,12 @@ export class DockerSocket extends Context.Service<DockerSocket, { readonly socke
 /** The engine the converger talks to; the module binds it to the socket. */
 export class DockerEngine extends Context.Service<DockerEngine, DockerEngineShape>()("node-agent/DockerEngine") {}
 
-const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-
 /** dockerode's rejection: an HTTP status plus the engine's own JSON `message` when it sent one. */
 type EngineFailure = Error & { readonly statusCode?: number; readonly json?: { readonly message?: string } };
 
 const toEngineError = (error: unknown): DockerEngineError => {
 	const failure = error as EngineFailure;
-	const message = failure.json?.message ?? failure.message ?? describe(error);
+	const message = failure.json?.message ?? failure.message;
 	return new DockerEngineError({ status: failure.statusCode ?? 0, message });
 };
 
@@ -80,12 +78,16 @@ export const SocketDockerEngine = {
 							? null
 							: {
 									id: body.Id,
+									/* eslint-disable @typescript-eslint/no-unnecessary-condition --
+									   dockerode types these as always present; the ENGINE answers `null` for an exposed-but-unpublished
+									   port (`"80/tcp": null`) and for a container without labels, so each guard is load-bearing. */
 									running: body.State?.Running,
 									labels: body.Config?.Labels ?? {},
 									networks: Object.keys(body.NetworkSettings?.Networks ?? {}),
 									publishedPorts: Object.entries(body.NetworkSettings?.Ports ?? {})
 										.filter(([, bindings]) => (bindings ?? []).length > 0)
 										.map(([port]) => port),
+									/* eslint-enable @typescript-eslint/no-unnecessary-condition */
 								},
 				),
 
@@ -106,7 +108,7 @@ export const SocketDockerEngine = {
 				attempt(
 					() =>
 						new Promise<void>((resolve, reject) => {
-							client.pull(image, (error, stream) => {
+							void client.pull(image, (error, stream) => {
 								if (error !== null) {
 									reject(error);
 									return;
@@ -137,13 +139,13 @@ export const SocketDockerEngine = {
 				Effect.map(attempt(() => client.listContainers()), (containers) => {
 					const wildcard = new Set(["", "0.0.0.0", "::"]);
 					for (const container of containers) {
-						const holds = (container.Ports ?? []).some(
+						const holds = container.Ports.some(
 							(published) =>
 								published.Type === "tcp" &&
 								published.PublicPort === port &&
-								(wildcard.has(published.IP ?? "") || wildcard.has(address) || published.IP === address),
+								(wildcard.has(published.IP) || wildcard.has(address) || published.IP === address),
 						);
-						if (holds) return (container.Names?.[0] ?? "unknown").replace(/^\//, "");
+						if (holds) return (container.Names[0] ?? "unknown").replace(/^\//, "");
 					}
 					return null;
 				}),
