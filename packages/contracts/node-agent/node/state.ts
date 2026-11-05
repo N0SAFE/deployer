@@ -69,8 +69,9 @@ export const meshNodeConfigSchema = z.object({
     /** The secret peers present to this node, and when it was last rotated. */
     meshSharedSecret: z.string().nullable(),
     meshSharedSecretUpdatedAt: z.string().nullable(),
-    platformSecret: z.string().nullable(),
-    platformSecretUpdatedAt: z.string().nullable(),
+    /** The platform secret and when this node adopted it. Defaults to null: a record written before they existed still reads. */
+    platformSecret: z.string().nullable().default(null),
+    platformSecretUpdatedAt: z.string().nullable().default(null),
     scanConfig: meshNodeScanConfigSchema.nullable(),
     /** The node's mesh wiring, once something configured it. Null on an unconfigured node. */
     mesh: meshNodeMeshConfigSchema.nullable(),

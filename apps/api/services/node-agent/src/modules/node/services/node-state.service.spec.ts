@@ -40,6 +40,56 @@ function nodeFixture(nodeId = 'node-a') {
 const PLATFORM_NODE_ID = '0192f5c1-8f3b-4f2e-9a4d-2b7c1d3e5f60'
 
 describe('NodeState', () => {
+    it('still reads a record written before the platform secret existed', async () => {
+        // The record as an agent wrote it before `platformSecret` existed: the two fields are simply absent.
+        const legacy = {
+            nodeId: PLATFORM_NODE_ID,
+            strategy: 'local',
+            setupState: 'setup_done',
+            deployerVersion: null,
+            upgradedAtVersion: null,
+            databaseUrl: null,
+            databaseProvisioning: null,
+            meshUrlsSnapshot: [],
+            swarmConfig: null,
+            peerServiceToken: null,
+            peerServiceTokenExpiresAt: null,
+            meshSharedSecret: 'mesh-value',
+            meshSharedSecretUpdatedAt: null,
+            scanConfig: null,
+            mesh: null,
+            postSetupFlags: null,
+            configuredAt: '2026-10-01T00:00:00.000Z',
+            updatedAt: '2026-10-01T00:00:00.000Z',
+        }
+        // Put the old shape straight into the agent's store, as an upgrade finds it.
+        const store = agentStoreOver(new DatabaseSync(':memory:') as never)
+        await Effect.runPromise(store.putNodeConfig(JSON.stringify(legacy), Date.now()))
+        const state = await Effect.runPromise(
+            new NodeState.live().state().pipe(
+                Effect.provideService(AgentStore, store),
+                Effect.provideService(NodeIdentity, { nodeId: 'n' })
+            )
+        )
+        expect(state.config?.platformSecret).toBeNull()
+    })
+
+    it('reports what the node holds without a value', async () => {
+        const node = nodeFixture()
+        await node.run(
+            new NodeState.live().configure({
+                nodeId: PLATFORM_NODE_ID,
+                strategy: 'local',
+                platformSecret: 'platform-value',
+            } as never)
+        )
+
+        const inventory = await node.run(new NodeState.live().secrets())
+
+        expect(inventory.secrets.find((entry) => entry.id === 'platform')?.fingerprint).toMatch(/^[0-9a-f]{12}$/)
+        expect(JSON.stringify(inventory)).not.toContain('platform-value')
+    })
+
     it('reports a running node as unconfigured, with nothing invented', async () => {
         const node = nodeFixture('node-fresh')
 

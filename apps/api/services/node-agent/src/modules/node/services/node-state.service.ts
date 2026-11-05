@@ -4,12 +4,14 @@ import { domainError } from '@deployer/effect-core'
 import {
     type MeshNodeConfig,
     type MeshNodeConfigureInput,
+    type MeshNodeSecrets,
     type MeshNodeState,
     meshNodeConfigSchema,
 } from '@deployer/node-agent-contracts'
 
 import { AgentStore, type AgentStoreError } from '../../../local/agent-store'
 import { NodeIdentity } from '../../mesh/services/node-identity.service'
+import { secretInventoryOf } from '../secret-inventory'
 
 /** The stored node config is not a config this agent wrote: refuse it rather than serve a half-understood node. */
 export class NodeConfigUnreadable extends domainError(
@@ -51,6 +53,12 @@ export type NodeStateShape = {
         NodeConfigUnreadable | AgentStoreError,
         AgentStore | NodeIdentity
     >
+    /** What this node holds and what reads it, without a value: the input to the fleet's adoption view. */
+    readonly secrets: () => Effect.Effect<
+        MeshNodeSecrets,
+        NodeConfigUnreadable | AgentStoreError,
+        AgentStore | NodeIdentity
+    >
     /** Applies a patch and returns the result: the only way a node is created or changed. */
     readonly configure: (
         patch: MeshNodeConfigureInput
@@ -87,6 +95,20 @@ export class NodeState extends Context.Service<NodeState, NodeStateShape>()(
                     agentId: identity.nodeId,
                     configured: true,
                     config: yield* decode(stored.config),
+                }
+            })
+        }
+
+        secrets() {
+            return Effect.gen(function* () {
+                const store = yield* AgentStore
+                const identity = yield* NodeIdentity
+                const stored = yield* store.nodeConfig()
+                const config =
+                    stored === null ? null : yield* decode(stored.config)
+                return {
+                    agentId: identity.nodeId,
+                    secrets: secretInventoryOf(config),
                 }
             })
         }
