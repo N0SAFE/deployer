@@ -4,6 +4,7 @@ import '@orpc/effect/extensions/effect'
 import { implement, ORPCError, os } from '@orpc/server'
 import { Context as EffectContext, Effect as EffectRuntimeApi } from 'effect'
 
+import { trackDecisions } from './access/ledger'
 import { authzConfigured, authzGate } from './authz'
 import { inBoundary } from './boundary'
 
@@ -241,7 +242,9 @@ export function procedure<
                               ) {
                                   return yield* inBoundary(
                                       options.context as never,
-                                      EffectRuntimeApi.gen(function* () {
+                                      trackDecisions(
+                                          options.context,
+                                          EffectRuntimeApi.gen(function* () {
                                           return yield* (
                                               rawHandler as (
                                                   o: unknown,
@@ -255,7 +258,8 @@ export function procedure<
                                                   unknown
                                               >
                                           )(options, input)
-                                      })
+                                          })
+                                      )
                                   )
                               }
                             : rawHandler

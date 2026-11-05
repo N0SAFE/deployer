@@ -1,6 +1,8 @@
 import { Context } from 'effect'
 
 import type { ScopeKind } from '@deployer/auth/authz'
+import { domainError } from '@deployer/effect-core'
+
 import type { Effect } from 'effect'
 
 /** A node of a lineage: a scope kind and, except for the platform, the id of the thing. */
@@ -13,15 +15,13 @@ export type ScopeFacts = {
         'production' | 'staging' | 'preview' | 'dev' | null
 }
 
-/** The scope does not exist (or is not visible to this service). Concealed as a 404 by the middleware. */
-export class ScopeNotFound extends Error {
-    readonly _tag = 'ScopeNotFound'
-    constructor(
-        readonly kind: ScopeKind,
-        readonly id: string
-    ) {
-        super(`${kind} ${id} not found`)
-        this.name = 'ScopeNotFound'
+/** The scope does not exist (or is not visible to this service): concealed as a 404 rather than revealed as a 403. */
+export class ScopeNotFound extends domainError('ScopeNotFound', 'not_found')<{
+    readonly scopeKind: ScopeKind
+    readonly id: string
+}>() {
+    override publicMessage(): string {
+        return `${this.scopeKind} not found`
     }
 }
 

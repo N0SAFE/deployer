@@ -1,6 +1,22 @@
-import { isPermission, type Permission, type ScopeKind } from '@deployer/auth/authz'
+import { Effect, Option } from 'effect'
 
-import type { ScopeServiceOf } from './scope'
+import { isPermission, type Permission, type ScopeKind } from '@deployer/auth/authz'
+import { CurrentActor } from '@deployer/effect-core'
+
+import { Authorized, mint } from './authorized'
+import { evaluate } from './decision'
+import { DecisionLedger } from './ledger'
+import {
+    EnvironmentScope,
+    NodeScope,
+    ProjectScope,
+    ServiceScope,
+    type ScopeNotFound,
+    type ScopeResolverShape,
+    type ScopeServiceOf,
+} from './scope'
+
+import type { AccessDenied } from './errors'
 
 /** `service:deploy` -> `service`. The first colon splits, so `cluster:join-token:reveal` is `cluster`. */
 export type ResourceOf<P extends string> = P extends `${infer R}:${string}`
@@ -196,6 +212,39 @@ type DefaultInput<
       ? NestedInput<Key>
       : object
 
+/** The plugin a scope kind resolves through, as an Effect: the plugin is an ordinary service in the request's context. */
+function resolverService(
+    kind: Exclude<ScopeKind, 'platform'>
+): Effect.Effect<
+    ScopeResolverShape,
+    never,
+    ProjectScope | EnvironmentScope | ServiceScope | NodeScope
+> {
+    switch (kind) {
+        case 'project':
+            return Effect.gen(function* () {
+                return yield* ProjectScope
+            })
+        case 'environment':
+            return Effect.gen(function* () {
+                return yield* EnvironmentScope
+            })
+        case 'service':
+            return Effect.gen(function* () {
+                return yield* ServiceScope
+            })
+        case 'node':
+            return Effect.gen(function* () {
+                return yield* NodeScope
+            })
+    }
+}
+
+/** A scoped resource is decided on an id; a platform one on none, or on the subject's. */
+type RequireIds<K extends ScopeKind> = K extends 'platform'
+    ? [subject?: string]
+    : [id: string]
+
 /** A resource: the vocabulary a service exports for the things it owns. */
 export type Resource<
     R extends string,
@@ -215,6 +264,19 @@ export type Resource<
         K,
         Key
     >
+    /**
+     * The same requirement, decided inside a handler: `yield* Service.require('update', svc.id)`. It fails with
+     * `AccessDenied` (or `ScopeNotFound`, a 404) and succeeds with an `Authorized` proof that a mutating service method
+     * can demand. A platform resource takes no id, or the subject's.
+     */
+    require<const A extends ActionOf<R>>(
+        action: A,
+        ...id: RequireIds<K>
+    ): Effect.Effect<
+        Authorized<Extract<`${R}:${A}`, Permission>, K>,
+        AccessDenied | ScopeNotFound,
+        CurrentActor | ScopeServiceOf<K>
+    >
 }
 
 /** Describe a resource once, where the entity lives. */
@@ -224,10 +286,57 @@ export function defineResource<
     const Key extends string | undefined = undefined,
 >(name: R, definition: ResourceDefinition<K, Key>): Resource<R, K, Key> {
     const idKey = definition.idKey
+    const scopeKind = definition.scope
+
+    const requireNow = (action: string, ...ids: readonly (string | undefined)[]) => {
+        const permission = `${name}:${action}`
+        if (!isPermission(permission)) {
+            throw new Error(`${permission} is not in the permission catalog`)
+        }
+        const spec: RequirementSpec = {
+            resource: name,
+            scope: scopeKind,
+            permission,
+            key: null,
+            defaultKey: idKey ?? null,
+            name,
+            orSelf: false,
+        }
+        return Effect.gen(function* () {
+            const actor = yield* CurrentActor
+            const entry = yield* evaluate(
+                spec,
+                ids[0],
+                { id: actor.id, role: actor.kind === 'user' ? actor.role : 'system' },
+                (scopeId) =>
+                    scopeKind === 'platform'
+                        ? Effect.succeed([])
+                        : Effect.flatMap(resolverService(scopeKind), (resolver) =>
+                              resolver.lineage(scopeId)
+                          )
+            )
+            const ledger = yield* Effect.serviceOption(DecisionLedger)
+            if (Option.isSome(ledger)) yield* ledger.value.decided()
+            return new Authorized(entry, mint)
+        })
+    }
+
     return {
         name,
         scope: definition.scope,
         idKey,
+        // The implementation yields every plugin kind; the declared type narrows it to this resource's own, which
+        // `K` fixes but TypeScript cannot relate to a runtime `switch`. This is the one assertion the handler path needs
+        // (a narrowing of `R` and of the proof's permission, never a widening).
+        require: <const A extends ActionOf<R>>(
+            action: A,
+            ...id: RequireIds<K>
+        ) =>
+            requireNow(action, ...id) as Effect.Effect<
+                Authorized<Extract<`${R}:${A}`, Permission>, K>,
+                AccessDenied | ScopeNotFound,
+                CurrentActor | ScopeServiceOf<K>
+            >,
         can: <const A extends ActionOf<R>>(action: A) => {
             const permission = `${name}:${action}`
             if (!isPermission(permission)) {

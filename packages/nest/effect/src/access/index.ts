@@ -1,3 +1,6 @@
+export { Authorized } from './authorized'
+export { AccessDenied } from './errors'
+export { DecisionLedger, trackDecisions } from './ledger'
 export {
     accessOfProcedure,
     assertAccessDeclared,

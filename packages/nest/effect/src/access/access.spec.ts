@@ -20,6 +20,7 @@ import {
     accessSelf,
     assertAccessDeclared,
     auditController,
+    Authorized,
     auditRouter,
     defineResource,
     ScopeNotFound,
@@ -65,7 +66,7 @@ const serviceScope: ScopeResolverShape = {
     kind: 'service',
     lineage: (id) =>
         id === 'ghost'
-            ? Effect.fail(new ScopeNotFound('service', id))
+            ? Effect.fail(new ScopeNotFound({ scopeKind: 'service', id }))
             : Effect.succeed([
                   { kind: 'service', id },
                   { kind: 'project', id: 'p1' },
@@ -396,5 +397,116 @@ describe('types', () => {
             // @ts-expect-error both are named `service`
             accessRequired(Service.can('read'), Service.can('deploy'))
         )
+    })
+})
+
+describe('accessSelf is checked, not assumed', () => {
+    const exportSelf = () =>
+        procedure<typeof list, Ctx>(list)
+            .use(accessSelf('the caller exports their own account'))
+            .effect(function* ({ context }) {
+                yield* Effect.void
+                return context.access.self.id
+            })
+    const deleteOwnSession = () =>
+        procedure<typeof nested, Ctx>(nested)
+            .use(accessSelf('the caller ends their own session', { on: 'params.id' }))
+            .effect(function* ({ context }) {
+                yield* Effect.void
+                return context.access.self.id
+            })
+
+    it('hands a route with no id the caller\'s own id, the only one it may act on', async () => {
+        await expect(call(exportSelf(), {}, { context: caller('u1') })).resolves.toBe('u1')
+    })
+
+    it('refuses an id that is not the caller\'s, whatever the mode', async () => {
+        for (const mode of ['off', 'shadow', 'enforce'] as const) {
+            configureAuthz({ store: storeOf({}), mode })
+            await expect(
+                call(deleteOwnSession(), { params: { id: 'someone-else' }, body: { role: 'x' } }, { context: caller('u1') })
+            ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+        }
+    })
+
+    it('lets the caller act on their own id', async () => {
+        await expect(
+            call(deleteOwnSession(), { params: { id: 'u1' }, body: { role: 'x' } }, { context: caller('u1') })
+        ).resolves.toBe('u1')
+    })
+
+    it('requires the input to carry the checked field', () => {
+        // @ts-expect-error `list` has no `params.id`
+        procedure<typeof list, Ctx>(list).use(accessSelf('x', { on: 'params.id' }))
+        expect(() => accessSelf('x', { on: 'a..b' })).toThrow('not a field path')
+    })
+})
+
+describe('Resource.require inside a handler', () => {
+    const transfer = oc.input(z.object({ serviceId: z.string() }))
+    const handlerFor = (action: 'read' | 'update') =>
+        procedure<typeof transfer, Ctx>(transfer)
+            .use(accessDeferred('the target is only known after loading'))
+            .effect(function* ({ input }) {
+                const proof = yield* Service.require(action, input.serviceId)
+                return proof.entry.scope
+            })
+
+    it('succeeds with an Authorized proof when the caller holds the permission above the service', async () => {
+        configureAuthz({ store: storeOf({ 'project:p1': ['service:update'] }), mode: 'enforce' })
+        await expect(
+            call(handlerFor('update'), { serviceId: 's1' }, { context: caller('u1', withScope) })
+        ).resolves.toEqual({ kind: 'service', id: 's1' })
+    })
+
+    it('fails with a 403 when it does not, and a 404 for a scope that does not exist', async () => {
+        configureAuthz({ store: storeOf({ 'project:p1': ['service:read'] }), mode: 'enforce' })
+        await expect(
+            call(handlerFor('update'), { serviceId: 's1' }, { context: caller('u1', withScope) })
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+        await expect(
+            call(handlerFor('read'), { serviceId: 'ghost' }, { context: caller('u1', withScope) })
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    })
+
+    it('takes no id on a platform resource', async () => {
+        configureAuthz({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
+        const p = procedure<typeof list, Ctx>(list)
+            .use(accessDeferred('decided in the handler'))
+            .effect(function* () {
+                const proof = yield* User.require('list')
+                return proof.entry.via
+            })
+        await expect(call(p, {}, { context: caller('u1') })).resolves.toBe('permission')
+    })
+
+    it('cannot be forged: an Authorized needs the access machinery\'s token', () => {
+        const entry = { permission: 'service:update', scope: { kind: 'service' }, id: 's', via: 'off', decision: null } as const
+        // @ts-expect-error the token is module-private: a caller cannot name it
+        expect(() => new Authorized(entry, Symbol('forged'))).toThrow('minted by the access machinery')
+    })
+
+    it('holds a deferred procedure to its promise: a handler that never decides is a defect in enforce, a warning in shadow', async () => {
+        const silent = procedure<typeof list, Ctx>(list)
+            .use(accessDeferred('promised, not kept'))
+            .effect(function* () {
+                yield* Effect.void
+                return 'served'
+            })
+        configureAuthz({ store: storeOf({}), mode: 'enforce' })
+        await expect(call(silent, {}, { context: caller('u1') })).rejects.toBeDefined()
+        configureAuthz({ store: storeOf({}), mode: 'shadow' })
+        await expect(call(silent, {}, { context: caller('u1') })).resolves.toBe('served')
+    })
+
+    it('does not hold a normal procedure to anything', async () => {
+        configureAuthz({ store: storeOf({ 'platform:': ['user:list'] }), mode: 'enforce' })
+        const p = procedure<typeof list, Ctx>(list)
+            .use(accessRequired(User.can('list')))
+            .effect(function* () {
+                yield* Effect.void
+                return 'served'
+            })
+        await expect(call(p, {}, { context: caller('u1') })).resolves.toBe('served')
     })
 })

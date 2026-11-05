@@ -1,20 +1,17 @@
 import { ORPCError, os } from '@orpc/server'
-import { Context as EffectContext, Effect } from 'effect'
+import { Cause, Context as EffectContext, Effect, Exit } from 'effect'
 
-import {
-    decide,
-    type Decision,
-    type Permission,
-    type ScopeKind,
-} from '@deployer/auth/authz'
+import type { Decision, Permission, ScopeKind } from '@deployer/auth/authz'
 
-import { actorOf, authzConfigured } from '../authz'
-
+import { actorOf } from '../authz'
+import { evaluate, type Caller, type LineageOf } from './decision'
 import { describe } from './descriptor'
+import { AccessDenied } from './errors'
 import {
     EnvironmentScope,
     NodeScope,
     ProjectScope,
+    ScopeNotFound,
     ServiceScope,
     type ScopeRef,
     type ScopeResolverShape,
@@ -26,6 +23,7 @@ import type {
     InputOf,
     KindOf,
     NameOf,
+    NestedInput,
     PermissionOfRequirement,
     RequirementSpec,
     ScopeServicesOf,
@@ -82,15 +80,6 @@ type UniqueNames<Rs extends readonly AnyRequirement[]> = [
           readonly 'two requirements share a name; give one .as("…")': DuplicateName<Rs>
       }
 
-const PLATFORM: ScopeRef = { kind: 'platform' }
-
-/** The scope a requirement names. A platform requirement has none: its id, when present, is a subject, not a scope. */
-function scopeOf(spec: RequirementSpec, id: string | undefined): ScopeRef {
-    return spec.scope === 'platform' || id === undefined
-        ? { kind: spec.scope }
-        : { kind: spec.scope, id }
-}
-
 /** `params.id` read off the validated input; `undefined` when any step is missing. */
 function valueAt(input: unknown, path: string): unknown {
     return path
@@ -104,9 +93,9 @@ function valueAt(input: unknown, path: string): unknown {
         )
 }
 
-function failure(spec: RequirementSpec, message: string): ORPCError<string, unknown> {
+function wiring(permission: string, message: string): ORPCError<string, unknown> {
     return new ORPCError('INTERNAL_SERVER_ERROR', {
-        message: `access ${spec.permission}: ${message}`,
+        message: `access ${permission}: ${message}`,
     })
 }
 
@@ -127,95 +116,60 @@ function resolverFor(
     }
 }
 
-async function lineageOf(
-    spec: RequirementSpec,
-    id: string | undefined,
-    context: unknown
-): Promise<readonly ScopeRef[]> {
-    if (spec.scope === 'platform') return [PLATFORM]
-    if (id === undefined) {
-        throw failure(spec, `needs "${spec.key ?? ''}" in the input to locate its ${spec.scope}`)
+/** Where a scope sits, through the plugin this service provides; a service that forgot it fails loudly, not as a 403. */
+function lineageThrough(spec: RequirementSpec, context: unknown): LineageOf<never> {
+    return (id) => {
+        const effectContext: unknown =
+            context !== null && typeof context === 'object'
+                ? Reflect.get(context, 'effect/context')
+                : undefined
+        const resolver =
+            spec.scope !== 'platform' && EffectContext.isContext(effectContext)
+                ? resolverFor(spec.scope, effectContext)
+                : undefined
+        return resolver === undefined
+            ? Effect.die(
+                  wiring(
+                      spec.permission,
+                      `no ${spec.scope} scope plugin is provided to this service (provide the owner's \`live\` or a \`remote\` Layer)`
+                  )
+              )
+            : resolver.lineage(id)
     }
-    const effectContext: unknown =
-        context !== null && typeof context === 'object'
-            ? Reflect.get(context, 'effect/context')
-            : undefined
-    const resolver = EffectContext.isContext(effectContext)
-        ? resolverFor(spec.scope, effectContext)
-        : undefined
-    if (resolver === undefined) {
-        throw failure(
-            spec,
-            `no ${spec.scope} scope plugin is provided to this service (provide the owner's \`live\` or a \`remote\` Layer)`
-        )
-    }
-    const found = await Effect.runPromise(
-        resolver.lineage(id).pipe(
-            Effect.map((chain) => ({ found: true as const, chain })),
-            Effect.catchTag('ScopeNotFound', () =>
-                Effect.succeed({ found: false as const })
-            )
-        )
-    )
-    if (!found.found) {
-        // Concealment: a scope the caller cannot be told exists reads as absent (DEC-AUTH-14).
-        throw new ORPCError('NOT_FOUND', { message: `${spec.scope} not found` })
-    }
-    return [...found.chain, PLATFORM]
 }
 
 async function check(
     spec: RequirementSpec,
     input: unknown,
     context: unknown,
-    actor: { readonly id: string; readonly role: string }
+    caller: Caller
 ): Promise<AccessEntry<Permission, ScopeKind>> {
     const raw = spec.key === null ? undefined : valueAt(input, spec.key)
     const id = typeof raw === 'string' ? raw : undefined
     if (spec.key !== null && id === undefined) {
         // The contract's schema validated the input before any middleware ran; a missing key is a wiring mistake.
-        throw failure(spec, `the input has no string field "${spec.key}"`)
+        throw wiring(spec.permission, `the input has no string field "${spec.key}"`)
     }
-
-    const options = authzConfigured()
-    const mode = options?.mode ?? 'off'
-    const base = { permission: spec.permission, id }
-
-    if (spec.orSelf && id !== undefined && id === actor.id) {
-        return { ...base, scope: scopeOf(spec, id), via: 'self', decision: null }
-    }
-    if (options === null || mode === 'off') {
-        return { ...base, scope: scopeOf(spec, id), via: 'off', decision: null }
-    }
-
-    const lineage = await lineageOf(spec, id, context)
-    const scope = lineage[0] ?? PLATFORM
-    const capabilities = await Promise.all(
-        lineage.map((ref) => options.store.capabilities(actor, ref))
+    const exit = await Effect.runPromiseExit(
+        evaluate(spec, id, caller, lineageThrough(spec, context))
     )
-    const decision = decide({
-        permission: spec.permission,
-        scope,
-        capabilities: {
-            permissions: [...new Set(capabilities.flatMap((c) => c.permissions))],
-            sources: capabilities.flatMap((c) => c.sources),
-        },
-        facts: { actorId: actor.id, now: Date.now() },
-    })
-    options.onDecision?.({
-        decision,
-        actor,
-        mode,
-        enforced: mode === 'enforce',
-        undeclared: false,
-    })
-    if (!decision.allowed && mode === 'enforce') {
+    if (Exit.isSuccess(exit)) return exit.value
+    const failure: unknown = Cause.squash(exit.cause)
+    if (failure instanceof AccessDenied) {
         throw new ORPCError('FORBIDDEN', {
             message: 'You do not have permission for this action',
-            data: { permission: spec.permission, scope, reason: decision.reason },
+            data: {
+                permission: failure.permission,
+                scope: failure.scope,
+                reason: failure.reason,
+            },
         })
     }
-    return { ...base, scope, via: 'permission', decision }
+    if (failure instanceof ScopeNotFound) {
+        // Concealment: a scope the caller cannot be told exists reads as absent (DEC-AUTH-14).
+        throw new ORPCError('NOT_FOUND', { message: failure.publicMessage() })
+    }
+    throw failure
 }
 
 function requireActor(context: unknown) {
@@ -264,16 +218,41 @@ export function accessRequired<const Rs extends readonly AnyRequirement[]>(
     return describe(middleware, { kind: 'required', requirements: specs })
 }
 
-/** The caller acts on their own record: only authentication is checked; the handler must scope the work to `actor.id`. */
-export function accessSelf(reason: string) {
+/**
+ * The caller acts on their own record. Unlike a permission, this is CHECKED, not assumed:
+ *
+ * - `accessSelf(reason)`: the procedure takes no id at all (`deleteSelf`, `exportSelf`). There is nothing to tamper with, and
+ *   the proof carries `context.access.self.id`, the one id the handler may act on: the session's own.
+ * - `accessSelf(reason, { on: 'params.id' })`: the input names a record; the middleware refuses with 403 unless that id is the
+ *   caller's. It does not depend on `AUTHZ_MODE`: whose record it is is an identity fact, not a rollout.
+ */
+export function accessSelf<const Key extends string | undefined = undefined>(
+    reason: string,
+    options?: { readonly on: Key }
+) {
+    const key = options?.on
+    if (key !== undefined && (key === '' || key.startsWith('.') || key.endsWith('.') || key.includes('..'))) {
+        throw new Error(`accessSelf: "${key}" is not a field path`)
+    }
     const middleware = os
         .$context<AuthenticatedContext>()
         .middleware<
-            { readonly access: { readonly self: { readonly reason: string } } },
-            unknown
-        >(({ context, next }) => {
-            requireActor(context)
-            return next({ context: { access: { self: { reason } } } })
+            {
+                readonly access: {
+                    readonly self: { readonly reason: string; readonly id: string }
+                }
+            },
+            Key extends string ? NestedInput<Key> : unknown
+        >(({ context, next }, input) => {
+            const actor = requireActor(context)
+            if (key !== undefined && valueAt(input, key) !== actor.id) {
+                throw new ORPCError('FORBIDDEN', {
+                    message: 'You can only act on your own record',
+                })
+            }
+            return next({
+                context: { access: { self: { reason, id: actor.id } } },
+            })
         })
     return describe(middleware, { kind: 'self', reason })
 }
