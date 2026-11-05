@@ -41,6 +41,8 @@ import type { AddressInfo } from 'node:net'
 import { containerHttpEdge, mountHttpEdge } from "../../server/http-edge"
 
 const SHARED_RUNTIME_LOG_ENV = 'E2E_SHARED_RUNTIME_LOGS'
+/** When set, a compile timeout writes the whole provider graph here (JSON), to find a cycle or a stuck factory offline. */
+const PROVIDER_GRAPH_DUMP_ENV = 'E2E_PROVIDER_GRAPH_DUMP'
 
 class ExternalSharedPostgresContainerHandle
     implements SharedPostgresContainerHandle
@@ -195,7 +197,7 @@ function describeUnresolvedProviders(builder: unknown): string {
             }
         }
     }
-    const dump = process.env.E2E_PROVIDER_GRAPH_DUMP
+    const dump = process.env[PROVIDER_GRAPH_DUMP_ENV]
     if (dump !== undefined && dump !== '') writeFileSync(dump, JSON.stringify(graph, null, 1))
     return `unresolved (${String(unresolved)} of ${String(total)} across ${String(modules.size)} modules)${dump === undefined ? '' : `; graph written to ${dump}`}`
 }
