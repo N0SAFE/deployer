@@ -4,11 +4,9 @@ import {
 	EffectHost,
 	EffectHostModule,
 } from "@deployer/nest-effect";
-import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+import { EnvModule } from "@deployer/shared/config/env/env.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
@@ -67,11 +65,7 @@ export class ProjectServiceModule extends createModuleContext({
 		// able to RESOLVE a session from the request the BFF forwards, which is what
 		// binding the same plugin everywhere buys. This is the identical wiring the
 		// BFF uses, deliberately: the two sides must agree on what a session is.
-		AuthModule.forRootAsync({
-			imports: [EnvModule],
-			useFactory: createBetterAuth,
-			inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
-		}),
+		AuthModule,
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.database }),
 		ServiceHealthModule,
 		HealthModule.forRoot({ indicators: "database" }),
