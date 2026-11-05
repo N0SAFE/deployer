@@ -1,4 +1,5 @@
 export { collectEffectLayer } from './collect-effect-layer'
+export { effectMiddleware } from './effect-middleware'
 export { EffectRuntime } from './effect-runtime'
 export { EffectHostModule } from './effect-host.module'
 export {

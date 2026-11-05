@@ -12,7 +12,7 @@ import {
     CORS_ALLOWED_HEADERS,
 } from '../core/utils/cors.utils'
 
-import { enforceAccessAudit, modulesOf } from './access-audit'
+import { enforceAccessAudit, modulesOf, type AccessAuditMode } from './access-audit'
 import {
     containerHttpEdge,
     mountHttpEdge,
@@ -173,6 +173,8 @@ export async function createApiServerApp(
         readonly edge?: readonly HttpEdgeEntry[]
         /** Procedures still allowed to have no access middleware while the migration runs (`AUTHZ-012`); only shrinks. */
         readonly accessLedger?: readonly string[]
+        /** `report` (default) logs what is undeclared; `strict` refuses to start on any procedure outside the ledger. */
+        readonly accessAudit?: AccessAuditMode
     } = {}
 ): Promise<INestApplication> {
     const gateway = createGateway()
@@ -189,7 +191,10 @@ export async function createApiServerApp(
     mountHttpEdge(app, [...containerHttpEdge(app), ...(options.edge ?? [])])
     app.enableShutdownHooks()
     await app.init()
-    enforceAccessAudit(modulesOf(app), { ledger: options.accessLedger })
+    enforceAccessAudit(modulesOf(app), {
+        ledger: options.accessLedger,
+        mode: options.accessAudit,
+    })
 
     return app
 }
@@ -263,12 +268,14 @@ export async function bootstrapApiServer<M extends Type<unknown>>(options: {
     dependencies?: readonly PreflightDependency[]
     /** Extra HTTP-edge pieces for this app (plain functions, mounted after the container's own). */
     edge?: readonly HttpEdgeEntry[]
-    /** Procedures still allowed to have no access middleware (`ACCESS_AUDIT=strict` refuses any other). */
+    /** Procedures still allowed to have no access middleware (`accessAudit: 'strict'` refuses any other). */
     accessLedger?: readonly string[]
+    accessAudit?: AccessAuditMode
 }): Promise<INestApplication> {
     const app = await createApiServerApp(options.rootModule, {
         edge: options.edge,
         accessLedger: options.accessLedger,
+        accessAudit: options.accessAudit,
     })
 
     // `init()` already ran inside `createApiServerApp`, so the container is live.

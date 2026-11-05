@@ -13,7 +13,7 @@ import {
     type AuthenticatedContext,
 } from '@deployer/nest-effect'
 
-import { accessAuditMode, auditModules, enforceAccessAudit } from './access-audit'
+import { auditModules, enforceAccessAudit } from './access-audit'
 
 const contract = oc.input(z.object({}))
 const User = defineResource('user', { scope: 'platform' })
@@ -101,12 +101,12 @@ describe('enforceAccessAudit', () => {
         }).toThrow('remove them')
     })
 
-    it('is off when asked, and the mode defaults to report', () => {
+    it('is off when asked, and reports when no mode is given', () => {
         expect(() => {
             enforceAccessAudit(modules, { mode: 'off' })
         }).not.toThrow()
-        expect(accessAuditMode(undefined)).toBe('report')
-        expect(accessAuditMode('STRICT')).toBe('strict')
-        expect(accessAuditMode('nonsense')).toBe('report')
+        expect(() => {
+            enforceAccessAudit(modules)
+        }).not.toThrow()
     })
 })

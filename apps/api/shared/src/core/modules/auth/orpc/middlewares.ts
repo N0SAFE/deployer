@@ -1,313 +1,134 @@
-import { os } from '@orpc/server'
 import { fromNodeHeaders } from 'better-auth/node'
+import { Effect } from 'effect'
+import z from 'zod/v4'
 
 import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
 import { secretsMatch } from '@deployer/auth/server'
-import { runSyncUnwrapped } from '@deployer/effect-core'
-import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
-import { makeLenientEnvironment } from '@deployer/environment'
-import { logger } from '@deployer/logger'
-import {
-    standardErrorOptions,
-    STANDARD_DOMAIN_ERROR_DEFS,
-} from '@deployer/orpc-utils'
+import { Actor, CurrentActor } from '@deployer/effect-core'
+import { actorFromContext } from '@deployer/effect-orpc'
+import { effectMiddleware } from '@deployer/nest-effect'
 
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
 
-import { AuthUtils } from './auth-utils'
-
-import type { ORPCGlobalContext } from './orpc-context'
-import type {
-    ORPCAuthContext,
-    MeshContext,
-    MeshParcourEntry,
-    ORPCContextWithAuthOnly,
-    ORPCContextWithAuth,
+import { AuthUtils, AuthUtilsEmpty } from './auth-utils'
+import { Forbidden, Unauthenticated } from './auth.errors'
+import { MeshSecret, PlatformSecret } from './secrets'
+import { SessionResolver } from './session-resolver'
+import {
+    assertAuthenticated,
+    type ORPCAuthContext,
+    type MeshContext,
+    type MeshParcourEntry,
 } from './types'
-import type { Auth } from '../../../../auth'
-import type { IncomingHttpHeaders } from 'http'
 
 /**
- * Read a value from the API's environment outside the DI container.
+ * The auth middlewares, written as Effects (`effectMiddleware`, over `@orpc/effect`'s `middlewareGen`).
  *
- * The schema is passed explicitly because this helper runs in contexts with no
- * Nest container (a middleware factory, tests). Passing it is what keeps the
- * SCHEMA in this app rather than baked into `@deployer/environment`.
+ * Each one declares what it needs as a service (`SessionResolver`, `MeshSecret`, `PlatformSecret`), and that need is carried
+ * into the procedure's requirements: a service whose module does not provide it fails to compile instead of failing at the
+ * first request. A refusal is a typed domain error (`Unauthenticated`, `Forbidden`) mapped to its status by kind.
+ *
+ * `requireAuth()` and `requireSystemActor()` are also what GRANT the actor: they provide `CurrentActor` to everything after
+ * them, so code that needs one cannot be reached without having been validated here.
  */
-const readEnv = <K extends keyof Env>(key: K): Env[K] => {
-    return runSyncUnwrapped(makeLenientEnvironment(apiEnvSchema)).get(key)
+
+const headerRecord = z.record(
+    z.string(),
+    z.union([z.string(), z.array(z.string()), z.undefined()])
+)
+
+/** The request's headers as web standard `Headers`, whichever shape the transport handed over. */
+function headersOf(context: unknown): Headers | null {
+    const request: unknown =
+        context !== null && typeof context === 'object'
+            ? Reflect.get(context, 'request')
+            : undefined
+    if (request === null || typeof request !== 'object') return null
+    const headers: unknown = Reflect.get(request, 'headers')
+    if (headers instanceof Headers) return headers
+    const parsed = headerRecord.safeParse(headers)
+    return parsed.success ? fromNodeHeaders(parsed.data) : null
 }
 
-/**
- * Read the mesh shared secret, first from the static registry (populated
- * by whatever module wired the NodeConfigRepository), then from the env
- * var for backward compatibility.
- *
- * This is populated by a one-time call from AppModule (or any module
- * that has access to NodeConfigRepository) at startup.
- *
- * TODO(ph2): replace with proper DI once the middleware pattern supports it.
- */
-let _meshSecretProvider: (() => string | null) | null = null
-
-/**
- * Register a provider that returns the mesh shared secret from the local
- * database. Called once at startup by the module that owns
- * NodeConfigRepository.
- */
-export function setMeshSecretProvider(provider: () => string | null): void {
-    _meshSecretProvider = provider
-}
-
-function resolveSharedSecret(): string | null {
-    // 1. Try the local DB provider (dynamic secret, set at setup time)
-    if (_meshSecretProvider) {
-        const fromDb = _meshSecretProvider()
-        if (fromDb) return fromDb
-    }
-    // 2. Fall back to env var (backward compat for pre-migration deployments)
-    const fromEnv = readEnv('MESH_STREAM_SHARED_SECRET')?.toString().trim()
-    if (fromEnv) return fromEnv
-    return null
-}
-
-/**
- * Converts headers to web standard Headers.
- * Handles both Node.js IncomingHttpHeaders and web standard Headers.
- */
-function toWebHeaders(
-    headers:
-        | Headers
-        | IncomingHttpHeaders
-        | Record<string, string | string[] | undefined>
-): Headers {
-    // If already a Headers object, return it directly
-    if (headers instanceof Headers) {
-        return headers
-    }
-    // Otherwise, convert from Node.js style headers
-    return fromNodeHeaders(headers)
-}
-
-/**
- * Creates an auth middleware that populates context.auth with authentication utilities
- * This middleware should be added globally in the ORPC module configuration
- */
-export function createAuthMiddleware(auth: Auth) {
-    logger.debug('auth', { message: 'Creating auth middleware' })
-    return os
-        .$context<{
-            request: Request
-        }>()
-        .middleware(async (opts) => {
-            // Extract session from request headers
-            // ORPC provides headers as web standard Headers, not Node.js IncomingHttpHeaders
-            const headers = opts.context.request.headers
-            const webHeaders = toWebHeaders(headers)
-            const session = await auth.api.getSession({
-                headers: webHeaders,
-            })
-
-            // Create auth utilities with session AND headers for plugin utilities
-            const authUtils = new AuthUtils(session)
-
-            // Pass context with auth to next middleware/handler
-            return opts.next({
-                context: {
-                    ...opts.context,
-                    auth: authUtils,
-                },
-            })
-        })
-}
-
-function validateAuthOnContext(
-    ctx: ORPCGlobalContext
-): ctx is ORPCGlobalContext & ORPCContextWithAuthOnly {
-    // A cast, not a redundant check: `ORPCGlobalContext["auth"]` is declared, so TypeScript believes it always
-    // exists while a context built outside the auth middleware genuinely may not carry it.
-    return (ctx as { readonly auth?: unknown }).auth !== undefined
-}
-
-/**
- * Type-level auth middleware — adds `auth` to the context type WITHOUT
- * fetching the session. The AuthPlugin (global ORPC plugin) already
- * populates `context.auth` from the request session at runtime.
- *
- * This middleware:
- *   1. Verifies that `context.auth` exists (set by AuthPlugin)
- *   2. Sets a brand symbol on the context so downstream middlewares
- *      (like `requireAuth()`) can verify this middleware ran
- *   3. Informs TypeScript that `auth: ORPCAuthContext` is available
- *
- * Without this middleware, `context.auth` is still available at runtime
- * (via AuthPlugin) but TypeScript doesn't know about it.
- *
- * @example
- * ```ts
- * implement(contract)
- *   .use(authMiddleware)
- *   .handler(({ context }) => {
- *     // context.auth is typed — runtime value from AuthPlugin
- *   })
- * ```
- */
-export function authMiddleware() {
-    return os.$context().middleware(({ context, next }) => {
-        // Verify the AuthPlugin populated context.auth at runtime
-        if (!validateAuthOnContext(context)) {
-            // Config/invariant bug — NOT a domain error. A plain Error is
-            // converted by oRPC to INTERNAL_SERVER_ERROR; no hand-built
-            // ORPCError with an off-contract code is ever thrown.
-            throw new Error(
-                'Auth context not available. The AuthPlugin must be registered in ORPCModule.'
-            )
-        }
-
-        return next({
-            context,
-        })
-    })
-}
-
-/**
- * Middleware to mark a procedure as public (no authentication required)
- * This is useful when you want to explicitly allow unauthenticated access
- *
- * @example
- * ```ts
- * implement(contract)
- *   .use(publicAccess())
- *   .handler(({ context }) => {
- *     // context.auth.isLoggedIn can be false here
- *   })
- * ```
- */
-export function publicAccess() {
-    // ── NO `$context<>()` NARROWING ─────────────────────────────────────────
-    // This middleware does nothing but call `next({ context })`, so it must not
-    // constrain the context type. Declaring `.$context<ORPCContextWithAuthOnly>()`
-    // would promise "I only accept this shape", which oRPC then enforces on the
-    // RECEIVER side — so any procedure whose initial context is a UNION of
-    // shapes (which is what `implement()` infers in the BFF, where the setup,
-    // test and template domains each contribute their own) fails to accept it:
-    //
-    //   Argument of type 'DecoratedMiddleware<ORPCContextWithAuthOnly & object, …>'
-    //   is not assignable to parameter of type 'Middleware<(DefaultInitialContext &
-    //   object) | (ORPCContextWithAuthOnly & object), …>'
-    //
-    // A passthrough has no business declaring what it accepts. Leaving the generic
-    // open lets oRPC infer it from the procedure, which is exactly the semantics
-    // wanted. `requireAuth()` still narrows, because it genuinely adds a guarantee.
-    return os.middleware(({ context, next }) => {
-        // Simply pass through without any checks
-        return next({ context })
-    })
-}
-
-/**
- * Middleware to require authentication but allow any authenticated user
- *
- * This middleware:
- * 1. Ensures user is logged in (throws UNAUTHORIZED if not)
- * 2. Narrows context type so downstream middlewares/handlers
- *    can access `context.auth.user` without null checks.
- *
- * This middleware is **fully independent** of `requireMesh()`. It does
- * NOT know about the mesh context. For endpoints that need both a
- * verified peer AND a user session, compose the middlewares:
- *
- * ```ts
- * // Order doesn't matter — each only touches its own context key.
- * .use(requireMesh())
- * .use(requireAuth())
- * ```
- *
- * @example
- * ```ts
- * implement(contract)
- *   .use(requireAuth())
- *   .handler(({ context }) => {
- *     const userId = context.auth.user.id; // No null check needed
- *   })
- * ```
- */
-export function requireAuth() {
-    // oRPC v2 renamed middleware composition from `.concat` to `.use`.
-    //
-    // NOTE: the receiver matters. `authMiddleware()` returns the middleware
-    // itself, and `.use()` on a middleware returns another MIDDLEWARE (it does
-    // not produce a builder), which is what `implement(...).use(requireAuth())`
-    // expects. Composing on `os.$context()` instead yields a BUILDER and breaks
-    // every call site's types.
-    return authMiddleware().use(
-        os
-            .$context<ORPCContextWithAuthOnly>()
-            .errors(STANDARD_DOMAIN_ERROR_DEFS)
-            .middleware(({ context, next, errors }) => {
-                // Throw the contract-defined UNAUTHORIZED when there is no
-                // session. After it succeeds, session and user are guaranteed
-                // non-null.
-                if (
-                    !context.auth.isLoggedIn ||
-                    context.auth.session === null ||
-                    context.auth.user === null
-                ) {
-                    throw errors.UNAUTHORIZED(
-                        standardErrorOptions(
-                            'unauthorized',
-                            'Authentication required'
-                        )
-                    )
-                }
-
-                // `auth` is narrowed here: the three checks above proved
-                // `isLoggedIn === true` and both `session`/`user` non-null. The
-                // assertion carries exactly that already-proven fact, because
-                // `ORPCAuthContext<boolean>` cannot express "narrowed by the branch
-                // above" — its nullability is a conditional mapped type that
-                // control-flow analysis does not reduce.
-                return next({
-                    context: {
-                        ...context,
-                        auth: makeAuthenticatedAuth(
-                            context.auth as ORPCAuthContext<true>
-                        ),
-                    },
-                })
-            })
+/** An auth face that is a real session: logged in, with a session and a user. */
+function isLoggedIn(value: unknown): value is ORPCAuthContext<true> {
+    return (
+        value !== null &&
+        typeof value === 'object' &&
+        Reflect.get(value, 'isLoggedIn') === true &&
+        Reflect.get(value, 'session') !== null &&
+        Reflect.get(value, 'session') !== undefined &&
+        Reflect.get(value, 'user') !== null &&
+        Reflect.get(value, 'user') !== undefined
     )
 }
 
 /**
- * Build a narrowed `ORPCAuthContext<true>` from a runtime-verified
- * authenticated auth context.
- *
- * After `requireAuth()` succeeds we know `session` and `user` are
- * non-null, but TypeScript can't track this through the conditional
- * mapped types. This factory isolates the unavoidable narrowing.
- *
- * ── WHY THE PARAMETER TYPE STATES THE NON-NULLS ───────────────────────────────
- * It used to take the broad `ORPCAuthContext`, whose `session`/`user` are
- * nullable. Passing those straight into an `ORPCAuthContext<true>` result is a
- * type error — the callee cannot know the caller already null-checked them, so
- * it "widened" the guarantee back to unknown and the assignment failed with
- * "Type '… | null' is not assignable to type '…'".
- *
- * Declaring the parameter as the ALREADY-NARROWED shape makes the input constraint
- * explicit: the caller must have done the check. That is exactly the invariant
- * `requireAuth()` establishes just above, so no cast is needed and the guarantee
- * is expressed in the type instead of asserted.
+ * Who is calling, resolved ONCE per request: a session the request already carries (a test, the BFF's forwarded context)
+ * wins; otherwise Better Auth answers through `SessionResolver`. A lookup that fails is "no session", logged, never a 500.
  */
-function makeAuthenticatedAuth(
-    auth: ORPCAuthContext<true>
-): ORPCAuthContext<true> {
-    return {
-        isLoggedIn: true,
-        session: auth.session,
-        user: auth.user,
-        requireAuth: () => auth.requireAuth(),
-    }
+const sessionOf = (context: unknown) =>
+    Effect.gen(function* () {
+        const existing: unknown =
+            context !== null && typeof context === 'object'
+                ? Reflect.get(context, 'auth')
+                : undefined
+        if (isLoggedIn(existing)) return existing
+        const headers = headersOf(context)
+        if (headers === null) return null
+        const sessions = yield* SessionResolver
+        const session = yield* sessions.resolve(headers).pipe(
+            Effect.catch((failure) =>
+                Effect.logWarning(
+                    `session lookup failed, treating the caller as anonymous: ${String(failure.cause)}`
+                ).pipe(Effect.as(null))
+            )
+        )
+        return session === null ? null : assertAuthenticated(new AuthUtils(session))
+    })
+
+/** The `Actor` a verified session stands for, with the same impersonation downgrade the boundary applies. */
+const actorOfAuth = (auth: ORPCAuthContext<true>): Actor =>
+    actorFromContext({ auth: { user: auth.user, session: auth.session } }) ??
+    Actor.user(auth.user.id, auth.user.role ?? 'user', auth.session.id)
+
+/**
+ * Require a logged-in caller, and let validation be what grants the actor.
+ *
+ * Narrows `context.auth` to the authenticated face (non-null `user` and `session`) and provides `CurrentActor`. Without a
+ * session it fails with `Unauthenticated` before the handler, or anything after this middleware, runs.
+ */
+export function requireAuth() {
+    return effectMiddleware<SessionResolver, { readonly auth: ORPCAuthContext<true> }>(function* ({
+        context,
+        next,
+    }) {
+        const auth = yield* sessionOf(context)
+        if (auth === null) return yield* new Unauthenticated({})
+        return yield* next({ context: { auth } }).pipe(
+            Effect.provideService(CurrentActor, actorOfAuth(auth))
+        )
+    })
+}
+
+/**
+ * Mark a procedure as public (no authentication required). `context.auth` is still the caller's session when there is one
+ * (`isLoggedIn` may be false), and the actor is provided only when there is one: public code that needs an actor is a
+ * requirement nothing satisfies.
+ */
+export function publicAccess() {
+    return effectMiddleware<SessionResolver, { readonly auth: ORPCAuthContext }>(function* ({
+        context,
+        next,
+    }) {
+        const auth = yield* sessionOf(context)
+        if (auth === null) {
+            return yield* next({ context: { auth: new AuthUtilsEmpty() } })
+        }
+        return yield* next({ context: { auth } }).pipe(
+            Effect.provideService(CurrentActor, actorOfAuth(auth))
+        )
+    })
 }
 
 // ─── Incoming header constants ──────────────────────────────────────────────
@@ -399,223 +220,123 @@ function buildMeshContext(
 // ─── requireMesh — the core peer-identity middleware ─────────────────────────
 
 /**
- * **requireMesh** — validate that the caller is an authenticated mesh peer
- * and populate `context.mesh` with verified routing information.
+ * **requireMesh** — validate that the caller is an authenticated mesh peer and populate `context.mesh` with verified routing
+ * information. Orthogonal to `requireAuth()`: it never reads or modifies `context.auth`.
  *
- * This middleware is **orthogonal** to `requireAuth()`. It NEVER reads or
- * modifies `context.auth`. Endpoints that also need a user session must
- * compose both:
+ * Accepted credentials, in order of preference:
  *
- * ```ts
- * .use(requireMesh())           // context.mesh ← peer identity + parcour
- * .use(requireAuth())           // context.auth ← user session
- * ```
+ * 1. **Peer service token** (`v2.…`) in `X-Mesh-Internal-Key`, signed with a node-specific derivative of the mesh secret.
+ * 2. **Generic mesh control token** (`v1.…`, or the bare shared secret) in `X-Mesh-Internal-Key`.
  *
- * Accepted credentials (in order of preference):
- *
- * 1. **Peer service token** (`v2.…`) in `X-Mesh-Internal-Key` — signed
- *    with a node-specific derivative of the mesh shared secret. This is
- *    what an enrolled peer presents on all routine mesh calls.
- *
- * 2. **Generic mesh control token** (`v1.…` per-request HMAC or the
- *    bare shared secret) in `X-Mesh-Internal-Key`. Used for control-plane
- *    operations where the immediate peer identity isn't known.
- *
- * Errors:
- *   - `FORBIDDEN` — no valid mesh credential found.
- *   - `UNAUTHORIZED` — credential present but malformed / expired.
+ * Failures: `Forbidden` (no valid credential, or the secret is not configured), `Unauthenticated` (a peer token that is
+ * malformed or expired).
  */
 export function requireMesh() {
-    return os
-        .$context<ORPCContextWithAuth>()
-        .errors(STANDARD_DOMAIN_ERROR_DEFS)
-        .middleware(async ({ context, next, errors }) => {
-            const request = context.request
-            const webHeaders = toWebHeaders(request.headers)
+    return effectMiddleware<MeshSecret, { readonly mesh: MeshContext }>(function* ({
+        context,
+        next,
+    }) {
+        const webHeaders = headersOf(context)
+        const internalKey =
+            webHeaders?.get(HDR_MESH_INTERNAL_KEY) ??
+            webHeaders?.get(HDR_MESH_INTERNAL_KEY.toUpperCase()) ??
+            null
+        if (webHeaders === null || internalKey === null || internalKey === '') {
+            return yield* new Forbidden({
+                reason: 'Mesh endpoint requires internal credentials',
+            })
+        }
 
-            const internalKey: string | null =
-                webHeaders.get(HDR_MESH_INTERNAL_KEY) ??
-                webHeaders.get(HDR_MESH_INTERNAL_KEY.toUpperCase())
+        const secrets = yield* MeshSecret
+        const sharedSecret = yield* secrets.get()
+        if (sharedSecret === null) {
+            return yield* new Forbidden({ reason: 'Mesh shared secret is not configured' })
+        }
 
-            if (!internalKey) {
-                throw errors.FORBIDDEN(
-                    standardErrorOptions(
-                        'forbidden',
-                        'Mesh endpoint requires internal credentials'
-                    )
-                )
-            }
-
-            // ── 1. Peer service token (v2.) — preferred ────────────────
-            if (internalKey.startsWith('v2.')) {
-                const sharedSecret = resolveSharedSecret()
-                if (!sharedSecret) {
-                    throw errors.FORBIDDEN(
-                        standardErrorOptions(
-                            'forbidden',
-                            'Mesh shared secret is not configured'
-                        )
-                    )
-                }
-                const verified = verifyPeerServiceToken(
-                    internalKey,
-                    sharedSecret
-                )
-                if (!verified) {
-                    throw errors.UNAUTHORIZED(
-                        standardErrorOptions(
-                            'unauthorized',
-                            'Invalid or expired peer service token'
-                        )
-                    )
-                }
-                const meshCtx = buildMeshContext(
-                    verified.nodeId,
-                    'peer-service',
-                    webHeaders
-                )
-                return next({
-                    context: {
-                        ...context,
-                        mesh: meshCtx,
-                    },
+        if (internalKey.startsWith('v2.')) {
+            const verified = verifyPeerServiceToken(internalKey, sharedSecret)
+            if (!verified) {
+                return yield* new Unauthenticated({
+                    reason: 'Invalid or expired peer service token',
                 })
             }
-
-            // ── 2. Generic mesh control token (v1. or bare secret) ──────
-            const sharedSecret = resolveSharedSecret()
-            if (!sharedSecret) {
-                throw errors.FORBIDDEN(
-                    standardErrorOptions(
-                        'forbidden',
-                        'Mesh shared secret is not configured'
-                    )
-                )
-            }
-            // The bare shared secret is compared in constant time (AUTH-008): `===` leaks the expected prefix, and
-            // an HMAC token already goes through `timingSafeEqual` inside `verifyMeshToken`.
-            const ok = internalKey.startsWith('v1.')
-                ? verifyMeshToken(internalKey, sharedSecret)
-                : secretsMatch(internalKey.trim(), sharedSecret)
-            if (!ok) {
-                throw errors.FORBIDDEN(
-                    standardErrorOptions(
-                        'forbidden',
-                        'Mesh endpoint requires internal credentials'
-                    )
-                )
-            }
-            const meshCtx = buildMeshContext(
-                'mesh-internal',
-                'mesh-internal',
-                webHeaders
-            )
-            return next({
+            return yield* next({
                 context: {
-                    ...context,
-                    mesh: meshCtx,
+                    mesh: buildMeshContext(verified.nodeId, 'peer-service', webHeaders),
                 },
             })
+        }
+
+        // The bare shared secret is compared in constant time (AUTH-008): `===` leaks the expected prefix, and an HMAC token
+        // already goes through `timingSafeEqual` inside `verifyMeshToken`.
+        const ok = internalKey.startsWith('v1.')
+            ? verifyMeshToken(internalKey, sharedSecret)
+            : secretsMatch(internalKey.trim(), sharedSecret)
+        if (!ok) {
+            return yield* new Forbidden({
+                reason: 'Mesh endpoint requires internal credentials',
+            })
+        }
+        return yield* next({
+            context: { mesh: buildMeshContext('mesh-internal', 'mesh-internal', webHeaders) },
         })
+    })
 }
 
 /**
- * Require a SYSTEM ACTOR: a call that no person made (a webhook, a schedule), vouched for by
- * a peer service with a signed claim in `X-Deployer-System-Actor`.
- *
- * Use it instead of `requireAuth()` on a procedure only a peer service should call. It
- * narrows `context.systemActor` to the verified claim.
+ * Require a SYSTEM ACTOR: a call that no person made (a webhook, a schedule), vouched for by a peer service with a signed
+ * claim in `X-Deployer-System-Actor`. Use it instead of `requireAuth()` on a procedure only a peer service should call.
+ * It narrows `context.systemActor` to the verified claim and provides the system `CurrentActor`.
  *
  * @param audience - the service name the claim must be addressed to (e.g. `"runtime"`)
  *
- * Errors:
- *   - `UNAUTHORIZED` — no claim, a bad signature, a wrong audience, or an expired claim.
- *   - `FORBIDDEN` — the platform secret is not configured, so no claim can be verified.
+ * Failures: `Unauthenticated` (no claim, a bad signature, a wrong audience, an expired claim), `Forbidden` (the platform
+ * secret is not configured, so no claim can be verified).
  */
 export function requireSystemActor(audience: string) {
-    return os
-        .$context<ORPCContextWithAuth>()
-        .errors(STANDARD_DOMAIN_ERROR_DEFS)
-        .middleware(async ({ context, next, errors }) => {
-            const token = toWebHeaders(context.request.headers).get(
-                SYSTEM_ACTOR_HEADER
-            )
-            if (!token) {
-                throw errors.UNAUTHORIZED(
-                    standardErrorOptions(
-                        'unauthorized',
-                        'System actor claim required'
-                    )
-                )
-            }
-
-            const secret = (
-                readEnv('BETTER_AUTH_SECRET') ?? readEnv('AUTH_SECRET')
-            )
-                ?.toString()
-                .trim()
-            if (!secret) {
-                throw errors.FORBIDDEN(
-                    standardErrorOptions(
-                        'forbidden',
-                        'Platform secret is not configured'
-                    )
-                )
-            }
-
-            const claim = verifySystemActorClaim(token, secret, audience)
-            if (!claim) {
-                throw errors.UNAUTHORIZED(
-                    standardErrorOptions(
-                        'unauthorized',
-                        'Invalid or expired system actor claim'
-                    )
-                )
-            }
-
-            return next({ context: { ...context, systemActor: claim } })
-        })
+    return effectMiddleware<
+        PlatformSecret,
+        { readonly systemActor: NonNullable<ReturnType<typeof verifySystemActorClaim>> }
+    >(function* ({ context, next }) {
+        const token = headersOf(context)?.get(SYSTEM_ACTOR_HEADER) ?? null
+        if (token === null || token === '') {
+            return yield* new Unauthenticated({ reason: 'System actor claim required' })
+        }
+        const secrets = yield* PlatformSecret
+        const secret = yield* secrets.get()
+        if (secret === null) {
+            return yield* new Forbidden({ reason: 'Platform secret is not configured' })
+        }
+        const claim = verifySystemActorClaim(token, secret, audience)
+        if (claim === null) {
+            return yield* new Unauthenticated({
+                reason: 'Invalid or expired system actor claim',
+            })
+        }
+        return yield* next({ context: { systemActor: claim } }).pipe(
+            Effect.provideService(CurrentActor, Actor.system(claim.source))
+        )
+    })
 }
 
 /**
- * Middleware to require specific platform role(s)
+ * Require specific platform role(s). Use it after `requireAuth()`: the role is read off the authenticated session. A caller
+ * with none of the allowed roles fails with `Forbidden`.
  *
- * This middleware:
- * 1. Requires authenticated context (must be used after requireAuth())
- * 2. Checks if user has one of the allowed roles
- * 3. Throws FORBIDDEN if user doesn't have required role
- *
- * @param allowedRoles - Array of roles that are allowed to access the endpoint
- *
- * @example
- * ```ts
- * implement(contract)
- *   .use(requireAuth())  // Must be authenticated first
- *   .use(requirePlatformRole(['admin', 'superAdmin']))
- *   .handler(({ context }) => {
- *     // Only admins and superAdmins can access this
- *   })
- * ```
+ * Interim: roles are data and the code should name permissions (`AUTHZ-024`); this stays until the routes that use it declare
+ * a requirement instead.
  */
 export function requirePlatformRole(allowedRoles: string[]) {
-    return os
-        .$context<ORPCContextWithAuthOnly<true>>() // Requires authenticated context
-        .errors(STANDARD_DOMAIN_ERROR_DEFS)
-        .middleware(({ context, next, errors }) => {
-            const userRole = context.auth.user.role
-
-            if (!userRole || !allowedRoles.includes(userRole)) {
-                throw errors.FORBIDDEN(
-                    standardErrorOptions(
-                        'forbidden',
-                        'Insufficient permissions. Required role: ' +
-                            allowedRoles.join(', ')
-                    )
-                )
-            }
-
-            // `next()` with no argument keeps the context the previous middlewares built (the Effect context
-            // among them); passing `{ context }` would narrow it to this middleware's own input type.
-            return next()
-        })
+    return effectMiddleware<never>(function* ({ context, next }) {
+        const auth: unknown = Reflect.get(context, 'auth')
+        if (!isLoggedIn(auth)) return yield* new Unauthenticated({})
+        const role = auth.user.role
+        if (role === undefined || !allowedRoles.includes(role)) {
+            return yield* new Forbidden({
+                reason: `Insufficient permissions. Required role: ${allowedRoles.join(', ')}`,
+            })
+        }
+        return yield* next()
+    })
 }
+

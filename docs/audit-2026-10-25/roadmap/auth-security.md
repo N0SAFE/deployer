@@ -1130,6 +1130,41 @@ missing: a named `Grants` service (the seam is a repository method today), the r
   - Done when: login via an OIDC IdP provisions a member; mappings create grants.
   - Status: todo · Verified-in-code: no · Source: authz-authn-design.md §8
 
+### Secrets lifecycle and the end of behavioral env variables (2026-11-05)
+
+Requirement: the application is self-deployable with no configuration; env variables are dev-only and never tell behavior; secrets are generated on first boot, shared by the nodes and managed from the web app with per-node adoption status. Design: `docs/architecture/secrets-lifecycle.md`; decisions: `docs/qa/secrets/lifecycle-2026-11-05.md`.
+
+- [ ] `SEC-100` **Generate the platform secret on first boot, store it in `node_config`, hand it to joiners; replace the `BETTER_AUTH_SECRET` / `AUTH_SECRET` / `DEPLOYER_ROOT_SECRET` env reads** · NEW · P0 · L · Deps: none · See also: `SEC-016`
+  - Why/Problem: the platform secret is an environment variable read by Better Auth, the column-encryption codecs, the ingress token derivation and system-actor claims; a self-deployable install cannot depend on it.
+  - Do: generate it in `local-initialization.service` beside the mesh secret; add the column and migration to the local node config; include it in the join grant; make `PlatformSecret` read it (the `shortcut:` in `auth/orpc/secrets.ts` is the swap point); point the four consumers at the service.
+  - Done when: a node with no environment variables boots, signs a session, decrypts a column and verifies a system-actor claim; a second node joins and does the same with the same secret.
+  - Status: todo · Verified-in-code: yes (env reads in `schema-codecs.ts`, `shared/src/auth.ts`, `middlewares`) · Source: operator, 2026-11-05
+- [ ] `SEC-101` **Versioned secrets with rotation and a grace window, generalising the mesh credential rotation** · NEW · P1 · L · Deps: `SEC-100` · See also: `NET-*` (mesh lifecycle)
+  - Why/Problem: rotating a shared secret must not cut a node off while the new value spreads.
+  - Do: secret id, purpose, version, rotated-at; accept old and new during the grace window; the platform secret needs a versioned encryption key (decrypt with any version).
+  - Done when: a rotation completes with a node offline and no request fails; the lagging node is shown as stale.
+  - Status: todo · Verified-in-code: partial (mesh rotation exists) · Source: operator, 2026-11-05
+- [ ] `SEC-102` **Per-node secret inventory and adoption reporting** · NEW · P1 · M · Deps: `SEC-100` · See also: `SEC-101`
+  - Why/Problem: nobody can see which node holds which version, or which service uses a secret.
+  - Do: each node agent reports `{ secret, version, adoptedAt, consumers }`; the fleet service aggregates over the mesh.
+  - Done when: the aggregate lists every node, its version per secret, and flags the ones behind.
+  - Status: todo · Verified-in-code: no · Source: operator, 2026-11-05
+- [ ] `SEC-103` **Secrets screen in the web app (inventory, rotate, reveal with step-up, adoption matrix)** · NEW · P1 · M · Deps: `SEC-102`, `AUTHZ-010` · See also: `UI-*`
+  - Why/Problem: secrets must be managed from the web app, with usage and stale nodes visible.
+  - Do: BFF `secrets` screen; Settings → Secrets; permissions `platform.secret:read` / `:rotate` / `:reveal`.
+  - Done when: an operator rotates a secret and watches every node adopt it, and sees a node that has not.
+  - Status: todo · Verified-in-code: no · Source: operator, 2026-11-05
+- [ ] `SEC-104` **Inventory every `process.env` read, move behavior-changing ones to runtime config, then ban them outside bootstrap and dev modules** · ENHANCE · P1 · M · Deps: none · See also: `SETUP-*`, `AUTHZ-013`
+  - Why/Problem: `AUTHZ_MODE` and other variables change what the application does; the rule is that env is dev-only.
+  - Do: list the reads; move `AUTHZ_MODE` and the like to the global platform config behind a service (`AccessPolicy`); add a lint rule that bans `process.env` outside the bootstrap and dev entry points.
+  - Done when: the rule passes with an empty ledger and a production boot needs no variable.
+  - Status: todo · Verified-in-code: yes · Source: operator, 2026-11-05
+- [ ] `SEC-105` **`AccessPolicy` as an Effect service sourced from runtime config (store, mode, decision sink), replacing `configureAuthz` and the env switch** · ENHANCE · P1 · M · Deps: `SEC-104`, `AUTHZ-011`
+  - Why/Problem: the authorization policy is a process-global configured from an environment variable; the access middlewares should depend on a service whose absence is a compile error.
+  - Do: provide it from the shared module; `evaluate`, `Resource.require` and `trackDecisions` read it; the legacy `Proxy` gate is removed with `AUTHZ-011`.
+  - Done when: no `configureAuthz` call remains and the mode changes at runtime without a restart.
+  - Status: todo · Verified-in-code: yes · Source: operator, 2026-11-05
+
 ### Cross-file duplicates (See also)
 - AUTH-001 ~ `JRN-014`,`WEB-024` · AUTH-002 ~ `JRN-014` · AUTH-005 ~ `SETUP-001`,`JRN-013` · AUTH-010 ~ `WEB-022` · AUTH-011 ~ `PROJ-110` · AUTH-014 ~ `WEB-023` · AUTH-015 ~ `WEB-021`,`OBS-016` · AUTH-016 ~ `SETUP-003`,`IDEA-013` · AUTH-017 ~ `WEB-025` · AUTH-022 ~ `FEAT-080`,`IDEA-012` · AUTH-023 ~ `SETUP-029`,`FEAT-083` · AUTH-027 ~ `FEAT-113`,`DOC-008` · AUTH-029 ~ `OBS-071`,`FEAT-110`,`IDEA-014` · AUTH-030 ~ `IDEA-023` · AUTH-035 ~ `IDEA-094` · AUTH-036/037 ~ `FEAT-111` · AUTH-039 ~ `ARCH-055` · AUTH-045 ~ `ARCH-036`
 - SEC-001 ~ `IDEA-001` · SEC-002 ~ `NET-001`,`NET-003`,`CLUSTER-001` · SEC-003 ~ `CLUSTER-001`,`CLUSTER-004`,`CLUSTER-005`,`CLUSTER-006`,`WEB-017` · SEC-004 ~ `CLUSTER-008` · SEC-005 ~ `CLUSTER-002`,`CLUSTER-003`,`JRN-015` · SEC-006 ~ `PROJ-001`,`PROJ-002`,`PROJ-003` · SEC-007 ~ `PROJ-006`,`PROJ-007`,`PROJ-011` · SEC-008 ~ `PROJ-004`,`NET-005` · SEC-009 ~ `PROJ-005`,`PROJ-008` · SEC-010 ~ `DEPLOY-089`,`DEPLOY-023`,`OBS-052` · SEC-011 ~ `ARCH-084`,`ARCH-085` · SEC-012 ~ `SETUP-002` · SEC-013 ~ `NET-004`,`DEPLOY-030`,`OBS-019` · SEC-014 ~ `DEPLOY-031`,`DEPLOY-032` · SEC-015 ~ `ARCH-079` · SEC-016 ~ `IDEA-027`,`PROJ-020` · SEC-017 ~ `OPS-029`,`SETUP-005` · SEC-019 ~ `IDEA-027` · SEC-020 ~ `CLUSTER-055`,`CLUSTER-056` · SEC-021 ~ `PROJ-009`,`PROJ-022`,`IDEA-024` · SEC-022 ~ `NET-007`,`NET-077` · SEC-023 ~ `OPS-001` · SEC-024 ~ `ARCH-076` · SEC-025 ~ `IDEA-035`,`OPS-028` · SEC-027 ~ `IDEA-037`,`ARCH-060`,`OPS-010` · SEC-028 ~ `CLUSTER-007` · SEC-029 ~ `NET-006`,`NET-008`,`NET-013` · SEC-030 ~ `IDEA-011`,`ARCH-054`,`ARCH-056` · SEC-031 ~ `ARCH-057`,`ARCH-058` · SEC-032 ~ `ARCH-059` · SEC-033 ~ `IDEA-085` · SEC-034 ~ `IDEA-008` · SEC-035 ~ `IDEA-009` · SEC-036 ~ `IDEA-007` · SEC-037 ~ `IDEA-006`,`IDEA-010` · SEC-038 ~ `IDEA-103`,`CLUSTER-081`,`NET-098`,`PROJ-150`,`OBS-083` · SEC-039 ~ `IDEA-110` · SEC-040 ~ `DEPLOY-119` · SEC-042 ~ `SETUP-036` · SEC-043 ~ `ARCH-102`,`ARCH-104` · SEC-044 ~ `PROJ-150`

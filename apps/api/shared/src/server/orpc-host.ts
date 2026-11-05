@@ -21,11 +21,6 @@ import {
     logOrpcErrors,
     transformDomainErrorToOrpcError,
 } from '../core/modules/auth/orpc/index'
-import { AuthPlugin } from '../core/modules/auth/orpc/plugins/auth.plugin'
-import {
-    SessionResolver,
-    type SessionResolverShape,
-} from '../core/modules/auth/orpc/session-resolver'
 import {
     AuthCoreService,
     type AuthCoreServiceShape,
@@ -182,7 +177,6 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
     return ORPCModule.forRootAsync({
         useFactory: (
             authCoreService: AuthCoreServiceShape,
-            sessions: SessionResolverShape,
             ...deps: ExtraInstances<ExtraD>
         ) => {
             const emptyAuthUtils = authCoreService.createEmptyAuthUtils()
@@ -293,18 +287,14 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
                     new SmartCoercionHandlerPlugin<ORPCGlobalContext>({
                         converters: [new ZodToJsonSchemaConverter()],
                     }),
-                    // Populates context.auth from the request's session.
-                    new AuthPlugin<ORPCGlobalContext>({
-                        auth: authCoreService.instance,
-                        sessions,
-                    }),
                 ],
-                // Initial context - auth will be populated by AuthPlugin.
+                // Initial context: `auth` starts anonymous; `requireAuth()` / `publicAccess()` resolve the session (an Effect, through
+                // `SessionResolver`) when a procedure asks for it.
                 // `extraContext` is resolved per request (e.g. the Effect runtime).
                 context,
             }
         },
-        inject: [AuthCoreService, SessionResolver, ...(extra?.inject ?? [])],
+        inject: [AuthCoreService, ...(extra?.inject ?? [])],
     })
 }
 

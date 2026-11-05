@@ -6,7 +6,6 @@ import type { PlatformRole } from '@deployer/auth'
 import { procedure } from '@deployer/nest-effect'
 import { deploymentContract } from '@deployer/runtime-contracts'
 import {
-    authMiddleware,
     requireAuth,
     requireMesh,
     requirePlatformRole,
@@ -359,7 +358,6 @@ export class DeploymentController {
     @Implement(deploymentContract.createCompiledPlanSnapshot)
     createCompiledPlanSnapshot() {
         return procedure(deploymentContract.createCompiledPlanSnapshot)
-            .use(authMiddleware())
             .use(requireAuth())
             .effect(function* ({ input }) {
                 const deployments = yield* DeploymentService

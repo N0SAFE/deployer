@@ -80,24 +80,19 @@ export function auditModules(modules: Iterable<AuditedModule>): {
 
 export type AccessAuditMode = 'off' | 'report' | 'strict'
 
-/** `ACCESS_AUDIT=off|report|strict`; `report` is the default so an unconverted app still boots and says what is left. */
-export function accessAuditMode(raw = process.env.ACCESS_AUDIT): AccessAuditMode {
-    const value = raw?.trim().toLowerCase()
-    return value === 'off' || value === 'strict' ? value : 'report'
-}
-
 /**
  * The boot rule for access declarations (`AUTHZ-011`).
  *
- * `report` logs how many procedures declared access and which did not; `strict` refuses to start on any undeclared
- * procedure that is not in the ledger, and on a ledger entry that no longer needs to be there. The ledger only shrinks
+ * `report` (the default) logs how many procedures declared access and which did not; `strict` refuses to start on any undeclared
+ * procedure that is not in the ledger, and on a ledger entry that no longer needs to be there. The mode is set in code by each
+ * app's composition root, not by the environment: whether an app is held to the rule is a fact about the app. The ledger only shrinks
  * (`AUTHZ-012`); when it is empty `strict` is the target state.
  */
 export function enforceAccessAudit(
     modules: Iterable<AuditedModule>,
     options: { readonly ledger?: readonly string[]; readonly mode?: AccessAuditMode } = {}
 ): void {
-    const mode = options.mode ?? accessAuditMode()
+    const mode = options.mode ?? 'report'
     if (mode === 'off') return
     const { audit, unauditable } = auditModules(modules)
     const verdict = assertAccessDeclared(audit, options.ledger ?? [])

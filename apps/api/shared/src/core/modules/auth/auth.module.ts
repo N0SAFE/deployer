@@ -8,6 +8,7 @@ import {
     MODULE_OPTIONS_TOKEN,
     type AuthModuleOptions,
 } from './definitions/auth-module-definition'
+import { envPlatformSecret, PlatformSecret } from './orpc/secrets'
 import { makeSessionResolver, SessionResolver } from './orpc/session-resolver'
 import {
     AuthCoreService,
@@ -56,8 +57,15 @@ export class AuthModule extends createGlobalModule(
                     makeSessionResolver(core.instance),
                 inject: [AuthCoreService],
             },
+            // The platform secret system-actor claims are signed with (see the shortcut in `secrets.ts`).
+            { provide: PlatformSecret, useValue: envPlatformSecret },
         ],
-        exports: [MODULE_OPTIONS_TOKEN, AuthCoreService, SessionResolver],
+        exports: [
+            MODULE_OPTIONS_TOKEN,
+            AuthCoreService,
+            SessionResolver,
+            PlatformSecret,
+        ],
     },
     AuthCoreService,
     SessionResolver

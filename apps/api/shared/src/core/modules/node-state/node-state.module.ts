@@ -16,6 +16,8 @@
  * The providers ARE the Effect repositories from `@deployer/node-state`, provided under the package's
  * own tags; callers inject the tag and run the Effect they need.
  */
+import { Effect } from 'effect'
+
 import {
     createGlobalModule,
     effectHostProvider,
@@ -30,8 +32,10 @@ import {
     makeClusterNodeInventoryRepository,
     makeClusterNodeRepository,
     type LocalDatabaseShape,
+    type NodeConfigRepositoryShape,
 } from '@deployer/node-state'
 
+import { MeshSecret } from '../auth/orpc/secrets'
 import { LocalDatabaseModule } from '../database/local/local-database.module'
 
 import { agentNodeRecords } from './agent-node-records'
@@ -43,6 +47,18 @@ const repositories = [
         useFactory: (db: LocalDatabaseShape) =>
             makeAgentFirstNodeConfigRepository(db, agentNodeRecords()),
         inject: [LocalDatabase],
+    },
+    // The mesh shared secret is THIS node's, generated on its first boot and handed to nodes that join (`node_config`). It is not
+    // an environment variable: a missing or unreadable row is "not configured", which the mesh middleware refuses.
+    {
+        provide: MeshSecret,
+        useFactory: (nodeConfig: NodeConfigRepositoryShape) => ({
+            get: () =>
+                nodeConfig
+                    .getMeshSharedSecret()
+                    .pipe(Effect.catch(() => Effect.succeed(null))),
+        }),
+        inject: [NodeConfigRepository],
     },
     {
         provide: ClusterNodeRepository,
@@ -68,6 +84,7 @@ export const NodeStateModule = createGlobalModule({
     exports: [
         NodeConfigRepository,
         NodeConfigSnapshot,
+        MeshSecret,
         ClusterNodeRepository,
         ClusterNodeInventoryRepository,
     ],
