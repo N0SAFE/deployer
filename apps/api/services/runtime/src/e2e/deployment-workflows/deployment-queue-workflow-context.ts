@@ -18,7 +18,7 @@ import type {
   DeploymentQueueTransitionResult,
 } from "@deployer/contracts-entities";
 
-import { getSharedApiRuntimeContext } from "@/e2e/runtime";
+import { getSharedApiRuntimeContext, withDeploymentQueueWorkerDisabled } from "@/e2e/runtime";
 import { DeploymentQueueLifecycle } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
 
 export type DeploymentQueueLifecyclePort = {
@@ -72,7 +72,8 @@ export type DeploymentQueueWorkflowContext = {
 }
 
 export async function createDeploymentQueueWorkflowContext(): Promise<DeploymentQueueWorkflowContext> {
-  const context = await getSharedApiRuntimeContext();
+  // The suites claim, heartbeat and complete jobs themselves: the live worker would race them for every queued job.
+  const context = await getSharedApiRuntimeContext(withDeploymentQueueWorkerDisabled());
   // The lifecycle is an Effect service; the workflows below drive it as Promises, so lift each method once.
   const lifecycle = context.serviceMapper.get(DeploymentQueueLifecycle) as unknown as Record<string, unknown>;
   const deploymentQueueLifecycleService = Object.fromEntries(
