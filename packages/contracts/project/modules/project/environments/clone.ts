@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { environmentKindSchema } from "@deployer/contracts-entities";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -25,4 +26,5 @@ export const projectCloneEnvironmentContract = projectEnvironmentOps
         // 404 for unknown source env; 409 duplicate target name.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

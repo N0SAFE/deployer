@@ -1019,11 +1019,13 @@
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
         "@deployer/pkg-build": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
+        "vitest": "catalog:testing",
       },
       "peerDependencies": {
         "@orpc/contract": "catalog:orpc",

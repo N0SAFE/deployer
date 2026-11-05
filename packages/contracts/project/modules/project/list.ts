@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import { projectSchema } from "@deployer/contracts-entities";
 import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -29,7 +30,7 @@ const projectListConfig = createFilterConfig(projectOps)
 export const projectListConfigSchemas = projectListConfig;
 
 // Build the list contract
-export const projectListContract = projectOps.list(projectListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
+export const projectListContract = projectOps.list(projectListConfig).errors((e) => [...standardDomainErrorContracts(e)]).meta(access({ permission: "project:read" })).build();
 
 // Export input type helper - computed from the config
 export type ProjectListInput = ComputeInputSchema<typeof projectListConfigSchemas>;

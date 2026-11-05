@@ -180,7 +180,7 @@ export function resolveScope(declaration: AccessDeclaration, input: unknown, con
 	if (typeof kind === "string" && typeof id === "string") return { kind: kind as Scope["kind"], id };
 
 	// A path that names a bare id (`serviceId`) is the common case: the kind comes from the declaration, not the value.
-	const kindFromPath = scope.path.replace(/Id$/, "");
+	const kindFromPath = scope.kind ?? scope.path.replace(/Id$/, "");
 	const known: ReadonlySet<string> = new Set(["project", "environment", "service", "node"]);
 	if (typeof value === "string" && known.has(kindFromPath)) return { kind: kindFromPath as Scope["kind"], id: value };
 	return { kind: "platform" };

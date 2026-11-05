@@ -1,5 +1,6 @@
 import * as z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { serviceEnvironmentLinkInputSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -34,6 +35,7 @@ export const projectListServiceEnvironmentLinksContract = serviceEnvLinkOps
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/service-environment-links`))
     .output(serviceEnvironmentLinkOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 
 /** Upsert a service×environment link (enable/disable + overrides). */
@@ -54,4 +56,5 @@ export const projectUpsertServiceEnvironmentLinkContract = serviceEnvLinkOps
         }),
     )
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

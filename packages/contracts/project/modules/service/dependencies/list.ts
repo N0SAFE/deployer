@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /** A single dependency edge (own or sub-service). */
@@ -78,4 +79,5 @@ export const serviceGetDependenciesContract = serviceDependenciesListOps
   .input((b) => b.params((p) => p`/${p("id", z.uuid())}/dependencies`))
   .output(serviceDependenciesListOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
+  .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
   .build();

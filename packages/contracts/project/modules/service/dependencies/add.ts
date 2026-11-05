@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 const serviceDependencyAddBodySchema = z.object({
@@ -30,4 +31,5 @@ export const serviceAddDependencyContract = serviceDependencyAddOps
   )
   .output(serviceDependencyAddOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
+  .meta(access({ permission: "service:update", scope: { by: "input", path: "params.id", kind: "service" } }))
   .build();

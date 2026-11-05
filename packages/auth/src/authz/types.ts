@@ -31,7 +31,14 @@ export type AccessDeclaration =
 	| {
 			readonly public?: false;
 			readonly permission: Permission;
-			readonly scope?: Scope | { readonly by: "input" | "context"; readonly path: string };
+			readonly scope?:
+				| Scope
+				| {
+						readonly by: "input" | "context";
+						readonly path: string;
+						/** The scope kind when the path cannot say it (`params.id`, a bare `id`); defaults to the path's `<kind>Id`. */
+						readonly kind?: ScopeKind;
+				  };
 	  };
 
 export interface AccessRequirement {

@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { templateVariableSchema, variableTemplateSchema } from "@deployer/contracts-entities";
 
 import { projectVariableTemplateOps } from "./shared";
@@ -19,6 +20,7 @@ export const projectUpdateVariableTemplateContract = projectVariableTemplateOps
     )
     .output(variableTemplateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "template:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";

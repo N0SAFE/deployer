@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import { projectSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -19,5 +20,6 @@ export const projectCreateContract = projectOps
         // Name collision, org-scope violations, quota limits → typed client catch path.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "project:create" }))
     .build();
 

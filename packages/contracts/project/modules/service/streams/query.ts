@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { serviceTypeSchema } from "@deployer/contracts-common";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -101,4 +102,5 @@ export const serviceQueryStreamContract = serviceStreamEventOps
   .input((b) => b.query(serviceStreamQueryFiltersSchema))
   .output((b) => b.observable(serviceStreamEventSchema))
   .errors((e) => [...standardDomainErrorContracts(e)])
+  .meta(access({ permission: "service:read" }))
   .build();

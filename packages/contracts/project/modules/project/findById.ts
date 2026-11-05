@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import { projectSchema, projectWithStatsSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -10,5 +11,6 @@ export const projectFindByIdContract = projectOps
         // 404 when the project doesn't exist (or is inaccessible to the caller).
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 

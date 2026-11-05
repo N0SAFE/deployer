@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { projectEnvironmentOps } from "./shared";
@@ -17,4 +18,5 @@ export const projectDeleteEnvironmentContract = projectEnvironmentOps
         // 404 for unknown env; 409 when the env still has service links.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

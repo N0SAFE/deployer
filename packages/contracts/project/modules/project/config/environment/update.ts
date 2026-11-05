@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { projectEnvironmentConfigSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  
@@ -16,4 +17,5 @@ export const projectUpdateEnvironmentConfigContract = projectEnvironmentConfigOp
     )
     .output(projectEnvironmentConfigSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "env.var:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

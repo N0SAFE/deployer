@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { access } from "@deployer/auth/authz/meta";
 import { serviceObjectShape } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -27,4 +28,5 @@ export const serviceToggleActiveContract = serviceToggleActiveOps
     // 404 for unknown service id.
     ...standardDomainErrorContracts(e),
   ])
+  .meta(access({ permission: "service:update", scope: { by: "input", path: "params.id", kind: "service" } }))
   .build();

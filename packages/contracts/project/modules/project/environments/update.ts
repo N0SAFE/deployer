@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { environmentKindSchema, environmentTriggerSchema, environmentRulesSchema } from "@deployer/contracts-entities";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -31,4 +32,5 @@ export const projectUpdateEnvironmentContract = projectEnvironmentOps
         // 404 for unknown env; 409 duplicate name; 400 invalid rules/trigger.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

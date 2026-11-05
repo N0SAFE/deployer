@@ -22,6 +22,8 @@ export const removeProjectDomainContract = projectDomainOps
     )
     .output(removeProjectDomainOutput)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "domain:write", scope: { by: "input", path: "params.projectId", kind: "project" } }))
     .build();
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";

@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
 import { routeVisibilitySchema } from "@deployer/contracts-entities/entities/ingress/index";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
@@ -81,6 +82,7 @@ export const serviceGetNetworkContract = serviceNetworkOps
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/network`))
     .output(serviceNetworkViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
     .build();
 
 /** PUT /services/:id/network — update service network config (overrides project). */
@@ -93,6 +95,7 @@ export const serviceUpdateNetworkContract = serviceNetworkOps
     )
     .output(serviceNetworkViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "service:update", scope: { by: "input", path: "params.id", kind: "service" } }))
     .build();
 
 const serviceRecordOps = standard.zod(serviceNetworkViewSchema, "serviceNetworkRecord");
@@ -123,6 +126,7 @@ export const serviceProvisionDnsRecordContract = serviceRecordOps
         }),
     )
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "dns.record:write", scope: { by: "input", path: "params.id", kind: "service" } }))
     .build();
 
 export type ServiceNetworkView = z.infer<typeof serviceNetworkViewSchema>;

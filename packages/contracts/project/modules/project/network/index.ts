@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { projectNetworkConfigSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -83,6 +84,7 @@ export const projectGetNetworkContract = projectNetworkOps
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/network`))
     .output(projectNetworkViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 
 /** PUT /projects/:id/network — update provider/zone/record policy. */
@@ -95,6 +97,7 @@ export const projectUpdateNetworkContract = projectNetworkOps
     )
     .output(projectNetworkViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 
 export type ProjectNetworkView = z.infer<typeof projectNetworkViewSchema>;

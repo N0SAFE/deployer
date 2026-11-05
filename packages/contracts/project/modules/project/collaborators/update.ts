@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { projectAssignableRoleSchema } from "@deployer/contracts-entities";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -23,4 +24,5 @@ export const projectUpdateCollaboratorContract = projectCollaboratorOps
         // 404 for unknown project/user; 409 when demoting the last owner.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "member:role:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

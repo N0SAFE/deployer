@@ -7,6 +7,8 @@ export const projectDeleteVariableTemplateContract = projectVariableTemplateOps
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/variable-templates/${p("templateId", z.uuid())}`))
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "template:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";

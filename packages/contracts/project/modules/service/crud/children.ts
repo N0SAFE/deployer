@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { access } from "@deployer/auth/authz/meta";
 import { serviceEffectiveConfigSchema, serviceObjectShape } from "@deployer/contracts-entities";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -26,6 +27,7 @@ export const serviceChildrenContract = serviceOps
   .input((b) => b.params((p) => p`/${p("id", z.uuid())}/children`))
   .output(serviceChildrenOutputSchema)
   .errors((e) => [...standardDomainErrorContracts(e)])
+  .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
   .build();
 
 /**
@@ -62,4 +64,5 @@ export const serviceSubtreeContract = serviceOps
   .input((b) => b.params((p) => p`/${p("id", z.uuid())}/subtree`))
   .output(serviceSubtreeNodeSchema.nullable())
   .errors((e) => [...standardDomainErrorContracts(e)])
+  .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
   .build();

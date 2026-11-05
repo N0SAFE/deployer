@@ -20,6 +20,8 @@ export const getAvailableDomainsForServiceContract = projectDomainMappingsOps
     )
     .output((b) => z.array(b.entitySchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "domain:read", scope: { by: "input", path: "params.projectId", kind: "project" } }))
     .build();
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";

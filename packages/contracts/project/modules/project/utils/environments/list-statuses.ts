@@ -11,6 +11,8 @@ export const projectGetAllEnvironmentStatusesContract = projectEnvironmentStatus
         }),
     )
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";

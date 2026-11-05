@@ -1,5 +1,6 @@
 import * as z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 /**
@@ -97,4 +98,5 @@ export const previewTopologyResolveContract = previewTopologyOps
     )
     .output(previewTopologyResolveOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "service:read", scope: { by: "input", path: "params.serviceId", kind: "service" } }))
     .build();

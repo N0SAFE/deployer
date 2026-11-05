@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 const streamEventMetaShape = {
@@ -104,4 +105,5 @@ export const projectQueryStreamContract = projectStreamEventOps
     .input((b) => b.query(projectStreamQueryFiltersSchema))
     .output((b) => b.observable(projectStreamEventSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:read" }))
     .build();

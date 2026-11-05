@@ -14,6 +14,8 @@ export const checkSubdomainAvailabilityContract = checkSubdomainAvailabilityOps
     )
     .output(subdomainAvailabilityResponseSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "domain:read" }))
     .build();
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";

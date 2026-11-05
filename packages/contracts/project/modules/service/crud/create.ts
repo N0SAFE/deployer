@@ -4,6 +4,7 @@ import {
   serviceProviderConfigUnionSchema,
   serviceRunnerConfigUnionSchema,
 } from "@deployer/contracts-entities";
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { serviceOps, serviceObjectSchema } from "./shared";
@@ -91,4 +92,5 @@ export const serviceCreateContract = serviceOps
     // sub-service recursion depth limits → typed client catch path.
     ...standardDomainErrorContracts(e),
   ])
+  .meta(access({ permission: "service:create", scope: { by: "input", path: "projectId", kind: "project" } }))
   .build();

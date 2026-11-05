@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import { serviceWithEffectiveConfigSchema } from "@deployer/contracts-entities";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -15,4 +16,5 @@ export const serviceFindByIdContract = serviceOps
     // 404 when the service doesn't exist (or is inaccessible).
     ...standardDomainErrorContracts(e),
   ])
+  .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
   .build();

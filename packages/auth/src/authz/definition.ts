@@ -96,6 +96,7 @@ const builder = createAuthzBuilder()
 		// ── project ──────────────────────────────────────────────────────────────────────────────────────────
 		project: actions({
 			read: { risk: "read", description: "See a project." },
+			create: { risk: "write", description: "Create a project (platform scope: the creator becomes its owner)." },
 			write: { risk: "write", description: "Edit a project." },
 			delete: { risk: "destructive", description: "Delete a project and everything in it." },
 		}),
@@ -174,6 +175,7 @@ const builder = createAuthzBuilder()
 			session: ["delete"],
 			token: ["create", "revoke"],
 			push: ["stats"],
+			project: ["create"],
 		}),
 		"platform-operate": permissions({
 			cluster: ["operate"],

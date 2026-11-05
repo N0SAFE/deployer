@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { projectGeneralConfigSchema } from "@deployer/contracts-entities";
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  
@@ -16,4 +17,5 @@ export const projectUpdateGeneralConfigContract = projectGeneralConfigOps
     )
     .output(projectGeneralConfigSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

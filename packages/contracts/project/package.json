@@ -28,6 +28,8 @@
         "lint:fix": "bun lint --no-script --fix --type-aware",
         "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
         "type-check": "bun check --no-script",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
@@ -55,6 +57,8 @@
         "@deployer/config-prettier": "*",
         "eslint": "catalog:linting",
         "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "vitest": "catalog:testing",
         "typescript": "catalog:build",
         "@deployer/pkg-build": "*"
     },

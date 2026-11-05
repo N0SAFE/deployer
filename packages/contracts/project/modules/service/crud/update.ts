@@ -1,5 +1,6 @@
 import * as z from "zod";
 
+import { access } from "@deployer/auth/authz/meta";
 import { serviceObjectShape } from "@deployer/contracts-entities";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
@@ -19,4 +20,5 @@ export const serviceUpdateContract = serviceOps
     // 404 for unknown service id; 400/409 for invalid or conflicting updates.
     ...standardDomainErrorContracts(e),
   ])
+  .meta(access({ permission: "service:update", scope: { by: "input", path: "id", kind: "service" } }))
   .build();

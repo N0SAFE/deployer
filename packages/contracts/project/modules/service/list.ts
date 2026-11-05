@@ -1,3 +1,4 @@
+import { access } from "@deployer/auth/authz/meta";
 import * as z from "zod";
 
 import { serviceObjectShape } from "@deployer/contracts-entities";
@@ -32,5 +33,5 @@ const serviceListConfig = createFilterConfig(serviceOps)
     .buildConfig();
 
 export const serviceListConfigSchemas = serviceListConfig;
-export const serviceListContract = serviceOps.list(serviceListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
+export const serviceListContract = serviceOps.list(serviceListConfig).errors((e) => [...standardDomainErrorContracts(e)]).meta(access({ permission: "service:read" })).build();
 export type ServiceListInput = ComputeInputSchema<typeof serviceListConfigSchemas>;

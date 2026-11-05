@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { projectCollaboratorInviteOps } from "./shared";
@@ -16,4 +17,5 @@ export const projectInviteCollaboratorContract = projectCollaboratorInviteOps
         // 404 for unknown project; 409 already-invited; 403 insufficient role.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "member:invite", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();

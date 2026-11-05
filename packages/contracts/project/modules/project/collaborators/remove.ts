@@ -1,5 +1,6 @@
 import z from "zod/v4";
 
+import { access } from "@deployer/auth/authz/meta";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { projectCollaboratorOps } from "./shared";
@@ -12,4 +13,5 @@ export const projectRemoveCollaboratorContract = projectCollaboratorOps
         // 404 for unknown project/user; 409 when removing the last owner.
         ...standardDomainErrorContracts(e),
     ])
+    .meta(access({ permission: "member:remove", scope: { by: "input", path: "params.id", kind: "project" } }))
     .build();
