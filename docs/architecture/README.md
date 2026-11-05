@@ -25,6 +25,8 @@ standalone but assumes the vocabulary of the previous.
 | 11 | [CLI as a client](./11-cli-as-a-client.md) | Local vs client modes, auth, full command surface, `configure`/`config`, exit codes |
 | 12 | [Architecture review](./12-architecture-review.md) | Adversarial pass; the contradictions found and fixed; open items |
 | 13 | [Readiness & boot gating](./13-readiness-and-preflight.md) | Preflight checks, why the port binds first, who answers "is it healthy?" |
+| — | [Access requirements](./access-requirements.md) | How a procedure declares and proves what it needs: typed `accessRequired` in the controller, resources as plugins, roles as data, one policy writer |
+| — | [Effect + oRPC conventions](./effect-orpc-conventions.md) | Services, middleware, errors, lifecycle: how to write each Nest concept in Effect |
 
 ## Executive summary
 

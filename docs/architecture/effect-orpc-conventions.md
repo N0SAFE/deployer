@@ -24,7 +24,7 @@ We replace that with **code that carries its own types**:
 |---|---|---|
 | What does this need? | constructor parameters, resolved by the container | `yield* Tag` — the need is in the Effect's `R` type |
 | How can it fail? | `throw` anything | a tagged `domainError`, in the Effect's `E` type |
-| Who may call it? | `@UseGuards(...)` on a controller | `access({ permission })` on the **contract** + `authzGate` |
+| Who may call it? | `@UseGuards(...)` on a controller | a typed `accessRequired(...)` requirement in the **controller** (target; interim: `access({ permission })` on the contract + `authzGate`) |
 | What input is valid? | a pipe on the route | the zod schema on the **contract** |
 | What runs around it? | an interceptor | an oRPC **middleware** (`.use`), or an Effect combinator |
 | When does it start/stop? | `OnModuleInit` / `OnModuleDestroy` | `onStart` / `run` / `onStop` **in the service's shape** |
@@ -56,7 +56,7 @@ time.
 | `@Injectable()` service | `Context.Service` tag + `live` (+ ports) | §2 | `noInjectableService` ✅ |
 | Constructor injection | `yield* Tag`, ports, `serviceOver` | §2 | — |
 | `OnModuleInit`, `OnModuleDestroy`, `OnApplicationBootstrap`, `OnApplicationShutdown` | `onStart` / `run` / `onStop` in the shape + `serviceLifecycle(Tag)` | §8 | `noNestLifecycleHook` ✅ |
-| Guard (`@UseGuards`, `CanActivate`, `APP_GUARD`, `AuthGuard`) | `access()` meta on the contract + `authzGate`; `requireAuth()` | §4 | `noNestGuard` ✅ |
+| Guard (`@UseGuards`, `CanActivate`, `APP_GUARD`, `AuthGuard`) | `accessRequired(...)` in the controller (interim: `access()` meta on the contract + `authzGate`); `requireAuth()` | §4 | `noNestGuard` ✅ |
 | Passport strategy (`PassportStrategy`) | a credential → `Actor` resolver feeding `context.auth` | §4.3 | `noPassport` ✅ |
 | Pipe (`@UsePipes`, `PipeTransform`, `ParseIntPipe`, `ValidationPipe`) | zod schema on the contract | §5 | `noNestPipe` ✅ |
 | Interceptor (`@UseInterceptors`, `NestInterceptor`, `APP_INTERCEPTOR`) | oRPC middleware / Effect combinator | §6 | `noNestInterceptor` ✅ |
@@ -219,30 +219,44 @@ export class SwarmConflict extends domainError("SwarmConflict", "conflict")<{ re
 
 ---
 
-## 4. Who may call it: contract metadata, not guards  ✅
+## 4. Who may call it: a requirement in the controller, not guards  🔄
 
-### 4.1 Declare it on the contract
+> **Direction changed 2026-11-05.** The declaration moves from the contract to the controller. The canonical design is
+> [`access-requirements.md`](./access-requirements.md); this section summarises it and says what exists today.
+
+### 4.1 Declare it where the handler is written (target)
 
 ```ts
-// a contract file
-.meta(access({ permission: "mesh:read" }))
+procedure(serviceContract.deploy)
+  .use(requireAuth())                                   // required first: a type error without it
+  .use(accessRequired(Service.can("deploy")))           // permission, scope kind and id key come from the resource
+  .effect(function* ({ context }) {
+    context.access.service.row;                         // the proof, typed with what was checked
+  });
 ```
 
-`access()` is imported from `@deployer/auth/authz/meta` (a contract writes the declaration there and the gate reads it from the same place, so they cannot drift). The declaration is **data on the contract**, so it is visible to the web client,
-the docs and the authz matrix — not hidden in a decorator on an implementation.
+- A **contract carries no access information**. A reader of the controller sees exactly what is required, and the type
+  system forces it: the terminal `.effect()` needs `context.access`, which only `accessRequired`, `accessSelf`,
+  `accessPublic` and `accessDeferred` produce. A boot audit refuses a mounted procedure without one.
+- **Code names permissions, never roles.** Roles are data (grants); `Service.can("deploy")` is the whole vocabulary.
+- Resources (`Service`, `Project`, `User`, `Node`) are plugins over ordinary Effect services, defined by the service that owns
+  the data. Several requirements, either-or, lists, self-or-permission and guardrails have their own forms; when the scope is
+  known only after a load, `accessDeferred(reason)` plus `Service.require(...)` in the handler.
 
-### 4.2 Enforce it in one place
+### 4.2 What exists today (interim)
 
-`procedure()` appends `authzGate` to **every** Effect handler. The gate reads the declaration, resolves the caller, asks the
-store, and refuses with `FORBIDDEN`. A procedure with **no** declaration is a loud event, not a silent allow — that is what
-makes the rule uniform: a new procedure cannot forget it.
+`access({ permission })` from `@deployer/auth/authz/meta` is still attached to contracts (`.meta(access(...))`, about 160
+procedures in identity, fleet and project), and `procedure()` appends `authzGate`, which reads it and refuses with
+`FORBIDDEN`. `AUTHZ_MODE` (`off|shadow|enforce`, default `off`) decides whether it blocks. A procedure with no declaration
+is a loud event in enforce mode, not a silent allow. These are replaced by 4.1 at `AUTHZ-011`/`AUTHZ-012`; permission
+names carry over unchanged.
 
 Handlers also have composable middleware for the common shapes:
 
 ```ts
 procedure(contract)
   .use(requireAuth())                                    // a session is required; narrows context.auth
-  .use(requirePlatformRole(["superAdmin", "admin"]))     // role gate
+  .use(requirePlatformRole(["superAdmin", "admin"]))     // interim role gate; replaced by permissions (AUTHZ-024)
   .use(requireMesh())                                    // a verified mesh peer (independent of requireAuth)
   .effect(function* ({ context }) { /* … */ });
 ```
@@ -524,7 +538,7 @@ everywhere. What remains is `@Injectable` services, lifecycle hooks, thrown Nest
 | a new use case | a shape + `make…(ports)` + tag with `static live`; provide with `useValue` |
 | depend on another package's service | a **port** tag, bound with `useExisting` |
 | fail | `yield* new MyDomainError({...})` (`domainError(tag, kind)`) |
-| protect an endpoint | `.meta(access({ permission }))` on the contract |
+| protect an endpoint | `.use(accessRequired(Service.can("deploy")))` in the controller (interim: `.meta(access({ permission }))` on the contract) |
 | require a session / role / mesh peer | `.use(requireAuth())` / `.use(requirePlatformRole([...]))` / `.use(requireMesh())` |
 | validate input | the contract's zod schema |
 | run something around a call | oRPC middleware, or `Effect.withSpan` / `annotateLogs` / `timeout` |

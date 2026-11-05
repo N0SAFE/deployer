@@ -118,13 +118,13 @@ export const NEST_ROLE_SPECS = {
 			{ module: CORE, names: ["APP_GUARD"] },
 		],
 		instead:
-			"Declare access on the CONTRACT (`.meta(access({ permission }))`); `procedure()` appends `authzGate` to every handler, and `requireAuth()` / `requirePlatformRole()` / `requireMesh()` cover the common shapes",
+			"Declare the requirement in the controller with `accessRequired(...)` (`docs/architecture/access-requirements.md`; until it lands, `.meta(access({ permission }))` on the contract and `authzGate`), and use `requireAuth()` / `requireMesh()` for the common shapes",
 	},
 	noPassport: {
 		role: "Passport strategy",
 		sources: [{ module: /^(@nestjs\/passport|passport(-.+)?)$/ }],
 		instead:
-			"Resolve the credential to an `Actor` in the oRPC auth middleware (session cookie, `dk_…` API key, mesh internal key) and let `authzGate` decide; a credential kind is a function, not a class with `validate()`",
+			"Resolve the credential to an `Actor` in the oRPC auth middleware (session cookie, `dk_…` API key, mesh internal key) and let the access requirement decide; a credential kind is a function, not a class with `validate()`",
 	},
 	noNestPipe: {
 		role: "pipe",

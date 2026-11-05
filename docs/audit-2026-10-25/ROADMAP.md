@@ -79,7 +79,7 @@ Many items depend on these. Each has a **canonical item** (do the work there) an
 
 | Substrate | What | Canonical item | Alias / related |
 |---|---|---|---|
-| **SUB-A** | Policy-gated authorization on every ORPC procedure (annotate resource+action+risk, default-deny, shadow-mode → enforce, wire the unused permission engine + `role_rules`, generated 403 test matrix) | `SEC-001` | `IDEA-001`, `SEC-033`, `SEC-038` |
+| **SUB-A** | Policy-gated authorization on every ORPC procedure (a typed `accessRequired` requirement in each controller, default-deny by type and boot audit, shadow-mode → enforce, grants with roles as data, identity as the single policy writer, generated 403 test matrix) | `SEC-001` | `IDEA-001`, `SEC-033`, `SEC-038` |
 | **SUB-B** | Release manifest: sealed per-deployment record (digest, resolved config, plan+hash, scan, actor) persisted on the deployment row; durable queue; replay/rollback from it | `DEPLOY-003` (foundation) | `IDEA-002` (replay/full), `DEPLOY-001/002/014` |
 | **SUB-C** | Event bus with real consumers (outbox dispatch, health `changes$` subscribers) | `OBS-001` | `IDEA-003`, `ARCH-062` |
 | **SUB-D** | Capability-scoped roster authority + k-of-n quorum for catastrophic mesh ops | `IDEA-004` | `NET-069`, `NET-076` |
@@ -102,6 +102,16 @@ super-admin role editor (clone-from-template + subset rule); phases A–F, items
 [permissions/model-research.md](permissions/model-research.md) — RBAC/ABAC/ReBAC comparison, why the decision stays
 in-process over Postgres, and what is adopted from WorkOS, Stripe, CASL, Casbin, Cerbos and Permit. It absorbs
 `SEC-048..064`; tick both when an item lands.
+
+**Access design (2026-11-05).** The permissions plan was revised after review: access is declared in the controller, not on
+the contract (`accessRequired(Service.can("deploy"))`, typed after `requireAuth()`); resources and scope kinds are plugins
+over ordinary Effect services (`live` in the owner, `remote` elsewhere); roles are data and the code names only
+permissions (grants with allow/deny, data conditions, code guardrails, the subset rule instead of ranks); identity is the
+only policy writer and every service decides in process from a cached snapshot. Canonical design:
+[`../architecture/access-requirements.md`](../architecture/access-requirements.md); decisions:
+[`../qa/permissions/access-requirements-2026-11-05.md`](../qa/permissions/access-requirements-2026-11-05.md); phases and items
+(`AUTHZ-010..019, 024, 025`) in [PERMISSIONS-ROADMAP.md](PERMISSIONS-ROADMAP.md). **Next step: the spike `AUTHZ-016`**, then the
+remaining Phase B work.
 
 ## 4. Phase plan (the order to work in)
 
@@ -167,6 +177,7 @@ After each session update §2 counts, add a line to §8, and tick phase progress
 
 | Date | Session | Change |
 |---|---|---|
+| 2026-11-05 | Permissions — access requirements and grant model | Reviewed and accepted: the declaration moves from the contract to a typed `accessRequired` middleware in the controller (after `requireAuth()`, `.on` mapping in the builder, `.as` names, `anyOf`, `.onEach`, `accessDeferred` plus `X.require(...)` in handlers with `Authorized<…>` proofs); resources and scope kinds are plugins over Effect services (`live`/`remote` Layers); roles are data and code names only permissions (grants with deny, data conditions, code guardrails, subset rule instead of ranks, lock-out invariants); identity is the single policy writer, every service decides in process from a cached snapshot. Recorded in `architecture/access-requirements.md` and `qa/permissions/access-requirements-2026-11-05.md`; `PERMISSIONS-ROADMAP.md` rewritten for it (new items `AUTHZ-016/017/019/024/025`, `AUTHZ-010/011/012` redefined); `SEC-001/056/057/061/062/064` annotated. Interim: ~160 contract annotations (project commit `de0a1e609`) move into controllers at `AUTHZ-012`. Docker builders now share one base (`Dockerfile.base` + `sync-base.ts`); the api/shared Effect rewrite and the runtime, setup and bff worktrees are merged into `rewrite-v3`. |
 | 2026-11-02 | Auth — audit producer (AUTH-029) | `packages/auth/src/audit` maps a finished Better Auth request to a typed event (one `zod/v4` schema, actor/subject/IP/no secrets); `betterAuthFactory(db, env, { audit })` installs one `after` hook only when a sink is given. `auth_audit_events` (append-only, migration `0042`) is written by a drizzle sink in shared, fire-and-forget. Admin viewer + export remain. |
 | 2026-11-02 | Authz — roles as data, one table | `authz/roles.ts` holds `RoleDefinition`/`RoleTable` with `roleTable(rows)` (duplicate names refused), `permissionsInRoles` (a role grants only in its own scope) and `rankInRoles` (an unknown role ranks below all). `SYSTEM_ROLES_TABLE` is the seed, `platformRoleRank` and `platformRoleStore(table)` read it, and the baseline `user` role is declared there (rank -1). The permission vocabulary stays in code — a typed union is what makes a typo a build error. auth 614, nest-effect 38. |
 | 2026-11-02 | Auth roadmap — AUTH-017 | TOTP works end to end. Enrolment asks for the password, shows the `otpauth://` URI and backup codes, and only turns the factor on after the first code is confirmed; sign-in handles `twoFactorRedirect` with a TOTP-or-backup-code challenge, so an account with 2FA no longer loops back to the sign-in page. Devtools stops offering the `password: ""` call that could never succeed. web 42, type-check 116/116. |
