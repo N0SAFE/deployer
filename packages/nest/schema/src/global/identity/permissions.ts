@@ -15,14 +15,14 @@
  * are keyed by platform role only.
  */
 import {
-  pgTable,
-  text,
-  jsonb,
-  timestamp,
-  uniqueIndex,
-} from "drizzle-orm/pg-core";
+    pgTable,
+    text,
+    jsonb,
+    timestamp,
+    uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
-import type { ResourceRule } from "@deployer/auth";
+import type { ResourceRule } from '@deployer/auth'
 
 /**
  * Stores fine-grained ResourceRule[] per role-name, mesh-wide.
@@ -32,24 +32,20 @@ import type { ResourceRule } from "@deployer/auth";
  *   PermissionEngine to build WHERE clauses and evaluate row-level access.
  */
 export const roleRules = pgTable(
-  "role_rules",
-  {
-    id: text("id").primaryKey(),
-    /** Role name — matches the platform role. */
-    roleName: text("role_name").notNull(),
-    resourceRules: jsonb("resource_rules")
-      .$type<ResourceRule[]>()
-      .notNull()
-      .default([]),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at")
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    uniqueIndex("role_rules_roleName_uidx").on(
-      table.roleName,
-    ),
-  ],
-);
+    'role_rules',
+    {
+        id: text('id').primaryKey(),
+        /** Role name — matches the platform role. */
+        roleName: text('role_name').notNull(),
+        resourceRules: jsonb('resource_rules')
+            .$type<ResourceRule[]>()
+            .notNull()
+            .default([]),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+        updatedAt: timestamp('updated_at')
+            .notNull()
+            .defaultNow()
+            .$onUpdate(() => new Date()),
+    },
+    (table) => [uniqueIndex('role_rules_roleName_uidx').on(table.roleName)]
+)

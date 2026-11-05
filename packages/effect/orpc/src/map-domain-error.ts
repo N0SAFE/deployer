@@ -1,20 +1,24 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import { isDomainError, type DomainError, type ErrorKind } from "@deployer/effect-core";
-import { standardErrorActions } from "@deployer/orpc-utils";
+import {
+    isDomainError,
+    type DomainError,
+    type ErrorKind,
+} from '@deployer/effect-core'
+import { standardErrorActions } from '@deployer/orpc-utils'
 
-import type { ORPCError } from "@orpc/client";
+import type { ORPCError } from '@orpc/client'
 
-type ErrorAction = (message: string) => ORPCError<string, unknown>;
+type ErrorAction = (message: string) => ORPCError<string, unknown>
 
 const ACTION_BY_KIND: Record<ErrorKind, ErrorAction> = {
-	not_found: standardErrorActions.NOT_FOUND,
-	validation: standardErrorActions.BAD_REQUEST,
-	conflict: standardErrorActions.CONFLICT,
-	unauthorized: standardErrorActions.UNAUTHORIZED,
-	forbidden: standardErrorActions.FORBIDDEN,
-	dependency_missing: standardErrorActions.FAILED_DEPENDENCY,
-};
+    not_found: standardErrorActions.NOT_FOUND,
+    validation: standardErrorActions.BAD_REQUEST,
+    conflict: standardErrorActions.CONFLICT,
+    unauthorized: standardErrorActions.UNAUTHORIZED,
+    forbidden: standardErrorActions.FORBIDDEN,
+    dependency_missing: standardErrorActions.FAILED_DEPENDENCY,
+}
 
 /**
  * One domain error to one oRPC error, by kind. The table is a `Record<ErrorKind, ...>`, so a
@@ -23,7 +27,7 @@ const ACTION_BY_KIND: Record<ErrorKind, ErrorAction> = {
  * shape for them.
  */
 export function mapDomainError(error: DomainError) {
-	return ACTION_BY_KIND[error.kind](error.publicMessage());
+    return ACTION_BY_KIND[error.kind](error.publicMessage())
 }
 
 /**
@@ -31,18 +35,27 @@ export function mapDomainError(error: DomainError) {
  * unchanged. Apply at the handler boundary, once.
  */
 export const catchDomainErrors = <A, E, R>(
-	effect: Effect.Effect<A, E, R>,
-	/** Runs once per domain error, before it is mapped: where a server-side `cause` gets reported. */
-	onError?: (error: DomainError) => void,
-): Effect.Effect<A, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>, R> =>
-	Effect.catch(
-		effect,
-		(error: E): Effect.Effect<never, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>> => {
-			if (!isDomainError(error)) {
-				return Effect.fail(error as Exclude<E, DomainError>);
-			}
+    effect: Effect.Effect<A, E, R>,
+    /** Runs once per domain error, before it is mapped: where a server-side `cause` gets reported. */
+    onError?: (error: DomainError) => void
+): Effect.Effect<
+    A,
+    Exclude<E, DomainError> | ReturnType<typeof mapDomainError>,
+    R
+> =>
+    Effect.catch(
+        effect,
+        (
+            error: E
+        ): Effect.Effect<
+            never,
+            Exclude<E, DomainError> | ReturnType<typeof mapDomainError>
+        > => {
+            if (!isDomainError(error)) {
+                return Effect.fail(error as Exclude<E, DomainError>)
+            }
 
-			onError?.(error);
-			return Effect.fail(mapDomainError(error));
-		},
-	);
+            onError?.(error)
+            return Effect.fail(mapDomainError(error))
+        }
+    )

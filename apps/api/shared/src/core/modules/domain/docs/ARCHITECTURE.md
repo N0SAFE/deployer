@@ -70,16 +70,16 @@ The Domain module follows a layered architecture with clear separation of concer
 ```typescript
 @Controller()
 export class OrganizationDomainController {
-  // Domain Registration
-  addOrganizationDomain()        // Register new domain
-  listOrganizationDomains()      // List all org domains
-  getOrganizationDomain()        // Get domain details
-  
-  // Verification
-  verifyOrganizationDomain()     // Trigger DNS verification
-  
-  // Lifecycle
-  deleteOrganizationDomain()     // Remove domain (cascades)
+    // Domain Registration
+    addOrganizationDomain() // Register new domain
+    listOrganizationDomains() // List all org domains
+    getOrganizationDomain() // Get domain details
+
+    // Verification
+    verifyOrganizationDomain() // Trigger DNS verification
+
+    // Lifecycle
+    deleteOrganizationDomain() // Remove domain (cascades)
 }
 ```
 
@@ -90,16 +90,16 @@ export class OrganizationDomainController {
 ```typescript
 @Controller()
 export class ProjectDomainController {
-  // Domain Assignment
-  addProjectDomain()             // Assign domain to project
-  listProjectDomains()           // List project's domains
-  getAvailableDomains()          // Get unassigned verified domains
-  
-  // Configuration
-  updateProjectDomain()          // Update allowed subdomains
-  
-  // Removal
-  removeProjectDomain()          // Unassign from project
+    // Domain Assignment
+    addProjectDomain() // Assign domain to project
+    listProjectDomains() // List project's domains
+    getAvailableDomains() // Get unassigned verified domains
+
+    // Configuration
+    updateProjectDomain() // Update allowed subdomains
+
+    // Removal
+    removeProjectDomain() // Unassign from project
 }
 ```
 
@@ -110,15 +110,15 @@ export class ProjectDomainController {
 ```typescript
 @Controller()
 export class ServiceDomainController {
-  // Availability Check
-  checkSubdomainAvailability()   // Check if subdomain+path free
-  
-  // Mapping Operations
-  listServiceDomains()           // List service URLs
-  addServiceDomain()             // Create URL mapping
-  updateServiceDomain()          // Update mapping
-  setPrimaryServiceDomain()      // Set primary URL
-  removeServiceDomain()          // Delete mapping
+    // Availability Check
+    checkSubdomainAvailability() // Check if subdomain+path free
+
+    // Mapping Operations
+    listServiceDomains() // List service URLs
+    addServiceDomain() // Create URL mapping
+    updateServiceDomain() // Update mapping
+    setPrimaryServiceDomain() // Set primary URL
+    removeServiceDomain() // Delete mapping
 }
 ```
 
@@ -131,23 +131,23 @@ export class ServiceDomainController {
 ```typescript
 @Injectable()
 export class DomainVerificationService {
-  // Token Generation
-  generateVerificationToken()    // Create unique verification token
-  
-  // Instructions
-  getVerificationInstructions()  // Get DNS record instructions
-  
-  // Verification
-  verifyDomain()                 // Check DNS records
-  verifyTxtRecord()              // Check TXT record
-  verifyCnameRecord()            // Check CNAME record
-  
-  // Auto-verification
-  autoVerifyPendingDomains()     // Cron job for pending domains
-  retryVerification()            // Retry failed verification
-  
-  // Stats
-  getPendingDomainsCount()       // Count pending verifications
+    // Token Generation
+    generateVerificationToken() // Create unique verification token
+
+    // Instructions
+    getVerificationInstructions() // Get DNS record instructions
+
+    // Verification
+    verifyDomain() // Check DNS records
+    verifyTxtRecord() // Check TXT record
+    verifyCnameRecord() // Check CNAME record
+
+    // Auto-verification
+    autoVerifyPendingDomains() // Cron job for pending domains
+    retryVerification() // Retry failed verification
+
+    // Stats
+    getPendingDomainsCount() // Count pending verifications
 }
 ```
 
@@ -158,18 +158,18 @@ export class DomainVerificationService {
 ```typescript
 @Injectable()
 export class DomainConflictService {
-  // Availability
-  checkSubdomainAvailability()   // Check subdomain+path conflicts
-  
-  // Suggestions
-  generateAvailableBasePaths()   // Suggest available paths
-  
-  // Validation
-  validateSubdomain()            // DNS subdomain format
-  validateBasePath()             // URL path format
-  
-  // Display
-  computePlaceholderUrl()        // Generate display URL
+    // Availability
+    checkSubdomainAvailability() // Check subdomain+path conflicts
+
+    // Suggestions
+    generateAvailableBasePaths() // Suggest available paths
+
+    // Validation
+    validateSubdomain() // DNS subdomain format
+    validateBasePath() // URL path format
+
+    // Display
+    computePlaceholderUrl() // Generate display URL
 }
 ```
 
@@ -180,17 +180,17 @@ export class DomainConflictService {
 ```typescript
 @Injectable()
 export class OrganizationDomainService {
-  create()                       // Create org domain
-  findById()                     // Get by ID
-  findByOrganizationId()         // Get org's domains
-  findByDomain()                 // Get by domain name
-  domainExists()                 // Check existence
-  update()                       // Update domain
-  updateVerificationStatus()     // Update verification
-  findPendingDomains()           // Get pending domains
-  findVerifiedByOrganizationId() // Get verified domains
-  delete()                       // Delete domain
-  countByOrganizationId()        // Count domains
+    create() // Create org domain
+    findById() // Get by ID
+    findByOrganizationId() // Get org's domains
+    findByDomain() // Get by domain name
+    domainExists() // Check existence
+    update() // Update domain
+    updateVerificationStatus() // Update verification
+    findPendingDomains() // Get pending domains
+    findVerifiedByOrganizationId() // Get verified domains
+    delete() // Delete domain
+    countByOrganizationId() // Count domains
 }
 ```
 
@@ -201,17 +201,17 @@ export class OrganizationDomainService {
 ```typescript
 @Injectable()
 export class ServiceDomainMappingService {
-  create()                       // Create mapping
-  findById()                     // Get by ID
-  findByServiceId()              // Get service's mappings
-  findByServiceIdWithUrls()      // With computed URLs
-  findByProjectDomainId()        // Get project domain's mappings
-  findByProjectDomainAndPath()   // Find by subdomain+path
-  findByExactMatch()             // Find exact match
-  update()                       // Update mapping
-  delete()                       // Delete mapping
-  deleteByServiceId()            // Delete all for service
-  countByProjectDomainId()       // Count mappings
+    create() // Create mapping
+    findById() // Get by ID
+    findByServiceId() // Get service's mappings
+    findByServiceIdWithUrls() // With computed URLs
+    findByProjectDomainId() // Get project domain's mappings
+    findByProjectDomainAndPath() // Find by subdomain+path
+    findByExactMatch() // Find exact match
+    update() // Update mapping
+    delete() // Delete mapping
+    deleteByServiceId() // Delete all for service
+    countByProjectDomainId() // Count mappings
 }
 ```
 
@@ -223,15 +223,15 @@ export class ServiceDomainMappingService {
 
 ```typescript
 export class DomainAdapter {
-  // Entity → Contract Transformations
-  static toOrganizationDomainContract()   // Org domain entity → API
-  static toAddDomainResponse()            // With verification instructions
-  static toVerifyDomainResponse()         // Verification result → API
-  static toProjectDomainContract()        // Project domain entity → API
-  static toAvailableDomainsResponse()     // Available domains → API
-  static toServiceDomainMappingContract() // Mapping entity → API
-  static toServiceDomainMappingWithUrl()  // With computed full URL
-  static toConflictCheckResult()          // Conflict check → API
+    // Entity → Contract Transformations
+    static toOrganizationDomainContract() // Org domain entity → API
+    static toAddDomainResponse() // With verification instructions
+    static toVerifyDomainResponse() // Verification result → API
+    static toProjectDomainContract() // Project domain entity → API
+    static toAvailableDomainsResponse() // Available domains → API
+    static toServiceDomainMappingContract() // Mapping entity → API
+    static toServiceDomainMappingWithUrl() // With computed full URL
+    static toConflictCheckResult() // Conflict check → API
 }
 ```
 
@@ -292,6 +292,7 @@ DomainError (base)
 ```
 
 All errors include:
+
 - HTTP status code
 - Error code for client identification
 - Descriptive message
@@ -304,17 +305,17 @@ All errors include:
 ```typescript
 @Injectable()
 export class OrganizationDomainRepository {
-  create()                       // Insert new domain
-  findById()                     // SELECT by ID
-  findByOrganizationId()         // SELECT by org ID
-  findByDomain()                 // SELECT by domain name
-  domainExists()                 // Check existence
-  update()                       // UPDATE domain
-  updateVerificationStatus()     // UPDATE verification fields
-  findPendingDomains()           // SELECT pending status
-  findVerifiedByOrganizationId() // SELECT verified domains
-  delete()                       // DELETE domain
-  countByOrganizationId()        // COUNT by org
+    create() // Insert new domain
+    findById() // SELECT by ID
+    findByOrganizationId() // SELECT by org ID
+    findByDomain() // SELECT by domain name
+    domainExists() // Check existence
+    update() // UPDATE domain
+    updateVerificationStatus() // UPDATE verification fields
+    findPendingDomains() // SELECT pending status
+    findVerifiedByOrganizationId() // SELECT verified domains
+    delete() // DELETE domain
+    countByOrganizationId() // COUNT by org
 }
 ```
 
@@ -323,17 +324,17 @@ export class OrganizationDomainRepository {
 ```typescript
 @Injectable()
 export class ProjectDomainRepository {
-  create()                       // Insert project domain
-  findById()                     // SELECT by ID
-  findByProjectId()              // SELECT by project
-  findByProjectAndOrgDomain()    // SELECT by project+org domain
-  hasProjectDomainMapping()      // Check mapping exists
-  getAvailableDomainsForProject() // SELECT available domains
-  update()                       // UPDATE project domain
-  updateAllowedSubdomains()      // UPDATE subdomains array
-  delete()                       // DELETE project domain
-  countByProjectId()             // COUNT by project
-  countByOrganizationDomainId()  // COUNT by org domain
+    create() // Insert project domain
+    findById() // SELECT by ID
+    findByProjectId() // SELECT by project
+    findByProjectAndOrgDomain() // SELECT by project+org domain
+    hasProjectDomainMapping() // Check mapping exists
+    getAvailableDomainsForProject() // SELECT available domains
+    update() // UPDATE project domain
+    updateAllowedSubdomains() // UPDATE subdomains array
+    delete() // DELETE project domain
+    countByProjectId() // COUNT by project
+    countByOrganizationDomainId() // COUNT by org domain
 }
 ```
 
@@ -342,20 +343,20 @@ export class ProjectDomainRepository {
 ```typescript
 @Injectable()
 export class ServiceDomainMappingRepository {
-  create()                       // Insert mapping
-  findById()                     // SELECT by ID
-  findByServiceId()              // SELECT by service
-  findByProjectDomainId()        // SELECT by project domain
-  findByServiceAndProjectDomain() // SELECT by both
-  isCombinationAvailable()       // Check subdomain+path availability
-  getFullUrl()                   // Compute full URL with joins
-  findByServiceIdWithUrls()      // With computed URLs
-  update()                       // UPDATE mapping
-  delete()                       // DELETE mapping
-  countByServiceId()             // COUNT by service
-  countByProjectDomainId()       // COUNT by project domain
-  findBySubdomain()              // SELECT by subdomain
-  findByProjectDomainAndPathWithServiceNames() // With service names
+    create() // Insert mapping
+    findById() // SELECT by ID
+    findByServiceId() // SELECT by service
+    findByProjectDomainId() // SELECT by project domain
+    findByServiceAndProjectDomain() // SELECT by both
+    isCombinationAvailable() // Check subdomain+path availability
+    getFullUrl() // Compute full URL with joins
+    findByServiceIdWithUrls() // With computed URLs
+    update() // UPDATE mapping
+    delete() // DELETE mapping
+    countByServiceId() // COUNT by service
+    countByProjectDomainId() // COUNT by project domain
+    findBySubdomain() // SELECT by subdomain
+    findByProjectDomainAndPathWithServiceNames() // With service names
 }
 ```
 
@@ -610,23 +611,23 @@ When a service domain mapping is created/updated, Traefik configurations need to
 // Future integration point
 @Injectable()
 export class ServiceDomainMappingService {
-  constructor(
-    private readonly traefikService: TraefikService, // Future
-  ) {}
+    constructor(
+        private readonly traefikService: TraefikService // Future
+    ) {}
 
-  async create(data: CreateMapping) {
-    const mapping = await this.repository.create(data);
-    
-    // Trigger Traefik config update
-    await this.traefikService.updateServiceRoute(mapping.serviceId, {
-      domain: fullDomain,
-      subdomain: mapping.subdomain,
-      basePath: mapping.basePath,
-      sslEnabled: mapping.sslEnabled,
-    });
-    
-    return mapping;
-  }
+    async create(data: CreateMapping) {
+        const mapping = await this.repository.create(data)
+
+        // Trigger Traefik config update
+        await this.traefikService.updateServiceRoute(mapping.serviceId, {
+            domain: fullDomain,
+            subdomain: mapping.subdomain,
+            basePath: mapping.basePath,
+            sslEnabled: mapping.sslEnabled,
+        })
+
+        return mapping
+    }
 }
 ```
 
@@ -637,44 +638,44 @@ Services reference the deployment module's `services` table:
 ```typescript
 // service_domain_mappings.serviceId → services.id
 const mapping = await repository.create({
-  serviceId: deployedService.id,  // From deployment module
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',
-});
+    serviceId: deployedService.id, // From deployment module
+    projectDomainId: projectDomain.id,
+    subdomain: 'api',
+})
 ```
 
 ## Security Considerations
 
 1. **Domain Ownership Verification**
-   - DNS-based verification prevents domain hijacking
-   - Tokens are cryptographically random (16 bytes hex)
-   - Verification status prevents use of unverified domains
+    - DNS-based verification prevents domain hijacking
+    - Tokens are cryptographically random (16 bytes hex)
+    - Verification status prevents use of unverified domains
 
 2. **Access Control**
-   - Organization domains scoped to organization
-   - Project domains scoped to project
-   - Service mappings scoped to service
+    - Organization domains scoped to organization
+    - Project domains scoped to project
+    - Service mappings scoped to service
 
 3. **SSL by Default**
-   - `sslEnabled: true` is the default
-   - Let's Encrypt auto-provisioning
+    - `sslEnabled: true` is the default
+    - Let's Encrypt auto-provisioning
 
 4. **Input Validation**
-   - Subdomain format validation (DNS rules)
-   - Base path format validation
-   - Domain format validation
+    - Subdomain format validation (DNS rules)
+    - Base path format validation
+    - Domain format validation
 
 ## Performance Considerations
 
 1. **Database Indexes**
-   - All foreign keys indexed
-   - Verification status indexed for cron queries
-   - Unique constraints prevent duplicates
+    - All foreign keys indexed
+    - Verification status indexed for cron queries
+    - Unique constraints prevent duplicates
 
 2. **Caching Opportunity**
-   - Domain verification status (changes infrequently)
-   - Full URL computation (expensive joins)
+    - Domain verification status (changes infrequently)
+    - Full URL computation (expensive joins)
 
 3. **Efficient Queries**
-   - Single query for availability check
-   - Batch operations for multiple mappings
+    - Single query for availability check
+    - Batch operations for multiple mappings

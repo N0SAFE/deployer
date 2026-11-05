@@ -1,30 +1,34 @@
-"use client";
+'use client'
 
-import { useState } from "react";
+import { useState } from 'react'
 
-import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
-import { Badge } from "@deployer/ui/components/shadcn/badge";
-import { Button } from "@deployer/ui/components/shadcn/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@deployer/ui/components/shadcn/select";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@deployer/ui/components/shadcn/table";
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@deployer/ui/components/shadcn/select'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@deployer/ui/components/shadcn/table'
 
-import { authClient } from "@/lib/auth";
+import { authClient } from '@/lib/auth'
 
-import { useDevtoolsResource } from "../use-devtools-resource";
+import { useDevtoolsResource } from '../use-devtools-resource'
 
 /**
  * DevTools panel: API keys.
@@ -47,194 +51,247 @@ import { useDevtoolsResource } from "../use-devtools-resource";
  */
 
 interface ApiKeyRow {
-  id: string;
-  name: string | null;
-  start: string | null;
-  enabled: boolean;
-  expiresAt: Date | null;
-  lastRequest: Date | null;
-  remaining: number | null;
-  requestCount: number;
+    id: string
+    name: string | null
+    start: string | null
+    enabled: boolean
+    expiresAt: Date | null
+    lastRequest: Date | null
+    remaining: number | null
+    requestCount: number
 }
 
 function relativeTime(value: Date | null): string {
-  if (!value) return "never";
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) return "never";
+    if (!value) return 'never'
+    const date = value instanceof Date ? value : new Date(String(value))
+    if (Number.isNaN(date.getTime())) return 'never'
 
-  const diffMs = date.getTime() - Date.now();
-  const abs = Math.abs(diffMs);
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
+    const diffMs = date.getTime() - Date.now()
+    const abs = Math.abs(diffMs)
+    const minute = 60_000
+    const hour = 60 * minute
+    const day = 24 * hour
 
-  const fmt = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (abs < minute) return fmt.format(Math.round(diffMs / 1000), "second");
-  if (abs < hour) return fmt.format(Math.round(diffMs / minute), "minute");
-  if (abs < day) return fmt.format(Math.round(diffMs / hour), "hour");
-  return fmt.format(Math.round(diffMs / day), "day");
+    const fmt = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+    if (abs < minute) return fmt.format(Math.round(diffMs / 1000), 'second')
+    if (abs < hour) return fmt.format(Math.round(diffMs / minute), 'minute')
+    if (abs < day) return fmt.format(Math.round(diffMs / hour), 'hour')
+    return fmt.format(Math.round(diffMs / day), 'day')
 }
 
-function ExpiryCell({ expiresAt, now }: { expiresAt: Date | null; now: number }) {
-  if (!expiresAt) return <span className="text-muted-foreground text-xs">never</span>;
+function ExpiryCell({
+    expiresAt,
+    now,
+}: {
+    expiresAt: Date | null
+    now: number
+}) {
+    if (!expiresAt)
+        return <span className="text-muted-foreground text-xs">never</span>
 
-  const date = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
-  if (Number.isNaN(date.getTime())) {
-    return <span className="text-muted-foreground text-xs">never</span>;
-  }
-  if (date.getTime() <= now) return <Badge variant="destructive">expired</Badge>;
+    const date = expiresAt instanceof Date ? expiresAt : new Date(expiresAt)
+    if (Number.isNaN(date.getTime())) {
+        return <span className="text-muted-foreground text-xs">never</span>
+    }
+    if (date.getTime() <= now)
+        return <Badge variant="destructive">expired</Badge>
 
-  return (
-    <span className="text-xs" title={date.toISOString()}>
-      {relativeTime(date)}
-    </span>
-  );
+    return (
+        <span className="text-xs" title={date.toISOString()}>
+            {relativeTime(date)}
+        </span>
+    )
 }
 
 interface ApiKeysSnapshot {
-  keys: ApiKeyRow[];
-  loadedAt: number;
+    keys: ApiKeyRow[]
+    loadedAt: number
 }
 
 async function fetchApiKeys(): Promise<ApiKeysSnapshot> {
-  // GET /api-key/list — query params, returns { apiKeys: ApiKey[] }.
-  const result = await authClient.apiKey.list({
-    query: { limit: 50, offset: 0 },
-  });
-  if (result.error) {
-    throw new Error(result.error.message ?? "Failed to load API keys");
-  }
-  return { keys: result.data.apiKeys, loadedAt: Date.now() };
+    // GET /api-key/list — query params, returns { apiKeys: ApiKey[] }.
+    const result = await authClient.apiKey.list({
+        query: { limit: 50, offset: 0 },
+    })
+    if (result.error) {
+        throw new Error(result.error.message ?? 'Failed to load API keys')
+    }
+    return { keys: result.data.apiKeys, loadedAt: Date.now() }
 }
 
 export function ApiKeysPanel() {
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "disabled">("all");
-  const { data, error, loading, reload: load } = useDevtoolsResource(fetchApiKeys);
-  const keys = data?.keys ?? null;
-  // Captured when the list was fetched, so "expired" is judged at a fixed instant.
-  const loadedAt = data?.loadedAt ?? 0;
-  const [revoking, setRevoking] = useState<string | null>(null);
+    const [statusFilter, setStatusFilter] = useState<
+        'all' | 'active' | 'disabled'
+    >('all')
+    const {
+        data,
+        error,
+        loading,
+        reload: load,
+    } = useDevtoolsResource(fetchApiKeys)
+    const keys = data?.keys ?? null
+    // Captured when the list was fetched, so "expired" is judged at a fixed instant.
+    const loadedAt = data?.loadedAt ?? 0
+    const [revoking, setRevoking] = useState<string | null>(null)
 
-  const handleRevoke = async (keyId: string) => {
-    setRevoking(keyId);
-    try {
-      await authClient.apiKey.delete({ keyId });
-      load();
-    } finally {
-      setRevoking(null);
+    const handleRevoke = async (keyId: string) => {
+        setRevoking(keyId)
+        try {
+            await authClient.apiKey.delete({ keyId })
+            load()
+        } finally {
+            setRevoking(null)
+        }
     }
-  };
 
-  if (loading && keys === null) {
+    if (loading && keys === null) {
+        return (
+            <div className="space-y-2 p-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                ))}
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="p-4">
+                <Alert variant="destructive">
+                    <AlertTitle>Failed to load API keys</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            </div>
+        )
+    }
+
+    const all = keys ?? []
+    const visible = all.filter((k) =>
+        statusFilter === 'all'
+            ? true
+            : statusFilter === 'active'
+              ? k.enabled
+              : !k.enabled
+    )
+
     return (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTitle>Failed to load API keys</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  const all = keys ?? [];
-  const visible = all.filter((k) =>
-    statusFilter === "all" ? true : statusFilter === "active" ? k.enabled : !k.enabled,
-  );
-
-  return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm">
-          <span className="font-medium">{visible.length}</span>
-          <span className="text-muted-foreground"> of {all.length} keys</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => { setStatusFilter(v as typeof statusFilter); }}
-          >
-            <SelectTrigger className="h-8 w-[130px]" aria-label="Filter by status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="disabled">Disabled</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </Button>
-        </div>
-      </div>
-
-      {visible.length === 0 ? (
-        <div className="text-muted-foreground rounded-lg border p-6 text-center text-sm">
-          No API keys{statusFilter !== "all" ? " with this status" : ""}.
-        </div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Preview</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead>Last used</TableHead>
-                <TableHead>Used</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell className="font-medium">{key.name ?? "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">{key.start ?? "—"}…</TableCell>
-                  <TableCell>
-                    {key.enabled ? (
-                      <Badge variant="default">active</Badge>
-                    ) : (
-                      <Badge variant="secondary">disabled</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <ExpiryCell expiresAt={key.expiresAt} now={loadedAt} />
-                  </TableCell>
-                  <TableCell className="text-xs">{relativeTime(key.lastRequest)}</TableCell>
-                  <TableCell className="text-xs">
-                    {key.remaining === null
-                      ? `${String(key.requestCount)} (uncapped)`
-                      : `${String(key.requestCount)} / ${String(key.requestCount + key.remaining)}`}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={!key.enabled || revoking === key.id}
-                      onClick={() => void handleRevoke(key.id)}
+        <div className="flex h-full flex-col gap-3 p-4">
+            <div className="flex items-center justify-between gap-2">
+                <div className="text-sm">
+                    <span className="font-medium">{visible.length}</span>
+                    <span className="text-muted-foreground">
+                        {' '}
+                        of {all.length} keys
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Select
+                        value={statusFilter}
+                        onValueChange={(v) => {
+                            setStatusFilter(v as typeof statusFilter)
+                        }}
                     >
-                      {revoking === key.id ? "Revoking…" : "Revoke"}
+                        <SelectTrigger
+                            className="h-8 w-[130px]"
+                            aria-label="Filter by status"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="disabled">Disabled</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={load}
+                        disabled={loading}
+                    >
+                        {loading ? 'Refreshing…' : 'Refresh'}
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                </div>
+            </div>
+
+            {visible.length === 0 ? (
+                <div className="text-muted-foreground rounded-lg border p-6 text-center text-sm">
+                    No API keys
+                    {statusFilter !== 'all' ? ' with this status' : ''}.
+                </div>
+            ) : (
+                <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Preview</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Expires</TableHead>
+                                <TableHead>Last used</TableHead>
+                                <TableHead>Used</TableHead>
+                                <TableHead />
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {visible.map((key) => (
+                                <TableRow key={key.id}>
+                                    <TableCell className="font-medium">
+                                        {key.name ?? '—'}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                        {key.start ?? '—'}…
+                                    </TableCell>
+                                    <TableCell>
+                                        {key.enabled ? (
+                                            <Badge variant="default">
+                                                active
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="secondary">
+                                                disabled
+                                            </Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <ExpiryCell
+                                            expiresAt={key.expiresAt}
+                                            now={loadedAt}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {relativeTime(key.lastRequest)}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {key.remaining === null
+                                            ? `${String(key.requestCount)} (uncapped)`
+                                            : `${String(key.requestCount)} / ${String(key.requestCount + key.remaining)}`}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            disabled={
+                                                !key.enabled ||
+                                                revoking === key.id
+                                            }
+                                            onClick={() =>
+                                                void handleRevoke(key.id)
+                                            }
+                                        >
+                                            {revoking === key.id
+                                                ? 'Revoking…'
+                                                : 'Revoke'}
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    )
 }
 
-export default ApiKeysPanel;
+export default ApiKeysPanel

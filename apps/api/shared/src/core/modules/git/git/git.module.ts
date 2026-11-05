@@ -1,6 +1,10 @@
-import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
+import {
+    createModuleContext,
+    effectHostProvider,
+    serviceLifecycle,
+} from '@deployer/nest-effect'
 
-import { GitService, makeGitService } from './services/git.service';
+import { GitService, makeGitService } from './services/git.service'
 
 /**
  * CORE MODULE: Git Operations
@@ -17,13 +21,17 @@ import { GitService, makeGitService } from './services/git.service';
  * - Import this module when you need basic git operations
  */
 export class GitModule extends createModuleContext({
-  providers: [
-    effectHostProvider(),
-    {
-      provide: GitService,
-      useFactory: () => makeGitService({ workspaceDir: process.env.WORKSPACE_DIR ?? '/tmp/deployer-workspace' }),
-    },
-    serviceLifecycle(GitService),
-  ],
-  exports: [GitService],
+    providers: [
+        effectHostProvider(),
+        {
+            provide: GitService,
+            useFactory: () =>
+                makeGitService({
+                    workspaceDir:
+                        process.env.WORKSPACE_DIR ?? '/tmp/deployer-workspace',
+                }),
+        },
+        serviceLifecycle(GitService),
+    ],
+    exports: [GitService],
 }) {}

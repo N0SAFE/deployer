@@ -59,7 +59,8 @@ export function setMasterTokenEnabled(enabled: boolean): void {
 
     // Use SameSite=None with Secure in production (HTTPS), SameSite=Lax in development
     const isProduction = process.env.NODE_ENV === 'production'
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+    const isHttps =
+        typeof window !== 'undefined' && window.location.protocol === 'https:'
     const useSecure = isProduction || isHttps
     const cookieAttributes = useSecure
         ? `path=/; SameSite=None; Secure`
@@ -107,7 +108,7 @@ export type MasterTokenSubscriber = (value: boolean) => void
 export const MasterTokenManager = {
     state: typeof window === 'undefined' ? false : getMasterTokenEnabled(),
     subscribers: new Set<MasterTokenSubscriber>(),
-    
+
     onStateChange(fn: MasterTokenSubscriber) {
         MasterTokenManager.subscribers.add(fn)
         return () => MasterTokenManager.subscribers.delete(fn)
@@ -127,5 +128,5 @@ export const MasterTokenManager = {
                 // ignore
             }
         }
-    }
+    },
 }

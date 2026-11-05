@@ -18,15 +18,13 @@ export async function register(): Promise<void> {
     // Node.js server runtime. Gate on NEXT_RUNTIME so the dynamic import is
     // tree-shaken out of the Edge graph entirely (otherwise the build emits
     // "Node.js module not supported in Edge Runtime" errors for it).
-    if (process.env.NEXT_RUNTIME !== "nodejs") {
-        return;
+    if (process.env.NEXT_RUNTIME !== 'nodejs') {
+        return
     }
-    const { registerAppInstanceTokenProvider } = await import(
-        "@/lib/orpc/plugins/app-instance-plugin"
-    );
-    const { getAppInstanceToken } = await import(
-        "@/lib/platform/app-instance.server"
-    );
+    const { registerAppInstanceTokenProvider } =
+        await import('@/lib/orpc/plugins/app-instance-plugin')
+    const { getAppInstanceToken } =
+        await import('@/lib/platform/app-instance.server')
 
-    registerAppInstanceTokenProvider(getAppInstanceToken);
+    registerAppInstanceTokenProvider(getAppInstanceToken)
 }

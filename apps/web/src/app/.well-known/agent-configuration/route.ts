@@ -40,7 +40,7 @@ export async function GET() {
             // problem rather than a missing capability.
             return NextResponse.json(
                 { error: 'Agent Auth is not configured on this deployment' },
-                { status: response.status === 404 ? 404 : 502 },
+                { status: response.status === 404 ? 404 : 502 }
             )
         }
 
@@ -52,7 +52,7 @@ export async function GET() {
                 error: 'Could not reach the API to read the agent configuration',
                 detail: error instanceof Error ? error.message : undefined,
             },
-            { status: 502 },
+            { status: 502 }
         )
     }
 }

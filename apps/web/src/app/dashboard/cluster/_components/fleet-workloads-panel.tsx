@@ -5,48 +5,60 @@ import { useMemo, useState } from 'react'
 
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@deployer/ui/components/shadcn/card'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@deployer/ui/components/shadcn/select'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@deployer/ui/components/shadcn/table'
 
-import { PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
+import {
+    PageErrorState,
+    StatStrip,
+    StatStripItem,
+    StatusBadge,
+} from '@/components/dashboard'
 import { useClusterServices, useClusterTasks } from '@/domains/cluster/hooks'
 
 import { CopyId } from '../../_components/copy-id-button'
 
 interface ServiceRow {
-  id: string
-  name: string
-  mode: 'global' | 'replicated'
-  replicas: number | null
-  image: string
-  desiredTasks: number
-  runningTasks: number
-  labels?: Record<string, string>
+    id: string
+    name: string
+    mode: 'global' | 'replicated'
+    replicas: number | null
+    image: string
+    desiredTasks: number
+    runningTasks: number
+    labels?: Record<string, string>
 }
 
 interface TaskRow {
-  id: string
-  serviceId: string
-  serviceName: string
-  nodeId: string | null
-  slot: number | null
-  state: string
-  desiredState: string
-  error?: string | null
-  image?: string
+    id: string
+    serviceId: string
+    serviceName: string
+    nodeId: string | null
+    slot: number | null
+    state: string
+    desiredState: string
+    error?: string | null
+    image?: string
 }
 
 /**
@@ -61,218 +73,334 @@ interface TaskRow {
  * fleet level; per-node resources live on the node workspace.
  */
 export function FleetWorkloadsPanel() {
-  const [serviceFilter, setServiceFilter] = useState<string>('all')
+    const [serviceFilter, setServiceFilter] = useState<string>('all')
 
-  const { data: servicesData, isLoading, error, refetch } = useClusterServices()
-  const { data: tasksData, isLoading: tasksLoading } = useClusterTasks(
-    serviceFilter === 'all' ? {} : { serviceId: serviceFilter },
-  )
-
-  const services = useMemo<ServiceRow[]>(() => (servicesData ?? []).map((s) => ({
-    id: s.id,
-    name: s.name,
-    mode: s.mode,
-    replicas: s.replicas,
-    image: s.image,
-    desiredTasks: s.desiredTasks,
-    runningTasks: s.runningTasks,
-    labels: s.labels,
-  })), [servicesData])
-
-  const tasks = useMemo<TaskRow[]>(() => (tasksData ?? []).map((t) => ({
-    id: t.id,
-    serviceId: t.serviceId,
-    serviceName: t.serviceName,
-    nodeId: t.nodeId,
-    slot: t.slot,
-    state: t.state || t.desiredState,
-    desiredState: t.desiredState,
-    error: t.error ?? null,
-    image: t.image,
-  })), [tasksData])
-
-  if (isLoading) return <Skeleton aria-busy="true" className="h-72 w-full" />
-
-  if (error) {
-    return (
-      <PageErrorState
-        title="Unable to load swarm workloads"
-        message="Swarm services and tasks could not be read. Check that the Docker engine is in Swarm mode and reachable."
-        onRetry={() => void refetch()}
-      />
+    const {
+        data: servicesData,
+        isLoading,
+        error,
+        refetch,
+    } = useClusterServices()
+    const { data: tasksData, isLoading: tasksLoading } = useClusterTasks(
+        serviceFilter === 'all' ? {} : { serviceId: serviceFilter }
     )
-  }
 
-  const runningTasks = tasks.filter((t) => t.state === 'running').length
-  const globalCount = services.filter((s) => s.mode === 'global').length
+    const services = useMemo<ServiceRow[]>(
+        () =>
+            (servicesData ?? []).map((s) => ({
+                id: s.id,
+                name: s.name,
+                mode: s.mode,
+                replicas: s.replicas,
+                image: s.image,
+                desiredTasks: s.desiredTasks,
+                runningTasks: s.runningTasks,
+                labels: s.labels,
+            })),
+        [servicesData]
+    )
 
-  return (
-    <div className="space-y-5">
-      {/* Fleet health strip */}
-      <StatStrip>
-        <StatStripItem icon={Boxes} label="Services" value={services.length} />
-        <StatStripItem icon={Globe} label="Global" value={globalCount} hint={globalCount > 0 ? 'on every node' : undefined} />
-        <StatStripItem icon={ListTree} label="Tasks" value={tasks.length} />
-        <StatStripItem
-          icon={Layers}
-          label="Running"
-          value={`${String(runningTasks)} / ${String(tasks.length)}`}
-          tone={runningTasks === tasks.length ? 'live' : tasks.length === 0 ? undefined : 'pending'}
-        />
-      </StatStrip>
+    const tasks = useMemo<TaskRow[]>(
+        () =>
+            (tasksData ?? []).map((t) => ({
+                id: t.id,
+                serviceId: t.serviceId,
+                serviceName: t.serviceName,
+                nodeId: t.nodeId,
+                slot: t.slot,
+                state: t.state || t.desiredState,
+                desiredState: t.desiredState,
+                error: t.error ?? null,
+                image: t.image,
+            })),
+        [tasksData]
+    )
 
-      {/* Services */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Swarm services</CardTitle>
-          <CardDescription>
-            Services are mesh-wide objects. Global services run on every node; replicated services
-            have a target replica count. Tasks are per-node — drill into a node to see its share.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table stickyHeader containerClassName="max-h-96">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Service</TableHead>
-                <TableHead>Mode</TableHead>
-                <TableHead className="text-right" title="Tasks the service should have">Desired</TableHead>
-                <TableHead title="Tasks currently running">Running</TableHead>
-                <TableHead>Image</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {services.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    No swarm services yet. A service shows up here once a deployment schedules it (or a platform component is supervised).
-                  </TableCell>
-                </TableRow>
-              ) : (
-                services.map((service) => (
-                  <TableRow key={service.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-medium">{service.name}</span>
-                        {service.labels?.['deployer.managed'] === 'true' && (
-                          <Badge variant="secondary" className="font-mono text-[10px] uppercase">
-                            managed
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={service.mode === 'global' ? 'default' : 'secondary'}>
-                        {service.mode}
-                        {service.mode === 'replicated' && service.replicas != null
-                          ? ` × ${String(service.replicas)}`
-                          : ''}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{service.desiredTasks}</TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {service.runningTasks > 0 && service.runningTasks >= service.desiredTasks ? (
-                          <StatusBadge status="healthy" />
-                        ) : service.runningTasks > 0 ? (
-                          <StatusBadge status="degraded" />
-                        ) : (
-                          <StatusBadge status="inactive" />
-                        )}
-                        <span className="font-mono">{service.runningTasks}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-80 truncate font-mono text-xs text-muted-foreground">
-                      {service.image || '—'}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+    if (isLoading) return <Skeleton aria-busy="true" className="h-72 w-full" />
 
-      {/* Tasks */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
-          <div>
-            <CardTitle>Swarm tasks</CardTitle>
-            <CardDescription>
-              Where each task of each service is running right now, with the error that stopped it if it failed.
-            </CardDescription>
-          </div>
-          <Select value={serviceFilter} onValueChange={setServiceFilter} aria-label="Filter by service">
-            <SelectTrigger className="w-full sm:w-56" aria-label="Filter tasks by service">
-              <SelectValue placeholder="All services" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All services</SelectItem>
-              {services.map((service) => (
-                <SelectItem key={service.id} value={service.id}>
-                  {service.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent>
-          {tasksLoading ? (
-            <Skeleton aria-busy="true" className="h-40 w-full" />
-          ) : (
-            <Table stickyHeader containerClassName="max-h-96">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Node</TableHead>
-                  <TableHead className="text-center">Slot</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Desired</TableHead>
-                  <TableHead>Error</TableHead>
-                  <TableHead>Image</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tasks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
-                      {serviceFilter === 'all' ? 'No tasks are scheduled yet.' : 'This service has no tasks right now.'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  tasks.map((task) => (
-                    <TableRow key={task.id}>
-                      <TableCell><CopyId value={task.id} label="task id" /></TableCell>
-                      <TableCell className="font-medium">{task.serviceName || task.serviceId.slice(0, 8)}</TableCell>
-                      <TableCell>{task.nodeId ? <CopyId value={task.nodeId} label="node id" /> : <span className="text-muted-foreground">—</span>}</TableCell>
-                      <TableCell className="text-center font-mono text-xs">{task.slot ?? '—'}</TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={
-                            task.state === 'running'
-                              ? 'healthy'
-                              : task.state === 'failed' || task.state === 'rejected'
-                                ? 'unhealthy'
-                                : task.state === 'shutdown'
-                                  ? 'inactive'
-                                  : 'degraded'
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{task.desiredState}</TableCell>
-                      <TableCell className="max-w-64 truncate text-xs text-destructive" title={task.error ?? undefined}>{task.error ?? ''}</TableCell>
-                      <TableCell className="max-w-70 truncate font-mono text-xs text-muted-foreground">
-                        {task.image === '' ? '—' : task.image}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
+    if (error) {
+        return (
+            <PageErrorState
+                title="Unable to load swarm workloads"
+                message="Swarm services and tasks could not be read. Check that the Docker engine is in Swarm mode and reachable."
+                onRetry={() => void refetch()}
+            />
+        )
+    }
+
+    const runningTasks = tasks.filter((t) => t.state === 'running').length
+    const globalCount = services.filter((s) => s.mode === 'global').length
+
+    return (
+        <div className="space-y-5">
+            {/* Fleet health strip */}
+            <StatStrip>
+                <StatStripItem
+                    icon={Boxes}
+                    label="Services"
+                    value={services.length}
+                />
+                <StatStripItem
+                    icon={Globe}
+                    label="Global"
+                    value={globalCount}
+                    hint={globalCount > 0 ? 'on every node' : undefined}
+                />
+                <StatStripItem
+                    icon={ListTree}
+                    label="Tasks"
+                    value={tasks.length}
+                />
+                <StatStripItem
+                    icon={Layers}
+                    label="Running"
+                    value={`${String(runningTasks)} / ${String(tasks.length)}`}
+                    tone={
+                        runningTasks === tasks.length
+                            ? 'live'
+                            : tasks.length === 0
+                              ? undefined
+                              : 'pending'
+                    }
+                />
+            </StatStrip>
+
+            {/* Services */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Swarm services</CardTitle>
+                    <CardDescription>
+                        Services are mesh-wide objects. Global services run on
+                        every node; replicated services have a target replica
+                        count. Tasks are per-node — drill into a node to see its
+                        share.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table stickyHeader containerClassName="max-h-96">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Service</TableHead>
+                                <TableHead>Mode</TableHead>
+                                <TableHead
+                                    className="text-right"
+                                    title="Tasks the service should have"
+                                >
+                                    Desired
+                                </TableHead>
+                                <TableHead title="Tasks currently running">
+                                    Running
+                                </TableHead>
+                                <TableHead>Image</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {services.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={5}
+                                        className="text-muted-foreground py-10 text-center text-sm"
+                                    >
+                                        No swarm services yet. A service shows
+                                        up here once a deployment schedules it
+                                        (or a platform component is supervised).
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                services.map((service) => (
+                                    <TableRow key={service.id}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-sm font-medium">
+                                                    {service.name}
+                                                </span>
+                                                {service.labels?.[
+                                                    'deployer.managed'
+                                                ] === 'true' && (
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className="font-mono text-[10px] uppercase"
+                                                    >
+                                                        managed
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                variant={
+                                                    service.mode === 'global'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                }
+                                            >
+                                                {service.mode}
+                                                {service.mode ===
+                                                    'replicated' &&
+                                                service.replicas != null
+                                                    ? ` × ${String(service.replicas)}`
+                                                    : ''}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono tabular-nums">
+                                            {service.desiredTasks}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                {service.runningTasks > 0 &&
+                                                service.runningTasks >=
+                                                    service.desiredTasks ? (
+                                                    <StatusBadge status="healthy" />
+                                                ) : service.runningTasks > 0 ? (
+                                                    <StatusBadge status="degraded" />
+                                                ) : (
+                                                    <StatusBadge status="inactive" />
+                                                )}
+                                                <span className="font-mono">
+                                                    {service.runningTasks}
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground max-w-80 truncate font-mono text-xs">
+                                            {service.image || '—'}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            {/* Tasks */}
+            <Card>
+                <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+                    <div>
+                        <CardTitle>Swarm tasks</CardTitle>
+                        <CardDescription>
+                            Where each task of each service is running right
+                            now, with the error that stopped it if it failed.
+                        </CardDescription>
+                    </div>
+                    <Select
+                        value={serviceFilter}
+                        onValueChange={setServiceFilter}
+                        aria-label="Filter by service"
+                    >
+                        <SelectTrigger
+                            className="w-full sm:w-56"
+                            aria-label="Filter tasks by service"
+                        >
+                            <SelectValue placeholder="All services" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All services</SelectItem>
+                            {services.map((service) => (
+                                <SelectItem key={service.id} value={service.id}>
+                                    {service.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </CardHeader>
+                <CardContent>
+                    {tasksLoading ? (
+                        <Skeleton aria-busy="true" className="h-40 w-full" />
+                    ) : (
+                        <Table stickyHeader containerClassName="max-h-96">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Task</TableHead>
+                                    <TableHead>Service</TableHead>
+                                    <TableHead>Node</TableHead>
+                                    <TableHead className="text-center">
+                                        Slot
+                                    </TableHead>
+                                    <TableHead>State</TableHead>
+                                    <TableHead>Desired</TableHead>
+                                    <TableHead>Error</TableHead>
+                                    <TableHead>Image</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {tasks.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={8}
+                                            className="text-muted-foreground py-10 text-center text-sm"
+                                        >
+                                            {serviceFilter === 'all'
+                                                ? 'No tasks are scheduled yet.'
+                                                : 'This service has no tasks right now.'}
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    tasks.map((task) => (
+                                        <TableRow key={task.id}>
+                                            <TableCell>
+                                                <CopyId
+                                                    value={task.id}
+                                                    label="task id"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-medium">
+                                                {task.serviceName ||
+                                                    task.serviceId.slice(0, 8)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {task.nodeId ? (
+                                                    <CopyId
+                                                        value={task.nodeId}
+                                                        label="node id"
+                                                    />
+                                                ) : (
+                                                    <span className="text-muted-foreground">
+                                                        —
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-center font-mono text-xs">
+                                                {task.slot ?? '—'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <StatusBadge
+                                                    status={
+                                                        task.state === 'running'
+                                                            ? 'healthy'
+                                                            : task.state ===
+                                                                    'failed' ||
+                                                                task.state ===
+                                                                    'rejected'
+                                                              ? 'unhealthy'
+                                                              : task.state ===
+                                                                  'shutdown'
+                                                                ? 'inactive'
+                                                                : 'degraded'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground text-xs">
+                                                {task.desiredState}
+                                            </TableCell>
+                                            <TableCell
+                                                className="text-destructive max-w-64 truncate text-xs"
+                                                title={task.error ?? undefined}
+                                            >
+                                                {task.error ?? ''}
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground max-w-70 truncate font-mono text-xs">
+                                                {task.image === ''
+                                                    ? '—'
+                                                    : task.image}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    )
 }

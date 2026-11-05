@@ -7,12 +7,14 @@ import { dockerEndpoints } from '@/domains/docker/endpoints'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
 import { shortId } from '../../_utils/format'
-import { RUNTIME_EVENT_LOG_LIMIT, type LogLineProjection } from '../_models/logs.types'
-
+import {
+    RUNTIME_EVENT_LOG_LIMIT,
+    type LogLineProjection,
+} from '../_models/logs.types'
 
 const debugRuntimeLogs = createContextFilterDebugLogger(
-  'DockerRuntimeEventLogsHook',
-  'docker-web-logs',
+    'DockerRuntimeEventLogsHook',
+    'docker-web-logs'
 )
 
 /**
@@ -22,51 +24,52 @@ const debugRuntimeLogs = createContextFilterDebugLogger(
  * both to a `LogLineProjection` so the logs page UI keeps working.
  */
 function chunkToLogLine(chunk: DockerEntityStreamChunk): LogLineProjection {
-  // Removal events are id-only — surface the action but no entity fields.
-  if (
-    'id' in chunk
-    && typeof (chunk as { id?: unknown }).id === 'string'
-    && ['destroy', 'die', 'delete'].includes((chunk as { action?: string }).action ?? '')
-  ) {
-    const id = (chunk as { id: string }).id
-    return {
-      id:
-        (chunk as { eventId?: string | null }).eventId
-        ?? `${chunk.occurredAt}:${chunk.kind}:${chunk.action}:${id}`,
-      containerId: chunk.kind === 'container' ? id : null,
-      containerName: chunk.kind === 'container' ? id : id,
-      source: 'runtime',
-      status: chunk.action,
-      message: `${chunk.kind}.${chunk.action}`,
-      timestamp: chunk.occurredAt,
+    // Removal events are id-only — surface the action but no entity fields.
+    if (
+        'id' in chunk &&
+        typeof (chunk as { id?: unknown }).id === 'string' &&
+        ['destroy', 'die', 'delete'].includes(
+            (chunk as { action?: string }).action ?? ''
+        )
+    ) {
+        const id = (chunk as { id: string }).id
+        return {
+            id:
+                (chunk as { eventId?: string | null }).eventId ??
+                `${chunk.occurredAt}:${chunk.kind}:${chunk.action}:${id}`,
+            containerId: chunk.kind === 'container' ? id : null,
+            containerName: chunk.kind === 'container' ? id : id,
+            source: 'runtime',
+            status: chunk.action,
+            message: `${chunk.kind}.${chunk.action}`,
+            timestamp: chunk.occurredAt,
+        }
     }
-  }
 
-  // Full entity chunk: project the per-kind id + name.
-  // Use `in` + `typeof` narrowing instead of a `Record<string, unknown>`
-  // cast — the truth comes from the runtime check, not a type lie.
-  const id =
-    'id' in chunk && typeof chunk.id === 'string' ? chunk.id : null
-  const name =
-    'name' in chunk && typeof chunk.name === 'string' ? chunk.name : id
-  return {
-    id:
-      chunk.eventId
-      ?? `${chunk.occurredAt}:${chunk.kind}:${chunk.action}:${id ?? ''}`,
-    containerId: chunk.kind === 'container' ? id : null,
-    containerName:
-      chunk.kind === 'container'
-        ? typeof name === 'string'
-          ? name
-          : id ?? shortId(String(id))
-        : typeof name === 'string'
-          ? name
-          : id ?? shortId(String(id)),
-    source: 'runtime',
-    status: chunk.action,
-    message: `${chunk.kind}.${chunk.action}`,
-    timestamp: chunk.occurredAt,
-  }
+    // Full entity chunk: project the per-kind id + name.
+    // Use `in` + `typeof` narrowing instead of a `Record<string, unknown>`
+    // cast — the truth comes from the runtime check, not a type lie.
+    const id = 'id' in chunk && typeof chunk.id === 'string' ? chunk.id : null
+    const name =
+        'name' in chunk && typeof chunk.name === 'string' ? chunk.name : id
+    return {
+        id:
+            chunk.eventId ??
+            `${chunk.occurredAt}:${chunk.kind}:${chunk.action}:${id ?? ''}`,
+        containerId: chunk.kind === 'container' ? id : null,
+        containerName:
+            chunk.kind === 'container'
+                ? typeof name === 'string'
+                    ? name
+                    : (id ?? shortId(String(id)))
+                : typeof name === 'string'
+                  ? name
+                  : (id ?? shortId(String(id))),
+        source: 'runtime',
+        status: chunk.action,
+        message: `${chunk.kind}.${chunk.action}`,
+        timestamp: chunk.occurredAt,
+    }
 }
 
 /**
@@ -77,59 +80,67 @@ function chunkToLogLine(chunk: DockerEntityStreamChunk): LogLineProjection {
  * a follow-up inspect call.
  */
 export function useRuntimeEventLogs() {
-  const [runtimeEventLogs, setRuntimeEventLogs] = useState<LogLineProjection[]>([])
+    const [runtimeEventLogs, setRuntimeEventLogs] = useState<
+        LogLineProjection[]
+    >([])
 
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const bufferRef = useRef<LogLineProjection[]>([])
-  const flush = useCallback(() => {
-    const lines = bufferRef.current
-    bufferRef.current = []
-    if (lines.length === 0) {
-      return
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const bufferRef = useRef<LogLineProjection[]>([])
+    const flush = useCallback(() => {
+        const lines = bufferRef.current
+        bufferRef.current = []
+        if (lines.length === 0) {
+            return
+        }
+        setRuntimeEventLogs((previous) => {
+            const ids = new Set(lines.map((line) => line.id))
+            const deduped = [
+                ...lines,
+                ...previous.filter((line) => !ids.has(line.id)),
+            ]
+            return deduped.slice(0, RUNTIME_EVENT_LOG_LIMIT)
+        })
+    }, [])
+
+    const streamQuery = useQuery(
+        dockerEndpoints.entity.stream.experimental_liveObservableOptions({
+            input: { query: undefined },
+            enabled: true,
+        })
+    )
+
+    useEffect(() => {
+        if (!streamQuery.data) {
+            return
+        }
+        const line = chunkToLogLine(streamQuery.data)
+        debugRuntimeLogs('runtimeEventReceived', {
+            id: line.id,
+            source: line.source,
+            status: line.status,
+            containerId: line.containerId,
+            containerName: line.containerName,
+        })
+        bufferRef.current.push(line)
+        // Throttle: not reset by later events, so a steady stream still flushes.
+        debounceTimerRef.current ??= setTimeout(() => {
+            debounceTimerRef.current = null
+            flush()
+        }, 100)
+    }, [streamQuery.data, flush])
+
+    useEffect(
+        () => () => {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current)
+                debounceTimerRef.current = null
+            }
+        },
+        []
+    )
+
+    return {
+        runtimeEventLogs,
+        setRuntimeEventLogs,
     }
-    setRuntimeEventLogs((previous) => {
-      const ids = new Set(lines.map((line) => line.id))
-      const deduped = [...lines, ...previous.filter((line) => !ids.has(line.id))]
-      return deduped.slice(0, RUNTIME_EVENT_LOG_LIMIT)
-    })
-  }, [])
-
-  const streamQuery = useQuery(
-    dockerEndpoints.entity.stream.experimental_liveObservableOptions({
-      input: { query: undefined },
-      enabled: true,
-    }),
-  )
-
-  useEffect(() => {
-    if (!streamQuery.data) {
-      return
-    }
-    const line = chunkToLogLine(streamQuery.data)
-    debugRuntimeLogs('runtimeEventReceived', {
-      id: line.id,
-      source: line.source,
-      status: line.status,
-      containerId: line.containerId,
-      containerName: line.containerName,
-    })
-    bufferRef.current.push(line)
-    // Throttle: not reset by later events, so a steady stream still flushes.
-    debounceTimerRef.current ??= setTimeout(() => {
-      debounceTimerRef.current = null
-      flush()
-    }, 100)
-  }, [streamQuery.data, flush])
-
-  useEffect(() => () => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-  }, [])
-
-  return {
-    runtimeEventLogs,
-    setRuntimeEventLogs,
-  }
 }

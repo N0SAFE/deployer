@@ -1,135 +1,148 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import { runSyncUnwrapped } from "@deployer/effect-core";
-import { makeConfigurationDefinitionService } from "@deployer/shared/core/modules/configuration/services/configuration-definition.service";
-import { makeConfigurationResolverService } from "@deployer/shared/core/modules/configuration/services/configuration-resolver.service";
-import { makeRuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
+import { runSyncUnwrapped } from '@deployer/effect-core'
+import { makeConfigurationDefinitionService } from '@deployer/shared/core/modules/configuration/services/configuration-definition.service'
+import { makeConfigurationResolverService } from '@deployer/shared/core/modules/configuration/services/configuration-resolver.service'
+import { makeRuntimeConfigurationAccessorService } from '@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service'
 
-import { runtimeConfigurationStoragePolicyResolver } from "./runtime-configuration-storage-policy-resolver.service";
-import { serviceCustomDataStoragePolicyResolver } from "./service-custom-data-storage-policy-resolver.service";
-import { serviceTopLevelStoragePolicyResolver } from "./service-top-level-storage-policy-resolver.service";
-import { makeStoragePolicyResolverRegistry, type StoragePolicyResolverRegistryShape } from "./storage-policy-resolver-registry.service";
+import { runtimeConfigurationStoragePolicyResolver } from './runtime-configuration-storage-policy-resolver.service'
+import { serviceCustomDataStoragePolicyResolver } from './service-custom-data-storage-policy-resolver.service'
+import { serviceTopLevelStoragePolicyResolver } from './service-top-level-storage-policy-resolver.service'
+import {
+    makeStoragePolicyResolverRegistry,
+    type StoragePolicyResolverRegistryShape,
+} from './storage-policy-resolver-registry.service'
 
-import type { DeploymentStoragePolicyResolver } from "../base/storage-policy-resolver.interface";
-
+import type { DeploymentStoragePolicyResolver } from '../base/storage-policy-resolver.interface'
 
 /** The registry answers Effects; the cases below read better calling it synchronously. */
 const synchronous = (registry: StoragePolicyResolverRegistryShape) => ({
-    resolveServiceStorageConfig: (...args: Parameters<StoragePolicyResolverRegistryShape["resolveServiceStorageConfig"]>) =>
-        runSyncUnwrapped(registry.resolveServiceStorageConfig(...args)),
-});
+    resolveServiceStorageConfig: (
+        ...args: Parameters<
+            StoragePolicyResolverRegistryShape['resolveServiceStorageConfig']
+        >
+    ) => runSyncUnwrapped(registry.resolveServiceStorageConfig(...args)),
+})
 
-describe("StoragePolicyResolverRegistry", () => {
+describe('StoragePolicyResolverRegistry', () => {
     const accessor = makeRuntimeConfigurationAccessorService(
-        makeConfigurationResolverService(makeConfigurationDefinitionService()),
-    );
+        makeConfigurationResolverService(makeConfigurationDefinitionService())
+    )
 
     const buildInput = (metadata: Record<string, unknown> | null) => ({
-        serviceId: "service-1",
+        serviceId: 'service-1',
         serviceMetadata: metadata,
         source: {
-            sourceType: "upload" as const,
-            uploadId: "upload-1",
+            sourceType: 'upload' as const,
+            uploadId: 'upload-1',
         },
-        runtimeConfiguration: runSyncUnwrapped(accessor.resolveForDeployment({
-            serviceId: "service-1",
-            projectId: "project-1",
-            environment: "production",
-            sourceType: "upload",
-            serviceRecord: {
-                providerId: "upload",
-                builderId: "dockerfile",
-                customDomains: null,
-                environmentVariables: null,
-                resourceLimits: null,
-                deploymentStateMachine: null,
-            },
-        })),
-    });
+        runtimeConfiguration: runSyncUnwrapped(
+            accessor.resolveForDeployment({
+                serviceId: 'service-1',
+                projectId: 'project-1',
+                environment: 'production',
+                sourceType: 'upload',
+                serviceRecord: {
+                    providerId: 'upload',
+                    builderId: 'dockerfile',
+                    customDomains: null,
+                    environmentVariables: null,
+                    resourceLimits: null,
+                    deploymentStateMachine: null,
+                },
+            })
+        ),
+    })
 
-    it("should resolve policy from the highest priority resolver", () => {
+    it('should resolve policy from the highest priority resolver', () => {
         const highestPriorityResolver: DeploymentStoragePolicyResolver = {
-            name: "highest",
+            name: 'highest',
             priority: 999,
             resolve: () => ({
-                type: "s3",
+                type: 's3',
                 autoRedeployOnUpdate: true,
                 s3: {
-                    bucket: "bucket-high",
+                    bucket: 'bucket-high',
                 },
             }),
-        };
+        }
         const fallbackResolver: DeploymentStoragePolicyResolver = {
-            name: "fallback",
+            name: 'fallback',
             priority: 10,
             resolve: () => ({
-                type: "local",
+                type: 'local',
             }),
-        };
+        }
 
-        const registry = synchronous(makeStoragePolicyResolverRegistry([
-            fallbackResolver,
-            highestPriorityResolver,
-        ]));
+        const registry = synchronous(
+            makeStoragePolicyResolverRegistry([
+                fallbackResolver,
+                highestPriorityResolver,
+            ])
+        )
 
-        const policy = registry.resolveServiceStorageConfig(buildInput({}));
+        const policy = registry.resolveServiceStorageConfig(buildInput({}))
         expect(policy).toMatchObject({
-            type: "s3",
+            type: 's3',
             autoRedeployOnUpdate: true,
             s3: {
-                bucket: "bucket-high",
+                bucket: 'bucket-high',
             },
-        });
-    });
+        })
+    })
 
-    it("should resolve policy from metadata.customData.storage before top-level metadata.storage", () => {
-        const registry = synchronous(makeStoragePolicyResolverRegistry([
-            runtimeConfigurationStoragePolicyResolver,
-            serviceTopLevelStoragePolicyResolver,
-            serviceCustomDataStoragePolicyResolver,
-        ]));
+    it('should resolve policy from metadata.customData.storage before top-level metadata.storage', () => {
+        const registry = synchronous(
+            makeStoragePolicyResolverRegistry([
+                runtimeConfigurationStoragePolicyResolver,
+                serviceTopLevelStoragePolicyResolver,
+                serviceCustomDataStoragePolicyResolver,
+            ])
+        )
 
         const policy = registry.resolveServiceStorageConfig(
             buildInput({
                 storage: {
-                    type: "local",
+                    type: 'local',
                     autoRedeployOnUpdate: false,
                 },
                 customData: {
                     storage: {
-                        type: "local",
+                        type: 'local',
                         autoRedeployOnUpdate: true,
-                        mountPath: "/workspace/custom-data",
+                        mountPath: '/workspace/custom-data',
                     },
                 },
-            }),
-        );
+            })
+        )
 
         expect(policy).toMatchObject({
-            type: "local",
+            type: 'local',
             autoRedeployOnUpdate: true,
-            mountPath: "/workspace/custom-data",
-        });
-    });
+            mountPath: '/workspace/custom-data',
+        })
+    })
 
-    it("should prioritize first-class runtime configuration storage over metadata conventions", () => {
-        const registry = synchronous(makeStoragePolicyResolverRegistry([
-            runtimeConfigurationStoragePolicyResolver,
-            serviceTopLevelStoragePolicyResolver,
-            serviceCustomDataStoragePolicyResolver,
-        ]));
+    it('should prioritize first-class runtime configuration storage over metadata conventions', () => {
+        const registry = synchronous(
+            makeStoragePolicyResolverRegistry([
+                runtimeConfigurationStoragePolicyResolver,
+                serviceTopLevelStoragePolicyResolver,
+                serviceCustomDataStoragePolicyResolver,
+            ])
+        )
 
         const policy = registry.resolveServiceStorageConfig(
             (() => {
                 const input = buildInput({
                     customData: {
                         storage: {
-                            type: "local",
+                            type: 'local',
                             autoRedeployOnUpdate: false,
-                            mountPath: "/workspace/metadata",
+                            mountPath: '/workspace/metadata',
                         },
                     },
-                });
+                })
 
                 return {
                     ...input,
@@ -138,20 +151,20 @@ describe("StoragePolicyResolverRegistry", () => {
                         service: {
                             ...input.runtimeConfiguration.service,
                             storage: {
-                                type: "local",
+                                type: 'local',
                                 autoRedeployOnUpdate: true,
-                                mountPath: "/workspace/runtime-config",
+                                mountPath: '/workspace/runtime-config',
                             },
                         },
                     },
-                };
-            })(),
-        );
+                }
+            })()
+        )
 
         expect(policy).toMatchObject({
-            type: "local",
+            type: 'local',
             autoRedeployOnUpdate: true,
-            mountPath: "/workspace/runtime-config",
-        });
-    });
-});
+            mountPath: '/workspace/runtime-config',
+        })
+    })
+})

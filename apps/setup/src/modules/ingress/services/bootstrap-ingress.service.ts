@@ -1,15 +1,20 @@
-import { readFileSync } from "node:fs";
-import { request as httpRequest } from "node:http";
-import { Socket } from "node:net";
+import { readFileSync } from 'node:fs'
+import { request as httpRequest } from 'node:http'
+import { Socket } from 'node:net'
 
-import { Logger } from "@nestjs/common";
-import { Context, Effect } from "effect";
+import { Logger } from '@nestjs/common'
+import { Context, Effect } from 'effect'
 
-import { DEFAULT_DOCKER_SOCKET_PATH, DockerEngine, resolveDockerClient, type DockerEngineShape } from "@deployer/docker";
-import { DockerNotFound, platformNetworkName } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import {
+    DEFAULT_DOCKER_SOCKET_PATH,
+    DockerEngine,
+    resolveDockerClient,
+    type DockerEngineShape,
+} from '@deployer/docker'
+import { DockerNotFound, platformNetworkName } from '@deployer/docker'
+import { runPromiseUnwrapped } from '@deployer/effect-core'
 
-import { EnvService } from "@/config/env/env.module";
+import { EnvService } from '@/config/env/env.module'
 
 /**
  * The BOOTSTRAP ingress — Traefik as a plain container, supervised by setup.
@@ -58,869 +63,1005 @@ import { EnvService } from "@/config/env/env.module";
  * is only the PROCESS.
  */
 export class BootstrapIngressServiceImpl {
-  /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
-  readonly onStart = (): Effect.Effect<void, unknown> => Effect.tryPromise({ try: () => this.bootstrap(), catch: (error) => error });
+    /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
+    readonly onStart = (): Effect.Effect<void, unknown> =>
+        Effect.tryPromise({
+            try: () => this.bootstrap(),
+            catch: (error) => error,
+        })
 
-  private readonly logger = new Logger("BootstrapIngressService");
+    private readonly logger = new Logger('BootstrapIngressService')
 
-  /**
-   * Container name Traefik must have.
-   *
-   * `deployer-traefik` — the SAME name the API's supervisor uses
-   * (`platformTraefikContainerName`). That is what makes the promotion a
-   * restart rather than a rename, and it is why the constant is repeated here
-   * instead of imported: importing it would drag the API's platform-ingress
-   * policy into setup, and the value is part of the contract between the two
-   * incarnations rather than an implementation detail of either.
-   */
-  static readonly CONTAINER_NAME = "deployer-traefik";
+    /**
+     * Container name Traefik must have.
+     *
+     * `deployer-traefik` — the SAME name the API's supervisor uses
+     * (`platformTraefikContainerName`). That is what makes the promotion a
+     * restart rather than a rename, and it is why the constant is repeated here
+     * instead of imported: importing it would drag the API's platform-ingress
+     * policy into setup, and the value is part of the contract between the two
+     * incarnations rather than an implementation detail of either.
+     */
+    static readonly CONTAINER_NAME = 'deployer-traefik'
 
-  /** The only host address the onboarding ingress binds (see `create`). */
-  static readonly BIND_ADDRESS = "127.0.0.1";
+    /** The only host address the onboarding ingress binds (see `create`). */
+    static readonly BIND_ADDRESS = '127.0.0.1'
 
-  /**
-   * The PROMOTED ingress, addressed on the platform overlay.
-   *
-   * The swarm service keeps the bootstrap container's name, so this is the same
-   * `deployer-traefik` string — but it is reached as a NETWORK NAME rather than
-   * a container name, which is what makes it a valid probe target from setup
-   * once setup has joined the overlay. Port 80 is Traefik's `web` entrypoint
-   * INSIDE the container, independent of the host port it may publish.
-   */
-  private static readonly SWARM_SERVICE_NAME = "deployer-traefik";
-  private static readonly SWARM_SERVICE_PORT = 80;
-  /**
-   * The COMPOSE ingress, reached by its compose SERVICE name.
-   *
-   * A profile where the deployment owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`,
-   * as `dev:services` sets) runs traefik as a compose service named `traefik`
-   * rather than the swarm service `deployer-traefik`. Setup shares the platform
-   * network with it, so this name resolves — which is what makes the handover
-   * probe work in that profile. See `probeRoutedThroughEntryPort`.
-   */
-  private static readonly COMPOSE_INGRESS_NAME = "traefik";
+    /**
+     * The PROMOTED ingress, addressed on the platform overlay.
+     *
+     * The swarm service keeps the bootstrap container's name, so this is the same
+     * `deployer-traefik` string — but it is reached as a NETWORK NAME rather than
+     * a container name, which is what makes it a valid probe target from setup
+     * once setup has joined the overlay. Port 80 is Traefik's `web` entrypoint
+     * INSIDE the container, independent of the host port it may publish.
+     */
+    private static readonly SWARM_SERVICE_NAME = 'deployer-traefik'
+    private static readonly SWARM_SERVICE_PORT = 80
+    /**
+     * The COMPOSE ingress, reached by its compose SERVICE name.
+     *
+     * A profile where the deployment owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`,
+     * as `dev:services` sets) runs traefik as a compose service named `traefik`
+     * rather than the swarm service `deployer-traefik`. Setup shares the platform
+     * network with it, so this name resolves — which is what makes the handover
+     * probe work in that profile. See `probeRoutedThroughEntryPort`.
+     */
+    private static readonly COMPOSE_INGRESS_NAME = 'traefik'
 
-  /** Where the file provider reads generated routes inside the container. */
-  private static readonly CONFIG_MOUNT = "/config";
+    /** Where the file provider reads generated routes inside the container. */
+    private static readonly CONFIG_MOUNT = '/config'
 
-  /**
-   * How long to wait for the swarm ingress to take over the entry port.
-   *
-   * Generous because this covers a full SERVICE SCHEDULING round trip: the
-   * scheduler must place the task, pull/verify the image, create the container
-   * and start it. Thirty seconds was enough on a warm node and not on a restart
-   * (measured), and a timeout here has a costly failure mode — it restores the
-   * bootstrap container, which then fights the swarm task for the port forever.
-   */
-  private static readonly PROMOTION_TIMEOUT_MS = 90_000;
+    /**
+     * How long to wait for the swarm ingress to take over the entry port.
+     *
+     * Generous because this covers a full SERVICE SCHEDULING round trip: the
+     * scheduler must place the task, pull/verify the image, create the container
+     * and start it. Thirty seconds was enough on a warm node and not on a restart
+     * (measured), and a timeout here has a costly failure mode — it restores the
+     * bootstrap container, which then fights the swarm task for the port forever.
+     */
+    private static readonly PROMOTION_TIMEOUT_MS = 90_000
 
-  /** How long to wait for the ingress to answer before reporting failure. */
-  private static readonly READY_TIMEOUT_MS = 20_000;
-  private static readonly READY_POLL_MS = 500;
+    /** How long to wait for the ingress to answer before reporting failure. */
+    private static readonly READY_TIMEOUT_MS = 20_000
+    private static readonly READY_POLL_MS = 500
 
-  /**
-   * How long to wait for the PROMOTED ingress to answer on the entry port.
-   *
-   * Separate from `READY_TIMEOUT_MS`, which bounds a container start. This one
-   * bounds a config-volume load plus router publication on a freshly scheduled
-   * swarm task, so it is deliberately longer — and it only ever runs after the
-   * promotion already succeeded, which is why a generous budget costs nothing.
-   */
-  private static readonly SERVE_TIMEOUT_MS = 60_000;
+    /**
+     * How long to wait for the PROMOTED ingress to answer on the entry port.
+     *
+     * Separate from `READY_TIMEOUT_MS`, which bounds a container start. This one
+     * bounds a config-volume load plus router publication on a freshly scheduled
+     * swarm task, so it is deliberately longer — and it only ever runs after the
+     * promotion already succeeded, which is why a generous budget costs nothing.
+     */
+    private static readonly SERVE_TIMEOUT_MS = 60_000
 
-  constructor(
-    private readonly docker: DockerEngineShape,
-    private readonly env: EnvService,
-  ) {}
+    constructor(
+        private readonly docker: DockerEngineShape,
+        private readonly env: EnvService
+    ) {}
 
-  /**
-   * Start the ingress at boot, BEFORE anything tries to route through it.
-   *
-   * ORDER MATTERS: `IngressHandoverService` publishes the wizard's route in its
-   * own `onApplicationBootstrap`, and Traefik's file provider reads that
-   * directory on start plus every change. Starting the process first means the
-   * route is picked up on the provider's initial scan instead of waiting for a
-   * watch event — one fewer moving part during the only phase whose purpose is
-   * to be reachable.
-   *
-   * NEVER THROWS. A node that cannot start its ingress must still serve the
-   * wizard on its internal port and report the reason, because the wizard is the
-   * ONLY surface that can tell an operator what is wrong. Failing the boot here
-   * would turn a diagnosable ingress problem into a crash-loop with no output.
-   */
-  async bootstrap(): Promise<void> {
-    // The deployment already runs an ingress (plain `dev`: compose publishes its
-    // own Traefik on the same host port). Starting a second one cannot work — the
-    // port is exclusively bound — so this app only ROUTES through the existing
-    // one, which it already does by writing `dynamic-setup.yml` into the shared
-    // config volume.
-    if (this.isExternallyManaged()) {
-      this.logger.log(
-        "Deployment owns the ingress (MANAGED_TRAEFIK_ENABLED=true) — bootstrap ingress skipped; " +
-          "this app routes through the existing Traefik via the shared config volume",
-      );
-      return;
+    /**
+     * Start the ingress at boot, BEFORE anything tries to route through it.
+     *
+     * ORDER MATTERS: `IngressHandoverService` publishes the wizard's route in its
+     * own `onApplicationBootstrap`, and Traefik's file provider reads that
+     * directory on start plus every change. Starting the process first means the
+     * route is picked up on the provider's initial scan instead of waiting for a
+     * watch event — one fewer moving part during the only phase whose purpose is
+     * to be reachable.
+     *
+     * NEVER THROWS. A node that cannot start its ingress must still serve the
+     * wizard on its internal port and report the reason, because the wizard is the
+     * ONLY surface that can tell an operator what is wrong. Failing the boot here
+     * would turn a diagnosable ingress problem into a crash-loop with no output.
+     */
+    async bootstrap(): Promise<void> {
+        // The deployment already runs an ingress (plain `dev`: compose publishes its
+        // own Traefik on the same host port). Starting a second one cannot work — the
+        // port is exclusively bound — so this app only ROUTES through the existing
+        // one, which it already does by writing `dynamic-setup.yml` into the shared
+        // config volume.
+        if (this.isExternallyManaged()) {
+            this.logger.log(
+                'Deployment owns the ingress (MANAGED_TRAEFIK_ENABLED=true) — bootstrap ingress skipped; ' +
+                    'this app routes through the existing Traefik via the shared config volume'
+            )
+            return
+        }
+
+        try {
+            await this.ensureRunning()
+        } catch (error: unknown) {
+            const detail =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(
+                `Could not start the bootstrap ingress — reach this app on its internal port ` +
+                    `(:${String(this.env.get('SETUP_APP_PORT'))}) and check the engine. Cause: ${detail}`
+            )
+        }
     }
 
-    try {
-      await this.ensureRunning();
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Could not start the bootstrap ingress — reach this app on its internal port ` +
-          `(:${String(this.env.get("SETUP_APP_PORT"))}) and check the engine. Cause: ${detail}`,
-      );
+    /** True when compose/operator owns Traefik, so this app must not run one. */
+    isExternallyManaged(): boolean {
+        return this.env.get('MANAGED_TRAEFIK_ENABLED')
     }
-  }
 
-  /** True when compose/operator owns Traefik, so this app must not run one. */
-  isExternallyManaged(): boolean {
-    return this.env.get("MANAGED_TRAEFIK_ENABLED");
-  }
+    /**
+     * Converge the ingress container to "running and bound to the entry port".
+     *
+     * IDEMPOTENT, and that is required rather than nice: `docker restart` and
+     * compose recreating this container both re-run boot, and the ingress is
+     * frequently ALREADY running (a plain `docker compose up` after a first run
+     * leaves it up). Re-creating it blindly would drop the entry port and every
+     * live connection on a container that was already correct.
+     *
+     * A running container with the RIGHT port and mounts is left untouched; a
+     * stopped one is started; a missing one is created; and one whose
+     * configuration drifted (port or image changed in `.env`) is recreated —
+     * which is what makes changing `DEPLOYER_TRAEFIK_HTTP_PORT` actually take
+     * effect instead of silently doing nothing.
+     */
+    async ensureRunning(): Promise<void> {
+        // Already converged? Nothing to do — see the idempotency note above.
+        const existing = await this.inspect()
+        if (existing !== null) {
+            if (existing.running && this.matchesDesired(existing)) {
+                this.logger.log(
+                    `Bootstrap ingress already running (${BootstrapIngressServiceImpl.CONTAINER_NAME} → :${String(this.entryPort())})`
+                )
+                return
+            }
+            // Stopped, or configured differently — recreate rather than patch. A
+            // container's mounts and port bindings are FIXED at creation, so
+            // "recreate" is the only way to change them, and starting a stopped
+            // container from a previous configuration would converge to the wrong
+            // state (a stale port) while appearing to succeed.
+            this.logger.log(
+                `Recreating bootstrap ingress — ${existing.running ? 'configuration changed' : 'container was stopped'}`
+            )
+            await this.remove()
+        }
 
-  /**
-   * Converge the ingress container to "running and bound to the entry port".
-   *
-   * IDEMPOTENT, and that is required rather than nice: `docker restart` and
-   * compose recreating this container both re-run boot, and the ingress is
-   * frequently ALREADY running (a plain `docker compose up` after a first run
-   * leaves it up). Re-creating it blindly would drop the entry port and every
-   * live connection on a container that was already correct.
-   *
-   * A running container with the RIGHT port and mounts is left untouched; a
-   * stopped one is started; a missing one is created; and one whose
-   * configuration drifted (port or image changed in `.env`) is recreated —
-   * which is what makes changing `DEPLOYER_TRAEFIK_HTTP_PORT` actually take
-   * effect instead of silently doing nothing.
-   */
-  async ensureRunning(): Promise<void> {
-    // Already converged? Nothing to do — see the idempotency note above.
-    const existing = await this.inspect();
-    if (existing !== null) {
-      if (existing.running && this.matchesDesired(existing)) {
+        await runPromiseUnwrapped(this.docker.images.pull(this.image())).catch(
+            (error: unknown) => {
+                // A pull failure is not fatal when the image is already local (offline
+                // node, pre-pulled image): `createContainer` uses the local tag. Only
+                // report it, and let creation produce the real error if it is missing too.
+                const detail =
+                    error instanceof Error ? error.message : String(error)
+                this.logger.warn(
+                    `Could not pull ${this.image()} (using the local tag if present): ${detail}`
+                )
+            }
+        )
+
+        await this.create()
+        await this.verifyReachable()
+
         this.logger.log(
-          `Bootstrap ingress already running (${BootstrapIngressServiceImpl.CONTAINER_NAME} → :${String(this.entryPort())})`,
-        );
-        return;
-      }
-      // Stopped, or configured differently — recreate rather than patch. A
-      // container's mounts and port bindings are FIXED at creation, so
-      // "recreate" is the only way to change them, and starting a stopped
-      // container from a previous configuration would converge to the wrong
-      // state (a stale port) while appearing to succeed.
-      this.logger.log(
-        `Recreating bootstrap ingress — ${existing.running ? "configuration changed" : "container was stopped"}`,
-      );
-      await this.remove();
+            `Bootstrap ingress running (${BootstrapIngressServiceImpl.CONTAINER_NAME} → :${String(this.entryPort())}) — ` +
+                this.ingressStateNote()
+        )
     }
 
-    await runPromiseUnwrapped(this.docker.images.pull(this.image())).catch((error: unknown) => {
-      // A pull failure is not fatal when the image is already local (offline
-      // node, pre-pulled image): `createContainer` uses the local tag. Only
-      // report it, and let creation produce the real error if it is missing too.
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Could not pull ${this.image()} (using the local tag if present): ${detail}`);
-    });
+    /**
+     * Stop and remove the bootstrap container, releasing the entry port.
+     *
+     * ── WHY THIS EXISTS: THE PORT IS EXCLUSIVELY BOUND ──────────────────────────
+     * The entry port is a HOST port. Only one process can hold it, so the
+     * container incarnation MUST release it before the swarm incarnation can bind
+     * it. The API's supervisor promotes Traefik after the gate opens, and if this
+     * container still held :80 that promotion would fail with
+     * "address already in use" — leaving the platform with an ingress it cannot
+     * promote and an error that names the port rather than the cause.
+     *
+     * ── WHO CALLS THIS, AND WHEN ────────────────────────────────────────────────
+     * `IngressHandoverService` calls it at the START of the handover, right after
+     * retargeting `dynamic-api.yml`. By then:
+     *
+     *   - the API is already green (the handover polls `/health/ready` first), so
+     *     the swap cannot point `api.<host>` at a process that is not serving;
+     *   - the wizard's SSE stream has already delivered its terminal event, and
+     *     that stream terminates at THIS app, not through the entry port;
+     *   - `setup.<host>` stays answerable, because both the route and — see below
+     *     — the ingress survive the swap.
+     *
+     * ── WHY THE INGRESS IS RE-CREATED, NOT LEFT ABSENT ──────────────────────────
+     * Removing it frees the port for the swarm service, but the swarm service
+     * takes seconds to schedule and a GLOBAL task to start. If nothing held the
+     * port in between, `setup.<host>` would 404 for that whole window — the exact
+     * "never let a URL change owner by disappearing" rule (plan §9.2). So after
+     * releasing the port this method waits for the swarm ingress to take it, and
+     * restores the container if it never does. A failed handover stays retryable
+     * instead of stranding the operator with no ingress at all.
+     *
+     * Returns true when the port was handed to the swarm ingress.
+     */
+    async releaseEntryPort(): Promise<boolean> {
+        // Nothing to release when this app never ran an ingress: the deployment owns
+        // it, and the API's supervisor is likewise in `managed` mode, so no promoter
+        // is waiting for the port.
+        if (this.isExternallyManaged()) {
+            this.logger.log(
+                'Deployment owns the ingress — no entry port to release'
+            )
+            return true
+        }
 
-    await this.create();
-    await this.verifyReachable();
+        const name = BootstrapIngressServiceImpl.CONTAINER_NAME
+        const existing = await this.inspect()
+        if (existing === null) {
+            // Nothing holds the port from our side — the swarm service may already
+            // own it (a previous handover, or an operator who promoted it by hand).
+            this.logger.log('Bootstrap ingress absent — nothing to release')
+            return true
+        }
 
-    this.logger.log(
-      `Bootstrap ingress running (${BootstrapIngressServiceImpl.CONTAINER_NAME} → :${String(this.entryPort())}) — ` +
-        this.ingressStateNote(),
-    );
-  }
-
-  /**
-   * Stop and remove the bootstrap container, releasing the entry port.
-   *
-   * ── WHY THIS EXISTS: THE PORT IS EXCLUSIVELY BOUND ──────────────────────────
-   * The entry port is a HOST port. Only one process can hold it, so the
-   * container incarnation MUST release it before the swarm incarnation can bind
-   * it. The API's supervisor promotes Traefik after the gate opens, and if this
-   * container still held :80 that promotion would fail with
-   * "address already in use" — leaving the platform with an ingress it cannot
-   * promote and an error that names the port rather than the cause.
-   *
-   * ── WHO CALLS THIS, AND WHEN ────────────────────────────────────────────────
-   * `IngressHandoverService` calls it at the START of the handover, right after
-   * retargeting `dynamic-api.yml`. By then:
-   *
-   *   - the API is already green (the handover polls `/health/ready` first), so
-   *     the swap cannot point `api.<host>` at a process that is not serving;
-   *   - the wizard's SSE stream has already delivered its terminal event, and
-   *     that stream terminates at THIS app, not through the entry port;
-   *   - `setup.<host>` stays answerable, because both the route and — see below
-   *     — the ingress survive the swap.
-   *
-   * ── WHY THE INGRESS IS RE-CREATED, NOT LEFT ABSENT ──────────────────────────
-   * Removing it frees the port for the swarm service, but the swarm service
-   * takes seconds to schedule and a GLOBAL task to start. If nothing held the
-   * port in between, `setup.<host>` would 404 for that whole window — the exact
-   * "never let a URL change owner by disappearing" rule (plan §9.2). So after
-   * releasing the port this method waits for the swarm ingress to take it, and
-   * restores the container if it never does. A failed handover stays retryable
-   * instead of stranding the operator with no ingress at all.
-   *
-   * Returns true when the port was handed to the swarm ingress.
-   */
-  async releaseEntryPort(): Promise<boolean> {
-    // Nothing to release when this app never ran an ingress: the deployment owns
-    // it, and the API's supervisor is likewise in `managed` mode, so no promoter
-    // is waiting for the port.
-    if (this.isExternallyManaged()) {
-      this.logger.log("Deployment owns the ingress — no entry port to release");
-      return true;
-    }
-
-    const name = BootstrapIngressServiceImpl.CONTAINER_NAME;
-    const existing = await this.inspect();
-    if (existing === null) {
-      // Nothing holds the port from our side — the swarm service may already
-      // own it (a previous handover, or an operator who promoted it by hand).
-      this.logger.log("Bootstrap ingress absent — nothing to release");
-      return true;
-    }
-
-    this.logger.log(`Releasing the entry port — stopping ${name} so the swarm ingress can bind it`);
-    await this.remove();
-
-    if (await this.waitForSwarmIngressRunning()) return true;
-
-    // The swarm service genuinely never ran. Restore the bootstrap container so
-    // the platform stays reachable, then let the next handover retry.
-    //
-    // The restore is the TIE-BREAK, and its failure is the answer: if the port
-    // is already allocated, SOMETHING holds it, and the only other claimant is
-    // the swarm ingress — so the promotion did succeed after all. Observed on a
-    // real run, where setup reported a failed handover while the platform was
-    // fully up:
-    //
-    //   [BootstrapIngressService] The swarm ingress did not claim the entry port...
-    //   [HandoverOrchestratorService] Handover failed: (HTTP code 500) ...
-    //     Bind for 0.0.0.0:80 failed: port is already allocated
-    //
-    // So the error is READ rather than propagated: "port is already allocated"
-    // means the promotion succeeded and the bootstrap container must stay down.
-    // Any OTHER failure is a genuine problem and still propagates.
-    this.logger.warn(
-      "The swarm ingress did not claim the entry port in time — restoring the bootstrap container " +
-        "so the platform stays reachable, then retrying on the next handover",
-    );
-    try {
-      await this.create();
-      return false;
-    } catch (error: unknown) {
-      if (this.isPortTakenError(error)) {
         this.logger.log(
-          "Bootstrap ingress could not be restored because the entry port is taken — " +
-            "the swarm ingress owns it, so the handover succeeded",
-        );
-        return true;
-      }
-      throw error;
-    }
-  }
+            `Releasing the entry port — stopping ${name} so the swarm ingress can bind it`
+        )
+        await this.remove()
 
-  /**
-   * Wait until the ENTRY POINT itself answers — i.e. the promoted ingress serves
-   * through the host port it just took over.
-   *
-   * ── WHY THIS IS SEPARATE FROM THE PROMOTION WAIT ────────────────────────
-   * `waitForSwarmIngressRunning()` establishes that a TASK is running. That is
-   * necessary but not sufficient for the operator: the task still has to load the
-   * config volume and publish its routers before `:80` returns anything, and a
-   * request in that window fails at the connection level. This is the check that
-   * covers the gap — and it is the one that matters, because it tests exactly
-   * what the operator's browser will do next.
-   *
-   * Returns false when nothing answers within the budget, which the caller turns
-   * into a retryable failure rather than a success it cannot back up.
-   */
-  /**
-   * Wait until the PROMOTED ingress actually ROUTES, not merely binds.
-   *
-   * ── WHY A TCP CONNECT IS NOT ENOUGH ──────────────────────────────────────
-   * The swarm Traefik publishes its entrypoint within a second of starting, long
-   * before it has loaded the config volume and built its router table. A socket
-   * connect succeeds through that entire window, so a port-only check reports
-   * "serving" while every request still gets Traefik's own
-   *
-   *   404 page not found
-   *
-   * — which is what the operator saw as a red "Failed to fetch" on the last
-   * wizard step: the stream had already reported success, the browser followed
-   * the Continue target, and the router table was not there yet.
-   *
-   * So the verdict is the ROUTED RESPONSE. `api.<host>` is the right subject
-   * because its router is the one that must be live for the handover to be
-   * meaningful, and it is already published by the time this runs.
-   *
-   * Returns false when no routed answer arrives within the budget, which the
-   * caller turns into a RETRYABLE failure rather than a success it cannot back up.
-   */
-  async waitForEntryPointToServe(hostname: string): Promise<boolean> {
-    const deadline = Date.now() + BootstrapIngressServiceImpl.SERVE_TIMEOUT_MS;
-    let lastReason = "the entry port never accepted a connection";
+        if (await this.waitForSwarmIngressRunning()) return true
 
-    while (Date.now() < deadline) {
-      const attempt = await this.probeRoutedThroughEntryPort(hostname);
-      if (attempt.ok) {
-        this.logger.log(`Cluster ingress is routing ${hostname} (${attempt.reason})`);
-        return true;
-      }
-      lastReason = attempt.reason;
-      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS));
+        // The swarm service genuinely never ran. Restore the bootstrap container so
+        // the platform stays reachable, then let the next handover retry.
+        //
+        // The restore is the TIE-BREAK, and its failure is the answer: if the port
+        // is already allocated, SOMETHING holds it, and the only other claimant is
+        // the swarm ingress — so the promotion did succeed after all. Observed on a
+        // real run, where setup reported a failed handover while the platform was
+        // fully up:
+        //
+        //   [BootstrapIngressService] The swarm ingress did not claim the entry port...
+        //   [HandoverOrchestratorService] Handover failed: (HTTP code 500) ...
+        //     Bind for 0.0.0.0:80 failed: port is already allocated
+        //
+        // So the error is READ rather than propagated: "port is already allocated"
+        // means the promotion succeeded and the bootstrap container must stay down.
+        // Any OTHER failure is a genuine problem and still propagates.
+        this.logger.warn(
+            'The swarm ingress did not claim the entry port in time — restoring the bootstrap container ' +
+                'so the platform stays reachable, then retrying on the next handover'
+        )
+        try {
+            await this.create()
+            return false
+        } catch (error: unknown) {
+            if (this.isPortTakenError(error)) {
+                this.logger.log(
+                    'Bootstrap ingress could not be restored because the entry port is taken — ' +
+                        'the swarm ingress owns it, so the handover succeeded'
+                )
+                return true
+            }
+            throw error
+        }
     }
 
-    this.logger.warn(
-      `The cluster ingress did not route ${hostname} within ` +
-        `${String(BootstrapIngressServiceImpl.SERVE_TIMEOUT_MS / 1000)}s of the handover — ${lastReason}`,
-    );
-    return false;
-  }
+    /**
+     * Wait until the ENTRY POINT itself answers — i.e. the promoted ingress serves
+     * through the host port it just took over.
+     *
+     * ── WHY THIS IS SEPARATE FROM THE PROMOTION WAIT ────────────────────────
+     * `waitForSwarmIngressRunning()` establishes that a TASK is running. That is
+     * necessary but not sufficient for the operator: the task still has to load the
+     * config volume and publish its routers before `:80` returns anything, and a
+     * request in that window fails at the connection level. This is the check that
+     * covers the gap — and it is the one that matters, because it tests exactly
+     * what the operator's browser will do next.
+     *
+     * Returns false when nothing answers within the budget, which the caller turns
+     * into a retryable failure rather than a success it cannot back up.
+     */
+    /**
+     * Wait until the PROMOTED ingress actually ROUTES, not merely binds.
+     *
+     * ── WHY A TCP CONNECT IS NOT ENOUGH ──────────────────────────────────────
+     * The swarm Traefik publishes its entrypoint within a second of starting, long
+     * before it has loaded the config volume and built its router table. A socket
+     * connect succeeds through that entire window, so a port-only check reports
+     * "serving" while every request still gets Traefik's own
+     *
+     *   404 page not found
+     *
+     * — which is what the operator saw as a red "Failed to fetch" on the last
+     * wizard step: the stream had already reported success, the browser followed
+     * the Continue target, and the router table was not there yet.
+     *
+     * So the verdict is the ROUTED RESPONSE. `api.<host>` is the right subject
+     * because its router is the one that must be live for the handover to be
+     * meaningful, and it is already published by the time this runs.
+     *
+     * Returns false when no routed answer arrives within the budget, which the
+     * caller turns into a RETRYABLE failure rather than a success it cannot back up.
+     */
+    async waitForEntryPointToServe(hostname: string): Promise<boolean> {
+        const deadline =
+            Date.now() + BootstrapIngressServiceImpl.SERVE_TIMEOUT_MS
+        let lastReason = 'the entry port never accepted a connection'
 
-  /**
-   * One HTTP request for `hostname` through the promoted ingress.
-   *
-   * ── WHY THERE ARE TWO CANDIDATES, OVERLAY FIRST ─────────────────────────
-   * The question is "is the SWARM ingress routing?", and there are two ways to
-   * reach it from here. Only one of them works for every provider:
-   *
-   *   OVERLAY (`deployer-traefik:80`) — the service name on the platform
-   *     network. This reaches the ingress whatever it binds on the HOST, so it
-   *     is provider-independent, and it is also the path real traffic takes
-   *     once a connector or the mesh fronts it.
-   *
-   *   ENTRY PORT via `host.docker.internal` — the host-published port. This is
-   *     the operator's actual path, but it only answers when the ingress binds
-   *     an interface reachable from the host gateway. Under the `local`
-   *     provider the host port is bound on 127.0.0.1 ONLY (deliberately — that
-   *     is what keeps a fresh install off the network), so a probe from inside
-   *     a container gets `ECONNREFUSED 172.17.0.1:80` while the ingress is
-   *     perfectly healthy. Treating that as "not serving" failed the handover
-   *     and left the platform reported broken when it was up.
-   *
-   * So the overlay is tried first and the entry port is the fallback. The Host
-   * header is always sent explicitly because the overlay is reached by service
-   * name and the entry port by IP — without it Traefik would have no router to
-   * match and every probe would look like a failure.
-   */
-  private async probeRoutedThroughEntryPort(hostname: string): Promise<{ ok: boolean; reason: string }> {
-    // Candidate 1: the swarm service on the overlay (provider-independent).
-    const viaOverlay = await this.probeIngress(
-      BootstrapIngressServiceImpl.SWARM_SERVICE_NAME,
-      BootstrapIngressServiceImpl.SWARM_SERVICE_PORT,
-      hostname,
-    );
-    if (viaOverlay.ok) return viaOverlay;
+        while (Date.now() < deadline) {
+            const attempt = await this.probeRoutedThroughEntryPort(hostname)
+            if (attempt.ok) {
+                this.logger.log(
+                    `Cluster ingress is routing ${hostname} (${attempt.reason})`
+                )
+                return true
+            }
+            lastReason = attempt.reason
+            await new Promise((resolve) =>
+                setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS)
+            )
+        }
 
-    // Candidate 1b: the COMPOSE ingress, by service name.
-    //
-    // In a profile where the deployment owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`,
-    // which `dev:services` sets) the ingress is a COMPOSE container, not the swarm
-    // service — so candidate 1 can never answer and the handover reported a routing
-    // failure for a platform that was routing fine. Measured while probing by hand:
-    //
-    //   traefik:80  -> {"status":"ready"}
-    //   172.17.0.1:80 / 172.25.0.1:80 -> nothing (port bound to 127.0.0.1 only)
-    //
-    // Reaching it by SERVICE NAME is the reliable form: it does not depend on how
-    // the host publishes the port, and setup already shares a network with it.
-    const viaComposeIngress = await this.probeIngress(
-      BootstrapIngressServiceImpl.COMPOSE_INGRESS_NAME,
-      80,
-      hostname,
-    );
-    if (viaComposeIngress.ok) return viaComposeIngress;
-
-    // Candidate 2: the host-published entry port (the operator's path).
-    const viaEntryPort = await this.probeIngress(this.hostGateway(), this.entryPort(), hostname);
-    if (viaEntryPort.ok) return viaEntryPort;
-
-    // Report the ENTRY-PORT reason: it is the one the operator's browser will
-    // hit, so it is the honest description of why the platform is unreachable
-    // if ALL of the candidates failed.
-    return viaEntryPort;
-  }
-
-  /**
-   * One routed request against a specific `host:port`.
-   *
-   * Traefik's own "no router" answer is a PLAIN-TEXT 404. That is the specific
-   * thing being waited out, so it must not be mistaken for a routed response
-   * just because it is not a 5xx.
-   */
-  private async probeIngress(
-    host: string,
-    port: number,
-    hostname: string,
-  ): Promise<{ ok: boolean; reason: string }> {
-    return await new Promise<{ ok: boolean; reason: string }>((resolve) => {
-      let settled = false;
-      const finish = (result: { ok: boolean; reason: string }): void => {
-        if (settled) return;
-        settled = true;
-        resolve(result);
-      };
-
-      const request = httpRequest(
-        {
-          host,
-          port,
-          path: "/health/ready",
-          method: "GET",
-          headers: { host: hostname },
-        },
-        (response) => {
-          const status = response.statusCode ?? 0;
-          const contentType = String(response.headers["content-type"] ?? "");
-          response.resume();
-
-          if (status === 404 && contentType.includes("text/plain")) {
-            finish({ ok: false, reason: "the ingress has no router for the API yet" });
-            return;
-          }
-          if (status >= 500) {
-            finish({ ok: false, reason: `the API backend answered ${String(status)}` });
-            return;
-          }
-          finish({ ok: true, reason: `HTTP ${String(status)} via ${host}:${String(port)}` });
-        },
-      );
-
-      request.setTimeout(5_000, () => {
-        request.destroy();
-        finish({ ok: false, reason: `the ingress did not answer within 5000ms (${host}:${String(port)})` });
-      });
-      request.on("error", (error: Error) => {
-        finish({ ok: false, reason: `not reachable yet (${error.message} via ${host}:${String(port)})` });
-      });
-      request.end();
-    });
-  }
-
-  /**
-   * Wait until the SWARM ingress service has a running task on this node.
-   *
-   * ── WHY THIS REPLACES A PORT POLL ────────────────────────────────────────
-   * The release used to wait for the host port to ACCEPT a connection. That ask
-   * the wrong question: on a restart the port is taken by the bootstrap container
-   * itself right up until `remove()` finishes, and afterwards by whichever
-   * process wins the race to bind. Determining "did the promotion work?" from
-   * port ownership meant the answer depended on WHO bound first:
-   *
-   *   remove()  ->  swarm task starts, tries to bind :80
-   *                  -> fails while the port is still transitioning
-   *                  -> task exits, scheduler retries
-   *   waitForPortTaken() polls, sees nothing, times out
-   *   -> the bootstrap container is RESTORED
-   *   -> now BOTH are trying to own :80, and the swarm task crash-loops forever
-   *      with "Bind for 0.0.0.0:80 failed: port is already allocated"
-   *
-   * Observed exactly that, on a restart: `deployer-traefik` service at 0/0 with a
-   * task failing every 5s, while a plain `deployer-traefik` container held the
-   * port — neither able to win, so onboarding never completed.
-   *
-   * Asking the SERVICE whether it has a running task removes the race entirely:
-   * the port is only ever contended for the window between `remove()` and the
-   * task reaching `running`, and success no longer depends on a 30s budget being
-   * enough for the scheduler.
-   *
-   * Returns false (so the caller restores the container) only when the service
-   * genuinely has no running task within the budget — a real failure worth
-   * surfacing, not a lost race.
-   */
-  private async waitForSwarmIngressRunning(): Promise<boolean> {
-    const deadline = Date.now() + BootstrapIngressServiceImpl.PROMOTION_TIMEOUT_MS;
-    let lastDetail = "the swarm ingress service was never observed";
-
-    while (Date.now() < deadline) {
-      const state = await this.swarmIngressState();
-      if (state.running) return true;
-      lastDetail = state.detail;
-      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS));
+        this.logger.warn(
+            `The cluster ingress did not route ${hostname} within ` +
+                `${String(BootstrapIngressServiceImpl.SERVE_TIMEOUT_MS / 1000)}s of the handover — ${lastReason}`
+        )
+        return false
     }
 
-    // Fall back to the port probe: a task can be `running` yet not yet bound, and
-    // (rarer) the engine can report a stale task state. The port is the ground
-    // truth about reachability, so it gets the final say.
-    if (await this.portAnswers(1_000)) {
-      this.logger.log("Swarm ingress answers on the entry port — promotion complete");
-      return true;
+    /**
+     * One HTTP request for `hostname` through the promoted ingress.
+     *
+     * ── WHY THERE ARE TWO CANDIDATES, OVERLAY FIRST ─────────────────────────
+     * The question is "is the SWARM ingress routing?", and there are two ways to
+     * reach it from here. Only one of them works for every provider:
+     *
+     *   OVERLAY (`deployer-traefik:80`) — the service name on the platform
+     *     network. This reaches the ingress whatever it binds on the HOST, so it
+     *     is provider-independent, and it is also the path real traffic takes
+     *     once a connector or the mesh fronts it.
+     *
+     *   ENTRY PORT via `host.docker.internal` — the host-published port. This is
+     *     the operator's actual path, but it only answers when the ingress binds
+     *     an interface reachable from the host gateway. Under the `local`
+     *     provider the host port is bound on 127.0.0.1 ONLY (deliberately — that
+     *     is what keeps a fresh install off the network), so a probe from inside
+     *     a container gets `ECONNREFUSED 172.17.0.1:80` while the ingress is
+     *     perfectly healthy. Treating that as "not serving" failed the handover
+     *     and left the platform reported broken when it was up.
+     *
+     * So the overlay is tried first and the entry port is the fallback. The Host
+     * header is always sent explicitly because the overlay is reached by service
+     * name and the entry port by IP — without it Traefik would have no router to
+     * match and every probe would look like a failure.
+     */
+    private async probeRoutedThroughEntryPort(
+        hostname: string
+    ): Promise<{ ok: boolean; reason: string }> {
+        // Candidate 1: the swarm service on the overlay (provider-independent).
+        const viaOverlay = await this.probeIngress(
+            BootstrapIngressServiceImpl.SWARM_SERVICE_NAME,
+            BootstrapIngressServiceImpl.SWARM_SERVICE_PORT,
+            hostname
+        )
+        if (viaOverlay.ok) return viaOverlay
+
+        // Candidate 1b: the COMPOSE ingress, by service name.
+        //
+        // In a profile where the deployment owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`,
+        // which `dev:services` sets) the ingress is a COMPOSE container, not the swarm
+        // service — so candidate 1 can never answer and the handover reported a routing
+        // failure for a platform that was routing fine. Measured while probing by hand:
+        //
+        //   traefik:80  -> {"status":"ready"}
+        //   172.17.0.1:80 / 172.25.0.1:80 -> nothing (port bound to 127.0.0.1 only)
+        //
+        // Reaching it by SERVICE NAME is the reliable form: it does not depend on how
+        // the host publishes the port, and setup already shares a network with it.
+        const viaComposeIngress = await this.probeIngress(
+            BootstrapIngressServiceImpl.COMPOSE_INGRESS_NAME,
+            80,
+            hostname
+        )
+        if (viaComposeIngress.ok) return viaComposeIngress
+
+        // Candidate 2: the host-published entry port (the operator's path).
+        const viaEntryPort = await this.probeIngress(
+            this.hostGateway(),
+            this.entryPort(),
+            hostname
+        )
+        if (viaEntryPort.ok) return viaEntryPort
+
+        // Report the ENTRY-PORT reason: it is the one the operator's browser will
+        // hit, so it is the honest description of why the platform is unreachable
+        // if ALL of the candidates failed.
+        return viaEntryPort
     }
 
-    this.logger.warn(`Swarm ingress not promoted: ${lastDetail}`);
-    return false;
-  }
+    /**
+     * One routed request against a specific `host:port`.
+     *
+     * Traefik's own "no router" answer is a PLAIN-TEXT 404. That is the specific
+     * thing being waited out, so it must not be mistaken for a routed response
+     * just because it is not a 5xx.
+     */
+    private async probeIngress(
+        host: string,
+        port: number,
+        hostname: string
+    ): Promise<{ ok: boolean; reason: string }> {
+        return await new Promise<{ ok: boolean; reason: string }>((resolve) => {
+            let settled = false
+            const finish = (result: { ok: boolean; reason: string }): void => {
+                if (settled) return
+                settled = true
+                resolve(result)
+            }
 
-  /** Whether the swarm ingress service has a task running on this node. */
-  private async swarmIngressState(): Promise<{ running: boolean; detail: string }> {
-    const serviceName = this.swarmServiceName();
+            const request = httpRequest(
+                {
+                    host,
+                    port,
+                    path: '/health/ready',
+                    method: 'GET',
+                    headers: { host: hostname },
+                },
+                (response) => {
+                    const status = response.statusCode ?? 0
+                    const contentType = String(
+                        response.headers['content-type'] ?? ''
+                    )
+                    response.resume()
 
-    // The service is created by the API's supervisor AFTER the gate opens, and
-    // this poll runs during the handover — so "not created yet" is the NORMAL
-    // first answer, not a fault. Checking it explicitly keeps that out of the
-    // task listing, which logs an ERROR for a 404 and would make every handover
-    // look like it failed.
-    try {
-      await runPromiseUnwrapped(this.docker.swarmServices.inspect(serviceName));
-    } catch (error: unknown) {
-      if (error instanceof DockerNotFound) {
-        return { running: false, detail: `${serviceName} has not been created yet` };
-      }
-      const detail = error instanceof Error ? error.message : String(error);
-      return { running: false, detail: `${serviceName} could not be inspected (${detail})` };
+                    if (status === 404 && contentType.includes('text/plain')) {
+                        finish({
+                            ok: false,
+                            reason: 'the ingress has no router for the API yet',
+                        })
+                        return
+                    }
+                    if (status >= 500) {
+                        finish({
+                            ok: false,
+                            reason: `the API backend answered ${String(status)}`,
+                        })
+                        return
+                    }
+                    finish({
+                        ok: true,
+                        reason: `HTTP ${String(status)} via ${host}:${String(port)}`,
+                    })
+                }
+            )
+
+            request.setTimeout(5_000, () => {
+                request.destroy()
+                finish({
+                    ok: false,
+                    reason: `the ingress did not answer within 5000ms (${host}:${String(port)})`,
+                })
+            })
+            request.on('error', (error: Error) => {
+                finish({
+                    ok: false,
+                    reason: `not reachable yet (${error.message} via ${host}:${String(port)})`,
+                })
+            })
+            request.end()
+        })
     }
 
-    try {
-      const tasks = await runPromiseUnwrapped(this.docker.swarmServices.listTasks(serviceName));
-      if (tasks.length === 0) {
-        return { running: false, detail: `${serviceName} has no tasks scheduled` };
-      }
-      const running = tasks.filter((task) => task.Status.State === "running").length;
-      if (running > 0) return { running: true, detail: `${serviceName} has ${String(running)} running task(s)` };
+    /**
+     * Wait until the SWARM ingress service has a running task on this node.
+     *
+     * ── WHY THIS REPLACES A PORT POLL ────────────────────────────────────────
+     * The release used to wait for the host port to ACCEPT a connection. That ask
+     * the wrong question: on a restart the port is taken by the bootstrap container
+     * itself right up until `remove()` finishes, and afterwards by whichever
+     * process wins the race to bind. Determining "did the promotion work?" from
+     * port ownership meant the answer depended on WHO bound first:
+     *
+     *   remove()  ->  swarm task starts, tries to bind :80
+     *                  -> fails while the port is still transitioning
+     *                  -> task exits, scheduler retries
+     *   waitForPortTaken() polls, sees nothing, times out
+     *   -> the bootstrap container is RESTORED
+     *   -> now BOTH are trying to own :80, and the swarm task crash-loops forever
+     *      with "Bind for 0.0.0.0:80 failed: port is already allocated"
+     *
+     * Observed exactly that, on a restart: `deployer-traefik` service at 0/0 with a
+     * task failing every 5s, while a plain `deployer-traefik` container held the
+     * port — neither able to win, so onboarding never completed.
+     *
+     * Asking the SERVICE whether it has a running task removes the race entirely:
+     * the port is only ever contended for the window between `remove()` and the
+     * task reaching `running`, and success no longer depends on a 30s budget being
+     * enough for the scheduler.
+     *
+     * Returns false (so the caller restores the container) only when the service
+     * genuinely has no running task within the budget — a real failure worth
+     * surfacing, not a lost race.
+     */
+    private async waitForSwarmIngressRunning(): Promise<boolean> {
+        const deadline =
+            Date.now() + BootstrapIngressServiceImpl.PROMOTION_TIMEOUT_MS
+        let lastDetail = 'the swarm ingress service was never observed'
 
-      // Surface the FIRST task error verbatim: the port-conflict text is what
-      // makes this diagnosable, and it is the whole reason the promotion can
-      // fail while the service "exists".
-      const failing = tasks.find((task) => task.Status.Err !== undefined && task.Status.Err !== "");
-      return {
-        running: false,
-        detail: failing === undefined
-          ? `${serviceName} tasks are not running yet (${tasks.map((task) => task.Status.State).join(", ")})`
-          : `${serviceName} task failed: ${failing.Status.Err}`,
-      };
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      return { running: false, detail: `${serviceName} could not be inspected (${detail})` };
-    }
-  }
+        while (Date.now() < deadline) {
+            const state = await this.swarmIngressState()
+            if (state.running) return true
+            lastDetail = state.detail
+            await new Promise((resolve) =>
+                setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS)
+            )
+        }
 
-  /** `deployer-traefik`, per prefix — the same name the API's supervisor uses. */
-  private swarmServiceName(): string {
-    const prefix = this.env.get("DEPLOYER_PREFIX");
-    return prefix === "" ? BootstrapIngressServiceImpl.CONTAINER_NAME : `${BootstrapIngressServiceImpl.CONTAINER_NAME}-${prefix}`;
-  }
+        // Fall back to the port probe: a task can be `running` yet not yet bound, and
+        // (rarer) the engine can report a stale task state. The port is the ground
+        // truth about reachability, so it gets the final say.
+        if (await this.portAnswers(1_000)) {
+            this.logger.log(
+                'Swarm ingress answers on the entry port — promotion complete'
+            )
+            return true
+        }
 
-  /**
-   * Whether an engine error means "something already holds the entry port".
-   *
-   * Matched on the daemon's own wording. Docker reports this several ways
-   * depending on which layer refuses, so all the known spellings are covered —
-   * a miss here would turn a successful handover into a reported failure.
-   */
-  private isPortTakenError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-    return (
-      message.includes("port is already allocated") ||
-      message.includes("address already in use") ||
-      message.includes("failed to bind host port") ||
-      message.includes("failed programming external connectivity")
-    );
-  }
-
-  // ─── Desired state ────────────────────────────────────────────────────────
-
-  /** The image both incarnations run. */
-  private image(): string {
-    return this.env.get("DEPLOYER_TRAEFIK_IMAGE");
-  }
-
-  /** The published entry port, shared with the API's supervisor. */
-  private entryPort(): number {
-    return this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT");
-  }
-
-  /** Named volume carrying the generated dynamic config. */
-  private configVolume(): string {
-    return this.env.get("TRAEFIK_CONFIG_VOLUME");
-  }
-
-  /**
-   * Host socket path for the docker provider (container discovery).
-   *
-   * Read through `resolveDockerClient`, the same resolver the engine itself uses, so a `tcp://` or bare-path
-   * `DOCKER_HOST` is understood instead of being mangled by a string replace, and an unset host still finds the
-   * mounted socket.
-   */
-  private socketPath(): string {
-    return (
-      resolveDockerClient({ host: this.env.get("DOCKER_HOST"), port: undefined }).socketPath ??
-      DEFAULT_DOCKER_SOCKET_PATH
-    );
-  }
-
-  /**
-   * The bridge network Traefik must join to reach this app.
-   *
-   * `deployer-platform` is the SAME network compose attaches every app to, and
-   * the one the API's supervisors converge onto. Joining it by NAME (rather than
-   * creating a network) is what lets the ingress resolve the `setup` alias this
-   * app is published under — the route Traefik is asked to serve points at
-   * `http://setup:3016`, a docker-network name that means nothing otherwise.
-   */
-  private platformNetwork(): string {
-    return platformNetworkName(this.env.get("DEPLOYER_PREFIX"));
-  }
-
-  /**
-   * Provider flags for the BOOTSTRAP incarnation.
-   *
-   * Only `docker` + `file`: the swarm provider is deliberately omitted. It is
-   * useless before a cluster exists, and enables nothing here — whereas the API's
-   * incarnation adds it because by then there ARE services to route to. Keeping
-   * this list minimal means the bootstrap ingress cannot half-work in a way that
-   * depends on a cluster that is not there yet.
-   *
-   * The `file` provider is the load-bearing one: it is how a route written by
-   * `IngressHandoverService` reaches Traefik without either process talking to
-   * the other.
-   */
-  private command(): string[] {
-    return [
-      "--providers.docker=true",
-      "--providers.docker.exposedbydefault=false",
-      `--providers.file.directory=${BootstrapIngressServiceImpl.CONFIG_MOUNT}`,
-      "--providers.file.watch=true",
-      "--entrypoints.web.address=:80",
-    ];
-  }
-
-  /** Create (not start) the ingress container from the desired state. */
-  private async create(): Promise<void> {
-    const name = BootstrapIngressServiceImpl.CONTAINER_NAME;
-    this.logger.log(`Creating bootstrap ingress ${name} from ${this.image()}`);
-
-    await runPromiseUnwrapped(this.docker.containers.create({
-      name,
-      Image: this.image(),
-      Cmd: this.command(),
-      // The ownership marker the API's supervisors already use, so cleanup and
-      // inspection tooling sees ONE naming scheme across both incarnations —
-      // and so the promoted swarm service is recognisably the same component.
-      Labels: {
-        "deployer.platform.role": "ingress",
-        "deployer.managed": "true",
-        "deployer.bootstrap": "true",
-      },
-      ExposedPorts: { "80/tcp": {} },
-      HostConfig: {
-        // LOOPBACK ONLY. The wizard is pre-auth and the node has made no exposure
-        // decision yet, so the onboarding ingress is reachable from this machine
-        // and nowhere else — the same posture as the platform's `local` lane that
-        // replaces it after the handover. Binding 0.0.0.0 here put a pre-auth
-        // wizard on every interface of a fresh machine.
-        PortBindings: { "80/tcp": [{ HostIp: BootstrapIngressServiceImpl.BIND_ADDRESS, HostPort: String(this.entryPort()) }] },
-        // `unless-stopped`, matching every other platform service AND the
-        // compose-managed ingress: the ingress must come back after a host
-        // reboot, because nothing else can serve the wizard that would
-        // otherwise be needed to fix it.
-        RestartPolicy: { Name: "unless-stopped" },
-        Binds: [
-          // Dynamic config, shared with this app. READ-ONLY: the file provider
-          // only reads, and a writable mount would let a malformed write from
-          // inside Traefik corrupt the routes.
-          `${this.configVolume()}:${BootstrapIngressServiceImpl.CONFIG_MOUNT}:ro`,
-          // Container discovery for the docker provider.
-          `${this.socketPath()}:/var/run/docker.sock:ro`,
-        ],
-        NetworkMode: this.platformNetwork(),
-      },
-    }));
-
-    await runPromiseUnwrapped(this.docker.containers.start(name));
-  }
-
-  // ─── Engine helpers ───────────────────────────────────────────────────────
-
-  /** The container's state, or null when it does not exist. */
-  private async inspect(): Promise<{
-    running: boolean;
-    image: string;
-    port: string | null;
-    hostIp: string | null;
-    networks: string[];
-  } | null> {
-    try {
-      const info = await runPromiseUnwrapped(this.docker.containers.inspect(BootstrapIngressServiceImpl.CONTAINER_NAME));
-      const bindings = info.HostConfig?.PortBindings ?? {};
-      return {
-        running: info.State.Running,
-        image: info.Config.Image ?? "",
-        port: bindings["80/tcp"]?.[0]?.HostPort ?? null,
-        hostIp: bindings["80/tcp"]?.[0]?.HostIp ?? null,
-        networks: Object.keys(info.NetworkSettings?.Networks ?? {}),
-      };
-    } catch {
-      // A missing container is the normal first-boot case, not an error.
-      return null;
-    }
-  }
-
-  /**
-   * Whether a running container already matches the desired state.
-   *
-   * Compares only what CANNOT be changed without recreating the container —
-   * image, published port, network — because those are exactly the values a
-   * stale container would hold. Comparing more (env, labels) would recreate for
-   * changes that do not affect behaviour and needlessly drop live connections.
-   */
-  private matchesDesired(state: { image: string; port: string | null; hostIp: string | null; networks: string[] }): boolean {
-    // A container from before the loopback rule is bound on every interface: it
-    // must be recreated, not adopted.
-    const portMatches = state.port === String(this.entryPort()) && state.hostIp === BootstrapIngressServiceImpl.BIND_ADDRESS;
-    const imageMatches = state.image === this.image();
-    const networkMatches = state.networks.includes(this.platformNetwork());
-    return portMatches && imageMatches && networkMatches;
-  }
-
-  /** Force-remove the container, tolerating "already gone". */
-  private async remove(): Promise<void> {
-    // `removeIfExists` already treats "no such container" and "removal already in progress" as removed.
-    await runPromiseUnwrapped(this.docker.containers.removeIfExists(BootstrapIngressServiceImpl.CONTAINER_NAME));
-  }
-
-  /**
-   * Wait until the entry port ACCEPTS a connection.
-   *
-   * Probes the host-gateway address rather than `127.0.0.1`: this code runs
-   * inside a container, and the port is published on the HOST, so loopback
-   * would test this container's own namespace and always fail.
-   *
-   * Any TCP acceptance counts, including a 404 — a 404 from Traefik proves the
-   * router is ALIVE and merely has no matching rule yet (the wizard's route is
-   * published separately). Requiring a 200 would conflate "ingress up" with
-   * "route configured", and the two are deliberately separate here.
-   */
-  /**
-   * Assert the ingress answers within the boot budget, or throw.
-   */
-  private async verifyReachable(): Promise<void> {
-    const reachable = await this.portAnswers(BootstrapIngressServiceImpl.READY_TIMEOUT_MS);
-    if (!reachable) {
-      throw new Error(
-        `ingress started but did not answer on port ${String(this.entryPort())} within ` +
-          `${String(BootstrapIngressServiceImpl.READY_TIMEOUT_MS / 1000)}s`,
-      );
-    }
-  }
-
-  /**
-   * Poll until the ingress answers, or the budget runs out.
-   *
-   * Dialled on the PLATFORM NETWORK by container name, on its container port:
-   * the host binding is loopback-only, so the host gateway this app used to probe
-   * cannot reach it from inside this container any more. The gateway stays a
-   * fallback for a compose-managed ingress published on the host.
-   */
-  private async portAnswers(budgetMs: number): Promise<boolean> {
-    const deadline = Date.now() + budgetMs;
-    while (Date.now() < deadline) {
-      if (await this.tcpAnswers(BootstrapIngressServiceImpl.CONTAINER_NAME, 80)) return true;
-      if (await this.tcpAnswers(this.hostGateway(), this.entryPort())) return true;
-      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS));
-    }
-    return false;
-  }
-
-  /** One TCP connect attempt against host:port. */
-  private tcpAnswers(host: string, port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      // A raw socket, not `fetch`: Traefik answers :80 as an HTTP router but
-      // the question here is "is anything listening", and a socket avoids
-      // caring which response shape a misrouted request produces.
-      const socket = new Socket();
-      const done = (result: boolean) => {
-        socket.destroy();
-        resolve(result);
-      };
-      socket.setTimeout(1_500);
-      socket.once("connect", () => { done(true); });
-      socket.once("timeout", () => { done(false); });
-      socket.once("error", () => { done(false); });
-      socket.connect(port, host);
-    });
-  }
-
-  /**
-   * The address that reaches PUBLISHED host ports from inside this container.
-   *
-   * ── WHY `host.docker.internal` IS NOT THE WHOLE ANSWER ──────────────────
-   * `--add-host=host.docker.internal:host-gateway` maps that name to the DEFAULT
-   * BRIDGE gateway (`172.17.0.1`), which is NOT this container's gateway. Setup
-   * joins three user-defined networks, so its default route is `172.25.0.1`;
-   * `172.17.0.1` answers nothing at all. Measured from the running container
-   * while the ingress was demonstrably routing:
-   *
-   *   host.docker.internal -> 172.17.0.1     (ningún servicio)
-   *   172.17.0.1:80  -> no answer
-   *   172.25.0.1:80  -> no answer (the port was bound to 127.0.0.1 only)
-   *   traefik:80     -> {"status":"ready"}
-   *
-   * The handover therefore reported "the swarm ingress took the entry port but
-   * is not routing the API yet" for a platform that WAS routing — a sticky
-   * failure that kept `/setup/health` at 503 and held `web-dev` in its entrypoint
-   * wait indefinitely.
-   *
-   * The address is now derived from THIS container's own default route, so it
-   * follows whichever network the platform is actually on. `HOST_GATEWAY_ADDRESS`
-   * stays as the explicit override for an engine where that derivation is wrong.
-   */
-  private hostGateway(): string {
-    const configured = process.env.HOST_GATEWAY_ADDRESS;
-    // A bare `host.docker.internal` default is what made the probe target the
-    // wrong gateway, so it is treated as "unset" rather than honoured.
-    if (
-      configured !== undefined &&
-      configured.length > 0 &&
-      configured !== "host.docker.internal"
-    ) {
-      return configured;
+        this.logger.warn(`Swarm ingress not promoted: ${lastDetail}`)
+        return false
     }
 
-    const fromRoute = this.defaultGatewayFromProcNetRoute();
-    if (fromRoute !== null) return fromRoute;
+    /** Whether the swarm ingress service has a task running on this node. */
+    private async swarmIngressState(): Promise<{
+        running: boolean
+        detail: string
+    }> {
+        const serviceName = this.swarmServiceName()
 
-    return "host.docker.internal";
-  }
+        // The service is created by the API's supervisor AFTER the gate opens, and
+        // this poll runs during the handover — so "not created yet" is the NORMAL
+        // first answer, not a fault. Checking it explicitly keeps that out of the
+        // task listing, which logs an ERROR for a 404 and would make every handover
+        // look like it failed.
+        try {
+            await runPromiseUnwrapped(
+                this.docker.swarmServices.inspect(serviceName)
+            )
+        } catch (error: unknown) {
+            if (error instanceof DockerNotFound) {
+                return {
+                    running: false,
+                    detail: `${serviceName} has not been created yet`,
+                }
+            }
+            const detail =
+                error instanceof Error ? error.message : String(error)
+            return {
+                running: false,
+                detail: `${serviceName} could not be inspected (${detail})`,
+            }
+        }
 
-  /**
-   * This container's DEFAULT GATEWAY, read from the kernel.
-   *
-   * `/proc/net/route` is a tab-separated table whose destination `00000000` row
-   * is the default route; the gateway is little-endian hex. Read from the file
-   * rather than shelling out to `ip`, which is not installed in every image.
-   * Returns `null` when there is no default route, so the caller can fall back
-   * instead of probing `undefined`.
-   */
-  private defaultGatewayFromProcNetRoute(): string | null {
-    try {
-      const table = readFileSync("/proc/net/route", "utf8");
-      for (const line of table.split("\n").slice(1)) {
-        const columns = line.trim().split(/\s+/);
-        if (columns.length < 3) continue;
-        const [, destination, gateway] = columns;
-        if (destination !== "00000000" || gateway === undefined) continue;
-        const value = Number.parseInt(gateway, 16);
-        if (!Number.isFinite(value)) continue;
-        // Little-endian: the hex is the address with its bytes reversed.
-        return [value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff].join(".");
-      }
-      return null;
-    } catch {
-      return null;
+        try {
+            const tasks = await runPromiseUnwrapped(
+                this.docker.swarmServices.listTasks(serviceName)
+            )
+            if (tasks.length === 0) {
+                return {
+                    running: false,
+                    detail: `${serviceName} has no tasks scheduled`,
+                }
+            }
+            const running = tasks.filter(
+                (task) => task.Status.State === 'running'
+            ).length
+            if (running > 0)
+                return {
+                    running: true,
+                    detail: `${serviceName} has ${String(running)} running task(s)`,
+                }
+
+            // Surface the FIRST task error verbatim: the port-conflict text is what
+            // makes this diagnosable, and it is the whole reason the promotion can
+            // fail while the service "exists".
+            const failing = tasks.find(
+                (task) =>
+                    task.Status.Err !== undefined && task.Status.Err !== ''
+            )
+            return {
+                running: false,
+                detail:
+                    failing === undefined
+                        ? `${serviceName} tasks are not running yet (${tasks.map((task) => task.Status.State).join(', ')})`
+                        : `${serviceName} task failed: ${failing.Status.Err}`,
+            }
+        } catch (error: unknown) {
+            const detail =
+                error instanceof Error ? error.message : String(error)
+            return {
+                running: false,
+                detail: `${serviceName} could not be inspected (${detail})`,
+            }
+        }
     }
-  }
 
-  /** Operator-facing note about which incarnation currently owns the ingress. */
-  private ingressStateNote(): string {
-    return "wizard reachable through the ingress";
-  }
+    /** `deployer-traefik`, per prefix — the same name the API's supervisor uses. */
+    private swarmServiceName(): string {
+        const prefix = this.env.get('DEPLOYER_PREFIX')
+        return prefix === ''
+            ? BootstrapIngressServiceImpl.CONTAINER_NAME
+            : `${BootstrapIngressServiceImpl.CONTAINER_NAME}-${prefix}`
+    }
+
+    /**
+     * Whether an engine error means "something already holds the entry port".
+     *
+     * Matched on the daemon's own wording. Docker reports this several ways
+     * depending on which layer refuses, so all the known spellings are covered —
+     * a miss here would turn a successful handover into a reported failure.
+     */
+    private isPortTakenError(error: unknown): boolean {
+        const message = error instanceof Error ? error.message : String(error)
+        return (
+            message.includes('port is already allocated') ||
+            message.includes('address already in use') ||
+            message.includes('failed to bind host port') ||
+            message.includes('failed programming external connectivity')
+        )
+    }
+
+    // ─── Desired state ────────────────────────────────────────────────────────
+
+    /** The image both incarnations run. */
+    private image(): string {
+        return this.env.get('DEPLOYER_TRAEFIK_IMAGE')
+    }
+
+    /** The published entry port, shared with the API's supervisor. */
+    private entryPort(): number {
+        return this.env.get('DEPLOYER_TRAEFIK_HTTP_PORT')
+    }
+
+    /** Named volume carrying the generated dynamic config. */
+    private configVolume(): string {
+        return this.env.get('TRAEFIK_CONFIG_VOLUME')
+    }
+
+    /**
+     * Host socket path for the docker provider (container discovery).
+     *
+     * Read through `resolveDockerClient`, the same resolver the engine itself uses, so a `tcp://` or bare-path
+     * `DOCKER_HOST` is understood instead of being mangled by a string replace, and an unset host still finds the
+     * mounted socket.
+     */
+    private socketPath(): string {
+        return (
+            resolveDockerClient({
+                host: this.env.get('DOCKER_HOST'),
+                port: undefined,
+            }).socketPath ?? DEFAULT_DOCKER_SOCKET_PATH
+        )
+    }
+
+    /**
+     * The bridge network Traefik must join to reach this app.
+     *
+     * `deployer-platform` is the SAME network compose attaches every app to, and
+     * the one the API's supervisors converge onto. Joining it by NAME (rather than
+     * creating a network) is what lets the ingress resolve the `setup` alias this
+     * app is published under — the route Traefik is asked to serve points at
+     * `http://setup:3016`, a docker-network name that means nothing otherwise.
+     */
+    private platformNetwork(): string {
+        return platformNetworkName(this.env.get('DEPLOYER_PREFIX'))
+    }
+
+    /**
+     * Provider flags for the BOOTSTRAP incarnation.
+     *
+     * Only `docker` + `file`: the swarm provider is deliberately omitted. It is
+     * useless before a cluster exists, and enables nothing here — whereas the API's
+     * incarnation adds it because by then there ARE services to route to. Keeping
+     * this list minimal means the bootstrap ingress cannot half-work in a way that
+     * depends on a cluster that is not there yet.
+     *
+     * The `file` provider is the load-bearing one: it is how a route written by
+     * `IngressHandoverService` reaches Traefik without either process talking to
+     * the other.
+     */
+    private command(): string[] {
+        return [
+            '--providers.docker=true',
+            '--providers.docker.exposedbydefault=false',
+            `--providers.file.directory=${BootstrapIngressServiceImpl.CONFIG_MOUNT}`,
+            '--providers.file.watch=true',
+            '--entrypoints.web.address=:80',
+        ]
+    }
+
+    /** Create (not start) the ingress container from the desired state. */
+    private async create(): Promise<void> {
+        const name = BootstrapIngressServiceImpl.CONTAINER_NAME
+        this.logger.log(
+            `Creating bootstrap ingress ${name} from ${this.image()}`
+        )
+
+        await runPromiseUnwrapped(
+            this.docker.containers.create({
+                name,
+                Image: this.image(),
+                Cmd: this.command(),
+                // The ownership marker the API's supervisors already use, so cleanup and
+                // inspection tooling sees ONE naming scheme across both incarnations —
+                // and so the promoted swarm service is recognisably the same component.
+                Labels: {
+                    'deployer.platform.role': 'ingress',
+                    'deployer.managed': 'true',
+                    'deployer.bootstrap': 'true',
+                },
+                ExposedPorts: { '80/tcp': {} },
+                HostConfig: {
+                    // LOOPBACK ONLY. The wizard is pre-auth and the node has made no exposure
+                    // decision yet, so the onboarding ingress is reachable from this machine
+                    // and nowhere else — the same posture as the platform's `local` lane that
+                    // replaces it after the handover. Binding 0.0.0.0 here put a pre-auth
+                    // wizard on every interface of a fresh machine.
+                    PortBindings: {
+                        '80/tcp': [
+                            {
+                                HostIp: BootstrapIngressServiceImpl.BIND_ADDRESS,
+                                HostPort: String(this.entryPort()),
+                            },
+                        ],
+                    },
+                    // `unless-stopped`, matching every other platform service AND the
+                    // compose-managed ingress: the ingress must come back after a host
+                    // reboot, because nothing else can serve the wizard that would
+                    // otherwise be needed to fix it.
+                    RestartPolicy: { Name: 'unless-stopped' },
+                    Binds: [
+                        // Dynamic config, shared with this app. READ-ONLY: the file provider
+                        // only reads, and a writable mount would let a malformed write from
+                        // inside Traefik corrupt the routes.
+                        `${this.configVolume()}:${BootstrapIngressServiceImpl.CONFIG_MOUNT}:ro`,
+                        // Container discovery for the docker provider.
+                        `${this.socketPath()}:/var/run/docker.sock:ro`,
+                    ],
+                    NetworkMode: this.platformNetwork(),
+                },
+            })
+        )
+
+        await runPromiseUnwrapped(this.docker.containers.start(name))
+    }
+
+    // ─── Engine helpers ───────────────────────────────────────────────────────
+
+    /** The container's state, or null when it does not exist. */
+    private async inspect(): Promise<{
+        running: boolean
+        image: string
+        port: string | null
+        hostIp: string | null
+        networks: string[]
+    } | null> {
+        try {
+            const info = await runPromiseUnwrapped(
+                this.docker.containers.inspect(
+                    BootstrapIngressServiceImpl.CONTAINER_NAME
+                )
+            )
+            const bindings = info.HostConfig?.PortBindings ?? {}
+            return {
+                running: info.State.Running,
+                image: info.Config.Image ?? '',
+                port: bindings['80/tcp']?.[0]?.HostPort ?? null,
+                hostIp: bindings['80/tcp']?.[0]?.HostIp ?? null,
+                networks: Object.keys(info.NetworkSettings?.Networks ?? {}),
+            }
+        } catch {
+            // A missing container is the normal first-boot case, not an error.
+            return null
+        }
+    }
+
+    /**
+     * Whether a running container already matches the desired state.
+     *
+     * Compares only what CANNOT be changed without recreating the container —
+     * image, published port, network — because those are exactly the values a
+     * stale container would hold. Comparing more (env, labels) would recreate for
+     * changes that do not affect behaviour and needlessly drop live connections.
+     */
+    private matchesDesired(state: {
+        image: string
+        port: string | null
+        hostIp: string | null
+        networks: string[]
+    }): boolean {
+        // A container from before the loopback rule is bound on every interface: it
+        // must be recreated, not adopted.
+        const portMatches =
+            state.port === String(this.entryPort()) &&
+            state.hostIp === BootstrapIngressServiceImpl.BIND_ADDRESS
+        const imageMatches = state.image === this.image()
+        const networkMatches = state.networks.includes(this.platformNetwork())
+        return portMatches && imageMatches && networkMatches
+    }
+
+    /** Force-remove the container, tolerating "already gone". */
+    private async remove(): Promise<void> {
+        // `removeIfExists` already treats "no such container" and "removal already in progress" as removed.
+        await runPromiseUnwrapped(
+            this.docker.containers.removeIfExists(
+                BootstrapIngressServiceImpl.CONTAINER_NAME
+            )
+        )
+    }
+
+    /**
+     * Wait until the entry port ACCEPTS a connection.
+     *
+     * Probes the host-gateway address rather than `127.0.0.1`: this code runs
+     * inside a container, and the port is published on the HOST, so loopback
+     * would test this container's own namespace and always fail.
+     *
+     * Any TCP acceptance counts, including a 404 — a 404 from Traefik proves the
+     * router is ALIVE and merely has no matching rule yet (the wizard's route is
+     * published separately). Requiring a 200 would conflate "ingress up" with
+     * "route configured", and the two are deliberately separate here.
+     */
+    /**
+     * Assert the ingress answers within the boot budget, or throw.
+     */
+    private async verifyReachable(): Promise<void> {
+        const reachable = await this.portAnswers(
+            BootstrapIngressServiceImpl.READY_TIMEOUT_MS
+        )
+        if (!reachable) {
+            throw new Error(
+                `ingress started but did not answer on port ${String(this.entryPort())} within ` +
+                    `${String(BootstrapIngressServiceImpl.READY_TIMEOUT_MS / 1000)}s`
+            )
+        }
+    }
+
+    /**
+     * Poll until the ingress answers, or the budget runs out.
+     *
+     * Dialled on the PLATFORM NETWORK by container name, on its container port:
+     * the host binding is loopback-only, so the host gateway this app used to probe
+     * cannot reach it from inside this container any more. The gateway stays a
+     * fallback for a compose-managed ingress published on the host.
+     */
+    private async portAnswers(budgetMs: number): Promise<boolean> {
+        const deadline = Date.now() + budgetMs
+        while (Date.now() < deadline) {
+            if (
+                await this.tcpAnswers(
+                    BootstrapIngressServiceImpl.CONTAINER_NAME,
+                    80
+                )
+            )
+                return true
+            if (await this.tcpAnswers(this.hostGateway(), this.entryPort()))
+                return true
+            await new Promise((resolve) =>
+                setTimeout(resolve, BootstrapIngressServiceImpl.READY_POLL_MS)
+            )
+        }
+        return false
+    }
+
+    /** One TCP connect attempt against host:port. */
+    private tcpAnswers(host: string, port: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            // A raw socket, not `fetch`: Traefik answers :80 as an HTTP router but
+            // the question here is "is anything listening", and a socket avoids
+            // caring which response shape a misrouted request produces.
+            const socket = new Socket()
+            const done = (result: boolean) => {
+                socket.destroy()
+                resolve(result)
+            }
+            socket.setTimeout(1_500)
+            socket.once('connect', () => {
+                done(true)
+            })
+            socket.once('timeout', () => {
+                done(false)
+            })
+            socket.once('error', () => {
+                done(false)
+            })
+            socket.connect(port, host)
+        })
+    }
+
+    /**
+     * The address that reaches PUBLISHED host ports from inside this container.
+     *
+     * ── WHY `host.docker.internal` IS NOT THE WHOLE ANSWER ──────────────────
+     * `--add-host=host.docker.internal:host-gateway` maps that name to the DEFAULT
+     * BRIDGE gateway (`172.17.0.1`), which is NOT this container's gateway. Setup
+     * joins three user-defined networks, so its default route is `172.25.0.1`;
+     * `172.17.0.1` answers nothing at all. Measured from the running container
+     * while the ingress was demonstrably routing:
+     *
+     *   host.docker.internal -> 172.17.0.1     (ningún servicio)
+     *   172.17.0.1:80  -> no answer
+     *   172.25.0.1:80  -> no answer (the port was bound to 127.0.0.1 only)
+     *   traefik:80     -> {"status":"ready"}
+     *
+     * The handover therefore reported "the swarm ingress took the entry port but
+     * is not routing the API yet" for a platform that WAS routing — a sticky
+     * failure that kept `/setup/health` at 503 and held `web-dev` in its entrypoint
+     * wait indefinitely.
+     *
+     * The address is now derived from THIS container's own default route, so it
+     * follows whichever network the platform is actually on. `HOST_GATEWAY_ADDRESS`
+     * stays as the explicit override for an engine where that derivation is wrong.
+     */
+    private hostGateway(): string {
+        const configured = process.env.HOST_GATEWAY_ADDRESS
+        // A bare `host.docker.internal` default is what made the probe target the
+        // wrong gateway, so it is treated as "unset" rather than honoured.
+        if (
+            configured !== undefined &&
+            configured.length > 0 &&
+            configured !== 'host.docker.internal'
+        ) {
+            return configured
+        }
+
+        const fromRoute = this.defaultGatewayFromProcNetRoute()
+        if (fromRoute !== null) return fromRoute
+
+        return 'host.docker.internal'
+    }
+
+    /**
+     * This container's DEFAULT GATEWAY, read from the kernel.
+     *
+     * `/proc/net/route` is a tab-separated table whose destination `00000000` row
+     * is the default route; the gateway is little-endian hex. Read from the file
+     * rather than shelling out to `ip`, which is not installed in every image.
+     * Returns `null` when there is no default route, so the caller can fall back
+     * instead of probing `undefined`.
+     */
+    private defaultGatewayFromProcNetRoute(): string | null {
+        try {
+            const table = readFileSync('/proc/net/route', 'utf8')
+            for (const line of table.split('\n').slice(1)) {
+                const columns = line.trim().split(/\s+/)
+                if (columns.length < 3) continue
+                const [, destination, gateway] = columns
+                if (destination !== '00000000' || gateway === undefined)
+                    continue
+                const value = Number.parseInt(gateway, 16)
+                if (!Number.isFinite(value)) continue
+                // Little-endian: the hex is the address with its bytes reversed.
+                return [
+                    value & 0xff,
+                    (value >> 8) & 0xff,
+                    (value >> 16) & 0xff,
+                    (value >> 24) & 0xff,
+                ].join('.')
+            }
+            return null
+        } catch {
+            return null
+        }
+    }
+
+    /** Operator-facing note about which incarnation currently owns the ingress. */
+    private ingressStateNote(): string {
+        return 'wizard reachable through the ingress'
+    }
 }
 
 /** The tag: what a module provides and a consumer asks for (`BootstrapIngressService["Service"]` is its type). */
-export class BootstrapIngressService extends Context.Service<BootstrapIngressService, BootstrapIngressServiceImpl>()("setup/BootstrapIngressService") {}
+export class BootstrapIngressService extends Context.Service<
+    BootstrapIngressService,
+    BootstrapIngressServiceImpl
+>()('setup/BootstrapIngressService') {}
 
 /** The one way to build it — the module's `useFactory` and a spec both call this. */
-export const makeBootstrapIngressService = (...args: ConstructorParameters<typeof BootstrapIngressServiceImpl>): BootstrapIngressServiceImpl => new BootstrapIngressServiceImpl(...args);
+export const makeBootstrapIngressService = (
+    ...args: ConstructorParameters<typeof BootstrapIngressServiceImpl>
+): BootstrapIngressServiceImpl => new BootstrapIngressServiceImpl(...args)

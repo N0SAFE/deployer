@@ -1,111 +1,132 @@
-import { Effect } from 'effect';
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import * as z from 'zod/v4';
+import { Effect } from 'effect'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import * as z from 'zod/v4'
 
-import { contractBuilder, EventLogUnavailable, type EventLogStoreShape, type PersistedEventLog } from '@deployer/events';
+import {
+    contractBuilder,
+    EventLogUnavailable,
+    type EventLogStoreShape,
+    type PersistedEventLog,
+} from '@deployer/events'
 
-import { BaseEventService } from './base-event.service';
+import { BaseEventService } from './base-event.service'
 
 const testContracts = {
-  progress: contractBuilder()
-    .input(z.object({ taskId: z.string() }))
-    .output(z.object({ step: z.string(), seq: z.number() }))
-    .build(),
-};
+    progress: contractBuilder()
+        .input(z.object({ taskId: z.string() }))
+        .output(z.object({ step: z.string(), seq: z.number() }))
+        .build(),
+}
 
 // Subclass with a tiny flush batch so a single emit triggers a flush attempt
 // on the NEXT emit crossing the threshold — we want to drive `flush` via emit.
-class TinyBatchTestService extends BaseEventService<typeof testContracts, 'test'> {
-  constructor() {
-    super('test', testContracts);
-  }
+class TinyBatchTestService extends BaseEventService<
+    typeof testContracts,
+    'test'
+> {
+    constructor() {
+        super('test', testContracts)
+    }
 }
 
 function setTinyBatch(svc: TinyBatchTestService): void {
-  (svc as unknown as { pendingFlushBatchSize: number }).pendingFlushBatchSize = 2;
+    ;(
+        svc as unknown as { pendingFlushBatchSize: number }
+    ).pendingFlushBatchSize = 2
 }
 
-const emptyFind = () => Promise.resolve([]);
+const emptyFind = () => Promise.resolve([])
 
 /** A Promise-shaped log, as an Effect store whose rejections are `EventLogUnavailable`. */
 type EventLogPersistenceAdapter = {
-  insertMany(logs: PersistedEventLog[]): Promise<void>;
-  findRecentByEventKey: () => Promise<PersistedEventLog[]>;
-  findRecentByEventName: () => Promise<PersistedEventLog[]>;
-};
+    insertMany(logs: PersistedEventLog[]): Promise<void>
+    findRecentByEventKey: () => Promise<PersistedEventLog[]>
+    findRecentByEventName: () => Promise<PersistedEventLog[]>
+}
 
 const asStore = (adapter: EventLogPersistenceAdapter): EventLogStoreShape => {
-  const lift = <A>(run: () => Promise<A>) =>
-    Effect.tryPromise({ try: run, catch: (cause) => new EventLogUnavailable({ reason: cause instanceof Error ? cause.message : String(cause), cause }) });
-  return {
-    insertMany: (logs) => lift(() => adapter.insertMany([...logs])),
-    findRecentByEventKey: () => lift(() => adapter.findRecentByEventKey()),
-    findRecentByEventName: () => lift(() => adapter.findRecentByEventName()),
-  };
-};
+    const lift = <A>(run: () => Promise<A>) =>
+        Effect.tryPromise({
+            try: run,
+            catch: (cause) =>
+                new EventLogUnavailable({
+                    reason:
+                        cause instanceof Error ? cause.message : String(cause),
+                    cause,
+                }),
+        })
+    return {
+        insertMany: (logs) => lift(() => adapter.insertMany([...logs])),
+        findRecentByEventKey: () => lift(() => adapter.findRecentByEventKey()),
+        findRecentByEventName: () =>
+            lift(() => adapter.findRecentByEventName()),
+    }
+}
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  vi.useRealTimers();
-  BaseEventService.clearRegistryForTests();
-});
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    BaseEventService.clearRegistryForTests()
+})
 
 describe('BaseEventService persistence retry', () => {
-  it('does NOT drop a pending batch when insertMany fails; retries and drains on success', async () => {
-    vi.useFakeTimers();
+    it('does NOT drop a pending batch when insertMany fails; retries and drains on success', async () => {
+        vi.useFakeTimers()
 
-    const inserted: unknown[] = [];
-    let callCount = 0;
-    const adapter: EventLogPersistenceAdapter = {
-      insertMany: vi.fn(async (logs) => {
-        callCount += 1;
-        if (callCount === 1) {
-          throw new Error('relation "core_event_logs" does not exist');
+        const inserted: unknown[] = []
+        let callCount = 0
+        const adapter: EventLogPersistenceAdapter = {
+            insertMany: vi.fn(async (logs) => {
+                callCount += 1
+                if (callCount === 1) {
+                    throw new Error('relation "core_event_logs" does not exist')
+                }
+                inserted.push(...logs)
+            }),
+            findRecentByEventKey: emptyFind,
+            findRecentByEventName: emptyFind,
         }
-        inserted.push(...logs);
-      }),
-      findRecentByEventKey: emptyFind,
-      findRecentByEventName: emptyFind,
-    };
-    BaseEventService.configureEventLogStore(asStore(adapter));
+        BaseEventService.configureEventLogStore(asStore(adapter))
 
-    const svc = new TinyBatchTestService();
-    setTinyBatch(svc);
+        const svc = new TinyBatchTestService()
+        setTinyBatch(svc)
 
-    // Emit twice to cross the batch threshold (size 2) → triggers a flush that FAILS.
-    svc.emit('progress', { taskId: 'a' }, { step: 'x', seq: 1 });
-    svc.emit('progress', { taskId: 'a' }, { step: 'y', seq: 2 });
+        // Emit twice to cross the batch threshold (size 2) → triggers a flush that FAILS.
+        svc.emit('progress', { taskId: 'a' }, { step: 'x', seq: 1 })
+        svc.emit('progress', { taskId: 'a' }, { step: 'y', seq: 2 })
 
-    // First attempt fails (retry scheduled). Advance the unref'd retry timer.
-    await vi.advanceTimersByTimeAsync(2_000);
+        // First attempt fails (retry scheduled). Advance the unref'd retry timer.
+        await vi.advanceTimersByTimeAsync(2_000)
 
-    // The retry must have succeeded and drained the batch; the batch was NOT dropped.
-    expect(inserted.length).toBe(2);
-    expect(adapter.insertMany).toHaveBeenCalledTimes(2);
+        // The retry must have succeeded and drained the batch; the batch was NOT dropped.
+        expect(inserted.length).toBe(2)
+        expect(adapter.insertMany).toHaveBeenCalledTimes(2)
 
-    svc.dispose();
-    vi.useRealTimers();
-  });
+        svc.dispose()
+        vi.useRealTimers()
+    })
 
-  it('keeps emitting-subscribers working even when persistence is down (audit is best-effort)', async () => {
-    const adapter: EventLogPersistenceAdapter = {
-      insertMany: vi.fn().mockRejectedValue(new Error('db down')),
-      findRecentByEventKey: emptyFind,
-      findRecentByEventName: emptyFind,
-    };
-    BaseEventService.configureEventLogStore(asStore(adapter));
+    it('keeps emitting-subscribers working even when persistence is down (audit is best-effort)', async () => {
+        const adapter: EventLogPersistenceAdapter = {
+            insertMany: vi.fn().mockRejectedValue(new Error('db down')),
+            findRecentByEventKey: emptyFind,
+            findRecentByEventName: emptyFind,
+        }
+        BaseEventService.configureEventLogStore(asStore(adapter))
 
-    const svc = new TinyBatchTestService();
-    const received: string[] = [];
-    const sub = svc.subscribe$('progress', { taskId: 'live' }).subscribe((e) => {
-      received.push(e.step);
-    });
+        const svc = new TinyBatchTestService()
+        const received: string[] = []
+        const sub = svc
+            .subscribe$('progress', { taskId: 'live' })
+            .subscribe((e) => {
+                received.push(e.step)
+            })
 
-    svc.emit('progress', { taskId: 'live' }, { step: 'a', seq: 1 });
-    svc.emit('progress', { taskId: 'live' }, { step: 'b', seq: 2 });
+        svc.emit('progress', { taskId: 'live' }, { step: 'a', seq: 1 })
+        svc.emit('progress', { taskId: 'live' }, { step: 'b', seq: 2 })
 
-    expect(received).toEqual(['a', 'b']);
-    sub.unsubscribe();
-    svc.dispose();
-  });
-});
+        expect(received).toEqual(['a', 'b'])
+        sub.unsubscribe()
+        svc.dispose()
+    })
+})

@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 import {
     edgeOptionsSchema,
@@ -8,8 +8,8 @@ import {
     ingressLanesSchema,
     joinEntryPointSummarySchema,
     routeVisibilitySchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 // ─── Schemas ──────────────────────────────────────────────────────────────
 
@@ -20,22 +20,22 @@ export const reachabilityCheckResultSchema = z.object({
     statusCode: z.number().optional(),
     resolvedIp: z.string().optional(),
     error: z.string().optional(),
-});
+})
 
 export const reachabilityConfigSchema = z.object({
     publicUrl: z.string().nullable(),
     lastCheckedAt: z.string().nullable(),
     lastStatus: z.string().nullable(),
     reachable: z.boolean().nullable(),
-});
+})
 
 const reachabilityConfigUpdateSchema = z.object({
-    publicUrl: z.url("Must be a valid URL"),
-});
+    publicUrl: z.url('Must be a valid URL'),
+})
 
 const reachabilityCheckInputSchema = z.object({
-    url: z.url("Must be a valid URL"),
-});
+    url: z.url('Must be a valid URL'),
+})
 
 // ─── Domain check schemas ─────────────────────────────────────────────────
 
@@ -47,16 +47,16 @@ export const domainReachabilityResultSchema = z.object({
     httpStatusCode: z.number().optional(),
     dnsMatch: z.boolean().nullable(),
     error: z.string().optional(),
-});
+})
 
 const domainReachabilityInputSchema = z.object({
     domain: z.string().min(1),
     expectedIp: z.string().optional(),
-});
+})
 
 const publicIpOutputSchema = z.object({
     ip: z.string().nullable(),
-});
+})
 
 // ─── Node Network Config (public IP + tunnel) ──────────────────────────────
 
@@ -68,28 +68,27 @@ export const nodeNetworkConfigSchema = z.object({
     nodeId: z.string(),
     /** Manually-configured globally reachable address (IP/hostname/origin). */
     publicAddress: z.string().nullable(),
-    addressKind: z.enum(["ip", "hostname"]).nullable(),
+    addressKind: z.enum(['ip', 'hostname']).nullable(),
     updatedAt: z.string(),
-});
+})
 
 const nodeNetworkConfigUpdateSchema = z.object({
     /** Target node — defaults to the current node when omitted. */
     nodeId: z.string().optional(),
     /** Set/clear the manual address. Passing null clears it. */
     publicAddress: z.string().nullable().optional(),
-});
+})
 
 const nodeNetworkConfigListOutputSchema = z.object({
     configs: z.array(nodeNetworkConfigSchema),
-});
+})
 
 const nodeNetworkGateSchema = z.object({
     allowed: z.boolean(),
     reason: z.string().nullable(),
     publicAddress: z.string().nullable(),
-    addressKind: z.enum(["ip", "hostname"]).nullable(),
-
-});
+    addressKind: z.enum(['ip', 'hostname']).nullable(),
+})
 
 // ─── Ingress lanes (local · private · public) and the mesh under them ──────
 
@@ -108,15 +107,15 @@ export const publicEdgeViewSchema = z.object({
             status: edgeStatusSchema,
         })
         .nullable(),
-});
+})
 
 /** One mesh member as the Network pages show it. */
 export const meshMemberViewSchema = z.object({
     memberId: z.string(),
     name: z.string(),
-    kind: z.enum(["node", "operator"]),
+    kind: z.enum(['node', 'operator']),
     address: z.string(),
-    state: z.enum(["active", "left"]),
+    state: z.enum(['active', 'left']),
     /** True for the member answering this request (the node the API runs on). */
     self: z.boolean(),
     /** Facts the member published about itself (swarm node id, platform node id…). */
@@ -125,21 +124,21 @@ export const meshMemberViewSchema = z.object({
     endpoints: z.array(z.object({ kind: z.string(), address: z.string() })),
     /** `self` for the node answering; `direct` when a WireGuard handshake is fresh. */
     link: z.object({
-        path: z.enum(["self", "direct", "trying", "relay", "passive"]),
+        path: z.enum(['self', 'direct', 'trying', 'relay', 'passive']),
         endpoint: z.string().nullable(),
         latestHandshakeAt: z.string().nullable(),
     }),
-});
+})
 
 /** One node door (loopback, LAN or mesh-address listener in front of Traefik). */
 export const meshDoorViewSchema = z.object({
-    lane: z.enum(["local", "private", "lan"]),
+    lane: z.enum(['local', 'private', 'lan']),
     container: z.string(),
     bindAddress: z.string(),
     port: z.number().int(),
-    state: z.enum(["running", "absent", "failed"]),
+    state: z.enum(['running', 'absent', 'failed']),
     detail: z.string().nullable(),
-});
+})
 
 export const ingressStateSchema = z.object({
     lanes: ingressLanesSchema,
@@ -167,13 +166,13 @@ export const ingressStateSchema = z.object({
     /** DNS records the lanes need, as last converged (`manual` = no provider owns the zone). */
     dns: z.array(
         z.object({
-            lane: z.enum(["public", "private"]),
+            lane: z.enum(['public', 'private']),
             name: z.string(),
-            type: z.enum(["A", "CNAME"]),
+            type: z.enum(['A', 'CNAME']),
             contents: z.array(z.string()),
-            status: z.enum(["synced", "manual", "error"]),
+            status: z.enum(['synced', 'manual', 'error']),
             detail: z.string().nullable(),
-        }),
+        })
     ),
     /** The mesh as seen by the agent on the node serving this request. */
     mesh: z.object({
@@ -194,17 +193,17 @@ export const ingressStateSchema = z.object({
      * routes that exist to JOIN it at all.
      */
     entryPoints: joinEntryPointSummarySchema,
-});
+})
 
-export type IngressState = z.output<typeof ingressStateSchema>;
+export type IngressState = z.output<typeof ingressStateSchema>
 
 /** One member as the Network pages show it. */
-export type MeshMemberView = z.output<typeof meshMemberViewSchema>;
+export type MeshMemberView = z.output<typeof meshMemberViewSchema>
 
 /** One node door as the Network pages show it. */
-export type MeshDoorView = z.output<typeof meshDoorViewSchema>;
+export type MeshDoorView = z.output<typeof meshDoorViewSchema>
 
-export type PublicEdgeView = z.output<typeof publicEdgeViewSchema>;
+export type PublicEdgeView = z.output<typeof publicEdgeViewSchema>
 
 export const updateIngressInputSchema = z.object({
     entryPort: z.number().int().min(1).max(65_535).optional(),
@@ -232,103 +231,109 @@ export const updateIngressInputSchema = z.object({
         .nullable()
         .optional(),
     consoleVisibility: routeVisibilitySchema.optional(),
-});
+})
 
-export type UpdateIngressInput = z.output<typeof updateIngressInputSchema>;
+export type UpdateIngressInput = z.output<typeof updateIngressInputSchema>
 
 const revokeMeshMemberInputSchema = z.object({
     memberId: z.string().min(1),
     /** Why — recorded in the signed revocation every member keeps. */
     reason: z.string().min(1).max(512),
-});
+})
 
 // ─── Contract Builders ────────────────────────────────────────────────────
 
-const checkOps = standard.zod(reachabilityCheckResultSchema, "reachabilityCheck");
-const configOps = standard.zod(reachabilityConfigSchema, "reachabilityConfig");
-const domainCheckOps = standard.zod(domainReachabilityResultSchema, "domainReachability");
-const publicIpOps = standard.zod(publicIpOutputSchema, "publicIp");
-const nodeNetworkOps = standard.zod(nodeNetworkConfigSchema, "nodeNetwork");
-const nodeGateOps = standard.zod(nodeNetworkGateSchema, "nodeNetworkGate");
-const ingressOps = standard.zod(ingressStateSchema, "ingress");
+const checkOps = standard.zod(
+    reachabilityCheckResultSchema,
+    'reachabilityCheck'
+)
+const configOps = standard.zod(reachabilityConfigSchema, 'reachabilityConfig')
+const domainCheckOps = standard.zod(
+    domainReachabilityResultSchema,
+    'domainReachability'
+)
+const publicIpOps = standard.zod(publicIpOutputSchema, 'publicIp')
+const nodeNetworkOps = standard.zod(nodeNetworkConfigSchema, 'nodeNetwork')
+const nodeGateOps = standard.zod(nodeNetworkGateSchema, 'nodeNetworkGate')
+const ingressOps = standard.zod(ingressStateSchema, 'ingress')
 
 // ─── Contracts ────────────────────────────────────────────────────────────
 
 export const checkReachabilityContract = checkOps
     .list()
-    .path("/reachability/check")
+    .path('/reachability/check')
     .input(reachabilityCheckInputSchema)
     .output(reachabilityCheckResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const getReachabilityConfigContract = configOps
     .read()
-    .path("/reachability/config")
+    .path('/reachability/config')
     .input(z.object({}))
     .output(reachabilityConfigSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const updateReachabilityConfigContract = configOps
     .update()
-    .path("/reachability/config")
+    .path('/reachability/config')
     .input((b) => b.body(reachabilityConfigUpdateSchema))
     .output(reachabilityConfigSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 // ─── Domain reachability contracts ─────────────────────────────────────
 
 export const checkDomainReachabilityContract = domainCheckOps
     .list()
-    .path("/reachability/domain")
+    .path('/reachability/domain')
     .input(domainReachabilityInputSchema)
     .output(domainReachabilityResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const getPublicIpContract = publicIpOps
     .read()
-    .path("/reachability/public-ip")
+    .path('/reachability/public-ip')
     .input(z.object({}))
     .output(publicIpOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 // ─── Node network config contracts ─────────────────────────────────────
 
 export const getNodeNetworkConfigContract = nodeNetworkOps
     .read()
-    .path("/reachability/node-network")
+    .path('/reachability/node-network')
     .input(z.object({ nodeId: z.string().optional() }))
     .output(nodeNetworkConfigSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const updateNodeNetworkConfigContract = nodeNetworkOps
     .create()
-    .path("/reachability/node-network")
+    .path('/reachability/node-network')
     .input((b) => b.body(nodeNetworkConfigUpdateSchema))
     .output(nodeNetworkConfigSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const listNodeNetworkConfigsContract = nodeNetworkOps
     .list()
-    .path("/reachability/node-network/all")
+    .path('/reachability/node-network/all')
     .input(z.object({}))
     .output(nodeNetworkConfigListOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const checkDomainGateContract = nodeGateOps
     .read()
-    .path("/reachability/domain-gate")
+    .path('/reachability/domain-gate')
     .input(z.object({}))
     .output(nodeNetworkGateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 // ─── Public Access Point (first-class, global relay) ─────────────────────
 
@@ -340,7 +345,7 @@ export const checkDomainGateContract = nodeGateOps
  */
 export const publicAccessPointStateSchema = z.object({
     configured: z.boolean(),
-    kind: z.enum(["ip", "hostname", "tunnel"]).nullable(),
+    kind: z.enum(['ip', 'hostname', 'tunnel']).nullable(),
     address: z.string().nullable(),
     publicUrl: z.string().nullable(),
     providerId: z.string().nullable(),
@@ -350,36 +355,39 @@ export const publicAccessPointStateSchema = z.object({
     latencyMs: z.number().nullable(),
     statusCode: z.number().nullable(),
     error: z.string().nullable(),
-});
+})
 
-const accessPointOps = standard.zod(publicAccessPointStateSchema, "publicAccessPoint");
+const accessPointOps = standard.zod(
+    publicAccessPointStateSchema,
+    'publicAccessPoint'
+)
 
 export const getPublicAccessPointContract = accessPointOps
     .read()
-    .path("/reachability/public-access-point")
+    .path('/reachability/public-access-point')
     .input(z.object({}))
     .output(publicAccessPointStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const watchPublicAccessPointContract = accessPointOps
     .list()
-    .path("/reachability/public-access-point/watch")
+    .path('/reachability/public-access-point/watch')
     .input(z.object({}))
     .output((b) => b.observable(publicAccessPointStateSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 // ─── Ingress lane contracts ───────────────────────────────────────────────
 
 /** Read the stack's lanes, exposure, console URLs, tunnel and mesh status. */
 export const getIngressContract = ingressOps
     .read()
-    .path("/reachability/ingress")
+    .path('/reachability/ingress')
     .input(z.object({}))
     .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 /**
  * Change the lanes.
@@ -390,11 +398,11 @@ export const getIngressContract = ingressOps
  */
 export const updateIngressContract = ingressOps
     .create()
-    .path("/reachability/ingress")
+    .path('/reachability/ingress')
     .input((b) => b.body(updateIngressInputSchema))
     .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 /**
  * Tear the public edge down: delete what its provider created (a tunnel, its
@@ -405,11 +413,11 @@ export const updateIngressContract = ingressOps
  */
 export const teardownPublicEdgeContract = ingressOps
     .delete()
-    .path("/reachability/ingress/public-edge")
+    .path('/reachability/ingress/public-edge')
     .input(z.object({}))
     .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 /**
  * Revoke a mesh member (a dead or retired node, a lost operator laptop).
@@ -419,11 +427,11 @@ export const teardownPublicEdgeContract = ingressOps
  */
 export const revokeMeshMemberContract = ingressOps
     .create()
-    .path("/reachability/mesh/revocations")
+    .path('/reachability/mesh/revocations')
     .input((b) => b.body(revokeMeshMemberInputSchema))
     .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const reachabilityContract = {
     check: checkReachabilityContract,
@@ -441,6 +449,6 @@ export const reachabilityContract = {
     updateIngress: updateIngressContract,
     teardownPublicEdge: teardownPublicEdgeContract,
     revokeMeshMember: revokeMeshMemberContract,
-};
+}
 
-export type ReachabilityContract = typeof reachabilityContract;
+export type ReachabilityContract = typeof reachabilityContract

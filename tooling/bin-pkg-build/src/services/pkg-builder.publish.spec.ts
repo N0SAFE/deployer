@@ -72,7 +72,10 @@ describe('publish', () => {
 
         const leftovers = fs
             .readdirSync(root)
-            .filter((name) => name.includes('.staging-') || name.includes('.previous-'))
+            .filter(
+                (name) =>
+                    name.includes('.staging-') || name.includes('.previous-')
+            )
         expect(leftovers).toEqual([])
     })
 
@@ -120,7 +123,10 @@ describe('publish', () => {
                 sawMissing += 1
                 continue
             }
-            if (JSON.stringify(fs.readdirSync(target).sort()) !== JSON.stringify(expected)) {
+            if (
+                JSON.stringify(fs.readdirSync(target).sort()) !==
+                JSON.stringify(expected)
+            ) {
                 sawPartial += 1
             }
         }

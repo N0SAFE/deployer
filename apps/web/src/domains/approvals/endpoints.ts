@@ -7,7 +7,7 @@ import { orpc } from '@/lib/orpc'
  * by the API.
  */
 export const approvalEndpoints = {
-  list: orpc.approval.list,
-  request: orpc.approval.request,
-  decide: orpc.approval.decide,
+    list: orpc.approval.list,
+    request: orpc.approval.request,
+    decide: orpc.approval.decide,
 } as const

@@ -5,11 +5,11 @@
  * Strong typing: provider type + record type are enums, zones/records are
  * validated shapes, no loose strings.
  */
-import z from "zod/v4";
+import z from 'zod/v4'
 import {
     dnsProviderTypeSchema,
     dnsRecordTypeSchema,
-} from "@deployer/contracts-common";
+} from '@deployer/contracts-common'
 
 /** Account reference used to pin a specific provider account in dispatch. */
 export const dnsProviderAccountRefSchema = z.object({
@@ -17,8 +17,8 @@ export const dnsProviderAccountRefSchema = z.object({
     providerId: z.string().min(1),
     /** Provider type used for dispatch: "cloudflare" | "route53" | ... */
     providerType: dnsProviderTypeSchema,
-});
-export type DnsProviderAccountRef = z.infer<typeof dnsProviderAccountRefSchema>;
+})
+export type DnsProviderAccountRef = z.infer<typeof dnsProviderAccountRefSchema>
 
 /** A DNS zone managed by a provider account. */
 export const dnsProviderZoneSchema = z.object({
@@ -26,8 +26,8 @@ export const dnsProviderZoneSchema = z.object({
     name: z.string().min(1),
     status: z.string(),
     nameServers: z.array(z.string()),
-});
-export type DnsProviderZone = z.infer<typeof dnsProviderZoneSchema>;
+})
+export type DnsProviderZone = z.infer<typeof dnsProviderZoneSchema>
 
 /** A DNS record inside a zone. */
 export const dnsProviderRecordSchema = z.object({
@@ -38,8 +38,8 @@ export const dnsProviderRecordSchema = z.object({
     content: z.string().min(1),
     ttl: z.number().int().nonnegative(),
     proxied: z.boolean(),
-});
-export type DnsProviderRecord = z.infer<typeof dnsProviderRecordSchema>;
+})
+export type DnsProviderRecord = z.infer<typeof dnsProviderRecordSchema>
 
 /** Input for creating a DNS record. */
 export const createDnsRecordInputSchema = z
@@ -51,8 +51,8 @@ export const createDnsRecordInputSchema = z
         ttl: z.number().int().nonnegative().optional(),
         proxied: z.boolean().optional(),
     })
-    .strict();
-export type CreateDnsRecordInput = z.infer<typeof createDnsRecordInputSchema>;
+    .strict()
+export type CreateDnsRecordInput = z.infer<typeof createDnsRecordInputSchema>
 
 /** Provider account row shape (public view, never exposes the token). */
 export const dnsProviderAccountSchema = z.object({
@@ -63,5 +63,5 @@ export const dnsProviderAccountSchema = z.object({
     hasToken: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
-export type DnsProviderAccount = z.infer<typeof dnsProviderAccountSchema>;
+})
+export type DnsProviderAccount = z.infer<typeof dnsProviderAccountSchema>

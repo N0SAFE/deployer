@@ -83,6 +83,7 @@ GitModule                          GitHubModule
 ```
 
 **Issues:**
+
 1. **Two commit info methods**: Local git vs GitHub API
 2. **Unclear which to use**: For GitHub deployments, both are needed
 3. **No unified provider**: Doesn't follow builder/provider pattern
@@ -135,83 +136,95 @@ GitModule                          GitHubModule
 // providers/github/services/github-provider.service.ts
 @Injectable()
 export class GithubProviderService implements SourceProviderInterface {
-  readonly id = 'github';
-  readonly name = 'GitHub';
-  
-  constructor(
-    private readonly gitOps: GitOperationsService,
-    private readonly githubApi: GitHubApiService,
-  ) {}
-  
-  supports(config: SourceConfig): boolean {
-    return config.type === 'github' || 
-           (config.type === 'git' && this.isGitHubUrl(config.repositoryUrl));
-  }
-  
-  async fetchSource(config: GitHubSourceConfig, deploymentId: string): Promise<FetchResult> {
-    // For GitHub App installations, get auth first
-    let authToken: string | undefined;
-    if (config.installationId && config.organizationLogin) {
-      authToken = await this.githubApi.getInstallationAccessToken(
-        config.organizationLogin,
-        config.installationId
-      );
+    readonly id = 'github'
+    readonly name = 'GitHub'
+
+    constructor(
+        private readonly gitOps: GitOperationsService,
+        private readonly githubApi: GitHubApiService
+    ) {}
+
+    supports(config: SourceConfig): boolean {
+        return (
+            config.type === 'github' ||
+            (config.type === 'git' && this.isGitHubUrl(config.repositoryUrl))
+        )
     }
-    
-    // Clone the repository
-    const repoPath = await this.gitOps.cloneRepository({
-      url: config.repositoryUrl!,
-      branch: config.branch,
-      commit: config.commitSha,
-      deploymentId,
-      authToken, // Use installation token for private repos
-    });
-    
-    // Get commit info (prefer local for speed)
-    const commitInfo = await this.gitOps.getCommitInfo(repoPath);
-    
-    // Update deployment status on GitHub
-    if (config.installationId && config.organizationLogin && config.githubDeploymentId) {
-      await this.githubApi.createDeploymentStatus(
-        config.owner!,
-        config.repo!,
-        config.githubDeploymentId,
-        'in_progress',
-        config.organizationLogin,
-        config.installationId
-      );
+
+    async fetchSource(
+        config: GitHubSourceConfig,
+        deploymentId: string
+    ): Promise<FetchResult> {
+        // For GitHub App installations, get auth first
+        let authToken: string | undefined
+        if (config.installationId && config.organizationLogin) {
+            authToken = await this.githubApi.getInstallationAccessToken(
+                config.organizationLogin,
+                config.installationId
+            )
+        }
+
+        // Clone the repository
+        const repoPath = await this.gitOps.cloneRepository({
+            url: config.repositoryUrl!,
+            branch: config.branch,
+            commit: config.commitSha,
+            deploymentId,
+            authToken, // Use installation token for private repos
+        })
+
+        // Get commit info (prefer local for speed)
+        const commitInfo = await this.gitOps.getCommitInfo(repoPath)
+
+        // Update deployment status on GitHub
+        if (
+            config.installationId &&
+            config.organizationLogin &&
+            config.githubDeploymentId
+        ) {
+            await this.githubApi.createDeploymentStatus(
+                config.owner!,
+                config.repo!,
+                config.githubDeploymentId,
+                'in_progress',
+                config.organizationLogin,
+                config.installationId
+            )
+        }
+
+        return {
+            sourcePath: repoPath,
+            commitSha: commitInfo.sha,
+            metadata: {
+                author: commitInfo.author,
+                message: commitInfo.message,
+                date: commitInfo.date,
+            },
+        }
     }
-    
-    return {
-      sourcePath: repoPath,
-      commitSha: commitInfo.sha,
-      metadata: {
-        author: commitInfo.author,
-        message: commitInfo.message,
-        date: commitInfo.date,
-      },
-    };
-  }
-  
-  async cleanup(deploymentId: string): Promise<void> {
-    await this.gitOps.cleanupDeployment(deploymentId);
-  }
-  
-  // ─────────────────────────────────────────────────────────────────
-  // GitHub-Specific Methods (not part of SourceProviderInterface)
-  // ─────────────────────────────────────────────────────────────────
-  
-  registerInstallation(orgLogin: string, config: GitHubAppConfig): void {
-    return this.githubApi.registerInstallation(orgLogin, config);
-  }
-  
-  async verifyWebhookSignature(payload: string, signature: string): Promise<boolean> {
-    return this.githubApi.verifyWebhookSignature(payload, signature);
-  }
-  
-  async getInstallationOctokit(orgLogin: string, installationId: number) {
-    return this.githubApi.getInstallationOctokit(orgLogin, installationId);
-  }
+
+    async cleanup(deploymentId: string): Promise<void> {
+        await this.gitOps.cleanupDeployment(deploymentId)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // GitHub-Specific Methods (not part of SourceProviderInterface)
+    // ─────────────────────────────────────────────────────────────────
+
+    registerInstallation(orgLogin: string, config: GitHubAppConfig): void {
+        return this.githubApi.registerInstallation(orgLogin, config)
+    }
+
+    async verifyWebhookSignature(
+        payload: string,
+        signature: string
+    ): Promise<boolean> {
+        return this.githubApi.verifyWebhookSignature(payload, signature)
+    }
+
+    async getInstallationOctokit(orgLogin: string, installationId: number) {
+        return this.githubApi.getInstallationOctokit(orgLogin, installationId)
+    }
 }
 ```
 
@@ -227,11 +240,11 @@ Extract API-only methods from current GitHubService:
 // providers/github/services/github-api.service.ts
 @Injectable()
 export class GitHubApiService {
-  private readonly apps = new Map<string, App>();
-  private readonly webhooks: Webhooks;
-  
-  // All current GitHubService methods EXCEPT:
-  // - Those that will be in GitOperationsService
+    private readonly apps = new Map<string, App>()
+    private readonly webhooks: Webhooks
+
+    // All current GitHubService methods EXCEPT:
+    // - Those that will be in GitOperationsService
 }
 ```
 
@@ -243,15 +256,15 @@ Move from GitService + enhance for private repos:
 // providers/github/services/git-operations.service.ts
 @Injectable()
 export class GitOperationsService {
-  async cloneRepository(options: {
-    url: string;
-    branch?: string;
-    commit?: string;
-    deploymentId: string;
-    authToken?: string;  // NEW: For private repo access
-  }): Promise<string>
-  
-  // ... rest of GitService methods
+    async cloneRepository(options: {
+        url: string
+        branch?: string
+        commit?: string
+        deploymentId: string
+        authToken?: string // NEW: For private repo access
+    }): Promise<string>
+
+    // ... rest of GitService methods
 }
 ```
 
@@ -263,12 +276,12 @@ Combine both services into provider interface:
 // providers/github/services/github-provider.service.ts
 @Injectable()
 export class GithubProviderService implements SourceProviderInterface {
-  constructor(
-    private readonly gitOps: GitOperationsService,
-    private readonly githubApi: GitHubApiService,
-  ) {}
-  
-  // Provider interface + GitHub-specific methods
+    constructor(
+        private readonly gitOps: GitOperationsService,
+        private readonly githubApi: GitHubApiService
+    ) {}
+
+    // Provider interface + GitHub-specific methods
 }
 ```
 
@@ -277,15 +290,11 @@ export class GithubProviderService implements SourceProviderInterface {
 ```typescript
 // providers/github/github-provider.module.ts
 @Module({
-  providers: [
-    GitOperationsService,
-    GitHubApiService,
-    GithubProviderService,
-  ],
-  exports: [
-    GithubProviderService,
-    GitHubApiService,  // For direct API access in webhooks
-  ],
+    providers: [GitOperationsService, GitHubApiService, GithubProviderService],
+    exports: [
+        GithubProviderService,
+        GitHubApiService, // For direct API access in webhooks
+    ],
 })
 export class GitHubProviderModule {}
 ```
@@ -294,11 +303,11 @@ export class GitHubProviderModule {}
 
 ```typescript
 // Before
-import { GitModule } from '@/core/modules/git/git.module';
-import { GitHubModule } from '@/core/modules/github/github.module';
+import { GitModule } from '@/core/modules/git/git.module'
+import { GitHubModule } from '@/core/modules/github/github.module'
 
 // After
-import { GitHubProviderModule } from '@/core/modules/providers/github/github-provider.module';
+import { GitHubProviderModule } from '@/core/modules/providers/github/github-provider.module'
 ```
 
 ### Step 6: Delete Old Modules

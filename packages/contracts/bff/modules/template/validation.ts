@@ -1,59 +1,62 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 import {
     templateSetValidationInputSchema,
     templateSetValidationResultSchema,
     templateValidationInputSchema,
     templateValidationResultSchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const templateValidationOps = standard.zod(templateValidationResultSchema, "templateValidation");
+const templateValidationOps = standard.zod(
+    templateValidationResultSchema,
+    'templateValidation'
+)
 const templateSetValidationOps = standard.zod(
     templateSetValidationResultSchema,
-    "templateSetValidation",
-);
+    'templateSetValidation'
+)
 
 export const templateValidateStructuralContract = templateValidationOps
     .create()
-    .path("/validate/structural")
+    .path('/validate/structural')
     .input((b) =>
         b.body(
             templateValidationInputSchema.extend({
-                mode: z.literal("structural"),
-            }),
-        ),
+                mode: z.literal('structural'),
+            })
+        )
     )
     .output(templateValidationResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const templateValidateSemanticContract = templateValidationOps
     .create()
-    .path("/validate/semantic")
+    .path('/validate/semantic')
     .input((b) =>
         b.body(
             templateValidationInputSchema.extend({
-                mode: z.literal("semantic"),
-            }),
-        ),
+                mode: z.literal('semantic'),
+            })
+        )
     )
     .output(templateValidationResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const templateValidateContract = templateValidationOps
     .create()
-    .path("/validate")
+    .path('/validate')
     .input((b) => b.body(templateValidationInputSchema))
     .output(templateValidationResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const templateValidateSetContract = templateSetValidationOps
     .create()
-    .path("/validate-set")
+    .path('/validate-set')
     .input((b) => b.body(templateSetValidationInputSchema))
     .output(templateSetValidationResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()

@@ -7,13 +7,13 @@
 
 export type QuorumPlan = {
     /** Number of swarm managers the cluster should keep. */
-    managerCount: number;
+    managerCount: number
     /** Hot standby slots (managers that are not the master). */
-    hotStandbys: number;
+    hotStandbys: number
     /** True when electing a master is safe given the manager count. */
-    canElect: boolean;
+    canElect: boolean
     /** Human explanation for `canElect === false`. */
-    reason: string | null;
+    reason: string | null
 }
 
 /**
@@ -22,21 +22,21 @@ export type QuorumPlan = {
  * A single node is treated as odd (quorum of 1).
  */
 export function planQuorum(nodeCount: number, quorumMax: number): QuorumPlan {
-    const nodes = Math.max(0, Math.floor(nodeCount));
-    const max = Math.max(1, Math.floor(quorumMax));
+    const nodes = Math.max(0, Math.floor(nodeCount))
+    const max = Math.max(1, Math.floor(quorumMax))
 
     if (nodes === 0) {
         return {
             managerCount: 0,
             hotStandbys: 0,
             canElect: false,
-            reason: "no nodes in the cluster",
-        };
+            reason: 'no nodes in the cluster',
+        }
     }
 
-    let managerCount = Math.min(max, nodes);
+    let managerCount = Math.min(max, nodes)
     if (managerCount % 2 === 0 && managerCount > 1) {
-        managerCount -= 1;
+        managerCount -= 1
     }
 
     return {
@@ -44,18 +44,21 @@ export function planQuorum(nodeCount: number, quorumMax: number): QuorumPlan {
         hotStandbys: Math.max(0, managerCount - 1),
         canElect: true,
         reason: null,
-    };
+    }
 }
 
 /**
  * Raft quorum intactness: reachable managers must be > half of the total
  * manager count (`reachableManagers >= floor(total / 2) + 1`).
  */
-export function isQuorumIntact(reachableManagers: number, totalManagers: number): boolean {
-    const reachable = Math.max(0, Math.floor(reachableManagers));
-    const total = Math.max(0, Math.floor(totalManagers));
+export function isQuorumIntact(
+    reachableManagers: number,
+    totalManagers: number
+): boolean {
+    const reachable = Math.max(0, Math.floor(reachableManagers))
+    const total = Math.max(0, Math.floor(totalManagers))
     if (total === 0) {
-        return reachable >= 1;
+        return reachable >= 1
     }
-    return reachable >= Math.floor(total / 2) + 1;
+    return reachable >= Math.floor(total / 2) + 1
 }

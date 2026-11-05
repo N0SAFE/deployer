@@ -8,74 +8,76 @@
  * Nothing else in the codebase may construct these hostnames/origins.
  */
 
-import type { EnvService } from "../../../../config/env/env.module";
+import type { EnvService } from '../../../../config/env/env.module'
 
-export const DEPLOYER_BASE_HOST = "deployer.localhost";
+export const DEPLOYER_BASE_HOST = 'deployer.localhost'
 
 export abstract class HostnameService {
-	/**
-	 * Base domain of the LOCAL lane: `deployer.localhost`, or
-	 * `<prefix>.deployer.localhost` on a prefixed install. Every `*.localhost` name
-	 * resolves to loopback (RFC 6761), so this lane needs no DNS at all.
-	 */
-	abstract localDomain(): string;
-	/** Hostname of the API as routed by the platform Traefik. */
-	abstract apiHostname(): string;
-	/** Hostname of the managed web app as routed by the platform Traefik. */
-	abstract webHostname(): string;
-	/**
-	 * Hostname the onboarding wizard is served on.
-	 *
-	 * Setup owns this hostname only while it RUNS. Once it exits, the same
-	 * hostname must keep answering — an operator who reloads, bookmarks, or
-	 * shares that URL must not land on a dead backend. The API is what survives
-	 * setup, so it takes the route over and serves its own page here.
-	 */
-	abstract setupHostname(): string;
-	/** Full origin for the API, scheme configurable for non-loopback deployments. */
-	abstract apiOrigin(scheme?: "http" | "https"): string;
-	/** Full origin for the managed web app. */
-	abstract webOrigin(scheme?: "http" | "https"): string;
+    /**
+     * Base domain of the LOCAL lane: `deployer.localhost`, or
+     * `<prefix>.deployer.localhost` on a prefixed install. Every `*.localhost` name
+     * resolves to loopback (RFC 6761), so this lane needs no DNS at all.
+     */
+    abstract localDomain(): string
+    /** Hostname of the API as routed by the platform Traefik. */
+    abstract apiHostname(): string
+    /** Hostname of the managed web app as routed by the platform Traefik. */
+    abstract webHostname(): string
+    /**
+     * Hostname the onboarding wizard is served on.
+     *
+     * Setup owns this hostname only while it RUNS. Once it exits, the same
+     * hostname must keep answering — an operator who reloads, bookmarks, or
+     * shares that URL must not land on a dead backend. The API is what survives
+     * setup, so it takes the route over and serves its own page here.
+     */
+    abstract setupHostname(): string
+    /** Full origin for the API, scheme configurable for non-loopback deployments. */
+    abstract apiOrigin(scheme?: 'http' | 'https'): string
+    /** Full origin for the managed web app. */
+    abstract webOrigin(scheme?: 'http' | 'https'): string
 }
 
 /** Pure string grammar over the environment: built by the module with `useFactory`, no Nest role. */
 export class EnvHostnameService extends HostnameService {
-	constructor(private readonly env: EnvService) {
-		super();
-	}
+    constructor(private readonly env: EnvService) {
+        super()
+    }
 
-	localDomain(): string {
-		const prefix = this.env.get("DEPLOYER_PREFIX");
-		return prefix === "" ? DEPLOYER_BASE_HOST : `${prefix}.${DEPLOYER_BASE_HOST}`;
-	}
+    localDomain(): string {
+        const prefix = this.env.get('DEPLOYER_PREFIX')
+        return prefix === ''
+            ? DEPLOYER_BASE_HOST
+            : `${prefix}.${DEPLOYER_BASE_HOST}`
+    }
 
-	private prefixedHost(service: "api" | "web" | "setup"): string {
-		return `${service}.${this.localDomain()}`;
-	}
+    private prefixedHost(service: 'api' | 'web' | 'setup'): string {
+        return `${service}.${this.localDomain()}`
+    }
 
-	apiHostname(): string {
-		return this.prefixedHost("api");
-	}
+    apiHostname(): string {
+        return this.prefixedHost('api')
+    }
 
-	webHostname(): string {
-		return this.prefixedHost("web");
-	}
+    webHostname(): string {
+        return this.prefixedHost('web')
+    }
 
-	setupHostname(): string {
-		return this.prefixedHost("setup");
-	}
+    setupHostname(): string {
+        return this.prefixedHost('setup')
+    }
 
-	private origin(hostname: string, scheme?: "http" | "https"): string {
-		const resolvedScheme = scheme ?? "http";
-		if (resolvedScheme === "http") return `http://${hostname}`;
-		return `https://${hostname}`;
-	}
+    private origin(hostname: string, scheme?: 'http' | 'https'): string {
+        const resolvedScheme = scheme ?? 'http'
+        if (resolvedScheme === 'http') return `http://${hostname}`
+        return `https://${hostname}`
+    }
 
-	apiOrigin(scheme?: "http" | "https"): string {
-		return this.origin(this.apiHostname(), scheme);
-	}
+    apiOrigin(scheme?: 'http' | 'https'): string {
+        return this.origin(this.apiHostname(), scheme)
+    }
 
-	webOrigin(scheme?: "http" | "https"): string {
-		return this.origin(this.webHostname(), scheme);
-	}
+    webOrigin(scheme?: 'http' | 'https'): string {
+        return this.origin(this.webHostname(), scheme)
+    }
 }

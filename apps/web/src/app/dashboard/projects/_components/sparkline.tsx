@@ -12,58 +12,81 @@ import { cn } from '@/lib/utils'
  * soft gradient fill. Feed via props, keep the mount stable.
  */
 export function Sparkline({
-  data,
-  dataKey = 'value',
-  height = 32,
-  color = 'var(--primary)',
-  fill = true,
-  className,
+    data,
+    dataKey = 'value',
+    height = 32,
+    color = 'var(--primary)',
+    fill = true,
+    className,
 }: {
-  data: { value: number }[] | number[]
-  dataKey?: string
-  height?: number
-  color?: string
-  fill?: boolean
-  className?: string
+    data: { value: number }[] | number[]
+    dataKey?: string
+    height?: number
+    color?: string
+    fill?: boolean
+    className?: string
 }) {
-  const gradientId = useId()
-  const points = data.map((d) => (typeof d === 'number' ? { value: d } : d))
+    const gradientId = useId()
+    const points = data.map((d) => (typeof d === 'number' ? { value: d } : d))
 
-  if (points.length === 0) {
-    return <div className={cn('w-full rounded bg-muted/40', className)} style={{ height }} aria-hidden />
-  }
+    if (points.length === 0) {
+        return (
+            <div
+                className={cn('bg-muted/40 w-full rounded', className)}
+                style={{ height }}
+                aria-hidden
+            />
+        )
+    }
 
-  return (
-    <div className={cn('w-full', className)} style={{ height }} aria-hidden>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.28} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Line
-            type="monotone"
-            dataKey={dataKey}
-            stroke={color}
-            strokeWidth={1.5}
-            dot={false}
-            isAnimationActive={false}
-            fill={fill ? `url(#${gradientId})` : 'none'}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  )
+    return (
+        <div className={cn('w-full', className)} style={{ height }} aria-hidden>
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                    data={points}
+                    margin={{ top: 2, right: 0, bottom: 0, left: 0 }}
+                >
+                    <defs>
+                        <linearGradient
+                            id={gradientId}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
+                            <stop
+                                offset="0%"
+                                stopColor={color}
+                                stopOpacity={0.28}
+                            />
+                            <stop
+                                offset="100%"
+                                stopColor={color}
+                                stopOpacity={0}
+                            />
+                        </linearGradient>
+                    </defs>
+                    <Line
+                        type="monotone"
+                        dataKey={dataKey}
+                        stroke={color}
+                        strokeWidth={1.5}
+                        dot={false}
+                        isAnimationActive={false}
+                        fill={fill ? `url(#${gradientId})` : 'none'}
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
+    )
 }
 
 /** Build a rolling-window series from a stream of numbers (bounded memory). */
 export function pushPoint(
-  series: { value: number }[],
-  value: number,
-  maxPoints = 40,
+    series: { value: number }[],
+    value: number,
+    maxPoints = 40
 ): { value: number }[] {
-  const next = [...series, { value }]
-  return next.length > maxPoints ? next.slice(next.length - maxPoints) : next
+    const next = [...series, { value }]
+    return next.length > maxPoints ? next.slice(next.length - maxPoints) : next
 }

@@ -16,19 +16,25 @@
  * it on the mesh instead.
  */
 
-import type { IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
-import type { EdgeDnsRecord } from "@deployer/shared/core/modules/edge/edge-provider";
+import type { IngressLanes } from '@deployer/contracts-entities/entities/ingress/index'
+import type { EdgeDnsRecord } from '@deployer/shared/core/modules/edge/edge-provider'
 
 export type LaneDnsRecordPlan = {
-	lane: "public" | "private";
+    lane: 'public' | 'private'
 } & EdgeDnsRecord
 
 /** Suffixes no public DNS provider can serve. */
-const NON_PUBLIC_SUFFIXES = [".internal", ".localhost", ".local", ".home.arpa", ".lan"];
+const NON_PUBLIC_SUFFIXES = [
+    '.internal',
+    '.localhost',
+    '.local',
+    '.home.arpa',
+    '.lan',
+]
 
 export function isPubliclyResolvable(domain: string): boolean {
-	const lower = `.${domain.toLowerCase()}`;
-	return !NON_PUBLIC_SUFFIXES.some((suffix) => lower.endsWith(suffix));
+    const lower = `.${domain.toLowerCase()}`
+    return !NON_PUBLIC_SUFFIXES.some((suffix) => lower.endsWith(suffix))
 }
 
 /**
@@ -36,19 +42,28 @@ export function isPubliclyResolvable(domain: string): boolean {
  * lane's, each tagged with its lane.
  */
 export function planLaneDnsRecords(
-	lanes: IngressLanes,
-	inputs: { publicEdgeRecords: readonly EdgeDnsRecord[]; meshAddresses: readonly string[] },
+    lanes: IngressLanes,
+    inputs: {
+        publicEdgeRecords: readonly EdgeDnsRecord[]
+        meshAddresses: readonly string[]
+    }
 ): LaneDnsRecordPlan[] {
-	const plans: LaneDnsRecordPlan[] = inputs.publicEdgeRecords.map((record) => ({ ...record, lane: "public" }));
-	if (lanes.private.enabled && isPubliclyResolvable(lanes.private.domain) && inputs.meshAddresses.length > 0) {
-		plans.push({
-			lane: "private",
-			name: `*.${lanes.private.domain}`,
-			type: "A",
-			contents: [...new Set(inputs.meshAddresses)].sort(),
-			proxied: false,
-			preferredAccountId: null,
-		});
-	}
-	return plans;
+    const plans: LaneDnsRecordPlan[] = inputs.publicEdgeRecords.map(
+        (record) => ({ ...record, lane: 'public' })
+    )
+    if (
+        lanes.private.enabled &&
+        isPubliclyResolvable(lanes.private.domain) &&
+        inputs.meshAddresses.length > 0
+    ) {
+        plans.push({
+            lane: 'private',
+            name: `*.${lanes.private.domain}`,
+            type: 'A',
+            contents: [...new Set(inputs.meshAddresses)].sort(),
+            proxied: false,
+            preferredAccountId: null,
+        })
+    }
+    return plans
 }

@@ -1,16 +1,16 @@
-import * as z from "zod";
+import * as z from 'zod'
 
 import {
     deploymentQueueJobSchema,
     deploymentDeadLetterJobSchema,
     deploymentQueueJobTypeSchema,
     deploymentQueueJobStatusSchema,
-} from "@deployer/contracts-entities";
-import { contractBuilder } from "@deployer/events";
+} from '@deployer/contracts-entities'
+import { contractBuilder } from '@deployer/events'
 
 export const deploymentQueueEventFilterSchema = z.object({
-    queue: z.literal("deployment").default("deployment"),
-});
+    queue: z.literal('deployment').default('deployment'),
+})
 
 const deploymentQueueEventEnvelopeSchema = z.object({
     jobId: z.string(),
@@ -21,7 +21,7 @@ const deploymentQueueEventEnvelopeSchema = z.object({
     serviceId: z.string().optional(),
     projectId: z.string().optional(),
     timestamp: z.string(),
-});
+})
 
 export const deploymentQueueEventContracts = {
     jobEnqueued: contractBuilder()
@@ -30,7 +30,7 @@ export const deploymentQueueEventContracts = {
             deploymentQueueEventEnvelopeSchema.extend({
                 deduplicated: z.boolean(),
                 job: deploymentQueueJobSchema,
-            }),
+            })
         )
         .build(),
 
@@ -40,7 +40,7 @@ export const deploymentQueueEventContracts = {
             deploymentQueueEventEnvelopeSchema.extend({
                 claimedCount: z.number().int().min(1),
                 job: deploymentQueueJobSchema,
-            }),
+            })
         )
         .build(),
 
@@ -49,7 +49,7 @@ export const deploymentQueueEventContracts = {
         .output(
             deploymentQueueEventEnvelopeSchema.extend({
                 leaseExpiresAt: z.string().nullable(),
-            }),
+            })
         )
         .build(),
 
@@ -58,7 +58,7 @@ export const deploymentQueueEventContracts = {
         .output(
             deploymentQueueEventEnvelopeSchema.extend({
                 job: deploymentQueueJobSchema,
-            }),
+            })
         )
         .build(),
 
@@ -70,7 +70,7 @@ export const deploymentQueueEventContracts = {
                 movedToDeadLetter: z.boolean(),
                 job: deploymentQueueJobSchema,
                 deadLetterJob: deploymentDeadLetterJobSchema.nullable(),
-            }),
+            })
         )
         .build(),
 
@@ -78,14 +78,14 @@ export const deploymentQueueEventContracts = {
         .input(deploymentQueueEventFilterSchema)
         .output(
             z.object({
-                queue: z.literal("deployment"),
+                queue: z.literal('deployment'),
                 deadLetterJobId: z.string(),
                 replayJobId: z.string().nullable(),
                 replayCount: z.number().int().min(0),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
-} as const;
+} as const
 
-export type DeploymentQueueEventContracts = typeof deploymentQueueEventContracts;
+export type DeploymentQueueEventContracts = typeof deploymentQueueEventContracts

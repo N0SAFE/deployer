@@ -1,15 +1,28 @@
-import { lstat, mkdir, mkdtemp, open, readdir, realpath, rm } from "node:fs/promises";
+import {
+    lstat,
+    mkdir,
+    mkdtemp,
+    open,
+    readdir,
+    realpath,
+    rm,
+} from 'node:fs/promises'
 
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import { fromAbortable } from "@deployer/effect-core";
+import { fromAbortable } from '@deployer/effect-core'
 
-import { FsError } from "./errors";
-import { fsError, kindFromStats } from "./helpers";
+import { FsError } from './errors'
+import { fsError, kindFromStats } from './helpers'
 
-import type { FileSystemShape } from "./types";
+import type { FileSystemShape } from './types'
 
-const failure = (op: string, path: string, kind: FsError["kind"], message: string) => new FsError({ op, path, kind, message });
+const failure = (
+    op: string,
+    path: string,
+    kind: FsError['kind'],
+    message: string
+) => new FsError({ op, path, kind, message })
 
 /**
  * The real filesystem. Reads and writes use Bun builtins (`Bun.file(...).bytes()`, `Bun.write`). Bun
@@ -18,51 +31,108 @@ const failure = (op: string, path: string, kind: FsError["kind"], message: strin
  * natively by Bun). Every failure is a typed `FsError` whose `kind` is the errno, never a throw.
  */
 export const makeLiveFileSystem = (): FileSystemShape => ({
-  readFile: (path, options) =>
-    Effect.gen(function* () {
-      const file = Bun.file(path);
-      if (!(yield* fromAbortable(() => file.exists(), fsError("readFile", path)))) {
-        return yield* Effect.fail(failure("readFile", path, "NotFound", `ENOENT: no such file ${path}`));
-      }
-      if (options?.maxBytes !== undefined && file.size > options.maxBytes) {
-        return yield* Effect.fail(failure("readFile", path, "TooLarge", `file exceeds ${String(options.maxBytes)} bytes`));
-      }
-      return yield* fromAbortable(() => file.bytes(), fsError("readFile", path));
-    }),
+    readFile: (path, options) =>
+        Effect.gen(function* () {
+            const file = Bun.file(path)
+            if (
+                !(yield* fromAbortable(
+                    () => file.exists(),
+                    fsError('readFile', path)
+                ))
+            ) {
+                return yield* Effect.fail(
+                    failure(
+                        'readFile',
+                        path,
+                        'NotFound',
+                        `ENOENT: no such file ${path}`
+                    )
+                )
+            }
+            if (
+                options?.maxBytes !== undefined &&
+                file.size > options.maxBytes
+            ) {
+                return yield* Effect.fail(
+                    failure(
+                        'readFile',
+                        path,
+                        'TooLarge',
+                        `file exceeds ${String(options.maxBytes)} bytes`
+                    )
+                )
+            }
+            return yield* fromAbortable(
+                () => file.bytes(),
+                fsError('readFile', path)
+            )
+        }),
 
-  kindOf: (path) =>
-    fromAbortable(() => lstat(path), fsError("kindOf", path)).pipe(
-      Effect.map(kindFromStats),
-      Effect.catch((error) => (error.kind === "NotFound" ? Effect.succeed(undefined) : Effect.fail(error))),
-    ),
+    kindOf: (path) =>
+        fromAbortable(() => lstat(path), fsError('kindOf', path)).pipe(
+            Effect.map(kindFromStats),
+            Effect.catch((error) =>
+                error.kind === 'NotFound'
+                    ? Effect.succeed(undefined)
+                    : Effect.fail(error)
+            )
+        ),
 
-  size: (path) => fromAbortable(async () => (await lstat(path)).size, fsError("size", path)),
+    size: (path) =>
+        fromAbortable(
+            async () => (await lstat(path)).size,
+            fsError('size', path)
+        ),
 
-  mkdirp: (path) => fromAbortable(() => mkdir(path, { recursive: true }), fsError("mkdirp", path)).pipe(Effect.asVoid),
+    mkdirp: (path) =>
+        fromAbortable(
+            () => mkdir(path, { recursive: true }),
+            fsError('mkdirp', path)
+        ).pipe(Effect.asVoid),
 
-  // `wx` = O_CREAT|O_EXCL: fails on any existing entry, including a dangling symlink.
-  writeFileExclusive: (path, bytes, options) =>
-    Effect.acquireUseRelease(
-      fromAbortable(() => open(path, "wx", options?.mode ?? 0o644), fsError("writeFileExclusive", path)),
-      (handle) =>
-        fromAbortable(async () => {
-          await Bun.write(Bun.file(handle.fd), bytes);
-          // `open` applies the umask; make the intended mode exact.
-          if (options?.mode !== undefined) await handle.chmod(options.mode);
-        }, fsError("writeFileExclusive", path)),
-      (handle) => Effect.promise(() => handle.close()),
-    ),
+    // `wx` = O_CREAT|O_EXCL: fails on any existing entry, including a dangling symlink.
+    writeFileExclusive: (path, bytes, options) =>
+        Effect.acquireUseRelease(
+            fromAbortable(
+                () => open(path, 'wx', options?.mode ?? 0o644),
+                fsError('writeFileExclusive', path)
+            ),
+            (handle) =>
+                fromAbortable(
+                    async () => {
+                        await Bun.write(Bun.file(handle.fd), bytes)
+                        // `open` applies the umask; make the intended mode exact.
+                        if (options?.mode !== undefined)
+                            await handle.chmod(options.mode)
+                    },
+                    fsError('writeFileExclusive', path)
+                ),
+            (handle) => Effect.promise(() => handle.close())
+        ),
 
-  realpath: (path) => fromAbortable(() => realpath(path), fsError("realpath", path)),
+    realpath: (path) =>
+        fromAbortable(() => realpath(path), fsError('realpath', path)),
 
-  readdir: (path) => fromAbortable(() => readdir(path), fsError("readdir", path)),
+    readdir: (path) =>
+        fromAbortable(() => readdir(path), fsError('readdir', path)),
 
-  remove: (path, options) =>
-    fromAbortable(() => rm(path, { recursive: options?.recursive === true, force: false }), fsError("remove", path)),
+    remove: (path, options) =>
+        fromAbortable(
+            () =>
+                rm(path, {
+                    recursive: options?.recursive === true,
+                    force: false,
+                }),
+            fsError('remove', path)
+        ),
 
-  makeTempDirectory: (prefix) =>
-    Effect.acquireRelease(
-      fromAbortable(() => mkdtemp(`${Bun.env.TMPDIR ?? "/tmp"}/${prefix}`), fsError("makeTempDirectory", prefix)),
-      (dir) => Effect.promise(() => rm(dir, { recursive: true, force: true })),
-    ),
-});
+    makeTempDirectory: (prefix) =>
+        Effect.acquireRelease(
+            fromAbortable(
+                () => mkdtemp(`${Bun.env.TMPDIR ?? '/tmp'}/${prefix}`),
+                fsError('makeTempDirectory', prefix)
+            ),
+            (dir) =>
+                Effect.promise(() => rm(dir, { recursive: true, force: true }))
+        ),
+})

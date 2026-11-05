@@ -4,7 +4,10 @@ description: Federated multi-server control-plane model for small to enterprise 
 order: 24
 ---
 
-<DocMeta source="fleet architecture research synthesis (RFC 6749/7636/8414/8693/8705 + Consul/Nomad/Argo CD/Portainer operational patterns)" scope="canonical" />
+<DocMeta
+    source="fleet architecture research synthesis (RFC 6749/7636/8414/8693/8705 + Consul/Nomad/Argo CD/Portainer operational patterns)"
+    scope="canonical"
+/>
 
 ## Why this exists
 
@@ -164,19 +167,19 @@ sequenceDiagram
 
 - No implicit global superpowers from a single link.
 - Cross-server actions must be explicitly scoped by:
-  - target server
-  - target org
-  - operation class
-  - TTL
+    - target server
+    - target org
+    - operation class
+    - TTL
 
 ### Audit and forensics
 
 - Every cross-server action emits:
-  - actor identity
-  - delegation chain / source server
-  - correlation id
-  - operation result
-  - policy decision trace
+    - actor identity
+    - delegation chain / source server
+    - correlation id
+    - operation result
+    - policy decision trace
 
 ## Tenancy and placement strategy
 

@@ -43,24 +43,24 @@ In multi-service and monorepo setups, naive trigger rules cause noisy deployment
 
 ```ts
 type ChangeScopePolicy = {
-  id: string;
-  enabled: boolean;
-  includeGlobs: string[];    // e.g. ["services/api/**", "packages/contracts/**"]
-  excludeGlobs?: string[];   // e.g. ["**/*.md", "docs/**"]
-  precedenceMode?: "exclude_wins" | "include_wins"; // configurable per policy
-  minChangedFiles?: number;  // optional coarse threshold
-  applyToEvents?: Array<"push" | "pull_request" | "tag">;
-  applyToBranches?: string[];
-};
+    id: string
+    enabled: boolean
+    includeGlobs: string[] // e.g. ["services/api/**", "packages/contracts/**"]
+    excludeGlobs?: string[] // e.g. ["**/*.md", "docs/**"]
+    precedenceMode?: 'exclude_wins' | 'include_wins' // configurable per policy
+    minChangedFiles?: number // optional coarse threshold
+    applyToEvents?: Array<'push' | 'pull_request' | 'tag'>
+    applyToBranches?: string[]
+}
 
 type ChangeScopeResult = {
-  decision: "deploy" | "skip";
-  matchedPaths: string[];
-  excludedPaths: string[];
-  unmatchedPaths: string[];
-  appliedPolicyIds: string[];
-  reasonCode: string;
-};
+    decision: 'deploy' | 'skip'
+    matchedPaths: string[]
+    excludedPaths: string[]
+    unmatchedPaths: string[]
+    appliedPolicyIds: string[]
+    reasonCode: string
+}
 ```
 
 ---
@@ -147,10 +147,10 @@ This payload should be available in:
 
 - Trigger policy editor with include/exclude glob validation
 - "Preview decision" panel showing:
-  - deploy/skip result,
-  - matched and ignored paths,
-  - applied policy IDs,
-  - reason code
+    - deploy/skip result,
+    - matched and ignored paths,
+    - applied policy IDs,
+    - reason code
 - Dry-run endpoint usable from CI and CLI
 
 ---

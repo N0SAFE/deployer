@@ -1,18 +1,18 @@
-import { createHash } from "node:crypto"
+import { createHash } from 'node:crypto'
 
-import { Logger } from "@nestjs/common"
+import { Logger } from '@nestjs/common'
 
 import type {
-  DockerContainer,
-  DockerContainerEntity,
-  DockerImage,
-  DockerImageEntity,
-  DockerNetwork,
-  DockerNetworkEntity,
-  DockerVolume,
-  DockerVolumeEntity,
-  DockerEntityKind,
-} from "@deployer/contracts-entities"
+    DockerContainer,
+    DockerContainerEntity,
+    DockerImage,
+    DockerImageEntity,
+    DockerNetwork,
+    DockerNetworkEntity,
+    DockerVolume,
+    DockerVolumeEntity,
+    DockerEntityKind,
+} from '@deployer/contracts-entities'
 
 /**
  * Tiny TTL-bounded cache used by the unified `docker.entity` list endpoint.
@@ -32,82 +32,85 @@ import type {
  *    re-rendering when the snapshot is unchanged.
  */
 export class DockerEntityCacheService {
-  private static readonly DEFAULT_TTL_MS = 2_000
-  private readonly logger = new Logger(DockerEntityCacheService.name)
+    private static readonly DEFAULT_TTL_MS = 2_000
+    private readonly logger = new Logger(DockerEntityCacheService.name)
 
-  private readonly entries = new Map<
-    DockerEntityKind,
-    {
-      expiresAt: number
-      payload: unknown
-      etag: string
+    private readonly entries = new Map<
+        DockerEntityKind,
+        {
+            expiresAt: number
+            payload: unknown
+            etag: string
+        }
+    >()
+
+    getOrCompute<TPayload>(
+        kind: DockerEntityKind,
+        compute: () => Promise<{ payload: TPayload; ttlMs?: number }>
+    ): Promise<{ payload: TPayload; etag: string; hit: boolean }> {
+        const cached = this.entries.get(kind)
+        const now = Date.now()
+        if (cached && cached.expiresAt > now) {
+            return Promise.resolve({
+                payload: cached.payload as TPayload,
+                etag: cached.etag,
+                hit: true,
+            })
+        }
+
+        return compute().then(({ payload, ttlMs }) => {
+            const etag = this.computeEtag(payload)
+            const ttl = Math.max(
+                0,
+                ttlMs ?? DockerEntityCacheService.DEFAULT_TTL_MS
+            )
+            this.entries.set(kind, {
+                expiresAt: now + ttl,
+                payload,
+                etag,
+            })
+            return { payload, etag, hit: false }
+        })
     }
-  >()
 
-  getOrCompute<TPayload>(
-    kind: DockerEntityKind,
-    compute: () => Promise<{ payload: TPayload; ttlMs?: number }>,
-  ): Promise<{ payload: TPayload; etag: string; hit: boolean }> {
-    const cached = this.entries.get(kind)
-    const now = Date.now()
-    if (cached && cached.expiresAt > now) {
-      return Promise.resolve({
-        payload: cached.payload as TPayload,
-        etag: cached.etag,
-        hit: true,
-      })
+    invalidate(kind?: DockerEntityKind) {
+        if (kind) {
+            this.entries.delete(kind)
+            return
+        }
+        this.entries.clear()
     }
 
-    return compute().then(({ payload, ttlMs }) => {
-      const etag = this.computeEtag(payload)
-      const ttl = Math.max(0, ttlMs ?? DockerEntityCacheService.DEFAULT_TTL_MS)
-      this.entries.set(kind, {
-        expiresAt: now + ttl,
-        payload,
-        etag,
-      })
-      return { payload, etag, hit: false }
-    })
-  }
-
-  invalidate(kind?: DockerEntityKind) {
-    if (kind) {
-      this.entries.delete(kind)
-      return
+    private computeEtag(payload: unknown): string {
+        try {
+            return `"${createHash('sha1').update(JSON.stringify(payload)).digest('base64url').slice(0, 16)}"`
+        } catch (error) {
+            this.logger.warn(
+                `Failed to compute etag: ${error instanceof Error ? error.message : String(error)}`
+            )
+            return `"${Date.now().toString(36)}"`
+        }
     }
-    this.entries.clear()
-  }
-
-  private computeEtag(payload: unknown): string {
-    try {
-      return `"${createHash("sha1").update(JSON.stringify(payload)).digest("base64url").slice(0, 16)}"`
-    } catch (error) {
-      this.logger.warn(
-        `Failed to compute etag: ${error instanceof Error ? error.message : String(error)}`,
-      )
-      return `"${Date.now().toString(36)}"`
-    }
-  }
 }
 
 export type DockerEntityKindPayload<K extends DockerEntityKind> =
-  K extends "container"
-    ? DockerContainerEntity
-    : K extends "image"
-      ? DockerImageEntity
-      : K extends "network"
-        ? DockerNetworkEntity
-        : K extends "volume"
-          ? DockerVolumeEntity
-          : never
+    K extends 'container'
+        ? DockerContainerEntity
+        : K extends 'image'
+          ? DockerImageEntity
+          : K extends 'network'
+            ? DockerNetworkEntity
+            : K extends 'volume'
+              ? DockerVolumeEntity
+              : never
 
 export type DockerEntityFlatKindPayload<K extends DockerEntityKind> =
-  K extends "container"
-    ? DockerContainer
-    : K extends "image"
-      ? DockerImage
-      : K extends "network"
-        ? DockerNetwork
-        : K extends "volume"
-          ? DockerVolume
-          : never
+    K extends 'container'
+        ? DockerContainer
+        : K extends 'image'
+          ? DockerImage
+          : K extends 'network'
+            ? DockerNetwork
+            : K extends 'volume'
+              ? DockerVolume
+              : never

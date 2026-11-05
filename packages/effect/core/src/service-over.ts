@@ -1,13 +1,15 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import type { RequirementsOf } from "./bind-services";
+import type { RequirementsOf } from './bind-services'
 
 /** `S` with `R` added to the requirements of every Effect-returning method. */
 export type Over<S, R> = {
-	readonly [K in keyof S]: S[K] extends (...args: infer A) => Effect.Effect<infer X, infer E, infer R2>
-		? (...args: A) => Effect.Effect<X, E, R2 | R>
-		: S[K];
-};
+    readonly [K in keyof S]: S[K] extends (
+        ...args: infer A
+    ) => Effect.Effect<infer X, infer E, infer R2>
+        ? (...args: A) => Effect.Effect<X, E, R2 | R>
+        : S[K]
+}
 
 /**
  * A service whose collaborators are yielded from the Effect context when a method runs, instead of
@@ -27,24 +29,32 @@ export type Over<S, R> = {
  * ```
  */
 export function serviceOver<S extends object, P, R>(
-	deps: Effect.Effect<P, never, R>,
-	make: (deps: P) => S,
+    deps: Effect.Effect<P, never, R>,
+    make: (deps: P) => S
 ): Over<S, R> {
-	return new Proxy({} as S, {
-		get(_target, key) {
-			// A constant service is handed to Nest as a provider value, and Nest `await`s whatever a factory returns (an
-			// alias, `useExisting`). A method answering `then` makes it a thenable that never settles and hangs the boot.
-			if (key === "then") return undefined;
-			return (...args: unknown[]) =>
-				Effect.flatMap(deps, (resolved) => {
-					const method: unknown = Reflect.get(make(resolved), key);
-					if (typeof method !== "function") {
-						return Effect.die(new Error(`serviceOver: '${String(key)}' is not a method`));
-					}
-					return (method as (...a: unknown[]) => Effect.Effect<unknown, unknown, unknown>)(...args);
-				});
-		},
-	}) as unknown as Over<S, R>;
+    return new Proxy({} as S, {
+        get(_target, key) {
+            // A constant service is handed to Nest as a provider value, and Nest `await`s whatever a factory returns (an
+            // alias, `useExisting`). A method answering `then` makes it a thenable that never settles and hangs the boot.
+            if (key === 'then') return undefined
+            return (...args: unknown[]) =>
+                Effect.flatMap(deps, (resolved) => {
+                    const method: unknown = Reflect.get(make(resolved), key)
+                    if (typeof method !== 'function') {
+                        return Effect.die(
+                            new Error(
+                                `serviceOver: '${String(key)}' is not a method`
+                            )
+                        )
+                    }
+                    return (
+                        method as (
+                            ...a: unknown[]
+                        ) => Effect.Effect<unknown, unknown, unknown>
+                    )(...args)
+                })
+        },
+    }) as unknown as Over<S, R>
 }
 
 /**
@@ -52,19 +62,29 @@ export function serviceOver<S extends object, P, R>(
  * were built over fakes: `provideTo(UserService.live, (e) => e.pipe(Effect.provideService(UserRepository, fake)))`.
  */
 export function provideTo<S extends object, Out = never>(
-	service: S,
-	provide: (effect: Effect.Effect<unknown, unknown, RequirementsOf<S>>) => Effect.Effect<unknown, unknown, Out>,
+    service: S,
+    provide: (
+        effect: Effect.Effect<unknown, unknown, RequirementsOf<S>>
+    ) => Effect.Effect<unknown, unknown, Out>
 ): {
-	readonly [K in keyof S]: S[K] extends (...args: infer A) => Effect.Effect<infer X, infer E, infer _R>
-		? (...args: A) => Effect.Effect<X, E, Out>
-		: S[K];
+    readonly [K in keyof S]: S[K] extends (
+        ...args: infer A
+    ) => Effect.Effect<infer X, infer E, infer _R>
+        ? (...args: A) => Effect.Effect<X, E, Out>
+        : S[K]
 } {
-	return new Proxy(service, {
-		get(target, key) {
-			const value: unknown = Reflect.get(target, key);
-			if (typeof value !== "function") return value;
-			return (...args: unknown[]) =>
-				provide((value as (...a: unknown[]) => Effect.Effect<unknown, unknown, RequirementsOf<S>>)(...args));
-		},
-	}) as never;
+    return new Proxy(service, {
+        get(target, key) {
+            const value: unknown = Reflect.get(target, key)
+            if (typeof value !== 'function') return value
+            return (...args: unknown[]) =>
+                provide(
+                    (
+                        value as (
+                            ...a: unknown[]
+                        ) => Effect.Effect<unknown, unknown, RequirementsOf<S>>
+                    )(...args)
+                )
+        },
+    }) as never
 }

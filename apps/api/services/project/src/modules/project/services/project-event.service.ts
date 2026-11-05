@@ -1,10 +1,10 @@
-import { Context } from "effect";
-import * as z from "zod";
+import { Context } from 'effect'
+import * as z from 'zod'
 
-import { projectRoleSchema } from "@deployer/contracts-entities";
-import { contractBuilder } from "@deployer/events";
-import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
-import { type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
+import { projectRoleSchema } from '@deployer/contracts-entities'
+import { contractBuilder } from '@deployer/events'
+import { BasePooledEventService } from '@deployer/shared/core/modules/events/base/index'
+import { type CoreEventStreamPoolServiceShape } from '@deployer/shared/core/modules/events/base/index'
 
 export const projectEventContracts = {
     projectCreated: contractBuilder()
@@ -15,7 +15,7 @@ export const projectEventContracts = {
                 ownerId: z.string(),
                 name: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -27,7 +27,7 @@ export const projectEventContracts = {
                 ownerId: z.string(),
                 changedFields: z.array(z.string()),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -38,7 +38,7 @@ export const projectEventContracts = {
                 projectId: z.string(),
                 ownerId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -55,7 +55,7 @@ export const projectEventContracts = {
                 // schema on every invite.
                 role: projectRoleSchema,
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -66,7 +66,7 @@ export const projectEventContracts = {
                 projectId: z.string(),
                 userId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -78,7 +78,7 @@ export const projectEventContracts = {
                 environmentId: z.string(),
                 environmentName: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -89,24 +89,30 @@ export const projectEventContracts = {
                 projectId: z.string(),
                 environmentId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
-} as const;
+} as const
 
-export type ProjectEventContracts = typeof projectEventContracts;
+export type ProjectEventContracts = typeof projectEventContracts
 
-export class ProjectEventServiceImpl extends BasePooledEventService<ProjectEventContracts, "project"> {
-	constructor(streamPool: CoreEventStreamPoolServiceShape) {
-		super("project", projectEventContracts, streamPool);
-	}
+export class ProjectEventServiceImpl extends BasePooledEventService<
+    ProjectEventContracts,
+    'project'
+> {
+    constructor(streamPool: CoreEventStreamPoolServiceShape) {
+        super('project', projectEventContracts, streamPool)
+    }
 }
 
 /** What consumers may do with the bus: publish and subscribe. */
-export type ProjectEventServiceShape = Pick<ProjectEventServiceImpl, "emitEffect" | "subscribeEffect">;
+export type ProjectEventServiceShape = Pick<
+    ProjectEventServiceImpl,
+    'emitEffect' | 'subscribeEffect'
+>
 
 /** Effect key = NestJS token; the module builds the instance over the shared stream pool. */
-export class ProjectEventService extends Context.Service<ProjectEventService, ProjectEventServiceShape>()(
-	"project/ProjectEventService",
-) {}
-
+export class ProjectEventService extends Context.Service<
+    ProjectEventService,
+    ProjectEventServiceShape
+>()('project/ProjectEventService') {}

@@ -13,17 +13,19 @@ import { createBaseConfig } from './base.js'
  * would fail at startup. The worker cap does not need to travel through here:
  * `createBaseConfig` applies it after merging, and no consumer sets `maxWorkers`.
  */
-export const createNodeConfig = (overrides: ViteUserConfigExport = {}): ViteUserConfigExport => {
-  const baseConfig = createBaseConfig({
-    test: {
-      environment: 'node',
-      setupFiles: ['./vitest.setup.node.js'],
-      globals: true,
-    },
-    ...overrides,
-  })
+export const createNodeConfig = (
+    overrides: ViteUserConfigExport = {}
+): ViteUserConfigExport => {
+    const baseConfig = createBaseConfig({
+        test: {
+            environment: 'node',
+            setupFiles: ['./vitest.setup.node.js'],
+            globals: true,
+        },
+        ...overrides,
+    })
 
-  return baseConfig
+    return baseConfig
 }
 
 export const defaultConfig = createNodeConfig()

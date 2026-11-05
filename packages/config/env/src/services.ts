@@ -17,24 +17,45 @@
  * the very same names and ports. This package is the lowest common dependency.
  */
 export const API_SERVICES = {
-  health: { defaultPort: 3101, description: "Liveness/readiness probes and the platform supervisor roll-up." },
-  identity: { defaultPort: 3102, description: "Users, permissions, analytics and push notifications." },
-  project: { defaultPort: 3103, description: "Projects, services and domains." },
-  fleet: { defaultPort: 3104, description: "Cluster, fleet nodes, providers, reachability and the platform surface." },
-  runtime: { defaultPort: 3105, description: "Docker, deployments and build/runtime runners." },
-  "node-agent": { defaultPort: 3106, description: "One per node: the service directory, pooled links, locality routing and redirects." },
-} as const;
+    health: {
+        defaultPort: 3101,
+        description:
+            'Liveness/readiness probes and the platform supervisor roll-up.',
+    },
+    identity: {
+        defaultPort: 3102,
+        description: 'Users, permissions, analytics and push notifications.',
+    },
+    project: {
+        defaultPort: 3103,
+        description: 'Projects, services and domains.',
+    },
+    fleet: {
+        defaultPort: 3104,
+        description:
+            'Cluster, fleet nodes, providers, reachability and the platform surface.',
+    },
+    runtime: {
+        defaultPort: 3105,
+        description: 'Docker, deployments and build/runtime runners.',
+    },
+    'node-agent': {
+        defaultPort: 3106,
+        description:
+            'One per node: the service directory, pooled links, locality routing and redirects.',
+    },
+} as const
 
 /** The name of a service (also its contract namespace / bus address). */
-export type ApiServiceName = keyof typeof API_SERVICES;
+export type ApiServiceName = keyof typeof API_SERVICES
 
 /** Every service name, in declaration order. */
-export const API_SERVICE_NAMES = Object.keys(API_SERVICES) as ApiServiceName[];
+export const API_SERVICE_NAMES = Object.keys(API_SERVICES) as ApiServiceName[]
 
 /** The port a service binds, honouring the operator's override when present. */
 export function apiServicePort(name: ApiServiceName): number {
-  const override = readPortOverride(name);
-  return override ?? API_SERVICES[name].defaultPort;
+    const override = readPortOverride(name)
+    return override ?? API_SERVICES[name].defaultPort
 }
 
 /**
@@ -45,17 +66,19 @@ export function apiServicePort(name: ApiServiceName): number {
  * crash the service with a parse error it cannot report.
  */
 function readPortOverride(name: ApiServiceName): number | undefined {
-  const raw = process.env.API_SERVICE_PORTS;
-  if (raw === undefined || raw === "") return undefined;
+    const raw = process.env.API_SERVICE_PORTS
+    if (raw === undefined || raw === '') return undefined
 
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return undefined;
-    const value = (parsed as Record<string, unknown>)[name];
-    return typeof value === "number" && Number.isInteger(value) ? value : undefined;
-  } catch {
-    return undefined;
-  }
+    try {
+        const parsed: unknown = JSON.parse(raw)
+        if (typeof parsed !== 'object' || parsed === null) return undefined
+        const value = (parsed as Record<string, unknown>)[name]
+        return typeof value === 'number' && Number.isInteger(value)
+            ? value
+            : undefined
+    } catch {
+        return undefined
+    }
 }
 
 /**
@@ -67,22 +90,22 @@ function readPortOverride(name: ApiServiceName): number | undefined {
  * service elsewhere.
  */
 export function apiServiceUrl(name: ApiServiceName): string {
-  const override = readUrlOverride(name);
-  return override ?? `http://svc-${name}:${String(apiServicePort(name))}`;
+    const override = readUrlOverride(name)
+    return override ?? `http://svc-${name}:${String(apiServicePort(name))}`
 }
 
 function readUrlOverride(name: ApiServiceName): string | undefined {
-  const raw = process.env.API_SERVICE_URLS;
-  if (raw === undefined || raw === "") return undefined;
+    const raw = process.env.API_SERVICE_URLS
+    if (raw === undefined || raw === '') return undefined
 
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return undefined;
-    const value = (parsed as Record<string, unknown>)[name];
-    return typeof value === "string" && value.length > 0 ? value : undefined;
-  } catch {
-    return undefined;
-  }
+    try {
+        const parsed: unknown = JSON.parse(raw)
+        if (typeof parsed !== 'object' || parsed === null) return undefined
+        const value = (parsed as Record<string, unknown>)[name]
+        return typeof value === 'string' && value.length > 0 ? value : undefined
+    } catch {
+        return undefined
+    }
 }
 
 /**
@@ -98,7 +121,7 @@ function readUrlOverride(name: ApiServiceName): string | undefined {
  * contract, so it is not in `API_SERVICES`.
  */
 export function apiServiceName(name: string, prefix?: string | null): string {
-  return prefix === undefined || prefix === null || prefix === ""
-    ? `svc-${name}`
-    : `svc-${name}-${prefix}`;
+    return prefix === undefined || prefix === null || prefix === ''
+        ? `svc-${name}`
+        : `svc-${name}-${prefix}`
 }

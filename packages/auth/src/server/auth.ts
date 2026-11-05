@@ -1,13 +1,11 @@
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware } from "better-auth/api";
-import { multiSession, openAPI } from "better-auth/plugins";
+import { betterAuth } from 'better-auth'
+import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { createAuthMiddleware } from 'better-auth/api'
+import { multiSession, openAPI } from 'better-auth/plugins'
 
-import { auditEventFromRequest, type AuthAuditSink } from "../audit";
+import { auditEventFromRequest, type AuthAuditSink } from '../audit'
 
-
-
-import { buildTrustedOrigins } from "./origins";
+import { buildTrustedOrigins } from './origins'
 import {
     deployerUserSchemaPlugin,
     impersonationPlugin,
@@ -21,33 +19,33 @@ import {
     usePasskey,
     stepUpPlugin,
     useTwoFactor,
-} from "./plugins";
-import { passkeyCoordinates } from "./plugins/securityPlugins";
+} from './plugins'
+import { passkeyCoordinates } from './plugins/securityPlugins'
 
-import type { MailSink } from "../mail";
-import type { StepUpSink } from "./plugins/step-up";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { MailSink } from '../mail'
+import type { StepUpSink } from './plugins/step-up'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 
 /** The environment the factory reads. One named shape, shared by every helper. */
 export interface AuthFactoryEnv {
-    DEV_AUTH_KEY: string | undefined;
-    DEFAULT_ADMIN_EMAIL: string | undefined;
-    NODE_ENV: string;
-    ENABLE_MASTER_TOKEN?: boolean;
-    BETTER_AUTH_SECRET?: string;
-    BASE_URL?: string;
-    APP_URL?: string;
-    NEXT_PUBLIC_APP_URL?: string;
-    TRUSTED_ORIGINS?: string;
-    AUTH_BASE_DOMAIN?: string;
-    GITHUB_CLIENT_ID?: string;
-    GITHUB_CLIENT_SECRET?: string;
+    DEV_AUTH_KEY: string | undefined
+    DEFAULT_ADMIN_EMAIL: string | undefined
+    NODE_ENV: string
+    ENABLE_MASTER_TOKEN?: boolean
+    BETTER_AUTH_SECRET?: string
+    BASE_URL?: string
+    APP_URL?: string
+    NEXT_PUBLIC_APP_URL?: string
+    TRUSTED_ORIGINS?: string
+    AUTH_BASE_DOMAIN?: string
+    GITHUB_CLIENT_ID?: string
+    GITHUB_CLIENT_SECRET?: string
     /** Pins the WebAuthn relying-party ID; defaults to `AUTH_BASE_DOMAIN` without its leading dot. */
     /** HTTP relay for outbound mail (`AUTH-015`); absent means no transport. */
-    MAIL_WEBHOOK_URL?: string;
-    PASSKEY_RPID?: string;
+    MAIL_WEBHOOK_URL?: string
+    PASSKEY_RPID?: string
     /** Pins the WebAuthn origin(s), comma-separated; defaults to `APP_URL`. */
-    PASSKEY_ORIGIN?: string;
+    PASSKEY_ORIGIN?: string
 }
 
 /** What a deployment may supply in addition to the database and the environment. */
@@ -56,28 +54,28 @@ export interface AuthFactoryOptions {
      * Where auth audit events go (`AUTH-029`). Absent means audited actions are not recorded — the producer is opt-in so
      * a package that builds an auth instance without a database of its own still works.
      */
-    readonly audit?: AuthAuditSink;
+    readonly audit?: AuthAuditSink
     /**
      * Where step-up proofs go (`AUTH-062`). Absent means verifications are not recorded, and nothing can satisfy a
      * critical-action guard.
      */
-    readonly stepUp?: StepUpSink;
+    readonly stepUp?: StepUpSink
     /**
      * Whether a session holds a fresh passkey proof (`AUTH-067`). Impersonation is refused without one.
      */
-    readonly hasStepUp?: (sessionId: string) => Promise<boolean>;
+    readonly hasStepUp?: (sessionId: string) => Promise<boolean>
     /**
      * Outbound mail (`AUTH-015`). Absent means the deployment has no transport: password reset is still callable, but the
      * message goes nowhere, so a caller must not tell the user "check your inbox".
      */
-    readonly mail?: MailSink;
+    readonly mail?: MailSink
 }
 
 /** Request-derived values the factory computes and the config builder consumes. */
 interface AuthConfigContext {
-    origins: string[];
-    isHttps: boolean;
-    cookieDomain: string | undefined;
+    origins: string[]
+    isHttps: boolean
+    cookieDomain: string | undefined
 }
 
 /**
@@ -105,8 +103,8 @@ interface AuthConfigContext {
  */
 export interface BetterAuthFactoryResult {
     auth: ReturnType<typeof betterAuth<ReturnType<typeof buildAuthConfig>>> & {
-        config: ReturnType<typeof buildAuthConfig>;
-    };
+        config: ReturnType<typeof buildAuthConfig>
+    }
 }
 
 /**
@@ -128,7 +126,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,
     env: AuthFactoryEnv,
     { origins, isHttps, cookieDomain }: AuthConfigContext,
-    options: AuthFactoryOptions = {},
+    options: AuthFactoryOptions = {}
 ) {
     const {
         DEV_AUTH_KEY,
@@ -143,7 +141,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         NEXT_PUBLIC_APP_URL,
         PASSKEY_RPID,
         PASSKEY_ORIGIN,
-    } = env;
+    } = env
 
     // ── DEV-ONLY AUTH DOORS ARE NOT EVEN REGISTERED IN PRODUCTION ───────────
     // `masterTokenPlugin` authenticates ANY request as the master account from a
@@ -158,9 +156,10 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
     // list has no endpoint and no middleware to misfire. `ENABLE_MASTER_TOKEN`
     // is a strict boolean parsed in `@deployer/env` — `"false"` is false there,
     // not truthy.
-    const devAuthKey = DEV_AUTH_KEY ?? "";
-    const devAuthEnabled = NODE_ENV !== "production" && devAuthKey.length > 0;
-    const masterTokenEnabled = devAuthEnabled && ENABLE_MASTER_TOKEN === true && !!DEFAULT_ADMIN_EMAIL;
+    const devAuthKey = DEV_AUTH_KEY ?? ''
+    const devAuthEnabled = NODE_ENV !== 'production' && devAuthKey.length > 0
+    const masterTokenEnabled =
+        devAuthEnabled && ENABLE_MASTER_TOKEN === true && !!DEFAULT_ADMIN_EMAIL
     const devPlugins = [
         ...(masterTokenEnabled
             ? [
@@ -171,16 +170,19 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
               ]
             : []),
         ...(devAuthEnabled ? [loginAsPlugin({ devAuthKey })] : []),
-    ];
+    ]
 
     return {
-        secret: BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
+        secret:
+            BETTER_AUTH_SECRET ??
+            process.env.BETTER_AUTH_SECRET ??
+            process.env.AUTH_SECRET,
         baseURL: BASE_URL ?? process.env.NEXT_PUBLIC_API_URL,
         trustedOrigins: origins.length > 0 ? origins : undefined,
         advanced: {
             // Traefik terminates TLS and forwards the client address; without this the rate limiter and the session's
             // `ipAddress` would record the proxy and every client would share one bucket.
-            ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] },
+            ipAddress: { ipAddressHeaders: ['x-forwarded-for', 'x-real-ip'] },
             // In production with HTTPS, use secure cookies
             // CRITICAL: Must match the isSecure setting in middleware
             useSecureCookies: isHttps,
@@ -191,7 +193,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
                 ...(cookieDomain ? { domain: cookieDomain } : {}),
             },
         },
-        database: drizzleAdapter(database, { provider: "pg" }),
+        database: drizzleAdapter(database, { provider: 'pg' }),
         emailAndPassword: {
             // Sign-IN stays on; public sign-UP is closed. This platform has no
             // self-service registration: an account exists only because the
@@ -209,13 +211,19 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
                        * The link is Better Auth's own, so the token, expiry and redirect handling stay theirs. We only
                        * decide the wording and the transport.
                        */
-                      sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
+                      sendResetPassword: async ({
+                          user,
+                          url,
+                      }: {
+                          user: { email: string }
+                          url: string
+                      }) => {
                           await options.mail?.send({
                               to: user.email,
-                              subject: "Reset your Deployer password",
+                              subject: 'Reset your Deployer password',
                               text: `Someone asked to reset the password for this account.\n\n${url}\n\nIf it was not you, ignore this message; the link expires on its own.`,
-                              kind: "password-reset",
-                          });
+                              kind: 'password-reset',
+                          })
                       },
                   }),
         },
@@ -235,37 +243,39 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
                           newEmail,
                           url,
                       }: {
-                          user: { email: string };
-                          newEmail: string;
-                          url: string;
+                          user: { email: string }
+                          newEmail: string
+                          url: string
                       }) => {
                           await options.mail?.send({
                               to: newEmail,
-                              subject: "Confirm your new Deployer email",
+                              subject: 'Confirm your new Deployer email',
                               text: `Confirm this address for your account:\n\n${url}\n\nIf you did not ask for this, ignore the message.`,
-                              kind: "email-change",
-                          });
+                              kind: 'email-change',
+                          })
                           await options.mail?.send({
                               to: user.email,
-                              subject: "Your Deployer email is changing",
+                              subject: 'Your Deployer email is changing',
                               text: `A change to ${newEmail} was requested. If it was not you, contact an administrator immediately.`,
-                              kind: "email-change",
-                          });
+                              kind: 'email-change',
+                          })
                       },
                   },
               }),
         // User columns live in `deployerUserSchemaPlugin` (a server plugin, linked to the client by
         // `deployerUserSchemaClient`): the DB schema file is GENERATED, so the plugin is what keeps the columns across a
         // regen, and `$InferServerPlugin` is what puts them on the client's session type.
-        ...(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET ? {
-            socialProviders: {
-                github: {
-                    clientId: GITHUB_CLIENT_ID,
-                    clientSecret: GITHUB_CLIENT_SECRET,
-                    scope: ["user:email", "repo"],
-                },
-            },
-        } : {}),
+        ...(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET
+            ? {
+                  socialProviders: {
+                      github: {
+                          clientId: GITHUB_CLIENT_ID,
+                          clientSecret: GITHUB_CLIENT_SECRET,
+                          scope: ['user:email', 'repo'],
+                      },
+                  },
+              }
+            : {}),
         session: {
             // ── SESSION POLICY (AUTH-012) ───────────────────────────────────
             // Absolute 30 days, refreshed at most once a day of use: long enough that an operator is not asked to
@@ -291,12 +301,12 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             window: 60,
             max: 120,
             customRules: {
-                "/sign-in/email": { window: 60, max: 10 },
-                "/sign-up/email": { window: 60, max: 5 },
-                "/forget-password": { window: 300, max: 5 },
-                "/invite/create": { window: 60, max: 20 },
-                "/invite/validate": { window: 60, max: 10 },
-                "/device/approve": { window: 60, max: 20 },
+                '/sign-in/email': { window: 60, max: 10 },
+                '/sign-up/email': { window: 60, max: 5 },
+                '/forget-password': { window: 300, max: 5 },
+                '/invite/create': { window: 60, max: 20 },
+                '/invite/validate': { window: 60, max: 10 },
+                '/device/approve': { window: 60, max: 20 },
             },
         },
         plugins: [
@@ -308,13 +318,22 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             deployerUserSchemaPlugin(),
             // Records every completed factor verification as a step-up for the session that performed it (`AUTH-062`).
             // Absent sink = absent plugin: nothing can satisfy a step-up guard, which is the safe direction.
-            ...(options.stepUp === undefined ? [] : [stepUpPlugin(options.stepUp)]),
+            ...(options.stepUp === undefined
+                ? []
+                : [stepUpPlugin(options.stepUp)]),
             // Impersonation (`AUTH-067`): the only writer of `session.impersonated_by`; the admin plugin that used to
             // own a raw endpoint is gone. Registered only with a step-up port, so a deployment that cannot prove a
             // passkey cannot impersonate at all.
             ...(options.hasStepUp === undefined
                 ? []
-                : [impersonationPlugin({ hasStepUp: options.hasStepUp, ...(options.audit === undefined ? {} : { audit: options.audit }) })]),
+                : [
+                      impersonationPlugin({
+                          hasStepUp: options.hasStepUp,
+                          ...(options.audit === undefined
+                              ? {}
+                              : { audit: options.audit }),
+                      }),
+                  ]),
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the
@@ -345,7 +364,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // the wrong RP is rejected by the browser with no way to recover it. `PASSKEY_RPID`/`PASSKEY_ORIGIN` pin
             // them for a deployment whose public hostnames do not follow `AUTH_BASE_DOMAIN`.
             usePasskey({
-                rpName: "Deployer",
+                rpName: 'Deployer',
                 ...passkeyCoordinates({
                     // `cookieDomain` IS `AUTH_BASE_DOMAIN` (with its leading dot), computed by the factory.
                     authBaseDomain: cookieDomain,
@@ -357,7 +376,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // TOTP + backup codes. `issuer` is required: it is what an
             // authenticator app displays to distinguish this platform's codes
             // from any other.
-            useTwoFactor({ issuer: "Deployer" }),
+            useTwoFactor({ issuer: 'Deployer' }),
             // RFC 8628. Lets the CLI authenticate through a browser approval
             // instead of holding a privileged static credential, and provides
             // the approval page Agent Auth reuses for capability grants.
@@ -370,8 +389,10 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         // One `after` hook for every endpoint: the mapping decides which requests are audited, so a new provider or a
         // renamed admin route is one row in `audit/request.ts`, not a hook per path here. A sink that is absent leaves
         // the auth config byte-identical to what it was.
-        ...(options.audit === undefined ? {} : { hooks: { after: authAuditHook(options.audit) } }),
-    };
+        ...(options.audit === undefined
+            ? {}
+            : { hooks: { after: authAuditHook(options.audit) } }),
+    }
 }
 
 /**
@@ -388,27 +409,29 @@ function authAuditHook(sink: AuthAuditSink) {
             sessionUserId: ctx.context.session?.user.id,
             body: ctx.body,
             returned: (ctx.context as { returned?: unknown }).returned,
-            ip: ctx.headers?.get("x-forwarded-for") ?? undefined,
-            userAgent: ctx.headers?.get("user-agent") ?? undefined,
-        });
-        if (event !== null) sink.record(event);
+            ip: ctx.headers?.get('x-forwarded-for') ?? undefined,
+            userAgent: ctx.headers?.get('user-agent') ?? undefined,
+        })
+        if (event !== null) sink.record(event)
         // `createAuthMiddleware` wants a Promise; the mapping itself is synchronous.
-        return Promise.resolve();
-    });
+        return Promise.resolve()
+    })
 }
 
-export const betterAuthFactory = <TSchema extends Record<string, unknown> = Record<string, never>>(
+export const betterAuthFactory = <
+    TSchema extends Record<string, unknown> = Record<string, never>,
+>(
     database: NodePgDatabase<TSchema>,
     env: AuthFactoryEnv,
-    options: AuthFactoryOptions = {},
+    options: AuthFactoryOptions = {}
 ): BetterAuthFactoryResult => {
-    const { BASE_URL, AUTH_BASE_DOMAIN } = env;
+    const { BASE_URL, AUTH_BASE_DOMAIN } = env
 
     // The same list the API's CORS gateway trusts — see `./origins`.
-    const origins = buildTrustedOrigins(env);
+    const origins = buildTrustedOrigins(env)
 
     // Computed BEFORE the cookie block below, which picks the scheme from it.
-    const isHttps = BASE_URL?.startsWith("https://") ?? false;
+    const isHttps = BASE_URL?.startsWith('https://') ?? false
 
     // Use explicit AUTH_BASE_DOMAIN when provided, otherwise no domain sharing.
     // AUTH_BASE_DOMAIN must be the parent domain (e.g. ".deployer.localhost" or
@@ -419,10 +442,15 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
     // web request; a host-only api.* cookie is invisible there and every
     // protected route redirects to sign-in. (useSecureCookies still gates
     // the Secure flag: https-only.)
-    const cookieDomain: string | undefined = AUTH_BASE_DOMAIN;
+    const cookieDomain: string | undefined = AUTH_BASE_DOMAIN
 
-    const config = buildAuthConfig(database, env, { origins, isHttps, cookieDomain }, options);
-    const auth = betterAuth(config);
+    const config = buildAuthConfig(
+        database,
+        env,
+        { origins, isHttps, cookieDomain },
+        options
+    )
+    const auth = betterAuth(config)
 
-    return { auth: { ...auth, config } };
-};
+    return { auth: { ...auth, config } }
+}

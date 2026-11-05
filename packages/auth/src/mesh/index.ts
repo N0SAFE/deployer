@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 /**
  * Default replay window: 30 seconds.
@@ -7,7 +7,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * milliseconds ago is rejected, even if the HMAC is valid. Configurable at
  * runtime via the `MESH_REPLAY_WINDOW_MS` environment variable.
  */
-const DEFAULT_REPLAY_WINDOW_MS = 30_000;
+const DEFAULT_REPLAY_WINDOW_MS = 30_000
 
 /**
  * In-memory rolling nonce set.
@@ -17,13 +17,13 @@ const DEFAULT_REPLAY_WINDOW_MS = 30_000;
  * replay window. This means memory is bounded by (request-rate × window), which
  * is tiny for internal cluster traffic.
  */
-const seenNonces = new Map<string, number>();
+const seenNonces = new Map<string, number>()
 
 function evictExpiredNonces(windowMs: number): void {
-    const cutoff = Date.now() - windowMs;
+    const cutoff = Date.now() - windowMs
     for (const [nonce, seenAt] of seenNonces.entries()) {
         if (seenAt < cutoff) {
-            seenNonces.delete(nonce);
+            seenNonces.delete(nonce)
         }
     }
 }
@@ -41,11 +41,11 @@ function evictExpiredNonces(windowMs: number): void {
  * {@link verifyMeshToken} which also checks the replay window and deduplicates nonces.
  */
 export function signMeshToken(secret: string): string {
-    const ts = String(Date.now());
-    const nonce = randomBytes(16).toString("hex");
-    const msg = `v1|${ts}|${nonce}`;
-    const sig = createHmac("sha256", secret).update(msg).digest("hex");
-    return `v1.${ts}.${nonce}.${sig}`;
+    const ts = String(Date.now())
+    const nonce = randomBytes(16).toString('hex')
+    const msg = `v1|${ts}|${nonce}`
+    const sig = createHmac('sha256', secret).update(msg).digest('hex')
+    return `v1.${ts}.${nonce}.${sig}`
 }
 
 /**
@@ -65,40 +65,45 @@ export function signMeshToken(secret: string): string {
 export function verifyMeshToken(
     token: string | null | undefined,
     secret: string,
-    windowMs = DEFAULT_REPLAY_WINDOW_MS,
+    windowMs = DEFAULT_REPLAY_WINDOW_MS
 ): boolean {
-    if (!token) return false;
+    if (!token) return false
 
-    const parts = token.split(".");
-    if (parts.length !== 4) return false;
+    const parts = token.split('.')
+    if (parts.length !== 4) return false
 
-    const [version, tsStr, nonce, sig] = parts as [string, string, string, string];
+    const [version, tsStr, nonce, sig] = parts as [
+        string,
+        string,
+        string,
+        string,
+    ]
 
-    if (version !== "v1") return false;
+    if (version !== 'v1') return false
 
-    const ts = Number(tsStr);
-    if (!Number.isFinite(ts)) return false;
+    const ts = Number(tsStr)
+    if (!Number.isFinite(ts)) return false
 
-    if (Math.abs(Date.now() - ts) > windowMs) return false;
+    if (Math.abs(Date.now() - ts) > windowMs) return false
 
     // HMAC verification (timing-safe)
-    const msg = `v1|${tsStr}|${nonce}`;
-    const expected = createHmac("sha256", secret).update(msg).digest();
-    let actual: Buffer;
+    const msg = `v1|${tsStr}|${nonce}`
+    const expected = createHmac('sha256', secret).update(msg).digest()
+    let actual: Buffer
     try {
-        actual = Buffer.from(sig, "hex");
+        actual = Buffer.from(sig, 'hex')
     } catch {
-        return false;
+        return false
     }
-    if (actual.length !== expected.length) return false;
-    if (!timingSafeEqual(expected, actual)) return false;
+    if (actual.length !== expected.length) return false
+    if (!timingSafeEqual(expected, actual)) return false
 
     // Nonce replay guard
-    evictExpiredNonces(windowMs);
-    if (seenNonces.has(nonce)) return false;
-    seenNonces.set(nonce, Date.now());
+    evictExpiredNonces(windowMs)
+    if (seenNonces.has(nonce)) return false
+    seenNonces.set(nonce, Date.now())
 
-    return true;
+    return true
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,7 +132,7 @@ export function verifyMeshToken(
  * expire during normal operation; the lifetime is a safety net for a
  * compromised token.
  */
-const DEFAULT_PEER_SERVICE_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const DEFAULT_PEER_SERVICE_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
  * Derive a node-specific secret from the shared mesh secret and a nodeId.
@@ -138,9 +143,9 @@ const DEFAULT_PEER_SERVICE_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  * with other HMAC uses of the same shared secret.
  */
 function deriveNodeSecret(sharedSecret: string, nodeId: string): string {
-    return createHmac("sha256", sharedSecret)
+    return createHmac('sha256', sharedSecret)
         .update(`mesh-peer-service-token|v1|${nodeId}`)
-        .digest("hex");
+        .digest('hex')
 }
 
 /**
@@ -161,17 +166,17 @@ export function signPeerServiceToken(
     sharedSecret: string,
     nodeId: string,
     now: number = Date.now(),
-    ttlMs: number = DEFAULT_PEER_SERVICE_TOKEN_TTL_MS,
+    ttlMs: number = DEFAULT_PEER_SERVICE_TOKEN_TTL_MS
 ): { token: string; expiresAt: string } {
-    const issuedAtMs = now;
-    const expiresAtMs = now + ttlMs;
-    const nodeSecret = deriveNodeSecret(sharedSecret, nodeId);
-    const msg = `v2|${String(issuedAtMs)}|${String(expiresAtMs)}|${nodeId}`;
-    const sig = createHmac("sha256", nodeSecret).update(msg).digest("hex");
+    const issuedAtMs = now
+    const expiresAtMs = now + ttlMs
+    const nodeSecret = deriveNodeSecret(sharedSecret, nodeId)
+    const msg = `v2|${String(issuedAtMs)}|${String(expiresAtMs)}|${nodeId}`
+    const sig = createHmac('sha256', nodeSecret).update(msg).digest('hex')
     return {
         token: `v2.${String(issuedAtMs)}.${String(expiresAtMs)}.${nodeId}.${sig}`,
         expiresAt: new Date(expiresAtMs).toISOString(),
-    };
+    }
 }
 
 /**
@@ -189,52 +194,58 @@ export function signPeerServiceToken(
  *    from the shared secret and the claimed nodeId.
  */
 export interface VerifiedPeerToken {
-    nodeId: string;
-    expiresAtMs: number;
-    issuedAtMs: number;
+    nodeId: string
+    expiresAtMs: number
+    issuedAtMs: number
 }
 
 export function verifyPeerServiceToken(
     token: string | null | undefined,
     sharedSecret: string,
-    now: number = Date.now(),
+    now: number = Date.now()
 ): VerifiedPeerToken | null {
-    if (!token) return null;
-    if (!token.startsWith("v2.")) return null;
+    if (!token) return null
+    if (!token.startsWith('v2.')) return null
 
-    const parts = token.split(".");
-    if (parts.length !== 5) return null;
+    const parts = token.split('.')
+    if (parts.length !== 5) return null
 
     const [version, issuedAtStr, expiresAtStr, nodeId, sig] = parts as [
-        string, string, string, string, string,
-    ];
+        string,
+        string,
+        string,
+        string,
+        string,
+    ]
 
-    if (version !== "v2") return null;
+    if (version !== 'v2') return null
 
-    const issuedAtMs = Number(issuedAtStr);
-    const expiresAtMs = Number(expiresAtStr);
-    if (!Number.isFinite(issuedAtMs) || !Number.isFinite(expiresAtMs)) return null;
-    if (expiresAtMs <= now) return null;
+    const issuedAtMs = Number(issuedAtStr)
+    const expiresAtMs = Number(expiresAtStr)
+    if (!Number.isFinite(issuedAtMs) || !Number.isFinite(expiresAtMs))
+        return null
+    if (expiresAtMs <= now) return null
 
     // UUID v4 (case-insensitive). Matches exactly the same shape we accept
     // for `MESH_NODE_ID` in the rest of the codebase.
-    const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidLike.test(nodeId)) return null;
+    const uuidLike =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidLike.test(nodeId)) return null
 
-    const nodeSecret = deriveNodeSecret(sharedSecret, nodeId);
-    const msg = `v2|${issuedAtStr}|${expiresAtStr}|${nodeId}`;
-    const expected = createHmac("sha256", nodeSecret).update(msg).digest();
+    const nodeSecret = deriveNodeSecret(sharedSecret, nodeId)
+    const msg = `v2|${issuedAtStr}|${expiresAtStr}|${nodeId}`
+    const expected = createHmac('sha256', nodeSecret).update(msg).digest()
 
-    let actual: Buffer;
+    let actual: Buffer
     try {
-        actual = Buffer.from(sig, "hex");
+        actual = Buffer.from(sig, 'hex')
     } catch {
-        return null;
+        return null
     }
-    if (actual.length !== expected.length) return null;
-    if (!timingSafeEqual(expected, actual)) return null;
+    if (actual.length !== expected.length) return null
+    if (!timingSafeEqual(expected, actual)) return null
 
-    return { nodeId, issuedAtMs, expiresAtMs };
+    return { nodeId, issuedAtMs, expiresAtMs }
 }
 
 /**
@@ -250,5 +261,5 @@ export function verifyPeerServiceToken(
  * cluster can validate peer credentials with the same key material.
  */
 export function generateMeshSharedSecret(): string {
-    return randomBytes(32).toString("hex");
+    return randomBytes(32).toString('hex')
 }

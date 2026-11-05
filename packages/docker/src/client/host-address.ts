@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync } from 'node:fs'
 
 /**
  * Resolve the IP address used to reach the Docker host from inside this
@@ -24,24 +24,24 @@ import { readFileSync } from "node:fs";
  */
 export function resolveDockerHostIp(): string {
     try {
-        const route = readFileSync("/proc/net/route", "utf8");
-        for (const line of route.split("\n").slice(1)) {
-            const parts = line.trim().split(/\s+/);
-            if (parts.length < 3) continue;
+        const route = readFileSync('/proc/net/route', 'utf8')
+        for (const line of route.split('\n').slice(1)) {
+            const parts = line.trim().split(/\s+/)
+            if (parts.length < 3) continue
             // Destination 00000000 = default route
-            if (parts[1] !== "00000000") continue;
-            const gatewayHex = parts[2] ?? "";
-            if (gatewayHex.length < 8) continue;
+            if (parts[1] !== '00000000') continue
+            const gatewayHex = parts[2] ?? ''
+            if (gatewayHex.length < 8) continue
             // Stored little-endian; reverse byte order.
             const ip = [
                 parseInt(gatewayHex.slice(6, 8), 16),
                 parseInt(gatewayHex.slice(4, 6), 16),
                 parseInt(gatewayHex.slice(2, 4), 16),
                 parseInt(gatewayHex.slice(0, 2), 16),
-            ].join(".");
+            ].join('.')
             // Sanity check: must look like a valid IPv4.
-            if (/^\d+\.\d+\.\d+\.\d+$/.test(ip) && ip !== "0.0.0.0") {
-                return ip;
+            if (/^\d+\.\d+\.\d+\.\d+$/.test(ip) && ip !== '0.0.0.0') {
+                return ip
             }
         }
     } catch {
@@ -49,5 +49,5 @@ export function resolveDockerHostIp(): string {
         // Outside of a container (e.g. local dev on the host) this fails,
         // and 127.0.0.1 is the correct address anyway.
     }
-    return "127.0.0.1";
+    return '127.0.0.1'
 }

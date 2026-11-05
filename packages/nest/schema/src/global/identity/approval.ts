@@ -1,4 +1,12 @@
-import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+    integer,
+    jsonb,
+    pgTable,
+    primaryKey,
+    text,
+    timestamp,
+    uuid,
+} from 'drizzle-orm/pg-core'
 
 /**
  * Approval requests (`SEC-072`).
@@ -9,27 +17,30 @@ import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "driz
  * `requiredApprovals` is per request, not global: the policy layer decides how many people a risk level needs, and this
  * table is only the ledger. `status` is a closed set so a reader never has to interpret a free string.
  */
-export const accessRequests = pgTable("access_requests", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	/** The capability the requester wants to use (`"deployment:trigger"`). */
-	permission: text("permission").notNull(),
-	/** Who is asking. A token/agent acts for its owner, and `via` records the credential that made the call. */
-	requesterId: text("requester_id").notNull(),
-	via: text("via"),
-	/** The scope of the action: `{ projectId }`, `{ serviceId }`, `{ platform: true }`. */
-	scope: jsonb("scope").$type<Record<string, unknown>>().notNull().default({}),
-	/** sha256 of the canonical action; single-use, checked again when the approval is consumed. */
-	actionHash: text("action_hash").notNull(),
-	/** Why — required, and read by whoever has to decide. */
-	reason: text("reason").notNull(),
-	requiredApprovals: integer("required_approvals").notNull().default(1),
-	/** `pending`, `approved`, `denied`, `consumed` or `expired`. */
-	status: text("status").notNull().default("pending"),
-	ttlSec: integer("ttl_sec").notNull(),
-	expiresAt: timestamp("expires_at").notNull(),
-	consumedAt: timestamp("consumed_at"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const accessRequests = pgTable('access_requests', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** The capability the requester wants to use (`"deployment:trigger"`). */
+    permission: text('permission').notNull(),
+    /** Who is asking. A token/agent acts for its owner, and `via` records the credential that made the call. */
+    requesterId: text('requester_id').notNull(),
+    via: text('via'),
+    /** The scope of the action: `{ projectId }`, `{ serviceId }`, `{ platform: true }`. */
+    scope: jsonb('scope')
+        .$type<Record<string, unknown>>()
+        .notNull()
+        .default({}),
+    /** sha256 of the canonical action; single-use, checked again when the approval is consumed. */
+    actionHash: text('action_hash').notNull(),
+    /** Why — required, and read by whoever has to decide. */
+    reason: text('reason').notNull(),
+    requiredApprovals: integer('required_approvals').notNull().default(1),
+    /** `pending`, `approved`, `denied`, `consumed` or `expired`. */
+    status: text('status').notNull().default('pending'),
+    ttlSec: integer('ttl_sec').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    consumedAt: timestamp('consumed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+})
 
 /**
  * One person's verdict on a request.
@@ -38,23 +49,23 @@ export const accessRequests = pgTable("access_requests", {
  * `COUNT(*)` over distinct people rather than a counter that could drift.
  */
 export const accessRequestVotes = pgTable(
-	"access_request_votes",
-	{
-		requestId: uuid("request_id")
-			.notNull()
-			.references(() => accessRequests.id, { onDelete: "cascade" }),
-		approverId: text("approver_id").notNull(),
-		/** `approve` or `deny`; a deny ends the request immediately. */
-		decision: text("decision").notNull(),
-		/**
-		 * A digest binding the passkey proof that authorised this vote to this request (`SEC-072`).
-		 *
-		 * It is the STEP-UP record's id, the request and the approver, hashed — not the raw WebAuthn assertion, which would
-		 * need the browser to send it to THIS endpoint (Better Auth verifies assertions at its own). It still makes a vote
-		 * non-repudiable: the same proof cannot be claimed for a different request or by a different approver.
-		 */
-		proofHash: text("proof_hash"),
-		at: timestamp("at").defaultNow().notNull(),
-	},
-	(table) => [primaryKey({ columns: [table.requestId, table.approverId] })],
-);
+    'access_request_votes',
+    {
+        requestId: uuid('request_id')
+            .notNull()
+            .references(() => accessRequests.id, { onDelete: 'cascade' }),
+        approverId: text('approver_id').notNull(),
+        /** `approve` or `deny`; a deny ends the request immediately. */
+        decision: text('decision').notNull(),
+        /**
+         * A digest binding the passkey proof that authorised this vote to this request (`SEC-072`).
+         *
+         * It is the STEP-UP record's id, the request and the approver, hashed — not the raw WebAuthn assertion, which would
+         * need the browser to send it to THIS endpoint (Better Auth verifies assertions at its own). It still makes a vote
+         * non-repudiable: the same proof cannot be claimed for a different request or by a different approver.
+         */
+        proofHash: text('proof_hash'),
+        at: timestamp('at').defaultNow().notNull(),
+    },
+    (table) => [primaryKey({ columns: [table.requestId, table.approverId] })]
+)

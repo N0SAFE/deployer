@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 /**
  * The CALLER's credentials, carried to the service clients the BFF fans out with.
@@ -27,26 +27,29 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * what makes the value the FAN-OUT's caller rather than a stray global.
  */
 export type ServiceAuthContext = {
-	/** The caller's cookies, including the session cookie services authenticate from. */
-	cookie?: string;
-	/** The caller's Authorization header, when they use one (dev auth token, API key). */
-	authorization?: string;
-	/** The caller's API key, from `x-api-key` or a `Bearer dk_…` authorization. */
-	apiKey?: string;
-	/** The platform-scoped mesh internal key, when the caller holds one. */
-	meshInternalKey?: string;
+    /** The caller's cookies, including the session cookie services authenticate from. */
+    cookie?: string
+    /** The caller's Authorization header, when they use one (dev auth token, API key). */
+    authorization?: string
+    /** The caller's API key, from `x-api-key` or a `Bearer dk_…` authorization. */
+    apiKey?: string
+    /** The platform-scoped mesh internal key, when the caller holds one. */
+    meshInternalKey?: string
 }
 
-const storage = new AsyncLocalStorage<ServiceAuthContext>();
+const storage = new AsyncLocalStorage<ServiceAuthContext>()
 
 /** Run `fn` with `auth` visible to every service client called inside it. */
-export function runWithServiceAuth<T>(auth: ServiceAuthContext, fn: () => T): T {
-	return storage.run(auth, fn);
+export function runWithServiceAuth<T>(
+    auth: ServiceAuthContext,
+    fn: () => T
+): T {
+    return storage.run(auth, fn)
 }
 
 /** The credentials for the in-flight request, or an empty set outside one. */
 export function currentServiceAuth(): ServiceAuthContext {
-	return storage.getStore() ?? {};
+    return storage.getStore() ?? {}
 }
 
 /**
@@ -59,12 +62,13 @@ export function currentServiceAuth(): ServiceAuthContext {
  * are not coming.
  */
 export function serviceAuthHeaders(): Record<string, string> {
-	const auth = currentServiceAuth();
-	const headers: Record<string, string> = {};
-	if (auth.cookie) headers.cookie = auth.cookie;
-	if (auth.authorization) headers.authorization = auth.authorization;
-	// The services' key plugin reads `x-api-key`; forwarding the caller's own keeps a key usable through the BFF.
-	if (auth.apiKey) headers["x-api-key"] = auth.apiKey;
-	if (auth.meshInternalKey) headers["x-mesh-internal-key"] = auth.meshInternalKey;
-	return headers;
+    const auth = currentServiceAuth()
+    const headers: Record<string, string> = {}
+    if (auth.cookie) headers.cookie = auth.cookie
+    if (auth.authorization) headers.authorization = auth.authorization
+    // The services' key plugin reads `x-api-key`; forwarding the caller's own keeps a key usable through the BFF.
+    if (auth.apiKey) headers['x-api-key'] = auth.apiKey
+    if (auth.meshInternalKey)
+        headers['x-mesh-internal-key'] = auth.meshInternalKey
+    return headers
 }

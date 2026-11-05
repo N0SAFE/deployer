@@ -10,10 +10,10 @@ import { dockerVolumeEntitySchema } from './volumes/index'
  * and one entity schema (see `dockerXxxEntitySchema`).
  */
 export const dockerEntityKindSchema = z.enum([
-  'container',
-  'image',
-  'network',
-  'volume',
+    'container',
+    'image',
+    'network',
+    'volume',
 ])
 export type DockerEntityKind = z.infer<typeof dockerEntityKindSchema>
 
@@ -21,21 +21,23 @@ export type DockerEntityKind = z.infer<typeof dockerEntityKindSchema>
  * What "remove from store" means. A removed entity is referenced by id only.
  */
 export const dockerEntityRemovedEventSchema = z.object({
-  kind: dockerEntityKindSchema,
-  action: z.enum(['destroy', 'die', 'delete']),
-  id: z.string().min(1),
-  /**
-   * ISO timestamp of the underlying docker event. Useful for ordering when
-   * the stream is consumed by `useDockerLiveEntities` (the hook uses this
-   * to drop late events that race with a `reconcile()`).
-   */
-  occurredAt: z.string(),
-  /**
-   * Optional raw event fingerprint for diagnostics / debug only.
-   */
-  eventId: z.string().nullable(),
+    kind: dockerEntityKindSchema,
+    action: z.enum(['destroy', 'die', 'delete']),
+    id: z.string().min(1),
+    /**
+     * ISO timestamp of the underlying docker event. Useful for ordering when
+     * the stream is consumed by `useDockerLiveEntities` (the hook uses this
+     * to drop late events that race with a `reconcile()`).
+     */
+    occurredAt: z.string(),
+    /**
+     * Optional raw event fingerprint for diagnostics / debug only.
+     */
+    eventId: z.string().nullable(),
 })
-export type DockerEntityRemovedEvent = z.infer<typeof dockerEntityRemovedEventSchema>
+export type DockerEntityRemovedEvent = z.infer<
+    typeof dockerEntityRemovedEventSchema
+>
 
 /**
  * Every event the unified docker entity stream can emit. Each variant
@@ -49,30 +51,30 @@ export type DockerEntityRemovedEvent = z.infer<typeof dockerEntityRemovedEventSc
  * out of the box.
  */
 export const dockerEntityEventSchema = z.discriminatedUnion('kind', [
-  dockerContainerEntitySchema.extend({
-    kind: z.literal('container'),
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
-  dockerImageEntitySchema.extend({
-    kind: z.literal('image'),
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
-  dockerNetworkEntitySchema.extend({
-    kind: z.literal('network'),
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
-  dockerVolumeEntitySchema.extend({
-    kind: z.literal('volume'),
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
+    dockerContainerEntitySchema.extend({
+        kind: z.literal('container'),
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
+    dockerImageEntitySchema.extend({
+        kind: z.literal('image'),
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
+    dockerNetworkEntitySchema.extend({
+        kind: z.literal('network'),
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
+    dockerVolumeEntitySchema.extend({
+        kind: z.literal('volume'),
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
 ])
 export type DockerEntityEvent = z.infer<typeof dockerEntityEventSchema>
 
@@ -84,34 +86,34 @@ export type DockerEntityEvent = z.infer<typeof dockerEntityEventSchema>
  * construction.
  */
 const dockerEntityEventEnvelopeSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('container'),
-    entity: dockerContainerEntitySchema,
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
-  z.object({
-    kind: z.literal('image'),
-    entity: dockerImageEntitySchema,
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
-  z.object({
-    kind: z.literal('network'),
-    entity: dockerNetworkEntitySchema,
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
-  z.object({
-    kind: z.literal('volume'),
-    entity: dockerVolumeEntitySchema,
-    action: z.string().min(1),
-    occurredAt: z.string(),
-    eventId: z.string().nullable(),
-  }),
+    z.object({
+        kind: z.literal('container'),
+        entity: dockerContainerEntitySchema,
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
+    z.object({
+        kind: z.literal('image'),
+        entity: dockerImageEntitySchema,
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
+    z.object({
+        kind: z.literal('network'),
+        entity: dockerNetworkEntitySchema,
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
+    z.object({
+        kind: z.literal('volume'),
+        entity: dockerVolumeEntitySchema,
+        action: z.string().min(1),
+        occurredAt: z.string(),
+        eventId: z.string().nullable(),
+    }),
 ])
 
 /**
@@ -120,73 +122,73 @@ const dockerEntityEventEnvelopeSchema = z.discriminatedUnion('kind', [
  * (Zod validates the output and applies any defaults).
  */
 export function buildDockerEntityEventChunk(input: {
-  kind: "container"
-  entity: z.infer<typeof dockerContainerEntitySchema>
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'container'
+    entity: z.infer<typeof dockerContainerEntitySchema>
+    action: string
+    occurredAt: string
+    eventId: string | null
 }): z.infer<typeof dockerContainerEntitySchema> & {
-  kind: "container"
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'container'
+    action: string
+    occurredAt: string
+    eventId: string | null
 }
 export function buildDockerEntityEventChunk(input: {
-  kind: "image"
-  entity: z.infer<typeof dockerImageEntitySchema>
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'image'
+    entity: z.infer<typeof dockerImageEntitySchema>
+    action: string
+    occurredAt: string
+    eventId: string | null
 }): z.infer<typeof dockerImageEntitySchema> & {
-  kind: "image"
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'image'
+    action: string
+    occurredAt: string
+    eventId: string | null
 }
 export function buildDockerEntityEventChunk(input: {
-  kind: "network"
-  entity: z.infer<typeof dockerNetworkEntitySchema>
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'network'
+    entity: z.infer<typeof dockerNetworkEntitySchema>
+    action: string
+    occurredAt: string
+    eventId: string | null
 }): z.infer<typeof dockerNetworkEntitySchema> & {
-  kind: "network"
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'network'
+    action: string
+    occurredAt: string
+    eventId: string | null
 }
 export function buildDockerEntityEventChunk(input: {
-  kind: "volume"
-  entity: z.infer<typeof dockerVolumeEntitySchema>
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'volume'
+    entity: z.infer<typeof dockerVolumeEntitySchema>
+    action: string
+    occurredAt: string
+    eventId: string | null
 }): z.infer<typeof dockerVolumeEntitySchema> & {
-  kind: "volume"
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: 'volume'
+    action: string
+    occurredAt: string
+    eventId: string | null
 }
 export function buildDockerEntityEventChunk(input: {
-  kind: DockerEntityKind
-  entity: unknown
-  action: string
-  occurredAt: string
-  eventId: string | null
+    kind: DockerEntityKind
+    entity: unknown
+    action: string
+    occurredAt: string
+    eventId: string | null
 }): DockerEntityEvent {
-  const envelope = dockerEntityEventEnvelopeSchema.parse(input)
-  // Validate the final shape through the canonical event schema instead of
-  // spreading + asserting: `kind` is deliberately included in the output
-  // (the discriminator is required by `dockerEntityStreamChunkSchema`), and
-  // the parse fails fast on any malformed chunk instead of silently shipping
-  // a value ORPC's output validation will reject with a 500.
-  return dockerEntityEventSchema.parse({
-    ...envelope.entity,
-    kind: envelope.kind,
-    action: envelope.action,
-    occurredAt: envelope.occurredAt,
-    eventId: envelope.eventId,
-  })
+    const envelope = dockerEntityEventEnvelopeSchema.parse(input)
+    // Validate the final shape through the canonical event schema instead of
+    // spreading + asserting: `kind` is deliberately included in the output
+    // (the discriminator is required by `dockerEntityStreamChunkSchema`), and
+    // the parse fails fast on any malformed chunk instead of silently shipping
+    // a value ORPC's output validation will reject with a 500.
+    return dockerEntityEventSchema.parse({
+        ...envelope.entity,
+        kind: envelope.kind,
+        action: envelope.action,
+        occurredAt: envelope.occurredAt,
+        eventId: envelope.eventId,
+    })
 }
 
 /**
@@ -194,10 +196,12 @@ export function buildDockerEntityEventChunk(input: {
  * `DockerEntityStreamChunk` per emission, even if the entity is gone.
  */
 export const dockerEntityStreamChunkSchema = z.union([
-  dockerEntityEventSchema,
-  dockerEntityRemovedEventSchema,
+    dockerEntityEventSchema,
+    dockerEntityRemovedEventSchema,
 ])
-export type DockerEntityStreamChunk = z.infer<typeof dockerEntityStreamChunkSchema>
+export type DockerEntityStreamChunk = z.infer<
+    typeof dockerEntityStreamChunkSchema
+>
 
 /**
  * Filter input for the unified `docker.entity.stream` contract.
@@ -208,19 +212,21 @@ export type DockerEntityStreamChunk = z.infer<typeof dockerEntityStreamChunkSche
  * (e.g. only `['create', 'update', 'destroy']` for containers).
  */
 export const dockerEntityStreamQuerySchema = z.object({
-  kinds: z.array(dockerEntityKindSchema).min(1).optional(),
-  /**
-   * Map of `kind -> action[]`. When omitted for a given kind, every
-   * action of that kind is emitted.
-   */
-  actions: z
-    .object({
-      container: z.array(z.string().min(1)).optional(),
-      image: z.array(z.string().min(1)).optional(),
-      network: z.array(z.string().min(1)).optional(),
-      volume: z.array(z.string().min(1)).optional(),
-    })
-    .partial()
-    .optional(),
+    kinds: z.array(dockerEntityKindSchema).min(1).optional(),
+    /**
+     * Map of `kind -> action[]`. When omitted for a given kind, every
+     * action of that kind is emitted.
+     */
+    actions: z
+        .object({
+            container: z.array(z.string().min(1)).optional(),
+            image: z.array(z.string().min(1)).optional(),
+            network: z.array(z.string().min(1)).optional(),
+            volume: z.array(z.string().min(1)).optional(),
+        })
+        .partial()
+        .optional(),
 })
-export type DockerEntityStreamQuery = z.infer<typeof dockerEntityStreamQuerySchema>
+export type DockerEntityStreamQuery = z.infer<
+    typeof dockerEntityStreamQuerySchema
+>

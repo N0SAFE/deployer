@@ -15,54 +15,52 @@
  * failure rather than a silent one.
  */
 
+import { createModuleContext } from '@deployer/nest-effect'
 
-
-import { createModuleContext } from "@deployer/nest-effect";
-
-import { AnalyticsDelegationController } from "./generated/analytics.delegation";
-import { ApprovalDelegationController } from "./generated/approval.delegation";
-import { AuditDelegationController } from "./generated/audit.delegation";
-import { ClusterDelegationController } from "./generated/cluster.delegation";
-import { DeploymentDelegationController } from "./generated/deployment.delegation";
-import { DockerDelegationController } from "./generated/docker.delegation";
-import { DomainDelegationController } from "./generated/domain.delegation";
-import { HealthDelegationController } from "./generated/health.delegation";
-import { MeshDelegationController } from "./generated/mesh.delegation";
-import { NodesDelegationController } from "./generated/nodes.delegation";
-import { PlatformDelegationController } from "./generated/platform.delegation";
-import { ProjectDelegationController } from "./generated/project.delegation";
-import { ProvidersDelegationController } from "./generated/providers.delegation";
-import { ProviderSchemaDelegationController } from "./generated/providerSchema.delegation";
-import { PushDelegationController } from "./generated/push.delegation";
-import { ReachabilityDelegationController } from "./generated/reachability.delegation";
-import { RoleDelegationController } from "./generated/role.delegation";
-import { ServiceDelegationController } from "./generated/service.delegation";
-import { ServicePreviewTopologyDelegationController } from "./generated/servicePreviewTopology.delegation";
-import { StepUpDelegationController } from "./generated/stepUp.delegation";
-import { UserDelegationController } from "./generated/user.delegation";
+import { AnalyticsDelegationController } from './generated/analytics.delegation'
+import { ApprovalDelegationController } from './generated/approval.delegation'
+import { AuditDelegationController } from './generated/audit.delegation'
+import { ClusterDelegationController } from './generated/cluster.delegation'
+import { DeploymentDelegationController } from './generated/deployment.delegation'
+import { DockerDelegationController } from './generated/docker.delegation'
+import { DomainDelegationController } from './generated/domain.delegation'
+import { HealthDelegationController } from './generated/health.delegation'
+import { MeshDelegationController } from './generated/mesh.delegation'
+import { NodesDelegationController } from './generated/nodes.delegation'
+import { PlatformDelegationController } from './generated/platform.delegation'
+import { ProjectDelegationController } from './generated/project.delegation'
+import { ProvidersDelegationController } from './generated/providers.delegation'
+import { ProviderSchemaDelegationController } from './generated/providerSchema.delegation'
+import { PushDelegationController } from './generated/push.delegation'
+import { ReachabilityDelegationController } from './generated/reachability.delegation'
+import { RoleDelegationController } from './generated/role.delegation'
+import { ServiceDelegationController } from './generated/service.delegation'
+import { ServicePreviewTopologyDelegationController } from './generated/servicePreviewTopology.delegation'
+import { StepUpDelegationController } from './generated/stepUp.delegation'
+import { UserDelegationController } from './generated/user.delegation'
 
 export class DelegationModule extends createModuleContext({
-	controllers: [
-		AnalyticsDelegationController,
-		ApprovalDelegationController,
-		AuditDelegationController,
-		ClusterDelegationController,
-		DeploymentDelegationController,
-		DockerDelegationController,
-		DomainDelegationController,
-		HealthDelegationController,
-		MeshDelegationController,
-		NodesDelegationController,
-		PlatformDelegationController,
-		ProjectDelegationController,
-		ProviderSchemaDelegationController,
-		ProvidersDelegationController,
-		PushDelegationController,
-		RoleDelegationController,
-		ReachabilityDelegationController,
-		ServiceDelegationController,
-		ServicePreviewTopologyDelegationController,
-		StepUpDelegationController,
-		UserDelegationController,
-	],
+    controllers: [
+        AnalyticsDelegationController,
+        ApprovalDelegationController,
+        AuditDelegationController,
+        ClusterDelegationController,
+        DeploymentDelegationController,
+        DockerDelegationController,
+        DomainDelegationController,
+        HealthDelegationController,
+        MeshDelegationController,
+        NodesDelegationController,
+        PlatformDelegationController,
+        ProjectDelegationController,
+        ProviderSchemaDelegationController,
+        ProvidersDelegationController,
+        PushDelegationController,
+        RoleDelegationController,
+        ReachabilityDelegationController,
+        ServiceDelegationController,
+        ServicePreviewTopologyDelegationController,
+        StepUpDelegationController,
+        UserDelegationController,
+    ],
 }) {}

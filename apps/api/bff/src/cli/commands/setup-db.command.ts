@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 
-import { Logger, Inject } from "@nestjs/common";
+import { Logger, Inject } from '@nestjs/common'
 
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from '@deployer/effect-core'
 /**
  * Setup Database CLI Command
  *
@@ -20,69 +20,85 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
  *   1  No URL provided and SETUP_DATABASE_URL not set
  */
 
-import { Command, CommandRunner, Option } from "nest-commander";
+import { Command, CommandRunner, Option } from 'nest-commander'
 
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import {
+    NodeConfigRepository,
+    type NodeConfigRepositoryShape,
+} from '@deployer/node-state'
 
 type SetupDbOptions = {
-  url?: string;
+    url?: string
 }
 
 @Command({
-  name: "setup-db",
-  description: "Save the Postgres database URL to local node config",
+    name: 'setup-db',
+    description: 'Save the Postgres database URL to local node config',
 })
 export class SetupDbCommand extends CommandRunner {
-  private readonly logger = new Logger(SetupDbCommand.name);
+    private readonly logger = new Logger(SetupDbCommand.name)
 
-  constructor(
-    @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-  ) {
-    super();
-  }
-
-  @Option({
-    flags: "-u, --url <url>",
-    description: "Postgres connection URL (e.g. postgres://user:pass@host:5432/db)",
-  })
-  parseUrl(val: string): string {
-    return val;
-  }
-
-  async run(_passedParams: string[], options?: SetupDbOptions): Promise<void> {
-    // 1. Resolve the URL: CLI arg → SETUP_DATABASE_URL env var
-    const databaseUrl = options?.url ?? process.env.SETUP_DATABASE_URL;
-    if (!databaseUrl) {
-      this.logger.error(
-        "❌ No database URL provided.\n" +
-        "  Provide one via --url flag or SETUP_DATABASE_URL environment variable.\n" +
-        "  Example: bun --bun src/cli.ts setup-db --url=\"postgres://user:pass@localhost:5432/deployer\"",
-      );
-      process.exit(1);
+    constructor(
+        @Inject(NodeConfigRepository)
+        private readonly nodeConfigRepository: NodeConfigRepositoryShape
+    ) {
+        super()
     }
 
-    // 2. Read existing config (if any) to preserve fields
-    const existing = await runPromiseUnwrapped(this.nodeConfigRepository.find());
+    @Option({
+        flags: '-u, --url <url>',
+        description:
+            'Postgres connection URL (e.g. postgres://user:pass@host:5432/db)',
+    })
+    parseUrl(val: string): string {
+        return val
+    }
 
-    // 3. Upsert with the new database URL
-    const updated = await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
-      nodeId: existing?.nodeId ?? randomUUID(),
-      strategy: existing?.strategy ?? "local",
-      setupState: (existing?.setupState ?? "not_started"),
-      databaseUrl,
-      // CLI-supplied URL — externally managed, NOT supervised by the API.
-      databaseProvisioning: "external" as const,
-      deployerVersion: existing?.deployerVersion ?? null,
-      upgradedAtVersion: existing?.upgradedAtVersion ?? null,
-      meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],
-      configuredAt: existing?.configuredAt ?? null,
-      peerServiceToken: existing?.peerServiceToken ?? null,
-      peerServiceTokenExpiresAt: existing?.peerServiceTokenExpiresAt ?? null,
-      meshSharedSecret: existing?.meshSharedSecret ?? null,
-      meshSharedSecretUpdatedAt: existing?.meshSharedSecretUpdatedAt ?? null,
-      updatedAt: new Date().toISOString(),
-    }));
+    async run(
+        _passedParams: string[],
+        options?: SetupDbOptions
+    ): Promise<void> {
+        // 1. Resolve the URL: CLI arg → SETUP_DATABASE_URL env var
+        const databaseUrl = options?.url ?? process.env.SETUP_DATABASE_URL
+        if (!databaseUrl) {
+            this.logger.error(
+                '❌ No database URL provided.\n' +
+                    '  Provide one via --url flag or SETUP_DATABASE_URL environment variable.\n' +
+                    '  Example: bun --bun src/cli.ts setup-db --url="postgres://user:pass@localhost:5432/deployer"'
+            )
+            process.exit(1)
+        }
 
-    this.logger.log(`✅ Database URL saved to local node config (nodeId: ${updated.nodeId})`);
-  }
+        // 2. Read existing config (if any) to preserve fields
+        const existing = await runPromiseUnwrapped(
+            this.nodeConfigRepository.find()
+        )
+
+        // 3. Upsert with the new database URL
+        const updated = await runPromiseUnwrapped(
+            this.nodeConfigRepository.upsert({
+                nodeId: existing?.nodeId ?? randomUUID(),
+                strategy: existing?.strategy ?? 'local',
+                setupState: existing?.setupState ?? 'not_started',
+                databaseUrl,
+                // CLI-supplied URL — externally managed, NOT supervised by the API.
+                databaseProvisioning: 'external' as const,
+                deployerVersion: existing?.deployerVersion ?? null,
+                upgradedAtVersion: existing?.upgradedAtVersion ?? null,
+                meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],
+                configuredAt: existing?.configuredAt ?? null,
+                peerServiceToken: existing?.peerServiceToken ?? null,
+                peerServiceTokenExpiresAt:
+                    existing?.peerServiceTokenExpiresAt ?? null,
+                meshSharedSecret: existing?.meshSharedSecret ?? null,
+                meshSharedSecretUpdatedAt:
+                    existing?.meshSharedSecretUpdatedAt ?? null,
+                updatedAt: new Date().toISOString(),
+            })
+        )
+
+        this.logger.log(
+            `✅ Database URL saved to local node config (nodeId: ${updated.nodeId})`
+        )
+    }
 }

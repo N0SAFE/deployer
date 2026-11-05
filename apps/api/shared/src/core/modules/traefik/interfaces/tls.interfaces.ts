@@ -6,7 +6,11 @@
  * @module traefik/interfaces/tls
  */
 
-import type { VariableString, VariableBoolean, VariableArray } from './common.interfaces';
+import type {
+    VariableString,
+    VariableBoolean,
+    VariableArray,
+} from './common.interfaces'
 
 // ============================================================================
 // CERTIFICATE TYPES
@@ -16,9 +20,9 @@ import type { VariableString, VariableBoolean, VariableArray } from './common.in
  * TLS certificate configuration
  */
 export type TLSCertificate = {
-  certFile: VariableString;
-  keyFile: VariableString;
-  stores?: VariableArray<string>;
+    certFile: VariableString
+    keyFile: VariableString
+    stores?: VariableArray<string>
 }
 
 // ============================================================================
@@ -29,17 +33,17 @@ export type TLSCertificate = {
  * TLS store configuration
  */
 export type TLSStore = {
-  defaultCertificate?: {
-    certFile: VariableString;
-    keyFile: VariableString;
-  };
-  defaultGeneratedCert?: {
-    resolver?: VariableString;
-    domain?: {
-      main: VariableString;
-      sans?: VariableArray<string>;
-    };
-  };
+    defaultCertificate?: {
+        certFile: VariableString
+        keyFile: VariableString
+    }
+    defaultGeneratedCert?: {
+        resolver?: VariableString
+        domain?: {
+            main: VariableString
+            sans?: VariableArray<string>
+        }
+    }
 }
 
 // ============================================================================
@@ -50,26 +54,26 @@ export type TLSStore = {
  * Client authentication types
  */
 export type ClientAuthType =
-  | 'NoClientCert'
-  | 'RequestClientCert'
-  | 'RequireAnyClientCert'
-  | 'VerifyClientCertIfGiven'
-  | 'RequireAndVerifyClientCert';
+    | 'NoClientCert'
+    | 'RequestClientCert'
+    | 'RequireAnyClientCert'
+    | 'VerifyClientCertIfGiven'
+    | 'RequireAndVerifyClientCert'
 
 /**
  * TLS options configuration
  */
 export type TLSOptionsConfig = {
-  minVersion?: VariableString;
-  maxVersion?: VariableString;
-  cipherSuites?: VariableArray<string>;
-  curvePreferences?: VariableArray<string>;
-  clientAuth?: {
-    caFiles?: VariableArray<string>;
-    clientAuthType?: ClientAuthType;
-  };
-  sniStrict?: VariableBoolean;
-  alpnProtocols?: VariableArray<string>;
+    minVersion?: VariableString
+    maxVersion?: VariableString
+    cipherSuites?: VariableArray<string>
+    curvePreferences?: VariableArray<string>
+    clientAuth?: {
+        caFiles?: VariableArray<string>
+        clientAuthType?: ClientAuthType
+    }
+    sniStrict?: VariableBoolean
+    alpnProtocols?: VariableArray<string>
 }
 
 // ============================================================================
@@ -80,7 +84,7 @@ export type TLSOptionsConfig = {
  * Full TLS configuration
  */
 export type TLSConfig = {
-  certificates?: TLSCertificate[];
-  options?: Record<string, TLSOptionsConfig>;
-  stores?: Record<string, TLSStore>;
+    certificates?: TLSCertificate[]
+    options?: Record<string, TLSOptionsConfig>
+    stores?: Record<string, TLSStore>
 }

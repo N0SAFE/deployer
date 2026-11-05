@@ -6,17 +6,17 @@ import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
  * Mirrors the project layout: back button + header, tab nav, content.
  */
 export default function ProjectDetailLoading() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10 rounded-lg" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-72" />
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-4">
+                <Skeleton className="h-10 w-10 rounded-lg" />
+                <div className="space-y-2">
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-4 w-72" />
+                </div>
+            </div>
+            <Skeleton className="h-12 w-full rounded-xl" />
+            <Skeleton className="h-96 w-full rounded-xl" />
         </div>
-      </div>
-      <Skeleton className="h-12 w-full rounded-xl" />
-      <Skeleton className="h-96 w-full rounded-xl" />
-    </div>
-  )
+    )
 }

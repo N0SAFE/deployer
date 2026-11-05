@@ -1,8 +1,8 @@
-import { createGlobalModule } from "@deployer/nest-effect";
-import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { createGlobalModule } from '@deployer/nest-effect'
+import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
+import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
 
-import { RuntimeDatabasePort } from "./runtime-db";
+import { RuntimeDatabasePort } from './runtime-db'
 
 /**
  * The app's `RuntimeDatabasePort`, global.
@@ -13,7 +13,9 @@ import { RuntimeDatabasePort } from "./runtime-db";
  * request would fail with `Service not found: runtime/RuntimeDatabasePort`.
  */
 export const RuntimeDatabaseModule = createGlobalModule({
-	imports: [DatabaseModule],
-	providers: [{ provide: RuntimeDatabasePort, useExisting: GlobalDatabaseService }],
-	exports: [RuntimeDatabasePort],
-});
+    imports: [DatabaseModule],
+    providers: [
+        { provide: RuntimeDatabasePort, useExisting: GlobalDatabaseService },
+    ],
+    exports: [RuntimeDatabasePort],
+})

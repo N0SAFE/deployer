@@ -11,25 +11,23 @@
  * The generic sliding-window `rateLimit(options)` middleware lives in `@deployer/rate-limit`.
  */
 
-import { Effect } from "effect";
-import { os } from "@orpc/server";
+import { os } from '@orpc/server'
+import { Effect } from 'effect'
 
 import {
-    
-    
     standardErrorOptions,
     STANDARD_DOMAIN_ERROR_DEFS,
-} from "@deployer/orpc-utils";
-import { readHeader, type RequestContext } from "@deployer/rate-limit";
-import type { AppInstanceServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
+} from '@deployer/orpc-utils'
+import { readHeader, type RequestContext } from '@deployer/rate-limit'
+import type { AppInstanceServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/app-instance.service'
 
 /** Context extension produced by `requireAppInstance()`. */
 export type AppInstanceContext = {
-	appInstance: {
-		id: string;
-		label: string;
-		kind: "managed" | "external";
-	};
+    appInstance: {
+        id: string
+        label: string
+        kind: 'managed' | 'external'
+    }
 }
 
 /**
@@ -39,38 +37,43 @@ export type AppInstanceContext = {
  * is guaranteed present, so handlers never null-check it.
  */
 export function requireAppInstance(appInstances: AppInstanceServiceShape) {
-	return os
-		.$context<RequestContext>()
-		.errors(STANDARD_DOMAIN_ERROR_DEFS)
-		.middleware(async ({ context, next, errors }) => {
-			const rawToken = readHeader(context.request, "x-app-instance-token");
+    return os
+        .$context<RequestContext>()
+        .errors(STANDARD_DOMAIN_ERROR_DEFS)
+        .middleware(async ({ context, next, errors }) => {
+            const rawToken = readHeader(context.request, 'x-app-instance-token')
 
-			// The two failures mean different things — a client that forgot the header
-			// versus a token that no longer resolves — and a single message makes the
-			// first indistinguishable from a revoked instance in a log or an e2e run.
-			if (rawToken === null || rawToken.length === 0) {
-				throw errors.UNAUTHORIZED(
-					standardErrorOptions("unauthorized", "Missing X-App-Instance-Token header"),
-				);
-			}
-			const instance = await Effect.runPromise(appInstances.verifyByToken(rawToken));
-			if (instance === null) {
-				throw errors.UNAUTHORIZED(
-					standardErrorOptions(
-						"unauthorized",
-						"Invalid X-App-Instance-Token: no active instance matches it",
-					),
-				);
-			}
-			return next({
-				context: {
-					...context,
-					appInstance: {
-						id: instance.id,
-						label: instance.label,
-						kind: instance.kind,
-					},
-				},
-			});
-		});
+            // The two failures mean different things — a client that forgot the header
+            // versus a token that no longer resolves — and a single message makes the
+            // first indistinguishable from a revoked instance in a log or an e2e run.
+            if (rawToken === null || rawToken.length === 0) {
+                throw errors.UNAUTHORIZED(
+                    standardErrorOptions(
+                        'unauthorized',
+                        'Missing X-App-Instance-Token header'
+                    )
+                )
+            }
+            const instance = await Effect.runPromise(
+                appInstances.verifyByToken(rawToken)
+            )
+            if (instance === null) {
+                throw errors.UNAUTHORIZED(
+                    standardErrorOptions(
+                        'unauthorized',
+                        'Invalid X-App-Instance-Token: no active instance matches it'
+                    )
+                )
+            }
+            return next({
+                context: {
+                    ...context,
+                    appInstance: {
+                        id: instance.id,
+                        label: instance.label,
+                        kind: instance.kind,
+                    },
+                },
+            })
+        })
 }

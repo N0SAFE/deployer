@@ -1,8 +1,18 @@
 import { Info } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 import { buttonVariants } from '@deployer/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@deployer/ui/components/shadcn/card'
 
 import { PageHeader } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
@@ -10,8 +20,8 @@ import { cn } from '@/lib/utils'
 import type { ComponentType, ReactNode } from 'react'
 
 interface RouteLike {
-  (): string
-  Link: ComponentType<{ className?: string; children?: ReactNode }>
+    (): string
+    Link: ComponentType<{ className?: string; children?: ReactNode }>
 }
 
 /**
@@ -20,35 +30,45 @@ interface RouteLike {
  * browser tab and lost them on reload) — a control that looks real and is not.
  */
 export function UnavailableIntegration({
-  name,
-  description,
-  reason,
-  instead,
+    name,
+    description,
+    reason,
+    instead,
 }: {
-  name: string
-  description: string
-  reason: ReactNode
-  /** Where to go for what does work today. */
-  instead: { title: string; text: ReactNode; route: RouteLike; label: string }
+    name: string
+    description: string
+    reason: ReactNode
+    /** Where to go for what does work today. */
+    instead: { title: string; text: ReactNode; route: RouteLike; label: string }
 }) {
-  const InsteadLink = instead.route.Link
-  return (
-    <div className="space-y-6">
-      <PageHeader eyebrow="Settings › Integrations" title={name} description={description} />
-      <Alert>
-        <Info className="size-4" />
-        <AlertTitle>{name} cannot be connected yet</AlertTitle>
-        <AlertDescription>{reason}</AlertDescription>
-      </Alert>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{instead.title}</CardTitle>
-          <CardDescription>{instead.text}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InsteadLink className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))}>{instead.label}</InsteadLink>
-        </CardContent>
-      </Card>
-    </div>
-  )
+    const InsteadLink = instead.route.Link
+    return (
+        <div className="space-y-6">
+            <PageHeader
+                eyebrow="Settings › Integrations"
+                title={name}
+                description={description}
+            />
+            <Alert>
+                <Info className="size-4" />
+                <AlertTitle>{name} cannot be connected yet</AlertTitle>
+                <AlertDescription>{reason}</AlertDescription>
+            </Alert>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">{instead.title}</CardTitle>
+                    <CardDescription>{instead.text}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <InsteadLink
+                        className={cn(
+                            buttonVariants({ size: 'sm', variant: 'outline' })
+                        )}
+                    >
+                        {instead.label}
+                    </InsteadLink>
+                </CardContent>
+            </Card>
+        </div>
+    )
 }

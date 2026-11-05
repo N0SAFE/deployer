@@ -1,16 +1,16 @@
-"use client";
+'use client'
 
-import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
-import React from "react";
+import { ArrowRight, CheckCircle2, ExternalLink } from 'lucide-react'
+import React from 'react'
 
-import { Button } from "@deployer/ui/components/shadcn/button";
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@deployer/ui/components/shadcn/card";
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@deployer/ui/components/shadcn/card'
 
 /**
  * The page `setup.<host>` serves once onboarding is finished.
@@ -37,67 +37,77 @@ import {
  * host and the console path), so neither button introduces a new surface.
  */
 export type SetupDoneViewProps = {
-  /** Where the primary button goes. */
-  primaryHref: string;
-  /** Label for the primary button (names the actual destination). */
-  primaryLabel: string;
-  /** True when the primary target is the managed web app rather than the console. */
-  webAppEnabled: boolean;
-};
+    /** Where the primary button goes. */
+    primaryHref: string
+    /** Label for the primary button (names the actual destination). */
+    primaryLabel: string
+    /** True when the primary target is the managed web app rather than the console. */
+    webAppEnabled: boolean
+}
 
 export default function SetupDoneView({
-  primaryHref,
-  primaryLabel,
-  webAppEnabled,
+    primaryHref,
+    primaryLabel,
+    webAppEnabled,
 }: SetupDoneViewProps) {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <CheckCircle2 className="h-7 w-7 text-primary" aria-hidden="true" />
-          </div>
-          <CardTitle className="text-2xl">Setup complete</CardTitle>
-          <CardDescription>
-            {webAppEnabled
-              ? "This node is on the cluster and the dashboard is running."
-              : "This node is on the cluster. The dashboard is not enabled — use the console."}
-          </CardDescription>
-        </CardHeader>
+    return (
+        <main className="flex min-h-screen items-center justify-center bg-background p-6">
+            <Card className="w-full max-w-lg">
+                <CardHeader className="text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                        <CheckCircle2
+                            className="h-7 w-7 text-primary"
+                            aria-hidden="true"
+                        />
+                    </div>
+                    <CardTitle className="text-2xl">Setup complete</CardTitle>
+                    <CardDescription>
+                        {webAppEnabled
+                            ? 'This node is on the cluster and the dashboard is running.'
+                            : 'This node is on the cluster. The dashboard is not enabled — use the console.'}
+                    </CardDescription>
+                </CardHeader>
 
-        <CardContent className="space-y-4">
-          {/*
+                <CardContent className="space-y-4">
+                    {/*
             One primary action. A second equal-weight button would make the
             operator choose between two things that are not equivalent: only one
             of them is the intended destination on this node.
           */}
-          <Button asChild className="w-full">
-            <a href={primaryHref}>
-              {primaryLabel}
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            </a>
-          </Button>
+                    <Button asChild className="w-full">
+                        <a href={primaryHref}>
+                            {primaryLabel}
+                            <ArrowRight
+                                className="ml-2 h-4 w-4"
+                                aria-hidden="true"
+                            />
+                        </a>
+                    </Button>
 
-          {/*
+                    {/*
             The console is always reachable (Traefik routes `/manage/web-app` on
             every platform host), so offering it as a secondary link is a real
             escape hatch — particularly when the web app IS the primary and the
             operator wants the management view instead.
           */}
-          {webAppEnabled ? (
-            <Button asChild variant="outline" className="w-full">
-              <a href="/manage/web-app">
-                Open the management console
-                <ExternalLink className="ml-2 h-4 w-4" aria-hidden="true" />
-              </a>
-            </Button>
-          ) : null}
+                    {webAppEnabled ? (
+                        <Button asChild variant="outline" className="w-full">
+                            <a href="/manage/web-app">
+                                Open the management console
+                                <ExternalLink
+                                    className="ml-2 h-4 w-4"
+                                    aria-hidden="true"
+                                />
+                            </a>
+                        </Button>
+                    ) : null}
 
-          <p className="text-center text-xs text-muted-foreground">
-            This page is served by the platform API. The setup app has finished and stopped.
-          </p>
-        </CardContent>
-      </Card>
-    </main>
-  );
+                    <p className="text-center text-xs text-muted-foreground">
+                        This page is served by the platform API. The setup app
+                        has finished and stopped.
+                    </p>
+                </CardContent>
+            </Card>
+        </main>
+    )
 }

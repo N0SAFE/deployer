@@ -32,15 +32,15 @@ const orpcWithUploads = withFileUploads(orpc)
 
 // Now use file upload routes directly
 const result = await orpcWithUploads.storage.uploadImage(file, {
-  onProgress: (event) => {
-    console.log(`Upload progress: ${event.percentage}%`)
-  },
-  onSuccess: (data) => {
-    console.log('Upload successful:', data)
-  },
-  onError: (error) => {
-    console.error('Upload failed:', error)
-  }
+    onProgress: (event) => {
+        console.log(`Upload progress: ${event.percentage}%`)
+    },
+    onSuccess: (data) => {
+        console.log('Upload successful:', data)
+    },
+    onError: (error) => {
+        console.error('Upload failed:', error)
+    },
 })
 ```
 
@@ -82,8 +82,8 @@ const abortController = new AbortController()
 
 // Start upload with ability to cancel
 const uploadPromise = orpcWithUploads.storage.uploadVideo(videoFile, {
-  signal: abortController.signal,
-  onProgress: (e) => console.log(`Uploading: ${e.percentage}%`)
+    signal: abortController.signal,
+    onProgress: (e) => console.log(`Uploading: ${e.percentage}%`),
 })
 
 // Cancel upload if needed
@@ -197,9 +197,11 @@ export function FileUploadExample() {
 Wraps an ORPC client to enhance file upload routes.
 
 **Parameters:**
+
 - `orpcClient`: The ORPC client instance to wrap
 
 **Returns:**
+
 - Enhanced ORPC client with automatic file upload handling
 
 #### `useFileUploadRoutes<T>(orpcClient: T): T`
@@ -207,9 +209,11 @@ Wraps an ORPC client to enhance file upload routes.
 React hook version of `withFileUploads`.
 
 **Parameters:**
+
 - `orpcClient`: The ORPC client instance to wrap
 
 **Returns:**
+
 - Enhanced ORPC client with automatic file upload handling
 
 #### `FileUploadOptions`
@@ -218,10 +222,10 @@ Options for file upload routes:
 
 ```typescript
 type FileUploadOptions = {
-  onProgress?: (event: FileUploadProgressEvent) => void
-  onSuccess?: (data: any) => void
-  onError?: (error: Error) => void
-  signal?: AbortSignal
+    onProgress?: (event: FileUploadProgressEvent) => void
+    onSuccess?: (data: any) => void
+    onError?: (error: Error) => void
+    signal?: AbortSignal
 }
 ```
 
@@ -231,10 +235,10 @@ Progress event data:
 
 ```typescript
 type FileUploadProgressEvent = {
-  loaded: number      // Bytes uploaded
-  total: number       // Total bytes
-  percentage: number  // Upload percentage (0-100)
-  progress: number    // Alias for percentage
+    loaded: number // Bytes uploaded
+    total: number // Total bytes
+    percentage: number // Upload percentage (0-100)
+    progress: number // Alias for percentage
 }
 ```
 
@@ -251,6 +255,7 @@ type FileUploadProgressEvent = {
 ### Comparison with Direct Hook Usage
 
 **Before (using hooks directly):**
+
 ```typescript
 import { useWorkerUploadFile } from '@/hooks/useWorkerFileUpload'
 import { orpc } from '@/lib/orpc'
@@ -260,6 +265,7 @@ upload.mutate(file)
 ```
 
 **After (using withFileUploads):**
+
 ```typescript
 import { withFileUploads } from '@/lib/orpc/withFileUploads'
 import { orpc } from '@/lib/orpc'

@@ -20,17 +20,19 @@ function renderInvalidType(issue: $ZodIssueInvalidType) {
         <div className="m-4 flex gap-4">
             {showReceived ? (
                 <div className="flex justify-between gap-2">
-                    <div className="text-muted-foreground text-sm">Received: </div>
+                    <div className="text-muted-foreground text-sm">
+                        Received:{' '}
+                    </div>
                     <div className="text-destructive text-sm">
                         {JSON.stringify(issue.input)}
                     </div>
                 </div>
             ) : null}
             <div className="flex justify-between gap-2">
-                <div className="text-muted-foreground text-sm">Expected Type: </div>
-                <div className="text-destructive text-sm">
-                    {issue.expected}
+                <div className="text-muted-foreground text-sm">
+                    Expected Type:{' '}
                 </div>
+                <div className="text-destructive text-sm">{issue.expected}</div>
             </div>{' '}
         </div>
     )
@@ -56,7 +58,9 @@ export default async function EnvPage(props: {
                 <Card className="w-full max-w-sm">
                     <CardHeader className="text-center">
                         <CardTitle>Environment is Valid</CardTitle>
-                        <CardDescription>The configuration looks correct. Taking you back…</CardDescription>
+                        <CardDescription>
+                            The configuration looks correct. Taking you back…
+                        </CardDescription>
                     </CardHeader>
                 </Card>
                 <RedirectAfterDelay
@@ -70,8 +74,9 @@ export default async function EnvPage(props: {
     return (
         <div className="mt-12 flex flex-col items-center justify-center gap-4 px-4">
             <p className="text-muted-foreground max-w-md text-center text-sm">
-                The platform cannot start because its configuration is invalid. Fix the
-                variable(s) below in the server environment, then restart the web app.
+                The platform cannot start because its configuration is invalid.
+                Fix the variable(s) below in the server environment, then
+                restart the web app.
             </p>
             {issues.map((issue, index) => (
                 <Card key={index} className="w-full max-w-sm">
@@ -98,6 +103,6 @@ export default async function EnvPage(props: {
 }
 
 export const metadata: Metadata = {
-    title: "Configuration error",
-    description: "Environment configuration failed",
+    title: 'Configuration error',
+    description: 'Environment configuration failed',
 }

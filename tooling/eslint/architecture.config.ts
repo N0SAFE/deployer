@@ -7,20 +7,28 @@
  *
  * The rules are imported from source: Bun runs TypeScript, so this needs no build.
  */
-import tseslint from "typescript-eslint";
+import tseslint from 'typescript-eslint'
 
-import architecture from "./src/architecture";
+import architecture from './src/architecture'
 
 export default [
-	{ ignores: ["**/dist/**", "**/node_modules/**", "**/*.spec.ts", "**/*.test.ts", "**/e2e/**"] },
-	{
-		files: ["apps/**/src/**/*.ts", "packages/**/src/**/*.ts"],
-		// The TS parser handles decorators and `declare const x: unique symbol`; Bun runs it natively.
-		languageOptions: { parser: tseslint.parser },
-		plugins: { "deployer-effect": architecture },
-		rules: {
-			"deployer-effect/requireModuleContext": "error",
-			"deployer-effect/requirementFlow": "error",
-		},
-	},
-];
+    {
+        ignores: [
+            '**/dist/**',
+            '**/node_modules/**',
+            '**/*.spec.ts',
+            '**/*.test.ts',
+            '**/e2e/**',
+        ],
+    },
+    {
+        files: ['apps/**/src/**/*.ts', 'packages/**/src/**/*.ts'],
+        // The TS parser handles decorators and `declare const x: unique symbol`; Bun runs it natively.
+        languageOptions: { parser: tseslint.parser },
+        plugins: { 'deployer-effect': architecture },
+        rules: {
+            'deployer-effect/requireModuleContext': 'error',
+            'deployer-effect/requirementFlow': 'error',
+        },
+    },
+]

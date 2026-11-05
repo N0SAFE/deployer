@@ -48,21 +48,21 @@ Add `esbuild-wasm` to `serverExternalPackages`:
 
 ```typescript
 // next.config.ts
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // ... your existing config
-  
-  // Required for @serwist/turbopack
-  serverExternalPackages: ["esbuild-wasm"],
-  
-  // Other recommended settings
-  experimental: {
-    // ... your experimental settings
-  },
-};
+    // ... your existing config
 
-export default nextConfig;
+    // Required for @serwist/turbopack
+    serverExternalPackages: ['esbuild-wasm'],
+
+    // Other recommended settings
+    experimental: {
+        // ... your experimental settings
+    },
+}
+
+export default nextConfig
 ```
 
 ---
@@ -74,43 +74,43 @@ Create `app/sw.ts`:
 ```typescript
 // app/sw.ts
 import {
-  createSerwist,
-  addEventListeners,
-  RuntimeCache,
-  defaultCache,
-} from "serwist";
-import type { Serwist } from "serwist";
+    createSerwist,
+    addEventListeners,
+    RuntimeCache,
+    defaultCache,
+} from 'serwist'
+import type { Serwist } from 'serwist'
 
 declare global {
-  interface WorkerGlobalScope {
-    __SERWIST__: Serwist;
-    __SW_MANIFEST: Array<{ url: string; revision: string | null }>;
-  }
+    interface WorkerGlobalScope {
+        __SERWIST__: Serwist
+        __SW_MANIFEST: Array<{ url: string; revision: string | null }>
+    }
 }
 
 // Cast self to the correct type for service worker context
-const sw = self as unknown as WorkerGlobalScope & typeof globalThis;
+const sw = self as unknown as WorkerGlobalScope & typeof globalThis
 
 // Initialize Serwist with runtime caching
 sw.__SERWIST__ = createSerwist({
-  runtimeCaching: new RuntimeCache(defaultCache, {
-    warmEntries: ["/~offline"],
-    fallbacks: {
-      entries: [
-        {
-          url: "/~offline",
-          matcher({ request }) {
-            return request.destination === "document";
-          },
+    runtimeCaching: new RuntimeCache(defaultCache, {
+        warmEntries: ['/~offline'],
+        fallbacks: {
+            entries: [
+                {
+                    url: '/~offline',
+                    matcher({ request }) {
+                        return request.destination === 'document'
+                    },
+                },
+            ],
         },
-      ],
-    },
-  }),
-  precacheEntries: sw.__SW_MANIFEST,
-});
+    }),
+    precacheEntries: sw.__SW_MANIFEST,
+})
 
 // Add standard service worker event listeners
-addEventListeners(sw.__SERWIST__);
+addEventListeners(sw.__SERWIST__)
 ```
 
 ---
@@ -123,48 +123,48 @@ Create `app/serwist/[path]/route.ts`:
 
 ```typescript
 // app/serwist/[path]/route.ts
-import { serwist } from "@serwist/turbopack";
-import type { NextRequest } from "next/server";
+import { serwist } from '@serwist/turbopack'
+import type { NextRequest } from 'next/server'
 
 // Initialize Serwist with the service worker source file
 const handler = await serwist({
-  swSrc: "app/sw.ts",
-});
+    swSrc: 'app/sw.ts',
+})
 
 // Valid paths that can be served
 const map = new Map([
-  ["sw.js", true],
-  ["sw.js.map", true],
-]);
+    ['sw.js', true],
+    ['sw.js.map', true],
+])
 
 /**
  * Handle GET requests for service worker files
  */
 export const GET = (
-  request: NextRequest,
-  context: { params: Promise<{ path: string }> }
+    request: NextRequest,
+    context: { params: Promise<{ path: string }> }
 ) => {
-  return handler(request, context);
-};
+    return handler(request, context)
+}
 
 /**
  * Generate static params for build-time generation
  * Note: Uses try-catch due to potential Iterator.map compatibility issues
  */
 export const generateStaticParams = () => {
-  try {
-    // Try the modern approach
-    const keys = Array.from(map.keys());
-    return keys.map((path) => ({ path }));
-  } catch {
-    // Fallback for environments where Iterator methods aren't available
-    const paths: { path: string }[] = [];
-    map.forEach((_, key) => {
-      paths.push({ path: key });
-    });
-    return paths;
-  }
-};
+    try {
+        // Try the modern approach
+        const keys = Array.from(map.keys())
+        return keys.map((path) => ({ path }))
+    } catch {
+        // Fallback for environments where Iterator methods aren't available
+        const paths: { path: string }[] = []
+        map.forEach((_, key) => {
+            paths.push({ path: key })
+        })
+        return paths
+    }
+}
 ```
 
 ---
@@ -177,9 +177,9 @@ Create `lib/serwist-client.ts`:
 
 ```typescript
 // lib/serwist-client.ts
-"use client";
+'use client'
 
-export { SerwistProvider } from "@serwist/turbopack/react";
+export { SerwistProvider } from '@serwist/turbopack/react'
 ```
 
 ---
@@ -190,29 +190,32 @@ Wrap your app with `SerwistProvider` in `app/layout.tsx`:
 
 ```tsx
 // app/layout.tsx
-import { SerwistProvider } from "@/lib/serwist-client";
+import { SerwistProvider } from '@/lib/serwist-client'
 // ... other imports
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode
 }>) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="manifest" href="/site.webmanifest" />
-        <meta name="theme-color" content="#000000" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-      </head>
-      <body>
-        <SerwistProvider swUrl="/serwist/sw.js">
-          {/* Your app content */}
-          {children}
-        </SerwistProvider>
-      </body>
-    </html>
-  );
+    return (
+        <html lang="en" suppressHydrationWarning>
+            <head>
+                <link rel="manifest" href="/site.webmanifest" />
+                <meta name="theme-color" content="#000000" />
+                <link
+                    rel="apple-touch-icon"
+                    href="/icons/apple-touch-icon.png"
+                />
+            </head>
+            <body>
+                <SerwistProvider swUrl="/serwist/sw.js">
+                    {/* Your app content */}
+                    {children}
+                </SerwistProvider>
+            </body>
+        </html>
+    )
 }
 ```
 
@@ -226,26 +229,26 @@ Create `app/~offline/page.tsx`:
 
 ```tsx
 // app/~offline/page.tsx
-"use client";
+'use client'
 
 export default function OfflinePage() {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">You&apos;re Offline</h1>
-        <p className="mb-8 text-lg text-muted-foreground">
-          It seems you&apos;ve lost your internet connection. Please check your
-          network settings and try again.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-md bg-primary px-6 py-3 text-primary-foreground hover:bg-primary/90"
-        >
-          Try Again
-        </button>
-      </div>
-    </div>
-  );
+    return (
+        <div className="flex min-h-screen flex-col items-center justify-center p-4">
+            <div className="text-center">
+                <h1 className="mb-4 text-4xl font-bold">You&apos;re Offline</h1>
+                <p className="text-muted-foreground mb-8 text-lg">
+                    It seems you&apos;ve lost your internet connection. Please
+                    check your network settings and try again.
+                </p>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-6 py-3"
+                >
+                    Try Again
+                </button>
+            </div>
+        </div>
+    )
 }
 ```
 
@@ -257,62 +260,63 @@ Create `public/site.webmanifest`:
 
 ```json
 {
-  "name": "Your App Name",
-  "short_name": "App",
-  "description": "Your app description",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "orientation": "portrait-primary",
-  "icons": [
-    {
-      "src": "/icons/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-maskable-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-maskable-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ],
-  "screenshots": [],
-  "shortcuts": [
-    {
-      "name": "Home",
-      "short_name": "Home",
-      "url": "/",
-      "icons": [
+    "name": "Your App Name",
+    "short_name": "App",
+    "description": "Your app description",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "orientation": "portrait-primary",
+    "icons": [
         {
-          "src": "/icons/icon-192x192.png",
-          "sizes": "192x192"
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-maskable-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/icon-maskable-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
         }
-      ]
-    }
-  ],
-  "categories": ["productivity"],
-  "prefer_related_applications": false
+    ],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "Home",
+            "short_name": "Home",
+            "url": "/",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "categories": ["productivity"],
+    "prefer_related_applications": false
 }
 ```
 
 ### Required Icons
 
 Create the following icons in `public/icons/`:
+
 - `icon-192x192.png` (192x192px)
 - `icon-512x512.png` (512x512px)
 - `icon-maskable-192x192.png` (192x192px, maskable format with safe zone)
@@ -328,112 +332,117 @@ Create the following icons in `public/icons/`:
 Create `components/pwa/InstallPrompt.tsx`:
 
 ```tsx
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { X, Download } from "lucide-react";
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { X, Download } from 'lucide-react'
 
 interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+    prompt: () => Promise<void>
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
 export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] =
-    useState<BeforeInstallPromptEvent | null>(null);
-  const [showPrompt, setShowPrompt] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] =
+        useState<BeforeInstallPromptEvent | null>(null)
+    const [showPrompt, setShowPrompt] = useState(false)
+    const [isInstalled, setIsInstalled] = useState(false)
 
-  useEffect(() => {
-    // Check if already installed
-    if (
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as Navigator & { standalone?: boolean }).standalone
-    ) {
-      setIsInstalled(true);
-      return;
+    useEffect(() => {
+        // Check if already installed
+        if (
+            window.matchMedia('(display-mode: standalone)').matches ||
+            (window.navigator as Navigator & { standalone?: boolean })
+                .standalone
+        ) {
+            setIsInstalled(true)
+            return
+        }
+
+        const handleBeforeInstallPrompt = (e: Event) => {
+            e.preventDefault()
+            setDeferredPrompt(e as BeforeInstallPromptEvent)
+            setShowPrompt(true)
+        }
+
+        const handleAppInstalled = () => {
+            setIsInstalled(true)
+            setShowPrompt(false)
+            setDeferredPrompt(null)
+        }
+
+        window.addEventListener(
+            'beforeinstallprompt',
+            handleBeforeInstallPrompt
+        )
+        window.addEventListener('appinstalled', handleAppInstalled)
+
+        return () => {
+            window.removeEventListener(
+                'beforeinstallprompt',
+                handleBeforeInstallPrompt
+            )
+            window.removeEventListener('appinstalled', handleAppInstalled)
+        }
+    }, [])
+
+    const handleInstall = async () => {
+        if (!deferredPrompt) return
+
+        try {
+            await deferredPrompt.prompt()
+            const { outcome } = await deferredPrompt.userChoice
+
+            if (outcome === 'accepted') {
+                setShowPrompt(false)
+            }
+        } catch (error) {
+            console.error('Installation failed:', error)
+        }
+
+        setDeferredPrompt(null)
     }
 
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowPrompt(true);
-    };
-
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setShowPrompt(false);
-      setDeferredPrompt(null);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("appinstalled", handleAppInstalled);
-
-    return () => {
-      window.removeEventListener(
-        "beforeinstallprompt",
-        handleBeforeInstallPrompt
-      );
-      window.removeEventListener("appinstalled", handleAppInstalled);
-    };
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-
-    try {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-
-      if (outcome === "accepted") {
-        setShowPrompt(false);
-      }
-    } catch (error) {
-      console.error("Installation failed:", error);
+    const handleDismiss = () => {
+        setShowPrompt(false)
+        setDeferredPrompt(null)
     }
 
-    setDeferredPrompt(null);
-  };
+    if (isInstalled || !showPrompt) return null
 
-  const handleDismiss = () => {
-    setShowPrompt(false);
-    setDeferredPrompt(null);
-  };
-
-  if (isInstalled || !showPrompt) return null;
-
-  return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md animate-in slide-in-from-bottom-4">
-      <div className="rounded-lg border bg-card p-4 shadow-lg">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="font-semibold">Install App</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Install our app for a better experience with offline support.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleDismiss}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+    return (
+        <div className="animate-in slide-in-from-bottom-4 fixed right-4 bottom-4 left-4 z-50 mx-auto max-w-md">
+            <div className="bg-card rounded-lg border p-4 shadow-lg">
+                <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                        <h3 className="font-semibold">Install App</h3>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                            Install our app for a better experience with offline
+                            support.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={handleDismiss}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="mt-3 flex gap-2">
+                    <Button onClick={handleInstall} className="flex-1">
+                        <Download className="mr-2 h-4 w-4" />
+                        Install
+                    </Button>
+                    <Button variant="outline" onClick={handleDismiss}>
+                        Not now
+                    </Button>
+                </div>
+            </div>
         </div>
-        <div className="mt-3 flex gap-2">
-          <Button onClick={handleInstall} className="flex-1">
-            <Download className="mr-2 h-4 w-4" />
-            Install
-          </Button>
-          <Button variant="outline" onClick={handleDismiss}>
-            Not now
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+    )
 }
 ```
 
@@ -442,83 +451,83 @@ export function InstallPrompt() {
 Create `components/pwa/UpdateNotification.tsx`:
 
 ```tsx
-"use client";
+'use client'
 
-import { useSerwistProvider } from "@serwist/turbopack/react";
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { X, RefreshCw } from "lucide-react";
+import { useSerwistProvider } from '@serwist/turbopack/react'
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { X, RefreshCw } from 'lucide-react'
 
 export function UpdateNotification() {
-  const serwist = useSerwistProvider();
-  const [showUpdate, setShowUpdate] = useState(false);
+    const serwist = useSerwistProvider()
+    const [showUpdate, setShowUpdate] = useState(false)
 
-  useEffect(() => {
-    if (!serwist) return;
+    useEffect(() => {
+        if (!serwist) return
 
-    const handleUpdate = () => {
-      setShowUpdate(true);
-    };
-
-    // Listen for service worker updates
-    if (serwist.registration) {
-      serwist.registration.addEventListener("updatefound", () => {
-        const newWorker = serwist.registration?.installing;
-        if (newWorker) {
-          newWorker.addEventListener("statechange", () => {
-            if (
-              newWorker.state === "installed" &&
-              navigator.serviceWorker.controller
-            ) {
-              handleUpdate();
-            }
-          });
+        const handleUpdate = () => {
+            setShowUpdate(true)
         }
-      });
+
+        // Listen for service worker updates
+        if (serwist.registration) {
+            serwist.registration.addEventListener('updatefound', () => {
+                const newWorker = serwist.registration?.installing
+                if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                        if (
+                            newWorker.state === 'installed' &&
+                            navigator.serviceWorker.controller
+                        ) {
+                            handleUpdate()
+                        }
+                    })
+                }
+            })
+        }
+    }, [serwist])
+
+    const handleRefresh = () => {
+        window.location.reload()
     }
-  }, [serwist]);
 
-  const handleRefresh = () => {
-    window.location.reload();
-  };
+    const handleDismiss = () => {
+        setShowUpdate(false)
+    }
 
-  const handleDismiss = () => {
-    setShowUpdate(false);
-  };
+    if (!showUpdate) return null
 
-  if (!showUpdate) return null;
-
-  return (
-    <div className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-md animate-in slide-in-from-top-4">
-      <div className="rounded-lg border bg-card p-4 shadow-lg">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="font-semibold">Update Available</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              A new version is available. Refresh to update.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleDismiss}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+    return (
+        <div className="animate-in slide-in-from-top-4 fixed top-4 right-4 left-4 z-50 mx-auto max-w-md">
+            <div className="bg-card rounded-lg border p-4 shadow-lg">
+                <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                        <h3 className="font-semibold">Update Available</h3>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                            A new version is available. Refresh to update.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={handleDismiss}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="mt-3 flex gap-2">
+                    <Button onClick={handleRefresh} className="flex-1">
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Refresh
+                    </Button>
+                    <Button variant="outline" onClick={handleDismiss}>
+                        Later
+                    </Button>
+                </div>
+            </div>
         </div>
-        <div className="mt-3 flex gap-2">
-          <Button onClick={handleRefresh} className="flex-1">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={handleDismiss}>
-            Later
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+    )
 }
 ```
 
@@ -526,14 +535,14 @@ export function UpdateNotification() {
 
 ```tsx
 // In app/layout.tsx, inside the SerwistProvider:
-import { InstallPrompt } from "@/components/pwa/InstallPrompt";
-import { UpdateNotification } from "@/components/pwa/UpdateNotification";
+import { InstallPrompt } from '@/components/pwa/InstallPrompt'
+import { UpdateNotification } from '@/components/pwa/UpdateNotification'
 
 // Inside the body:
-<SerwistProvider swUrl="/serwist/sw.js">
-  {children}
-  <InstallPrompt />
-  <UpdateNotification />
+;<SerwistProvider swUrl="/serwist/sw.js">
+    {children}
+    <InstallPrompt />
+    <UpdateNotification />
 </SerwistProvider>
 ```
 
@@ -553,6 +562,7 @@ next build --turbopack
 ### Expected Output
 
 You should see output similar to:
+
 ```
 (serwist) 99 precache entries
 ```
@@ -560,30 +570,31 @@ You should see output similar to:
 ### Test the PWA
 
 1. **Start production server:**
-   ```bash
-   bun run start
-   # or
-   next start
-   ```
+
+    ```bash
+    bun run start
+    # or
+    next start
+    ```
 
 2. **Open browser DevTools** → Application tab
 
 3. **Check Service Workers:**
-   - Service worker should be registered
-   - URL should be `/serwist/sw.js`
+    - Service worker should be registered
+    - URL should be `/serwist/sw.js`
 
 4. **Check Manifest:**
-   - Manifest should load correctly
-   - All icons should be accessible
+    - Manifest should load correctly
+    - All icons should be accessible
 
 5. **Test Offline:**
-   - Enable airplane mode / disable network
-   - Refresh the page
-   - The offline page should appear
+    - Enable airplane mode / disable network
+    - Refresh the page
+    - The offline page should appear
 
 6. **Test Install:**
-   - In Chrome, look for the install icon in the address bar
-   - Or check the "Install" option in the browser menu
+    - In Chrome, look for the install icon in the address bar
+    - Or check the "Install" option in the browser menu
 
 ---
 
@@ -624,23 +635,23 @@ public/
 ### Common Issues
 
 1. **sw.js returns 404**
-   - Ensure `app/serwist/[path]/route.ts` exists
-   - Check that `@serwist/turbopack` is installed (not `@serwist/next`)
-   - Verify `esbuild-wasm` is in `serverExternalPackages`
+    - Ensure `app/serwist/[path]/route.ts` exists
+    - Check that `@serwist/turbopack` is installed (not `@serwist/next`)
+    - Verify `esbuild-wasm` is in `serverExternalPackages`
 
 2. **Build fails with "cacheComponents" error**
-   - Remove `export const dynamic`, `export const dynamicParams`, `export const revalidate` from route.ts
-   - Only `GET` and `generateStaticParams` exports are allowed
+    - Remove `export const dynamic`, `export const dynamicParams`, `export const revalidate` from route.ts
+    - Only `GET` and `generateStaticParams` exports are allowed
 
 3. **"i.keys.map is not a function" error**
-   - Use the try-catch fallback in `generateStaticParams` as shown above
+    - Use the try-catch fallback in `generateStaticParams` as shown above
 
 4. **ServiceWorkerGlobalScope type error**
-   - Use `WorkerGlobalScope` instead of `ServiceWorkerGlobalScope`
-   - Cast with `as unknown as WorkerGlobalScope & typeof globalThis`
+    - Use `WorkerGlobalScope` instead of `ServiceWorkerGlobalScope`
+    - Cast with `as unknown as WorkerGlobalScope & typeof globalThis`
 
 5. **Versions mismatch error**
-   - Ensure `serwist` and `@serwist/turbopack` versions match exactly
+    - Ensure `serwist` and `@serwist/turbopack` versions match exactly
 
 ---
 

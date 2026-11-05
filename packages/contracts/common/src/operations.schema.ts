@@ -1,7 +1,14 @@
 import z from 'zod'
 
-export const operationsDeploymentStatusSchema = z.enum(['success', 'failed', 'rolled-back', 'in-progress'])
-export type OperationsDeploymentStatus = z.infer<typeof operationsDeploymentStatusSchema>
+export const operationsDeploymentStatusSchema = z.enum([
+    'success',
+    'failed',
+    'rolled-back',
+    'in-progress',
+])
+export type OperationsDeploymentStatus = z.infer<
+    typeof operationsDeploymentStatusSchema
+>
 
 export const incidentSeveritySchema = z.enum(['sev1', 'sev2', 'sev3'])
 export type IncidentSeverity = z.infer<typeof incidentSeveritySchema>

@@ -3,17 +3,40 @@
  * Combines pagination, sorting, filtering, and search into unified query schemas
  */
 
-import { s } from "@deployer/orpc-utils/operations/base/schema";
-import type { AnySchema, ObjectSchema, SchemaWithConfig } from "@deployer/orpc-utils/operations/base/types";
-import { CONFIG_SYMBOL, getSchemaShape } from "@deployer/orpc-utils/operations/base/types";
-import type { FilteringConfig, FieldFilterConfig } from "@deployer/orpc-utils/operations/base/utils/filtering";
-import { createFilteringConfigSchema, createFilteringSchema } from "@deployer/orpc-utils/operations/base/utils/filtering";
-import type { PaginationConfig } from "@deployer/orpc-utils/operations/base/utils/pagination";
-import { createPaginationConfigSchema, createPaginationSchema, createPaginationMetaSchema } from "@deployer/orpc-utils/operations/base/utils/pagination";
-import type { SearchConfig } from "@deployer/orpc-utils/operations/base/utils/search";
-import { createSearchConfigSchema, createSearchSchema } from "@deployer/orpc-utils/operations/base/utils/search";
-import type { SortingConfig } from "@deployer/orpc-utils/operations/base/utils/sorting";
-import { createSortingConfigSchema, createSortingSchema } from "@deployer/orpc-utils/operations/base/utils/sorting";
+import { s } from '@deployer/orpc-utils/operations/base/schema'
+import type {
+    AnySchema,
+    ObjectSchema,
+    SchemaWithConfig,
+} from '@deployer/orpc-utils/operations/base/types'
+import {
+    CONFIG_SYMBOL,
+    getSchemaShape,
+} from '@deployer/orpc-utils/operations/base/types'
+import type {
+    FilteringConfig,
+    FieldFilterConfig,
+} from '@deployer/orpc-utils/operations/base/utils/filtering'
+import {
+    createFilteringConfigSchema,
+    createFilteringSchema,
+} from '@deployer/orpc-utils/operations/base/utils/filtering'
+import type { PaginationConfig } from '@deployer/orpc-utils/operations/base/utils/pagination'
+import {
+    createPaginationConfigSchema,
+    createPaginationSchema,
+    createPaginationMetaSchema,
+} from '@deployer/orpc-utils/operations/base/utils/pagination'
+import type { SearchConfig } from '@deployer/orpc-utils/operations/base/utils/search'
+import {
+    createSearchConfigSchema,
+    createSearchSchema,
+} from '@deployer/orpc-utils/operations/base/utils/search'
+import type { SortingConfig } from '@deployer/orpc-utils/operations/base/utils/sorting'
+import {
+    createSortingConfigSchema,
+    createSortingSchema,
+} from '@deployer/orpc-utils/operations/base/utils/sorting'
 
 /**
  * Full query configuration combining all query features
@@ -24,26 +47,29 @@ export type QueryConfig<
     TFiltering extends FilteringConfig | undefined = undefined,
     TSearch extends SearchConfig | undefined = undefined,
 > = {
-    pagination: TPagination;
-    sorting: TSorting;
-    filtering: TFiltering;
-    search: TSearch;
-};
+    pagination: TPagination
+    sorting: TSorting
+    filtering: TFiltering
+    search: TSearch
+}
 
 /**
  * Compute input schema type based on config
  */
 export type ComputeInputSchema<TConfig extends QueryConfig> = ObjectSchema<{
-    [K in keyof TConfig as TConfig[K] extends undefined ? never : K]: AnySchema;
-}>;
+    [K in keyof TConfig as TConfig[K] extends undefined ? never : K]: AnySchema
+}>
 
 /**
  * Compute output schema type based on config and data
  */
-export type ComputeOutputSchema<TConfig extends QueryConfig, TData extends AnySchema> = ObjectSchema<{
-    data: TData extends ObjectSchema ? TData : AnySchema;
-    meta: TConfig["pagination"] extends PaginationConfig ? ObjectSchema : never;
-}>;
+export type ComputeOutputSchema<
+    TConfig extends QueryConfig,
+    TData extends AnySchema,
+> = ObjectSchema<{
+    data: TData extends ObjectSchema ? TData : AnySchema
+    meta: TConfig['pagination'] extends PaginationConfig ? ObjectSchema : never
+}>
 
 /**
  * Query builder options
@@ -54,11 +80,19 @@ export type QueryBuilderOptions<
     TFilteringConfig extends FilteringConfig | undefined = undefined,
     TSearchConfig extends SearchConfig | undefined = undefined,
 > = {
-    pagination?: TPaginationConfig extends PaginationConfig ? SchemaWithConfig<TPaginationConfig> : undefined;
-    sorting?: TSortingConfig extends SortingConfig ? SchemaWithConfig<TSortingConfig> : undefined;
-    filtering?: TFilteringConfig extends FilteringConfig ? SchemaWithConfig<TFilteringConfig> : undefined;
-    search?: TSearchConfig extends SearchConfig ? SchemaWithConfig<TSearchConfig> : undefined;
-};
+    pagination?: TPaginationConfig extends PaginationConfig
+        ? SchemaWithConfig<TPaginationConfig>
+        : undefined
+    sorting?: TSortingConfig extends SortingConfig
+        ? SchemaWithConfig<TSortingConfig>
+        : undefined
+    filtering?: TFilteringConfig extends FilteringConfig
+        ? SchemaWithConfig<TFilteringConfig>
+        : undefined
+    search?: TSearchConfig extends SearchConfig
+        ? SchemaWithConfig<TSearchConfig>
+        : undefined
+}
 
 /**
  * Query builder class for composing query schemas
@@ -69,64 +103,83 @@ export class QueryBuilder<
     TFiltering extends FilteringConfig | undefined = undefined,
     TSearch extends SearchConfig | undefined = undefined,
 > {
-    private paginationConfig: SchemaWithConfig<TPagination> | undefined;
-    private sortingConfig: SchemaWithConfig<TSorting> | undefined;
-    private filteringConfig: SchemaWithConfig<TFiltering> | undefined;
-    private searchConfig: SchemaWithConfig<TSearch> | undefined;
+    private paginationConfig: SchemaWithConfig<TPagination> | undefined
+    private sortingConfig: SchemaWithConfig<TSorting> | undefined
+    private filteringConfig: SchemaWithConfig<TFiltering> | undefined
+    private searchConfig: SchemaWithConfig<TSearch> | undefined
 
-    constructor(options?: QueryBuilderOptions<TPagination, TSorting, TFiltering, TSearch>) {
-        this.paginationConfig = options?.pagination as SchemaWithConfig<TPagination> | undefined;
-        this.sortingConfig = options?.sorting as SchemaWithConfig<TSorting> | undefined;
-        this.filteringConfig = options?.filtering as SchemaWithConfig<TFiltering> | undefined;
-        this.searchConfig = options?.search as SchemaWithConfig<TSearch> | undefined;
+    constructor(
+        options?: QueryBuilderOptions<
+            TPagination,
+            TSorting,
+            TFiltering,
+            TSearch
+        >
+    ) {
+        this.paginationConfig = options?.pagination as
+            SchemaWithConfig<TPagination> | undefined
+        this.sortingConfig = options?.sorting as
+            SchemaWithConfig<TSorting> | undefined
+        this.filteringConfig = options?.filtering as
+            SchemaWithConfig<TFiltering> | undefined
+        this.searchConfig = options?.search as
+            SchemaWithConfig<TSearch> | undefined
     }
 
     /**
      * Add pagination configuration
      */
-    withPagination<TConfig extends PaginationConfig>(config: SchemaWithConfig<TConfig>): QueryBuilder<TConfig, TSorting, TFiltering, TSearch> {
+    withPagination<TConfig extends PaginationConfig>(
+        config: SchemaWithConfig<TConfig>
+    ): QueryBuilder<TConfig, TSorting, TFiltering, TSearch> {
         return new QueryBuilder({
             pagination: config,
             sorting: this.sortingConfig,
             filtering: this.filteringConfig,
             search: this.searchConfig,
-        } as QueryBuilderOptions<TConfig, TSorting, TFiltering, TSearch>);
+        } as QueryBuilderOptions<TConfig, TSorting, TFiltering, TSearch>)
     }
 
     /**
      * Add sorting configuration
      */
-    withSorting<TConfig extends SortingConfig>(config: SchemaWithConfig<TConfig>): QueryBuilder<TPagination, TConfig, TFiltering, TSearch> {
+    withSorting<TConfig extends SortingConfig>(
+        config: SchemaWithConfig<TConfig>
+    ): QueryBuilder<TPagination, TConfig, TFiltering, TSearch> {
         return new QueryBuilder({
             pagination: this.paginationConfig,
             sorting: config,
             filtering: this.filteringConfig,
             search: this.searchConfig,
-        } as QueryBuilderOptions<TPagination, TConfig, TFiltering, TSearch>);
+        } as QueryBuilderOptions<TPagination, TConfig, TFiltering, TSearch>)
     }
 
     /**
      * Add filtering configuration
      */
-    withFiltering<TConfig extends FilteringConfig>(config: SchemaWithConfig<TConfig>): QueryBuilder<TPagination, TSorting, TConfig, TSearch> {
+    withFiltering<TConfig extends FilteringConfig>(
+        config: SchemaWithConfig<TConfig>
+    ): QueryBuilder<TPagination, TSorting, TConfig, TSearch> {
         return new QueryBuilder({
             pagination: this.paginationConfig,
             sorting: this.sortingConfig,
             filtering: config,
             search: this.searchConfig,
-        } as QueryBuilderOptions<TPagination, TSorting, TConfig, TSearch>);
+        } as QueryBuilderOptions<TPagination, TSorting, TConfig, TSearch>)
     }
 
     /**
      * Add search configuration
      */
-    withSearch<TConfig extends SearchConfig>(config: SchemaWithConfig<TConfig>): QueryBuilder<TPagination, TSorting, TFiltering, TConfig> {
+    withSearch<TConfig extends SearchConfig>(
+        config: SchemaWithConfig<TConfig>
+    ): QueryBuilder<TPagination, TSorting, TFiltering, TConfig> {
         return new QueryBuilder({
             pagination: this.paginationConfig,
             sorting: this.sortingConfig,
             filtering: this.filteringConfig,
             search: config,
-        } as QueryBuilderOptions<TPagination, TSorting, TFiltering, TConfig>);
+        } as QueryBuilderOptions<TPagination, TSorting, TFiltering, TConfig>)
     }
 
     /**
@@ -134,58 +187,76 @@ export class QueryBuilder<
      */
     buildInputSchema() {
         // Build shape without type annotation to preserve specific types
-        const shapeInit = {};
+        const shapeInit = {}
 
         if (this.paginationConfig) {
-            const paginationSchema = createPaginationSchema(this.paginationConfig as SchemaWithConfig<Partial<PaginationConfig>>);
-            Object.assign(shapeInit, getSchemaShape(paginationSchema));
+            const paginationSchema = createPaginationSchema(
+                this.paginationConfig as SchemaWithConfig<
+                    Partial<PaginationConfig>
+                >
+            )
+            Object.assign(shapeInit, getSchemaShape(paginationSchema))
         }
 
         if (this.sortingConfig) {
-            const sortingSchema = createSortingSchema(this.sortingConfig);
-            Object.assign(shapeInit, getSchemaShape(sortingSchema));
+            const sortingSchema = createSortingSchema(this.sortingConfig)
+            Object.assign(shapeInit, getSchemaShape(sortingSchema))
         }
 
         if (this.filteringConfig) {
-            const filteringSchema = createFilteringSchema(this.filteringConfig);
-            Object.assign(shapeInit, { filter: s.optional(filteringSchema) });
+            const filteringSchema = createFilteringSchema(this.filteringConfig)
+            Object.assign(shapeInit, { filter: s.optional(filteringSchema) })
         }
 
         if (this.searchConfig) {
-            const searchSchema = createSearchSchema(this.searchConfig);
-            Object.assign(shapeInit, { search: s.optional(searchSchema) });
+            const searchSchema = createSearchSchema(this.searchConfig)
+            Object.assign(shapeInit, { search: s.optional(searchSchema) })
         }
 
-        return s.object(shapeInit);
+        return s.object(shapeInit)
     }
 
     /**
      * Build the output schema with data and meta
      */
     buildOutputSchema<TData extends AnySchema>(
-        dataSchema: TData,
+        dataSchema: TData
     ): TPagination extends PaginationConfig
         ? ReturnType<
               typeof s.object<{
-                  data: ReturnType<typeof s.array<TData>>;
-                  meta: ReturnType<typeof createPaginationMetaSchema<TPagination>>;
+                  data: ReturnType<typeof s.array<TData>>
+                  meta: ReturnType<
+                      typeof createPaginationMetaSchema<TPagination>
+                  >
               }>
           >
-        : ReturnType<typeof s.object<{ data: ReturnType<typeof s.array<TData>> }>> {
+        : ReturnType<
+              typeof s.object<{ data: ReturnType<typeof s.array<TData>> }>
+          > {
         // Build separate shapes to preserve exact types
         if (this.paginationConfig) {
             // With pagination: meta is required
             return s.object({
                 data: s.array(dataSchema),
-                meta: createPaginationMetaSchema(this.paginationConfig as SchemaWithConfig<Partial<PaginationConfig>>),
+                meta: createPaginationMetaSchema(
+                    this.paginationConfig as SchemaWithConfig<
+                        Partial<PaginationConfig>
+                    >
+                ),
             }) as TPagination extends PaginationConfig
                 ? ReturnType<
                       typeof s.object<{
-                          data: ReturnType<typeof s.array<TData>>;
-                          meta: ReturnType<typeof createPaginationMetaSchema<TPagination>>;
+                          data: ReturnType<typeof s.array<TData>>
+                          meta: ReturnType<
+                              typeof createPaginationMetaSchema<TPagination>
+                          >
                       }>
                   >
-                : ReturnType<typeof s.object<{ data: ReturnType<typeof s.array<TData>> }>>;
+                : ReturnType<
+                      typeof s.object<{
+                          data: ReturnType<typeof s.array<TData>>
+                      }>
+                  >
         }
 
         // Without pagination: meta is not present
@@ -194,11 +265,15 @@ export class QueryBuilder<
         }) as TPagination extends PaginationConfig
             ? ReturnType<
                   typeof s.object<{
-                      data: ReturnType<typeof s.array<TData>>;
-                      meta: ReturnType<typeof createPaginationMetaSchema<TPagination>>;
+                      data: ReturnType<typeof s.array<TData>>
+                      meta: ReturnType<
+                          typeof createPaginationMetaSchema<TPagination>
+                      >
                   }>
               >
-            : ReturnType<typeof s.object<{ data: ReturnType<typeof s.array<TData>> }>>;
+            : ReturnType<
+                  typeof s.object<{ data: ReturnType<typeof s.array<TData>> }>
+              >
     }
 
     /**
@@ -210,7 +285,7 @@ export class QueryBuilder<
             sorting: this.sortingConfig?.[CONFIG_SYMBOL] as TSorting,
             filtering: this.filteringConfig?.[CONFIG_SYMBOL] as TFiltering,
             search: this.searchConfig?.[CONFIG_SYMBOL] as TSearch,
-        };
+        }
     }
 }
 
@@ -218,17 +293,19 @@ export class QueryBuilder<
  * Factory function to create a query builder
  */
 export function createQueryBuilder(): QueryBuilder {
-    return new QueryBuilder();
+    return new QueryBuilder()
 }
 
 /**
  * Preset: Basic list query (pagination + sorting)
  */
-export function createBasicListQuery<TSortFields extends readonly string[]>(options: {
-    sortableFields: TSortFields;
-    defaultSortField?: TSortFields[number];
-    defaultLimit?: number;
-    maxLimit?: number;
+export function createBasicListQuery<
+    TSortFields extends readonly string[],
+>(options: {
+    sortableFields: TSortFields
+    defaultSortField?: TSortFields[number]
+    defaultLimit?: number
+    maxLimit?: number
 }): QueryBuilder<PaginationConfig, SortingConfig> {
     const paginationConfig = createPaginationConfigSchema({
         defaultLimit: options.defaultLimit ?? 20,
@@ -236,25 +313,30 @@ export function createBasicListQuery<TSortFields extends readonly string[]>(opti
         includeOffset: true,
         includeCursor: false,
         includePage: true,
-    });
+    })
 
     const sortingConfig = createSortingConfigSchema(options.sortableFields, {
         defaultField: options.defaultSortField,
-        defaultDirection: "asc",
-    });
+        defaultDirection: 'asc',
+    })
 
-    return new QueryBuilder().withPagination(paginationConfig).withSorting(sortingConfig);
+    return new QueryBuilder()
+        .withPagination(paginationConfig)
+        .withSorting(sortingConfig)
 }
 
 /**
  * Preset: Searchable list query (pagination + sorting + search)
  */
-export function createSearchableListQuery<TSortFields extends readonly string[], TSearchFields extends readonly string[]>(options: {
-    sortableFields: TSortFields;
-    searchableFields: TSearchFields;
-    defaultSortField?: TSortFields[number];
-    defaultLimit?: number;
-    maxLimit?: number;
+export function createSearchableListQuery<
+    TSortFields extends readonly string[],
+    TSearchFields extends readonly string[],
+>(options: {
+    sortableFields: TSortFields
+    searchableFields: TSearchFields
+    defaultSortField?: TSortFields[number]
+    defaultLimit?: number
+    maxLimit?: number
 }): QueryBuilder<PaginationConfig, SortingConfig, undefined, SearchConfig> {
     const paginationConfig = createPaginationConfigSchema({
         defaultLimit: options.defaultLimit ?? 20,
@@ -262,56 +344,75 @@ export function createSearchableListQuery<TSortFields extends readonly string[],
         includeOffset: true,
         includeCursor: false,
         includePage: true,
-    });
+    })
 
     const sortingConfig = createSortingConfigSchema(options.sortableFields, {
         defaultField: options.defaultSortField,
-        defaultDirection: "asc",
-    });
+        defaultDirection: 'asc',
+    })
 
     const searchConfig = createSearchConfigSchema(options.searchableFields, {
         minQueryLength: 1,
         maxQueryLength: 500,
-    });
+    })
 
-    return new QueryBuilder().withPagination(paginationConfig).withSorting(sortingConfig).withSearch(searchConfig);
+    return new QueryBuilder()
+        .withPagination(paginationConfig)
+        .withSorting(sortingConfig)
+        .withSearch(searchConfig)
 }
 
 /**
  * Preset: Advanced query (all features)
  */
-export function createAdvancedQuery<TSortFields extends readonly string[], TSearchFields extends readonly string[], TFilterFields extends Record<string, FieldFilterConfig>>(options: {
-    sortableFields: TSortFields;
-    searchableFields: TSearchFields;
-    filterableFields: TFilterFields;
-    defaultSortField?: TSortFields[number];
-    defaultLimit?: number;
-    maxLimit?: number;
-}): QueryBuilder<PaginationConfig, SortingConfig, FilteringConfig, SearchConfig> {
+export function createAdvancedQuery<
+    TSortFields extends readonly string[],
+    TSearchFields extends readonly string[],
+    TFilterFields extends Record<string, FieldFilterConfig>,
+>(options: {
+    sortableFields: TSortFields
+    searchableFields: TSearchFields
+    filterableFields: TFilterFields
+    defaultSortField?: TSortFields[number]
+    defaultLimit?: number
+    maxLimit?: number
+}): QueryBuilder<
+    PaginationConfig,
+    SortingConfig,
+    FilteringConfig,
+    SearchConfig
+> {
     const paginationConfig = createPaginationConfigSchema({
         defaultLimit: options.defaultLimit ?? 20,
         maxLimit: options.maxLimit ?? 100,
         includeOffset: true,
         includeCursor: true,
         includePage: true,
-    });
+    })
 
     const sortingConfig = createSortingConfigSchema(options.sortableFields, {
         defaultField: options.defaultSortField,
-        defaultDirection: "asc",
+        defaultDirection: 'asc',
         allowMultiple: true,
-    });
+    })
 
-    const filteringConfig = createFilteringConfigSchema(options.filterableFields, {
-        allowLogicalOperators: true,
-    });
+    const filteringConfig = createFilteringConfigSchema(
+        options.filterableFields,
+        {
+            allowLogicalOperators: true,
+        }
+    )
 
     const searchConfig = createSearchConfigSchema(options.searchableFields, {
         minQueryLength: 1,
         maxQueryLength: 500,
         allowFieldSelection: true,
         allowFuzzy: true,
-    });
+    })
 
-    return new QueryBuilder().withPagination(paginationConfig).withSorting(sortingConfig).withFiltering(filteringConfig).withSearch(searchConfig);
+    return new QueryBuilder()
+        .withPagination(paginationConfig)
+        .withSorting(sortingConfig)
+        .withFiltering(filteringConfig)
+        .withSearch(searchConfig)
 }

@@ -28,9 +28,9 @@ The platform already supports:
 
 The missing piece is a first-class trust checkpoint so operators can answer:
 
-- *Was this image signed by an allowed identity?*
-- *Did this build come from a valid provenance source?*
-- *Should production rollout be blocked if trust checks fail?*
+- _Was this image signed by an allowed identity?_
+- _Did this build come from a valid provenance source?_
+- _Should production rollout be blocked if trust checks fail?_
 
 ---
 
@@ -58,16 +58,16 @@ The missing piece is a first-class trust checkpoint so operators can answer:
 ### Trust policy object
 
 ```ts
-type TrustGateMode = "off" | "warn" | "enforce";
+type TrustGateMode = 'off' | 'warn' | 'enforce'
 
 type DeploymentTrustPolicy = {
-  mode: TrustGateMode;
-  protectedEnvironments: string[]; // e.g. ["production", "preprod"]
-  allowedSigners?: string[];       // signer identities
-  allowedRepositories?: string[];  // image repo prefixes
-  requireProvenance?: boolean;
-  maxProvenanceAgeHours?: number;
-};
+    mode: TrustGateMode
+    protectedEnvironments: string[] // e.g. ["production", "preprod"]
+    allowedSigners?: string[] // signer identities
+    allowedRepositories?: string[] // image repo prefixes
+    requireProvenance?: boolean
+    maxProvenanceAgeHours?: number
+}
 ```
 
 ### Decision semantics
@@ -156,12 +156,12 @@ Minimum dimensions:
 - `step`: `trust_gate`
 - `level`: `info | warn | error`
 - metadata:
-  - `mode`,
-  - `decision`,
-  - `reasonCode?`,
-  - `imageRef`,
-  - `digest?`,
-  - `signer?`.
+    - `mode`,
+    - `decision`,
+    - `reasonCode?`,
+    - `imageRef`,
+    - `digest?`,
+    - `signer?`.
 
 ### Operator queryability
 

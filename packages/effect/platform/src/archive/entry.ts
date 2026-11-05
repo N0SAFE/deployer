@@ -1,8 +1,7 @@
-import type { Effect } from "effect";
+import type { ArchiveError } from './errors'
+import type { Effect } from 'effect'
 
-import type { ArchiveError } from "./errors";
-
-export type EntryType = "file" | "directory" | "symlink" | "hardlink" | "other";
+export type EntryType = 'file' | 'directory' | 'symlink' | 'hardlink' | 'other'
 
 /**
  * One archive member. `size` and `compressedSize` are the DECLARED values (the
@@ -11,14 +10,14 @@ export type EntryType = "file" | "directory" | "symlink" | "hardlink" | "other";
  * cancels an in-flight decompression.
  */
 export type ArchiveEntry = {
-  readonly path: string;
-  readonly type: EntryType;
-  /** Unix permission bits as stored (setuid/setgid/sticky included; the extractor strips them). */
-  readonly mode: number;
-  readonly size: number;
-  readonly compressedSize: number;
-  readonly read: Effect.Effect<Uint8Array, ArchiveError>;
-};
+    readonly path: string
+    readonly type: EntryType
+    /** Unix permission bits as stored (setuid/setgid/sticky included; the extractor strips them). */
+    readonly mode: number
+    readonly size: number
+    readonly compressedSize: number
+    readonly read: Effect.Effect<Uint8Array, ArchiveError>
+}
 
 /** CRC-32 (zip variant) via the Bun builtin. */
-export const crc32 = (bytes: Uint8Array): number => Bun.hash.crc32(bytes);
+export const crc32 = (bytes: Uint8Array): number => Bun.hash.crc32(bytes)

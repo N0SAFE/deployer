@@ -1,16 +1,19 @@
-import { Logger } from "@nestjs/common";
-import { Context } from "effect";
-import { defer, ReplaySubject, skip, type Observable } from "rxjs";
+import { Logger } from '@nestjs/common'
+import { Context } from 'effect'
+import { defer, ReplaySubject, skip, type Observable } from 'rxjs'
 
-import type { SetupStreamEvent, SetupStepId } from "@deployer/contracts-entities";
+import type {
+    SetupStreamEvent,
+    SetupStepId,
+} from '@deployer/contracts-entities'
 
-import { EnvService } from "@/config/env/env.module";
+import { EnvService } from '@/config/env/env.module'
 
 /** Which orchestration steps this profile performs, and their state. */
 export type OrchestrationStepId = Extract<
     SetupStepId,
-    "initialize_swarm" | "start_api" | "await_api_boot" | "promote_ingress"
->;
+    'initialize_swarm' | 'start_api' | 'await_api_boot' | 'promote_ingress'
+>
 
 /**
  * Every id in `OrchestrationStepId`, at RUNTIME.
@@ -26,21 +29,23 @@ export type OrchestrationStepId = Extract<
  * adding it here fails to compile.
  */
 const ORCHESTRATION_STEP_IDS = [
-    "initialize_swarm",
-    "start_api",
-    "await_api_boot",
-    "promote_ingress",
-] as const satisfies readonly OrchestrationStepId[];
+    'initialize_swarm',
+    'start_api',
+    'await_api_boot',
+    'promote_ingress',
+] as const satisfies readonly OrchestrationStepId[]
 
 /** Real narrowing, not an assertion: unknown ids are dropped, not trusted. */
-export function isOrchestrationStepId(value: string): value is OrchestrationStepId {
-    return (ORCHESTRATION_STEP_IDS as readonly string[]).includes(value);
+export function isOrchestrationStepId(
+    value: string
+): value is OrchestrationStepId {
+    return (ORCHESTRATION_STEP_IDS as readonly string[]).includes(value)
 }
 
 /** How many events the replay keeps — older ones are dropped from it. */
-const REPLAY_CAPACITY = 200;
+const REPLAY_CAPACITY = 200
 
-type StepStatus = "pending" | "in_progress" | "completed" | "failed";
+type StepStatus = 'pending' | 'in_progress' | 'completed' | 'failed'
 
 /**
  * Builds the setup app's ORCHESTRATION stream — the steps setup itself drives.
@@ -66,405 +71,437 @@ type StepStatus = "pending" | "in_progress" | "completed" | "failed";
  * there would misdescribe what that profile does, so it is skipped.
  */
 export class OrchestrationStreamServiceImpl {
-  private readonly logger = new Logger("OrchestrationStreamService");
+    private readonly logger = new Logger('OrchestrationStreamService')
 
-  /** Monotonic sequence, shared by every event this service emits. */
-  private seq = 0;
+    /** Monotonic sequence, shared by every event this service emits. */
+    private seq = 0
 
-  /**
-   * Replayed so a page reload mid-boot still shows the steps so far.
-   *
-   * Bounded: a page reload is the only consumer, and an unbounded buffer would
-   * grow for the lifetime of a long boot.
-   */
-  private readonly emitted = new ReplaySubject<SetupStreamEvent>(REPLAY_CAPACITY);
+    /**
+     * Replayed so a page reload mid-boot still shows the steps so far.
+     *
+     * Bounded: a page reload is the only consumer, and an unbounded buffer would
+     * grow for the lifetime of a long boot.
+     */
+    private readonly emitted = new ReplaySubject<SetupStreamEvent>(
+        REPLAY_CAPACITY
+    )
 
+    /**
+     * Per-step log buffers, so a `snapshot` can carry the complete state.
+     *
+     * Keyed by the FULL `SetupStepId`, not the narrower orchestration subset: once
+     * the API's frames are forwarded, their steps (`run_migrations`, `finalize`, …)
+     * are buffered here too, so a later snapshot stays consistent with the deltas
+     * the client already received.
+     */
+    private readonly logs = new Map<SetupStepId, string[]>()
 
-  /**
-   * Per-step log buffers, so a `snapshot` can carry the complete state.
-   *
-   * Keyed by the FULL `SetupStepId`, not the narrower orchestration subset: once
-   * the API's frames are forwarded, their steps (`run_migrations`, `finalize`, …)
-   * are buffered here too, so a later snapshot stays consistent with the deltas
-   * the client already received.
-   */
-  private readonly logs = new Map<SetupStepId, string[]>();
+    /**
+     * The step definitions, ONCE — replayed verbatim to every late subscriber.
+     *
+     * ── WHY THIS IS CACHED RATHER THAN REBUILT ──────────────────────────────────
+     * The stream is served per HTTP request, and a reconnecting client makes a NEW
+     * request. Rebuilding the definitions each time re-EMITTED them into the
+     * replay buffer, so every reconnect appended another full set — and the client
+     * rebuilt its step list from duplicates rather than from the state it already
+     * had.
+     */
+    private announced: SetupStreamEvent[] | null = null
 
-  /**
-   * The step definitions, ONCE — replayed verbatim to every late subscriber.
-   *
-   * ── WHY THIS IS CACHED RATHER THAN REBUILT ──────────────────────────────────
-   * The stream is served per HTTP request, and a reconnecting client makes a NEW
-   * request. Rebuilding the definitions each time re-EMITTED them into the
-   * replay buffer, so every reconnect appended another full set — and the client
-   * rebuilt its step list from duplicates rather than from the state it already
-   * had.
-   */
-  private announced: SetupStreamEvent[] | null = null;
+    /**
+     * The LATEST known state of every step, from either producer.
+     *
+     * ── WHY STATE IS KEPT, NOT JUST EVENTS ──────────────────────────────────────
+     * A reconnecting client needs to RE-SYNC, and the cheapest correct answer is
+     * one snapshot of the current state rather than the whole event history: the
+     * history would re-run every step visually, while a snapshot lands in place.
+     *
+     * Populated from setup's own `snapshot()` calls AND from the API's forwarded
+     * snapshots, so it always reflects whichever process last spoke about a step.
+     */
+    private readonly latestStatus = new Map<
+        SetupStepId,
+        { title: string; status: StepStatus | 'skipped'; error?: string }
+    >()
 
-  /**
-   * The LATEST known state of every step, from either producer.
-   *
-   * ── WHY STATE IS KEPT, NOT JUST EVENTS ──────────────────────────────────────
-   * A reconnecting client needs to RE-SYNC, and the cheapest correct answer is
-   * one snapshot of the current state rather than the whole event history: the
-   * history would re-run every step visually, while a snapshot lands in place.
-   *
-   * Populated from setup's own `snapshot()` calls AND from the API's forwarded
-   * snapshots, so it always reflects whichever process last spoke about a step.
-   */
-  private readonly latestStatus = new Map<
-    SetupStepId,
-    { title: string; status: StepStatus | "skipped"; error?: string }
-  >();
+    /**
+     * How many events have been emitted so far.
+     *
+     * ── WHY A SUBSCRIBER NEEDS THIS ────────────────────────────────────────────
+     * A (re)connecting client is re-synced from `currentSnapshot()` — full status
+     * AND full logs for every step. Replaying the buffer on top of that would
+     * re-apply the HISTORY, including the original all-`pending` snapshot, which
+     * walks every finished step back to idle on screen.
+     *
+     * So the live tail is `skip(this count)`: everything already folded into the
+     * sync snapshot is left out, and only events emitted AFTER it are delivered.
+     * Nothing is lost either — the snapshot carries the aggregate state, so a
+     * client that missed events while disconnected still has the current truth.
+     */
+    private emittedCount = 0
 
-  /**
-   * How many events have been emitted so far.
-   *
-   * ── WHY A SUBSCRIBER NEEDS THIS ────────────────────────────────────────────
-   * A (re)connecting client is re-synced from `currentSnapshot()` — full status
-   * AND full logs for every step. Replaying the buffer on top of that would
-   * re-apply the HISTORY, including the original all-`pending` snapshot, which
-   * walks every finished step back to idle on screen.
-   *
-   * So the live tail is `skip(this count)`: everything already folded into the
-   * sync snapshot is left out, and only events emitted AFTER it are delivered.
-   * Nothing is lost either — the snapshot carries the aggregate state, so a
-   * client that missed events while disconnected still has the current truth.
-   */
-  private emittedCount = 0;
+    /**
+     * The run's TERMINAL event (`completed` from the API, or an `error`), kept so a
+     * reconnecting client is told how the run ended.
+     *
+     * ── WHY THIS IS NEEDED ──────────────────────────────────────────────────────
+     * A re-sync sends the current snapshot and then only events emitted AFTER it —
+     * history is deliberately skipped. A terminal event is history by the time the
+     * client comes back, so a reconnect (the ingress swap tears the connection
+     * down every time) landed on a timeline that had finished but never said so:
+     * no "setup complete", no way forward. A terminal event is a fact about the run
+     * rather than a delta, so it is replayed with the snapshot.
+     */
+    private terminal: SetupStreamEvent | null = null
 
-  /**
-   * The run's TERMINAL event (`completed` from the API, or an `error`), kept so a
-   * reconnecting client is told how the run ended.
-   *
-   * ── WHY THIS IS NEEDED ──────────────────────────────────────────────────────
-   * A re-sync sends the current snapshot and then only events emitted AFTER it —
-   * history is deliberately skipped. A terminal event is history by the time the
-   * client comes back, so a reconnect (the ingress swap tears the connection
-   * down every time) landed on a timeline that had finished but never said so:
-   * no "setup complete", no way forward. A terminal event is a fact about the run
-   * rather than a delta, so it is replayed with the snapshot.
-   */
-  private terminal: SetupStreamEvent | null = null;
-
-  /** Single emission point, so `emittedCount` can never drift from the buffer. */
-  private push(event: SetupStreamEvent): void {
-    this.emittedCount += 1;
-    this.emitted.next(event);
-  }
-
-  constructor(private readonly env: EnvService) {}
-
-  /**
-   * Whether THIS profile starts a cluster.
-   *
-   * `SETUP_MODE=prod` means setup owns the API, which it schedules onto the
-   * swarm — so the swarm is setup's job. In `dev` the API is a compose service
-   * and the swarm is not involved at all.
-   *
-   * This reads the MODE rather than a separate cluster flag on purpose: there is
-   * one decision ("who starts the API") and the swarm follows from it. A second
-   * flag could disagree with the first.
-   */
-  orchestratesCluster(): boolean {
-    return this.env.get("SETUP_MODE") === "prod";
-  }
-
-  private stamp(): { seq: number; ts: string } {
-    this.seq += 1;
-    return { seq: this.seq, ts: new Date().toISOString() };
-  }
-
-  /**
-   * Announce the steps this run will perform.
-   *
-   * Emitted BEFORE the first snapshot so the wizard renders the whole pipeline
-   * up front — the operator sees what is coming rather than a progress bar that
-   * grows with no visible end.
-   */
-  stepDetails(): SetupStreamEvent[] {
-    // Idempotent: a reconnect re-requests the stream, and re-announcing would
-    // append a second full set of definitions to the replay buffer.
-    if (this.announced !== null) return this.announced;
-
-    const ids: OrchestrationStepId[] = [];
-
-    if (this.orchestratesCluster()) ids.push("initialize_swarm");
-    ids.push("start_api", "await_api_boot", "promote_ingress");
-
-    this.announced = ids.map((stepId) => {
-      const event: SetupStreamEvent = {
-        type: "step_detail",
-        stepId,
-        title: TITLES[stepId],
-        description: this.descriptionFor(stepId),
-        ...this.stamp(),
-      };
-      this.push(event);
-      return event;
-    });
-
-    return this.announced;
-  }
-
-  /**
-   * The CURRENT state of every known step, as one snapshot.
-   *
-   * ── THIS IS WHAT MAKES A RECONNECT FEEL INSTANT ─────────────────────────────
-   * Sent to a (re)connecting client BEFORE the live stream. It carries the state
-   * each step actually has right now, so a client that already drew the earlier
-   * steps sees them stay put — rather than the whole pipeline resetting to
-   * `pending` and re-running visually, which is what an all-pending snapshot did.
-   *
-   * Returned WITHOUT emitting, because it is per-subscriber: the live stream
-   * already replays past events, and emitting here would duplicate it for
-   * everyone currently connected.
-   *
-   * Empty when nothing has been reported yet, in which case the client's step
-   * list comes from the `step_detail` events alone.
-   */
-  currentSnapshot(): SetupStreamEvent | null {
-    if (this.latestStatus.size === 0) return null;
-
-    return {
-      type: "snapshot",
-      ...this.stamp(),
-      steps: [...this.latestStatus.entries()].map(([id, state]) => ({
-        id,
-        title: state.title,
-        status: state.status,
-        logs: this.logs.get(id) ?? [],
-        ...(state.error === undefined ? {} : { error: state.error }),
-      })),
-    };
-  }
-
-  /**
-   * A full snapshot of the orchestration steps.
-   *
-   * Emitted on every status change so a consumer renders directly from the
-   * latest snapshot without replaying log deltas — the same contract the API's
-   * own stream uses, which is what lets the wizard treat both producers
-   * identically.
-   */
-  snapshot(entries: { id: OrchestrationStepId; status: StepStatus; error?: string }[]): SetupStreamEvent {
-    const event: SetupStreamEvent = {
-      type: "snapshot",
-      ...this.stamp(),
-      steps: entries.map((entry) => ({
-        id: entry.id,
-        title: TITLES[entry.id],
-        status: entry.status,
-        logs: this.logs.get(entry.id) ?? [],
-        // Spread conditionally: `error` is optional, and writing `undefined`
-        // explicitly would fail the schema's exactOptionalPropertyTypes shape.
-        ...(entry.error === undefined ? {} : { error: entry.error }),
-      })),
-    };
-
-    // Remembered so a later reconnect re-syncs from STATE rather than
-    // replaying the history — see `currentSnapshot`.
-    for (const step of event.steps) {
-      this.latestStatus.set(step.id, {
-        title: step.title,
-        status: step.status,
-        ...(step.error === undefined ? {} : { error: step.error }),
-      });
+    /** Single emission point, so `emittedCount` can never drift from the buffer. */
+    private push(event: SetupStreamEvent): void {
+        this.emittedCount += 1
+        this.emitted.next(event)
     }
 
-    this.push(event);
-    return event;
-  }
+    constructor(private readonly env: EnvService) {}
 
-  /**
-   * One log line on an orchestration step.
-   *
-   * A `log` event is a DELTA against the latest snapshot, so a step producing
-   * hundreds of lines (the API's boot output) does not make every frame O(n) —
-   * which is exactly why the contract carries `log` separately from `snapshot`.
-   */
-  log(stepId: OrchestrationStepId, line: string): SetupStreamEvent {    const buffer = this.logs.get(stepId) ?? [];
-    buffer.push(line);
-    // Bounded: a runaway process must not turn the stream into a memory leak,
-    // and the wizard only renders the tail anyway.
-    const MAX_LINES = 500;
-    if (buffer.length > MAX_LINES) buffer.splice(0, buffer.length - MAX_LINES);
-    this.logs.set(stepId, buffer);
-
-    const event: SetupStreamEvent = {
-      type: "log",
-      stepId,
-      line,
-      ...this.stamp(),
-    };
-
-    this.push(event);
-    return event;
-  }
-
-  /**
-   * The events emitted AFTER `afterCount` — the live tail, no history.
-   *
-   * Paired with `currentSnapshot()` this forms one atomic re-sync: the caller
-   * reads the count, then sends the snapshot, then subscribes here — so the
-   * subscriber sees every event exactly once and never re-applies one it has
-   * already folded into its state.
-   */
-  liveAfter(afterCount: number): Observable<SetupStreamEvent> {
-    // `afterCount` is an ABSOLUTE position in everything ever emitted, but the
-    // replay only holds the last `REPLAY_CAPACITY` events. Skipping `afterCount`
-    // from the replay's own start therefore over-skipped once the run exceeded the
-    // capacity: it swallowed the whole replay AND the next `emitted - capacity`
-    // LIVE events — which is how a client that reconnected mid-run never received
-    // the step completions and the terminal event, and sat on a step that had
-    // already finished. The offset is computed at SUBSCRIBE time, when the
-    // replay's first entry is known.
-    return defer(() => {
-      const dropped = Math.max(0, this.emittedCount - REPLAY_CAPACITY);
-      return this.emitted.pipe(skip(Math.max(0, afterCount - dropped)));
-    });
-  }
-
-  /** How many events have been emitted — the cutoff `liveAfter` takes. */
-  emittedSoFar(): number {
-    return this.emittedCount;
-  }
-
-  /**
-   * Forward an event produced by ANOTHER process (the API), unchanged.
-   *
-   * Re-stamped with this stream's sequence so a client that orders by `seq`
-   * still sees a monotonic series across both producers — the API's own
-   * sequence restarts at 0, and interleaving two counters would make the client
-   * read the timeline backwards.
-   *
-   * The PAYLOAD is untouched: these are the API's events, and rewriting them
-   * would make this a second producer of provisioning state rather than a
-   * transport for it.
-   */
-  forward(event: SetupStreamEvent): void {
-    if (event.type === "log") {
-      // Log lines are appended to the step's buffer so a later `snapshot`
-      // (which carries the full buffer) stays consistent with the deltas the
-      // client already received.
-      const buffer = this.logs.get(event.stepId) ?? [];
-      buffer.push(event.line);
-      this.logs.set(event.stepId, buffer);
+    /**
+     * Whether THIS profile starts a cluster.
+     *
+     * `SETUP_MODE=prod` means setup owns the API, which it schedules onto the
+     * swarm — so the swarm is setup's job. In `dev` the API is a compose service
+     * and the swarm is not involved at all.
+     *
+     * This reads the MODE rather than a separate cluster flag on purpose: there is
+     * one decision ("who starts the API") and the swarm follows from it. A second
+     * flag could disagree with the first.
+     */
+    orchestratesCluster(): boolean {
+        return this.env.get('SETUP_MODE') === 'prod'
     }
 
-    // Track the API's step states too, so a reconnect re-syncs from the SAME
-    // source of truth regardless of which producer owns the step.
-    if (event.type === "snapshot") {
-      for (const step of event.steps) {
-        this.latestStatus.set(step.id, {
-          title: step.title,
-          status: step.status,
-          ...(step.error === undefined ? {} : { error: step.error }),
-        });
-      }
+    private stamp(): { seq: number; ts: string } {
+        this.seq += 1
+        return { seq: this.seq, ts: new Date().toISOString() }
     }
 
-    const stamped = { ...event, ...this.stamp() };
-    if (stamped.type === "completed" || stamped.type === "error") this.terminal = stamped;
-    this.push(stamped);
-  }
+    /**
+     * Announce the steps this run will perform.
+     *
+     * Emitted BEFORE the first snapshot so the wizard renders the whole pipeline
+     * up front — the operator sees what is coming rather than a progress bar that
+     * grows with no visible end.
+     */
+    stepDetails(): SetupStreamEvent[] {
+        // Idempotent: a reconnect re-requests the stream, and re-announcing would
+        // append a second full set of definitions to the replay buffer.
+        if (this.announced !== null) return this.announced
 
-  /**
-   * How the run ended, if it has — replayed to a (re)connecting client together
-   * with the snapshot. See `terminal`.
-   */
-  terminalEvent(): SetupStreamEvent | null {
-    return this.terminal;
-  }
+        const ids: OrchestrationStepId[] = []
 
-  /** Report a terminal failure on the stream. */
-  fail(message: string): void {
-    const event: SetupStreamEvent = { type: "error", message, ...this.stamp() };
-    this.terminal = event;
-    this.push(event);
-  }
+        if (this.orchestratesCluster()) ids.push('initialize_swarm')
+        ids.push('start_api', 'await_api_boot', 'promote_ingress')
 
-  /**
-   * Mark every step that is mid-flight as FAILED, then end the run with `error`.
-   *
-   * ── WHY THE HANDOVER NEEDS THIS ─────────────────────────────────────────────
-   * A failed handover used to move only the internal phase to `failed`. Nothing
-   * reached the stream, so the wizard kept spinning on the step that had actually
-   * stopped — with no reason and no way forward, the worst version of a failure.
-   * Failing the active step names WHERE it stopped; the `error` event carries WHY.
-   *
-   * Does nothing to steps that already finished: a failure never rewrites history.
-   */
-  failActive(message: string): void {
-    const active = [...this.latestStatus.entries()].filter(([, state]) => state.status === "in_progress");
-    for (const [id, state] of active) {
-      this.latestStatus.set(id, { ...state, status: "failed", error: message });
-    }
-    if (active.length > 0) {
-      this.push({
-        type: "snapshot",
-        ...this.stamp(),
-        steps: active.map(([id, state]) => ({
-          id,
-          title: state.title,
-          status: "failed" as const,
-          logs: this.logs.get(id) ?? [],
-          error: message,
-        })),
-      });
-    }
-    this.fail(message);
-  }
+        this.announced = ids.map((stepId) => {
+            const event: SetupStreamEvent = {
+                type: 'step_detail',
+                stepId,
+                title: TITLES[stepId],
+                description: this.descriptionFor(stepId),
+                ...this.stamp(),
+            }
+            this.push(event)
+            return event
+        })
 
-  /**
-   * Forget a failure so the run can be attempted again.
-   *
-   * Failed steps go back to `pending` (the retry re-reports them as it reaches
-   * them) and the terminal error is dropped so a reconnecting client is not told
-   * the run is over. A `completed` terminal is kept: that fact belongs to the API's
-   * provisioning, which a handover retry does not redo.
-   */
-  clearFailure(): void {
-    if (this.terminal?.type === "error") this.terminal = null;
-    const reset = [...this.latestStatus.entries()].filter(([, state]) => state.status === "failed");
-    for (const [id, state] of reset) {
-      this.latestStatus.set(id, { title: state.title, status: "pending" });
+        return this.announced
     }
-    if (reset.length > 0) {
-      this.push({
-        type: "snapshot",
-        ...this.stamp(),
-        steps: reset.map(([id, state]) => ({ id, title: state.title, status: "pending" as const, logs: this.logs.get(id) ?? [] })),
-      });
-    }
-  }
 
-  private descriptionFor(stepId: OrchestrationStepId): string {
-    switch (stepId) {
-      case "initialize_swarm":
-        return "Founding or joining the swarm this platform runs on";
-      case "start_api":
-        return this.orchestratesCluster()
-          ? "Scheduling the API onto the cluster"
-          : "Waiting for the API container to come up";
-      case "await_api_boot":
-        return "Streaming the API's own output as it initialises";
-      case "promote_ingress":
-        return "Handing the entry port to the cluster's ingress and waiting until it answers";
+    /**
+     * The CURRENT state of every known step, as one snapshot.
+     *
+     * ── THIS IS WHAT MAKES A RECONNECT FEEL INSTANT ─────────────────────────────
+     * Sent to a (re)connecting client BEFORE the live stream. It carries the state
+     * each step actually has right now, so a client that already drew the earlier
+     * steps sees them stay put — rather than the whole pipeline resetting to
+     * `pending` and re-running visually, which is what an all-pending snapshot did.
+     *
+     * Returned WITHOUT emitting, because it is per-subscriber: the live stream
+     * already replays past events, and emitting here would duplicate it for
+     * everyone currently connected.
+     *
+     * Empty when nothing has been reported yet, in which case the client's step
+     * list comes from the `step_detail` events alone.
+     */
+    currentSnapshot(): SetupStreamEvent | null {
+        if (this.latestStatus.size === 0) return null
+
+        return {
+            type: 'snapshot',
+            ...this.stamp(),
+            steps: [...this.latestStatus.entries()].map(([id, state]) => ({
+                id,
+                title: state.title,
+                status: state.status,
+                logs: this.logs.get(id) ?? [],
+                ...(state.error === undefined ? {} : { error: state.error }),
+            })),
+        }
     }
-  }
+
+    /**
+     * A full snapshot of the orchestration steps.
+     *
+     * Emitted on every status change so a consumer renders directly from the
+     * latest snapshot without replaying log deltas — the same contract the API's
+     * own stream uses, which is what lets the wizard treat both producers
+     * identically.
+     */
+    snapshot(
+        entries: {
+            id: OrchestrationStepId
+            status: StepStatus
+            error?: string
+        }[]
+    ): SetupStreamEvent {
+        const event: SetupStreamEvent = {
+            type: 'snapshot',
+            ...this.stamp(),
+            steps: entries.map((entry) => ({
+                id: entry.id,
+                title: TITLES[entry.id],
+                status: entry.status,
+                logs: this.logs.get(entry.id) ?? [],
+                // Spread conditionally: `error` is optional, and writing `undefined`
+                // explicitly would fail the schema's exactOptionalPropertyTypes shape.
+                ...(entry.error === undefined ? {} : { error: entry.error }),
+            })),
+        }
+
+        // Remembered so a later reconnect re-syncs from STATE rather than
+        // replaying the history — see `currentSnapshot`.
+        for (const step of event.steps) {
+            this.latestStatus.set(step.id, {
+                title: step.title,
+                status: step.status,
+                ...(step.error === undefined ? {} : { error: step.error }),
+            })
+        }
+
+        this.push(event)
+        return event
+    }
+
+    /**
+     * One log line on an orchestration step.
+     *
+     * A `log` event is a DELTA against the latest snapshot, so a step producing
+     * hundreds of lines (the API's boot output) does not make every frame O(n) —
+     * which is exactly why the contract carries `log` separately from `snapshot`.
+     */
+    log(stepId: OrchestrationStepId, line: string): SetupStreamEvent {
+        const buffer = this.logs.get(stepId) ?? []
+        buffer.push(line)
+        // Bounded: a runaway process must not turn the stream into a memory leak,
+        // and the wizard only renders the tail anyway.
+        const MAX_LINES = 500
+        if (buffer.length > MAX_LINES)
+            buffer.splice(0, buffer.length - MAX_LINES)
+        this.logs.set(stepId, buffer)
+
+        const event: SetupStreamEvent = {
+            type: 'log',
+            stepId,
+            line,
+            ...this.stamp(),
+        }
+
+        this.push(event)
+        return event
+    }
+
+    /**
+     * The events emitted AFTER `afterCount` — the live tail, no history.
+     *
+     * Paired with `currentSnapshot()` this forms one atomic re-sync: the caller
+     * reads the count, then sends the snapshot, then subscribes here — so the
+     * subscriber sees every event exactly once and never re-applies one it has
+     * already folded into its state.
+     */
+    liveAfter(afterCount: number): Observable<SetupStreamEvent> {
+        // `afterCount` is an ABSOLUTE position in everything ever emitted, but the
+        // replay only holds the last `REPLAY_CAPACITY` events. Skipping `afterCount`
+        // from the replay's own start therefore over-skipped once the run exceeded the
+        // capacity: it swallowed the whole replay AND the next `emitted - capacity`
+        // LIVE events — which is how a client that reconnected mid-run never received
+        // the step completions and the terminal event, and sat on a step that had
+        // already finished. The offset is computed at SUBSCRIBE time, when the
+        // replay's first entry is known.
+        return defer(() => {
+            const dropped = Math.max(0, this.emittedCount - REPLAY_CAPACITY)
+            return this.emitted.pipe(skip(Math.max(0, afterCount - dropped)))
+        })
+    }
+
+    /** How many events have been emitted — the cutoff `liveAfter` takes. */
+    emittedSoFar(): number {
+        return this.emittedCount
+    }
+
+    /**
+     * Forward an event produced by ANOTHER process (the API), unchanged.
+     *
+     * Re-stamped with this stream's sequence so a client that orders by `seq`
+     * still sees a monotonic series across both producers — the API's own
+     * sequence restarts at 0, and interleaving two counters would make the client
+     * read the timeline backwards.
+     *
+     * The PAYLOAD is untouched: these are the API's events, and rewriting them
+     * would make this a second producer of provisioning state rather than a
+     * transport for it.
+     */
+    forward(event: SetupStreamEvent): void {
+        if (event.type === 'log') {
+            // Log lines are appended to the step's buffer so a later `snapshot`
+            // (which carries the full buffer) stays consistent with the deltas the
+            // client already received.
+            const buffer = this.logs.get(event.stepId) ?? []
+            buffer.push(event.line)
+            this.logs.set(event.stepId, buffer)
+        }
+
+        // Track the API's step states too, so a reconnect re-syncs from the SAME
+        // source of truth regardless of which producer owns the step.
+        if (event.type === 'snapshot') {
+            for (const step of event.steps) {
+                this.latestStatus.set(step.id, {
+                    title: step.title,
+                    status: step.status,
+                    ...(step.error === undefined ? {} : { error: step.error }),
+                })
+            }
+        }
+
+        const stamped = { ...event, ...this.stamp() }
+        if (stamped.type === 'completed' || stamped.type === 'error')
+            this.terminal = stamped
+        this.push(stamped)
+    }
+
+    /**
+     * How the run ended, if it has — replayed to a (re)connecting client together
+     * with the snapshot. See `terminal`.
+     */
+    terminalEvent(): SetupStreamEvent | null {
+        return this.terminal
+    }
+
+    /** Report a terminal failure on the stream. */
+    fail(message: string): void {
+        const event: SetupStreamEvent = {
+            type: 'error',
+            message,
+            ...this.stamp(),
+        }
+        this.terminal = event
+        this.push(event)
+    }
+
+    /**
+     * Mark every step that is mid-flight as FAILED, then end the run with `error`.
+     *
+     * ── WHY THE HANDOVER NEEDS THIS ─────────────────────────────────────────────
+     * A failed handover used to move only the internal phase to `failed`. Nothing
+     * reached the stream, so the wizard kept spinning on the step that had actually
+     * stopped — with no reason and no way forward, the worst version of a failure.
+     * Failing the active step names WHERE it stopped; the `error` event carries WHY.
+     *
+     * Does nothing to steps that already finished: a failure never rewrites history.
+     */
+    failActive(message: string): void {
+        const active = [...this.latestStatus.entries()].filter(
+            ([, state]) => state.status === 'in_progress'
+        )
+        for (const [id, state] of active) {
+            this.latestStatus.set(id, {
+                ...state,
+                status: 'failed',
+                error: message,
+            })
+        }
+        if (active.length > 0) {
+            this.push({
+                type: 'snapshot',
+                ...this.stamp(),
+                steps: active.map(([id, state]) => ({
+                    id,
+                    title: state.title,
+                    status: 'failed' as const,
+                    logs: this.logs.get(id) ?? [],
+                    error: message,
+                })),
+            })
+        }
+        this.fail(message)
+    }
+
+    /**
+     * Forget a failure so the run can be attempted again.
+     *
+     * Failed steps go back to `pending` (the retry re-reports them as it reaches
+     * them) and the terminal error is dropped so a reconnecting client is not told
+     * the run is over. A `completed` terminal is kept: that fact belongs to the API's
+     * provisioning, which a handover retry does not redo.
+     */
+    clearFailure(): void {
+        if (this.terminal?.type === 'error') this.terminal = null
+        const reset = [...this.latestStatus.entries()].filter(
+            ([, state]) => state.status === 'failed'
+        )
+        for (const [id, state] of reset) {
+            this.latestStatus.set(id, { title: state.title, status: 'pending' })
+        }
+        if (reset.length > 0) {
+            this.push({
+                type: 'snapshot',
+                ...this.stamp(),
+                steps: reset.map(([id, state]) => ({
+                    id,
+                    title: state.title,
+                    status: 'pending' as const,
+                    logs: this.logs.get(id) ?? [],
+                })),
+            })
+        }
+    }
+
+    private descriptionFor(stepId: OrchestrationStepId): string {
+        switch (stepId) {
+            case 'initialize_swarm':
+                return 'Founding or joining the swarm this platform runs on'
+            case 'start_api':
+                return this.orchestratesCluster()
+                    ? 'Scheduling the API onto the cluster'
+                    : 'Waiting for the API container to come up'
+            case 'await_api_boot':
+                return "Streaming the API's own output as it initialises"
+            case 'promote_ingress':
+                return "Handing the entry port to the cluster's ingress and waiting until it answers"
+        }
+    }
 }
 
 const TITLES: Record<OrchestrationStepId, string> = {
-  initialize_swarm: "Starting the cluster",
-  start_api: "Starting the platform API",
-  await_api_boot: "Waiting for the API to boot",
-  promote_ingress: "Switching to the cluster ingress",
-};
+    initialize_swarm: 'Starting the cluster',
+    start_api: 'Starting the platform API',
+    await_api_boot: 'Waiting for the API to boot',
+    promote_ingress: 'Switching to the cluster ingress',
+}
 
 /** The tag: what a module provides and a consumer asks for (`OrchestrationStreamService["Service"]` is its type). */
-export class OrchestrationStreamService extends Context.Service<OrchestrationStreamService, OrchestrationStreamServiceImpl>()("setup/OrchestrationStreamService") {}
+export class OrchestrationStreamService extends Context.Service<
+    OrchestrationStreamService,
+    OrchestrationStreamServiceImpl
+>()('setup/OrchestrationStreamService') {}
 
 /** The one way to build it — the module's `useFactory` and a spec both call this. */
-export const makeOrchestrationStreamService = (...args: ConstructorParameters<typeof OrchestrationStreamServiceImpl>): OrchestrationStreamServiceImpl => new OrchestrationStreamServiceImpl(...args);
+export const makeOrchestrationStreamService = (
+    ...args: ConstructorParameters<typeof OrchestrationStreamServiceImpl>
+): OrchestrationStreamServiceImpl => new OrchestrationStreamServiceImpl(...args)

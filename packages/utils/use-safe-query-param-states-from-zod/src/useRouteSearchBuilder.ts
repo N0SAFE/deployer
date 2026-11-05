@@ -10,9 +10,11 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { useCallback, useMemo } from 'react'
 
-
 import { mergeWithDefaults } from '@deployer/use-safe-query-param-states-from-zod/merge'
-import type { UnknownRecord, UseSafeQueryParamStatesOptions } from '@deployer/use-safe-query-param-states-from-zod/types'
+import type {
+    UnknownRecord,
+    UseSafeQueryParamStatesOptions,
+} from '@deployer/use-safe-query-param-states-from-zod/types'
 import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod/useSafeQueryParamStatesFromZod'
 
 import type { z } from 'zod'
@@ -31,8 +33,7 @@ export interface RouteBuilderLike<TSearch extends z.ZodObject> {
     buildUrl?: (search: Partial<z.infer<TSearch>>) => string
 }
 
-export interface UseRouteSearchBuilderOptions
-    extends UseSafeQueryParamStatesOptions {
+export interface UseRouteSearchBuilderOptions extends UseSafeQueryParamStatesOptions {
     /**
      * Override the base path used by `buildRelativeUrl` when the route
      * builder does not provide one. Defaults to the current pathname.
@@ -42,9 +43,7 @@ export interface UseRouteSearchBuilderOptions
 
 export interface UseRouteSearchBuilderReturn<TSearch extends z.ZodObject> {
     state: z.infer<TSearch>
-    setState: ReturnType<
-        typeof useSafeQueryParamStatesFromZod<TSearch>
-    >[1]
+    setState: ReturnType<typeof useSafeQueryParamStatesFromZod<TSearch>>[1]
     buildUrl: (patch?: Partial<z.infer<TSearch>>) => string
     buildRelativeUrl: (patch?: Partial<z.infer<TSearch>>) => string
     navigate: (
@@ -72,7 +71,9 @@ function serializeSearch(search: UnknownRecord): string {
                 if (item === null || item === undefined) continue
                 params.append(
                     key,
-                    typeof item === 'object' ? JSON.stringify(item) : String(item)
+                    typeof item === 'object'
+                        ? JSON.stringify(item)
+                        : String(item)
                 )
             }
         } else if (typeof value === 'object') {
@@ -114,7 +115,9 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
             }
             const merged = mergeWithDefaults(
                 route.searchSchema,
-                patch ? { ...(state as UnknownRecord), ...patch } : (state as UnknownRecord)
+                patch
+                    ? { ...(state as UnknownRecord), ...patch }
+                    : (state as UnknownRecord)
             )
             const query = serializeSearch(merged)
             return query ? `${basePath}?${query}` : basePath
@@ -126,7 +129,9 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
         (patch?: Partial<z.infer<TSearch>>) => {
             const merged = mergeWithDefaults(
                 route.searchSchema,
-                patch ? { ...(state as UnknownRecord), ...patch } : (state as UnknownRecord)
+                patch
+                    ? { ...(state as UnknownRecord), ...patch }
+                    : (state as UnknownRecord)
             )
             const query = serializeSearch(merged)
             return query ? `?${query}` : ''
@@ -150,20 +155,32 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
     )
 
     const push = useCallback(
-        (patch?: Partial<z.infer<TSearch>>, navOptions?: { scroll?: boolean }) =>
-            { navigate(patch, { ...navOptions, replace: false }); },
+        (
+            patch?: Partial<z.infer<TSearch>>,
+            navOptions?: { scroll?: boolean }
+        ) => {
+            navigate(patch, { ...navOptions, replace: false })
+        },
         [navigate]
     )
 
     const replace = useCallback(
-        (patch?: Partial<z.infer<TSearch>>, navOptions?: { scroll?: boolean }) =>
-            { navigate(patch, { ...navOptions, replace: true }); },
+        (
+            patch?: Partial<z.infer<TSearch>>,
+            navOptions?: { scroll?: boolean }
+        ) => {
+            navigate(patch, { ...navOptions, replace: true })
+        },
         [navigate]
     )
 
-    const reset = useCallback(() => { setState(null); }, [setState])
+    const reset = useCallback(() => {
+        setState(null)
+    }, [setState])
     const merge = useCallback(
-        (patch: Partial<z.infer<TSearch>>) => { setState(patch); },
+        (patch: Partial<z.infer<TSearch>>) => {
+            setState(patch)
+        },
         [setState]
     )
 
@@ -179,6 +196,16 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
             reset,
             merge,
         }),
-        [state, setState, buildUrl, buildRelativeUrl, navigate, replace, push, reset, merge]
+        [
+            state,
+            setState,
+            buildUrl,
+            buildRelativeUrl,
+            navigate,
+            replace,
+            push,
+            reset,
+            merge,
+        ]
     )
 }

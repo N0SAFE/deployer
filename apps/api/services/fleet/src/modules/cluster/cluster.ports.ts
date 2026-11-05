@@ -1,10 +1,14 @@
 import { Context } from 'effect'
 
-import { DockerEngine } from "@deployer/docker";
-import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
-import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
+import { DockerEngine } from '@deployer/docker'
+import type { ClusterNodeInventoryRepositoryShape } from '@deployer/node-state'
+import type { ClusterNodeRepositoryShape } from '@deployer/node-state'
 import type { EnvService } from '@deployer/shared/config/env/env.module'
-import type { SwarmClusterShape, SwarmFleetShape, SwarmParticipationShape } from "@deployer/swarm"
+import type {
+    SwarmClusterShape,
+    SwarmFleetShape,
+    SwarmParticipationShape,
+} from '@deployer/swarm'
 
 import type { ClusterSwarmEventsService } from './events/cluster-swarm-events.service'
 

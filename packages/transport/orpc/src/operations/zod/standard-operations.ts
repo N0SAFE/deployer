@@ -6,16 +6,21 @@
  * Uses Zod query utilities for list/search operations.
  */
 
-import * as z from "zod";
+import * as z from 'zod'
 
-import { ZodPluginTransformer } from "@deployer/orpc-utils/builder/index";
+import {
+    RouteBuilder,
+    DetailedOutputBrand,
+    DetailedInputBrand,
+} from '@deployer/orpc-utils/builder/core/route-builder'
+import { ZodPluginTransformer } from '@deployer/orpc-utils/builder/index'
 import {
     BaseStandardOperations,
     type EntityOperationOptions as BaseEntityOperationOptions,
     type ListPlainOptions as BaseListPlainOptions,
-} from "@deployer/orpc-utils/operations/base/standard-operations";
-import type { SchemaWithConfig } from "@deployer/orpc-utils/operations/base/types";
-import { CONFIG_SYMBOL } from "@deployer/orpc-utils/operations/base/types";
+} from '@deployer/orpc-utils/operations/base/standard-operations'
+import type { SchemaWithConfig } from '@deployer/orpc-utils/operations/base/types'
+import { CONFIG_SYMBOL } from '@deployer/orpc-utils/operations/base/types'
 import {
     createPaginationConfigSchema,
     createSortingConfigSchema,
@@ -31,52 +36,65 @@ import {
     type ComputeInputSchema,
     type ComputeOutputSchema,
     type QueryBuilder,
-} from "@deployer/orpc-utils/operations/zod/utils/index";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- DetailedOutputBrand/DetailedInputBrand are imported so inferred declaration types can name them (TS4053)
-import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "@deployer/orpc-utils/builder/core/route-builder";
-import type { HTTPPath } from "@deployer/orpc-utils/types/types";
+} from '@deployer/orpc-utils/operations/zod/utils/index'
+import type { HTTPPath } from '@deployer/orpc-utils/types/types'
 
 /**
  * Zod entity schema type - requires ZodObject for schema manipulation
  */
-export type ZodEntitySchema = z.ZodObject<z.ZodRawShape>;
+export type ZodEntitySchema = z.ZodObject<z.ZodRawShape>
 
 /**
  * Infer the ID schema type from an entity's shape.
  * Falls back to z.ZodType if the field doesn't exist in the shape.
  */
-type InferIdSchema<TEntity extends ZodEntitySchema, TIdField extends string> = TIdField extends keyof TEntity["shape"]
-    ? TEntity["shape"][TIdField] extends z.ZodType
-        ? TEntity["shape"][TIdField]
+type InferIdSchema<
+    TEntity extends ZodEntitySchema,
+    TIdField extends string,
+> = TIdField extends keyof TEntity['shape']
+    ? TEntity['shape'][TIdField] extends z.ZodType
+        ? TEntity['shape'][TIdField]
         : z.ZodType
-    : z.ZodType;
+    : z.ZodType
 
 type ZodConfigSchema<TConfig> = z.ZodType & {
-    [CONFIG_SYMBOL]: TConfig;
-};
+    [CONFIG_SYMBOL]: TConfig
+}
 
 export type ZodListOperationOptions = {
-    pagination?: ZodConfigSchema<Partial<PaginationConfig>>;
-    sorting?: ZodConfigSchema<Partial<SortingConfig>>;
-    filtering?: ZodConfigSchema<FilteringConfig>;
-    search?: ZodConfigSchema<unknown>;
-};
+    pagination?: ZodConfigSchema<Partial<PaginationConfig>>
+    sorting?: ZodConfigSchema<Partial<SortingConfig>>
+    filtering?: ZodConfigSchema<FilteringConfig>
+    search?: ZodConfigSchema<unknown>
+}
 
 type QueryConfigFromOptions<TOptions extends ZodListOperationOptions> = {
-    pagination?: TOptions["pagination"] extends ZodConfigSchema<Partial<PaginationConfig>> ? TOptions["pagination"] : undefined;
-    sorting?: TOptions["sorting"] extends ZodConfigSchema<Partial<SortingConfig>> ? TOptions["sorting"] : undefined;
-    filtering?: TOptions["filtering"] extends ZodConfigSchema<FilteringConfig> ? TOptions["filtering"] : undefined;
-    search?: TOptions["search"] extends ZodConfigSchema<unknown> ? TOptions["search"] : undefined;
-};
+    pagination?: TOptions['pagination'] extends ZodConfigSchema<
+        Partial<PaginationConfig>
+    >
+        ? TOptions['pagination']
+        : undefined
+    sorting?: TOptions['sorting'] extends ZodConfigSchema<
+        Partial<SortingConfig>
+    >
+        ? TOptions['sorting']
+        : undefined
+    filtering?: TOptions['filtering'] extends ZodConfigSchema<FilteringConfig>
+        ? TOptions['filtering']
+        : undefined
+    search?: TOptions['search'] extends ZodConfigSchema<unknown>
+        ? TOptions['search']
+        : undefined
+}
 
 /**
  * Zod-specific entity operation options
  */
-export type ZodEntityOperationOptions<TEntitySchema extends ZodEntitySchema, TIdField extends string = "id", TIdSchema extends z.ZodType = z.ZodType> = BaseEntityOperationOptions<
-    TEntitySchema,
-    TIdField,
-    TIdSchema
->;
+export type ZodEntityOperationOptions<
+    TEntitySchema extends ZodEntitySchema,
+    TIdField extends string = 'id',
+    TIdSchema extends z.ZodType = z.ZodType,
+> = BaseEntityOperationOptions<TEntitySchema, TIdField, TIdSchema>
 
 /**
  * Zod Standard Operations class
@@ -122,45 +140,51 @@ export type ZodEntityOperationOptions<TEntitySchema extends ZodEntitySchema, TId
  */
 export class ZodStandardOperations<
     TEntity extends ZodEntitySchema = ZodEntitySchema,
-    TIdField extends string = "id",
+    TIdField extends string = 'id',
     TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>,
-> extends BaseStandardOperations<TEntity, TIdField, TIdSchema, ZodPluginTransformer> {
+> extends BaseStandardOperations<
+    TEntity,
+    TIdField,
+    TIdSchema,
+    ZodPluginTransformer
+> {
     /** The Zod schema transformer — this implementation's plugin. */
     protected getPlugin(): ZodPluginTransformer {
-        return new ZodPluginTransformer();
+        return new ZodPluginTransformer()
     }
 
     private getEntityShapeOrNull(): z.ZodRawShape | null {
-        const candidate = (this.entitySchema as unknown as { shape?: unknown }).shape;
-        if (candidate && typeof candidate === "object") {
-            return candidate as z.ZodRawShape;
+        const candidate = (this.entitySchema as unknown as { shape?: unknown })
+            .shape
+        if (candidate && typeof candidate === 'object') {
+            return candidate as z.ZodRawShape
         }
-        return null;
+        return null
     }
 
     private requireEntityObjectShape(feature: string): z.ZodRawShape {
-        const shape = this.getEntityShapeOrNull();
+        const shape = this.getEntityShapeOrNull()
         if (shape) {
-            return shape;
+            return shape
         }
 
         throw new Error(
-            `standard.zod(${this.entityName}) requires an object schema for '${feature}'. `
-            + `Received a non-object schema. Use an object entity schema for object-shape operations `
-            + `or provide explicit schemas/options for this route.`,
-        );
+            `standard.zod(${this.entityName}) requires an object schema for '${feature}'. ` +
+                `Received a non-object schema. Use an object entity schema for object-shape operations ` +
+                `or provide explicit schemas/options for this route.`
+        )
     }
 
     public getEntitySchema(): TEntity {
-        return this.entitySchema;
+        return this.entitySchema
     }
 
     protected getDefaultIdSchema(): TIdSchema {
-        const shape = this.getEntityShapeOrNull();
+        const shape = this.getEntityShapeOrNull()
         if (!shape) {
-            return z.string() as unknown as TIdSchema;
+            return z.string() as unknown as TIdSchema
         }
-        return (shape[this.idField] ?? z.string()) as unknown as TIdSchema;
+        return (shape[this.idField] ?? z.string()) as unknown as TIdSchema
     }
 
     /**
@@ -169,10 +193,12 @@ export class ZodStandardOperations<
      * called with a key that is absent from the object shape.
      */
     private buildOmitRecord(keys: Set<string>): Record<string, true> {
-        const schemaShape = this.requireEntityObjectShape("buildOmitRecord") as Record<string, unknown>;
+        const schemaShape = this.requireEntityObjectShape(
+            'buildOmitRecord'
+        ) as Record<string, unknown>
         return Object.fromEntries(
             [...keys].filter((k) => k in schemaShape).map((k) => [k, true])
-        );
+        )
     }
 
     /**
@@ -183,7 +209,9 @@ export class ZodStandardOperations<
      * so we intentionally operate on a shape-cloned object schema for those cases.
      */
     private cloneEntityObjectSchema(): z.ZodObject<z.ZodRawShape> {
-        return z.object(this.requireEntityObjectShape("cloneEntityObjectSchema"));
+        return z.object(
+            this.requireEntityObjectShape('cloneEntityObjectSchema')
+        )
     }
 
     /**
@@ -191,27 +219,35 @@ export class ZodStandardOperations<
      * schema has object-level refinements.
      */
     private omitEntityFields(keys: Set<string>): z.ZodObject<z.ZodRawShape> {
-        return this.cloneEntityObjectSchema().omit(this.buildOmitRecord(keys));
+        return this.cloneEntityObjectSchema().omit(this.buildOmitRecord(keys))
     }
 
     /**
      * Helper to check if a schema has config
      */
     private isConfigSchema(value: unknown): value is ZodConfigSchema<unknown> {
-        return typeof value === "object" && value !== null && CONFIG_SYMBOL in value;
+        return (
+            typeof value === 'object' &&
+            value !== null &&
+            CONFIG_SYMBOL in value
+        )
     }
 
-    private isQueryConfig(options: BaseListPlainOptions | ZodListOperationOptions): options is ZodListOperationOptions {
+    private isQueryConfig(
+        options: BaseListPlainOptions | ZodListOperationOptions
+    ): options is ZodListOperationOptions {
         return (
             this.isConfigSchema(options.pagination) ||
             this.isConfigSchema(options.sorting) ||
             this.isConfigSchema(options.filtering) ||
             this.isConfigSchema(options.search)
-        );
+        )
     }
 
-    private isPlainListOptions(options: BaseListPlainOptions | ZodListOperationOptions): options is BaseListPlainOptions {
-        return !this.isQueryConfig(options);
+    private isPlainListOptions(
+        options: BaseListPlainOptions | ZodListOperationOptions
+    ): options is BaseListPlainOptions {
+        return !this.isQueryConfig(options)
     }
 
     // ==================== Helper: Build Zod QueryBuilder ====================
@@ -220,13 +256,22 @@ export class ZodStandardOperations<
      * Build a Zod QueryBuilder from list options
      * Returns a properly typed QueryBuilder that preserves the config structure
      */
-    private buildZodQueryBuilder<TConfig extends ZodListOperationOptions>(options: TConfig): QueryBuilder<QueryConfigFromOptions<TConfig>>;
-    private buildZodQueryBuilder(options?: BaseListPlainOptions): QueryBuilder<QueryConfig>;
-    private buildZodQueryBuilder(options?: ZodListOperationOptions | BaseListPlainOptions): QueryBuilder<QueryConfig> {
+    private buildZodQueryBuilder<TConfig extends ZodListOperationOptions>(
+        options: TConfig
+    ): QueryBuilder<QueryConfigFromOptions<TConfig>>
+    private buildZodQueryBuilder(
+        options?: BaseListPlainOptions
+    ): QueryBuilder<QueryConfig>
+    private buildZodQueryBuilder(
+        options?: ZodListOperationOptions | BaseListPlainOptions
+    ): QueryBuilder<QueryConfig> {
         if (!options) {
             return createQueryBuilder({
-                pagination: createPaginationConfigSchema({ defaultLimit: 10, maxLimit: 100 }),
-            });
+                pagination: createPaginationConfigSchema({
+                    defaultLimit: 10,
+                    maxLimit: 100,
+                }),
+            })
         }
 
         if (this.isQueryConfig(options)) {
@@ -235,176 +280,219 @@ export class ZodStandardOperations<
                 sorting: options.sorting,
                 filtering: options.filtering,
                 search: options.search,
-            };
-            return createQueryBuilder(config);
+            }
+            return createQueryBuilder(config)
         }
 
         if (!this.isPlainListOptions(options)) {
             return createQueryBuilder({
-                pagination: createPaginationConfigSchema({ defaultLimit: 10, maxLimit: 100 }),
-            });
+                pagination: createPaginationConfigSchema({
+                    defaultLimit: 10,
+                    maxLimit: 100,
+                }),
+            })
         }
 
-        const plainOptions = options;
+        const plainOptions = options
 
         const paginationConfig = (() => {
             if (plainOptions.pagination) {
-                return createPaginationConfigSchema(plainOptions.pagination);
+                return createPaginationConfigSchema(plainOptions.pagination)
             }
-            return createPaginationConfigSchema({ defaultLimit: 10, maxLimit: 100 });
-        })();
+            return createPaginationConfigSchema({
+                defaultLimit: 10,
+                maxLimit: 100,
+            })
+        })()
 
-        let builder = createQueryBuilder({ pagination: paginationConfig });
+        let builder = createQueryBuilder({ pagination: paginationConfig })
 
         if (plainOptions.sorting) {
             builder = builder.withSorting(
                 createSortingConfigSchema(plainOptions.sorting.fields, {
                     defaultField: plainOptions.sorting.defaultField,
                     defaultDirection: plainOptions.sorting.defaultDirection,
-                }),
-            );
+                })
+            )
         }
 
         if (plainOptions.filtering) {
             builder = builder.withFiltering(
                 createFilteringConfigSchema(plainOptions.filtering.fields, {
-                    allowLogicalOperators: plainOptions.filtering.allowLogicalOperators,
-                }),
-            );
+                    allowLogicalOperators:
+                        plainOptions.filtering.allowLogicalOperators,
+                })
+            )
         }
 
-        if (plainOptions.search?.fields && plainOptions.search.fields.length > 0) {
+        if (
+            plainOptions.search?.fields &&
+            plainOptions.search.fields.length > 0
+        ) {
             builder = builder.withSearch(
                 createSearchConfigSchema(plainOptions.search.fields, {
                     minQueryLength: plainOptions.search.minQueryLength,
-                }),
-            );
+                })
+            )
         }
 
-        return builder;
+        return builder
     }
 
     /** Build query builder from a ZodListOperationOptions config (used internally by streamingList etc.) */
-    private buildZodQueryBuilderFromConfig(options: ZodListOperationOptions): QueryBuilder<QueryConfig> {
+    private buildZodQueryBuilderFromConfig(
+        options: ZodListOperationOptions
+    ): QueryBuilder<QueryConfig> {
         return createQueryBuilder({
             pagination: options.pagination,
             sorting: options.sorting,
             filtering: options.filtering,
             search: options.search,
-        });
+        })
     }
 
     // ==================== CRUD Operations ====================
 
-    read<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    read<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Get ${this.entityName} by ${idFieldName}`,
             description: `Retrieve a specific ${this.entityName} by their ${idFieldName}`,
         })
             .input((b) => {
-                const e = b.params((p) => p`/${p(idFieldName, idSchema)}`);
-                return e;
+                const e = b.params((p) => p`/${p(idFieldName, idSchema)}`)
+                return e
             })
-            .output(this.entitySchema);
+            .output(this.entitySchema)
     }
 
-    create(options?: { bodySchema?: z.ZodType; omitFields?: readonly (keyof z.infer<TEntity>)[] }) {
+    create(options?: {
+        bodySchema?: z.ZodType
+        omitFields?: readonly (keyof z.infer<TEntity>)[]
+    }) {
         const bodySchema = (() => {
-            if (options?.bodySchema) return options.bodySchema;
+            if (options?.bodySchema) return options.bodySchema
 
             const omitKeys = new Set<string>([
                 this.idField,
-                ...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []),
-                ...(this.hasSoftDelete ? ["deletedAt"] : []),
+                ...(this.hasTimestamps ? ['createdAt', 'updatedAt'] : []),
+                ...(this.hasSoftDelete ? ['deletedAt'] : []),
                 ...((options?.omitFields ?? []) as string[]),
-            ]);
+            ])
 
-            return this.omitEntityFields(omitKeys);
-        })();
+            return this.omitEntityFields(omitKeys)
+        })()
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Create a new ${this.entityName}`,
             description: `Create a new ${this.entityName} in the system`,
         })
-            .path("/")
+            .path('/')
             .input((b) => b.body(bodySchema as TEntity))
-            .output(b => b.status(201).body(this.entitySchema));
+            .output((b) => b.status(201).body(this.entitySchema))
     }
 
-    update<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: {
-        idSchema?: TIdSch;
-        idFieldName?: TIdFieldName;
-        bodySchema?: z.ZodType;
-        omitFields?: readonly (keyof z.infer<TEntity>)[];
+    update<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: {
+        idSchema?: TIdSch
+        idFieldName?: TIdFieldName
+        bodySchema?: z.ZodType
+        omitFields?: readonly (keyof z.infer<TEntity>)[]
     }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
-        let bodySchema: z.ZodType;
+        let bodySchema: z.ZodType
 
         if (options?.bodySchema) {
-            bodySchema = options.bodySchema;
+            bodySchema = options.bodySchema
         } else if (!options?.omitFields || options.omitFields.length === 0) {
-            bodySchema = this.entitySchema;
+            bodySchema = this.entitySchema
         } else {
-            const omitKeys = new Set<string>([...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []), ...(this.hasSoftDelete ? ["deletedAt"] : []), ...(options.omitFields as string[])]);
+            const omitKeys = new Set<string>([
+                ...(this.hasTimestamps ? ['createdAt', 'updatedAt'] : []),
+                ...(this.hasSoftDelete ? ['deletedAt'] : []),
+                ...(options.omitFields as string[]),
+            ])
 
-            bodySchema = this.omitEntityFields(omitKeys);
+            bodySchema = this.omitEntityFields(omitKeys)
         }
 
         return this.createBuilder({
-            method: "PUT",
+            method: 'PUT',
             summary: `Update an existing ${this.entityName}`,
             description: `Update an existing ${this.entityName} in the system`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}`).body(bodySchema))
-            .output(this.entitySchema);
+            .input((b) =>
+                b
+                    .params((p) => p`/${p(idFieldName, idSchema)}`)
+                    .body(bodySchema)
+            )
+            .output(this.entitySchema)
     }
 
-    patch<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: {
-        idSchema?: TIdSch;
-        idFieldName?: TIdFieldName;
-        bodySchema?: z.ZodType;
-        omitFields?: readonly (keyof z.infer<TEntity>)[];
+    patch<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: {
+        idSchema?: TIdSch
+        idFieldName?: TIdFieldName
+        bodySchema?: z.ZodType
+        omitFields?: readonly (keyof z.infer<TEntity>)[]
     }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
-        let bodySchema: z.ZodType;
+        let bodySchema: z.ZodType
 
         if (options?.bodySchema) {
-            bodySchema = options.bodySchema;
+            bodySchema = options.bodySchema
         } else {
             const omitKeys = new Set<string>([
                 this.idField,
-                ...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []),
-                ...(this.hasSoftDelete ? ["deletedAt"] : []),
+                ...(this.hasTimestamps ? ['createdAt', 'updatedAt'] : []),
+                ...(this.hasSoftDelete ? ['deletedAt'] : []),
                 ...((options?.omitFields ?? []) as string[]),
-            ]);
+            ])
 
-            bodySchema = this.omitEntityFields(omitKeys).partial();
+            bodySchema = this.omitEntityFields(omitKeys).partial()
         }
 
         return this.createBuilder({
-            method: "PATCH",
+            method: 'PATCH',
             summary: `Partially update ${this.entityName}`,
             description: `Update specific fields of ${this.entityName}`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}`).body(bodySchema))
-            .output(this.entitySchema);
+            .input((b) =>
+                b
+                    .params((p) => p`/${p(idFieldName, idSchema)}`)
+                    .body(bodySchema)
+            )
+            .output(this.entitySchema)
     }
 
-    delete<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    delete<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "DELETE",
+            method: 'DELETE',
             summary: `Delete ${this.entityName}`,
             description: `Delete a ${this.entityName} by ${idFieldName}`,
         })
@@ -413,8 +501,8 @@ export class ZodStandardOperations<
                 z.object({
                     success: z.boolean(),
                     message: z.string().optional(),
-                }),
-            );
+                })
+            )
     }
 
     // ==================== List Operations ====================
@@ -423,19 +511,26 @@ export class ZodStandardOperations<
      * List operation with config-based query builder (preserves exact types).
      * Use createFilterConfig() to build the config with pagination, sorting, and filtering.
      */
-    list<TConfig extends ZodListOperationOptions>(options: TConfig): RouteBuilder<
+    list<TConfig extends ZodListOperationOptions>(
+        options: TConfig
+    ): RouteBuilder<
         z.ZodObject<{
             query: z.ZodType<
                 ComputeInputSchema<QueryConfigFromOptions<TConfig>>,
                 ComputeInputSchema<QueryConfigFromOptions<TConfig>> | undefined
-            >;
+            >
         }>,
-        z.ZodType<ComputeOutputSchema<QueryConfigFromOptions<TConfig>, z.infer<TEntity>>>,
-        "GET",
+        z.ZodType<
+            ComputeOutputSchema<
+                QueryConfigFromOptions<TConfig>,
+                z.infer<TEntity>
+            >
+        >,
+        'GET',
         TEntity,
         Record<never, never>,
         ZodPluginTransformer
-    >;
+    >
 
     /**
      * Bare list operation with no query parameters.
@@ -445,90 +540,96 @@ export class ZodStandardOperations<
     list(): RouteBuilder<
         z.ZodUndefined,
         z.ZodObject<{ data: z.ZodArray<TEntity> }>,
-        "GET",
+        'GET',
         TEntity,
         Record<never, never>,
         ZodPluginTransformer
-    >;
+    >
 
     list(options?: ZodListOperationOptions): RouteBuilder<
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         any,
         z.ZodType,
-        "GET",
+        'GET',
         TEntity,
         Record<never, never>,
         ZodPluginTransformer
     > {
         if (!options) {
             return this.createBuilder({
-                method: "GET",
+                method: 'GET',
                 summary: `List ${this.entityName}s`,
                 description: `Retrieve a list of ${this.entityName}s`,
             })
-                .path("/")
-                .output(z.object({ data: z.array(this.entitySchema) }));
+                .path('/')
+                .output(z.object({ data: z.array(this.entitySchema) }))
         }
 
-        const queryBuilder = this.buildZodQueryBuilderFromConfig(options);
-        const inputSchema = queryBuilder.buildInputSchema();
-        const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema);
+        const queryBuilder = this.buildZodQueryBuilderFromConfig(options)
+        const inputSchema = queryBuilder.buildInputSchema()
+        const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema)
 
-        return this.createBuilder({
-            method: "GET",
-            summary: `List ${this.entityName}s`,
-            description: `Retrieve a paginated list of ${this.entityName}s with optional filtering and sorting`,
-        })
-            .path("/")
-            // `prefault({})`, NOT `optional()`: an absent `query` must still go through the schema so
-            // its defaults (limit, offset, sort) apply. With `optional()` a caller that sent no
-            // `?query=` reached the handler as `undefined`, the repository read `limit`/`offset` from
-            // nothing, and the response's `meta` failed output validation (a 500 on every bare list).
-            .input(z.object({ query: inputSchema.prefault({} as never) }))
-            .output(outputSchema);
+        return (
+            this.createBuilder({
+                method: 'GET',
+                summary: `List ${this.entityName}s`,
+                description: `Retrieve a paginated list of ${this.entityName}s with optional filtering and sorting`,
+            })
+                .path('/')
+                // `prefault({})`, NOT `optional()`: an absent `query` must still go through the schema so
+                // its defaults (limit, offset, sort) apply. With `optional()` a caller that sent no
+                // `?query=` reached the handler as `undefined`, the repository read `limit`/`offset` from
+                // nothing, and the response's `meta` failed output validation (a 500 on every bare list).
+                .input(z.object({ query: inputSchema.prefault({} as never) }))
+                .output(outputSchema)
+        )
     }
 
     // ==================== Batch Operations ====================
 
-    batchCreate(options?: { maxBatchSize?: number; itemSchema?: z.ZodType; omitFields?: readonly (keyof z.infer<TEntity>)[] }) {
-        const maxSize = options?.maxBatchSize ?? 100;
+    batchCreate(options?: {
+        maxBatchSize?: number
+        itemSchema?: z.ZodType
+        omitFields?: readonly (keyof z.infer<TEntity>)[]
+    }) {
+        const maxSize = options?.maxBatchSize ?? 100
 
-        let itemSchema: z.ZodType;
+        let itemSchema: z.ZodType
 
         if (options?.itemSchema) {
-            itemSchema = options.itemSchema;
+            itemSchema = options.itemSchema
         } else if (options?.omitFields && options.omitFields.length > 0) {
             const omitKeys = new Set<string>([
                 this.idField,
-                ...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []),
-                ...(this.hasSoftDelete ? ["deletedAt"] : []),
+                ...(this.hasTimestamps ? ['createdAt', 'updatedAt'] : []),
+                ...(this.hasSoftDelete ? ['deletedAt'] : []),
                 ...(options.omitFields as string[]),
-            ]);
+            ])
 
-            itemSchema = this.omitEntityFields(omitKeys);
+            itemSchema = this.omitEntityFields(omitKeys)
         } else {
             // Default: omit id and timestamps (same behaviour as create())
             const defaultOmitKeys = new Set<string>([
                 this.idField,
-                ...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []),
-                ...(this.hasSoftDelete ? ["deletedAt"] : []),
-            ]);
+                ...(this.hasTimestamps ? ['createdAt', 'updatedAt'] : []),
+                ...(this.hasSoftDelete ? ['deletedAt'] : []),
+            ])
 
-            itemSchema = this.omitEntityFields(defaultOmitKeys);
+            itemSchema = this.omitEntityFields(defaultOmitKeys)
         }
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Batch create ${this.entityName}s`,
             description: `Create multiple ${this.entityName}s in a single request`,
         })
-            .path("/batch")
+            .path('/batch')
             .input((b) =>
                 b.body(
                     z.object({
                         items: z.array(itemSchema).min(1).max(maxSize),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
@@ -537,77 +638,83 @@ export class ZodStandardOperations<
                         z.object({
                             index: z.number().int().min(0),
                             error: z.string(),
-                        }),
+                        })
                     ),
-                }),
-            );
+                })
+            )
     }
 
-    batchDelete<TIdSch extends z.ZodType = TIdSchema>(options?: { maxBatchSize?: number; idSchema?: TIdSch }) {
-        const maxSize = options?.maxBatchSize ?? 100;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    batchDelete<TIdSch extends z.ZodType = TIdSchema>(options?: {
+        maxBatchSize?: number
+        idSchema?: TIdSch
+    }) {
+        const maxSize = options?.maxBatchSize ?? 100
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "DELETE",
+            method: 'DELETE',
             summary: `Batch delete ${this.entityName}s`,
             description: `Delete multiple ${this.entityName}s by IDs`,
         })
-            .path("/batch")
+            .path('/batch')
             .input((b) =>
                 b.body(
                     z.object({
                         ids: z.array(idSchema).min(1).max(maxSize),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
                     deleted: z.number().int().min(0),
                     failed: z.array(z.string()).optional(),
-                }),
-            );
+                })
+            )
     }
 
-    batchRead<TIdSch extends z.ZodType = TIdSchema>(options?: { maxBatchSize?: number; idSchema?: TIdSch }) {
-        const maxSize = options?.maxBatchSize ?? 100;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    batchRead<TIdSch extends z.ZodType = TIdSchema>(options?: {
+        maxBatchSize?: number
+        idSchema?: TIdSch
+    }) {
+        const maxSize = options?.maxBatchSize ?? 100
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Batch read ${this.entityName}s`,
             description: `Get multiple ${this.entityName}s by their IDs in a single request`,
         })
-            .path("/batch/read")
+            .path('/batch/read')
             .input((b) =>
                 b.body(
                     z.object({
                         ids: z.array(idSchema).min(1).max(maxSize),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
                     items: z.array(this.entitySchema),
                     notFound: z.array(z.string()).optional(),
-                }),
-            );
+                })
+            )
     }
 
     batchUpdate(options?: { maxBatchSize?: number }) {
-        const maxSize = options?.maxBatchSize ?? 100;
+        const maxSize = options?.maxBatchSize ?? 100
 
         return this.createBuilder({
-            method: "PATCH",
+            method: 'PATCH',
             summary: `Batch update ${this.entityName}s`,
             description: `Update multiple ${this.entityName}s in a single request`,
         })
-            .path("/batch")
+            .path('/batch')
             .input((b) =>
                 b.body(
                     z.object({
                         items: z.array(this.entitySchema).min(1).max(maxSize),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
@@ -617,29 +724,29 @@ export class ZodStandardOperations<
                             z.object({
                                 id: z.string(),
                                 error: z.string(),
-                            }),
+                            })
                         )
                         .optional(),
-                }),
-            );
+                })
+            )
     }
 
     batchUpsert(options?: { maxBatchSize?: number; uniqueField?: string }) {
-        const maxSize = options?.maxBatchSize ?? 100;
-        const uniqueField = options?.uniqueField ?? this.idField;
+        const maxSize = options?.maxBatchSize ?? 100
+        const uniqueField = options?.uniqueField ?? this.idField
 
         return this.createBuilder({
-            method: "PUT",
+            method: 'PUT',
             summary: `Batch upsert ${this.entityName}s`,
             description: `Create or update multiple ${this.entityName}s by ${uniqueField}`,
         })
-            .path("/batch/upsert")
+            .path('/batch/upsert')
             .input((b) =>
                 b.body(
                     z.object({
                         items: z.array(this.entitySchema).min(1).max(maxSize),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
@@ -650,11 +757,11 @@ export class ZodStandardOperations<
                             z.object({
                                 index: z.number().int().min(0),
                                 error: z.string(),
-                            }),
+                            })
                         )
                         .optional(),
-                }),
-            );
+                })
+            )
     }
 
     // ==================== Utility Operations ====================
@@ -698,107 +805,138 @@ export class ZodStandardOperations<
      */
     count() {
         const builder = this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Count ${this.entityName}s`,
             description: `Get the total count of ${this.entityName}s`,
-        })
-            .path("/count");
+        }).path('/count')
 
         return builder
             .input((b) => b.query(z.object({ filter: z.any().optional() })))
             .output(
                 z.object({
                     count: z.number().int().min(0),
-                }),
-            );
+                })
+            )
     }
 
     search<
         TOptions extends
             | {
-                  searchFields?: readonly string[];
-                  pagination?: z.ZodType | SchemaWithConfig<unknown> | ZodSchemaWithConfig<Partial<PaginationConfig>> | { defaultLimit?: number; maxLimit?: number };
+                  searchFields?: readonly string[]
+                  pagination?:
+                      | z.ZodType
+                      | SchemaWithConfig<unknown>
+                      | ZodSchemaWithConfig<Partial<PaginationConfig>>
+                      | { defaultLimit?: number; maxLimit?: number }
               }
-            | undefined = undefined
+            | undefined = undefined,
     >(options?: TOptions) {
-        let queryBuilder = createQueryBuilder();
+        let queryBuilder = createQueryBuilder()
 
         if (options?.searchFields && options.searchFields.length > 0) {
             queryBuilder = queryBuilder.withSearch(
                 createSearchConfigSchema(options.searchFields, {
                     minQueryLength: 1,
                     allowFieldSelection: true,
-                }),
-            );
+                })
+            )
         }
 
         if (options?.pagination) {
             if (this.isConfigSchema(options.pagination)) {
                 // Type assertion: in Zod context, config schemas are always ZodSchemaWithConfig
-                const schema = options.pagination as unknown;
-                const paginationConfig = schema as ZodSchemaWithConfig<Partial<PaginationConfig>>;
-                queryBuilder = queryBuilder.withPagination(paginationConfig);
+                const schema = options.pagination as unknown
+                const paginationConfig = schema as ZodSchemaWithConfig<
+                    Partial<PaginationConfig>
+                >
+                queryBuilder = queryBuilder.withPagination(paginationConfig)
             } else {
-                queryBuilder = queryBuilder.withPagination(createPaginationConfigSchema(options.pagination as { defaultLimit?: number; maxLimit?: number }));
+                queryBuilder = queryBuilder.withPagination(
+                    createPaginationConfigSchema(
+                        options.pagination as {
+                            defaultLimit?: number
+                            maxLimit?: number
+                        }
+                    )
+                )
             }
         } else {
-            queryBuilder = queryBuilder.withPagination(createPaginationConfigSchema({ defaultLimit: 20, maxLimit: 100 }));
+            queryBuilder = queryBuilder.withPagination(
+                createPaginationConfigSchema({
+                    defaultLimit: 20,
+                    maxLimit: 100,
+                })
+            )
         }
 
-        const inputSchema = queryBuilder.buildInputSchema();
-        const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema);
+        const inputSchema = queryBuilder.buildInputSchema()
+        const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema)
 
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Search ${this.entityName}s`,
             description: `Full-text search for ${this.entityName}s with pagination`,
         })
-            .path("/search")
+            .path('/search')
             .input(z.object({ query: inputSchema.optional() }))
-            .output(outputSchema);
+            .output(outputSchema)
     }
 
-    check<TFieldName extends keyof TEntity['shape'], TFieldSchema extends z.ZodType = z.ZodString>(fieldName: TFieldName, fieldSchema?: TFieldSchema) {
-        const shape = this.getEntityShapeOrNull() as TEntity['shape'] | null;
-        const schema = fieldSchema ?? (shape ? shape[fieldName] : undefined) ?? z.string();
+    check<
+        TFieldName extends keyof TEntity['shape'],
+        TFieldSchema extends z.ZodType = z.ZodString,
+    >(fieldName: TFieldName, fieldSchema?: TFieldSchema) {
+        const shape = this.getEntityShapeOrNull() as TEntity['shape'] | null
+        const schema =
+            fieldSchema ?? (shape ? shape[fieldName] : undefined) ?? z.string()
 
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Check ${this.entityName} ${String(fieldName)}`,
             description: `Check if a ${this.entityName} exists with the given ${String(fieldName)}`,
         })
             .path(`/check/${String(fieldName)}`)
-            .input(z.object({ [fieldName]: schema }) as z.ZodObject<Record<TFieldName, TFieldSchema>>)
+            .input(
+                z.object({ [fieldName]: schema }) as z.ZodObject<
+                    Record<TFieldName, TFieldSchema>
+                >
+            )
             .output(
                 z.object({
                     exists: z.boolean(),
-                }),
-            );
+                })
+            )
     }
 
-    exists<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    exists<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Check if ${this.entityName} exists`,
             description: `Check if a ${this.entityName} exists by ${idFieldName}`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}/exists`))
+            .input((b) =>
+                b.params((p) => p`/${p(idFieldName, idSchema)}/exists`)
+            )
             .output(
                 z.object({
                     exists: z.boolean(),
-                }),
-            );
+                })
+            )
     }
 
     upsert(options?: { uniqueField?: string; path?: HTTPPath }) {
-        const uniqueField = options?.uniqueField ?? this.idField;
-        const upsertPath = options?.path ?? "/upsert";
+        const uniqueField = options?.uniqueField ?? this.idField
+        const upsertPath = options?.path ?? '/upsert'
 
         return this.createBuilder({
-            method: "PUT",
+            method: 'PUT',
             summary: `Upsert ${this.entityName}`,
             description: `Create or update ${this.entityName} by ${uniqueField}`,
         })
@@ -808,34 +946,37 @@ export class ZodStandardOperations<
                 z.object({
                     item: this.entitySchema,
                     created: z.boolean(),
-                }),
-            );
+                })
+            )
     }
 
-    validate(options?: { bodySchema?: z.ZodType; omitFields?: readonly (keyof z.infer<TEntity>)[] }) {
-        let bodySchema: z.ZodType;
+    validate(options?: {
+        bodySchema?: z.ZodType
+        omitFields?: readonly (keyof z.infer<TEntity>)[]
+    }) {
+        let bodySchema: z.ZodType
 
         if (options?.bodySchema) {
-            bodySchema = options.bodySchema;
+            bodySchema = options.bodySchema
         } else if (!options?.omitFields || options.omitFields.length === 0) {
-            bodySchema = this.entitySchema;
+            bodySchema = this.entitySchema
         } else {
             const omitKeys = new Set<string>([
                 this.idField,
-                ...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []),
-                ...(this.hasSoftDelete ? ["deletedAt"] : []),
+                ...(this.hasTimestamps ? ['createdAt', 'updatedAt'] : []),
+                ...(this.hasSoftDelete ? ['deletedAt'] : []),
                 ...(options.omitFields as string[]),
-            ]);
+            ])
 
-            bodySchema = this.omitEntityFields(omitKeys);
+            bodySchema = this.omitEntityFields(omitKeys)
         }
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Validate ${this.entityName}`,
             description: `Validate ${this.entityName} data without persisting`,
         })
-            .path("/validate")
+            .path('/validate')
             .input((b) => b.body(bodySchema))
             .output(
                 z.object({
@@ -845,41 +986,55 @@ export class ZodStandardOperations<
                             z.object({
                                 field: z.string(),
                                 message: z.string(),
-                            }),
+                            })
                         )
                         .optional(),
-                }),
-            );
+                })
+            )
     }
 
     // ==================== Soft Delete Operations ====================
 
-    softDelete<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { pathSuffix?: string; idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const pathSuffix = options?.pathSuffix ?? "/soft";
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    softDelete<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: {
+        pathSuffix?: string
+        idSchema?: TIdSch
+        idFieldName?: TIdFieldName
+    }) {
+        const pathSuffix = options?.pathSuffix ?? '/soft'
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "DELETE",
+            method: 'DELETE',
             summary: `Soft delete ${this.entityName}`,
             description: `Mark ${this.entityName} as deleted without removing from database`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}${pathSuffix}`))
+            .input((b) =>
+                b.params((p) => p`/${p(idFieldName, idSchema)}${pathSuffix}`)
+            )
             .output(
                 z.object({
                     success: z.boolean(),
                     message: z.string().optional(),
-                }),
-            );
+                })
+            )
     }
 
-    batchSoftDelete<TIdSch extends z.ZodType = TIdSchema>(options?: { pathSuffix?: string; maxBatchSize?: number; idSchema?: TIdSch }) {
-        const pathSuffix = options?.pathSuffix ?? "/soft";
-        const maxSize = options?.maxBatchSize ?? 100;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    batchSoftDelete<TIdSch extends z.ZodType = TIdSchema>(options?: {
+        pathSuffix?: string
+        maxBatchSize?: number
+        idSchema?: TIdSch
+    }) {
+        const pathSuffix = options?.pathSuffix ?? '/soft'
+        const maxSize = options?.maxBatchSize ?? 100
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "DELETE",
+            method: 'DELETE',
             summary: `Batch soft delete ${this.entityName}s`,
             description: `Mark multiple ${this.entityName}s as deleted`,
         })
@@ -888,56 +1043,72 @@ export class ZodStandardOperations<
                 b.body(
                     z.object({
                         ids: z.array(idSchema).min(1).max(maxSize),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
                     deleted: z.number().int().min(0),
                     failed: z.array(z.string()).optional(),
-                }),
-            );
+                })
+            )
     }
 
-    archive<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    archive<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Archive ${this.entityName}`,
             description: `Soft delete (archive) a ${this.entityName}`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}/archive`))
+            .input((b) =>
+                b.params((p) => p`/${p(idFieldName, idSchema)}/archive`)
+            )
             .output(
                 z.object({
                     success: z.boolean(),
                     archivedAt: z.date(),
-                }),
-            );
+                })
+            )
     }
 
-    restore<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    restore<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Restore ${this.entityName}`,
             description: `Restore a soft-deleted ${this.entityName}`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}/restore`))
-            .output(this.entitySchema);
+            .input((b) =>
+                b.params((p) => p`/${p(idFieldName, idSchema)}/restore`)
+            )
+            .output(this.entitySchema)
     }
 
     // ==================== Advanced Operations ====================
 
-    clone<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    clone<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Clone ${this.entityName}`,
             description: `Create a duplicate of a ${this.entityName}`,
         })
@@ -947,18 +1118,22 @@ export class ZodStandardOperations<
                     .body(
                         z.object({
                             overrides: z.record(z.string(), z.any()).optional(),
-                        }),
-                    ),
+                        })
+                    )
             )
-            .output(this.entitySchema);
+            .output(this.entitySchema)
     }
 
-    history<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    history<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Get ${this.entityName} history`,
             description: `Get change history for a ${this.entityName}`,
         })
@@ -969,8 +1144,8 @@ export class ZodStandardOperations<
                         z.object({
                             limit: z.coerce.number().min(1).max(100).optional(),
                             cursor: z.string().optional(),
-                        }),
-                    ),
+                        })
+                    )
             )
             .output(
                 z.object({
@@ -978,27 +1153,32 @@ export class ZodStandardOperations<
                         z.object({
                             id: z.string(),
                             entityId: z.string(),
-                            action: z.enum(["created", "updated", "deleted", "restored"]),
+                            action: z.enum([
+                                'created',
+                                'updated',
+                                'deleted',
+                                'restored',
+                            ]),
                             changes: z.record(
                                 z.string(),
                                 z.object({
                                     old: z.any(),
                                     new: z.any(),
-                                }),
+                                })
                             ),
                             userId: z.string().optional(),
                             timestamp: z.date(),
-                        }),
+                        })
                     ),
                     hasMore: z.boolean(),
                     nextCursor: z.string().optional(),
-                }),
-            );
+                })
+            )
     }
 
     distinct(fieldName: string) {
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Get distinct ${fieldName} values`,
             description: `Get all unique values for ${fieldName} field`,
         })
@@ -1006,46 +1186,61 @@ export class ZodStandardOperations<
             .input(
                 z.object({
                     limit: z.coerce.number().min(1).max(1000).optional(),
-                }),
+                })
             )
             .output(
                 z.object({
                     values: z.array(z.any()),
                     total: z.number().int().min(0),
-                }),
-            );
+                })
+            )
     }
 
-    aggregate(options?: { functions?: Record<string, { op: "sum" | "avg" | "min" | "max" | "count"; field: string }>; groupBy?: readonly string[]; path?: HTTPPath }) {
-        const aggregatePath = options?.path ?? "/aggregate";
+    aggregate(options?: {
+        functions?: Record<
+            string,
+            { op: 'sum' | 'avg' | 'min' | 'max' | 'count'; field: string }
+        >
+        groupBy?: readonly string[]
+        path?: HTTPPath
+    }) {
+        const aggregatePath = options?.path ?? '/aggregate'
 
         const inputSchema = z.object({
             filters: z.record(z.string(), z.any()).optional(),
-        });
+        })
 
         const outputSchema = options?.groupBy
             ? z.object({
                   groups: z.array(z.record(z.string(), z.any())),
                   total: z.number().optional(),
               })
-            : z.object(Object.fromEntries(Object.entries(options?.functions ?? { count: { op: "count", field: "id" } }).map(([key]) => [key, z.number()])));
+            : z.object(
+                  Object.fromEntries(
+                      Object.entries(
+                          options?.functions ?? {
+                              count: { op: 'count', field: 'id' },
+                          }
+                      ).map(([key]) => [key, z.number()])
+                  )
+              )
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Aggregate ${this.entityName}s`,
             description: `Perform aggregation operations (sum, avg, min, max, count) on ${this.entityName}s with optional grouping`,
         })
             .path(aggregatePath)
             .input((b) => b.body(inputSchema))
-            .output(outputSchema);
+            .output(outputSchema)
     }
 
     export(options?: { formats?: readonly string[]; path?: HTTPPath }) {
-        const formats = options?.formats ?? ["csv", "json", "xml"];
-        const exportPath = options?.path ?? "/export";
+        const formats = options?.formats ?? ['csv', 'json', 'xml']
+        const exportPath = options?.path ?? '/export'
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Export ${this.entityName}s`,
             description: `Export ${this.entityName}s in various formats`,
         })
@@ -1057,25 +1252,29 @@ export class ZodStandardOperations<
                         filters: z.record(z.string(), z.any()).optional(),
                         fields: z.array(z.string()).optional(),
                         limit: z.number().int().min(1).optional(),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
                     filename: z.string(),
                     contentType: z.string(),
                     size: z.number().int().min(0),
-                }),
-            );
+                })
+            )
     }
 
-    import(options?: { formats?: readonly string[]; maxRecords?: number; path?: HTTPPath }) {
-        const formats = options?.formats ?? ["csv", "json", "xml"];
-        const maxRecords = options?.maxRecords ?? 10000;
-        const importPath = options?.path ?? "/import";
+    import(options?: {
+        formats?: readonly string[]
+        maxRecords?: number
+        path?: HTTPPath
+    }) {
+        const formats = options?.formats ?? ['csv', 'json', 'xml']
+        const maxRecords = options?.maxRecords ?? 10000
+        const importPath = options?.path ?? '/import'
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Import ${this.entityName}s`,
             description: `Bulk import ${this.entityName}s from file. Max ${String(maxRecords)} records.`,
         })
@@ -1092,8 +1291,8 @@ export class ZodStandardOperations<
                                 dryRun: z.boolean().optional(),
                             })
                             .optional(),
-                    }),
-                ),
+                    })
+                )
             )
             .output(
                 z.object({
@@ -1106,27 +1305,27 @@ export class ZodStandardOperations<
                                 row: z.number().int().min(0),
                                 error: z.string(),
                                 data: z.record(z.string(), z.any()).optional(),
-                            }),
+                            })
                         )
                         .optional(),
                     dryRun: z.boolean().optional(),
-                }),
-            );
+                })
+            )
     }
 
     healthCheck(options?: { includeDependencies?: boolean; path?: HTTPPath }) {
-        const healthPath = options?.path ?? "/health";
+        const healthPath = options?.path ?? '/health'
 
         return this.createBuilder({
-            method: "GET",
-            summary: "Health check",
+            method: 'GET',
+            summary: 'Health check',
             description: `Health check endpoint for ${this.entityName} service`,
         })
             .path(healthPath)
             .input(z.object({}))
             .output(
                 z.object({
-                    status: z.enum(["healthy", "degraded", "unhealthy"]),
+                    status: z.enum(['healthy', 'degraded', 'unhealthy']),
                     uptime: z.number().int().min(0),
                     timestamp: z.date(),
                     version: z.string().optional(),
@@ -1134,22 +1333,26 @@ export class ZodStandardOperations<
                         .record(
                             z.string(),
                             z.object({
-                                status: z.enum(["healthy", "degraded", "unhealthy"]),
+                                status: z.enum([
+                                    'healthy',
+                                    'degraded',
+                                    'unhealthy',
+                                ]),
                                 latency: z.number().optional(),
                                 message: z.string().optional(),
-                            }),
+                            })
                         )
                         .optional(),
-                }),
-            );
+                })
+            )
     }
 
-    metrics(options?: { format?: "json" | "prometheus"; path?: HTTPPath }) {
-        const metricsPath = options?.path ?? "/metrics";
-        const format = options?.format ?? "json";
+    metrics(options?: { format?: 'json' | 'prometheus'; path?: HTTPPath }) {
+        const metricsPath = options?.path ?? '/metrics'
+        const format = options?.format ?? 'json'
 
         const outputSchema =
-            format === "json"
+            format === 'json'
                 ? z.object({
                       counters: z.record(z.string(), z.number()).optional(),
                       gauges: z.record(z.string(), z.number()).optional(),
@@ -1162,176 +1365,236 @@ export class ZodStandardOperations<
                                   min: z.number(),
                                   max: z.number(),
                                   avg: z.number(),
-                              }),
+                              })
                           )
                           .optional(),
                   })
-                : z.string();
+                : z.string()
 
         return this.createBuilder({
-            method: "GET",
-            summary: "Service metrics",
+            method: 'GET',
+            summary: 'Service metrics',
             description: `Expose service metrics for ${this.entityName} operations`,
         })
             .path(metricsPath)
             .input(z.object({}))
-            .output(outputSchema);
+            .output(outputSchema)
     }
 
     // ==================== Streaming Operations ====================
 
-    streamingRead<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
+    streamingRead<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
 
         const builder = this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Streaming ${this.entityName} by ID`,
             description: `Real-time streaming of a specific ${this.entityName} via EventIterator`,
-        })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}/streaming`));
-        
+        }).input((b) =>
+            b.params((p) => p`/${p(idFieldName, idSchema)}/streaming`)
+        )
+
         // Type assertion needed: streamed outputs don't perfectly infer through output() overloads
-        return builder.output(b => b.streamed(this.entitySchema));
+        return builder.output((b) => b.streamed(this.entitySchema))
     }
 
-    streamingList(options?: (ZodListOperationOptions & { path?: HTTPPath }) | (BaseListPlainOptions & { path?: HTTPPath })) {
-        const listOptions = options && "path" in options
-            ? (() => {
-                 
-                const { path: _path, ...rest } = options;
-                return Object.keys(rest).length > 0 ? rest : undefined;
-            })()
-            : options;
+    streamingList(
+        options?:
+            | (ZodListOperationOptions & { path?: HTTPPath })
+            | (BaseListPlainOptions & { path?: HTTPPath })
+    ) {
+        const listOptions =
+            options && 'path' in options
+                ? (() => {
+                      const { path: _path, ...rest } = options
+                      return Object.keys(rest).length > 0 ? rest : undefined
+                  })()
+                : options
 
-        const streamPath = options?.path ?? "/streaming";
+        const streamPath = options?.path ?? '/streaming'
 
-        const buildResponse = <TConfig extends QueryConfig>(queryBuilder: QueryBuilder<TConfig>) => {
-            const inputSchema = queryBuilder.buildInputSchema();
-            const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema);
+        const buildResponse = <TConfig extends QueryConfig>(
+            queryBuilder: QueryBuilder<TConfig>
+        ) => {
+            const inputSchema = queryBuilder.buildInputSchema()
+            const outputSchema = queryBuilder.buildOutputSchema(
+                this.entitySchema
+            )
 
             const builder = this.createBuilder({
-                method: "GET",
+                method: 'GET',
                 summary: `Streaming ${this.entityName}s list`,
                 description: `Real-time streaming list of ${this.entityName}s via EventIterator`,
             })
                 .path(streamPath)
-                .input(z.object({ query: inputSchema.optional() }));
-            
-            return builder.output((b) => b.streamed(outputSchema));
-        };
+                .input(z.object({ query: inputSchema.optional() }))
+
+            return builder.output((b) => b.streamed(outputSchema))
+        }
 
         if (!listOptions) {
-            return buildResponse(this.buildZodQueryBuilder());
+            return buildResponse(this.buildZodQueryBuilder())
         }
 
         if (this.isQueryConfig(listOptions)) {
-            return buildResponse(this.buildZodQueryBuilder(listOptions));
+            return buildResponse(this.buildZodQueryBuilder(listOptions))
         }
 
         if (this.isPlainListOptions(listOptions)) {
-            return buildResponse(this.buildZodQueryBuilder(listOptions));
+            return buildResponse(this.buildZodQueryBuilder(listOptions))
         }
 
-        return buildResponse(this.buildZodQueryBuilder());
+        return buildResponse(this.buildZodQueryBuilder())
     }
 
     streamingSearch<
         TOptions extends
             | {
-                  searchFields?: readonly string[];
-                  pagination?: z.ZodType | SchemaWithConfig<unknown> | ZodSchemaWithConfig<Partial<PaginationConfig>> | { defaultLimit?: number; maxLimit?: number };
+                  searchFields?: readonly string[]
+                  pagination?:
+                      | z.ZodType
+                      | SchemaWithConfig<unknown>
+                      | ZodSchemaWithConfig<Partial<PaginationConfig>>
+                      | { defaultLimit?: number; maxLimit?: number }
               }
-            | undefined = undefined
+            | undefined = undefined,
     >(options?: TOptions) {
-        let queryBuilder = createQueryBuilder();
+        let queryBuilder = createQueryBuilder()
 
         if (options?.searchFields && options.searchFields.length > 0) {
             queryBuilder = queryBuilder.withSearch(
                 createSearchConfigSchema(options.searchFields, {
                     minQueryLength: 1,
                     allowFieldSelection: true,
-                }),
-            );
+                })
+            )
         }
 
         if (options?.pagination) {
             if (this.isConfigSchema(options.pagination)) {
                 // Type assertion: in Zod context, config schemas are always ZodSchemaWithConfig
-                const schema = options.pagination as unknown;
-                const paginationConfig = schema as ZodSchemaWithConfig<Partial<PaginationConfig>>;
-                queryBuilder = queryBuilder.withPagination(paginationConfig);
+                const schema = options.pagination as unknown
+                const paginationConfig = schema as ZodSchemaWithConfig<
+                    Partial<PaginationConfig>
+                >
+                queryBuilder = queryBuilder.withPagination(paginationConfig)
             } else {
-                queryBuilder = queryBuilder.withPagination(createPaginationConfigSchema(options.pagination as { defaultLimit?: number; maxLimit?: number }));
+                queryBuilder = queryBuilder.withPagination(
+                    createPaginationConfigSchema(
+                        options.pagination as {
+                            defaultLimit?: number
+                            maxLimit?: number
+                        }
+                    )
+                )
             }
         } else {
-            queryBuilder = queryBuilder.withPagination(createPaginationConfigSchema({ defaultLimit: 20, maxLimit: 100 }));
+            queryBuilder = queryBuilder.withPagination(
+                createPaginationConfigSchema({
+                    defaultLimit: 20,
+                    maxLimit: 100,
+                })
+            )
         }
 
-        const inputSchema = queryBuilder.buildInputSchema();
-        const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema);
+        const inputSchema = queryBuilder.buildInputSchema()
+        const outputSchema = queryBuilder.buildOutputSchema(this.entitySchema)
 
         const builder = this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Streaming search ${this.entityName}s`,
             description: `Real-time streaming search for ${this.entityName}s`,
         })
-            .path("/search/streaming")
-            .input(z.object({ query: inputSchema.optional() }));
-        
-        return builder.output(b => b.streamed(outputSchema));
+            .path('/search/streaming')
+            .input(z.object({ query: inputSchema.optional() }))
+
+        return builder.output((b) => b.streamed(outputSchema))
     }
 
-    streamedInput<TChunkSchema extends z.ZodType = TEntity>(options?: { chunkSchema?: TChunkSchema; path?: HTTPPath; outputSchema?: z.ZodType }) {
-        const chunkSchema = (options?.chunkSchema ?? this.entitySchema) as TChunkSchema;
-        const streamPath = (options?.path ?? "/stream-upload");
+    streamedInput<TChunkSchema extends z.ZodType = TEntity>(options?: {
+        chunkSchema?: TChunkSchema
+        path?: HTTPPath
+        outputSchema?: z.ZodType
+    }) {
+        const chunkSchema = (options?.chunkSchema ??
+            this.entitySchema) as TChunkSchema
+        const streamPath = options?.path ?? '/stream-upload'
 
         const defaultOutputSchema = z.object({
             success: z.boolean(),
             processed: z.number().int().min(0),
             message: z.string().optional(),
-        });
+        })
 
-        const outputSchema = options?.outputSchema ?? defaultOutputSchema;
+        const outputSchema = options?.outputSchema ?? defaultOutputSchema
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Stream upload ${this.entityName}s`,
             description: `Upload ${this.entityName}s via streaming input (EventIterator)`,
         })
             .path(streamPath)
             .input((i) => i.body.streamed(chunkSchema))
-            .output(outputSchema);
+            .output(outputSchema)
     }
 
-    websocket<TInputChunk extends z.ZodType = TEntity, TOutputChunk extends z.ZodType = TEntity>(options?: { inputChunkSchema?: TInputChunk; outputChunkSchema?: TOutputChunk; path?: HTTPPath }) {
-        const inputChunkSchema = (options?.inputChunkSchema ?? this.entitySchema) as TInputChunk;
-        const outputChunkSchema = (options?.outputChunkSchema ?? this.entitySchema) as TOutputChunk;
-        const wsPath = (options?.path ?? "/ws");
+    websocket<
+        TInputChunk extends z.ZodType = TEntity,
+        TOutputChunk extends z.ZodType = TEntity,
+    >(options?: {
+        inputChunkSchema?: TInputChunk
+        outputChunkSchema?: TOutputChunk
+        path?: HTTPPath
+    }) {
+        const inputChunkSchema = (options?.inputChunkSchema ??
+            this.entitySchema) as TInputChunk
+        const outputChunkSchema = (options?.outputChunkSchema ??
+            this.entitySchema) as TOutputChunk
+        const wsPath = options?.path ?? '/ws'
 
         const builder = this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `WebSocket ${this.entityName}s`,
             description: `Bidirectional streaming for ${this.entityName}s via EventIterator`,
         })
             .path(wsPath)
-            .input((i) => i.body.streamed(inputChunkSchema));
-        
+            .input((i) => i.body.streamed(inputChunkSchema))
+
         // Type assertion needed: streamed outputs don't perfectly infer through output() overloads
-        return builder.output(b => b.streamed(outputChunkSchema));
+        return builder.output((b) => b.streamed(outputChunkSchema))
     }
 
-    bidirectional<TInputChunk extends z.ZodType = TEntity, TOutputChunk extends z.ZodType = TEntity>(options?: { inputChunkSchema?: TInputChunk; outputChunkSchema?: TOutputChunk; path?: HTTPPath }) {
-        return this.websocket<TInputChunk, TOutputChunk>(options);
+    bidirectional<
+        TInputChunk extends z.ZodType = TEntity,
+        TOutputChunk extends z.ZodType = TEntity,
+    >(options?: {
+        inputChunkSchema?: TInputChunk
+        outputChunkSchema?: TOutputChunk
+        path?: HTTPPath
+    }) {
+        return this.websocket<TInputChunk, TOutputChunk>(options)
     }
 
-    streamFile<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options?: { idSchema?: TIdSch; idFieldName?: TIdFieldName; path?: HTTPPath }) {
-        const idFieldName = (options?.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch;
-        const pathSuffix = options?.path ?? "/stream";
+    streamFile<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options?: {
+        idSchema?: TIdSch
+        idFieldName?: TIdFieldName
+        path?: HTTPPath
+    }) {
+        const idFieldName = (options?.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options?.idSchema ?? this.idSchema) as TIdSch
+        const pathSuffix = options?.path ?? '/stream'
 
         return this.createBuilder({
-            method: "GET",
+            method: 'GET',
             summary: `Stream ${this.entityName} file`,
             description: `Stream ${this.entityName} file with HTTP Range header support`,
         })
@@ -1341,21 +1604,21 @@ export class ZodStandardOperations<
                     .query(
                         z.object({
                             range: z.string().optional(),
-                            "if-range": z.string().optional(),
-                        }),
-                    ),
+                            'if-range': z.string().optional(),
+                        })
+                    )
             )
             .output(
                 z.object({
                     content: z.string(),
                     contentType: z.string(),
                     contentLength: z.number().int().min(0),
-                    acceptRanges: z.literal("bytes").optional(),
+                    acceptRanges: z.literal('bytes').optional(),
                     contentRange: z.string().optional(),
                     etag: z.string().optional(),
                     lastModified: z.string().optional(),
-                }),
-            );
+                })
+            )
     }
 
     // ==================== Zod-Specific Methods ====================
@@ -1369,71 +1632,101 @@ export class ZodStandardOperations<
      *
      * @param options.overrideFields - Entity fields that can be customized in the clone
      */
-    cloneWithOverrides<TIdFieldName extends string = TIdField, TIdSch extends z.ZodType = TIdSchema>(options: {
-        idSchema?: TIdSch;
-        idFieldName?: TIdFieldName;
-        overrideFields: readonly (keyof z.infer<TEntity>)[];
+    cloneWithOverrides<
+        TIdFieldName extends string = TIdField,
+        TIdSch extends z.ZodType = TIdSchema,
+    >(options: {
+        idSchema?: TIdSch
+        idFieldName?: TIdFieldName
+        overrideFields: readonly (keyof z.infer<TEntity>)[]
     }) {
-        const idFieldName = (options.idFieldName ?? this.idField) as TIdFieldName;
-        const idSchema = (options.idSchema ?? this.idSchema) as TIdSch;
+        const idFieldName = (options.idFieldName ??
+            this.idField) as TIdFieldName
+        const idSchema = (options.idSchema ?? this.idSchema) as TIdSch
 
         // Build overrides object from entity shape
-        const overrideShape: Record<string, z.ZodType> = {};
-        const shape = this.requireEntityObjectShape("cloneWithOverrides");
+        const overrideShape: Record<string, z.ZodType> = {}
+        const shape = this.requireEntityObjectShape('cloneWithOverrides')
 
         for (const key of options.overrideFields) {
-            const fieldSchema = shape[key as string];
+            const fieldSchema = shape[key as string]
             if (fieldSchema) {
-                overrideShape[key as string] = (fieldSchema as z.ZodType).optional();
+                overrideShape[key as string] = (
+                    fieldSchema as z.ZodType
+                ).optional()
             }
         }
 
-        const bodySchema = Object.keys(overrideShape).length > 0 ? z.object({ overrides: z.object(overrideShape).optional() }) : z.object({});
+        const bodySchema =
+            Object.keys(overrideShape).length > 0
+                ? z.object({ overrides: z.object(overrideShape).optional() })
+                : z.object({})
 
         return this.createBuilder({
-            method: "POST",
+            method: 'POST',
             summary: `Clone ${this.entityName}`,
             description: `Create a duplicate of a ${this.entityName}`,
         })
-            .input((b) => b.params((p) => p`/${p(idFieldName, idSchema)}/clone`).body(bodySchema))
-            .output(this.entitySchema);
+            .input((b) =>
+                b
+                    .params((p) => p`/${p(idFieldName, idSchema)}/clone`)
+                    .body(bodySchema)
+            )
+            .output(this.entitySchema)
     }
 }
 
 /**
  * Factory function to create ZodStandardOperations
  */
-export function createZodStandardOperations<TEntity extends ZodEntitySchema, TIdField extends string = "id", TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>>(
-    options: ZodEntityOperationOptions<TEntity, TIdField, TIdSchema>,
+export function createZodStandardOperations<
+    TEntity extends ZodEntitySchema,
+    TIdField extends string = 'id',
+    TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>,
+>(
+    options: ZodEntityOperationOptions<TEntity, TIdField, TIdSchema>
 ): ZodStandardOperations<TEntity, TIdField, TIdSchema> {
-    return new ZodStandardOperations(options);
+    return new ZodStandardOperations(options)
 }
 
 /**
  * Shorthand factory for ZodStandardOperations
  */
-export function zodStandard<TEntity extends ZodEntitySchema, TIdField extends string = "id", TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>>(
+export function zodStandard<
+    TEntity extends ZodEntitySchema,
+    TIdField extends string = 'id',
+    TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>,
+>(
     entitySchema: TEntity,
     entityName: string,
-    options?: Omit<ZodEntityOperationOptions<TEntity, TIdField, TIdSchema>, "entitySchema" | "entityName">,
-): ZodStandardOperations<TEntity, TIdField, TIdSchema>;
+    options?: Omit<
+        ZodEntityOperationOptions<TEntity, TIdField, TIdSchema>,
+        'entitySchema' | 'entityName'
+    >
+): ZodStandardOperations<TEntity, TIdField, TIdSchema>
 
 export function zodStandard(
     entitySchema: z.ZodType,
     entityName: string,
-    options?: Omit<ZodEntityOperationOptions<ZodEntitySchema, string>, "entitySchema" | "entityName">,
-): ZodStandardOperations<ZodEntitySchema, string, z.ZodType>;
+    options?: Omit<
+        ZodEntityOperationOptions<ZodEntitySchema, string>,
+        'entitySchema' | 'entityName'
+    >
+): ZodStandardOperations<ZodEntitySchema, string, z.ZodType>
 
 export function zodStandard(
     entitySchema: z.ZodType,
     entityName: string,
-    options?: Omit<ZodEntityOperationOptions<ZodEntitySchema, string>, "entitySchema" | "entityName">,
+    options?: Omit<
+        ZodEntityOperationOptions<ZodEntitySchema, string>,
+        'entitySchema' | 'entityName'
+    >
 ): ZodStandardOperations<ZodEntitySchema, string, z.ZodType> {
     return new ZodStandardOperations({
         entitySchema: entitySchema as unknown as ZodEntitySchema,
         entityName,
         ...(options ?? {}),
-    });
+    })
 }
 
 /**
@@ -1441,15 +1734,18 @@ export function zodStandard(
  *
  * Uses Zod-specific config schema factories.
  */
-export function createZodListOptions<TSortFields extends readonly string[], TFilterFields extends Record<string, FieldFilterConfig>>(options: {
-    sortableFields?: TSortFields;
-    defaultSortField?: TSortFields[number];
-    filterableFields?: TFilterFields;
-    searchableFields?: readonly string[];
-    defaultLimit?: number;
-    maxLimit?: number;
+export function createZodListOptions<
+    TSortFields extends readonly string[],
+    TFilterFields extends Record<string, FieldFilterConfig>,
+>(options: {
+    sortableFields?: TSortFields
+    defaultSortField?: TSortFields[number]
+    filterableFields?: TFilterFields
+    searchableFields?: readonly string[]
+    defaultLimit?: number
+    maxLimit?: number
 }): ZodListOperationOptions {
-    const result: ZodListOperationOptions = {};
+    const result: ZodListOperationOptions = {}
 
     if (options.sortableFields && options.sortableFields.length > 0) {
         result.pagination = createPaginationConfigSchema({
@@ -1457,28 +1753,28 @@ export function createZodListOptions<TSortFields extends readonly string[], TFil
             maxLimit: options.maxLimit ?? 100,
             includeOffset: true,
             includePage: true,
-        });
+        })
 
         result.sorting = createSortingConfigSchema(options.sortableFields, {
             defaultField: options.defaultSortField,
-        });
+        })
     }
 
     if (options.filterableFields) {
-        result.filtering = createFilteringConfigSchema(options.filterableFields);
+        result.filtering = createFilteringConfigSchema(options.filterableFields)
     }
 
     if (options.searchableFields && options.searchableFields.length > 0) {
-        result.search = createSearchConfigSchema(options.searchableFields);
+        result.search = createSearchConfigSchema(options.searchableFields)
     }
 
-    return result;
+    return result
 }
 
 // Namespace export for backward compatibility with tests
 export const standard = {
     zod: zodStandard,
-};
+}
 
 // Also export Standard Operations class with old name
-export { ZodStandardOperations as StandardOperations };
+export { ZodStandardOperations as StandardOperations }

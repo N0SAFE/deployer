@@ -1,9 +1,12 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { dockerRuntimeCatalogSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { dockerRuntimeCatalogSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const dockerRuntimeCatalogOps = standard.zod(dockerRuntimeCatalogSchema, "dockerRuntimeCatalog");
+const dockerRuntimeCatalogOps = standard.zod(
+    dockerRuntimeCatalogSchema,
+    'dockerRuntimeCatalog'
+)
 
 /**
  * Query input for the runtime snapshot.
@@ -18,14 +21,23 @@ const dockerRuntimeCatalogOps = standard.zod(dockerRuntimeCatalogSchema, "docker
 export const dockerRuntimeSnapshotQuerySchema = z.object({
     /** Restrict the snapshot to these entity kinds. Omit for all of them. */
     include: z
-        .array(z.enum(["containers", "images", "networks", "volumes", "registries", "stacks"]))
+        .array(
+            z.enum([
+                'containers',
+                'images',
+                'networks',
+                'volumes',
+                'registries',
+                'stacks',
+            ])
+        )
         .optional(),
-});
+})
 
 export const dockerRuntimeSnapshotContract = dockerRuntimeCatalogOps
-  .list()
-  .path("/snapshot")
-  .input((b) => b.query(dockerRuntimeSnapshotQuerySchema))
-  .output((b) => b.body(dockerRuntimeCatalogSchema))
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+    .list()
+    .path('/snapshot')
+    .input((b) => b.query(dockerRuntimeSnapshotQuerySchema))
+    .output((b) => b.body(dockerRuntimeCatalogSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()

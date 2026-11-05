@@ -4,13 +4,13 @@
 // nothing else, so the contract cannot drift from the implementation. The BFF
 // composes this into its public router.
 
-export * from "./modules/deployment";
-export * from "./modules/docker";
+export * from './modules/deployment'
+export * from './modules/docker'
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { deploymentContract } from "./modules/deployment";
-import { dockerContract } from "./modules/docker";
+import { deploymentContract } from './modules/deployment'
+import { dockerContract } from './modules/docker'
 
 /**
  * The WHOLE runtime service, as one contract.
@@ -25,8 +25,8 @@ import { dockerContract } from "./modules/docker";
  * (`runtime.user.findById`) stays valid and matches the HTTP route.
  */
 export const runtimeContract = oc.router({
-	deployment: deploymentContract,
-	docker: dockerContract,
-});
+    deployment: deploymentContract,
+    docker: dockerContract,
+})
 
-export type RuntimeContract = typeof runtimeContract;
+export type RuntimeContract = typeof runtimeContract

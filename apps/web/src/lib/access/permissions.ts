@@ -16,11 +16,11 @@ import { usePlatformRoleValue } from './platform-role'
  * button is not a security control.
  */
 export function useCapabilities(): readonly Permission[] {
-	const role = usePlatformRoleValue()
-	return role === null ? [] : capabilitiesOfRole(role)
+    const role = usePlatformRoleValue()
+    return role === null ? [] : capabilitiesOfRole(role)
 }
 
 /** Whether the signed-in user holds a permission. Unknown roles hold nothing. */
 export function useCan(permission: Permission): boolean {
-	return can(useCapabilities(), permission)
+    return can(useCapabilities(), permission)
 }

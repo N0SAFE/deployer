@@ -4,23 +4,23 @@
 // nothing else, so the contract cannot drift from the implementation. The BFF
 // composes this into its public router.
 
-export * from "./modules/cluster";
-export * from "./modules/events";
-export * from "./modules/mesh";
-export * from "./modules/nodes";
-export * from "./modules/platform";
-export * from "./modules/provider-schema";
-export * from "./modules/providers";
-export * from "./modules/reachability";
+export * from './modules/cluster'
+export * from './modules/events'
+export * from './modules/mesh'
+export * from './modules/nodes'
+export * from './modules/platform'
+export * from './modules/provider-schema'
+export * from './modules/providers'
+export * from './modules/reachability'
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { clusterContract } from "./modules/cluster";
-import { nodesContract } from "./modules/nodes";
-import { platformContract } from "./modules/platform";
-import { providerSchemaContract } from "./modules/provider-schema";
-import { providersContract } from "./modules/providers";
-import { reachabilityContract } from "./modules/reachability";
+import { clusterContract } from './modules/cluster'
+import { nodesContract } from './modules/nodes'
+import { platformContract } from './modules/platform'
+import { providerSchemaContract } from './modules/provider-schema'
+import { providersContract } from './modules/providers'
+import { reachabilityContract } from './modules/reachability'
 
 /**
  * The WHOLE fleet service, as one contract.
@@ -35,12 +35,12 @@ import { reachabilityContract } from "./modules/reachability";
  * (`fleet.user.findById`) stays valid and matches the HTTP route.
  */
 export const fleetServiceContract = oc.router({
-	cluster: clusterContract,
-	nodes: nodesContract,
-	platform: platformContract,
-	providerSchema: providerSchemaContract,
-	providers: providersContract,
-	reachability: reachabilityContract,
-});
+    cluster: clusterContract,
+    nodes: nodesContract,
+    platform: platformContract,
+    providerSchema: providerSchemaContract,
+    providers: providersContract,
+    reachability: reachabilityContract,
+})
 
-export type FleetServiceContract = typeof fleetServiceContract;
+export type FleetServiceContract = typeof fleetServiceContract

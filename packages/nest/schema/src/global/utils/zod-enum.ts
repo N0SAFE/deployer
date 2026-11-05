@@ -1,13 +1,18 @@
-import { AppError } from "@deployer/errors";
+import { AppError } from '@deployer/errors'
 type EnumLike<T extends string> = {
-  options: readonly T[] | T[]
+    options: readonly T[] | T[]
 }
 
-export function zodEnumToPgEnumValues<T extends string>(schema: EnumLike<T>): [T, ...T[]] {
-  const values = [...schema.options]
-  if (values.length === 0) {
-    throw new AppError('zodEnumToPgEnumValues requires at least one enum value', 'INTERNAL_ERROR')
-  }
+export function zodEnumToPgEnumValues<T extends string>(
+    schema: EnumLike<T>
+): [T, ...T[]] {
+    const values = [...schema.options]
+    if (values.length === 0) {
+        throw new AppError(
+            'zodEnumToPgEnumValues requires at least one enum value',
+            'INTERNAL_ERROR'
+        )
+    }
 
-  return values as [T, ...T[]]
+    return values as [T, ...T[]]
 }

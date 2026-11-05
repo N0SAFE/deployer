@@ -12,40 +12,44 @@ import z from 'zod/v4'
  */
 
 export const projectFilterSchema = z.object({
-  // Core text search
-  search: z.string().default(''),
+    // Core text search
+    search: z.string().default(''),
 
-  // Enums with safe defaults
-  status: z.enum(['all', 'active', 'inactive']).default('all'),
-  risk: z.enum(['all', 'at-risk', 'healthy']).default('all'),
+    // Enums with safe defaults
+    status: z.enum(['all', 'active', 'inactive']).default('all'),
+    risk: z.enum(['all', 'at-risk', 'healthy']).default('all'),
 
-  // String filters — "all" means no filter
-  env: z.string().default('all'),
-  runtime: z.string().default('all'),
-  type: z.string().default('all'),
-  provider: z.string().default('all'),
-  runner: z.string().default('all'),
+    // String filters — "all" means no filter
+    env: z.string().default('all'),
+    runtime: z.string().default('all'),
+    type: z.string().default('all'),
+    provider: z.string().default('all'),
+    runner: z.string().default('all'),
 
-  // Quick-tag filters (multi-select via array)
-  tags: z.array(z.string()).default([]),
+    // Quick-tag filters (multi-select via array)
+    tags: z.array(z.string()).default([]),
 
-  // Advanced filter logic connector
-  fl: z.enum(['_and', '_or']).default('_and'),
+    // Advanced filter logic connector
+    fl: z.enum(['_and', '_or']).default('_and'),
 
-  // Advanced filter rules as JSON string (URL fallback for small payloads)
-  // Primary storage is session storage; URL is best-effort for shareability
-  ar: z.string().optional(),
+    // Advanced filter rules as JSON string (URL fallback for small payloads)
+    // Primary storage is session storage; URL is best-effort for shareability
+    ar: z.string().optional(),
 
-  // Tab selection
-  tab: z.enum(['overview', 'dependencies', 'deployments']).default('overview'),
+    // Tab selection
+    tab: z
+        .enum(['overview', 'dependencies', 'deployments'])
+        .default('overview'),
 })
 
 /** Filter schema for the Deployments tab (URL-synced). Statuses match the contract; "in-progress" groups pending/queued/building/deploying. */
 export const deploymentFilterSchema = z.object({
-  status: z.enum(['all', 'in-progress', 'success', 'failed', 'cancelled']).default('all'),
-  environment: z.string().default('all'),
-  service: z.string().default('all'),
-  q: z.string().default(''),
+    status: z
+        .enum(['all', 'in-progress', 'success', 'failed', 'cancelled'])
+        .default('all'),
+    environment: z.string().default('all'),
+    service: z.string().default('all'),
+    q: z.string().default(''),
 })
 
 export type ProjectFilterParams = z.infer<typeof projectFilterSchema>

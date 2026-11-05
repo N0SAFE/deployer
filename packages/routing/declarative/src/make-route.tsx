@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Declarative Routing - Route Builder Factory
- * 
+ *
  * This module provides type-safe route builders for Next.js applications.
  * Based on: https://www.flightcontrol.dev/blog/fix-nextjs-routing-to-have-full-type-safety
- * 
+ *
  * The factory pattern allows injection of:
  * - Page wrapper implementations (server vs client)
  * - Session handling implementations
@@ -31,7 +31,6 @@ import type {
 } from '@deployer/declarative-routing/types'
 
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
-
 
 // ============================================================================
 // Constants
@@ -64,9 +63,8 @@ type RouteBuilderWithSessionPages = {
  * which poisons intersections (e.g., children: ReactNode becomes never). This conditional
  * removes the index-signature when there are no params so React props work as expected.
  */
-type ParamProps<P extends z.ZodType> = z.input<P> extends Record<string, never>
-    ? object
-    : z.input<P>
+type ParamProps<P extends z.ZodType> =
+    z.input<P> extends Record<string, never> ? object : z.input<P>
 
 /**
  * Core route elements shared by all route builders.
@@ -88,10 +86,13 @@ export type PageComponent<
     Params extends z.ZodType,
     Search extends z.ZodType,
     AdditionalProps extends object = object,
-> = React.ComponentType<{
-    params: Promise<z.output<Params>>
-    searchParams: Promise<z.output<Search>>
-} & BasePageProps & AdditionalProps>
+> = React.ComponentType<
+    {
+        params: Promise<z.output<Params>>
+        searchParams: Promise<z.output<Search>>
+    } & BasePageProps &
+        AdditionalProps
+>
 
 /**
  * Unwrapped page component type (what developers write).
@@ -128,22 +129,22 @@ export type RouteBuilder<
      * Build URL from params and search.
      */
     (p?: z.input<Params>, search?: z.input<Search>): string
-    
+
     /**
      * Build URL - explicit method version.
      */
     buildUrl: (p?: z.input<Params>, search?: z.input<Search>) => string
-    
+
     /**
      * Route path pattern (e.g., "/products/[id]").
      */
     routePath: RoutePath
-    
+
     /**
      * Route name for debugging.
      */
     routeName: string
-    
+
     /**
      * Additional route info.
      */
@@ -167,7 +168,7 @@ export type RouteBuilder<
                 search?: z.input<Search>
             } & { children?: React.ReactNode }
     >
-    
+
     /**
      * Type-safe Link component with params as nested object.
      */
@@ -195,17 +196,35 @@ export type RouteBuilder<
     /**
      * Session Page wrapper - fetches/hydrates session.
      */
-    SessionPage: <AdditionalProps extends object = object, S extends Session = Session>(
-        component: UnwrappedPageComponent<Params, Search, AdditionalProps & { session: S | null }>,
+    SessionPage: <
+        AdditionalProps extends object = object,
+        S extends Session = Session,
+    >(
+        component: UnwrappedPageComponent<
+            Params,
+            Search,
+            AdditionalProps & { session: S | null }
+        >,
         options?: SessionOptions
     ) => PageComponent<Params, Search, Omit<AdditionalProps, 'session'>>
 
     /**
      * Client Session Page wrapper - uses useSession hook.
      */
-    ClientSessionPage: <AdditionalProps extends object = object, S extends Session = Session>(
-        component: UnwrappedPageComponent<Params, Search, AdditionalProps & ClientSessionInjectedProps<S>>
-    ) => PageComponent<Params, Search, Omit<AdditionalProps, keyof ClientSessionInjectedProps>>
+    ClientSessionPage: <
+        AdditionalProps extends object = object,
+        S extends Session = Session,
+    >(
+        component: UnwrappedPageComponent<
+            Params,
+            Search,
+            AdditionalProps & ClientSessionInjectedProps<S>
+        >
+    ) => PageComponent<
+        Params,
+        Search,
+        Omit<AdditionalProps, keyof ClientSessionInjectedProps>
+    >
 
     // Validation helpers
     validateParams: (params: unknown) => z.output<Params>
@@ -280,7 +299,8 @@ export type PutRouteBuilder<
 export type DeleteRouteBuilder<Params extends z.ZodType> = CoreRouteElements<
     Params,
     z.ZodType
-> & ((p?: z.input<Params>, options?: FetchOptions) => Promise<void>)
+> &
+    ((p?: z.input<Params>, options?: FetchOptions) => Promise<void>)
 
 // ============================================================================
 // Factory Configuration
@@ -297,26 +317,36 @@ export type PageWrapperFactory = {
         AdditionalProps extends object = object,
     >(
         schemas: SchemasConfig<Params, Search>,
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+        Component: React.ComponentType<
+            UnwrappedPageProps<Params, Search> & AdditionalProps
+        >,
         runtime?: RouteRuntimeConfig<Params, Search>
-    ) => React.ComponentType<{
-        params: Promise<z.output<Params>>
-        searchParams: Promise<z.output<Search>>
-    } & BasePageProps & AdditionalProps>
-    
+    ) => React.ComponentType<
+        {
+            params: Promise<z.output<Params>>
+            searchParams: Promise<z.output<Search>>
+        } & BasePageProps &
+            AdditionalProps
+    >
+
     createClientPage: <
         Params extends z.ZodType,
         Search extends z.ZodType,
         AdditionalProps extends object = object,
     >(
         schemas: SchemasConfig<Params, Search>,
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+        Component: React.ComponentType<
+            UnwrappedPageProps<Params, Search> & AdditionalProps
+        >,
         runtime?: RouteRuntimeConfig<Params, Search>
-    ) => React.ComponentType<{
-        params: Promise<z.output<Params>>
-        searchParams: Promise<z.output<Search>>
-    } & BasePageProps & AdditionalProps>
-    
+    ) => React.ComponentType<
+        {
+            params: Promise<z.output<Params>>
+            searchParams: Promise<z.output<Search>>
+        } & BasePageProps &
+            AdditionalProps
+    >
+
     createSessionPage: <
         Params extends z.ZodType,
         Search extends z.ZodType,
@@ -324,20 +354,29 @@ export type PageWrapperFactory = {
         S extends Session = Session,
     >(
         schemas: SchemasConfig<Params, Search>,
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }>,
+        Component: React.ComponentType<
+            UnwrappedPageProps<Params, Search> &
+                AdditionalProps & { session: S | null }
+        >,
         options?: SessionOptions,
         runtime?: RouteRuntimeConfig<Params, Search>
-    ) => React.ComponentType<{
-        params: Promise<z.output<Params>>
-        searchParams: Promise<z.output<Search>>
-    } & BasePageProps & Omit<AdditionalProps, 'session'>>
+    ) => React.ComponentType<
+        {
+            params: Promise<z.output<Params>>
+            searchParams: Promise<z.output<Search>>
+        } & BasePageProps &
+            Omit<AdditionalProps, 'session'>
+    >
 }
 
 /**
  * Session HOC factory interface.
  */
 export type SessionHOCFactory = {
-    withClientSession: <P extends ClientSessionInjectedProps, S extends Session = Session>(
+    withClientSession: <
+        P extends ClientSessionInjectedProps,
+        S extends Session = Session,
+    >(
         WrappedComponent: React.ComponentType<P>
     ) => React.ComponentType<Omit<P, keyof ClientSessionInjectedProps<S>>>
 }
@@ -350,7 +389,7 @@ export type RouteFactoryConfig = {
      * Page wrapper implementations (from conditional exports).
      */
     pageWrappers: PageWrapperFactory
-    
+
     /**
      * Session HOC for ClientSessionPage.
      */
@@ -385,14 +424,10 @@ function createPathBuilder<T extends Record<string, string | string[]>>(
         const param = /\[(.*)\]/.exec(elem)
         if (catchAll?.[1]) {
             const key = catchAll[1]
-            elems.push((params: T) =>
-                (params[key] as string[]).join('/')
-            )
+            elems.push((params: T) => (params[key] as string[]).join('/'))
         } else if (param?.[1]) {
             const key = param[1]
-            elems.push(
-                (params: T) => params[key] as string
-            )
+            elems.push((params: T) => params[key] as string)
         } else if (!(elem.startsWith('(') && elem.endsWith(')'))) {
             elems.push(() => elem)
         }
@@ -408,10 +443,10 @@ function createPathBuilder<T extends Record<string, string | string[]>>(
     }
 }
 
-function createUrlBuilder<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
->(route: string, info: RouteInfo<Params, Search>) {
+function createUrlBuilder<Params extends z.ZodType, Search extends z.ZodType>(
+    route: string,
+    info: RouteInfo<Params, Search>
+) {
     const fn = createPathBuilder<Record<string, any>>(route)
 
     return (params?: z.input<Params>, search?: z.input<Search>) => {
@@ -424,7 +459,7 @@ function createUrlBuilder<
         } else {
             checkedParams = safeParams.data
         }
-        
+
         const safeSearch = info.search.safeParse(search ?? {})
         if (!safeSearch.success) {
             throw new Error(
@@ -444,15 +479,15 @@ function createUrlBuilder<
 
 /**
  * Create makeRoute and other route builders with injected dependencies.
- * 
+ *
  * @example
  * ```tsx
  * // In apps/web/src/routes/configure.ts
  * import { createRouteFactory } from '@deployer/declarative-routing'
  * import { createPage, createSessionPage } from '@deployer/declarative-routing/page-wrappers'
  * import { withClientSession } from '../../../lib/auth/with-client-session'
- * 
- * const { makeRoute, makeGetRoute, makePostRoute, makePutRoute, makeDeleteRoute } = 
+ *
+ * const { makeRoute, makeGetRoute, makePostRoute, makePutRoute, makeDeleteRoute } =
  *   createRouteFactory({
  *     pageWrappers: {
  *       createPage,
@@ -463,7 +498,7 @@ function createUrlBuilder<
  *       withClientSession,
  *     },
  *   })
- * 
+ *
  * export { makeRoute, makeGetRoute, makePostRoute, makePutRoute, makeDeleteRoute }
  * ```
  */
@@ -528,7 +563,10 @@ export function createRouteFactory(config: RouteFactoryConfig) {
         }: Omit<LinkProps, 'href'> &
             (ParamProps<Params> extends Record<string, never>
                 ? { search?: z.input<Search>; children?: React.ReactNode }
-                : ParamProps<Params> & { search?: z.input<Search>; children?: React.ReactNode })) {
+                : ParamProps<Params> & {
+                      search?: z.input<Search>
+                      children?: React.ReactNode
+                  })) {
             const parsedParams = info.params.parse(props) as z.input<Params>
             const params = parsedParams as Record<string, any>
             const extraProps = { ...props }
@@ -537,91 +575,135 @@ export function createRouteFactory(config: RouteFactoryConfig) {
                 delete extraProps[key as keyof typeof props]
             }
             return (
-                <Link
-                    {...extraProps}
-                    href={buildUrl(parsedParams, linkSearch)}
-                >
+                <Link {...extraProps} href={buildUrl(parsedParams, linkSearch)}>
                     {children}
                 </Link>
             )
         }
 
         // Page wrapper
-        urlBuilder.Page = function PageWrapper<AdditionalProps extends object = object>(
+        urlBuilder.Page = function PageWrapper<
+            AdditionalProps extends object = object,
+        >(
             component: UnwrappedPageComponent<Params, Search, AdditionalProps>
         ): PageComponent<Params, Search, AdditionalProps> {
             const schemas = { params: info.params, search: info.search }
-            
-            const WrappedPage = pageWrappers.createPage<Params, Search, AdditionalProps>(
-                schemas,
-                component,
-                routeRuntime
-            )
-            
-            ;(WrappedPage as ComponentWithDisplayName).displayName = `Page(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
-            
+
+            const WrappedPage = pageWrappers.createPage<
+                Params,
+                Search,
+                AdditionalProps
+            >(schemas, component, routeRuntime)
+
+            ;(WrappedPage as ComponentWithDisplayName).displayName =
+                `Page(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
+
             return WrappedPage as PageComponent<Params, Search, AdditionalProps>
         }
 
         // Client Page wrapper
-        urlBuilder.ClientPage = function ClientPageWrapper<AdditionalProps extends object = object>(
+        urlBuilder.ClientPage = function ClientPageWrapper<
+            AdditionalProps extends object = object,
+        >(
             component: UnwrappedPageComponent<Params, Search, AdditionalProps>
         ): PageComponent<Params, Search, AdditionalProps> {
             const schemas = { params: info.params, search: info.search }
-            
-            const WrappedPage = pageWrappers.createClientPage<Params, Search, AdditionalProps>(
-                schemas,
-                component,
-                routeRuntime
-            )
-            
-            ;(WrappedPage as ComponentWithDisplayName).displayName = `ClientPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
-            
+
+            const WrappedPage = pageWrappers.createClientPage<
+                Params,
+                Search,
+                AdditionalProps
+            >(schemas, component, routeRuntime)
+
+            ;(WrappedPage as ComponentWithDisplayName).displayName =
+                `ClientPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
+
             return WrappedPage as PageComponent<Params, Search, AdditionalProps>
         }
 
         // Session Page wrapper
         // Type assertion needed because TypeScript can't prove Omit<AdditionalProps & { session: S | null }, 'session'> === Omit<AdditionalProps, 'session'>
-        ;(urlBuilder as unknown as RouteBuilderWithSessionPages).SessionPage = function SessionPageWrapper<AdditionalProps extends object = object, S extends Session = Session>(
-            component: UnwrappedPageComponent<Params, Search, AdditionalProps & { session: S | null }>,
-            options?: SessionOptions
-        ): PageComponent<Params, Search, Omit<AdditionalProps, 'session'>> {
-            const schemas = { params: info.params, search: info.search }
-            
-            type SessionOmittedProps = Omit<AdditionalProps, 'session'>
-            const WrappedPage = pageWrappers.createSessionPage<Params, Search, SessionOmittedProps, S>(
-                schemas,
-                component as React.ComponentType<UnwrappedPageProps<Params, Search> & SessionOmittedProps & { session: S | null }>,
-                options,
-                routeRuntime
-            )
-            
-            ;(WrappedPage as ComponentWithDisplayName).displayName = `SessionPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
-            
-            return WrappedPage as PageComponent<Params, Search, Omit<AdditionalProps, 'session'>>
-        }
+        ;(urlBuilder as unknown as RouteBuilderWithSessionPages).SessionPage =
+            function SessionPageWrapper<
+                AdditionalProps extends object = object,
+                S extends Session = Session,
+            >(
+                component: UnwrappedPageComponent<
+                    Params,
+                    Search,
+                    AdditionalProps & { session: S | null }
+                >,
+                options?: SessionOptions
+            ): PageComponent<Params, Search, Omit<AdditionalProps, 'session'>> {
+                const schemas = { params: info.params, search: info.search }
+
+                type SessionOmittedProps = Omit<AdditionalProps, 'session'>
+                const WrappedPage = pageWrappers.createSessionPage<
+                    Params,
+                    Search,
+                    SessionOmittedProps,
+                    S
+                >(
+                    schemas,
+                    component as React.ComponentType<
+                        UnwrappedPageProps<Params, Search> &
+                            SessionOmittedProps & { session: S | null }
+                    >,
+                    options,
+                    routeRuntime
+                )
+
+                ;(WrappedPage as ComponentWithDisplayName).displayName =
+                    `SessionPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
+
+                return WrappedPage as PageComponent<
+                    Params,
+                    Search,
+                    Omit<AdditionalProps, 'session'>
+                >
+            }
 
         // Client Session Page wrapper
         // Type assertion needed because TypeScript can't prove Omit<AdditionalProps & ClientSessionInjectedProps<S>, keyof ClientSessionInjectedProps<Session>> === Omit<AdditionalProps, keyof ClientSessionInjectedProps<Session>>
-        ;(urlBuilder as unknown as RouteBuilderWithSessionPages).ClientSessionPage = function ClientSessionPageWrapper<AdditionalProps extends object = object, S extends Session = Session>(
-            component: UnwrappedPageComponent<Params, Search, AdditionalProps & ClientSessionInjectedProps<S>>
-        ): PageComponent<Params, Search, Omit<AdditionalProps, keyof ClientSessionInjectedProps>> {
+        ;(
+            urlBuilder as unknown as RouteBuilderWithSessionPages
+        ).ClientSessionPage = function ClientSessionPageWrapper<
+            AdditionalProps extends object = object,
+            S extends Session = Session,
+        >(
+            component: UnwrappedPageComponent<
+                Params,
+                Search,
+                AdditionalProps & ClientSessionInjectedProps<S>
+            >
+        ): PageComponent<
+            Params,
+            Search,
+            Omit<AdditionalProps, keyof ClientSessionInjectedProps>
+        > {
             if (!sessionHOC) {
                 throw new Error(
                     'ClientSessionPage requires sessionHOC to be configured. ' +
-                    'Pass sessionHOC.withClientSession to createRouteFactory.'
+                        'Pass sessionHOC.withClientSession to createRouteFactory.'
                 )
             }
-            
+
             // First wrap with ClientPage to unwrap params/search
             const UnwrappedPage = urlBuilder.ClientPage(component)
-            
+
             // Then wrap with withClientSession for session handling
-            const WrappedComponent = sessionHOC.withClientSession<any, S>(UnwrappedPage)
-            
-            ;(WrappedComponent as ComponentWithDisplayName).displayName = `ClientSessionPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
-            
-            return WrappedComponent as PageComponent<Params, Search, Omit<AdditionalProps, keyof ClientSessionInjectedProps>>
+            const WrappedComponent = sessionHOC.withClientSession<any, S>(
+                UnwrappedPage
+            )
+
+            ;(WrappedComponent as ComponentWithDisplayName).displayName =
+                `ClientSessionPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
+
+            return WrappedComponent as PageComponent<
+                Params,
+                Search,
+                Omit<AdditionalProps, keyof ClientSessionInjectedProps>
+            >
         }
 
         // Validation helpers
@@ -724,9 +806,12 @@ export function createRouteFactory(config: RouteFactoryConfig) {
                 method: 'POST',
                 body: JSON.stringify(safeBody.data),
                 headers: {
-                    ...(Array.isArray(options?.headers) 
-                        ? options.headers.reduce((acc, [key, data]) => ({ ...acc, [key]: data }), {})
-                        : options?.headers ?? {}),
+                    ...(Array.isArray(options?.headers)
+                        ? options.headers.reduce(
+                              (acc, [key, data]) => ({ ...acc, [key]: data }),
+                              {}
+                          )
+                        : (options?.headers ?? {})),
                     'Content-Type': 'application/json',
                 },
             })
@@ -794,9 +879,12 @@ export function createRouteFactory(config: RouteFactoryConfig) {
                 method: 'PUT',
                 body: JSON.stringify(safeBody.data),
                 headers: {
-                    ...(Array.isArray(options?.headers) 
-                        ? options.headers.reduce((acc, [key, data]) => ({ ...acc, [key]: data }), {})
-                        : options?.headers ?? {}),
+                    ...(Array.isArray(options?.headers)
+                        ? options.headers.reduce(
+                              (acc, [key, data]) => ({ ...acc, [key]: data }),
+                              {}
+                          )
+                        : (options?.headers ?? {})),
                     'Content-Type': 'application/json',
                 },
             })
@@ -837,7 +925,10 @@ export function createRouteFactory(config: RouteFactoryConfig) {
     function makeDeleteRoute<
         Params extends z.ZodType,
         Search extends z.ZodType,
-    >(route: string, info: RouteInfo<Params, Search>): DeleteRouteBuilder<Params> {
+    >(
+        route: string,
+        info: RouteInfo<Params, Search>
+    ): DeleteRouteBuilder<Params> {
         const urlBuilder = createUrlBuilder(route, info)
 
         const routeBuilder = (

@@ -15,7 +15,9 @@ export default function RedirectAfterDelay({
         const timeout = setTimeout(() => {
             void redirect(to)
         }, delay)
-        return () => { clearTimeout(timeout); }
+        return () => {
+            clearTimeout(timeout)
+        }
     }, [delay, to])
     return null
 }

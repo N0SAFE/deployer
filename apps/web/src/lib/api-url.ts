@@ -1,7 +1,7 @@
 /**
  * Utility functions to get the correct API URLs
  * Uses direct URLs bypassing Next.js proxy
- * 
+ *
  * Browser: NEXT_PUBLIC_API_URL (public endpoint)
  * Server: API_URL (private Docker network endpoint)
  */
@@ -24,7 +24,7 @@ export function getBaseApiUrl(): string {
  * Get the full API URL for a given path
  * @param path - API path (e.g., '/presentation/video', '/storage/files/image.png')
  * @returns Full API URL
- * 
+ *
  * @example
  * getApiUrl('/presentation/video')
  * // Browser: 'http://localhost:3001/presentation/video'
@@ -42,7 +42,7 @@ export function getApiUrl(path: string): string {
  * Get the full Auth API URL for a given path
  * @param path - Auth path (e.g., '/get-session', '/dev/login-as')
  * @returns Full Auth API URL
- * 
+ *
  * @example
  * getAuthUrl('/get-session')
  * // Browser: 'http://localhost:3001/api/auth/get-session'

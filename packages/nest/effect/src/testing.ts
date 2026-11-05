@@ -1,4 +1,4 @@
-import type { Context } from "effect";
+import type { Context } from 'effect'
 
 /**
  * Builds the `'effect/context'` slice of an oRPC handler context.
@@ -11,5 +11,5 @@ import type { Context } from "effect";
  * ```
  */
 export function effectContext<Services>(context: Context.Context<Services>) {
-  return { "effect/context": context };
+    return { 'effect/context': context }
 }

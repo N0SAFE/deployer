@@ -2,16 +2,16 @@
 
 One package, one authorization model, and adapters that turn it into what each consumer needs.
 
-| Area | Subpath | Answers | Runtime |
-|---|---|---|---|
-| **authz** | `@deployer/auth/authz` | "May this actor do X, in this scope?" — the permission catalog, the pure decision, role ranks, and the builder that turns the catalog into a statement + role maps | none (no Effect, no Nest, no React) |
-| **adapters/better-auth** | `@deployer/auth/adapters/better-auth` | "How does Better Auth see it?" — `createAccessControl`, `Role` objects, role-name schemas, `hasPermission`/`PermissionChecker`, the plugin layer | pure |
-| **rules** | `@deployer/auth/rules` | "Which ROWS may this actor see?" — `role_rules.resource_rules` compiled to SQL filters | pure |
-| **server** | `@deployer/auth/server` | The `betterAuth(...)` instance: providers, plugins, hooks, session policy, the audit hook | Node |
-| **client** | `@deployer/auth/client` | The browser auth client and its plugins | browser |
-| **react** | `@deployer/auth/react` | `<RequirePermission>`, `usePermissions`, session helpers | React |
-| **mesh** | `@deployer/auth/mesh` | Tokens between nodes | Node |
-| **audit** | `@deployer/auth/audit` | The audit event schema, sink port and request→event mapping | pure |
+| Area                     | Subpath                               | Answers                                                                                                                                                            | Runtime                             |
+| ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| **authz**                | `@deployer/auth/authz`                | "May this actor do X, in this scope?" — the permission catalog, the pure decision, role ranks, and the builder that turns the catalog into a statement + role maps | none (no Effect, no Nest, no React) |
+| **adapters/better-auth** | `@deployer/auth/adapters/better-auth` | "How does Better Auth see it?" — `createAccessControl`, `Role` objects, role-name schemas, `hasPermission`/`PermissionChecker`, the plugin layer                   | pure                                |
+| **rules**                | `@deployer/auth/rules`                | "Which ROWS may this actor see?" — `role_rules.resource_rules` compiled to SQL filters                                                                             | pure                                |
+| **server**               | `@deployer/auth/server`               | The `betterAuth(...)` instance: providers, plugins, hooks, session policy, the audit hook                                                                          | Node                                |
+| **client**               | `@deployer/auth/client`               | The browser auth client and its plugins                                                                                                                            | browser                             |
+| **react**                | `@deployer/auth/react`                | `<RequirePermission>`, `usePermissions`, session helpers                                                                                                           | React                               |
+| **mesh**                 | `@deployer/auth/mesh`                 | Tokens between nodes                                                                                                                                               | Node                                |
+| **audit**                | `@deployer/auth/audit`                | The audit event schema, sink port and request→event mapping                                                                                                        | pure                                |
 
 ## The direction is one-way
 
@@ -33,8 +33,8 @@ thing this package used to have.
 
 The **catalog** (`authz/catalog.ts`) is a typed `<permission, { risk, description }>` map plus bundles and system roles.
 It carries meaning a Better Auth statement cannot hold: risk drives guardrail defaults, audit level and the role
-editor's warning, and a permission that belongs to no bundle fails the tests. It is the source of truth for *what may
-be done*.
+editor's warning, and a permission that belongs to no bundle fails the tests. It is the source of truth for _what may
+be done_.
 
 The **builder** (`authz/builder/`) is a small DSL that turns a declaration into the three artifacts a transport needs:
 a statement (`{ resource: actions[] }`), role → permissions maps, and role metadata/schemas. It used to call
@@ -42,7 +42,7 @@ a statement (`{ resource: actions[] }`), role → permissions maps, and role met
 bundle. The Better Auth conversion is `adapters/better-auth/config.ts` — `createAccessControl(statement)` and one
 `newRole(...)` per role.
 
-Could the catalog be written *with* the builder? Only partly, and it would lose information: the builder models actions
+Could the catalog be written _with_ the builder? Only partly, and it would lose information: the builder models actions
 and role grants, not per-permission risk/description, bundles, rank or scope. So the catalog stays the declaration, and
 the builder derives the transport view from it. The remaining reconciliation is the one old overlap: the Better Auth
 admin plugin needs its own `user`/`session` actions (`list`, `ban`, `set-role`, …) while the catalog names product
@@ -52,13 +52,13 @@ capabilities (`user:read`, `user:set-role`, …). They are declared in `authz/pl
 
 ## The names that look similar (and are not)
 
-| Name | Where | Means |
-|---|---|---|
-| `Permission` | `authz/catalog` | The **union of capability strings** (`"service:deploy"`). A typo is a compile error. |
-| `Permission` | `authz/builder/types` | Better Auth's **statement map** (`{ project: ["read"] }`). Used by the admin plugin and `userHasPermission`. |
-| `PlatformRole` | `authz/platform` | `"superAdmin" \| "admin" \| "operator" \| "viewer" \| "user"` — the stored platform role. |
-| `RoleDefinition` | `authz/roles` | A role as DATA (name, scope, rank, permissions), so roles can move to a table without touching call sites. |
-| `ResourceRule` | `rules/types` | One row-level rule inside `role_rules` (resource + condition). |
+| Name             | Where                 | Means                                                                                                        |
+| ---------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Permission`     | `authz/catalog`       | The **union of capability strings** (`"service:deploy"`). A typo is a compile error.                         |
+| `Permission`     | `authz/builder/types` | Better Auth's **statement map** (`{ project: ["read"] }`). Used by the admin plugin and `userHasPermission`. |
+| `PlatformRole`   | `authz/platform`      | `"superAdmin" \| "admin" \| "operator" \| "viewer" \| "user"` — the stored platform role.                    |
+| `RoleDefinition` | `authz/roles`         | A role as DATA (name, scope, rank, permissions), so roles can move to a table without touching call sites.   |
+| `ResourceRule`   | `rules/types`         | One row-level rule inside `role_rules` (resource + condition).                                               |
 
 ## Adding a permission
 

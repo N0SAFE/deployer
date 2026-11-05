@@ -16,614 +16,652 @@
  *   9. Cleanup and teardown
  */
 
-import { Effect } from "effect";
-import {  Observable } from 'rxjs';
+import { Effect } from 'effect'
+import { Observable } from 'rxjs'
 import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type MockInstance,
-} from 'vitest';
+    describe,
+    it,
+    expect,
+    beforeEach,
+    afterEach,
+    vi,
+    type MockInstance,
+} from 'vitest'
 
-import { makeInitializationService } from '../initialization.service';
-
+import { makeInitializationService } from '../initialization.service'
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
 
 function createMockNodeConfigRepository() {
-  let store: Record<string, any> | null = null;
-  return {
-    // The real repository returns Effects; these evaluate eagerly so a spec can also call them directly.
-    find: vi.fn(() => Effect.succeed(store)),
-    upsert: vi.fn((data: any) => {
-      store = { ...(store ?? {}), ...data };
-      return Effect.succeed(store);
-    }),
-    // Allow tests to seed the store directly
-    _seed: (data: any) => { store = data; },
-    _clear: () => { store = null; },
-    _getStore: () => store,
-  };
+    let store: Record<string, any> | null = null
+    return {
+        // The real repository returns Effects; these evaluate eagerly so a spec can also call them directly.
+        find: vi.fn(() => Effect.succeed(store)),
+        upsert: vi.fn((data: any) => {
+            store = { ...(store ?? {}), ...data }
+            return Effect.succeed(store)
+        }),
+        // Allow tests to seed the store directly
+        _seed: (data: any) => {
+            store = data
+        },
+        _clear: () => {
+            store = null
+        },
+        _getStore: () => store,
+    }
 }
 
 function createMockSetupEventService() {
-  const listeners: ((event: any) => void)[] = [];
-  return {
-    emit: vi.fn((_channel: string, _meta: any, event: any) => {
-      for (const listener of listeners) {
-        listener(event);
-      }
-    }),
-    observeProgress$: vi.fn(() => new Observable<void>(() => {})),
-    _onEvent: (listener: (event: any) => void) => {
-      listeners.push(listener);
-    },
-  };
+    const listeners: ((event: any) => void)[] = []
+    return {
+        emit: vi.fn((_channel: string, _meta: any, event: any) => {
+            for (const listener of listeners) {
+                listener(event)
+            }
+        }),
+        observeProgress$: vi.fn(() => new Observable<void>(() => {})),
+        _onEvent: (listener: (event: any) => void) => {
+            listeners.push(listener)
+        },
+    }
 }
 
 function promised(real: ReturnType<typeof makeInitializationService>) {
-  return {
-    getSetupState: () => Effect.runPromise(real.getSetupState()),
-    getNodeStatus: () => Effect.runPromise(real.getNodeStatus()),
-    checkConfigAndEmit: () => Effect.runPromise(real.checkConfigAndEmit()),
-    waitForSetup: () => Effect.runPromise(real.waitForSetup()),
-    assertSetupMutable: () => Effect.runPromise(real.assertSetupMutable()),
-    assertDatabaseProbeAllowed: (url: string) => Effect.runPromise(real.assertDatabaseProbeAllowed(url)),
-    triggerInitialize: (input: Parameters<typeof real.triggerInitialize>[0]) => Effect.runSync(real.triggerInitialize(input)),
-    getInitializeStream: () => real.getInitializeStream(),
-  };
+    return {
+        getSetupState: () => Effect.runPromise(real.getSetupState()),
+        getNodeStatus: () => Effect.runPromise(real.getNodeStatus()),
+        checkConfigAndEmit: () => Effect.runPromise(real.checkConfigAndEmit()),
+        waitForSetup: () => Effect.runPromise(real.waitForSetup()),
+        assertSetupMutable: () => Effect.runPromise(real.assertSetupMutable()),
+        assertDatabaseProbeAllowed: (url: string) =>
+            Effect.runPromise(real.assertDatabaseProbeAllowed(url)),
+        triggerInitialize: (
+            input: Parameters<typeof real.triggerInitialize>[0]
+        ) => Effect.runSync(real.triggerInitialize(input)),
+        getInitializeStream: () => real.getInitializeStream(),
+    }
 }
 
 // ─── Test suite ───────────────────────────────────────────────────────────────
 
 describe('Startup Flow Integration', { timeout: 30_000 }, () => {
-  /** The service as the flow reads it: its Effects run to Promises, so the cases below read as they always did. */
-  let service: ReturnType<typeof promised>;
-  let module: { init: () => Promise<void>; close: () => Promise<void> };
-  let mockNodeConfigRepo: ReturnType<typeof createMockNodeConfigRepository>;
-  let mockEnvService: { get: MockInstance; _set: (key: string, val: any) => void };
-  let mockSetupEventService: ReturnType<typeof createMockSetupEventService>;
-  let mockMeshInit: Record<string, MockInstance>;
-  let mockReachability: Record<string, MockInstance>;
-  let mockLocalInit: { initialize: MockInstance };
-  let mockRemoteInit: { initialize: MockInstance };
-  let mockLifecycle: Record<string, MockInstance>;
+    /** The service as the flow reads it: its Effects run to Promises, so the cases below read as they always did. */
+    let service: ReturnType<typeof promised>
+    let module: { init: () => Promise<void>; close: () => Promise<void> }
+    let mockNodeConfigRepo: ReturnType<typeof createMockNodeConfigRepository>
+    let mockEnvService: {
+        get: MockInstance
+        _set: (key: string, val: any) => void
+    }
+    let mockSetupEventService: ReturnType<typeof createMockSetupEventService>
+    let mockMeshInit: Record<string, MockInstance>
+    let mockReachability: Record<string, MockInstance>
+    let mockLocalInit: { initialize: MockInstance }
+    let mockRemoteInit: { initialize: MockInstance }
+    let mockLifecycle: Record<string, MockInstance>
 
-  // Shared test data
-  const TEST_NODE_ID = 'test-node-0000-0000-000000000001';
-  const TEST_DB_URL = 'postgresql://test:pass@localhost:5432/testdb';
+    // Shared test data
+    const TEST_NODE_ID = 'test-node-0000-0000-000000000001'
+    const TEST_DB_URL = 'postgresql://test:pass@localhost:5432/testdb'
 
-  beforeEach(async () => {
-    mockNodeConfigRepo = createMockNodeConfigRepository();
-    mockEnvService = {
-      get: vi.fn(() => undefined),
-      _set: (key: string, val: any) => {
-        mockEnvService.get.mockImplementation((k: string) =>
-          k === key ? val : undefined
-        );
-      },
-    };
-    mockSetupEventService = createMockSetupEventService();
-    mockLocalInit = { initialize: vi.fn() };
-    mockRemoteInit = { initialize: vi.fn() };
-    mockMeshInit = {
-      connectToMesh: vi.fn(),
-      bootstrap: vi.fn(),
-      issueRemoteJoinGrant: vi.fn(),
-      getMeshNodeUrls: vi.fn(),
-      reconnectToMesh: vi.fn(),
-    };
-    mockReachability = {
-      checkMeshUrlReachability: vi.fn(),
-    };
+    beforeEach(async () => {
+        mockNodeConfigRepo = createMockNodeConfigRepository()
+        mockEnvService = {
+            get: vi.fn(() => undefined),
+            _set: (key: string, val: any) => {
+                mockEnvService.get.mockImplementation((k: string) =>
+                    k === key ? val : undefined
+                )
+            },
+        }
+        mockSetupEventService = createMockSetupEventService()
+        mockLocalInit = { initialize: vi.fn() }
+        mockRemoteInit = { initialize: vi.fn() }
+        mockMeshInit = {
+            connectToMesh: vi.fn(),
+            bootstrap: vi.fn(),
+            issueRemoteJoinGrant: vi.fn(),
+            getMeshNodeUrls: vi.fn(),
+            reconnectToMesh: vi.fn(),
+        }
+        mockReachability = {
+            checkMeshUrlReachability: vi.fn(),
+        }
 
-    // Setup completion advances the lifecycle (phase + database + mesh), which
-    // is exactly what the readiness indicators read. Stubbed so the flow can be
-    // driven without a Nest lifecycle, and asserted below so a regression that
-    // stops advancing it fails here rather than on a live install.
-    mockLifecycle = {
-      markReadyNow: vi.fn(),
-      markDatabaseProbeNow: vi.fn(),
-      markMeshConnectedNow: vi.fn(),
-    };
+        // Setup completion advances the lifecycle (phase + database + mesh), which
+        // is exactly what the readiness indicators read. Stubbed so the flow can be
+        // driven without a Nest lifecycle, and asserted below so a regression that
+        // stops advancing it fails here rather than on a live install.
+        mockLifecycle = {
+            markReadyNow: vi.fn(),
+            markDatabaseProbeNow: vi.fn(),
+            markMeshConnectedNow: vi.fn(),
+        }
 
-    const real = makeInitializationService({
-      nodeConfigRepository: mockNodeConfigRepo as never,
-      // The flows are mocked as Promises (they are async work); the service sees them as Effects.
-      localInitializationService: { initialize: (...args: unknown[]) => Effect.tryPromise(() => (mockLocalInit.initialize as unknown as (...a: unknown[]) => Promise<never>)(...args)) } as never,
-      remoteInitializationService: { initialize: (...args: unknown[]) => Effect.tryPromise(() => (mockRemoteInit.initialize as unknown as (...a: unknown[]) => Promise<never>)(...args)) } as never,
-      setupEventService: mockSetupEventService as never,
-      lifecycle: mockLifecycle as never,
-    });
-    service = promised(real);
-    module = {
-      init: () => Effect.runPromise(real.onStart?.() ?? Effect.void),
-      close: () => Promise.resolve(),
-    };
-    vi.clearAllMocks();
-  });
+        const real = makeInitializationService({
+            nodeConfigRepository: mockNodeConfigRepo as never,
+            // The flows are mocked as Promises (they are async work); the service sees them as Effects.
+            localInitializationService: {
+                initialize: (...args: unknown[]) =>
+                    Effect.tryPromise(() =>
+                        (
+                            mockLocalInit.initialize as unknown as (
+                                ...a: unknown[]
+                            ) => Promise<never>
+                        )(...args)
+                    ),
+            } as never,
+            remoteInitializationService: {
+                initialize: (...args: unknown[]) =>
+                    Effect.tryPromise(() =>
+                        (
+                            mockRemoteInit.initialize as unknown as (
+                                ...a: unknown[]
+                            ) => Promise<never>
+                        )(...args)
+                    ),
+            } as never,
+            setupEventService: mockSetupEventService as never,
+            lifecycle: mockLifecycle as never,
+        })
+        service = promised(real)
+        module = {
+            init: () => Effect.runPromise(real.onStart?.() ?? Effect.void),
+            close: () => Promise.resolve(),
+        }
+        vi.clearAllMocks()
+    })
 
-  afterEach(async () => {
-    // module.close() may hang if a background mesh query (with mock setTimeout)
-    // is still pending. Add a timeout to avoid infinite wait.
-    await Promise.race([
-      module.close(),
-      new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
-    ]);
-    vi.restoreAllMocks();
-  });
+    afterEach(async () => {
+        // module.close() may hang if a background mesh query (with mock setTimeout)
+        // is still pending. Add a timeout to avoid infinite wait.
+        await Promise.race([
+            module.close(),
+            new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+        ])
+        vi.restoreAllMocks()
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 1: FRESH NODE — NO CONFIG
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 1: FRESH NODE — NO CONFIG
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 1: Fresh node (no config)', () => {
-    beforeEach(() => {
-      mockNodeConfigRepo._clear();
-    });
+    describe('Scenario 1: Fresh node (no config)', () => {
+        beforeEach(() => {
+            mockNodeConfigRepo._clear()
+        })
 
-    it('getSetupState returns not_started', async () => {
-      const state = await service.getSetupState();
-      expect(state.state).toBe('not_started');
-      expect(state.needsSetup).toBe(true);
-      expect(state.bootstrapStrategy).toBeNull();
-      expect(state.currentStep).toBe('choose_strategy');
-      expect(state.progressPercent).toBe(0);
-    });
+        it('getSetupState returns not_started', async () => {
+            const state = await service.getSetupState()
+            expect(state.state).toBe('not_started')
+            expect(state.needsSetup).toBe(true)
+            expect(state.bootstrapStrategy).toBeNull()
+            expect(state.currentStep).toBe('choose_strategy')
+            expect(state.progressPercent).toBe(0)
+        })
 
-    it('getNodeStatus shows unconfigured', async () => {
-      const status = await service.getNodeStatus();
-      expect(status.isConfigured).toBe(false);
-      expect(status.nodeId).toBeNull();
-      expect(status.configuredAt).toBeNull();
-    });
+        it('getNodeStatus shows unconfigured', async () => {
+            const status = await service.getNodeStatus()
+            expect(status.isConfigured).toBe(false)
+            expect(status.nodeId).toBeNull()
+            expect(status.configuredAt).toBeNull()
+        })
 
-    it('checkConfigAndEmit does NOT emit when no config and no SETUP_AUTO', async () => {
-      // Should not throw errors
-      await expect(service.checkConfigAndEmit()).resolves.toBeUndefined();
-      // Should not have upserted anything
-      expect(mockNodeConfigRepo.upsert).not.toHaveBeenCalled();
-    });
+        it('checkConfigAndEmit does NOT emit when no config and no SETUP_AUTO', async () => {
+            // Should not throw errors
+            await expect(service.checkConfigAndEmit()).resolves.toBeUndefined()
+            // Should not have upserted anything
+            expect(mockNodeConfigRepo.upsert).not.toHaveBeenCalled()
+        })
 
-    it('waitForSetup never resolves when no config (no background mesh, no SETUP_DATABASE_URL)', async () => {
-      // Temporarily remove SETUP_DATABASE_URL from env to test the blocking path
-      const dbUrl = process.env.SETUP_DATABASE_URL
-      delete process.env.SETUP_DATABASE_URL
-      try {
-        // After checkConfigAndEmit with no config, waitForSetup should
-        // not resolve (it blocks until emitCompleted is called).
-        // We use a timeout to verify the promise stays pending.
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => { reject(new Error('TIMEOUT')); }, 200)
-        );
-        await service.checkConfigAndEmit();
-        await expect(
-          Promise.race([service.waitForSetup(), timeout])
-        ).rejects.toThrow('TIMEOUT');
-      } finally {
-        if (dbUrl) process.env.SETUP_DATABASE_URL = dbUrl
-      }
-    }, 1_000);
-  });
+        it('waitForSetup never resolves when no config (no background mesh, no SETUP_DATABASE_URL)', async () => {
+            // Temporarily remove SETUP_DATABASE_URL from env to test the blocking path
+            const dbUrl = process.env.SETUP_DATABASE_URL
+            delete process.env.SETUP_DATABASE_URL
+            try {
+                // After checkConfigAndEmit with no config, waitForSetup should
+                // not resolve (it blocks until emitCompleted is called).
+                // We use a timeout to verify the promise stays pending.
+                const timeout = new Promise<never>((_, reject) =>
+                    setTimeout(() => {
+                        reject(new Error('TIMEOUT'))
+                    }, 200)
+                )
+                await service.checkConfigAndEmit()
+                await expect(
+                    Promise.race([service.waitForSetup(), timeout])
+                ).rejects.toThrow('TIMEOUT')
+            } finally {
+                if (dbUrl) process.env.SETUP_DATABASE_URL = dbUrl
+            }
+        }, 1_000)
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 2: SETUP_AUTO
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 2: SETUP_AUTO
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 2: SETUP_AUTO', () => {
-    beforeEach(() => {
-      mockNodeConfigRepo._clear();
-      mockEnvService._set('SETUP_AUTO', 'true');
-      // Emulate the real LocalInitializationService: persist a configured row
-      // and return the completion handle. (The boot-time SETUP_AUTO branch is
-      // owned by OrchestratorService → SetupDevService → triggerInitialize, so
-      // the tests below drive triggerInitialize directly.)
-      mockLocalInit.initialize = vi.fn(async () => {
-        mockNodeConfigRepo.upsert({
-          nodeId: TEST_NODE_ID,
-          strategy: 'local',
-          databaseUrl: TEST_DB_URL,
-          configuredAt: '2024-06-01T00:00:00.000Z',
-          setupState: 'setup_done',
-          deployerVersion: '1.0.0',
-          meshUrlsSnapshot: [],
-          updatedAt: '2024-06-01T00:00:00.000Z',
-        });
-        return { nodeId: TEST_NODE_ID, databaseUrl: TEST_DB_URL };
-      });
-    });
+    describe('Scenario 2: SETUP_AUTO', () => {
+        beforeEach(() => {
+            mockNodeConfigRepo._clear()
+            mockEnvService._set('SETUP_AUTO', 'true')
+            // Emulate the real LocalInitializationService: persist a configured row
+            // and return the completion handle. (The boot-time SETUP_AUTO branch is
+            // owned by OrchestratorService → SetupDevService → triggerInitialize, so
+            // the tests below drive triggerInitialize directly.)
+            mockLocalInit.initialize = vi.fn(async () => {
+                mockNodeConfigRepo.upsert({
+                    nodeId: TEST_NODE_ID,
+                    strategy: 'local',
+                    databaseUrl: TEST_DB_URL,
+                    configuredAt: '2024-06-01T00:00:00.000Z',
+                    setupState: 'setup_done',
+                    deployerVersion: '1.0.0',
+                    meshUrlsSnapshot: [],
+                    updatedAt: '2024-06-01T00:00:00.000Z',
+                })
+                return { nodeId: TEST_NODE_ID, databaseUrl: TEST_DB_URL }
+            })
+        })
 
-    const launchLocalSetup = () => {
-      const result = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test',
-        email: 'test@test.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(result.accepted).toBe(true);
-    };
+        const launchLocalSetup = () => {
+            const result = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test',
+                email: 'test@test.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(result.accepted).toBe(true)
+        }
 
-    it('local auto-configuration persists and emits completion', async () => {
-      const setupPromise = service.waitForSetup();
-      launchLocalSetup();
-      const result = await setupPromise;
-      expect(result).toBeDefined();
-      expect(result.strategy).toBe('local');
-      expect(result.databaseUrl).toMatch(/^postgresql:\/\//);
-      expect(mockNodeConfigRepo.upsert).toHaveBeenCalled();
+        it('local auto-configuration persists and emits completion', async () => {
+            const setupPromise = service.waitForSetup()
+            launchLocalSetup()
+            const result = await setupPromise
+            expect(result).toBeDefined()
+            expect(result.strategy).toBe('local')
+            expect(result.databaseUrl).toMatch(/^postgresql:\/\//)
+            expect(mockNodeConfigRepo.upsert).toHaveBeenCalled()
 
-      // Verify persisted config
-      const stored = mockNodeConfigRepo._getStore();
-      expect(stored).not.toBeNull();
-      expect(stored?.setupState).toBe('setup_done');
-      expect(stored?.databaseUrl).toMatch(/^postgresql:\/\//);
-    });
+            // Verify persisted config
+            const stored = mockNodeConfigRepo._getStore()
+            expect(stored).not.toBeNull()
+            expect(stored?.setupState).toBe('setup_done')
+            expect(stored?.databaseUrl).toMatch(/^postgresql:\/\//)
+        })
 
-    it('getSetupState returns completed after auto-setup', async () => {
-      const setupPromise = service.waitForSetup();
-      launchLocalSetup();
-      await setupPromise;
-      const state = await service.getSetupState();
-      expect(state.state).toBe('completed');
-      expect(state.needsSetup).toBe(false);
-    });
+        it('getSetupState returns completed after auto-setup', async () => {
+            const setupPromise = service.waitForSetup()
+            launchLocalSetup()
+            await setupPromise
+            const state = await service.getSetupState()
+            expect(state.state).toBe('completed')
+            expect(state.needsSetup).toBe(false)
+        })
 
-    it('getNodeStatus shows configured after auto-setup', async () => {
-      const setupPromise = service.waitForSetup();
-      launchLocalSetup();
-      await setupPromise;
-      const status = await service.getNodeStatus();
-      expect(status.isConfigured).toBe(true);
-      expect(status.nodeId).toBeTruthy();
-      expect(status.configuredAt).not.toBeNull();
-    });
-  });
+        it('getNodeStatus shows configured after auto-setup', async () => {
+            const setupPromise = service.waitForSetup()
+            launchLocalSetup()
+            await setupPromise
+            const status = await service.getNodeStatus()
+            expect(status.isConfigured).toBe(true)
+            expect(status.nodeId).toBeTruthy()
+            expect(status.configuredAt).not.toBeNull()
+        })
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 3: CACHED CONFIGURATION
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 3: CACHED CONFIGURATION
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 3: Cached configuration', () => {
-    const CACHED_CONFIG = {
-      nodeId: TEST_NODE_ID,
-      strategy: 'local' as const,
-      databaseUrl: TEST_DB_URL,
-      configuredAt: '2024-06-01T00:00:00.000Z',
-      setupState: 'setup_done',
-      deployerVersion: '1.0.0',
-      meshUrlsSnapshot: [],
-      updatedAt: '2024-06-01T00:00:00.000Z',
-    };
+    describe('Scenario 3: Cached configuration', () => {
+        const CACHED_CONFIG = {
+            nodeId: TEST_NODE_ID,
+            strategy: 'local' as const,
+            databaseUrl: TEST_DB_URL,
+            configuredAt: '2024-06-01T00:00:00.000Z',
+            setupState: 'setup_done',
+            deployerVersion: '1.0.0',
+            meshUrlsSnapshot: [],
+            updatedAt: '2024-06-01T00:00:00.000Z',
+        }
 
-    beforeEach(() => {
-      mockNodeConfigRepo._seed(CACHED_CONFIG);
-    });
+        beforeEach(() => {
+            mockNodeConfigRepo._seed(CACHED_CONFIG)
+        })
 
-    it('checkConfigAndEmit emits immediately from cache', async () => {
-      const setupPromise = service.waitForSetup();
-      await service.checkConfigAndEmit();
-      const result = await setupPromise;
-      expect(result.nodeId).toBe(TEST_NODE_ID);
-      expect(result.databaseUrl).toBe(TEST_DB_URL);
-      expect(result.strategy).toBe('local');
-    });
+        it('checkConfigAndEmit emits immediately from cache', async () => {
+            const setupPromise = service.waitForSetup()
+            await service.checkConfigAndEmit()
+            const result = await setupPromise
+            expect(result.nodeId).toBe(TEST_NODE_ID)
+            expect(result.databaseUrl).toBe(TEST_DB_URL)
+            expect(result.strategy).toBe('local')
+        })
 
-    it('getSetupState returns completed from cached config', async () => {
-      const state = await service.getSetupState();
-      expect(state.state).toBe('completed');
-      expect(state.needsSetup).toBe(false);
-      expect(state.bootstrapStrategy).toBe('local');
-    });
+        it('getSetupState returns completed from cached config', async () => {
+            const state = await service.getSetupState()
+            expect(state.state).toBe('completed')
+            expect(state.needsSetup).toBe(false)
+            expect(state.bootstrapStrategy).toBe('local')
+        })
 
-    it('getNodeStatus shows configured from cached config', async () => {
-      const status = await service.getNodeStatus();
-      expect(status.isConfigured).toBe(true);
-      expect(status.nodeId).toBe(TEST_NODE_ID);
-      expect(status.strategy).toBe('local');
-      // Note: getNodeStatus still uses 'strategy' on NodeConfigStatus — different type
-    });
+        it('getNodeStatus shows configured from cached config', async () => {
+            const status = await service.getNodeStatus()
+            expect(status.isConfigured).toBe(true)
+            expect(status.nodeId).toBe(TEST_NODE_ID)
+            expect(status.strategy).toBe('local')
+            // Note: getNodeStatus still uses 'strategy' on NodeConfigStatus — different type
+        })
 
-    it('triggerInitialize rejects a second call while initialization is in progress', () => {
-      const first = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test',
-        email: 'test@test.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(first.accepted).toBe(true);
-      const second = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test',
-        email: 'test@test.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(second.accepted).toBe(false);
-    });
-  });
+        it('triggerInitialize rejects a second call while initialization is in progress', () => {
+            const first = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test',
+                email: 'test@test.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(first.accepted).toBe(true)
+            const second = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test',
+                email: 'test@test.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(second.accepted).toBe(false)
+        })
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 4: CACHED REMOTE CONFIG — THE AGENT REJOINS, NOT THE SETUP
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 4: CACHED REMOTE CONFIG — THE AGENT REJOINS, NOT THE SETUP
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 4: Cached remote config', () => {
-    beforeEach(() => {
-      mockNodeConfigRepo._seed({
-        nodeId: TEST_NODE_ID,
-        strategy: 'remote' as const,
-        databaseUrl: TEST_DB_URL,
-        configuredAt: '2024-06-01T00:00:00.000Z',
-        setupState: 'setup_done',
-        deployerVersion: '1.0.0',
-        meshUrlsSnapshot: [],
-        updatedAt: '2024-06-01T00:00:00.000Z',
-      });
-    });
+    describe('Scenario 4: Cached remote config', () => {
+        beforeEach(() => {
+            mockNodeConfigRepo._seed({
+                nodeId: TEST_NODE_ID,
+                strategy: 'remote' as const,
+                databaseUrl: TEST_DB_URL,
+                configuredAt: '2024-06-01T00:00:00.000Z',
+                setupState: 'setup_done',
+                deployerVersion: '1.0.0',
+                meshUrlsSnapshot: [],
+                updatedAt: '2024-06-01T00:00:00.000Z',
+            })
+        })
 
-    it('completes from the cached database URL without dialling the fleet: the node\'s agent rejoins by itself', async () => {
-      await module.init();
-      const result = await service.waitForSetup();
-      expect(result.databaseUrl).toBe(TEST_DB_URL);
-      expect(result.strategy).toBe('remote');
-    });
-  });
+        it("completes from the cached database URL without dialling the fleet: the node's agent rejoins by itself", async () => {
+            await module.init()
+            const result = await service.waitForSetup()
+            expect(result.databaseUrl).toBe(TEST_DB_URL)
+            expect(result.strategy).toBe('remote')
+        })
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 5: TRIGGER INITIALIZE + STREAM
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 5: TRIGGER INITIALIZE + STREAM
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 5: triggerInitialize and stream', () => {
-    let capturedEvents: any[];
+    describe('Scenario 5: triggerInitialize and stream', () => {
+        let capturedEvents: any[]
 
-    beforeEach(() => {
-      mockNodeConfigRepo._clear();
-      capturedEvents = [];
-      mockSetupEventService._onEvent((event: any) => {
-        capturedEvents.push(event);
-      });
-      // Mock local init to simulate successful initialization
-      mockLocalInit.initialize.mockRejectedValue(new Error('No Docker in test'));
-    });
+        beforeEach(() => {
+            mockNodeConfigRepo._clear()
+            capturedEvents = []
+            mockSetupEventService._onEvent((event: any) => {
+                capturedEvents.push(event)
+            })
+            // Mock local init to simulate successful initialization
+            mockLocalInit.initialize.mockRejectedValue(
+                new Error('No Docker in test')
+            )
+        })
 
-    it('triggerInitialize returns accepted on first call', () => {
-      const result = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(result.accepted).toBe(true);
-    });
+        it('triggerInitialize returns accepted on first call', () => {
+            const result = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test User',
+                email: 'test@example.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(result.accepted).toBe(true)
+        })
 
-    it('triggerInitialize returns rejected on second call (already in progress)', () => {
-      service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      const second = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test User 2',
-        email: 'test2@example.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(second.accepted).toBe(false);
-    });
+        it('triggerInitialize returns rejected on second call (already in progress)', () => {
+            service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test User',
+                email: 'test@example.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            const second = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test User 2',
+                email: 'test2@example.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(second.accepted).toBe(false)
+        })
 
-    it('triggerInitialize returns rejected on second call even when config exists', () => {
-      mockNodeConfigRepo._seed({
-        nodeId: TEST_NODE_ID,
-        strategy: 'local',
-        databaseUrl: TEST_DB_URL,
-        configuredAt: '2024-01-01T00:00:00.000Z',
-        setupState: 'setup_done',
-        deployerVersion: '1.0.0',
-        meshUrlsSnapshot: [],
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      });
-      const first = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(first.accepted).toBe(true);
-      const second = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(second.accepted).toBe(false);
-    });
+        it('triggerInitialize returns rejected on second call even when config exists', () => {
+            mockNodeConfigRepo._seed({
+                nodeId: TEST_NODE_ID,
+                strategy: 'local',
+                databaseUrl: TEST_DB_URL,
+                configuredAt: '2024-01-01T00:00:00.000Z',
+                setupState: 'setup_done',
+                deployerVersion: '1.0.0',
+                meshUrlsSnapshot: [],
+                updatedAt: '2024-01-01T00:00:00.000Z',
+            })
+            const first = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test User',
+                email: 'test@example.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(first.accepted).toBe(true)
+            const second = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test User',
+                email: 'test@example.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(second.accepted).toBe(false)
+        })
 
-    it('getInitializeStream returns an Observable', () => {
-      const stream = service.getInitializeStream();
-      expect(stream).toBeInstanceOf(Observable);
-    });
-  });
+        it('getInitializeStream returns an Observable', () => {
+            const stream = service.getInitializeStream()
+            expect(stream).toBeInstanceOf(Observable)
+        })
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 6: STATE TRANSITIONS
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 6: STATE TRANSITIONS
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 6: State transitions', () => {
-    it('fresh → not_started (no config exists)', async () => {
-      mockNodeConfigRepo._clear();
-      const state = await service.getSetupState();
-      expect(state.state).toBe('not_started');
-      expect(state.needsSetup).toBe(true);
-    });
+    describe('Scenario 6: State transitions', () => {
+        it('fresh → not_started (no config exists)', async () => {
+            mockNodeConfigRepo._clear()
+            const state = await service.getSetupState()
+            expect(state.state).toBe('not_started')
+            expect(state.needsSetup).toBe(true)
+        })
 
-    it('not_started → completed (dev auto-setup)', async () => {
-      mockNodeConfigRepo._clear();
-      mockEnvService._set('SETUP_AUTO', 'true');
-      // Need the emulating local-init mock in this scenario too.
-      mockLocalInit.initialize = vi.fn(async () => {
-        mockNodeConfigRepo.upsert({
-          nodeId: TEST_NODE_ID,
-          strategy: 'local',
-          databaseUrl: TEST_DB_URL,
-          configuredAt: '2024-06-01T00:00:00.000Z',
-          setupState: 'setup_done',
-          deployerVersion: '1.0.0',
-          meshUrlsSnapshot: [],
-          updatedAt: '2024-06-01T00:00:00.000Z',
-        });
-        return { nodeId: TEST_NODE_ID, databaseUrl: TEST_DB_URL };
-      });
+        it('not_started → completed (dev auto-setup)', async () => {
+            mockNodeConfigRepo._clear()
+            mockEnvService._set('SETUP_AUTO', 'true')
+            // Need the emulating local-init mock in this scenario too.
+            mockLocalInit.initialize = vi.fn(async () => {
+                mockNodeConfigRepo.upsert({
+                    nodeId: TEST_NODE_ID,
+                    strategy: 'local',
+                    databaseUrl: TEST_DB_URL,
+                    configuredAt: '2024-06-01T00:00:00.000Z',
+                    setupState: 'setup_done',
+                    deployerVersion: '1.0.0',
+                    meshUrlsSnapshot: [],
+                    updatedAt: '2024-06-01T00:00:00.000Z',
+                })
+                return { nodeId: TEST_NODE_ID, databaseUrl: TEST_DB_URL }
+            })
 
-      // Before: not_started
-      expect((await service.getSetupState()).state).toBe('not_started');
+            // Before: not_started
+            expect((await service.getSetupState()).state).toBe('not_started')
 
-      // Auto-setup (boot pipeline entry: triggerInitialize)
-      const result = service.triggerInitialize({
-        strategy: 'local',
-        name: 'Test',
-        email: 'test@test.com',
-        password: 'pass123',
-        serverUrl: 'http://localhost:3001',
-      });
-      expect(result.accepted).toBe(true);
-      await service.waitForSetup();
+            // Auto-setup (boot pipeline entry: triggerInitialize)
+            const result = service.triggerInitialize({
+                strategy: 'local',
+                name: 'Test',
+                email: 'test@test.com',
+                password: 'pass123',
+                serverUrl: 'http://localhost:3001',
+            })
+            expect(result.accepted).toBe(true)
+            await service.waitForSetup()
 
-      // After: completed
-      expect((await service.getSetupState()).state).toBe('completed');
-      expect((await service.getSetupState()).needsSetup).toBe(false);
-    });
+            // After: completed
+            expect((await service.getSetupState()).state).toBe('completed')
+            expect((await service.getSetupState()).needsSetup).toBe(false)
+        })
 
-    it('not_started → completed (cached config)', async () => {
-      mockNodeConfigRepo._seed({
-        nodeId: TEST_NODE_ID,
-        strategy: 'local',
-        databaseUrl: TEST_DB_URL,
-        configuredAt: '2024-01-01T00:00:00.000Z',
-        setupState: 'setup_done',
-        deployerVersion: '1.0.0',
-        meshUrlsSnapshot: [],
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      });
+        it('not_started → completed (cached config)', async () => {
+            mockNodeConfigRepo._seed({
+                nodeId: TEST_NODE_ID,
+                strategy: 'local',
+                databaseUrl: TEST_DB_URL,
+                configuredAt: '2024-01-01T00:00:00.000Z',
+                setupState: 'setup_done',
+                deployerVersion: '1.0.0',
+                meshUrlsSnapshot: [],
+                updatedAt: '2024-01-01T00:00:00.000Z',
+            })
 
-      // Before checkConfigAndEmit: should already be completed from cache
-      // (getSetupState reads directly from the repository)
-      expect((await service.getSetupState()).state).toBe('completed');
-      expect((await service.getSetupState()).needsSetup).toBe(false);
+            // Before checkConfigAndEmit: should already be completed from cache
+            // (getSetupState reads directly from the repository)
+            expect((await service.getSetupState()).state).toBe('completed')
+            expect((await service.getSetupState()).needsSetup).toBe(false)
 
-      // waitForSetup should also resolve immediately
-      await service.checkConfigAndEmit();
-      const result = await service.waitForSetup();
-      expect(result.nodeId).toBe(TEST_NODE_ID);
-      expect(result.databaseUrl).toBe(TEST_DB_URL);
-    });
-  });
+            // waitForSetup should also resolve immediately
+            await service.checkConfigAndEmit()
+            const result = await service.waitForSetup()
+            expect(result.nodeId).toBe(TEST_NODE_ID)
+            expect(result.databaseUrl).toBe(TEST_DB_URL)
+        })
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 7: ERROR HANDLING
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 7: ERROR HANDLING
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 7: Error handling', () => {
-    it('checkConfigAndEmit handles repository errors gracefully', async () => {
-      mockNodeConfigRepo.find.mockImplementation(() => Effect.fail(new Error('SQLite read failure')) as never);
-      await expect(service.checkConfigAndEmit()).resolves.toBeUndefined();
-    });
+    describe('Scenario 7: Error handling', () => {
+        it('checkConfigAndEmit handles repository errors gracefully', async () => {
+            mockNodeConfigRepo.find.mockImplementation(
+                () => Effect.fail(new Error('SQLite read failure')) as never
+            )
+            await expect(service.checkConfigAndEmit()).resolves.toBeUndefined()
+        })
 
-    it('getSetupState handles missing repository gracefully', async () => {
-      mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null));
-      const state = await service.getSetupState();
-      expect(state.state).toBe('not_started');
-      expect(state.needsSetup).toBe(true);
-    });
+        it('getSetupState handles missing repository gracefully', async () => {
+            mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null))
+            const state = await service.getSetupState()
+            expect(state.state).toBe('not_started')
+            expect(state.needsSetup).toBe(true)
+        })
 
-    it('getNodeStatus handles missing repository gracefully', async () => {
-      mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null));
-      const status = await service.getNodeStatus();
-      expect(status.isConfigured).toBe(false);
-      expect(status.nodeId).toBeNull();
-    });
-  });
+        it('getNodeStatus handles missing repository gracefully', async () => {
+            mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null))
+            const status = await service.getNodeStatus()
+            expect(status.isConfigured).toBe(false)
+            expect(status.nodeId).toBeNull()
+        })
+    })
 
-  // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 8: IDEMPOTENCY & STABILITY
-  // ═════════════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════════════
+    //  SCENARIO 8: IDEMPOTENCY & STABILITY
+    // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 8: Idempotency and stability', () => {
-    it('repeated getSetupState returns consistent results', async () => {
-      mockNodeConfigRepo._clear();
-      const state1 = await service.getSetupState();
-      const state2 = await service.getSetupState();
-      const state3 = await service.getSetupState();
-      expect(state1.state).toBe(state2.state);
-      expect(state2.state).toBe(state3.state);
-    });
+    describe('Scenario 8: Idempotency and stability', () => {
+        it('repeated getSetupState returns consistent results', async () => {
+            mockNodeConfigRepo._clear()
+            const state1 = await service.getSetupState()
+            const state2 = await service.getSetupState()
+            const state3 = await service.getSetupState()
+            expect(state1.state).toBe(state2.state)
+            expect(state2.state).toBe(state3.state)
+        })
 
-    it('repeated getNodeStatus returns consistent results', async () => {
-      mockNodeConfigRepo._clear();
-      const s1 = await service.getNodeStatus();
-      const s2 = await service.getNodeStatus();
-      expect(s1.isConfigured).toBe(s2.isConfigured);
-      expect(s1.nodeId).toBe(s2.nodeId);
-    });
+        it('repeated getNodeStatus returns consistent results', async () => {
+            mockNodeConfigRepo._clear()
+            const s1 = await service.getNodeStatus()
+            const s2 = await service.getNodeStatus()
+            expect(s1.isConfigured).toBe(s2.isConfigured)
+            expect(s1.nodeId).toBe(s2.nodeId)
+        })
 
-    it('emitCompleted is idempotent (double-call is no-op)', async () => {
-      mockNodeConfigRepo._seed({
-        nodeId: TEST_NODE_ID,
-        strategy: 'local',
-        databaseUrl: TEST_DB_URL,
-        configuredAt: '2024-01-01T00:00:00.000Z',
-        setupState: 'setup_done',
-        deployerVersion: '1.0.0',
-        meshUrlsSnapshot: [],
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      });
+        it('emitCompleted is idempotent (double-call is no-op)', async () => {
+            mockNodeConfigRepo._seed({
+                nodeId: TEST_NODE_ID,
+                strategy: 'local',
+                databaseUrl: TEST_DB_URL,
+                configuredAt: '2024-01-01T00:00:00.000Z',
+                setupState: 'setup_done',
+                deployerVersion: '1.0.0',
+                meshUrlsSnapshot: [],
+                updatedAt: '2024-01-01T00:00:00.000Z',
+            })
 
-      // First call should emit
-      const promise1 = service.waitForSetup();
-      await service.checkConfigAndEmit();
-      const result1 = await promise1;
-      expect(result1.nodeId).toBe(TEST_NODE_ID);
+            // First call should emit
+            const promise1 = service.waitForSetup()
+            await service.checkConfigAndEmit()
+            const result1 = await promise1
+            expect(result1.nodeId).toBe(TEST_NODE_ID)
 
-      // Second waitForSubscribe should also resolve (ReplaySubject replays)
-      const result2 = await service.waitForSetup();
-      expect(result2.nodeId).toBe(TEST_NODE_ID);
-      expect(result2.databaseUrl).toBe(TEST_DB_URL);
-    });
+            // Second waitForSubscribe should also resolve (ReplaySubject replays)
+            const result2 = await service.waitForSetup()
+            expect(result2.nodeId).toBe(TEST_NODE_ID)
+            expect(result2.databaseUrl).toBe(TEST_DB_URL)
+        })
 
-    it('completing setup ADVANCES THE LIFECYCLE (the readiness gate)', async () => {
-      // Regression guard for a first install: `BootstrapOrchestratorService
-      // .onApplicationBootstrap` runs BEFORE the wizard finishes, sees
-      // `setupState !== "setup_done"` and returns early — nothing re-ran it, so
-      // the phase stayed `initialized` and the `swarm` + `database` readiness
-      // indicators reported `down` forever. `/health/ready` therefore never
-      // returned 200, setup's handover timed out after 300s, and the platform
-      // never converged. Advancing the lifecycle here is what fixes that.
-      mockNodeConfigRepo._seed({
-        nodeId: TEST_NODE_ID,
-        strategy: 'local',
-        databaseUrl: TEST_DB_URL,
-        configuredAt: '2024-01-01T00:00:00.000Z',
-        setupState: 'setup_done',
-        deployerVersion: '1.0.0',
-        meshUrlsSnapshot: [],
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      });
+        it('completing setup ADVANCES THE LIFECYCLE (the readiness gate)', async () => {
+            // Regression guard for a first install: `BootstrapOrchestratorService
+            // .onApplicationBootstrap` runs BEFORE the wizard finishes, sees
+            // `setupState !== "setup_done"` and returns early — nothing re-ran it, so
+            // the phase stayed `initialized` and the `swarm` + `database` readiness
+            // indicators reported `down` forever. `/health/ready` therefore never
+            // returned 200, setup's handover timed out after 300s, and the platform
+            // never converged. Advancing the lifecycle here is what fixes that.
+            mockNodeConfigRepo._seed({
+                nodeId: TEST_NODE_ID,
+                strategy: 'local',
+                databaseUrl: TEST_DB_URL,
+                configuredAt: '2024-01-01T00:00:00.000Z',
+                setupState: 'setup_done',
+                deployerVersion: '1.0.0',
+                meshUrlsSnapshot: [],
+                updatedAt: '2024-01-01T00:00:00.000Z',
+            })
 
-      await service.checkConfigAndEmit();
-      await service.waitForSetup();
+            await service.checkConfigAndEmit()
+            await service.waitForSetup()
 
-      expect(mockLifecycle.markDatabaseProbeNow).toHaveBeenCalledWith(TEST_DB_URL, true);
-      expect(mockLifecycle.markMeshConnectedNow).toHaveBeenCalledWith(true);
-      expect(mockLifecycle.markReadyNow).toHaveBeenCalled();
-    });
-  });
-});
+            expect(mockLifecycle.markDatabaseProbeNow).toHaveBeenCalledWith(
+                TEST_DB_URL,
+                true
+            )
+            expect(mockLifecycle.markMeshConnectedNow).toHaveBeenCalledWith(
+                true
+            )
+            expect(mockLifecycle.markReadyNow).toHaveBeenCalled()
+        })
+    })
+})

@@ -27,28 +27,32 @@ The cache only pays off if the directory survives the process — a container th
 
 ### Cache locations
 
-| Mode | Cache directory | Populated by |
-|------|-----------------|--------------|
-| dev | `apps/<app>/.next/dev/cache/turbopack` | `next dev` |
-| build | `apps/<app>/.next/cache/turbopack` | `next build` |
+| Mode  | Cache directory                        | Populated by |
+| ----- | -------------------------------------- | ------------ |
+| dev   | `apps/<app>/.next/dev/cache/turbopack` | `next dev`   |
+| build | `apps/<app>/.next/cache/turbopack`     | `next build` |
 
 Dev mode uses a **dev-scoped distDir** (`.next/dev`), which is why the dev cache is not under `.next/cache`.
 
 ### Persistence strategy
 
-| Surface | Mechanism | Mount |
-|---------|-----------|-------|
-| Compose dev (`web-dev`, `doc-dev`) | named volume per app | `<app>_next_cache_dev:/app/apps/<app>/.next/dev/cache` |
-| Compose prod (`web-prod`, `doc-prod`) | named volume per app | `<app>_next_cache_prod:/app/apps/<app>/.next/cache` |
-| Build-time prod images | BuildKit cache mount | `target=/app/apps/<app>/.next/cache` |
-| Swarm prod (`docker-stack.deploy.yml`) | none — by design | — |
+| Surface                                | Mechanism            | Mount                                                  |
+| -------------------------------------- | -------------------- | ------------------------------------------------------ |
+| Compose dev (`web-dev`, `doc-dev`)     | named volume per app | `<app>_next_cache_dev:/app/apps/<app>/.next/dev/cache` |
+| Compose prod (`web-prod`, `doc-prod`)  | named volume per app | `<app>_next_cache_prod:/app/apps/<app>/.next/cache`    |
+| Build-time prod images                 | BuildKit cache mount | `target=/app/apps/<app>/.next/cache`                   |
+| Swarm prod (`docker-stack.deploy.yml`) | none — by design     | —                                                      |
 
 One volume **per app**: `web` and `doc` have different graph roots, so sharing a cache directory would be wasted work at best.
 
 Only the `cache/` directory is mounted — never the whole `.next` or `.next/dev`. The dist-dir lock (`.next/dev/lock`, `experimental.lockDistDir`) stays on the container layer, so a recreated container always starts lock-free.
 
 <DocCallout title="Why the swarm stack opts out" tone="warning">
-`docker-stack.deploy.yml` uses `update_config.order: start-first` with `max_replicas_per_node: 1`, so two replicas overlap on one node during a rolling update. Two Turbopack processes writing the same cache directory would corrupt it, and an unpinned volume would be shared across hosts. The swarm stack therefore has no cache volume.
+    `docker-stack.deploy.yml` uses `update_config.order: start-first` with
+    `max_replicas_per_node: 1`, so two replicas overlap on one node during a
+    rolling update. Two Turbopack processes writing the same cache directory
+    would corrupt it, and an unpinned volume would be shared across hosts. The
+    swarm stack therefore has no cache volume.
 </DocCallout>
 
 ### Ownership
@@ -85,7 +89,9 @@ bun run docker:build
 - Resource constraints (memory/CPU) causing build instability
 
 <DocCallout title="Operational tip" tone="warning">
-Treat Docker Compose files as environment contracts: changing service names/ports without synchronized docs and env updates causes cascading runtime failures.
+    Treat Docker Compose files as environment contracts: changing service
+    names/ports without synchronized docs and env updates causes cascading
+    runtime failures.
 </DocCallout>
 
 ## Related docs

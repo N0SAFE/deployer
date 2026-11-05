@@ -23,7 +23,10 @@ export {
 } from '@deployer/use-safe-query-param-states-from-zod/useRouteSearchBuilder'
 
 export { createParserForZodField } from '@deployer/use-safe-query-param-states-from-zod/parsers'
-export { getZodObjectDefaults, getZodObjectShallowDefaults } from '@deployer/use-safe-query-param-states-from-zod/defaults'
+export {
+    getZodObjectDefaults,
+    getZodObjectShallowDefaults,
+} from '@deployer/use-safe-query-param-states-from-zod/defaults'
 export { mergeWithDefaults } from '@deployer/use-safe-query-param-states-from-zod/merge'
 export { useDebouncedCallback } from '@deployer/use-safe-query-param-states-from-zod/useDebouncedCallback'
 

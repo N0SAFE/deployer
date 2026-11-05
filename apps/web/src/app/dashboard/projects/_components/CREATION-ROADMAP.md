@@ -2,15 +2,15 @@
 
 ## Current State (Just Built)
 
-| Capability | Status |
-|---|---|
-| Multi-step wizard UI | ✅ Built |
-| TanStack Form + Zod discriminated unions | ✅ Built |
-| emblor tag input | ✅ Installed |
-| Validates on submit, calls API | ✅ Working |
-| Auth secret as `<Select>` with options | ✅ Static list |
-| Runner-specific extra fields | ✅ 6 runner types |
-| Health check type selector | ✅ HTTP/TCP/Command/None |
+| Capability                               | Status                   |
+| ---------------------------------------- | ------------------------ |
+| Multi-step wizard UI                     | ✅ Built                 |
+| TanStack Form + Zod discriminated unions | ✅ Built                 |
+| emblor tag input                         | ✅ Installed             |
+| Validates on submit, calls API           | ✅ Working               |
+| Auth secret as `<Select>` with options   | ✅ Static list           |
+| Runner-specific extra fields             | ✅ 6 runner types        |
+| Health check type selector               | ✅ HTTP/TCP/Command/None |
 
 ---
 
@@ -18,7 +18,7 @@
 
 ### 1. Provider Account Linking (OAuth / Token Management)
 
-**Problem**: When a user selects "GitHub" as provider, the form shows a URL input. But the real UX is: *select which GitHub account → browse repos → pick one*. There's no account linking system.
+**Problem**: When a user selects "GitHub" as provider, the form shows a URL input. But the real UX is: _select which GitHub account → browse repos → pick one_. There's no account linking system.
 
 **What needs to be built**:
 
@@ -41,14 +41,14 @@
 
 **Required pieces**:
 
-| Piece | Description | Depends on |
-|---|---|---|
-| Provider account schema | `providerAccountSchema` — id, provider, accountName, token (encrypted), avatar, expiresAt | Nothing |
-| OAuth flow (GitHub first) | `GET /auth/github` → GitHub OAuth → callback → store token | Provider account schema |
-| Provider accounts API | CRUD for linked accounts — `listProviderAccounts`, `deleteProviderAccount` | OAuth flow |
-| Repository browser API | `GET /providers/:id/repos` — list repos accessible by linked account | Provider accounts |
-| Repo → runtime detection | `POST /providers/:id/detect` — analyze repo content → suggest builder type | Repo browser |
-| Branch browser API | `GET /providers/:id/repos/:repo/branches` | Repo browser |
+| Piece                     | Description                                                                               | Depends on              |
+| ------------------------- | ----------------------------------------------------------------------------------------- | ----------------------- |
+| Provider account schema   | `providerAccountSchema` — id, provider, accountName, token (encrypted), avatar, expiresAt | Nothing                 |
+| OAuth flow (GitHub first) | `GET /auth/github` → GitHub OAuth → callback → store token                                | Provider account schema |
+| Provider accounts API     | CRUD for linked accounts — `listProviderAccounts`, `deleteProviderAccount`                | OAuth flow              |
+| Repository browser API    | `GET /providers/:id/repos` — list repos accessible by linked account                      | Provider accounts       |
+| Repo → runtime detection  | `POST /providers/:id/detect` — analyze repo content → suggest builder type                | Repo browser            |
+| Branch browser API        | `GET /providers/:id/repos/:repo/branches`                                                 | Repo browser            |
 
 ### 2. Secret Management (Real `authSecretRef`/`secretRefs`)
 
@@ -56,13 +56,13 @@
 
 **Required pieces**:
 
-| Piece | Description | Depends on |
-|---|---|---|
-| Secret schema | `projectSecretSchema` — id, projectId, name, type, encryptedValue, createdAt, rotatedAt | Nothing |
-| Secrets CRUD API | `listSecrets`, `createSecret`, `updateSecret`, `deleteSecret` | Secret schema |
-| Secret picker component | Form field that lists project secrets + "Create new" option | Secrets CRUD |
-| Encryption layer | Server-side encryption before storing secret values | Nothing |
-| Secret reference resolution | Service deployment resolves `authSecretRef` → actual secret value | Secrets CRUD |
+| Piece                       | Description                                                                             | Depends on    |
+| --------------------------- | --------------------------------------------------------------------------------------- | ------------- |
+| Secret schema               | `projectSecretSchema` — id, projectId, name, type, encryptedValue, createdAt, rotatedAt | Nothing       |
+| Secrets CRUD API            | `listSecrets`, `createSecret`, `updateSecret`, `deleteSecret`                           | Secret schema |
+| Secret picker component     | Form field that lists project secrets + "Create new" option                             | Secrets CRUD  |
+| Encryption layer            | Server-side encryption before storing secret values                                     | Nothing       |
+| Secret reference resolution | Service deployment resolves `authSecretRef` → actual secret value                       | Secrets CRUD  |
 
 ### 3. Environment Management Integration
 
@@ -70,11 +70,11 @@
 
 **Required pieces**:
 
-| Piece | Description | Depends on |
-|---|---|---|
-| Environment selector step | New wizard step showing project environments | Existing environment contracts |
-| Environment config override | Per-service overrides per environment | `service-overrides.schema.ts` exists |
-| Environment-aware defaults | Auto-populate env-specific config (e.g., staging → fewer replicas) | Environment selector |
+| Piece                       | Description                                                        | Depends on                           |
+| --------------------------- | ------------------------------------------------------------------ | ------------------------------------ |
+| Environment selector step   | New wizard step showing project environments                       | Existing environment contracts       |
+| Environment config override | Per-service overrides per environment                              | `service-overrides.schema.ts` exists |
+| Environment-aware defaults  | Auto-populate env-specific config (e.g., staging → fewer replicas) | Environment selector                 |
 
 ---
 
@@ -86,11 +86,11 @@
 
 **Required pieces**:
 
-| Piece | Description | Depends on |
-|---|---|---|
-| Domain selector component | Lists project domains + availability check | Existing domain contracts (17+ endpoints ready) |
-| Subdomain auto-generation | Auto-suggest `{service-name}.{project-domain}` on name entry | Domain selector |
-| DNS status indicator | Shows verification status per domain | Domain `verifyOrganizationDomain` endpoint exists |
+| Piece                     | Description                                                  | Depends on                                        |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| Domain selector component | Lists project domains + availability check                   | Existing domain contracts (17+ endpoints ready)   |
+| Subdomain auto-generation | Auto-suggest `{service-name}.{project-domain}` on name entry | Domain selector                                   |
+| DNS status indicator      | Shows verification status per domain                         | Domain `verifyOrganizationDomain` endpoint exists |
 
 ### 5. Runner Auto-Detection
 
@@ -98,19 +98,19 @@
 
 **Required pieces**:
 
-| Piece | Description | Depends on |
-|---|---|---|
+| Piece                 | Description                                                                                      | Depends on               |
+| --------------------- | ------------------------------------------------------------------------------------------------ | ------------------------ |
 | Repo analysis service | Clone/fetch repo → check for Dockerfile, package.json, Dockerfile, nixpacks config, static files | Provider account linking |
-| Runner suggestion UI | Show detected type + allow override | Repo analysis |
-| Config pre-fill | Auto-fill runner config defaults based on detected type | Repo analysis |
+| Runner suggestion UI  | Show detected type + allow override                                                              | Repo analysis            |
+| Config pre-fill       | Auto-fill runner config defaults based on detected type                                          | Repo analysis            |
 
 ### 6. Resource Templates
 
 **Problem**: Resource limits (memory/cpu) are manual selects. Common patterns should be templated.
 
-| Piece | Description | Depends on |
-|---|---|---|
-| Resource template schema | `resourceTemplateSchema` — preset name, memory, cpu, storage | Nothing |
+| Piece                    | Description                                                           | Depends on               |
+| ------------------------ | --------------------------------------------------------------------- | ------------------------ |
+| Resource template schema | `resourceTemplateSchema` — preset name, memory, cpu, storage          | Nothing                  |
 | Resource template picker | Select "Small (256m/0.5)" / "Medium (1g/1)" / "Large (4g/4)" / Custom | Resource template schema |
 
 ---
@@ -162,17 +162,17 @@ Phase 4 ─── Templates + Polish
 
 ## Key Files to Create/Modify
 
-| File | Purpose | Phase |
-|---|---|---|
-| `packages/contracts/entities/src/entities/provider/account.schema.ts` | Provider account entity | P1 |
-| `packages/contracts/api/modules/provider/accounts/` | Provider account CRUD contracts | P1 |
-| `apps/api/src/modules/provider/oauth/` | GitHub OAuth controller + service | P1 |
-| `apps/api/src/modules/provider/repos/` | Repository + branch browser API | P1 |
-| `apps/api/src/modules/provider/detect/` | Repo → runner detection | P1 |
-| `packages/contracts/entities/src/entities/project/secret.schema.ts` | Secret entity | P2 |
-| `packages/contracts/api/modules/secret/` | Secret CRUD contracts | P2 |
-| `apps/api/src/modules/secret/` | Secret service with encryption | P2 |
-| `packages/ui/base/src/components/shadcn/secret-picker.tsx` | Secret selector UI | P2 |
-| `packages/ui/base/src/components/shadcn/domain-picker.tsx` | Domain selector UI | P3 |
-| `apps/web/src/domains/provider/hooks.ts` | Provider account hooks | P1 |
-| `apps/web/src/domains/secret/hooks.ts` | Secret hooks | P2 |
+| File                                                                  | Purpose                           | Phase |
+| --------------------------------------------------------------------- | --------------------------------- | ----- |
+| `packages/contracts/entities/src/entities/provider/account.schema.ts` | Provider account entity           | P1    |
+| `packages/contracts/api/modules/provider/accounts/`                   | Provider account CRUD contracts   | P1    |
+| `apps/api/src/modules/provider/oauth/`                                | GitHub OAuth controller + service | P1    |
+| `apps/api/src/modules/provider/repos/`                                | Repository + branch browser API   | P1    |
+| `apps/api/src/modules/provider/detect/`                               | Repo → runner detection           | P1    |
+| `packages/contracts/entities/src/entities/project/secret.schema.ts`   | Secret entity                     | P2    |
+| `packages/contracts/api/modules/secret/`                              | Secret CRUD contracts             | P2    |
+| `apps/api/src/modules/secret/`                                        | Secret service with encryption    | P2    |
+| `packages/ui/base/src/components/shadcn/secret-picker.tsx`            | Secret selector UI                | P2    |
+| `packages/ui/base/src/components/shadcn/domain-picker.tsx`            | Domain selector UI                | P3    |
+| `apps/web/src/domains/provider/hooks.ts`                              | Provider account hooks            | P1    |
+| `apps/web/src/domains/secret/hooks.ts`                                | Secret hooks                      | P2    |

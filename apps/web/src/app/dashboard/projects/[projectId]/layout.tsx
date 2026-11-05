@@ -10,8 +10,9 @@ import type { ReactNode } from 'react'
 // `metadata` cannot be exported from a `'use client'` file. The project's own
 // name is fetched client-side, so the title stays the generic section name.
 export const metadata: Metadata = {
-  title: 'Project',
-  description: 'Services, environments, domains and deployments for this project',
+    title: 'Project',
+    description:
+        'Services, environments, domains and deployments for this project',
 }
 
 /**
@@ -24,10 +25,14 @@ export const metadata: Metadata = {
  * the project shell streams in behind its skeleton after the URL data
  * resolves.
  */
-export default function ProjectDetailLayout({ children }: { children: ReactNode }) {
-  return (
-    <Suspense fallback={<ProjectDetailSkeleton />}>
-      <ProjectDetailLayoutInner>{children}</ProjectDetailLayoutInner>
-    </Suspense>
-  )
+export default function ProjectDetailLayout({
+    children,
+}: {
+    children: ReactNode
+}) {
+    return (
+        <Suspense fallback={<ProjectDetailSkeleton />}>
+            <ProjectDetailLayoutInner>{children}</ProjectDetailLayoutInner>
+        </Suspense>
+    )
 }

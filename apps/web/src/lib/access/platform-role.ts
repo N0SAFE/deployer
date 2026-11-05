@@ -5,9 +5,9 @@ import type { PlatformRole } from '@deployer/auth'
 import { useSession } from '@/lib/auth'
 
 import {
-	isPlatformAdminRole,
-	isPlatformRole,
-	isPlatformRoleAtLeast,
+    isPlatformAdminRole,
+    isPlatformRole,
+    isPlatformRoleAtLeast,
 } from './platform-role.rules'
 
 /**
@@ -35,14 +35,16 @@ import {
 
 /** The session's platform role, or `null` when there is no session or the value is not a role. */
 export function usePlatformRoleValue(): PlatformRole | null {
-	const { data: session } = useSession()
-	const role = session?.user ? (session.user as { role?: unknown }).role : undefined
-	return isPlatformRole(role) ? role : null
+    const { data: session } = useSession()
+    const role = session?.user
+        ? (session.user as { role?: unknown }).role
+        : undefined
+    return isPlatformRole(role) ? role : null
 }
 
 /** Is the signed-in user a platform administrator? */
 export function useIsPlatformAdmin(): boolean {
-	return isPlatformAdminRole(usePlatformRoleValue())
+    return isPlatformAdminRole(usePlatformRoleValue())
 }
 
 /**
@@ -54,7 +56,7 @@ export function useIsPlatformAdmin(): boolean {
  * infer from `=== 'admin' || === 'superAdmin'` at each site.
  */
 export function useCanManageNetwork(): boolean {
-	return useIsPlatformAdmin()
+    return useIsPlatformAdmin()
 }
 
 /**
@@ -64,24 +66,25 @@ export function useCanManageNetwork(): boolean {
  * cannot introduce a role string the platform does not define.
  */
 export function usePlatformRole(): {
-	role: PlatformRole | null
-	hasRole: (roles: readonly PlatformRole[]) => boolean
-	isAtLeast: (minimum: PlatformRole) => boolean
-	isAdmin: boolean
+    role: PlatformRole | null
+    hasRole: (roles: readonly PlatformRole[]) => boolean
+    isAtLeast: (minimum: PlatformRole) => boolean
+    isAdmin: boolean
 } {
-	const role = usePlatformRoleValue()
-	return {
-		role,
-		hasRole: (roles) => role !== null && roles.includes(role),
-		isAtLeast: (minimum) => role !== null && isPlatformRoleAtLeast(role, minimum),
-		isAdmin: isPlatformAdminRole(role),
-	}
+    const role = usePlatformRoleValue()
+    return {
+        role,
+        hasRole: (roles) => role !== null && roles.includes(role),
+        isAtLeast: (minimum) =>
+            role !== null && isPlatformRoleAtLeast(role, minimum),
+        isAdmin: isPlatformAdminRole(role),
+    }
 }
 
 /** Re-exported so a caller needs one import for both the rules and the hooks. */
 export {
-	isPlatformAdminRole,
-	isPlatformRole,
-	isPlatformRoleAtLeast,
-	platformRolesByPrivilege,
+    isPlatformAdminRole,
+    isPlatformRole,
+    isPlatformRoleAtLeast,
+    platformRolesByPrivilege,
 } from './platform-role.rules'

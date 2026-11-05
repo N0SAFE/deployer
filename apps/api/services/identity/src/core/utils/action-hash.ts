@@ -3,4 +3,4 @@
  *
  * Re-exported rather than re-implemented: the requester and the guard must agree byte for byte.
  */
-export { actionHash } from "@deployer/auth/server";
+export { actionHash } from '@deployer/auth/server'

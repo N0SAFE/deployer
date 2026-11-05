@@ -30,20 +30,34 @@ import { Logger } from '@nestjs/common'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Client, Pool } from 'pg'
 
-import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env"
-import { createGlobalModule, EffectHost, effectHostProvider, ServiceLifecycleRunner, type EffectHostShape } from "@deployer/nest-effect"
+import { resolveManagedGlobalDbUrl, splitManagedEnv } from '@deployer/env'
+import {
+    createGlobalModule,
+    EffectHost,
+    effectHostProvider,
+    ServiceLifecycleRunner,
+    type EffectHostShape,
+} from '@deployer/nest-effect'
 import * as globalSchema from '@deployer/nest-schema/global'
 
-import { EnvModule } from "../../../../config/env/env.module"
-import { EnvService } from "../../../../config/env/env.module"
-import { NodeConfigSnapshot, type NodeConfigSnapshotShape } from '../../node-state/node-config.snapshot'
+import { EnvModule } from '../../../../config/env/env.module'
+import { EnvService } from '../../../../config/env/env.module'
+import {
+    NodeConfigSnapshot,
+    type NodeConfigSnapshotShape,
+} from '../../node-state/node-config.snapshot'
 import { NodeStateModule } from '../../node-state/node-state.module'
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
-import { LocalDatabaseModule } from "../local/local-database.module"
+import {
+    GLOBAL_DATABASE_CONNECTION,
+    GLOBAL_DATABASE_POOL,
+} from '../database-connection'
+import { LocalDatabaseModule } from '../local/local-database.module'
 
 import { makeGlobalDatabasePoolLifecycle } from './global-database-lifecycle.service'
-import { GlobalDatabaseService, makeGlobalDatabaseService } from './global-database.service'
-
+import {
+    GlobalDatabaseService,
+    makeGlobalDatabaseService,
+} from './global-database.service'
 
 const logger = new Logger('GlobalDatabaseModule')
 
@@ -118,7 +132,9 @@ function readPoolSizing(env: EnvService): PoolSizing {
     const sizing: PoolSizing = {
         max: env.get('GLOBAL_DB_POOL_MAX'),
         min: env.get('GLOBAL_DB_POOL_MIN'),
-        connectionTimeoutMillis: env.get('GLOBAL_DB_POOL_CONNECTION_TIMEOUT_MS'),
+        connectionTimeoutMillis: env.get(
+            'GLOBAL_DB_POOL_CONNECTION_TIMEOUT_MS'
+        ),
         idleTimeoutMillis: env.get('GLOBAL_DB_POOL_IDLE_TIMEOUT_MS'),
     }
     if (sizing.min > sizing.max) {
@@ -130,7 +146,7 @@ function readPoolSizing(env: EnvService): PoolSizing {
                 String(sizing.min) +
                 ') > GLOBAL_DB_POOL_MAX (' +
                 String(sizing.max) +
-                '); clamping min to max',
+                '); clamping min to max'
         )
         sizing.min = sizing.max
     }
@@ -150,27 +166,29 @@ function readPoolSizing(env: EnvService): PoolSizing {
  * Both are read through the SAME resolver, on every connect, so the pool follows
  * the platform through onboarding instead of freezing whatever was true at boot.
  */
-function buildSharedPool(snapshot: Pick<NodeConfigSnapshotShape, "current">, env: EnvService): Pool {
+function buildSharedPool(
+    snapshot: Pick<NodeConfigSnapshotShape, 'current'>,
+    env: EnvService
+): Pool {
     let announced = false
 
     const resolveUrl = (): string => {
         const managed = splitManagedEnv(env).globalDb
-        const url =
-            managed.enabled
-                ? resolveManagedGlobalDbUrl(managed)
-                : (snapshot.current()?.databaseUrl?.trim() ?? '')
+        const url = managed.enabled
+            ? resolveManagedGlobalDbUrl(managed)
+            : (snapshot.current()?.databaseUrl?.trim() ?? '')
 
         if (!announced) {
             announced = true
             if (url.length === 0) {
                 logger.warn(
-                    '⚠️  No database URL yet — the pool will connect once onboarding provisions one.',
+                    '⚠️  No database URL yet — the pool will connect once onboarding provisions one.'
                 )
             } else {
                 logger.log(
                     managed.enabled
                         ? '📦 Compose-managed global DB (MANAGED_GLOBAL_DB_ENABLED=true) — pool URL from env'
-                        : '📦 Creating shared database pool (single instance)',
+                        : '📦 Creating shared database pool (single instance)'
                 )
             }
         }
@@ -202,7 +220,11 @@ export const GlobalDatabaseModule = createGlobalModule({
         {
             provide: Symbol.for('shared/GlobalDatabasePoolLifecycle'),
             useFactory: (pool: Pool | undefined, host: EffectHostShape) =>
-                new ServiceLifecycleRunner('GlobalDatabasePool', makeGlobalDatabasePoolLifecycle(pool), host),
+                new ServiceLifecycleRunner(
+                    'GlobalDatabasePool',
+                    makeGlobalDatabasePoolLifecycle(pool),
+                    host
+                ),
             inject: [GLOBAL_DATABASE_POOL, EffectHost],
         },
         {
@@ -217,7 +239,10 @@ export const GlobalDatabaseModule = createGlobalModule({
         },
         {
             provide: GlobalDatabaseService,
-            useFactory: (pool: Pool) => makeGlobalDatabaseService(drizzle(pool, { schema: globalSchema })),
+            useFactory: (pool: Pool) =>
+                makeGlobalDatabaseService(
+                    drizzle(pool, { schema: globalSchema })
+                ),
             inject: [GLOBAL_DATABASE_POOL],
         },
     ],
@@ -226,6 +251,9 @@ export const GlobalDatabaseModule = createGlobalModule({
     // OWN providers + imported module metatypes, so a class token that only
     // arrives through an imported @Global() module is not exportable from here
     // (UnknownExportException). Consumers inject it directly from NodeStateModule.
-    exports: [GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL],
-});
-
+    exports: [
+        GlobalDatabaseService,
+        GLOBAL_DATABASE_CONNECTION,
+        GLOBAL_DATABASE_POOL,
+    ],
+})

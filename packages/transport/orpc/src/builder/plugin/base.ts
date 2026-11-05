@@ -20,10 +20,9 @@
  * the plugin's native equivalents (`z.ZodObject` / `z.ZodOptional` ...).
  */
 
- 
-import type { ZodPluginTransformer } from "@deployer/orpc-utils/builder/plugin/zod";
-import type { SchemaShape } from "@deployer/orpc-utils/types/standard-schema-helpers";
-import type { AnySchema } from "@deployer/orpc-utils/types/types";
+import type { ZodPluginTransformer } from '@deployer/orpc-utils/builder/plugin/zod'
+import type { SchemaShape } from '@deployer/orpc-utils/types/standard-schema-helpers'
+import type { AnySchema } from '@deployer/orpc-utils/types/types'
 
 /**
  * Type-level schema ops contract. Every plugin namespaces its type-level
@@ -35,54 +34,68 @@ import type { AnySchema } from "@deployer/orpc-utils/types/types";
  */
 export type PluginInfer = {
     /** Map a part schema to the plugin's native equivalent. */
-    Field: <T extends AnySchema>(t: T) => unknown;
+    Field: <T extends AnySchema>(t: T) => unknown
     /** Optional wrapper type produced by the plugin. */
-    Optional: <T extends AnySchema>(t: T) => unknown;
+    Optional: <T extends AnySchema>(t: T) => unknown
     /** Object schema type produced by the plugin for a shape. */
-    ObjectSchema: <TShape extends SchemaShape>(shape: TShape) => unknown;
+    ObjectSchema: <TShape extends SchemaShape>(shape: TShape) => unknown
     /** Empty object sentinel type produced by the plugin. */
-    EmptyObject: unknown;
+    EmptyObject: unknown
     /** Void sentinel type produced by the plugin. */
-    Void: unknown;
+    Void: unknown
     /** True when a part is an empty sentinel (used to omit keys). */
-    IsEmptyPart: <T extends AnySchema>(t: T) => unknown;
+    IsEmptyPart: <T extends AnySchema>(t: T) => unknown
     /** Empty-object detection for direct-body collapse. */
-    IsEmptyObjectSchemaType: <T extends AnySchema>(t: T) => unknown;
+    IsEmptyObjectSchemaType: <T extends AnySchema>(t: T) => unknown
     /** Built detailed input envelope (branded). */
-    BuiltDetailedInput: <TParams extends AnySchema, TQuery extends AnySchema, TBody extends AnySchema, THeaders extends AnySchema>(
-        params: TParams, query: TQuery, body: TBody, headers: THeaders,
-    ) => unknown;
+    BuiltDetailedInput: <
+        TParams extends AnySchema,
+        TQuery extends AnySchema,
+        TBody extends AnySchema,
+        THeaders extends AnySchema,
+    >(
+        params: TParams,
+        query: TQuery,
+        body: TBody,
+        headers: THeaders
+    ) => unknown
     /** Built detailed output envelope (branded). */
-    DetailedOutput: <TStatus extends number, THeaders extends AnySchema, TBody extends AnySchema>(
-        status: TStatus, headers: THeaders, body: TBody,
-    ) => unknown;
+    DetailedOutput: <
+        TStatus extends number,
+        THeaders extends AnySchema,
+        TBody extends AnySchema,
+    >(
+        status: TStatus,
+        headers: THeaders,
+        body: TBody
+    ) => unknown
     /** Detect detailed output structure from a plain schema. */
-    DetectDetailedOutput: <T extends AnySchema>(t: T) => unknown;
+    DetectDetailedOutput: <T extends AnySchema>(t: T) => unknown
     /** Extract the four parts from a detailed input envelope. */
-    BrandedInputParts: <TInput extends AnySchema>(input: TInput) => unknown;
+    BrandedInputParts: <TInput extends AnySchema>(input: TInput) => unknown
     /** Resolved contract input type. */
-    BuildInput: <TInput extends AnySchema>(input: TInput) => unknown;
+    BuildInput: <TInput extends AnySchema>(input: TInput) => unknown
     /** Resolved contract output type. */
-    BuildOutput: <TOutput extends AnySchema>(output: TOutput) => unknown;
+    BuildOutput: <TOutput extends AnySchema>(output: TOutput) => unknown
     /** Field-shape extraction from a params schema. */
-    ParamsShapeOf: <TParams extends AnySchema>(params: TParams) => unknown;
+    ParamsShapeOf: <TParams extends AnySchema>(params: TParams) => unknown
     /** Extract body schema from a detailed output envelope. */
-    ExtractOutputBody: <T extends AnySchema>(t: T) => unknown;
+    ExtractOutputBody: <T extends AnySchema>(t: T) => unknown
     /** Extract numeric status code from a detailed output envelope. */
-    ExtractOutputStatus: <T extends AnySchema>(t: T) => unknown;
+    ExtractOutputStatus: <T extends AnySchema>(t: T) => unknown
     /** Extract headers schema from a detailed output envelope. */
-    ExtractOutputHeaders: <T extends AnySchema>(t: T) => unknown;
+    ExtractOutputHeaders: <T extends AnySchema>(t: T) => unknown
     /** Public schema view for output consumers (200/no-headers → body). */
-    OutputProxySchema: <TData extends AnySchema>(data: TData) => unknown;
+    OutputProxySchema: <TData extends AnySchema>(data: TData) => unknown
 }
 
 /**
  * Extract the `$Infer` namespace from a plugin class (eager for concrete classes).
  */
-export type InferOf<P> = P extends { readonly $Infer: infer N } ? N : never;
+export type InferOf<P> = P extends { readonly $Infer: infer N } ? N : never
 
 /** Whether the plugin produces Zod schemas (deferred ternary key). */
-export type IsPluginZod<P> = P extends ZodPluginTransformer ? true : false;
+export type IsPluginZod<P> = P extends ZodPluginTransformer ? true : false
 
 /**
  * The per-plugin TYPE-OP DISPATCH lives in `./types` (`PluginField`, ...):
@@ -97,68 +110,72 @@ export type IsPluginZod<P> = P extends ZodPluginTransformer ? true : false;
  * as `PluginTransformer.$Infer` for concrete classes.
  */
 
-export abstract class BasePluginTransformer<TSchema extends AnySchema = AnySchema> {
+export abstract class BasePluginTransformer<
+    TSchema extends AnySchema = AnySchema,
+> {
     /** Phantom — the object-schema type this plugin produces (type-level only). */
-    declare readonly schema: TSchema;
-
-
+    declare readonly schema: TSchema
 
     // ---- construction ------------------------------------------------------
-    
-    static create<T extends BasePluginTransformer>(
-        this: new () => T
-    ): T {
-        return new this();
+
+    static create<T extends BasePluginTransformer>(this: new () => T): T {
+        return new this()
     }
 
     /** Object envelope: `objectSchema(shape)` / `z.object(shape)`. */
-    abstract object<TShape extends SchemaShape>(shape: TShape): TSchema;
+    abstract object<TShape extends SchemaShape>(shape: TShape): TSchema
 
     /** Empty object sentinel (unset params/query/headers). */
-    abstract emptyObject(): TSchema;
+    abstract emptyObject(): TSchema
 
     /** Void sentinel (no input/output value) — not an object schema. */
-    abstract voidSchema(): AnySchema;
+    abstract voidSchema(): AnySchema
 
     /** Never sentinel (impossible value) — not an object schema. */
-    abstract neverSchema(): AnySchema;
+    abstract neverSchema(): AnySchema
 
     /** Literal — output status codes. */
-    abstract literalSchema<T extends string | number | boolean>(value: T): AnySchema;
+    abstract literalSchema<T extends string | number | boolean>(
+        value: T
+    ): AnySchema
 
     /** Optional wrapper — field accepts undefined. */
-    abstract optional<T extends AnySchema>(schema: T): AnySchema;
+    abstract optional<T extends AnySchema>(schema: T): AnySchema
 
     /** Union wrapper — multiple input/output variants. */
-    abstract union<T extends readonly [AnySchema, AnySchema, ...AnySchema[]]>(options: T): AnySchema;
+    abstract union<T extends readonly [AnySchema, AnySchema, ...AnySchema[]]>(
+        options: T
+    ): AnySchema
 
     // ---- introspection (re-chaining, direct-body detection) ----------------
 
     /** Field shape of an object schema, or null if not an object. */
-    abstract getShape(schema: AnySchema): SchemaShape | null;
+    abstract getShape(schema: AnySchema): SchemaShape | null
 
     /** True if the schema accepts undefined (optional). */
-    abstract isOptional(schema: AnySchema): boolean;
+    abstract isOptional(schema: AnySchema): boolean
 
     /** Inner schema of an optional (identity if not optional). */
-    abstract unwrapOptional(schema: AnySchema): AnySchema;
+    abstract unwrapOptional(schema: AnySchema): AnySchema
 
     /** True if the schema represents "no fields" / void / never. */
-    abstract isEmpty(schema: AnySchema): boolean;
+    abstract isEmpty(schema: AnySchema): boolean
 
     /** Literal value if literal, else null. */
-    abstract getLiteralValue(schema: AnySchema): string | number | boolean | null;
+    abstract getLiteralValue(
+        schema: AnySchema
+    ): string | number | boolean | null
 
     /**
      * Whether object envelopes should OMIT empty (void-like) fields.
      * Standard: false (keeps `{ params, query, body, headers }` — today's shape).
      * Zod:     true  (emits `{ body, headers }` — clean `z.infer`).
      */
-    abstract omitEmptyParts(): boolean;
+    abstract omitEmptyParts(): boolean
 
     /**
      * Whether this plugin produces native Zod schemas (affects how the built
      * contract is handed to ORPC: Zod passes through, Standard strips brands).
      */
-    abstract producesZod(): boolean;
+    abstract producesZod(): boolean
 }

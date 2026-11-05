@@ -2,14 +2,18 @@
 
 /**
  * Client-side routing hooks for declarative routing.
- * 
+ *
  * These hooks provide type-safe access to route parameters,
  * search parameters, and programmatic navigation.
- * 
+ *
  * All hooks work with RouteBuilder instances to ensure type safety.
  */
 
-import { useParams as useNextParams, useRouter, useSearchParams as useNextSearchParams } from 'next/navigation'
+import {
+    useParams as useNextParams,
+    useRouter,
+    useSearchParams as useNextSearchParams,
+} from 'next/navigation'
 import NProgress from 'nprogress'
 import {
     createParser,
@@ -30,7 +34,7 @@ import { useCallback, useMemo } from 'react'
 import { z } from 'zod'
 
 import type { RouteBuilder } from '@deployer/declarative-routing/make-route'
-import { isRecord } from "@deployer/type-guards"
+import { isRecord } from '@deployer/type-guards'
 
 // ============================================================================
 // Types
@@ -39,10 +43,7 @@ import { isRecord } from "@deployer/type-guards"
 /**
  * Options for the usePush hook.
  */
-type UsePushOptions<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
-> = {
+type UsePushOptions<Params extends z.ZodType, Search extends z.ZodType> = {
     params?: z.input<Params>
     search?: z.input<Search>
 }
@@ -50,10 +51,9 @@ type UsePushOptions<
 /**
  * Return type for usePush hook.
  */
-type UsePushReturn<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
-> = (options?: UsePushOptions<Params, Search>) => void
+type UsePushReturn<Params extends z.ZodType, Search extends z.ZodType> = (
+    options?: UsePushOptions<Params, Search>
+) => void
 
 type ZodObjectSearchSchema = z.ZodObject<z.ZodRawShape>
 type NuqsParserBuilder = SingleParserBuilder<unknown>
@@ -116,16 +116,14 @@ type SearchSchemaCarrier<Search extends ZodObjectSearchSchema> = {
 /**
  * Helper to extract search params from a RouteBuilder.
  */
-type InferSearch<T> = T extends RouteBuilder<z.ZodType, infer S>
-    ? z.output<S>
-    : never
+type InferSearch<T> =
+    T extends RouteBuilder<z.ZodType, infer S> ? z.output<S> : never
 
 /**
  * Helper to extract params from a RouteBuilder.
  */
-type InferParams<T> = T extends RouteBuilder<infer P, z.ZodType>
-    ? z.output<P>
-    : never
+type InferParams<T> =
+    T extends RouteBuilder<infer P, z.ZodType> ? z.output<P> : never
 
 function isZodSchema(value: unknown): value is z.ZodType {
     return isRecord(value) && typeof value.safeParse === 'function'
@@ -474,32 +472,29 @@ function normalizeSearchState<Search extends ZodObjectSearchSchema>(
 
 /**
  * Hook for programmatic navigation with type safety.
- * 
+ *
  * Uses NProgress to show loading indicator during navigation.
- * 
+ *
  * @example
  * ```tsx
  * import { usePush } from '@deployer/declarative-routing/hooks'
  * import { ProductDetail } from '../../../routes'
- * 
+ *
  * function MyComponent() {
  *   const push = usePush(ProductDetail)
- *   
+ *
  *   const handleClick = () => {
  *     push({
  *       params: { productId: '123' },
  *       search: { tab: 'reviews' }
  *     })
  *   }
- *   
+ *
  *   return <button onClick={handleClick}>View Product</button>
  * }
  * ```
  */
-export function usePush<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
->(
+export function usePush<Params extends z.ZodType, Search extends z.ZodType>(
     route: RouteBuilder<Params, Search>
 ): UsePushReturn<Params, Search> {
     const router = useRouter()
@@ -508,27 +503,33 @@ export function usePush<
         (options?: UsePushOptions<Params, Search>) => {
             const params = options?.params ?? {}
             const search = options?.search ?? {}
-            
+
             // Build the URL using route's buildUrl function
             let url: string
             if (typeof route.buildUrl === 'function') {
-                url = route.buildUrl(params as z.input<Params>, search as z.input<Search>)
+                url = route.buildUrl(
+                    params as z.input<Params>,
+                    search as z.input<Search>
+                )
             } else {
                 // Fallback: construct URL manually
                 let pathname = route.routePath
-                
+
                 // Replace path params
                 for (const [key, value] of Object.entries(params)) {
                     pathname = pathname.replace(`[${key}]`, String(value))
                     pathname = pathname.replace(`[...${key}]`, String(value))
                 }
-                
+
                 // Add search params
-                const searchStr = queryString.stringify(isRecord(search) ? search : {}, {
-                    skipNull: true,
-                    skipEmptyString: true,
-                })
-                
+                const searchStr = queryString.stringify(
+                    isRecord(search) ? search : {},
+                    {
+                        skipNull: true,
+                        skipEmptyString: true,
+                    }
+                )
+
                 url = searchStr ? `${pathname}?${searchStr}` : pathname
             }
 
@@ -541,14 +542,14 @@ export function usePush<
 
 /**
  * Hook to get type-safe route parameters.
- * 
+ *
  * Parses the current route params using the route's param schema.
- * 
+ *
  * @example
  * ```tsx
  * import { useParams } from '@deployer/declarative-routing/hooks'
  * import { ProductDetail } from '../../../routes'
- * 
+ *
  * function ProductPage() {
  *   const params = useParams(ProductDetail)
  *   // params.productId is typed as string
@@ -560,17 +561,17 @@ export function useParams<Route extends RouteBuilder<z.ZodType, z.ZodType>>(
     route: Route
 ): InferParams<Route> {
     const rawParams = useNextParams()
-    
+
     return useMemo(() => {
         if (route.paramsSchema === emptySchema) {
             return {} as InferParams<Route>
         }
-        
+
         const result = route.paramsSchema.safeParse(rawParams)
         if (result.success) {
             return result.data as InferParams<Route>
         }
-        
+
         // Return empty object on parse failure (better than throwing in render)
         console.warn('Failed to parse route params:', result.error)
         return {} as InferParams<Route>
@@ -579,14 +580,14 @@ export function useParams<Route extends RouteBuilder<z.ZodType, z.ZodType>>(
 
 /**
  * Hook to get type-safe search parameters.
- * 
+ *
  * Parses the current search params using the route's search schema.
- * 
+ *
  * @example
  * ```tsx
  * import { useSearchParams } from '@deployer/declarative-routing/hooks'
  * import { ProductList } from '../../../routes'
- * 
+ *
  * function ProductListPage() {
  *   const search = useSearchParams(ProductList)
  *   // search.page is typed as number | undefined
@@ -595,16 +596,16 @@ export function useParams<Route extends RouteBuilder<z.ZodType, z.ZodType>>(
  * }
  * ```
  */
-export function useSearchParams<Route extends RouteBuilder<z.ZodType, z.ZodType>>(
-    route: Route
-): InferSearch<Route> {
+export function useSearchParams<
+    Route extends RouteBuilder<z.ZodType, z.ZodType>,
+>(route: Route): InferSearch<Route> {
     const rawSearchParams = useNextSearchParams()
-    
+
     return useMemo(() => {
         if (route.searchSchema === emptySchema) {
             return {} as InferSearch<Route>
         }
-        
+
         // Convert URLSearchParams to plain object
         const searchObj: Record<string, string | string[]> = {}
         rawSearchParams.forEach((value, key) => {
@@ -619,12 +620,12 @@ export function useSearchParams<Route extends RouteBuilder<z.ZodType, z.ZodType>
                 searchObj[key] = value
             }
         })
-        
+
         const result = route.searchSchema.safeParse(searchObj)
         if (result.success) {
             return result.data as InferSearch<Route>
         }
-        
+
         // Return empty object on parse failure
         console.warn('Failed to parse search params:', result.error)
         return {} as InferSearch<Route>
@@ -653,12 +654,14 @@ export function useSearchParams<Route extends RouteBuilder<z.ZodType, z.ZodType>
  * }
  * ```
  */
-export function useSearchState<
-    Search extends ZodObjectSearchSchema,
->(
+export function useSearchState<Search extends ZodObjectSearchSchema>(
     route: SearchSchemaCarrier<Search>,
     options?: SearchStateOptions
-): readonly [z.output<Search>, SearchStateUpdater<Search>, SearchStateHelpers<Search>] {
+): readonly [
+    z.output<Search>,
+    SearchStateUpdater<Search>,
+    SearchStateHelpers<Search>,
+] {
     const parserMap = useMemo(
         () => buildNuqsParserMap(route.searchSchema),
         [route.searchSchema]
@@ -669,7 +672,10 @@ export function useSearchState<
         [route.searchSchema]
     )
 
-    const [rawSearchState, setRawSearchState] = useQueryStates(parserMap, options)
+    const [rawSearchState, setRawSearchState] = useQueryStates(
+        parserMap,
+        options
+    )
 
     const searchState = useMemo(
         () =>
@@ -701,11 +707,7 @@ export function useSearchState<
     const searchReplace = useCallback<
         SearchStateHelpers<Search>['searchReplace']
     >(
-        (value, updateOptions) =>
-            setRawSearchState(
-                value,
-                updateOptions
-            ),
+        (value, updateOptions) => setRawSearchState(value, updateOptions),
         [setRawSearchState]
     )
 
@@ -728,17 +730,17 @@ export function useSearchState<
 
 /**
  * Hook for managing a single search parameter with state-like API.
- * 
+ *
  * Returns the current value and a setter function that updates the URL.
- * 
+ *
  * @example
  * ```tsx
  * import { useSearchParamState } from '@deployer/declarative-routing/hooks'
  * import { ProductList } from '../../../routes'
- * 
+ *
  * function ProductListPage() {
  *   const [page, setPage] = useSearchParamState(ProductList, 'page')
- *   
+ *
  *   return (
  *     <div>
  *       <span>Page: {page ?? 1}</span>

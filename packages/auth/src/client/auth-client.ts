@@ -8,18 +8,20 @@ import {
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
-
 import {
     deployerUserSchemaClient,
     impersonationClient,
-  masterTokenClient,
+    masterTokenClient,
     loginAsClientPlugin,
     useInviteClient,
-  } from './plugins'
+} from './plugins'
 
 import type { BetterAuthClientOptions } from 'better-auth/client'
 
-export type CreateAuthClientFactoryOptions = Pick<BetterAuthClientOptions, 'basePath' | 'baseURL' | 'fetchOptions'>
+export type CreateAuthClientFactoryOptions = Pick<
+    BetterAuthClientOptions,
+    'basePath' | 'baseURL' | 'fetchOptions'
+>
 
 // The platform's client plugins, kept as a concrete array so Better Auth's
 // type inference is never widened (an un-annotated `const x = []` in the
@@ -33,20 +35,20 @@ export type CreateAuthClientFactoryOptions = Pick<BetterAuthClientOptions, 'base
 // tuple is what makes `createAuthClient({ plugins: DEFAULT_PLUGINS })` produce a
 // fully typed client.
 const DEFAULT_PLUGINS = [
-  deployerUserSchemaClient(),
-  impersonationClient(),
-  masterTokenClient(),
-  loginAsClientPlugin(),
-  useInviteClient(),
-  multiSessionClient(),
-  apiKeyClient(),
-  // --- Security & convenience plugins -------------------------------------
-  // Each has a matching server wrapper in ../server/plugins/securityPlugins.ts
-  // and a DevTools panel in apps/web/src/components/devtools/plugins/.
-  passkeyClient(),
-  twoFactorClient(),
-  deviceAuthorizationClient(),
-  lastLoginMethodClient(),
+    deployerUserSchemaClient(),
+    impersonationClient(),
+    masterTokenClient(),
+    loginAsClientPlugin(),
+    useInviteClient(),
+    multiSessionClient(),
+    apiKeyClient(),
+    // --- Security & convenience plugins -------------------------------------
+    // Each has a matching server wrapper in ../server/plugins/securityPlugins.ts
+    // and a DevTools panel in apps/web/src/components/devtools/plugins/.
+    passkeyClient(),
+    twoFactorClient(),
+    deviceAuthorizationClient(),
+    lastLoginMethodClient(),
 ]
 
 // Server-side admin plugin types, carried into the client through better-auth's
@@ -60,8 +62,8 @@ const DEFAULT_PLUGINS = [
 type ServerPlugins = never[]
 
 interface InferredClientOptions {
-  plugins: typeof DEFAULT_PLUGINS
-  $InferAuth: { plugins: ServerPlugins }
+    plugins: typeof DEFAULT_PLUGINS
+    $InferAuth: { plugins: ServerPlugins }
 }
 
 /**
@@ -77,26 +79,28 @@ interface InferredClientOptions {
  * admin RPC methods silently disappeared). When a future caller genuinely
  * needs extra plugins, pass the concrete tuple through a dedicated option.
  */
-export const createAuthClientFactory = (options: CreateAuthClientFactoryOptions) => {
-  const {
-    basePath = '/api/auth',
-    baseURL,
-    fetchOptions = {
-      credentials: 'include',
-    },
-  } = options
+export const createAuthClientFactory = (
+    options: CreateAuthClientFactoryOptions
+) => {
+    const {
+        basePath = '/api/auth',
+        baseURL,
+        fetchOptions = {
+            credentials: 'include',
+        },
+    } = options
 
-  const clientOptions = {
-    basePath,
-    baseURL,
-    fetchOptions,
-    plugins: DEFAULT_PLUGINS,
-    // Type-only marker — the value is a placeholder; better-auth never reads
-    // `$InferAuth` at runtime. Its TYPE carries the server admin plugin types.
-    $InferAuth: {
-      plugins: [],
-    },
-  } satisfies BetterAuthClientOptions
+    const clientOptions = {
+        basePath,
+        baseURL,
+        fetchOptions,
+        plugins: DEFAULT_PLUGINS,
+        // Type-only marker — the value is a placeholder; better-auth never reads
+        // `$InferAuth` at runtime. Its TYPE carries the server admin plugin types.
+        $InferAuth: {
+            plugins: [],
+        },
+    } satisfies BetterAuthClientOptions
 
-  return createAuthClient<InferredClientOptions>(clientOptions)
+    return createAuthClient<InferredClientOptions>(clientOptions)
 }

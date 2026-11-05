@@ -1,59 +1,85 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-export const configurationScopeSchema = z.enum(["project", "service", "user"]);
-export type ConfigurationScope = z.infer<typeof configurationScopeSchema>;
+export const configurationScopeSchema = z.enum(['project', 'service', 'user'])
+export type ConfigurationScope = z.infer<typeof configurationScopeSchema>
 
 export const requestedEnvironmentSchema = z.enum([
-    "production",
-    "staging",
-    "preview",
-    "development",
-]);
-export type RequestedEnvironment = z.infer<typeof requestedEnvironmentSchema>;
+    'production',
+    'staging',
+    'preview',
+    'development',
+])
+export type RequestedEnvironment = z.infer<typeof requestedEnvironmentSchema>
 
-export const configurationTriggerSchema = z.enum(["manual", "auto", "webhook", "schedule"]);
+export const configurationTriggerSchema = z.enum([
+    'manual',
+    'auto',
+    'webhook',
+    'schedule',
+])
 
 export const configurationSourceProviderSchema = z.enum([
-    "git",
-    "github",
-    "gitlab",
-    "upload",
-    "custom",
-]);
+    'git',
+    'github',
+    'gitlab',
+    'upload',
+    'custom',
+])
 
-export const configurationStrategySchema = z.enum(["rolling", "blue_green", "canary"]);
+export const configurationStrategySchema = z.enum([
+    'rolling',
+    'blue_green',
+    'canary',
+])
 export const configurationProviderTypeSchema = z.enum([
-    "github",
-    "gitlab",
-    "git",
-    "upload",
-    "custom",
-]);
-export type ConfigurationProviderType = z.infer<typeof configurationProviderTypeSchema>;
-export const configurationRunnerTypeSchema = z.enum(["docker", "buildpack", "static", "custom"]);
-export type ConfigurationRunnerType = z.infer<typeof configurationRunnerTypeSchema>;
+    'github',
+    'gitlab',
+    'git',
+    'upload',
+    'custom',
+])
+export type ConfigurationProviderType = z.infer<
+    typeof configurationProviderTypeSchema
+>
+export const configurationRunnerTypeSchema = z.enum([
+    'docker',
+    'buildpack',
+    'static',
+    'custom',
+])
+export type ConfigurationRunnerType = z.infer<
+    typeof configurationRunnerTypeSchema
+>
 export const configurationLifecycleStateSchema = z.enum([
-    "draft",
-    "active",
-    "locked",
-    "deprecated",
-]);
-export type ConfigurationLifecycleState = z.infer<typeof configurationLifecycleStateSchema>;
+    'draft',
+    'active',
+    'locked',
+    'deprecated',
+])
+export type ConfigurationLifecycleState = z.infer<
+    typeof configurationLifecycleStateSchema
+>
 export const configurationEnvironmentDomainSchema = z.enum([
-    "build",
-    "runtime",
-    "deployment",
-    "network",
-    "traefik",
-    "provider",
-    "runner",
-    "security",
-]);
+    'build',
+    'runtime',
+    'deployment',
+    'network',
+    'traefik',
+    'provider',
+    'runner',
+    'security',
+])
 
-export const primitiveAttributeValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+export const primitiveAttributeValueSchema = z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+])
 
-export const domainEnvironmentVariablesSchema = z.record(z.string(), z.string());
-export type DomainEnvironmentVariables = z.infer<typeof domainEnvironmentVariablesSchema>;
+export const domainEnvironmentVariablesSchema = z.record(z.string(), z.string())
+export type DomainEnvironmentVariables = z.infer<
+    typeof domainEnvironmentVariablesSchema
+>
 export const runtimeEnvironmentByDomainSchema = z.object({
     build: domainEnvironmentVariablesSchema.optional(),
     runtime: domainEnvironmentVariablesSchema.optional(),
@@ -63,7 +89,7 @@ export const runtimeEnvironmentByDomainSchema = z.object({
     provider: domainEnvironmentVariablesSchema.optional(),
     runner: domainEnvironmentVariablesSchema.optional(),
     security: domainEnvironmentVariablesSchema.optional(),
-});
+})
 
 export const runtimeEnvironmentByDomainEffectiveSchema = z.object({
     build: domainEnvironmentVariablesSchema,
@@ -74,7 +100,7 @@ export const runtimeEnvironmentByDomainEffectiveSchema = z.object({
     provider: domainEnvironmentVariablesSchema,
     runner: domainEnvironmentVariablesSchema,
     security: domainEnvironmentVariablesSchema,
-});
+})
 
 export const runtimeEnvironmentByDomainDeletesSchema = z.object({
     build: z.array(z.string()).optional(),
@@ -85,42 +111,44 @@ export const runtimeEnvironmentByDomainDeletesSchema = z.object({
     provider: z.array(z.string()).optional(),
     runner: z.array(z.string()).optional(),
     security: z.array(z.string()).optional(),
-});
+})
 
 export const runtimeEnvironmentMutationFlatSchema = z.object({
-    mode: z.literal("flat"),
+    mode: z.literal('flat'),
     upserts: domainEnvironmentVariablesSchema.optional(),
     deletes: z.array(z.string()).optional(),
-});
+})
 
 export const runtimeEnvironmentMutationDomainSchema = z.object({
-    mode: z.literal("domain"),
+    mode: z.literal('domain'),
     domain: configurationEnvironmentDomainSchema,
     upserts: domainEnvironmentVariablesSchema.optional(),
     deletes: z.array(z.string()).optional(),
-});
+})
 
-export const runtimeEnvironmentMutationSchema = z.discriminatedUnion("mode", [
+export const runtimeEnvironmentMutationSchema = z.discriminatedUnion('mode', [
     runtimeEnvironmentMutationFlatSchema,
     runtimeEnvironmentMutationDomainSchema,
-]);
-export type RuntimeEnvironmentMutationInput = z.input<typeof runtimeEnvironmentMutationSchema>;
+])
+export type RuntimeEnvironmentMutationInput = z.input<
+    typeof runtimeEnvironmentMutationSchema
+>
 
 export const runtimeResourcesSchema = z.object({
     cpuMillicores: z.number().int().positive().optional(),
     memoryMb: z.number().int().positive().optional(),
-});
+})
 
 export const runtimeReplicasSchema = z.object({
     min: z.number().int().min(0).optional(),
     desired: z.number().int().min(0).optional(),
     max: z.number().int().min(0).optional(),
-});
+})
 
 export const runtimeTraefikTlsSchema = z.object({
     enabled: z.boolean().optional(),
     resolver: z.string().optional(),
-});
+})
 
 export const runtimeTraefikConfigSchema = z.object({
     enabled: z.boolean().optional(),
@@ -129,32 +157,32 @@ export const runtimeTraefikConfigSchema = z.object({
     stripPrefix: z.string().optional(),
     domains: z.array(z.string()).optional(),
     tls: runtimeTraefikTlsSchema.optional(),
-});
+})
 
 export const runtimeEnvPolicySchema = z.object({
     required: z.array(z.string()).optional(),
     allowList: z.array(z.string()).optional(),
     denyList: z.array(z.string()).optional(),
-});
+})
 
 export const runtimeExecutionSpecSchema = z.object({
     providerType: configurationProviderTypeSchema.optional(),
     runnerType: configurationRunnerTypeSchema.optional(),
-});
+})
 
-export const runtimeStorageTypeSchema = z.enum(["local", "s3", "nfs", "volume"]);
-export type RuntimeStorageType = z.infer<typeof runtimeStorageTypeSchema>;
+export const runtimeStorageTypeSchema = z.enum(['local', 's3', 'nfs', 'volume'])
+export type RuntimeStorageType = z.infer<typeof runtimeStorageTypeSchema>
 
 const runtimeStoragePolicyBaseSchema = z
     .object({
         autoRedeployOnUpdate: z.boolean().optional(),
         mountPath: z.string().min(1).optional(),
     })
-    .loose();
+    .loose()
 
 const runtimeLocalStoragePolicySchema = runtimeStoragePolicyBaseSchema
     .extend({
-        type: z.literal("local"),
+        type: z.literal('local'),
         local: z
             .object({
                 rootPath: z.string().min(1).optional(),
@@ -162,11 +190,11 @@ const runtimeLocalStoragePolicySchema = runtimeStoragePolicyBaseSchema
             })
             .optional(),
     })
-    .loose();
+    .loose()
 
 const runtimeS3StoragePolicySchema = runtimeStoragePolicyBaseSchema
     .extend({
-        type: z.literal("s3"),
+        type: z.literal('s3'),
         s3: z
             .object({
                 bucket: z.string().min(1).optional(),
@@ -176,11 +204,11 @@ const runtimeS3StoragePolicySchema = runtimeStoragePolicyBaseSchema
             })
             .optional(),
     })
-    .loose();
+    .loose()
 
 const runtimeNfsStoragePolicySchema = runtimeStoragePolicyBaseSchema
     .extend({
-        type: z.literal("nfs"),
+        type: z.literal('nfs'),
         nfs: z
             .object({
                 server: z.string().min(1).optional(),
@@ -189,11 +217,11 @@ const runtimeNfsStoragePolicySchema = runtimeStoragePolicyBaseSchema
             })
             .optional(),
     })
-    .loose();
+    .loose()
 
 const runtimeVolumeStoragePolicySchema = runtimeStoragePolicyBaseSchema
     .extend({
-        type: z.literal("volume"),
+        type: z.literal('volume'),
         volume: z
             .object({
                 volumeName: z.string().min(1).optional(),
@@ -201,7 +229,7 @@ const runtimeVolumeStoragePolicySchema = runtimeStoragePolicyBaseSchema
             })
             .optional(),
     })
-    .loose();
+    .loose()
 
 const runtimeStoragePolicyWithoutTypeSchema = z
     .object({
@@ -236,26 +264,29 @@ const runtimeStoragePolicyWithoutTypeSchema = z
             })
             .optional(),
     })
-    .loose();
+    .loose()
 
-export const runtimeStoragePolicyDiscriminatedSchema = z.discriminatedUnion("type", [
-    runtimeLocalStoragePolicySchema,
-    runtimeS3StoragePolicySchema,
-    runtimeNfsStoragePolicySchema,
-    runtimeVolumeStoragePolicySchema,
-]);
+export const runtimeStoragePolicyDiscriminatedSchema = z.discriminatedUnion(
+    'type',
+    [
+        runtimeLocalStoragePolicySchema,
+        runtimeS3StoragePolicySchema,
+        runtimeNfsStoragePolicySchema,
+        runtimeVolumeStoragePolicySchema,
+    ]
+)
 
 export const runtimeStoragePolicySchema = z.union([
     runtimeStoragePolicyDiscriminatedSchema,
     runtimeStoragePolicyWithoutTypeSchema,
-]);
-export type RuntimeStoragePolicy = z.infer<typeof runtimeStoragePolicySchema>;
+])
+export type RuntimeStoragePolicy = z.infer<typeof runtimeStoragePolicySchema>
 
 export const meshDeploymentConfigSchema = z.object({
     defaultStrategy: configurationStrategySchema.optional(),
     enforceHttpsRedirect: z.boolean().optional(),
     previewEnabled: z.boolean().optional(),
-});
+})
 
 export const meshRuntimeConfigSchema = z
     .object({
@@ -271,8 +302,8 @@ export const meshRuntimeConfigSchema = z
         featureFlags: z.record(z.string(), z.boolean()).optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
-    .partial();
-export type MeshRuntimeConfig = z.infer<typeof meshRuntimeConfigSchema>;
+    .partial()
+export type MeshRuntimeConfig = z.infer<typeof meshRuntimeConfigSchema>
 
 export const projectSettingsRuntimeConfigSchema = z.object({
     autoDeployEnabled: z.boolean().optional(),
@@ -281,7 +312,7 @@ export const projectSettingsRuntimeConfigSchema = z.object({
     requireApprovalForProduction: z.boolean().optional(),
     enableHttpsRedirect: z.boolean().optional(),
     defaultEnvironmentVariables: z.record(z.string(), z.string()).optional(),
-});
+})
 
 export const projectRuntimeConfigSchema = z
     .object({
@@ -297,18 +328,18 @@ export const projectRuntimeConfigSchema = z
         featureFlags: z.record(z.string(), z.boolean()).optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
-    .partial();
-export type ProjectRuntimeConfig = z.infer<typeof projectRuntimeConfigSchema>;
+    .partial()
+export type ProjectRuntimeConfig = z.infer<typeof projectRuntimeConfigSchema>
 
 export const serviceDeploymentRuntimeConfigSchema = z.object({
     strategy: configurationStrategySchema.optional(),
     autoDeployEnabled: z.boolean().optional(),
-});
+})
 
 export const serviceRoutingRuntimeConfigSchema = z.object({
     forceHttps: z.boolean().optional(),
     domains: z.array(z.string()).optional(),
-});
+})
 
 export const serviceRuntimeConfigSchema = z
     .object({
@@ -326,13 +357,13 @@ export const serviceRuntimeConfigSchema = z
         featureFlags: z.record(z.string(), z.boolean()).optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
-    .partial();
-export type ServiceRuntimeConfig = z.infer<typeof serviceRuntimeConfigSchema>;
+    .partial()
+export type ServiceRuntimeConfig = z.infer<typeof serviceRuntimeConfigSchema>
 
 export const userDeploymentRuntimeConfigSchema = z.object({
     autoDeployEnabled: z.boolean().optional(),
     previewEnabled: z.boolean().optional(),
-});
+})
 
 export const userRuntimeConfigSchema = z
     .object({
@@ -341,50 +372,51 @@ export const userRuntimeConfigSchema = z
         deployment: userDeploymentRuntimeConfigSchema.optional(),
         preferredExecution: runtimeExecutionSpecSchema.optional(),
         preferredTraefik: runtimeTraefikConfigSchema.optional(),
-        environmentByDomainOverrides: runtimeEnvironmentByDomainSchema.optional(),
+        environmentByDomainOverrides:
+            runtimeEnvironmentByDomainSchema.optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
-    .partial();
-export type UserRuntimeConfig = z.infer<typeof userRuntimeConfigSchema>;
+    .partial()
+export type UserRuntimeConfig = z.infer<typeof userRuntimeConfigSchema>
 
 export const runtimeDeploymentEffectiveSchema = z.object({
     strategy: configurationStrategySchema,
     autoDeployEnabled: z.boolean(),
     previewEnabled: z.boolean(),
     requireApprovalForProduction: z.boolean(),
-});
+})
 
 export const runtimeRoutingEffectiveSchema = z.object({
     forceHttps: z.boolean(),
     domains: z.array(z.string()),
-});
+})
 
 export const runtimeExecutionEffectiveSchema = z.object({
     providerType: configurationProviderTypeSchema,
     runnerType: configurationRunnerTypeSchema,
-});
+})
 
 export const runtimeReplicasEffectiveSchema = z.object({
     min: z.number().int().min(0),
     desired: z.number().int().min(0),
     max: z.number().int().min(0),
-});
+})
 
 export const runtimeResourcesEffectiveSchema = z.object({
     cpuMillicores: z.number().int().positive(),
     memoryMb: z.number().int().positive(),
-});
+})
 
 export const runtimeEnvPolicyEffectiveSchema = z.object({
     required: z.array(z.string()),
     allowList: z.array(z.string()),
     denyList: z.array(z.string()),
-});
+})
 
 export const runtimeTraefikTlsEffectiveSchema = z.object({
     enabled: z.boolean(),
     resolver: z.string().nullable(),
-});
+})
 
 export const runtimeTraefikEffectiveSchema = z.object({
     enabled: z.boolean(),
@@ -393,12 +425,12 @@ export const runtimeTraefikEffectiveSchema = z.object({
     stripPrefix: z.string().nullable(),
     domains: z.array(z.string()),
     tls: runtimeTraefikTlsEffectiveSchema,
-});
+})
 
 export const runtimeLifecycleEffectiveSchema = z.object({
     current: configurationLifecycleStateSchema,
     allowedNextStates: z.array(configurationLifecycleStateSchema),
-});
+})
 
 export const runtimeConstraintsEffectiveSchema = z.object({
     canDeployToRequestedEnvironment: z.boolean(),
@@ -410,7 +442,7 @@ export const runtimeConstraintsEffectiveSchema = z.object({
     lifecycleTransitionAllowed: z.boolean(),
     reason: z.string().nullable(),
     reasons: z.array(z.string()),
-});
+})
 
 export const runtimeConfigurationContextSchema = z
     .object({
@@ -427,13 +459,18 @@ export const runtimeConfigurationContextSchema = z
         requestedReplicas: z.number().int().min(0).optional(),
         requestedResources: runtimeResourcesSchema.optional(),
         requestedLifecycleState: configurationLifecycleStateSchema.optional(),
-        requestedEnvironmentDomain: configurationEnvironmentDomainSchema.optional(),
+        requestedEnvironmentDomain:
+            configurationEnvironmentDomainSchema.optional(),
         tags: z.array(z.string()).optional(),
-        attributes: z.record(z.string(), primitiveAttributeValueSchema).optional(),
+        attributes: z
+            .record(z.string(), primitiveAttributeValueSchema)
+            .optional(),
     })
     .partial()
-    .default({});
-export type RuntimeConfigurationContext = z.infer<typeof runtimeConfigurationContextSchema>;
+    .default({})
+export type RuntimeConfigurationContext = z.infer<
+    typeof runtimeConfigurationContextSchema
+>
 
 export const runtimeConfigurationDispatchConditionSchema = z
     .object({
@@ -441,28 +478,44 @@ export const runtimeConfigurationDispatchConditionSchema = z
         requestedEnvironmentIn: z.array(requestedEnvironmentSchema).optional(),
         triggerIn: z.array(configurationTriggerSchema).optional(),
         sourceProviderIn: z.array(configurationSourceProviderSchema).optional(),
-        requestedProviderTypeIn: z.array(configurationProviderTypeSchema).optional(),
-        requestedRunnerTypeIn: z.array(configurationRunnerTypeSchema).optional(),
+        requestedProviderTypeIn: z
+            .array(configurationProviderTypeSchema)
+            .optional(),
+        requestedRunnerTypeIn: z
+            .array(configurationRunnerTypeSchema)
+            .optional(),
         actorRoleIn: z.array(z.string()).optional(),
         projectIdIn: z.array(z.string()).optional(),
         serviceIdIn: z.array(z.string()).optional(),
         userIdIn: z.array(z.string()).optional(),
         branchNameIn: z.array(z.string()).optional(),
         tagsAll: z.array(z.string()).optional(),
-        attributesEquals: z.record(z.string(), primitiveAttributeValueSchema).optional(),
-        effectiveDeploymentStrategyIn: z.array(configurationStrategySchema).optional(),
+        attributesEquals: z
+            .record(z.string(), primitiveAttributeValueSchema)
+            .optional(),
+        effectiveDeploymentStrategyIn: z
+            .array(configurationStrategySchema)
+            .optional(),
         effectivePreviewEnabled: z.boolean().optional(),
         effectiveAutoDeployEnabled: z.boolean().optional(),
-        effectiveProviderTypeIn: z.array(configurationProviderTypeSchema).optional(),
-        effectiveRunnerTypeIn: z.array(configurationRunnerTypeSchema).optional(),
-        effectiveLifecycleStateIn: z.array(configurationLifecycleStateSchema).optional(),
-        requestedEnvironmentDomainIn: z.array(configurationEnvironmentDomainSchema).optional(),
+        effectiveProviderTypeIn: z
+            .array(configurationProviderTypeSchema)
+            .optional(),
+        effectiveRunnerTypeIn: z
+            .array(configurationRunnerTypeSchema)
+            .optional(),
+        effectiveLifecycleStateIn: z
+            .array(configurationLifecycleStateSchema)
+            .optional(),
+        requestedEnvironmentDomainIn: z
+            .array(configurationEnvironmentDomainSchema)
+            .optional(),
     })
     .partial()
-    .default({});
+    .default({})
 export type RuntimeConfigurationDispatchConditionInput = z.input<
     typeof runtimeConfigurationDispatchConditionSchema
->;
+>
 
 export const runtimeConfigurationDispatchPatchSchema = z
     .object({
@@ -481,18 +534,21 @@ export const runtimeConfigurationDispatchPatchSchema = z
             .optional(),
         lifecycle: runtimeLifecycleEffectiveSchema.partial().optional(),
         environmentDomainUpserts: runtimeEnvironmentByDomainSchema.optional(),
-        environmentDomainDeletes: runtimeEnvironmentByDomainDeletesSchema.optional(),
+        environmentDomainDeletes:
+            runtimeEnvironmentByDomainDeletesSchema.optional(),
         environmentUpserts: z.record(z.string(), z.string()).optional(),
         environmentDeletes: z.array(z.string()).optional(),
-        environmentMutations: z.array(runtimeEnvironmentMutationSchema).optional(),
+        environmentMutations: z
+            .array(runtimeEnvironmentMutationSchema)
+            .optional(),
         featureFlagUpserts: z.record(z.string(), z.boolean()).optional(),
         featureFlagDeletes: z.array(z.string()).optional(),
         constraints: runtimeConstraintsEffectiveSchema.partial().optional(),
     })
-    .partial();
+    .partial()
 export type RuntimeConfigurationDispatchPatchInput = z.input<
     typeof runtimeConfigurationDispatchPatchSchema
->;
+>
 
 export const runtimeConfigurationDispatchRuleSchema = z.object({
     id: z.string().min(1),
@@ -501,15 +557,17 @@ export const runtimeConfigurationDispatchRuleSchema = z.object({
     priority: z.number().int().default(0),
     when: runtimeConfigurationDispatchConditionSchema.default({}),
     apply: runtimeConfigurationDispatchPatchSchema,
-});
+})
 
 export const runtimeConfigurationDispatchSchema = z.object({
     rules: z.array(runtimeConfigurationDispatchRuleSchema).default([]),
-});
-export type RuntimeConfigurationDispatchRule = z.infer<typeof runtimeConfigurationDispatchRuleSchema>;
+})
+export type RuntimeConfigurationDispatchRule = z.infer<
+    typeof runtimeConfigurationDispatchRuleSchema
+>
 export type RuntimeConfigurationDispatchRuleInput = z.input<
     typeof runtimeConfigurationDispatchRuleSchema
->;
+>
 
 export const runtimeConfigurationStateNodeSchema = z.object({
     scope: configurationScopeSchema,
@@ -518,27 +576,29 @@ export const runtimeConfigurationStateNodeSchema = z.object({
     dependsOnScopes: z.array(configurationScopeSchema).default([]),
     allowedProviderTypes: z.array(configurationProviderTypeSchema).default([]),
     allowedRunnerTypes: z.array(configurationRunnerTypeSchema).default([]),
-});
+})
 export type RuntimeConfigurationStateNodeInput = z.input<
     typeof runtimeConfigurationStateNodeSchema
->;
+>
 
 export const runtimeConfigurationStateTransitionSchema = z.object({
     from: configurationLifecycleStateSchema,
     to: configurationLifecycleStateSchema,
     when: runtimeConfigurationDispatchConditionSchema.default({}),
     description: z.string().optional(),
-});
+})
 export type RuntimeConfigurationStateTransitionInput = z.input<
     typeof runtimeConfigurationStateTransitionSchema
->;
+>
 
 export const runtimeConfigurationStateMachineSchema = z.object({
     nodes: z.array(runtimeConfigurationStateNodeSchema).default([]),
     transitions: z.array(runtimeConfigurationStateTransitionSchema).default([]),
     dispatch: runtimeConfigurationDispatchSchema.default({ rules: [] }),
-});
-export type RuntimeConfigurationStateMachine = z.infer<typeof runtimeConfigurationStateMachineSchema>;
+})
+export type RuntimeConfigurationStateMachine = z.infer<
+    typeof runtimeConfigurationStateMachineSchema
+>
 
 export const runtimeConfigurationResolverInputSchema = z.object({
     scope: configurationScopeSchema,
@@ -548,60 +608,64 @@ export const runtimeConfigurationResolverInputSchema = z.object({
     service: serviceRuntimeConfigSchema.optional(),
     user: userRuntimeConfigSchema.optional(),
     dispatch: runtimeConfigurationDispatchSchema.optional(),
-});
-export type RuntimeConfigurationResolverInput = z.input<typeof runtimeConfigurationResolverInputSchema>;
+})
+export type RuntimeConfigurationResolverInput = z.input<
+    typeof runtimeConfigurationResolverInputSchema
+>
 
 type RuntimeConfigurationResolverSharedInput = {
-    dispatch?: z.input<typeof runtimeConfigurationDispatchSchema>;
+    dispatch?: z.input<typeof runtimeConfigurationDispatchSchema>
 }
 
 type RuntimeConfigurationContextByScopeMap = {
     project: RuntimeConfigurationContext & {
-        projectId: string;
-    };
+        projectId: string
+    }
     service: RuntimeConfigurationContext & {
-        projectId: string;
-        serviceId: string;
-    };
+        projectId: string
+        serviceId: string
+    }
     user: RuntimeConfigurationContext & {
-        userId: string;
-    };
+        userId: string
+    }
 }
 
-export type RuntimeConfigurationContextByScope<TScope extends ConfigurationScope> =
-    RuntimeConfigurationContextByScopeMap[TScope];
+export type RuntimeConfigurationContextByScope<
+    TScope extends ConfigurationScope,
+> = RuntimeConfigurationContextByScopeMap[TScope]
 
 type RuntimeConfigurationResolverInputByScopeMap = {
     project: RuntimeConfigurationResolverSharedInput & {
-        scope: "project";
-        context: RuntimeConfigurationContextByScope<"project">;
-        mesh?: MeshRuntimeConfig;
-        project: ProjectRuntimeConfig;
-        service?: ServiceRuntimeConfig;
-        user?: UserRuntimeConfig;
-    };
+        scope: 'project'
+        context: RuntimeConfigurationContextByScope<'project'>
+        mesh?: MeshRuntimeConfig
+        project: ProjectRuntimeConfig
+        service?: ServiceRuntimeConfig
+        user?: UserRuntimeConfig
+    }
     service: RuntimeConfigurationResolverSharedInput & {
-        scope: "service";
-        context: RuntimeConfigurationContextByScope<"service">;
-        mesh?: MeshRuntimeConfig;
-        project?: ProjectRuntimeConfig;
-        service: ServiceRuntimeConfig;
-        user?: UserRuntimeConfig;
-    };
+        scope: 'service'
+        context: RuntimeConfigurationContextByScope<'service'>
+        mesh?: MeshRuntimeConfig
+        project?: ProjectRuntimeConfig
+        service: ServiceRuntimeConfig
+        user?: UserRuntimeConfig
+    }
     user: RuntimeConfigurationResolverSharedInput & {
-        scope: "user";
-        context: RuntimeConfigurationContextByScope<"user">;
-        mesh?: MeshRuntimeConfig;
-        project?: ProjectRuntimeConfig;
-        service?: ServiceRuntimeConfig;
-        user: UserRuntimeConfig;
-    };
+        scope: 'user'
+        context: RuntimeConfigurationContextByScope<'user'>
+        mesh?: MeshRuntimeConfig
+        project?: ProjectRuntimeConfig
+        service?: ServiceRuntimeConfig
+        user: UserRuntimeConfig
+    }
 }
 
-export type RuntimeConfigurationResolverInputByScope<TScope extends ConfigurationScope> =
-    RuntimeConfigurationResolverInputByScopeMap[TScope];
+export type RuntimeConfigurationResolverInputByScope<
+    TScope extends ConfigurationScope,
+> = RuntimeConfigurationResolverInputByScopeMap[TScope]
 export type RuntimeConfigurationResolverScopedInput =
-    RuntimeConfigurationResolverInputByScopeMap[keyof RuntimeConfigurationResolverInputByScopeMap];
+    RuntimeConfigurationResolverInputByScopeMap[keyof RuntimeConfigurationResolverInputByScopeMap]
 
 export const resolvedRuntimeConfigurationSchema = z.object({
     scope: configurationScopeSchema,
@@ -628,5 +692,7 @@ export const resolvedRuntimeConfigurationSchema = z.object({
         evaluatedRules: z.number().int().nonnegative(),
         appliedRuleIds: z.array(z.string()),
     }),
-});
-export type ResolvedRuntimeConfiguration = z.infer<typeof resolvedRuntimeConfigurationSchema>;
+})
+export type ResolvedRuntimeConfiguration = z.infer<
+    typeof resolvedRuntimeConfigurationSchema
+>

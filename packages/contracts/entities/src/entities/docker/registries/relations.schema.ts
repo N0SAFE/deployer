@@ -1,8 +1,8 @@
 import z from 'zod/v4'
 import { dockerListMetaSchema } from '../common.schema'
 import {
-  dockerContainerProjectRefSchema,
-  dockerServiceSnapshotSchema,
+    dockerContainerProjectRefSchema,
+    dockerServiceSnapshotSchema,
 } from '../containers/index'
 import { dockerImageSchema } from '../images/index'
 import { dockerNetworkSchema } from '../networks/index'
@@ -10,27 +10,31 @@ import { dockerStackSchema } from '../stacks/index'
 import { dockerRegistrySchema } from './base.schema'
 
 export const dockerRegistryListSchema = z.object({
-  data: z.array(z.lazy(() => dockerRegistrySchema)),
-  meta: dockerListMetaSchema,
+    data: z.array(z.lazy(() => dockerRegistrySchema)),
+    meta: dockerListMetaSchema,
 })
 export type DockerRegistryList = z.infer<typeof dockerRegistryListSchema>
 
 export const dockerRegistryRelationsSchema = z.object({
-  images: z.array(z.lazy(() => dockerImageSchema)).optional(),
-  stacks: z.array(z.lazy(() => dockerStackSchema)).optional(),
-  services: z.array(z.lazy(() => dockerServiceSnapshotSchema)).optional(),
-  projects: z.array(z.lazy(() => dockerContainerProjectRefSchema)).optional(),
-  networks: z.array(z.lazy(() => dockerNetworkSchema)).optional(),
+    images: z.array(z.lazy(() => dockerImageSchema)).optional(),
+    stacks: z.array(z.lazy(() => dockerStackSchema)).optional(),
+    services: z.array(z.lazy(() => dockerServiceSnapshotSchema)).optional(),
+    projects: z.array(z.lazy(() => dockerContainerProjectRefSchema)).optional(),
+    networks: z.array(z.lazy(() => dockerNetworkSchema)).optional(),
 })
-export type DockerRegistryRelations = z.infer<typeof dockerRegistryRelationsSchema>
+export type DockerRegistryRelations = z.infer<
+    typeof dockerRegistryRelationsSchema
+>
 
 export const dockerRegistryEntitySchema = dockerRegistrySchema.extend({
-  relations: dockerRegistryRelationsSchema.optional(),
+    relations: dockerRegistryRelationsSchema.optional(),
 })
 export type DockerRegistryEntity = z.infer<typeof dockerRegistryEntitySchema>
 
 export const dockerRegistryEntityListSchema = z.object({
-  data: z.array(dockerRegistryEntitySchema),
-  meta: dockerListMetaSchema,
+    data: z.array(dockerRegistryEntitySchema),
+    meta: dockerListMetaSchema,
 })
-export type DockerRegistryEntityList = z.infer<typeof dockerRegistryEntityListSchema>
+export type DockerRegistryEntityList = z.infer<
+    typeof dockerRegistryEntityListSchema
+>

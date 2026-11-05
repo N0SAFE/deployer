@@ -33,6 +33,7 @@ statementsConfig.getAll().withAction('fake-action')
 ```
 
 **Benefits:**
+
 - **Catch typos** at compile time, not runtime
 - **IDE auto-completion** for valid actions only
 - **Refactoring safety** - removing actions causes type errors
@@ -85,43 +86,47 @@ statementsConfig.getAll().crudOnly()
 ### Example 1: Super Admin Access
 
 **Before (verbose):**
+
 ```typescript
 superAdminAccess: permissionConfig.createPermission(({ statementsConfig }) => ({
-  user: statementsConfig.get("user").all(),
-  session: statementsConfig.get("session").all(),
-  project: statementsConfig.get("project").all(),
-  organization: statementsConfig.get("organization").all(),
-  billing: statementsConfig.get("billing").all(),
-  analytics: statementsConfig.get("analytics").all(),
-  system: statementsConfig.get("system").all(),
+    user: statementsConfig.get('user').all(),
+    session: statementsConfig.get('session').all(),
+    project: statementsConfig.get('project').all(),
+    organization: statementsConfig.get('organization').all(),
+    billing: statementsConfig.get('billing').all(),
+    analytics: statementsConfig.get('analytics').all(),
+    system: statementsConfig.get('system').all(),
 }))
 ```
 
 **After (concise):**
+
 ```typescript
-superAdminAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().all()
+superAdminAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().all()
 )
 ```
 
 ### Example 2: Read-Only Access
 
 **Before (manual listing):**
+
 ```typescript
 readOnlyAccess: permissionConfig.createPermission(({ statementsConfig }) => ({
-  user: statementsConfig.get("user").pick(["list", "get"]),
-  session: ["list"] as const,
-  project: ["read"] as const,
-  organization: ["read"] as const,
-  billing: ["read"] as const,
-  analytics: ["read"] as const,
+    user: statementsConfig.get('user').pick(['list', 'get']),
+    session: ['list'] as const,
+    project: ['read'] as const,
+    organization: ['read'] as const,
+    billing: ['read'] as const,
+    analytics: ['read'] as const,
 }))
 ```
 
 **After (automatic filtering):**
+
 ```typescript
-readOnlyAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().readOnly()
+readOnlyAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().readOnly()
 )
 ```
 
@@ -150,41 +155,45 @@ withoutAction<TAction extends AllActions<TStatement>>(action: TAction)
 // Assume statements: { user: ['create', 'read'], project: ['read', 'delete'] }
 
 // ✅ Valid - 'read' exists in statements
-const r1 = collection.pick(['read'] as const);
+const r1 = collection.pick(['read'] as const)
 
 // ✅ Valid - 'create' and 'delete' exist
-const r2 = collection.withAnyAction(['create', 'delete'] as const);
+const r2 = collection.withAnyAction(['create', 'delete'] as const)
 
 // ❌ Compile error - 'update' doesn't exist
-const r3 = collection.pick(['update'] as const);
+const r3 = collection.pick(['update'] as const)
 
-// ❌ Compile error - 'publish' doesn't exist  
-const r4 = collection.withAction('publish');
+// ❌ Compile error - 'publish' doesn't exist
+const r4 = collection.withAction('publish')
 
 // ✅ Valid - omit existing action
-const r5 = collection.omit(['delete'] as const);
+const r5 = collection.omit(['delete'] as const)
 
 // ❌ Compile error - can't omit non-existent action
-const r6 = collection.omit(['archive'] as const);
+const r6 = collection.omit(['archive'] as const)
 ```
 
 ### Core Methods
+
 - **`all()`** - Returns complete statement object with all resources and all actions
 - **`pick(actions)`** - Returns only resources that have at least one of the specified actions
 - **`omit(actions)`** - Removes specified actions from all resources, excludes resources with no remaining actions
 
 ### Domain-Specific Methods
+
 - **`readOnly()`** - Returns only resources with 'read' action (only the 'read' action)
 - **`writeOnly()`** - Returns only resources with create/update/delete actions
 - **`crudOnly()`** - Returns only resources with CRUD operations (create, read, update, delete)
 
 ### Action-Based Filters
+
 - **`withAction(action)`** - Returns only resources that have the specified action
 - **`withAllActions(actions)`** - Returns only resources that have ALL specified actions
 - **`withAnyAction(actions)`** - Returns only resources that have at least one of the specified actions
 - **`withoutAction(action)`** - Returns only resources that DON'T have the specified action
 
 ### Utility Methods
+
 - **`resources()`** - Get array of resource names
 - **`isEmpty`** - Check if collection is empty
 - **`size`** - Get number of resources
@@ -199,57 +208,66 @@ const r6 = collection.omit(['archive'] as const);
 ## Real-World Examples
 
 ### 1. All Resources, All Actions
+
 ```typescript
-superAdminAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().all()
+superAdminAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().all()
 )
 // Result: { user: ['create', 'read', ...], project: ['create', 'read', ...], ... }
 ```
 
 ### 2. Only CRUD Operations
+
 ```typescript
-crudAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().crudOnly()
+crudAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().crudOnly()
 )
 // Result: Only resources with create/read/update/delete actions
 ```
 
 ### 3. Only Write Operations
+
 ```typescript
-writeAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().writeOnly()
+writeAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().writeOnly()
 )
 // Result: Only resources with create/update/delete actions
 ```
 
 ### 4. Pick Specific Actions Across All Resources
+
 ```typescript
-listAndReadAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().pick(["list", "read"])
+listAndReadAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().pick(['list', 'read'])
 )
 // Result: Only resources that have 'list' or 'read' actions
 ```
 
 ### 5. Specific Resources Only
+
 ```typescript
-userProjectManagement: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getMany(["user", "project"]).all()
+userProjectManagement: permissionConfig.createPermission(
+    ({ statementsConfig }) =>
+        statementsConfig.getMany(['user', 'project']).all()
 )
 // Result: { user: [...all actions], project: [...all actions] }
 ```
 
 ### 6. Omit Dangerous Actions
+
 ```typescript
-safeModeAccess: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getAll().omit(["delete"])
+safeModeAccess: permissionConfig.createPermission(({ statementsConfig }) =>
+    statementsConfig.getAll().omit(['delete'])
 )
 // Result: All resources with all actions except 'delete'
 ```
 
 ### 7. Specific Resources with Filters
+
 ```typescript
-analyticsAndBillingRead: permissionConfig.createPermission(({ statementsConfig }) => 
-  statementsConfig.getMany(["analytics", "billing"]).readOnly()
+analyticsAndBillingRead: permissionConfig.createPermission(
+    ({ statementsConfig }) =>
+        statementsConfig.getMany(['analytics', 'billing']).readOnly()
 )
 // Result: { analytics: ['read'], billing: ['read'] }
 ```
@@ -273,6 +291,7 @@ statementsConfig.getMany(['billing', 'analytics']).withAction('export')
 ## Advanced Functional Operations
 
 ### Custom Filtering
+
 ```typescript
 // Get resources with more than 3 actions
 statementsConfig.getAll().filter((resource, actions) => actions.length > 3)
@@ -282,22 +301,24 @@ statementsConfig.getAll().filter((resource) => resource.startsWith('user'))
 ```
 
 ### Mapping
+
 ```typescript
 // Get resource names
 const resourceNames = statementsConfig.getAll().resources()
 
 // Transform to different structure
 const transformed = statementsConfig.getAll().transform((statements) => {
-  // Custom transformation logic
-  return Object.entries(statements).map(([resource, actions]) => ({
-    resourceName: resource,
-    actionCount: actions.length,
-    actions: actions
-  }))
+    // Custom transformation logic
+    return Object.entries(statements).map(([resource, actions]) => ({
+        resourceName: resource,
+        actionCount: actions.length,
+        actions: actions,
+    }))
 })
 ```
 
 ### Merging Collections
+
 ```typescript
 const userProjects = statementsConfig.getMany(['user', 'project'])
 const billingAnalytics = statementsConfig.getMany(['billing', 'analytics'])
@@ -363,6 +384,7 @@ rolesConfig.getAll().withAction('fake-action')
 ```
 
 **Benefits:**
+
 - **Catch typos** at compile time for both resources and actions
 - **IDE auto-completion** for valid resources and actions only
 - **Refactoring safety** - removing permissions causes type errors
@@ -440,47 +462,52 @@ withoutResource<TResource extends AllRoleResources<TRoles>>(resource: TResource)
 // viewer: { project: ['read'], user: ['read'] }
 
 // ✅ Valid - 'user' resource exists
-const r1 = rolesConfig.getAll().withResource('user');
+const r1 = rolesConfig.getAll().withResource('user')
 // Returns: { admin: {...}, viewer: {...} }
 
 // ✅ Valid - 'create' action exists
-const r2 = rolesConfig.getAll().withAction('create');
+const r2 = rolesConfig.getAll().withAction('create')
 // Returns: { admin: {...}, editor: {...} }
 
 // ❌ Compile error - 'invalid' resource doesn't exist
-const r3 = rolesConfig.getAll().withResource('invalid');
+const r3 = rolesConfig.getAll().withResource('invalid')
 
 // ❌ Compile error - 'archive' action doesn't exist
-const r4 = rolesConfig.getAll().withAction('archive');
+const r4 = rolesConfig.getAll().withAction('archive')
 
 // ✅ Valid - filter by action on resource
-const r5 = rolesConfig.getAll().withActionOnResource('project', 'delete');
+const r5 = rolesConfig.getAll().withActionOnResource('project', 'delete')
 // Returns: { admin: {...} }
 
 // ❌ Compile error - invalid combination
-const r6 = rolesConfig.getAll().withActionOnResource('invalid', 'create');
+const r6 = rolesConfig.getAll().withActionOnResource('invalid', 'create')
 ```
 
 ### Role Collection Methods
 
 #### Resource-Based Filters
+
 - **`withResource(resource)`** - Returns only roles that have access to the specified resource
 - **`withoutResource(resource)`** - Returns only roles that DON'T have access to the resource
 
 #### Action-Based Filters
+
 - **`withAction(action)`** - Returns only roles that have the specified action on ANY resource
 - **`withoutAction(action)`** - Returns only roles that DON'T have the specified action anywhere
 
 #### Combined Filters
+
 - **`withActionOnResource(resource, action)`** - Returns only roles with the action on the specific resource
 - **`withAllActionsOnResource(resource, actions)`** - Returns only roles that have ALL specified actions on the resource
 - **`withAnyActionOnResource(resource, actions)`** - Returns only roles that have at least one of the specified actions on the resource
 
 #### Permission Level Filters
+
 - **`readOnly()`** - Returns only roles with only 'read' permissions
 - **`writeOnly()`** - Returns only roles with write permissions (create, update, delete)
 
 #### Utility Methods
+
 - **`roles()`** - Get array of role names in the collection
 - **`isEmpty`** - Check if collection is empty
 - **`size`** - Get number of roles
@@ -492,69 +519,85 @@ const r6 = rolesConfig.getAll().withActionOnResource('invalid', 'create');
 ### Real-World Examples for Roles
 
 #### 1. All Roles with Delete Permission
+
 ```typescript
-const deleteCapableRoles = rolesConfig.getAll().withAction('delete');
+const deleteCapableRoles = rolesConfig.getAll().withAction('delete')
 // Returns only roles that can delete anything
 // Result: { admin: { user: ['*'], project: ['*'] } }
 ```
 
 #### 2. All Roles with Project Access
+
 ```typescript
-const projectRoles = rolesConfig.getAll().withResource('project');
+const projectRoles = rolesConfig.getAll().withResource('project')
 // Returns all roles that can access projects
 // Result: { admin: {...}, editor: {...}, viewer: {...} }
 ```
 
 #### 3. Roles That Can Create Projects
+
 ```typescript
-const projectCreators = rolesConfig.getAll().withActionOnResource('project', 'create');
+const projectCreators = rolesConfig
+    .getAll()
+    .withActionOnResource('project', 'create')
 // Result: { admin: {...}, editor: {...} }
 ```
 
 #### 4. Roles with Full User Management
+
 ```typescript
 const userManagers = rolesConfig
-  .getAll()
-  .withAllActionsOnResource('user', ['create', 'read', 'update', 'delete'] as const);
+    .getAll()
+    .withAllActionsOnResource('user', [
+        'create',
+        'read',
+        'update',
+        'delete',
+    ] as const)
 // Returns only roles with complete user management permissions
 // Result: { admin: {...} }
 ```
 
 #### 5. Roles with Any Write Permission on Projects
+
 ```typescript
 const projectWriters = rolesConfig
-  .getAll()
-  .withAnyActionOnResource('project', ['create', 'update', 'delete'] as const);
+    .getAll()
+    .withAnyActionOnResource('project', ['create', 'update', 'delete'] as const)
 // Returns roles that can modify projects in any way
 // Result: { admin: {...}, editor: {...} }
 ```
 
 #### 6. Read-Only Roles
+
 ```typescript
-const readOnlyRoles = rolesConfig.getAll().readOnly();
+const readOnlyRoles = rolesConfig.getAll().readOnly()
 // Returns roles with only read permissions
 // Result: { viewer: { project: ['read'], user: ['read'] } }
 ```
 
 #### 7. Selected Roles with Filtering
+
 ```typescript
 const adminEditorWithDelete = rolesConfig
-  .getMany(['admin', 'editor'] as const, true)
-  .withAction('delete');
+    .getMany(['admin', 'editor'] as const, true)
+    .withAction('delete')
 // Returns only admin (editor doesn't have delete)
 // Result: { admin: {...} }
 ```
 
 #### 8. Exclude Roles with Dangerous Permissions
+
 ```typescript
-const safeRoles = rolesConfig.getAll().withoutAction('delete');
+const safeRoles = rolesConfig.getAll().withoutAction('delete')
 // Returns roles without delete permission
 // Result: { editor: {...}, viewer: {...} }
 ```
 
 #### 9. Exclude Roles Without User Access
+
 ```typescript
-const nonUserRoles = rolesConfig.getAll().withoutResource('user');
+const nonUserRoles = rolesConfig.getAll().withoutResource('user')
 // Returns roles that don't have user resource
 // Result: { editor: {...} }
 ```
@@ -566,20 +609,17 @@ You can chain multiple filters for complex queries:
 ```typescript
 // Get roles that can manage projects but not delete users
 const projectManagersOnly = rolesConfig
-  .getAll()
-  .withActionOnResource('project', 'create')
-  .withoutActionOnResource('user', 'delete');
+    .getAll()
+    .withActionOnResource('project', 'create')
+    .withoutActionOnResource('user', 'delete')
 
 // Get roles with read access but no write permissions
-const readOnlyViewers = rolesConfig
-  .getAll()
-  .withResource('project')
-  .readOnly();
+const readOnlyViewers = rolesConfig.getAll().withResource('project').readOnly()
 
 // Get specific roles with specific permissions
 const adminOrManager = rolesConfig
-  .getMany(['admin', 'manager'] as const, true)
-  .withAnyActionOnResource('project', ['create', 'delete'] as const);
+    .getMany(['admin', 'manager'] as const, true)
+    .withAnyActionOnResource('project', ['create', 'delete'] as const)
 ```
 
 ### Custom Role Filtering
@@ -587,25 +627,25 @@ const adminOrManager = rolesConfig
 ```typescript
 // Get roles with more than 2 resources
 const multiResourceRoles = rolesConfig
-  .getAll()
-  .filter((roleName, rolePermissions) => {
-    return Object.keys(rolePermissions).length > 2;
-  });
+    .getAll()
+    .filter((roleName, rolePermissions) => {
+        return Object.keys(rolePermissions).length > 2
+    })
 
 // Get roles starting with 'admin'
 const adminRoles = rolesConfig
-  .getAll()
-  .filter((roleName) => roleName.startsWith('admin'));
+    .getAll()
+    .filter((roleName) => roleName.startsWith('admin'))
 ```
 
 ### Merging Role Collections
 
 ```typescript
-const adminEditor = rolesConfig.getMany(['admin', 'editor'] as const, true);
-const managerViewer = rolesConfig.getMany(['manager', 'viewer'] as const, true);
+const adminEditor = rolesConfig.getMany(['admin', 'editor'] as const, true)
+const managerViewer = rolesConfig.getMany(['manager', 'viewer'] as const, true)
 
 // Merge them
-const merged = adminEditor.merge(managerViewer);
+const merged = adminEditor.merge(managerViewer)
 // Returns collection with all four roles
 ```
 
@@ -614,6 +654,7 @@ const merged = adminEditor.merge(managerViewer);
 ## Comparison: Statements vs Roles
 
 ### Statement Collections
+
 **Purpose:** Filter resources by actions  
 **Use Case:** Determine what actions can be performed on each resource
 
@@ -628,6 +669,7 @@ statementsConfig.getAll().crudOnly()
 ```
 
 ### Role Collections
+
 **Purpose:** Filter roles by permissions  
 **Use Case:** Determine which roles have specific permissions
 
@@ -643,15 +685,15 @@ rolesConfig.getAll().withActionOnResource('project', 'create')
 
 ### Parallel APIs
 
-| Statement Collection | Role Collection | Purpose |
-|---------------------|----------------|---------|
-| `.withAction('delete')` | `.withAction('delete')` | Filter by action |
-| `.readOnly()` | `.readOnly()` | Only read permissions |
-| `.writeOnly()` | `.writeOnly()` | Only write permissions |
-| `.pick(['read', 'create'])` | `.withAnyActionOnResource(resource, actions)` | Multiple actions |
-| `.omit(['delete'])` | `.withoutAction('delete')` | Exclude action |
-| N/A | `.withResource('project')` | Filter by resource (role-specific) |
-| N/A | `.withActionOnResource('project', 'create')` | Filter by resource + action (role-specific) |
+| Statement Collection        | Role Collection                               | Purpose                                     |
+| --------------------------- | --------------------------------------------- | ------------------------------------------- |
+| `.withAction('delete')`     | `.withAction('delete')`                       | Filter by action                            |
+| `.readOnly()`               | `.readOnly()`                                 | Only read permissions                       |
+| `.writeOnly()`              | `.writeOnly()`                                | Only write permissions                      |
+| `.pick(['read', 'create'])` | `.withAnyActionOnResource(resource, actions)` | Multiple actions                            |
+| `.omit(['delete'])`         | `.withoutAction('delete')`                    | Exclude action                              |
+| N/A                         | `.withResource('project')`                    | Filter by resource (role-specific)          |
+| N/A                         | `.withActionOnResource('project', 'create')`  | Filter by resource + action (role-specific) |
 
 ### Benefits of Both Systems
 
@@ -664,11 +706,13 @@ rolesConfig.getAll().withActionOnResource('project', 'create')
 ### Use Cases
 
 **Statement Collections:**
+
 - Building permission presets
 - Defining common permission patterns
 - Determining available actions for UI
 
 **Role Collections:**
+
 - Finding users with specific permissions
 - Auditing role capabilities
 - Building role-based UI components

@@ -1,31 +1,31 @@
-import { warnOnConflicts } from '@deployer/orpc-utils/hooks/merge/conflicts';
+import { warnOnConflicts } from '@deployer/orpc-utils/hooks/merge/conflicts'
 import {
-  extractCustomQueryKeys,
-  extractRouterQueryKeys,
-  mergeQueryKeys,
-} from '@deployer/orpc-utils/hooks/merge/keys';
+    extractCustomQueryKeys,
+    extractRouterQueryKeys,
+    mergeQueryKeys,
+} from '@deployer/orpc-utils/hooks/merge/keys'
 import type {
-  CustomHooks,
-  CustomHooksWithKeys,
-  DefineCustomHooksOptions,
-  MergeHooksConfig,
-  MergedHooks,
-  QueryKeys,
-} from '@deployer/orpc-utils/hooks/merge/types';
+    CustomHooks,
+    CustomHooksWithKeys,
+    DefineCustomHooksOptions,
+    MergeHooksConfig,
+    MergedHooks,
+    QueryKeys,
+} from '@deployer/orpc-utils/hooks/merge/types'
 /**
  * @fileoverview Utilities for merging ORPC-generated hooks with custom hooks
- * 
+ *
  * This module provides a unified way to combine:
  * - Router hooks (from createRouterHooks)
  * - Composite hooks (from createCompositeHooks)
  * - Custom hooks (manually defined domain-specific hooks)
- * 
+ *
  * Custom hooks remain separate from ORPC procedures but can be referenced
  * in invalidation configs via the `custom` property.
- * 
+ *
  * NEW: Query Key-Based Invalidation Pattern
  * Custom hooks can now define their own `keys` object for type-safe invalidation:
- * 
+ *
  * @example
  * ```typescript
  * // Define custom hooks WITH keys
@@ -38,7 +38,7 @@ import type {
  *     all: () => ['profile'] as const,
  *   }
  * })
- * 
+ *
  * // Define invalidations using keys
  * const invalidations = defineInvalidations({
  *   custom: customHooks
@@ -48,7 +48,7 @@ import type {
  *     keys.all(),
  *   ]
  * })
- * 
+ *
  * // External usage
  * queryClient.invalidateQueries({ queryKey: customHooks.keys.profile('123') })
  * ```
@@ -58,49 +58,49 @@ import type {
  * Type for query key factory functions
  * Each key factory returns a readonly tuple representing a query key
  */
-export type { QueryKeyFactory } from '@deployer/orpc-utils/hooks/merge/types';
+export type { QueryKeyFactory } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Type for a keys object containing query key factories
  */
-export type { QueryKeys } from '@deployer/orpc-utils/hooks/merge/types';
+export type { QueryKeys } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Type for custom hook definitions
  */
-export type { CustomHooks } from '@deployer/orpc-utils/hooks/merge/types';
+export type { CustomHooks } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Extract keys type from a hooks object (router or custom)
  */
-export type { ExtractKeys } from '@deployer/orpc-utils/hooks/merge/types';
+export type { ExtractKeys } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Configuration for merging hooks
  */
-export type { MergeHooksConfig } from '@deployer/orpc-utils/hooks/merge/types';
+export type { MergeHooksConfig } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Combined keys from all hook sources
  */
-export type { MergedKeys } from '@deployer/orpc-utils/hooks/merge/types';
+export type { MergedKeys } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Merged hooks type - combines router, composite, and custom hooks
  * Also combines `keys` from all sources
  */
-export type { MergedHooks } from '@deployer/orpc-utils/hooks/merge/types';
+export type { MergedHooks } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Merge ORPC-generated hooks with custom hooks into a unified API
- * 
+ *
  * NEW: Also merges `keys` from all sources into a unified `keys` object.
  * - Router hooks: `queryKeys` → merged into `keys`
  * - Custom hooks: `keys` → merged into `keys`
- * 
+ *
  * @param config - Configuration containing router, composite, and custom hooks
  * @returns A merged object containing all hooks and combined keys
- * 
+ *
  * @example Basic usage
  * ```typescript
  * const hooks = mergeHooks({
@@ -109,94 +109,102 @@ export type { MergedHooks } from '@deployer/orpc-utils/hooks/merge/types';
  *   custom: customHooks
  * })
  * ```
- * 
+ *
  * @example With keys
  * ```typescript
  * const userHooks = createRouterHooks(orpc.user, { ... })
  * // userHooks.queryKeys = { list: ..., findById: ..., all: ... }
- * 
+ *
  * const authHooks = defineCustomHooks({ ... }, {
  *   keys: { session: () => [...], all: () => [...] }
  * })
- * 
+ *
  * const hooks = mergeHooks({
  *   router: userHooks,
  *   composite: {},
  *   custom: authHooks
  * })
- * 
+ *
  * // Access combined keys
  * hooks.keys.list()      // from userHooks
  * hooks.keys.session()   // from authHooks
  * ```
  */
 export function mergeHooks<
-  TRouter extends Record<string, unknown>,
-  TComposite extends Record<string, unknown>,
-  TCustom extends CustomHooks = Record<string, never>
+    TRouter extends Record<string, unknown>,
+    TComposite extends Record<string, unknown>,
+    TCustom extends CustomHooks = Record<string, never>,
 >(
-  config: MergeHooksConfig<TRouter, TComposite, TCustom>
+    config: MergeHooksConfig<TRouter, TComposite, TCustom>
 ): MergedHooks<TRouter, TComposite, TCustom> {
-  const { router, composite, custom = {} as TCustom } = config
+    const { router, composite, custom = {} as TCustom } = config
 
-  // Check for naming conflicts (excluding keys)
-  const routerKeys = Object.keys(router).filter(k => k !== 'queryKeys' && k !== 'keys')
-  const compositeKeys = Object.keys(composite).filter(k => k !== 'keys')
-  const customKeys = Object.keys(custom).filter(k => k !== 'keys')
+    // Check for naming conflicts (excluding keys)
+    const routerKeys = Object.keys(router).filter(
+        (k) => k !== 'queryKeys' && k !== 'keys'
+    )
+    const compositeKeys = Object.keys(composite).filter((k) => k !== 'keys')
+    const customKeys = Object.keys(custom).filter((k) => k !== 'keys')
 
-  warnOnConflicts([...routerKeys, ...compositeKeys, ...customKeys], 'hooks')
+    warnOnConflicts([...routerKeys, ...compositeKeys, ...customKeys], 'hooks')
 
-  // Extract keys from router (queryKeys) and custom (keys)
-  const routerQueryKeys = extractRouterQueryKeys(router)
-  const customQueryKeys = extractCustomQueryKeys(custom)
-  
-  // Check for key naming conflicts
-  warnOnConflicts([...Object.keys(routerQueryKeys), ...Object.keys(customQueryKeys)], 'query keys')
+    // Extract keys from router (queryKeys) and custom (keys)
+    const routerQueryKeys = extractRouterQueryKeys(router)
+    const customQueryKeys = extractCustomQueryKeys(custom)
 
-  // Merge keys (custom takes precedence)
-  const mergedKeys = mergeQueryKeys(routerQueryKeys, customQueryKeys)
+    // Check for key naming conflicts
+    warnOnConflicts(
+        [...Object.keys(routerQueryKeys), ...Object.keys(customQueryKeys)],
+        'query keys'
+    )
 
-  // Merge all hooks with custom hooks taking precedence
-  // Remove queryKeys/keys from individual sources, add unified keys
-   
-  const { queryKeys: _queryKeys, ...routerWithoutKeys } = router as TRouter & { queryKeys?: unknown }
-   
-  const { keys: _keys, ...customWithoutKeys } = custom as TCustom & { keys?: unknown }
-  
-  // NOTE: The cast through unknown is necessary because:
-  // 1. The merged keys object has a computed type based on runtime values
-  // 2. MergedKeys<TRouter, TCustom> is a precise type intersection
-  // 3. TypeScript can't verify the runtime object matches the compile-time type
-  // This is safe because we construct mergedKeys from the exact sources
-  // that MergedKeys extracts from (routerQueryKeys + customQueryKeys)
-  return {
-    ...routerWithoutKeys,
-    ...composite,
-    ...customWithoutKeys,
-    keys: mergedKeys,
-  } as unknown as MergedHooks<TRouter, TComposite, TCustom>
+    // Merge keys (custom takes precedence)
+    const mergedKeys = mergeQueryKeys(routerQueryKeys, customQueryKeys)
+
+    // Merge all hooks with custom hooks taking precedence
+    // Remove queryKeys/keys from individual sources, add unified keys
+
+    const { queryKeys: _queryKeys, ...routerWithoutKeys } =
+        router as TRouter & { queryKeys?: unknown }
+
+    const { keys: _keys, ...customWithoutKeys } = custom as TCustom & {
+        keys?: unknown
+    }
+
+    // NOTE: The cast through unknown is necessary because:
+    // 1. The merged keys object has a computed type based on runtime values
+    // 2. MergedKeys<TRouter, TCustom> is a precise type intersection
+    // 3. TypeScript can't verify the runtime object matches the compile-time type
+    // This is safe because we construct mergedKeys from the exact sources
+    // that MergedKeys extracts from (routerQueryKeys + customQueryKeys)
+    return {
+        ...routerWithoutKeys,
+        ...composite,
+        ...customWithoutKeys,
+        keys: mergedKeys,
+    } as unknown as MergedHooks<TRouter, TComposite, TCustom>
 }
 
 /**
  * Custom hooks with optional keys - the result type
  */
-export type { CustomHooksWithKeys } from '@deployer/orpc-utils/hooks/merge/types';
+export type { CustomHooksWithKeys } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Options for defineCustomHooks
  */
-export type { DefineCustomHooksOptions } from '@deployer/orpc-utils/hooks/merge/types';
+export type { DefineCustomHooksOptions } from '@deployer/orpc-utils/hooks/merge/types'
 
 /**
  * Helper to define custom hooks with type inference and optional keys
- * 
+ *
  * NEW: Now supports a `keys` option for query key-based invalidation.
  * Keys are attached to the returned hooks object for external access.
- * 
+ *
  * @param hooks - Object containing custom hook functions
  * @param options - Optional configuration including keys
  * @returns The hooks object with `keys` property attached
- * 
+ *
  * @example Without keys (backwards compatible)
  * ```typescript
  * const customHooks = defineCustomHooks({
@@ -204,7 +212,7 @@ export type { DefineCustomHooksOptions } from '@deployer/orpc-utils/hooks/merge/
  *   useUpdateProfile: () => useMutation({ ... })
  * })
  * ```
- * 
+ *
  * @example With keys (new pattern)
  * ```typescript
  * const authHooks = defineCustomHooks({
@@ -222,10 +230,10 @@ export type { DefineCustomHooksOptions } from '@deployer/orpc-utils/hooks/merge/
  *     all: () => ['auth'] as const,
  *   }
  * })
- * 
+ *
  * // Access keys externally
  * queryClient.invalidateQueries({ queryKey: authHooks.keys.session() })
- * 
+ *
  * // Use in defineInvalidations
  * defineInvalidations({ custom: authHooks }, {
  *   useSignInEmail: ({ keys }) => [keys.session()],
@@ -234,18 +242,14 @@ export type { DefineCustomHooksOptions } from '@deployer/orpc-utils/hooks/merge/
  * ```
  */
 export function defineCustomHooks<
-  THooks extends CustomHooks,
-  TKeys extends QueryKeys = Record<string, never>
+    THooks extends CustomHooks,
+    TKeys extends QueryKeys = Record<string, never>,
 >(
-  hooks: THooks,
-  options?: DefineCustomHooksOptions<TKeys>
+    hooks: THooks,
+    options?: DefineCustomHooksOptions<TKeys>
 ): CustomHooksWithKeys<THooks, TKeys> {
-  const keys = (options?.keys ?? {}) as TKeys
-  
-  // Attach keys to the hooks object
-  return Object.assign({}, hooks, { keys })
+    const keys = (options?.keys ?? {}) as TKeys
+
+    // Attach keys to the hooks object
+    return Object.assign({}, hooks, { keys })
 }
-
-
-
-

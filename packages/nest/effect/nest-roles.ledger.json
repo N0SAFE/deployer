@@ -1,9 +1,4 @@
 {
-  "noInjectableService": [
-    "src/effect-runtime.ts"
-  ],
-  "noNestLifecycleHook": [
-    "src/effect-lifecycle.ts",
-    "src/effect-runtime.ts"
-  ]
+    "noInjectableService": ["src/effect-runtime.ts"],
+    "noNestLifecycleHook": ["src/effect-lifecycle.ts", "src/effect-runtime.ts"]
 }

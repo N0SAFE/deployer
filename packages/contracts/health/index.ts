@@ -4,4 +4,4 @@
 // nothing else, so the contract cannot drift from the implementation. The BFF
 // composes this into its public router.
 
-export * from "./modules/health";
+export * from './modules/health'

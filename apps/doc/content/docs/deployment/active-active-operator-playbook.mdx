@@ -10,6 +10,7 @@ order: 27
 This playbook documents an optional advanced active-active pattern.
 
 The canonical v3 production baseline is Docker Swarm manager/worker orchestration with Traefik-first ingress.
+
 </DocCallout>
 
 ## Purpose
@@ -172,13 +173,13 @@ Also drill node enrollment revocation:
 
 ## Incident response matrix
 
-| Incident | Immediate action | Verification |
-|---|---|---|
-| Node hard down | remove from public pool; redistribute workload to remaining peers | stream reconnect success + fallback route metrics |
-| Stale metrics storm | increase report validation strictness; drop stale candidates | candidate list excludes stale nodes |
-| Token verify mismatch | confirm keyring sync and active/previous overlap | cross-node token verification restored |
-| Suspected node compromise | revoke node identity and quarantine link | no new control-envelope acceptance from node |
-| DNS propagation lag | keep overlap window with both old/new pools | traffic distribution converges within TTL window |
+| Incident                  | Immediate action                                                  | Verification                                      |
+| ------------------------- | ----------------------------------------------------------------- | ------------------------------------------------- |
+| Node hard down            | remove from public pool; redistribute workload to remaining peers | stream reconnect success + fallback route metrics |
+| Stale metrics storm       | increase report validation strictness; drop stale candidates      | candidate list excludes stale nodes               |
+| Token verify mismatch     | confirm keyring sync and active/previous overlap                  | cross-node token verification restored            |
+| Suspected node compromise | revoke node identity and quarantine link                          | no new control-envelope acceptance from node      |
+| DNS propagation lag       | keep overlap window with both old/new pools                       | traffic distribution converges within TTL window  |
 
 ## Operator command checklist (high-level)
 

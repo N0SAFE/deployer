@@ -1,21 +1,27 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 
-import { type Context, Effect } from "effect";
-import { beforeAll, describe, expect, it } from "vitest";
+import { type Context, Effect } from 'effect'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 // The app-local wrapper, not the raw harness: the harness REQUIRES
 // `nest.rootModuleLoader` and lives in `shared`, where `@/app.module` resolves to
 // nothing, so importing it directly throws
 // `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
-import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
-
-import { useDescribeSharedApiRuntime, withDeploymentQueueWorkerDisabled } from "@/e2e/runtime";
-import { DeploymentService, type DeploymentServiceShape } from "@/modules/deployment/services/deployment.service";
+import { TraefikService } from '@deployer/shared/core/modules/traefik/services/traefik.service'
 
 import {
-	createDeploymentCompleteStrategyContext,
-	type DeploymentCompleteStrategyContext,
-} from "./support/deployment-complete-strategy-context";
+    useDescribeSharedApiRuntime,
+    withDeploymentQueueWorkerDisabled,
+} from '@/e2e/runtime'
+import {
+    DeploymentService,
+    type DeploymentServiceShape,
+} from '@/modules/deployment/services/deployment.service'
+
+import {
+    createDeploymentCompleteStrategyContext,
+    type DeploymentCompleteStrategyContext,
+} from './support/deployment-complete-strategy-context'
 
 /**
  * The deployment workflow's cross-domain seams.
@@ -30,154 +36,209 @@ import {
  * trigger a deployment, and drive its queue job — plus the Traefik projection, which is core
  * infrastructure this app shares.
  */
-describe("Deployment strategy e2e: service, traefik projection and the upload deployment flow", () => {
-	// The worker is disabled for this suite: it claims and executes any job with a
-	// `deploymentId` on the tick it is enqueued, and this suite asserts the enqueued
-	// job's payload and then drives its lifecycle itself. Leaving it enabled is a
-	// race for the job — which is why the assertion saw `claimed` where it expected
-	// `queued`.
-	const runtimeScope = useDescribeSharedApiRuntime(withDeploymentQueueWorkerDisabled());
-	let context: DeploymentCompleteStrategyContext;
-	let deployment: { [K in "triggerDeployment" | "listQueueJobs" | "claimQueueJobByIdempotencyKey" | "completeQueueJob"]: (...args: Parameters<DeploymentServiceShape[K]>) => Promise<Effect.Success<ReturnType<DeploymentServiceShape[K]>>> };
-	let traefik: Context.Service.Shape<typeof TraefikService>;
+describe('Deployment strategy e2e: service, traefik projection and the upload deployment flow', () => {
+    // The worker is disabled for this suite: it claims and executes any job with a
+    // `deploymentId` on the tick it is enqueued, and this suite asserts the enqueued
+    // job's payload and then drives its lifecycle itself. Leaving it enabled is a
+    // race for the job — which is why the assertion saw `claimed` where it expected
+    // `queued`.
+    const runtimeScope = useDescribeSharedApiRuntime(
+        withDeploymentQueueWorkerDisabled()
+    )
+    let context: DeploymentCompleteStrategyContext
+    let deployment: {
+        [
+            K in
+                | 'triggerDeployment'
+                | 'listQueueJobs'
+                | 'claimQueueJobByIdempotencyKey'
+                | 'completeQueueJob'
+        ]: (
+            ...args: Parameters<DeploymentServiceShape[K]>
+        ) => Promise<Effect.Success<ReturnType<DeploymentServiceShape[K]>>>
+    }
+    let traefik: Context.Service.Shape<typeof TraefikService>
 
-	beforeAll(async () => {
-		context = await createDeploymentCompleteStrategyContext(runtimeScope.getContext());
-		const service = runtimeScope.getContext().serviceMapper.get(DeploymentService) as unknown as DeploymentServiceShape;
-		deployment = {
-			triggerDeployment: (...args) => Effect.runPromise(service.triggerDeployment(...args)),
-			listQueueJobs: (...args) => Effect.runPromise(service.listQueueJobs(...args)),
-			claimQueueJobByIdempotencyKey: (...args) => Effect.runPromise(service.claimQueueJobByIdempotencyKey(...args)),
-			completeQueueJob: (...args) => Effect.runPromise(service.completeQueueJob(...args)),
-		};
-		traefik = runtimeScope.getContext().serviceMapper.get(TraefikService) as unknown as Context.Service.Shape<typeof TraefikService>;
-	});
+    beforeAll(async () => {
+        context = await createDeploymentCompleteStrategyContext(
+            runtimeScope.getContext()
+        )
+        const service = runtimeScope
+            .getContext()
+            .serviceMapper.get(
+                DeploymentService
+            ) as unknown as DeploymentServiceShape
+        deployment = {
+            triggerDeployment: (...args) =>
+                Effect.runPromise(service.triggerDeployment(...args)),
+            listQueueJobs: (...args) =>
+                Effect.runPromise(service.listQueueJobs(...args)),
+            claimQueueJobByIdempotencyKey: (...args) =>
+                Effect.runPromise(
+                    service.claimQueueJobByIdempotencyKey(...args)
+                ),
+            completeQueueJob: (...args) =>
+                Effect.runPromise(service.completeQueueJob(...args)),
+        }
+        traefik = runtimeScope
+            .getContext()
+            .serviceMapper.get(
+                TraefikService
+            ) as unknown as Context.Service.Shape<typeof TraefikService>
+    })
 
-	it("projects a seeded service into a valid Traefik routing configuration", async () => {
-		const project = await context.fixtures.project(context.ownerId, {
-			baseDomain: "services.e2e.example.test",
-		});
-		const service = await context.fixtures.service(project.id, {
-			name: `api-${randomUUID()}`,
-			port: 3000,
-		});
+    it('projects a seeded service into a valid Traefik routing configuration', async () => {
+        const project = await context.fixtures.project(context.ownerId, {
+            baseDomain: 'services.e2e.example.test',
+        })
+        const service = await context.fixtures.service(project.id, {
+            name: `api-${randomUUID()}`,
+            port: 3000,
+        })
 
-		const serviceConfig = await Effect.runPromise(traefik.createServiceConfiguration(service.id, {
-			domain: "services.e2e.example.test",
-			subdomain: `svc-${service.id.slice(0, 8)}`,
-			port: 3000,
-			sslEnabled: true,
-			sslProvider: "letsencrypt",
-			pathPrefix: "/",
-			healthCheck: { enabled: true, path: "/health" },
-		}));
+        const serviceConfig = await Effect.runPromise(
+            traefik.createServiceConfiguration(service.id, {
+                domain: 'services.e2e.example.test',
+                subdomain: `svc-${service.id.slice(0, 8)}`,
+                port: 3000,
+                sslEnabled: true,
+                sslProvider: 'letsencrypt',
+                pathPrefix: '/',
+                healthCheck: { enabled: true, path: '/health' },
+            })
+        )
 
-		if (serviceConfig === null || serviceConfig === undefined) {
-			throw new Error("Expected the Traefik service configuration to be created");
-		}
+        if (serviceConfig === null || serviceConfig === undefined) {
+            throw new Error(
+                'Expected the Traefik service configuration to be created'
+            )
+        }
 
-		const validation = await Effect.runPromise(traefik.validateConfiguration(serviceConfig.id));
+        const validation = await Effect.runPromise(
+            traefik.validateConfiguration(serviceConfig.id)
+        )
 
-		expect(service.projectId).toBe(project.id);
-		// The fixture pins the upload source and the manual runner — the premise the
-		// deployment case below depends on, asserted here so a fixture change fails loudly.
-		expect(service.providerId).toBe("artifact-bundle");
-		expect(serviceConfig.serviceId).toBe(service.id);
-		expect(serviceConfig.fullDomain).toContain("services.e2e.example.test");
-		expect(validation.isValid).toBe(true);
-		expect(validation.errors).toHaveLength(0);
-	});
+        expect(service.projectId).toBe(project.id)
+        // The fixture pins the upload source and the manual runner — the premise the
+        // deployment case below depends on, asserted here so a fixture change fails loudly.
+        expect(service.providerId).toBe('artifact-bundle')
+        expect(serviceConfig.serviceId).toBe(service.id)
+        expect(serviceConfig.fullDomain).toContain('services.e2e.example.test')
+        expect(validation.isValid).toBe(true)
+        expect(validation.errors).toHaveLength(0)
+    })
 
-	it("triggers an upload deployment and drives its queue job to completion", async () => {
-		const project = await context.fixtures.project(context.ownerId, {
-			baseDomain: "deploy.e2e.example.test",
-		});
-		const service = await context.fixtures.service(project.id, {
-			name: `web-${randomUUID()}`,
-			port: 8080,
-		});
+    it('triggers an upload deployment and drives its queue job to completion', async () => {
+        const project = await context.fixtures.project(context.ownerId, {
+            baseDomain: 'deploy.e2e.example.test',
+        })
+        const service = await context.fixtures.service(project.id, {
+            name: `web-${randomUUID()}`,
+            port: 8080,
+        })
 
-		const uploadId = `upload-${randomUUID()}`;
-		const triggered = await deployment.triggerDeployment(
-			{
-				serviceId: service.id,
-				environment: "preview",
-				source: {
-					sourceType: "upload",
-					uploadId,
-					uploadPath: "/tmp/e2e-upload/bundle.zip",
-					fileName: "bundle.zip",
-					fileSize: 1024,
-					customData: {							// `uploadId` is required INSIDE `customData`, not only beside it:
-							// `uploadSourceContextSchema` validates `customData.uploadId` and the
-							// provider throws
-							// `Upload source requires valid source with customData.uploadId`
-							// when it is absent. The top-level field alone is not the source of
-							// truth the provider reads.
-							uploadId,						runtimeRunner: "dockerfile",
-						containerImage: `ghcr.io/e2e/deploy-${service.id.slice(0, 8)}:latest`,
-						runtimeRunnerOptions: {								// `runner` is the DISCRIMINANT: `runtimeRunnerOptionsSchema` is a
-								// discriminated union on it, and the members are `.strict()`, so an
-								// absent `runner` fails the parse and surfaces as the same generic
-								// "customData.uploadId" message — which is why the message named a
-								// field that was in fact present.
-								runner: "dockerfile",							containerName: `ctr-${service.id.slice(0, 8)}`,
-							networkMode: "bridge",
-							healthCheckMaxRetries: 3,
-							healthCheckRetryIntervalMs: 1000,
-						},
-					},
-				},
-			},
-			context.ownerId,
-			null,
-		);
+        const uploadId = `upload-${randomUUID()}`
+        const triggered = await deployment.triggerDeployment(
+            {
+                serviceId: service.id,
+                environment: 'preview',
+                source: {
+                    sourceType: 'upload',
+                    uploadId,
+                    uploadPath: '/tmp/e2e-upload/bundle.zip',
+                    fileName: 'bundle.zip',
+                    fileSize: 1024,
+                    customData: {
+                        // `uploadId` is required INSIDE `customData`, not only beside it:
+                        // `uploadSourceContextSchema` validates `customData.uploadId` and the
+                        // provider throws
+                        // `Upload source requires valid source with customData.uploadId`
+                        // when it is absent. The top-level field alone is not the source of
+                        // truth the provider reads.
+                        uploadId,
+                        runtimeRunner: 'dockerfile',
+                        containerImage: `ghcr.io/e2e/deploy-${service.id.slice(0, 8)}:latest`,
+                        runtimeRunnerOptions: {
+                            // `runner` is the DISCRIMINANT: `runtimeRunnerOptionsSchema` is a
+                            // discriminated union on it, and the members are `.strict()`, so an
+                            // absent `runner` fails the parse and surfaces as the same generic
+                            // "customData.uploadId" message — which is why the message named a
+                            // field that was in fact present.
+                            runner: 'dockerfile',
+                            containerName: `ctr-${service.id.slice(0, 8)}`,
+                            networkMode: 'bridge',
+                            healthCheckMaxRetries: 3,
+                            healthCheckRetryIntervalMs: 1000,
+                        },
+                    },
+                },
+            },
+            context.ownerId,
+            null
+        )
 
-		expect(triggered.status).toBe("queued");
+        expect(triggered.status).toBe('queued')
 
-		const queueJobs = await deployment.listQueueJobs({
-			deploymentId: triggered.id,
-			status: "queued",
-			limit: 20,
-			offset: 0,
-		});
+        const queueJobs = await deployment.listQueueJobs({
+            deploymentId: triggered.id,
+            status: 'queued',
+            limit: 20,
+            offset: 0,
+        })
 
-		const deployJob = queueJobs.items.find((job) => job.type === "deploy");
-		if (deployJob === undefined) {
-			throw new Error("Expected a queued deploy job for the triggered deployment");
-		}
+        const deployJob = queueJobs.items.find((job) => job.type === 'deploy')
+        if (deployJob === undefined) {
+            throw new Error(
+                'Expected a queued deploy job for the triggered deployment'
+            )
+        }
 
-		// The job payload is the CONTRACT between this domain and its worker: it must carry
-		// the resolved source, storage binding and runtime configuration, or the worker would
-		// have to re-derive them — the divergence this assertion exists to catch.
-		const payload = deployJob.payload.context as {
-			sourceCheckout?: { provider?: string; uploadId?: string };
-			storageBinding?: { storageType?: string; updateStrategy?: string };
-			runtimeConfiguration?: { deployment?: { strategy?: string } };
-		};
+        // The job payload is the CONTRACT between this domain and its worker: it must carry
+        // the resolved source, storage binding and runtime configuration, or the worker would
+        // have to re-derive them — the divergence this assertion exists to catch.
+        const payload = deployJob.payload.context as {
+            sourceCheckout?: { provider?: string; uploadId?: string }
+            storageBinding?: { storageType?: string; updateStrategy?: string }
+            runtimeConfiguration?: { deployment?: { strategy?: string } }
+        }
 
-		expect(payload.sourceCheckout?.provider).toBe("upload");
-		expect(payload.sourceCheckout?.uploadId).toBe(uploadId);
-		expect(payload.storageBinding?.storageType).toBe("local");
-		expect(payload.storageBinding?.updateStrategy).toBe("manual_update_button");
-		expect(typeof payload.runtimeConfiguration?.deployment?.strategy).toBe("string");
+        expect(payload.sourceCheckout?.provider).toBe('upload')
+        expect(payload.sourceCheckout?.uploadId).toBe(uploadId)
+        expect(payload.storageBinding?.storageType).toBe('local')
+        expect(payload.storageBinding?.updateStrategy).toBe(
+            'manual_update_button'
+        )
+        expect(typeof payload.runtimeConfiguration?.deployment?.strategy).toBe(
+            'string'
+        )
 
-		const claimed = await deployment.claimQueueJobByIdempotencyKey(
-			`deploy:${triggered.id}:trigger`,
-			{ workerId: context.workerId, types: ["deploy"], limit: 1, leaseDurationSec: 120 },
-		);
+        const claimed = await deployment.claimQueueJobByIdempotencyKey(
+            `deploy:${triggered.id}:trigger`,
+            {
+                workerId: context.workerId,
+                types: ['deploy'],
+                limit: 1,
+                leaseDurationSec: 120,
+            }
+        )
 
-		if (claimed === null || claimed.lockToken === null || claimed.lockToken === undefined) {
-			throw new Error("Expected a claimed deployment queue job with a lock token");
-		}
+        if (
+            claimed === null ||
+            claimed.lockToken === null ||
+            claimed.lockToken === undefined
+        ) {
+            throw new Error(
+                'Expected a claimed deployment queue job with a lock token'
+            )
+        }
 
-		const completed = await deployment.completeQueueJob(claimed.id, {
-			workerId: context.workerId,
-			lockToken: claimed.lockToken,
-			result: { outcome: "e2e-upload-deploy-finished" },
-		});
+        const completed = await deployment.completeQueueJob(claimed.id, {
+            workerId: context.workerId,
+            lockToken: claimed.lockToken,
+            result: { outcome: 'e2e-upload-deploy-finished' },
+        })
 
-		expect(completed.updated).toBe(true);
-		expect(completed.job.status).toBe("succeeded");
-	});
-});
+        expect(completed.updated).toBe(true)
+        expect(completed.job.status).toBe('succeeded')
+    })
+})

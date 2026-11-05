@@ -1,14 +1,14 @@
-import { Controller } from "@nestjs/common";
-import { Effect } from "effect";
+import { Controller } from '@nestjs/common'
+import { Effect } from 'effect'
 
-import { procedure } from "@deployer/nest-effect";
-import { declareProcedures, MeshController } from "@deployer/nest-mesh";
-import { nodeAgentContract } from "@deployer/node-agent-contracts";
+import { procedure } from '@deployer/nest-effect'
+import { declareProcedures, MeshController } from '@deployer/nest-mesh'
+import { nodeAgentContract } from '@deployer/node-agent-contracts'
 
-import { serveMeshPeer } from "../../../core/orpc/serve";
-import { MeshRelay, relayEvents } from "../services/relay.service";
+import { serveMeshPeer } from '../../../core/orpc/serve'
+import { MeshRelay, relayEvents } from '../services/relay.service'
 
-const relay = nodeAgentContract.relay;
+const relay = nodeAgentContract.relay
 
 /**
  * Every call between services, as one procedure.
@@ -18,19 +18,19 @@ const relay = nodeAgentContract.relay;
  */
 @Controller()
 export class RelayController extends MeshController {
-  static readonly procedures = declareProcedures({
-    call: { door: "peer", group: "relay", contract: relay.call },
-  });
+    static readonly procedures = declareProcedures({
+        call: { door: 'peer', group: 'relay', contract: relay.call },
+    })
 
-  call() {
-      return procedure(relay.call).effect(function* ({ input, context }) {
-      const outcome = yield* serveMeshPeer(context)(
-          Effect.gen(function* () {
-        const meshRelay = yield* MeshRelay;
-        return yield* meshRelay.relay(input);
-          }),
-      );
-      return relayEvents(outcome);
-      });
-  }
+    call() {
+        return procedure(relay.call).effect(function* ({ input, context }) {
+            const outcome = yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    const meshRelay = yield* MeshRelay
+                    return yield* meshRelay.relay(input)
+                })
+            )
+            return relayEvents(outcome)
+        })
+    }
 }

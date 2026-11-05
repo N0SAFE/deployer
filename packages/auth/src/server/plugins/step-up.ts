@@ -1,15 +1,15 @@
-import { createAuthMiddleware } from "better-auth/api";
+import { createAuthMiddleware } from 'better-auth/api'
 
-import type { StepUpMethod } from "../../authz/step-up";
-import type { BetterAuthPlugin } from "better-auth";
+import type { StepUpMethod } from '../../authz/step-up'
+import type { BetterAuthPlugin } from 'better-auth'
 
 /** One completed verification, bound to the session that performed it. */
 export interface StepUpEvent {
-	readonly sessionId: string;
-	readonly userId: string;
-	readonly method: StepUpMethod;
-	/** Why the caller asked, when the request carried a reason. */
-	readonly reason?: string;
+    readonly sessionId: string
+    readonly userId: string
+    readonly method: StepUpMethod
+    /** Why the caller asked, when the request carried a reason. */
+    readonly reason?: string
 }
 
 /**
@@ -19,7 +19,7 @@ export interface StepUpEvent {
  * callers that own no database, and the deployment that has one passes `drizzleStepUpSink`.
  */
 export interface StepUpSink {
-	record(event: StepUpEvent): void;
+    record(event: StepUpEvent): void
 }
 
 /**
@@ -29,15 +29,18 @@ export interface StepUpSink {
  * authentication` is the passkey ceremony; `/two-factor/verify-totp` is AAL2 and is recorded so an operator can see it,
  * but `isCriticalStepUp` refuses it for critical actions.
  */
-const VERIFYING_PATHS: readonly { readonly path: string; readonly method: StepUpMethod }[] = [
-	{ path: "/passkey/verify-authentication", method: "passkey" },
-	{ path: "/two-factor/verify-totp", method: "totp" },
-];
+const VERIFYING_PATHS: readonly {
+    readonly path: string
+    readonly method: StepUpMethod
+}[] = [
+    { path: '/passkey/verify-authentication', method: 'passkey' },
+    { path: '/two-factor/verify-totp', method: 'totp' },
+]
 
 /** What these endpoints return: the session they MINTED, which is the one the browser now holds. */
 interface VerifiedSession {
-	readonly session?: { readonly id?: string; readonly userId?: string };
-	readonly user?: { readonly id?: string };
+    readonly session?: { readonly id?: string; readonly userId?: string }
+    readonly user?: { readonly id?: string }
 }
 
 /**
@@ -54,31 +57,47 @@ interface VerifiedSession {
  * the consequence is a refused critical action, which is the safe direction.
  */
 export const stepUpPlugin = (sink: StepUpSink): BetterAuthPlugin => ({
-	id: "step-up",
-	hooks: {
-		after: [
-			{
-				matcher: (context) => VERIFYING_PATHS.some((candidate) => candidate.path === context.path),
-				handler: createAuthMiddleware((ctx) => {
-					const verifying = VERIFYING_PATHS.find((candidate) => candidate.path === ctx.path);
-					if (verifying === undefined) return Promise.resolve();
+    id: 'step-up',
+    hooks: {
+        after: [
+            {
+                matcher: (context) =>
+                    VERIFYING_PATHS.some(
+                        (candidate) => candidate.path === context.path
+                    ),
+                handler: createAuthMiddleware((ctx) => {
+                    const verifying = VERIFYING_PATHS.find(
+                        (candidate) => candidate.path === ctx.path
+                    )
+                    if (verifying === undefined) return Promise.resolve()
 
-					const returned = (ctx.context as { returned?: VerifiedSession }).returned;
-					const current = ctx.context.session;
-					const sessionId = returned?.session?.id ?? current?.session.id;
-					const userId = returned?.session?.userId ?? returned?.user?.id ?? current?.user.id;
-					if (sessionId === undefined || userId === undefined) return Promise.resolve();
+                    const returned = (
+                        ctx.context as { returned?: VerifiedSession }
+                    ).returned
+                    const current = ctx.context.session
+                    const sessionId =
+                        returned?.session?.id ?? current?.session.id
+                    const userId =
+                        returned?.session?.userId ??
+                        returned?.user?.id ??
+                        current?.user.id
+                    if (sessionId === undefined || userId === undefined)
+                        return Promise.resolve()
 
-					const reason = (ctx.body as { reason?: unknown } | undefined)?.reason;
-					sink.record({
-						sessionId,
-						userId,
-						method: verifying.method,
-						...(typeof reason === "string" && reason.length > 0 ? { reason } : {}),
-					});
-					return Promise.resolve();
-				}),
-			},
-		],
-	},
-});
+                    const reason = (
+                        ctx.body as { reason?: unknown } | undefined
+                    )?.reason
+                    sink.record({
+                        sessionId,
+                        userId,
+                        method: verifying.method,
+                        ...(typeof reason === 'string' && reason.length > 0
+                            ? { reason }
+                            : {}),
+                    })
+                    return Promise.resolve()
+                }),
+            },
+        ],
+    },
+})

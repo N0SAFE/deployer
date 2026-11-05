@@ -7,7 +7,7 @@ import {
     manualProviderConfigSchema,
     providerConfigSchemaById,
     serviceProviderConfigUnionSchema,
-} from "./service/provider-config.schema";
+} from './service/provider-config.schema'
 import {
     kubernetesRunnerConfigSchema,
     manualRunnerConfigSchema,
@@ -18,7 +18,7 @@ import {
     staticRunnerConfigSchema,
     runnerConfigSchemaById,
     serviceRunnerConfigUnionSchema,
-} from "./service/runner-config.schema";
+} from './service/runner-config.schema'
 import {
     mockEngineSchema,
     mockServiceConfigSchema,
@@ -26,7 +26,7 @@ import {
     type MockEngine,
     type MockServiceConfig,
     type ImplementedContract,
-} from "./service/mock-config.schema";
+} from './service/mock-config.schema'
 import {
     serviceSchema,
     serviceObjectShape,
@@ -35,7 +35,7 @@ import {
     type Service,
     type ServiceEffectiveConfig,
     type ServiceWithEffectiveConfig,
-} from "./service/service.schema";
+} from './service/service.schema'
 
 export {
     githubProviderConfigSchema,
@@ -62,7 +62,7 @@ export {
     serviceObjectShape,
     serviceEffectiveConfigSchema,
     serviceWithEffectiveConfigSchema,
-};
+}
 
 export type {
     Service,
@@ -71,4 +71,4 @@ export type {
     MockEngine,
     MockServiceConfig,
     ImplementedContract,
-};
+}

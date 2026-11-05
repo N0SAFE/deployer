@@ -4,7 +4,10 @@ description: Service topology, compose variants, and operational commands.
 order: 10
 ---
 
-<DocMeta source=".docs/guides/DOCKER-BUILD-STRATEGIES.md" scope="supplemental" />
+<DocMeta
+    source=".docs/guides/DOCKER-BUILD-STRATEGIES.md"
+    scope="supplemental"
+/>
 
 This page explains how to work with the provided Docker Compose files for both development and production, without repeating the build strategy or deployment specifics. For deeper context, see:
 
@@ -36,6 +39,7 @@ Use the root scripts which wrap Compose and manage env for you.
 ```
 
 Notes:
+
 - Hot reloading is enabled for both apps in dev.
 - Services share an internal Docker network.
 - Route generation and ORPC generation are handled by the app scripts.
@@ -68,6 +72,7 @@ Environment files are generated from templates via `bun run init`; keep them syn
 ## Environment variables
 
 Common keys used by Compose services (examples):
+
 - `NEXT_PUBLIC_API_URL` – base URL of the API for the web app
 - `NEXT_PUBLIC_APP_URL` – URL of the web app (for links/callbacks)
 - `API_PORT` / `NEXT_PUBLIC_APP_PORT` – exposed host ports
@@ -129,10 +134,10 @@ All container, network, and volume names will be prefixed. See [Project Isolatio
 ## Compose hygiene checklist
 
 <DocChecklist
-	items={[
-		{ label: 'Ports and URLs aligned with .env', done: false },
-		{ label: 'Service names stable across compose variants', done: false },
-		{ label: 'Volume strategy understood before reset', done: false },
-		{ label: 'Logs checked before restarting all services', done: false },
-	]}
+    items={[
+        { label: 'Ports and URLs aligned with .env', done: false },
+        { label: 'Service names stable across compose variants', done: false },
+        { label: 'Volume strategy understood before reset', done: false },
+        { label: 'Logs checked before restarting all services', done: false },
+    ]}
 />

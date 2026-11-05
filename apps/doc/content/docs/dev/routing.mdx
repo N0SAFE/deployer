@@ -4,7 +4,10 @@ description: Declarative routing system for Next.js App Router.
 order: 5
 ---
 
-<DocMeta source=".docs/core-concepts/12-DECLARATIVE-ROUTING-PATTERN.md" scope="canonical" />
+<DocMeta
+    source=".docs/core-concepts/12-DECLARATIVE-ROUTING-PATTERN.md"
+    scope="canonical"
+/>
 
 ## How it works
 
@@ -58,7 +61,8 @@ bun run web -- dr:build:watch
 - Avoid mixing legacy string paths with generated helpers in the same feature.
 
 <DocCallout title="Why this matters" tone="info">
-Declarative routing enforces compile-time navigation safety and prevents subtle path drift between pages, links, and route params.
+    Declarative routing enforces compile-time navigation safety and prevents
+    subtle path drift between pages, links, and route params.
 </DocCallout>
 
 ## Related docs

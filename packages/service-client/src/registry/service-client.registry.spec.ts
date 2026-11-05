@@ -1,8 +1,8 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
-import { describe, expect, it, vi } from "vitest";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
+import { describe, expect, it, vi } from 'vitest'
 
-import { ServiceClientRegistry } from "./service-client.registry";
+import { ServiceClientRegistry } from './service-client.registry'
 
 /**
  * A minimal Standard-Schema object, so the fixture needs no validator dependency.
@@ -13,12 +13,12 @@ import { ServiceClientRegistry } from "./service-client.registry";
  * than pulling in a validator that is not a dependency.
  */
 const passthroughSchema = {
-	"~standard": {
-		version: 1 as const,
-		vendor: "service-client-test",
-		validate: (value: unknown) => ({ value }),
-	},
-};
+    '~standard': {
+        version: 1 as const,
+        vendor: 'service-client-test',
+        validate: (value: unknown) => ({ value }),
+    },
+}
 
 /**
  * A router with ONE procedure, whose route path names the contract it came from.
@@ -30,9 +30,9 @@ const passthroughSchema = {
  * client was built from.
  */
 function oneRoutineRouter(name: string) {
-	return oc.meta(openapi({ tags: [name], prefix: `/${name}` })).router({
-		[name]: oc.output(passthroughSchema),
-	});
+    return oc.meta(openapi({ tags: [name], prefix: `/${name}` })).router({
+        [name]: oc.output(passthroughSchema),
+    })
 }
 
 /**
@@ -42,26 +42,36 @@ function oneRoutineRouter(name: string) {
  * procedure path — the part the contract decides.
  */
 function makeRegistry() {
-	const requested: string[] = [];
-	const registry = new ServiceClientRegistry({
-		resolveOrigin: () => "http://svc.test",
-		headers: () => ({}),
-	});
+    const requested: string[] = []
+    const registry = new ServiceClientRegistry({
+        resolveOrigin: () => 'http://svc.test',
+        headers: () => ({}),
+    })
 
-	// The link is built inside the registry, so the stub replaces the global fetch it
-	// calls. Cast to `typeof fetch` so the stub keeps the real signature — a narrower
-	// `(RequestInfo | URL) => Promise<Response>` does not satisfy it, because the fetch
-	// type also carries `preconnect`.
-	const original: typeof fetch = globalThis.fetch;
-	globalThis.fetch = ((request: RequestInfo | URL) => {
-		const url = typeof request === "string" ? request : (request as { url: string }).url;
-		requested.push(url);
-		return Promise.resolve(
-			new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
-		);
-	}) as typeof fetch;
+    // The link is built inside the registry, so the stub replaces the global fetch it
+    // calls. Cast to `typeof fetch` so the stub keeps the real signature — a narrower
+    // `(RequestInfo | URL) => Promise<Response>` does not satisfy it, because the fetch
+    // type also carries `preconnect`.
+    const original: typeof fetch = globalThis.fetch
+    globalThis.fetch = ((request: RequestInfo | URL) => {
+        const url =
+            typeof request === 'string'
+                ? request
+                : (request as { url: string }).url
+        requested.push(url)
+        return Promise.resolve(
+            new Response('{}', {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            })
+        )
+    }) as typeof fetch
 
-	return { registry, requested, restore: () => void (globalThis.fetch = original) };
+    return {
+        registry,
+        requested,
+        restore: () => void (globalThis.fetch = original),
+    }
 }
 
 /**
@@ -79,122 +89,152 @@ function makeRegistry() {
  * implementation: a second bind's own procedure threw, while the first contract's
  * procedure succeeded and issued the wrong URL.
  */
-describe("ServiceClientRegistry — contract-scoped client cache", () => {
-	it("keeps a separate client per (service, contract), not per service", async () => {
-		const { registry, requested, restore } = makeRegistry();
-		try {
-			const alphaContract = oneRoutineRouter("alpha");
-			const bravoContract = oneRoutineRouter("bravo");
+describe('ServiceClientRegistry — contract-scoped client cache', () => {
+    it('keeps a separate client per (service, contract), not per service', async () => {
+        const { registry, requested, restore } = makeRegistry()
+        try {
+            const alphaContract = oneRoutineRouter('alpha')
+            const bravoContract = oneRoutineRouter('bravo')
 
-			// Same service, two different contracts — the shape the BFF actually uses.
-			const alpha = registry.bind("project", alphaContract);
-			const bravo = registry.bind("project", bravoContract);
+            // Same service, two different contracts — the shape the BFF actually uses.
+            const alpha = registry.bind('project', alphaContract)
+            const bravo = registry.bind('project', bravoContract)
 
-			// Each bind must resolve ITS OWN procedure. The path is `<prefix>/<name>`
-			// (the router prefix plus the routine), so the two URLs differ by contract.
-			await (alpha as unknown as { alpha: (i: unknown) => Promise<unknown> }).alpha({});
-			await (bravo as unknown as { bravo: (i: unknown) => Promise<unknown> }).bravo({});
+            // Each bind must resolve ITS OWN procedure. The path is `<prefix>/<name>`
+            // (the router prefix plus the routine), so the two URLs differ by contract.
+            await (
+                alpha as unknown as { alpha: (i: unknown) => Promise<unknown> }
+            ).alpha({})
+            await (
+                bravo as unknown as { bravo: (i: unknown) => Promise<unknown> }
+            ).bravo({})
 
-			expect(requested).toEqual([
-				"http://svc.test/alpha/alpha",
-				"http://svc.test/bravo/bravo",
-			]);
-		} finally {
-			restore();
-		}
-	});
+            expect(requested).toEqual([
+                'http://svc.test/alpha/alpha',
+                'http://svc.test/bravo/bravo',
+            ])
+        } finally {
+            restore()
+        }
+    })
 
-	it("does not leak the first contract's routes into the second bind", async () => {
-		const { registry, restore } = makeRegistry();
-		try {
-			const alphaContract = oneRoutineRouter("alpha");
-			const bravoContract = oneRoutineRouter("bravo");
+    it("does not leak the first contract's routes into the second bind", async () => {
+        const { registry, restore } = makeRegistry()
+        try {
+            const alphaContract = oneRoutineRouter('alpha')
+            const bravoContract = oneRoutineRouter('bravo')
 
-			registry.bind("project", alphaContract);
-			const bravo = registry.bind("project", bravoContract) as unknown as Record<string, unknown>;
+            registry.bind('project', alphaContract)
+            const bravo = registry.bind(
+                'project',
+                bravoContract
+            ) as unknown as Record<string, unknown>
 
-			// AWAITED, because an async function never throws synchronously: a bare
-			// `expect(() => fn()).not.toThrow()` would pass even when the call rejects,
-			// which is exactly the bug this test exists to catch. Before the fix the
-			// call rejected with `Expected procedure or contract path (bravo)`, because
-			// the client handed over was still built from `alphaContract`.
-			await expect(
-				(bravo.bravo as (i: unknown) => Promise<unknown>)({}),
-			).resolves.toBeDefined();
-		} finally {
-			restore();
-		}
-	});
+            // AWAITED, because an async function never throws synchronously: a bare
+            // `expect(() => fn()).not.toThrow()` would pass even when the call rejects,
+            // which is exactly the bug this test exists to catch. Before the fix the
+            // call rejected with `Expected procedure or contract path (bravo)`, because
+            // the client handed over was still built from `alphaContract`.
+            await expect(
+                (bravo.bravo as (i: unknown) => Promise<unknown>)({})
+            ).resolves.toBeDefined()
+        } finally {
+            restore()
+        }
+    })
 
-	it("still reuses one client when the SAME contract is bound twice", async () => {
-		const { registry, requested, restore } = makeRegistry();
-		try {
-			const contract = oneRoutineRouter("alpha");
+    it('still reuses one client when the SAME contract is bound twice', async () => {
+        const { registry, requested, restore } = makeRegistry()
+        try {
+            const contract = oneRoutineRouter('alpha')
 
-			// Two binds of the identical (service, contract) pair must share a client —
-			// that is what the cache is FOR, and a per-bind client would allocate a link
-			// per injection.
-			const first = registry.bind("project", contract);
-			const second = registry.bind("project", contract);
+            // Two binds of the identical (service, contract) pair must share a client —
+            // that is what the cache is FOR, and a per-bind client would allocate a link
+            // per injection.
+            const first = registry.bind('project', contract)
+            const second = registry.bind('project', contract)
 
-			await (first as unknown as { alpha: (i: unknown) => Promise<unknown> }).alpha({});
-			await (second as unknown as { alpha: (i: unknown) => Promise<unknown> }).alpha({});
+            await (
+                first as unknown as { alpha: (i: unknown) => Promise<unknown> }
+            ).alpha({})
+            await (
+                second as unknown as { alpha: (i: unknown) => Promise<unknown> }
+            ).alpha({})
 
-			// Two calls, but the SAME client instance — proven by the bind identity below.
-			expect(requested).toHaveLength(2);
-			expect(first.raw).toBe(second.raw);
-		} finally {
-			restore();
-		}
-	});
+            // Two calls, but the SAME client instance — proven by the bind identity below.
+            expect(requested).toHaveLength(2)
+            expect(first.raw).toBe(second.raw)
+        } finally {
+            restore()
+        }
+    })
 
-	it("keeps different SERVICES apart even for the same contract", async () => {
-		const { registry, requested, restore } = makeRegistry();
-		try {
-			const contract = oneRoutineRouter("alpha");
+    it('keeps different SERVICES apart even for the same contract', async () => {
+        const { registry, requested, restore } = makeRegistry()
+        try {
+            const contract = oneRoutineRouter('alpha')
 
-			const onProject = registry.bind("project", contract);
-			const onFleet = registry.bind("fleet", contract);
+            const onProject = registry.bind('project', contract)
+            const onFleet = registry.bind('fleet', contract)
 
-			await (onProject as unknown as { alpha: (i: unknown) => Promise<unknown> }).alpha({});
-			await (onFleet as unknown as { alpha: (i: unknown) => Promise<unknown> }).alpha({});
+            await (
+                onProject as unknown as {
+                    alpha: (i: unknown) => Promise<unknown>
+                }
+            ).alpha({})
+            await (
+                onFleet as unknown as {
+                    alpha: (i: unknown) => Promise<unknown>
+                }
+            ).alpha({})
 
-			// Same route, two services: the URL cannot distinguish them (the origin
-			// resolver is fixed here), so the assertion is that BOTH clients exist and
-			// are distinct objects rather than one shared instance.
-			expect(onProject.raw).not.toBe(onFleet.raw);
-			expect(requested).toHaveLength(2);
-		} finally {
-			restore();
-		}
-	});
+            // Same route, two services: the URL cannot distinguish them (the origin
+            // resolver is fixed here), so the assertion is that BOTH clients exist and
+            // are distinct objects rather than one shared instance.
+            expect(onProject.raw).not.toBe(onFleet.raw)
+            expect(requested).toHaveLength(2)
+        } finally {
+            restore()
+        }
+    })
 
-	describe("over the mesh", () => {
-		const contract = { crud: { findById: { "~orpc": {} } } } as never;
+    describe('over the mesh', () => {
+        const contract = { crud: { findById: { '~orpc': {} } } } as never
 
-		it("sends every call through the link it is given, bound to the service and the contract, and never to the origin", async () => {
-			const call = vi.fn().mockResolvedValue({ id: 7 });
-			const link = vi.fn(() => ({ call }));
-			const resolveOrigin = vi.fn(() => "http://never-called");
-			const registry = new ServiceClientRegistry({ resolveOrigin, link });
+        it('sends every call through the link it is given, bound to the service and the contract, and never to the origin', async () => {
+            const call = vi.fn().mockResolvedValue({ id: 7 })
+            const link = vi.fn(() => ({ call }))
+            const resolveOrigin = vi.fn(() => 'http://never-called')
+            const registry = new ServiceClientRegistry({ resolveOrigin, link })
 
-			const bound = registry.bind("project", contract) as unknown as { raw: { crud: { findById: (input: unknown) => Promise<unknown> } } };
-			const answer = await bound.raw.crud.findById({ params: { id: 7 } });
+            const bound = registry.bind('project', contract) as unknown as {
+                raw: {
+                    crud: { findById: (input: unknown) => Promise<unknown> }
+                }
+            }
+            const answer = await bound.raw.crud.findById({ params: { id: 7 } })
 
-			expect(answer).toEqual({ id: 7 });
-			expect(link).toHaveBeenCalledWith("project", contract);
-			expect(call).toHaveBeenCalledWith(["crud", "findById"], { params: { id: 7 } }, expect.anything());
-		});
+            expect(answer).toEqual({ id: 7 })
+            expect(link).toHaveBeenCalledWith('project', contract)
+            expect(call).toHaveBeenCalledWith(
+                ['crud', 'findById'],
+                { params: { id: 7 } },
+                expect.anything()
+            )
+        })
 
-		it("builds one link per service and contract, however many times it is bound", () => {
-			const link = vi.fn(() => ({ call: vi.fn() }));
-			const registry = new ServiceClientRegistry({ resolveOrigin: () => "http://x", link });
+        it('builds one link per service and contract, however many times it is bound', () => {
+            const link = vi.fn(() => ({ call: vi.fn() }))
+            const registry = new ServiceClientRegistry({
+                resolveOrigin: () => 'http://x',
+                link,
+            })
 
-			registry.bind("project", contract);
-			registry.bind("project", contract);
-			registry.bind("fleet", contract);
+            registry.bind('project', contract)
+            registry.bind('project', contract)
+            registry.bind('fleet', contract)
 
-			expect(link).toHaveBeenCalledTimes(2);
-		});
-	});
-});
+            expect(link).toHaveBeenCalledTimes(2)
+        })
+    })
+})

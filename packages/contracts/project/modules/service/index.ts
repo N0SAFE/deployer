@@ -1,5 +1,5 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
 import {
     serviceCrudContract,
@@ -16,14 +16,17 @@ import {
     type ServiceListInput,
     type ServiceCreateInput,
     type ServiceUpdateInput,
-} from "./crud";
+} from './crud'
 import {
     serviceDependenciesContract,
     serviceGetDependenciesContract,
     serviceAddDependencyContract,
     serviceRemoveDependencyContract,
-} from "./dependencies";
-import { serviceLifecycleContract, serviceToggleActiveContract } from "./lifecycle";
+} from './dependencies'
+import {
+    serviceLifecycleContract,
+    serviceToggleActiveContract,
+} from './lifecycle'
 import {
     serviceNetworkContract,
     serviceGetNetworkContract,
@@ -32,7 +35,7 @@ import {
     type ServiceNetworkView,
     type ServiceUpdateNetworkInput,
     type ServiceProvisionDnsRecordInput,
-} from "./network";
+} from './network'
 import {
     servicePreviewTopologyContract,
     previewTopologyResolveContract,
@@ -40,7 +43,7 @@ import {
     previewResolutionKindSchema,
     type ResolvedPreviewNode,
     type PreviewResolutionKind,
-} from "./preview-topology";
+} from './preview-topology'
 import {
     serviceStreamsContract,
     serviceQueryStreamContract,
@@ -49,17 +52,19 @@ import {
     serviceStreamQueryFiltersSchema,
     type ServiceStreamEvent,
     type ServiceStreamQueryInput,
-} from "./streams";
+} from './streams'
 
-export const serviceContract = oc.meta(openapi({ tags: ["Service"], prefix: "/services" })).router({
-    crud: serviceCrudContract,
-    lifecycle: serviceLifecycleContract,
-    dependencies: serviceDependenciesContract,
-    streams: serviceStreamsContract,
-    network: serviceNetworkContract,
-});
+export const serviceContract = oc
+    .meta(openapi({ tags: ['Service'], prefix: '/services' }))
+    .router({
+        crud: serviceCrudContract,
+        lifecycle: serviceLifecycleContract,
+        dependencies: serviceDependenciesContract,
+        streams: serviceStreamsContract,
+        network: serviceNetworkContract,
+    })
 
-export type ServiceContract = typeof serviceContract;
+export type ServiceContract = typeof serviceContract
 
 export {
     serviceCrudContract,
@@ -84,7 +89,7 @@ export {
     serviceStreamEventTypeSchema,
     serviceStreamEventSchema,
     serviceStreamQueryFiltersSchema,
-};
+}
 
 export type {
     ServiceListInput,
@@ -92,21 +97,21 @@ export type {
     ServiceUpdateInput,
     ServiceStreamEvent,
     ServiceStreamQueryInput,
-};
+}
 
 export {
     servicePreviewTopologyContract,
     previewTopologyResolveContract,
     resolvedPreviewNodeSchema,
     previewResolutionKindSchema,
-};
+}
 
 export {
     serviceNetworkContract,
     serviceGetNetworkContract,
     serviceUpdateNetworkContract,
     serviceProvisionDnsRecordContract,
-};
+}
 
 export type {
     ResolvedPreviewNode,
@@ -114,4 +119,4 @@ export type {
     ServiceNetworkView,
     ServiceUpdateNetworkInput,
     ServiceProvisionDnsRecordInput,
-};
+}

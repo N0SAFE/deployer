@@ -1,6 +1,6 @@
 /**
  * Push Notification Domain - Client Hooks
- * 
+ *
  * React hooks for web push notifications with automatic cache invalidation
  */
 
@@ -24,21 +24,21 @@ const enhancedPush = wrapWithInvalidations(pushEndpoints, pushInvalidations)
  * Get VAPID public key for push subscriptions
  */
 export function usePushPublicKey() {
-  return useQuery(pushEndpoints.getPublicKey.queryOptions({ input: {} }))
+    return useQuery(pushEndpoints.getPublicKey.queryOptions({ input: {} }))
 }
 
 /**
  * Get list of push subscriptions
  */
 export function usePushSubscriptions() {
-  return useQuery(pushEndpoints.getSubscriptions.queryOptions({ input: {} }))
+    return useQuery(pushEndpoints.getSubscriptions.queryOptions({ input: {} }))
 }
 
 /**
  * Get push notification statistics
  */
 export function usePushStats() {
-  return useQuery(pushEndpoints.getStats.queryOptions({ input: {} }))
+    return useQuery(pushEndpoints.getStats.queryOptions({ input: {} }))
 }
 
 // ============================================================================
@@ -50,11 +50,11 @@ export function usePushStats() {
  * Invalidates subscriptions list after subscribing
  */
 export function usePushSubscribe() {
-  return useMutation(
-    pushEndpoints.subscribe.mutationOptions({
-      onSuccess: enhancedPush.subscribe.withInvalidationOnSuccess(),
-    }),
-  )
+    return useMutation(
+        pushEndpoints.subscribe.mutationOptions({
+            onSuccess: enhancedPush.subscribe.withInvalidationOnSuccess(),
+        })
+    )
 }
 
 /**
@@ -62,18 +62,18 @@ export function usePushSubscribe() {
  * Invalidates subscriptions list after unsubscribing
  */
 export function usePushUnsubscribe() {
-  return useMutation(
-    pushEndpoints.unsubscribe.mutationOptions({
-      onSuccess: enhancedPush.unsubscribe.withInvalidationOnSuccess(),
-    }),
-  )
+    return useMutation(
+        pushEndpoints.unsubscribe.mutationOptions({
+            onSuccess: enhancedPush.unsubscribe.withInvalidationOnSuccess(),
+        })
+    )
 }
 
 /**
  * Send test push notification
  */
 export function useSendTestNotification() {
-  return useMutation(pushEndpoints.sendTestNotification.mutationOptions())
+    return useMutation(pushEndpoints.sendTestNotification.mutationOptions())
 }
 
 // ============================================================================
@@ -84,57 +84,57 @@ export function useSendTestNotification() {
  * Get all push notification mutations in one hook
  */
 export function usePushActions() {
-  const subscribe = usePushSubscribe()
-  const unsubscribe = usePushUnsubscribe()
-  const sendTest = useSendTestNotification()
+    const subscribe = usePushSubscribe()
+    const unsubscribe = usePushUnsubscribe()
+    const sendTest = useSendTestNotification()
 
-  return {
-    subscribe,
-    unsubscribe,
-    sendTest,
-    
-    isLoading: {
-      subscribe: subscribe.isPending,
-      unsubscribe: unsubscribe.isPending,
-      sendTest: sendTest.isPending,
-    },
-    
-    errors: {
-      subscribe: subscribe.error,
-      unsubscribe: unsubscribe.error,
-      sendTest: sendTest.error,
-    },
-  }
+    return {
+        subscribe,
+        unsubscribe,
+        sendTest,
+
+        isLoading: {
+            subscribe: subscribe.isPending,
+            unsubscribe: unsubscribe.isPending,
+            sendTest: sendTest.isPending,
+        },
+
+        errors: {
+            subscribe: subscribe.error,
+            unsubscribe: unsubscribe.error,
+            sendTest: sendTest.error,
+        },
+    }
 }
 
 /**
  * Combined hook for complete push notification management
  */
 export function usePushNotifications() {
-  const publicKey = usePushPublicKey()
-  const subscriptions = usePushSubscriptions()
-  const stats = usePushStats()
-  const actions = usePushActions()
+    const publicKey = usePushPublicKey()
+    const subscriptions = usePushSubscriptions()
+    const stats = usePushStats()
+    const actions = usePushActions()
 
-  return {
-    publicKey: publicKey.data,
-    subscriptions: subscriptions.data,
-    stats: stats.data,
-    
-    isLoading: {
-      publicKey: publicKey.isLoading,
-      subscriptions: subscriptions.isLoading,
-      stats: stats.isLoading,
-      ...actions.isLoading,
-    },
-    
-    errors: {
-      publicKey: publicKey.error,
-      subscriptions: subscriptions.error,
-      stats: stats.error,
-      ...actions.errors,
-    },
-    
-    actions,
-  }
+    return {
+        publicKey: publicKey.data,
+        subscriptions: subscriptions.data,
+        stats: stats.data,
+
+        isLoading: {
+            publicKey: publicKey.isLoading,
+            subscriptions: subscriptions.isLoading,
+            stats: stats.isLoading,
+            ...actions.isLoading,
+        },
+
+        errors: {
+            publicKey: publicKey.error,
+            subscriptions: subscriptions.error,
+            stats: stats.error,
+            ...actions.errors,
+        },
+
+        actions,
+    }
 }

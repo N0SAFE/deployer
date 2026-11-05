@@ -61,11 +61,13 @@ Prefer those shared utilities for list/search endpoints instead of custom ad-hoc
 6. Validate with repository checks.
 
 <DocCallout title="Anti-pattern to avoid" tone="warning">
-Do not bypass domain hooks with scattered per-component networking logic. It breaks consistency and weakens cache strategy.
+    Do not bypass domain hooks with scattered per-component networking logic. It
+    breaks consistency and weakens cache strategy.
 </DocCallout>
 
 <DocCallout title="Implementation rule" tone="info">
-Treat contracts as the source of truth for API shapes. If contract changes, API and web must be updated in the same workstream.
+    Treat contracts as the source of truth for API shapes. If contract changes,
+    API and web must be updated in the same workstream.
 </DocCallout>
 
 ## Observable streams — customising the pipe
@@ -88,26 +90,26 @@ import { orpc } from '@/lib/orpc'
 // Debounce bursts so we only refetch the container list after the
 // runtime event stream goes quiet for 200ms.
 const containerRuntimeStream = useQuery(
-  orpc.docker.runtime.stream.experimental_liveObservableOptions({
-    input: {
-      query: {
-        filter: { source: { operator: 'eq', value: 'container' } },
-      },
-    },
-    queryFnOptions: {
-      pipe: (obs) => obs.pipe(debounceTime(200)),
-    },
-  }),
+    orpc.docker.runtime.stream.experimental_liveObservableOptions({
+        input: {
+            query: {
+                filter: { source: { operator: 'eq', value: 'container' } },
+            },
+        },
+        queryFnOptions: {
+            pipe: (obs) => obs.pipe(debounceTime(200)),
+        },
+    })
 )
 
 // Wrap the source observable in another stream (e.g. wait then subscribe).
 const delayedStream = useQuery(
-  orpc.docker.containers.streams.logs.experimental_streamedObservableOptions({
-    input: { query: { containerId: '…' } },
-    queryFnOptions: {
-      pipe: (obs) => timer(200).pipe(switchMap(() => obs)),
-    },
-  }),
+    orpc.docker.containers.streams.logs.experimental_streamedObservableOptions({
+        input: { query: { containerId: '…' } },
+        queryFnOptions: {
+            pipe: (obs) => timer(200).pipe(switchMap(() => obs)),
+        },
+    })
 )
 ```
 
@@ -117,7 +119,7 @@ const delayedStream = useQuery(
   throttle so React Query only sees a single value per quiet period.
 - **Filter on the server AND the client** — the server input already filters,
   but you may want to drop events the page is not interested in.
-- **Coalesce values** — `bufferTime(200)` lets the page receive *batches* of
+- **Coalesce values** — `bufferTime(200)` lets the page receive _batches_ of
   events instead of one-by-one.
 - **Pause / delay subscription** — wrap the source in `timer(200).pipe(switchMap(() => obs))`
   to wait before attaching.
@@ -130,11 +132,11 @@ const delayedStream = useQuery(
   lose data points.
 
 <DocCallout title="Anti-pattern" tone="warning">
-Do not reach for `useContainerLiveUpdate` + `cooldownMs` to debounce a refetch.
-Use the new `pipe` parameter (or a domain hook that wraps it, e.g.
-`useDockerRuntimeRefetchOnStream`) and apply `debounceTime` / `throttleTime`
-directly on the stream. The old pattern cannot filter events and re-renders on
-every emission.
+    Do not reach for `useContainerLiveUpdate` + `cooldownMs` to debounce a
+    refetch. Use the new `pipe` parameter (or a domain hook that wraps it, e.g.
+    `useDockerRuntimeRefetchOnStream`) and apply `debounceTime` / `throttleTime`
+    directly on the stream. The old pattern cannot filter events and re-renders
+    on every emission.
 </DocCallout>
 
 ## Unified docker entity API
@@ -166,8 +168,8 @@ periodic reconciliation in one place.
 
 ```tsx
 const { data, byId, status, refetch } = useDockerLiveContainers({
-  on: ['create', 'update', 'destroy', 'die'],
-  reconcileIntervalMs: 30_000,
+    on: ['create', 'update', 'destroy', 'die'],
+    reconcileIntervalMs: 30_000,
 })
 ```
 
@@ -176,9 +178,9 @@ For pages that only need a refetch side-effect (not a full store), use
 
 ```tsx
 useDockerLiveRefetch({
-  on: { container: ['create', 'update', 'destroy'] },
-  onData: () => stackListQuery.refetch(),
-  debounceMs: 1000,
+    on: { container: ['create', 'update', 'destroy'] },
+    onData: () => stackListQuery.refetch(),
+    debounceMs: 1000,
 })
 ```
 
@@ -198,11 +200,11 @@ useDockerLiveRefetch({
   payload.
 
 <DocCallout title="Migration tip" tone="info">
-The old `useContainerLiveUpdate` + `cooldownMs` pattern is gone. The new
-`useDockerLiveContainers` (or `useDockerLiveRefetch`) replaces it for the 99%
-case. Pages that genuinely need raw `DockerRuntimeEvent` data (e.g. the
-`/docker/activity` page) should subscribe to `docker.runtime.activity.stream`
-which projects events server-side.
+    The old `useContainerLiveUpdate` + `cooldownMs` pattern is gone. The new
+    `useDockerLiveContainers` (or `useDockerLiveRefetch`) replaces it for the
+    99% case. Pages that genuinely need raw `DockerRuntimeEvent` data (e.g. the
+    `/docker/activity` page) should subscribe to
+    `docker.runtime.activity.stream` which projects events server-side.
 </DocCallout>
 
 ## Related docs

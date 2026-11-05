@@ -17,8 +17,7 @@ see:
 - [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
 - [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
 - `docs/setup-app-refactor-plan.md` — the refactor that replaced it
-</DocCallout>
-
+    </DocCallout>
 
 # Startup v2 — Implementation Plan
 
@@ -36,85 +35,90 @@ Replace the entire v1 startup system (`CoreStartupService`, `StartupOrchestrator
 ## Implementation Order (Topological)
 
 ### Pre-phase: Move MeshVersionService
+
 Must happen first — it's imported by v2 code but lives in the v1 directory.
 
-| Step | Action | Files |
-|------|--------|-------|
-| P.1 | Move `MeshVersionService` to `core/modules/mesh/version/` | MOVE from `core/modules/startup/mesh-version.service.ts` to `core/modules/mesh/version/mesh-version.service.ts` |
-| P.2 | Update imports in `initialization.module.ts` | Change `../startup/mesh-version.service` → `../mesh/version/mesh-version.service` |
-| P.3 | Update imports in `remote-initialization.service.ts` | Same import path change |
+| Step | Action                                                    | Files                                                                                                           |
+| ---- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| P.1  | Move `MeshVersionService` to `core/modules/mesh/version/` | MOVE from `core/modules/startup/mesh-version.service.ts` to `core/modules/mesh/version/mesh-version.service.ts` |
+| P.2  | Update imports in `initialization.module.ts`              | Change `../startup/mesh-version.service` → `../mesh/version/mesh-version.service`                               |
+| P.3  | Update imports in `remote-initialization.service.ts`      | Same import path change                                                                                         |
 
 ### Phase 0: Foundation Layer
+
 No dependencies on any other new code.
 
-| Step | File | Purpose |
-|------|------|---------|
-| 0.1 | `core/modules/triggers/trigger.ts` | `Trigger&lt;T&gt;` class with `fire()`, `waitFor()`, `resolved`, `value` |
-| 0.2 | `core/modules/triggers/trigger-registry.ts` | `TriggerRegistry` + all payload type interfaces |
-| 0.3 | `core/modules/triggers/triggers.module.ts` | `@Global()` module exporting `TriggerRegistry` |
-| 0.4 | `core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp&lt;T&gt;`, `SubAppContext&lt;T&gt;` interfaces |
-| 0.5 | `core/modules/sub-app-runner/tokens.ts` | `SUB_APP_CONTEXT` symbol |
-| 0.6 | `core/modules/sub-app-runner/sub-app-context.module.ts` | `SubAppContextModule.forRoot()` dynamic module |
+| Step | File                                                    | Purpose                                                                  |
+| ---- | ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 0.1  | `core/modules/triggers/trigger.ts`                      | `Trigger&lt;T&gt;` class with `fire()`, `waitFor()`, `resolved`, `value` |
+| 0.2  | `core/modules/triggers/trigger-registry.ts`             | `TriggerRegistry` + all payload type interfaces                          |
+| 0.3  | `core/modules/triggers/triggers.module.ts`              | `@Global()` module exporting `TriggerRegistry`                           |
+| 0.4  | `core/modules/sub-app-runner/sub-app.interface.ts`      | `SubApp&lt;T&gt;`, `SubAppContext&lt;T&gt;` interfaces                   |
+| 0.5  | `core/modules/sub-app-runner/tokens.ts`                 | `SUB_APP_CONTEXT` symbol                                                 |
+| 0.6  | `core/modules/sub-app-runner/sub-app-context.module.ts` | `SubAppContextModule.forRoot()` dynamic module                           |
 
 ### Phase 1: SubAppOrchestrator
+
 Depends on Phase 0.
 
-| Step | File | Purpose |
-|------|------|---------|
-| 1.1 | `core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | Creates sub-apps, waits for triggers, destroys sub-apps |
-| 1.2 | `core/modules/sub-app-orchestrator/sub-app-orchestrator.module.ts` | Module exporting orchestrator |
+| Step | File                                                                | Purpose                                                 |
+| ---- | ------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1.1  | `core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | Creates sub-apps, waits for triggers, destroys sub-apps |
+| 1.2  | `core/modules/sub-app-orchestrator/sub-app-orchestrator.module.ts`  | Module exporting orchestrator                           |
 
 ### Phase 2: Ephemeral HTTP Infrastructure
+
 Depends on Phase 0 (for SubAppContext).
 
-| Step | File | Purpose |
-|------|------|---------|
-| 2.1 | `core/modules/ephemeral-http/ephemeral-http.server.ts` | Express server on random port |
-| 2.2 | `core/modules/ephemeral-http/setup.controller.ts` | Setup wizard endpoints (state, probe, initialize, stream) |
-| 2.3 | `core/modules/ephemeral-http/ephemeral-http.module.ts` | Module wiring both together |
+| Step | File                                                   | Purpose                                                   |
+| ---- | ------------------------------------------------------ | --------------------------------------------------------- |
+| 2.1  | `core/modules/ephemeral-http/ephemeral-http.server.ts` | Express server on random port                             |
+| 2.2  | `core/modules/ephemeral-http/setup.controller.ts`      | Setup wizard endpoints (state, probe, initialize, stream) |
+| 2.3  | `core/modules/ephemeral-http/ephemeral-http.module.ts` | Module wiring both together                               |
 
 ### Phase 3: Sub-Apps (7 sub-apps, ~21 files)
+
 Each sub-app depends on Phase 0 + Phase 1.
 
-| Step | Sub-App | Files (definition, module, service) | Depends On |
-|------|---------|-------------------------------------|------------|
-| 3.1 | Config | `sub-apps/config/config.sub-app.ts`, `.module.ts`, `.service.ts` | — |
-| 3.2 | Database | `sub-apps/database/database.sub-app.ts`, `.module.ts`, `.service.ts` | Config |
-| 3.3 | Auth | `sub-apps/auth/auth.sub-app.ts`, `.module.ts`, `.service.ts` | Config, Database |
-| 3.4 | Mesh | `sub-apps/mesh/mesh.sub-app.ts`, `.module.ts`, `.service.ts` | Config, Database, Auth |
-| 3.5 | Events | `sub-apps/events/events.sub-app.ts`, `.module.ts`, `.service.ts` | Mesh |
-| 3.6 | Docker | `sub-apps/docker/docker.sub-app.ts`, `.module.ts`, `.service.ts` | Mesh |
-| 3.7 | Setup Wizard | `sub-apps/setup-wizard/setup-wizard.sub-app.ts`, `.module.ts`, `.service.ts` | Config |
-| 3.8 | Registry | `sub-apps/registry.ts` | All 7 sub-apps |
+| Step | Sub-App      | Files (definition, module, service)                                          | Depends On             |
+| ---- | ------------ | ---------------------------------------------------------------------------- | ---------------------- |
+| 3.1  | Config       | `sub-apps/config/config.sub-app.ts`, `.module.ts`, `.service.ts`             | —                      |
+| 3.2  | Database     | `sub-apps/database/database.sub-app.ts`, `.module.ts`, `.service.ts`         | Config                 |
+| 3.3  | Auth         | `sub-apps/auth/auth.sub-app.ts`, `.module.ts`, `.service.ts`                 | Config, Database       |
+| 3.4  | Mesh         | `sub-apps/mesh/mesh.sub-app.ts`, `.module.ts`, `.service.ts`                 | Config, Database, Auth |
+| 3.5  | Events       | `sub-apps/events/events.sub-app.ts`, `.module.ts`, `.service.ts`             | Mesh                   |
+| 3.6  | Docker       | `sub-apps/docker/docker.sub-app.ts`, `.module.ts`, `.service.ts`             | Mesh                   |
+| 3.7  | Setup Wizard | `sub-apps/setup-wizard/setup-wizard.sub-app.ts`, `.module.ts`, `.service.ts` | Config                 |
+| 3.8  | Registry     | `sub-apps/registry.ts`                                                       | All 7 sub-apps         |
 
 ### Phase 4: Rewrite AppModule & main.ts
 
-| Step | File | Change |
-|------|------|--------|
-| 4.1 | `app.module.ts` | Add `TriggersModule`, replace all module imports with `forRootAsync` using triggers, remove `StartupModule`, add `SubAppOrchestrator` bootstrap provider |
-| 4.2 | `main.ts` | Simplify — remove any v1 references |
+| Step | File            | Change                                                                                                                                                   |
+| ---- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4.1  | `app.module.ts` | Add `TriggersModule`, replace all module imports with `forRootAsync` using triggers, remove `StartupModule`, add `SubAppOrchestrator` bootstrap provider |
+| 4.2  | `main.ts`       | Simplify — remove any v1 references                                                                                                                      |
 
 ### Phase 5: Delete v1 Files (29 files)
 
-| Group | Files to Delete |
-|-------|----------------|
-| Core orchestrator | `core/modules/startup/` (11 files) |
-| Database startup | `core/modules/database/startup/` (3 files) |
-| Setup startup | `core/modules/setup/startup/` (3 files) |
-| Auth startup | `core/modules/auth/startup/` (3 files) |
-| Mesh startup | `core/modules/mesh/startup/` (3 files) |
-| Events startup | `core/modules/events/startup/` (2 files) |
-| Docker startup | `core/modules/docker/startup/` (2 files) |
+| Group                  | Files to Delete                                  |
+| ---------------------- | ------------------------------------------------ |
+| Core orchestrator      | `core/modules/startup/` (11 files)               |
+| Database startup       | `core/modules/database/startup/` (3 files)       |
+| Setup startup          | `core/modules/setup/startup/` (3 files)          |
+| Auth startup           | `core/modules/auth/startup/` (3 files)           |
+| Mesh startup           | `core/modules/mesh/startup/` (3 files)           |
+| Events startup         | `core/modules/events/startup/` (2 files)         |
+| Docker startup         | `core/modules/docker/startup/` (2 files)         |
 | System metrics startup | `core/modules/system-metrics/startup/` (2 files) |
 
 ### Phase 6: Tests
 
-| Step | File | Tests |
-|------|------|-------|
-| 6.1 | `trigger.spec.ts` | Unit tests for Trigger&lt;T&gt; |
-| 6.2 | `sub-app-orchestrator.spec.ts` | Unit tests for orchestrator |
-| 6.3 | `config.sub-app.spec.ts` | Config sub-app test |
-| 6.4 | `database.sub-app.spec.ts` | Database sub-app test |
+| Step | File                           | Tests                           |
+| ---- | ------------------------------ | ------------------------------- |
+| 6.1  | `trigger.spec.ts`              | Unit tests for Trigger&lt;T&gt; |
+| 6.2  | `sub-app-orchestrator.spec.ts` | Unit tests for orchestrator     |
+| 6.3  | `config.sub-app.spec.ts`       | Config sub-app test             |
+| 6.4  | `database.sub-app.spec.ts`     | Database sub-app test           |
 
 ---
 

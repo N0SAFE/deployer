@@ -1,12 +1,14 @@
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
 
-import { auditExportContract, auditListContract } from "@deployer/identity-contracts";
-import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import {
+    auditExportContract,
+    auditListContract,
+} from '@deployer/identity-contracts'
+import { procedure } from '@deployer/nest-effect'
+import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-
-import { AuditService } from "../audit.service";
+import { AuditService } from '../audit.service'
 
 /**
  * The auth audit log's read surface (`AUTH-029`).
@@ -16,23 +18,23 @@ import { AuditService } from "../audit.service";
  */
 @Controller()
 export class AuditController {
-	@Implement(auditListContract)
-	list() {
-		return procedure(auditListContract)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const audit = yield* AuditService;
-				return yield* audit.list(input.query);
-			});
-	}
+    @Implement(auditListContract)
+    list() {
+        return procedure(auditListContract)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const audit = yield* AuditService
+                return yield* audit.list(input.query)
+            })
+    }
 
-	@Implement(auditExportContract)
-	export() {
-		return procedure(auditExportContract)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const audit = yield* AuditService;
-				return yield* audit.export(input.query);
-			});
-	}
+    @Implement(auditExportContract)
+    export() {
+        return procedure(auditExportContract)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const audit = yield* AuditService
+                return yield* audit.export(input.query)
+            })
+    }
 }

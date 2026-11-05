@@ -7,4 +7,4 @@ export {
     builderMetadataSchema,
     providerConfigValidationResultSchema,
     unknownConfigSchema,
-} from "@deployer/provider-schema";
+} from '@deployer/provider-schema'

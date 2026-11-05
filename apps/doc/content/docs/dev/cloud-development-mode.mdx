@@ -59,10 +59,10 @@ When enabled, it behaves like a normal environment **plus** preview-specific con
 
 1. Developer requests a dev session for a service in a project.
 2. Platform issues a short-lived token scoped to:
-   - project
-   - service
-   - developer identity
-   - session TTL
+    - project
+    - service
+    - developer identity
+    - session TTL
 3. Developer client connects to the platform using that token.
 4. Local tooling (docker wrapper / docker utility layer) requests runtime on cloud infrastructure.
 5. Platform starts the selected service in cloud dev mode while preserving local-machine workflow semantics.
@@ -79,11 +79,11 @@ When enabled, it behaves like a normal environment **plus** preview-specific con
 - Single-session use
 - Revocable at any time
 - Scope claims:
-  - `projectId`
-  - `serviceId`
-  - `developerId`
-  - `expiresAt`
-  - optional `allowedCommands`
+    - `projectId`
+    - `serviceId`
+    - `developerId`
+    - `expiresAt`
+    - optional `allowedCommands`
 
 ### Security controls
 

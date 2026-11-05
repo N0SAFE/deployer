@@ -23,10 +23,12 @@ For full project organization rules (routes, `_feature` folders, domains, lib, l
 Smallest reusable UI units, close to primitives.
 
 **Examples**
+
 - Inputs, labels, chips, icon buttons, tiny search controls
 - Single-purpose stateless blocks
 
 **Rules**
+
 - No domain logic
 - No network/query orchestration
 - Keep props narrow and explicit
@@ -38,11 +40,13 @@ Smallest reusable UI units, close to primitives.
 Composition of a few atoms around a focused interaction.
 
 **Examples**
+
 - Search + filter row
 - Labeled field groups
 - Toolbar control groups
 
 **Rules**
+
 - Can contain local UI state
 - Must remain domain-agnostic
 - Should not directly fetch data
@@ -54,11 +58,13 @@ Composition of a few atoms around a focused interaction.
 Feature-capable reusable sections made from atoms + molecules.
 
 **Examples**
+
 - Logs viewer
 - Terminal viewer
 - Data table sections with toolbars and status states
 
 **Rules**
+
 - Can include interaction logic, view behavior, keyboard/scroll behavior
 - Accept data and callbacks from adapters/pages
 - Avoid embedding domain formatting rules unless intentionally generic
@@ -73,6 +79,7 @@ Use an **adapter component** in the feature folder (e.g. Docker tab) to map doma
 - Reusable rendering/layout behavior: in atomic organism
 
 Example:
+
 - `dashboard/docker/.../logs-tab/index.tsx` maps Docker entries to generic `LogsViewer` lines
 - `components/atomics/organisms/logs/logs-viewer.tsx` handles generic logs UX (search/layout/scroll trigger)
 
@@ -94,6 +101,7 @@ Example:
 `components/atomics/atoms/<domain>/<name>.tsx`
 
 Optional:
+
 - `index.ts`
 - `<name>.spec.tsx`
 
@@ -102,6 +110,7 @@ Optional:
 `components/atomics/molecules/<domain>/<name>.tsx`
 
 Optional:
+
 - `index.ts`
 - `<name>.spec.tsx`
 
@@ -110,6 +119,7 @@ Optional:
 `components/atomics/organisms/<domain>/<name>.tsx`
 
 Optional:
+
 - `index.ts`
 - local helper files if truly shared by that organism
 
@@ -130,11 +140,13 @@ Optional:
 ## Import rules
 
 Preferred imports:
+
 - `@/components/atomics/atoms/...`
 - `@/components/atomics/molecules/...`
 - `@/components/atomics/organisms/...`
 
 Forbidden for new code:
+
 - `@/components/organisms/...`
 
 ---
@@ -142,13 +154,13 @@ Forbidden for new code:
 ## Current reference implementations
 
 - Logs
-  - Atom: `components/atomics/atoms/logs/logs-search-input.tsx`
-  - Organism: `components/atomics/organisms/logs/logs-viewer.tsx`
-  - Adapter: `app/dashboard/docker/containers/_components/container-detail-modal/logs-tab/index.tsx`
+    - Atom: `components/atomics/atoms/logs/logs-search-input.tsx`
+    - Organism: `components/atomics/organisms/logs/logs-viewer.tsx`
+    - Adapter: `app/dashboard/docker/containers/_components/container-detail-modal/logs-tab/index.tsx`
 
 - Terminal
-  - Organism: `components/atomics/organisms/terminal/terminal-viewer.tsx`
-  - Adapter: `app/dashboard/docker/_components/container-detail-modal/tabs/terminal-tab.tsx`
+    - Organism: `components/atomics/organisms/terminal/terminal-viewer.tsx`
+    - Adapter: `app/dashboard/docker/_components/container-detail-modal/tabs/terminal-tab.tsx`
 
 ---
 

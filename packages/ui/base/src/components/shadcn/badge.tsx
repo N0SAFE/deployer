@@ -1,65 +1,68 @@
-import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
-import * as React from "react"
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Slot } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from "@deployer/ui/lib/utils"
+import { cn } from '@deployer/ui/lib/utils'
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
-        destructive:
-          "bg-status-danger/10 text-status-danger focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-status-danger/20",
-        // Status variants read the semantic tokens (--status-*) rather than a
-        // palette step, so "healthy" is the SAME green everywhere and stays
-        // legible in both themes. Prefer <StatusBadge> for live status.
-        success:
-          "bg-status-live/10 text-status-live [a]:hover:bg-status-live/20",
-        warning:
-          "bg-status-pending/10 text-status-pending [a]:hover:bg-status-pending/20",
-        info: "bg-status-busy/10 text-status-busy [a]:hover:bg-status-busy/20",
-        // Semantic role variants (fg + tint + border from the status tokens; see
-        // styles/README.md). Same hue as success/warning/info, with a border so the
-        // badge keeps its edge on any surface, and `neutral` for "no signal".
-        "success-subtle": "border-success-border bg-success-bg text-success",
-        "warning-subtle": "border-warning-border bg-warning-bg text-warning",
-        "danger-subtle": "border-danger-border bg-danger-bg text-danger",
-        "info-subtle": "border-info-border bg-info-bg text-info",
-        neutral: "border-neutral-border bg-neutral-bg text-neutral",
-        outline:
-          "border-border bg-input/20 text-foreground dark:bg-input/30 [a]:hover:bg-muted [a]:hover:text-muted-foreground",
-        ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
+    'group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!',
+    {
+        variants: {
+            variant: {
+                default:
+                    'bg-primary text-primary-foreground [a]:hover:bg-primary/80',
+                secondary:
+                    'bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80',
+                destructive:
+                    'bg-status-danger/10 text-status-danger focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-status-danger/20',
+                // Status variants read the semantic tokens (--status-*) rather than a
+                // palette step, so "healthy" is the SAME green everywhere and stays
+                // legible in both themes. Prefer <StatusBadge> for live status.
+                success:
+                    'bg-status-live/10 text-status-live [a]:hover:bg-status-live/20',
+                warning:
+                    'bg-status-pending/10 text-status-pending [a]:hover:bg-status-pending/20',
+                info: 'bg-status-busy/10 text-status-busy [a]:hover:bg-status-busy/20',
+                // Semantic role variants (fg + tint + border from the status tokens; see
+                // styles/README.md). Same hue as success/warning/info, with a border so the
+                // badge keeps its edge on any surface, and `neutral` for "no signal".
+                'success-subtle':
+                    'border-success-border bg-success-bg text-success',
+                'warning-subtle':
+                    'border-warning-border bg-warning-bg text-warning',
+                'danger-subtle':
+                    'border-danger-border bg-danger-bg text-danger',
+                'info-subtle': 'border-info-border bg-info-bg text-info',
+                neutral: 'border-neutral-border bg-neutral-bg text-neutral',
+                outline:
+                    'border-border bg-input/20 text-foreground dark:bg-input/30 [a]:hover:bg-muted [a]:hover:text-muted-foreground',
+                ghost: 'hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50',
+                link: 'text-primary underline-offset-4 hover:underline',
+            },
+        },
+        defaultVariants: {
+            variant: 'default',
+        },
+    }
 )
 
 function Badge({
-  className,
-  variant = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot.Root : "span"
+    className,
+    variant = 'default',
+    asChild = false,
+    ...props
+}: React.ComponentProps<'span'> &
+    VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+    const Comp = asChild ? Slot.Root : 'span'
 
-  return (
-    <Comp
-      data-slot="badge"
-      data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
-      {...props}
-    />
-  )
+    return (
+        <Comp
+            data-slot="badge"
+            data-variant={variant}
+            className={cn(badgeVariants({ variant }), className)}
+            {...props}
+        />
+    )
 }
 
 export { Badge, badgeVariants }

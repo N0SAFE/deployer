@@ -1,6 +1,7 @@
 # ORPC Hooks Generator with standard.zod() Review
 
 ## Summary
+
 ✅ **The ORPC hooks generator with the `standard()` function works perfectly and maintains full type safety throughout the entire chain.**
 
 ## Review Findings
@@ -10,21 +11,21 @@
 The system consists of three main components that work together seamlessly:
 
 1. **`standard()` Factory** (`src/standard/standard-operations.ts`)
-   - Creates a `StandardOperations` instance from an entity schema
-   - Provides CRUD operations: `list()`, `read()`, `create()`, `update()`, `patch()`, `delete()`, `count()`, `check()`, `streamingList()`
-   - Each operation returns a properly configured `RouteBuilder` with correct HTTP methods
+    - Creates a `StandardOperations` instance from an entity schema
+    - Provides CRUD operations: `list()`, `read()`, `create()`, `update()`, `patch()`, `delete()`, `count()`, `check()`, `streamingList()`
+    - Each operation returns a properly configured `RouteBuilder` with correct HTTP methods
 
 2. **RouteBuilder Metadata** (`src/builder/mount-method.ts`)
-   - Uses `__orpc_route_builder_method__` as the discriminator key
-   - Only contracts created via `RouteBuilder` get hooks generated
-   - This prevents hand-written contracts from interfering with automatic hook generation
+    - Uses `__orpc_route_builder_method__` as the discriminator key
+    - Only contracts created via `RouteBuilder` get hooks generated
+    - This prevents hand-written contracts from interfering with automatic hook generation
 
 3. **Hook Generation** (`src/hooks/generate-hooks.ts`)
-   - `createRouterHooks()` automatically generates TanStack Query hooks
-   - Uses HTTP method to determine hook type:
-     - GET methods → `useQuery` hooks (queries)
-     - POST/PUT/DELETE/PATCH → `useMutation` hooks (mutations)
-   - Supports streaming operations with `useLive*` and `useStreamed*` hooks
+    - `createRouterHooks()` automatically generates TanStack Query hooks
+    - Uses HTTP method to determine hook type:
+        - GET methods → `useQuery` hooks (queries)
+        - POST/PUT/DELETE/PATCH → `useMutation` hooks (mutations)
+    - Supports streaming operations with `useLive*` and `useStreamed*` hooks
 
 ### 2. Type Safety Analysis
 
@@ -33,28 +34,29 @@ The system consists of three main components that work together seamlessly:
 ```typescript
 // 1. Entity Schema (Zod)
 const userSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string(),
-});
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+})
 
 // 2. Standard Operations (Fully Typed)
-const userOps = standard.zod(userSchema, 'user');
+const userOps = standard.zod(userSchema, 'user')
 // Type: StandardOperations<typeof userSchema>
 
 // 3. Contracts (Typed Input/Output)
-const listContract = userOps.list().build();
+const listContract = userOps.list().build()
 // Type: Contract with inferred input/output from schema
 
 // 4. Generated Hooks (Fully Typed)
-const hooks = createRouterHooks(router);
-hooks.useList({ limit: 20 });  // ✅ limit is typed
-hooks.useCreate();              // ✅ Input/output typed from schema
+const hooks = createRouterHooks(router)
+hooks.useList({ limit: 20 }) // ✅ limit is typed
+hooks.useCreate() // ✅ Input/output typed from schema
 ```
 
 ### 3. Test Results
 
 Created comprehensive integration tests that verify:
+
 - ✅ All 13 integration tests passing
 - ✅ All 358 ORPC tests passing
 - ✅ Contract creation with proper metadata
@@ -66,23 +68,24 @@ Created comprehensive integration tests that verify:
 
 Each operation uses the appropriate HTTP method:
 
-| Operation | HTTP Method | Hook Type | Purpose |
-|-----------|-------------|-----------|---------|
-| `list()` | GET | Query | Fetch paginated list |
-| `read()` | GET | Query | Fetch single entity |
-| `count()` | GET | Query | Get count of entities |
-| `check()` | **GET** | Query | Check if value exists (idempotent) |
-| `create()` | POST | Mutation | Create new entity |
-| `update()` | PUT | Mutation | Update entire entity |
-| `patch()` | PATCH | Mutation | Partial update |
-| `delete()` | DELETE | Mutation | Delete entity |
-| `streamingList()` | GET | Streaming Query | Server-sent events |
+| Operation         | HTTP Method | Hook Type       | Purpose                            |
+| ----------------- | ----------- | --------------- | ---------------------------------- |
+| `list()`          | GET         | Query           | Fetch paginated list               |
+| `read()`          | GET         | Query           | Fetch single entity                |
+| `count()`         | GET         | Query           | Get count of entities              |
+| `check()`         | **GET**     | Query           | Check if value exists (idempotent) |
+| `create()`        | POST        | Mutation        | Create new entity                  |
+| `update()`        | PUT         | Mutation        | Update entire entity               |
+| `patch()`         | PATCH       | Mutation        | Partial update                     |
+| `delete()`        | DELETE      | Mutation        | Delete entity                      |
+| `streamingList()` | GET         | Streaming Query | Server-sent events                 |
 
 **Important Finding:** The `check()` operation uses GET (not POST) because it's an idempotent read operation that checks existence without side effects. This is correct RESTful design.
 
 ### 5. Real-World Verification
 
 Verified against production code:
+
 - ✅ `/packages/contracts/api/modules/user/` - All contracts use `standard()` successfully
 - ✅ `/apps/web/src/domains/user/hooks.ts` - Production domain hook usage works
 - ✅ `checkEmail` contract uses `userOps.check('email')` and generates `useCheckEmail` query hook
@@ -93,16 +96,16 @@ The system supports sophisticated cache invalidation:
 
 ```typescript
 defineInvalidations(router, {
-  // Static invalidation
-  create: ['list', 'count'],
-  
-  // Dynamic invalidation
-  update: (input) => ({
-    findById: { id: input.id },
-  }),
-  
-  // Multiple keys
-  delete: ['list', 'count', 'findById'],
+    // Static invalidation
+    create: ['list', 'count'],
+
+    // Dynamic invalidation
+    update: (input) => ({
+        findById: { id: input.id },
+    }),
+
+    // Multiple keys
+    delete: ['list', 'count', 'findById'],
 })
 ```
 
@@ -115,6 +118,7 @@ defineInvalidations(router, {
 ## Conclusion
 
 The ORPC hooks generator with `standard()` is a **well-designed, type-safe, and production-ready system** that:
+
 - ✅ Maintains full type safety from schema to hooks
 - ✅ Automatically generates appropriate hook types based on HTTP methods
 - ✅ Supports sophisticated cache invalidation patterns

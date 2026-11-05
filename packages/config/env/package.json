@@ -46,8 +46,7 @@
         "mock": "./src/cli.ts"
     },
     "scripts": {
-        "prettify": "bun fmt .",
-        "format": "bun run prettify",
+        "format": "bun fmt .",
         "format:check": "bun fmt --check .",
         "type-check": "bun check --no-script",
         "check": "bun src/cli.ts check",

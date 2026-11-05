@@ -1,69 +1,69 @@
-import eslintNestJs from "@darraghor/eslint-plugin-nestjs-typed";
-import { defineConfig } from "eslint/config";
-import { Linter } from "eslint"
-import coreConfig, { type BaseConfigOptions } from "./base";
-import { createModuleContextRule } from "./rules/module-context";
-import { createNestRoleRules } from "./rules/nest-roles";
-import { readLedger, ROLE_RULE_NAMES } from "./rules/nest-roles-ledger";
-import { createNoInjectableServiceRule } from "./rules/no-injectable-service";
-import { createSchemaBoundaryRule } from "./rules/schema-boundary";
-const coreBaseFactory = coreConfig.configs.base;
-const coreTestFactory = coreConfig.configs.test;
+import eslintNestJs from '@darraghor/eslint-plugin-nestjs-typed'
+import { defineConfig } from 'eslint/config'
+import { Linter } from 'eslint'
+import coreConfig, { type BaseConfigOptions } from './base'
+import { createModuleContextRule } from './rules/module-context'
+import { createNestRoleRules } from './rules/nest-roles'
+import { readLedger, ROLE_RULE_NAMES } from './rules/nest-roles-ledger'
+import { createNoInjectableServiceRule } from './rules/no-injectable-service'
+import { createSchemaBoundaryRule } from './rules/schema-boundary'
+const coreBaseFactory = coreConfig.configs.base
+const coreTestFactory = coreConfig.configs.test
 
 const sharedRules: Partial<Linter.RulesRecord> = {
-            "@darraghor/nestjs-typed/api-enum-property-best-practices": "off",
-            "@typescript-eslint/interface-name-prefix": "off",
-            "@typescript-eslint/explicit-function-return-type": "off",
-            "@typescript-eslint/explicit-module-boundary-types": "off",
-            "@typescript-eslint/no-extraneous-class": "off",
-            "@typescript-eslint/no-explicit-any": "off",
-            "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
-            "no-unused-vars": "off",
-            // Off for Nest: constructor-injected classes must stay VALUE imports
-            // (`emitDecoratorMetadata` reads them at runtime). With this rule on,
-            // `lint --fix` rewrote them to `import type` and every provider failed
-            // to resolve ("can't resolve dependencies ... index [0]").
-            "@typescript-eslint/consistent-type-imports": "off",
-            "@darraghor/nestjs-typed/param-decorator-name-matches-route-param": "off",
-            "@darraghor/nestjs-typed/controllers-should-supply-api-tags": "off",
-            "@darraghor/nestjs-typed/injectable-should-be-provided": "off",
-        }
+    '@darraghor/nestjs-typed/api-enum-property-best-practices': 'off',
+    '@typescript-eslint/interface-name-prefix': 'off',
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-extraneous-class': 'off',
+    '@typescript-eslint/no-explicit-any': 'off',
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    'no-unused-vars': 'off',
+    // Off for Nest: constructor-injected classes must stay VALUE imports
+    // (`emitDecoratorMetadata` reads them at runtime). With this rule on,
+    // `lint --fix` rewrote them to `import type` and every provider failed
+    // to resolve ("can't resolve dependencies ... index [0]").
+    '@typescript-eslint/consistent-type-imports': 'off',
+    '@darraghor/nestjs-typed/param-decorator-name-matches-route-param': 'off',
+    '@darraghor/nestjs-typed/controllers-should-supply-api-tags': 'off',
+    '@darraghor/nestjs-typed/injectable-should-be-provided': 'off',
+}
 
-const base = (options: BaseConfigOptions = {}) => defineConfig([
-    coreBaseFactory(options),
-    ...(eslintNestJs.configs.flatRecommended as any),
-    {
-        rules: sharedRules
-    },
-]);
-
-const test = (options: BaseConfigOptions = {}) => defineConfig([
-    coreTestFactory(options),
-    ...(eslintNestJs.configs.flatRecommended as any),
-    {
-        rules: sharedRules
-    },
-    // Relaxed rules for test files
-    {
-        files: ["**/*.spec.ts", "**/*.test.ts", "**/*.mock.ts"],
-        rules: {
-            "@typescript-eslint/no-unsafe-assignment": "off",
-            "@typescript-eslint/no-unsafe-member-access": "off",
-            "@typescript-eslint/no-unsafe-call": "off",
-            "@typescript-eslint/no-unsafe-argument": "off",
-            "@typescript-eslint/no-unsafe-return": "off",
-            "@typescript-eslint/no-empty-function": "off",
-            "@typescript-eslint/no-unnecessary-condition": "off",
-            "@typescript-eslint/no-extraneous-class": "off",
-            "@darraghor/nestjs-typed/injectable-should-be-provided": "off",
+const base = (options: BaseConfigOptions = {}) =>
+    defineConfig([
+        coreBaseFactory(options),
+        ...(eslintNestJs.configs.flatRecommended as any),
+        {
+            rules: sharedRules,
         },
-    },
-]);
+    ])
 
-const all = (options: BaseConfigOptions = {}) => defineConfig([
-    base(options),
-    test(options),
-]);
+const test = (options: BaseConfigOptions = {}) =>
+    defineConfig([
+        coreTestFactory(options),
+        ...(eslintNestJs.configs.flatRecommended as any),
+        {
+            rules: sharedRules,
+        },
+        // Relaxed rules for test files
+        {
+            files: ['**/*.spec.ts', '**/*.test.ts', '**/*.mock.ts'],
+            rules: {
+                '@typescript-eslint/no-unsafe-assignment': 'off',
+                '@typescript-eslint/no-unsafe-member-access': 'off',
+                '@typescript-eslint/no-unsafe-call': 'off',
+                '@typescript-eslint/no-unsafe-argument': 'off',
+                '@typescript-eslint/no-unsafe-return': 'off',
+                '@typescript-eslint/no-empty-function': 'off',
+                '@typescript-eslint/no-unnecessary-condition': 'off',
+                '@typescript-eslint/no-extraneous-class': 'off',
+                '@darraghor/nestjs-typed/injectable-should-be-provided': 'off',
+            },
+        },
+    ])
+
+const all = (options: BaseConfigOptions = {}) =>
+    defineConfig([base(options), test(options)])
 
 /**
  * A domain service may only import the schema tables it owns.
@@ -91,25 +91,29 @@ const all = (options: BaseConfigOptions = {}) => defineConfig([
  */
 interface ServiceSchemaBoundaryOptions {
     /** The owning directory this service may import, e.g. `runtime`. */
-    owner: string;
+    owner: string
 }
 
 const serviceSchemaBoundary = (options: ServiceSchemaBoundaryOptions) =>
     defineConfig([
         {
-            files: ["src/**/*.ts"],
-            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            files: ['src/**/*.ts'],
+            ignores: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/**/e2e/**'],
             plugins: {
                 // Registered under a local alias so the rule needs no published plugin.
-                "deployer-schema": {
-                    rules: { boundary: createSchemaBoundaryRule({ owner: options.owner }) },
+                'deployer-schema': {
+                    rules: {
+                        boundary: createSchemaBoundaryRule({
+                            owner: options.owner,
+                        }),
+                    },
                 },
             },
             rules: {
-                "deployer-schema/boundary": "error",
+                'deployer-schema/boundary': 'error',
             },
         },
-    ]);
+    ])
 
 /**
  * Authorization is transport-wide (`SEC-062`): `procedure()` from `@deployer/nest-effect` is what appends the authz gate to
@@ -120,24 +124,24 @@ const serviceSchemaBoundary = (options: ServiceSchemaBoundaryOptions) =>
 const controllersUseProcedure = () =>
     defineConfig([
         {
-            files: ["src/**/*.controller.ts"],
+            files: ['src/**/*.controller.ts'],
             rules: {
-                "no-restricted-imports": [
-                    "error",
+                'no-restricted-imports': [
+                    'error',
                     {
                         paths: [
                             {
-                                name: "@orpc/server",
-                                importNames: ["implement"],
+                                name: '@orpc/server',
+                                importNames: ['implement'],
                                 message:
-                                    "Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).",
+                                    'Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).',
                             },
                         ],
                     },
                 ],
             },
         },
-    ]);
+    ])
 
 /**
  * ONE `deployer-effect` plugin object for every config in this file. Flat config refuses to redefine a plugin name with a
@@ -149,10 +153,10 @@ const deployerEffect = {
         noInjectableService: createNoInjectableServiceRule(),
         ...createNestRoleRules(),
     },
-};
+}
 
 /** Every rule that forbids a Nest role, `noInjectableService` included — the rules a ledger may list files under. */
-const ROLE_RULES = ROLE_RULE_NAMES;
+const ROLE_RULES = ROLE_RULE_NAMES
 
 /**
  * Every Nest role the Effect + oRPC integration replaces, banned (`docs/architecture/effect-orpc-conventions.md`): `@Injectable`
@@ -162,22 +166,35 @@ const ROLE_RULES = ROLE_RULE_NAMES;
  * `ledger` is the path of the app's JSON ledger (see `readLedger`): the rules are ON everywhere and the listed files are exempt
  * until they are migrated. An app with no ledger has nothing left to migrate.
  */
-const nestRoles = (options: { ledger?: string; severity?: "error" | "warn" } = {}) => {
-    const severity = options.severity ?? "error";
-    const ledger = readLedger(options.ledger);
+const nestRoles = (
+    options: { ledger?: string; severity?: 'error' | 'warn' } = {}
+) => {
+    const severity = options.severity ?? 'error'
+    const ledger = readLedger(options.ledger)
     return defineConfig([
         {
-            files: ["src/**/*.ts"],
-            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
-            plugins: { "deployer-effect": deployerEffect },
-            rules: Object.fromEntries(ROLE_RULES.map((rule) => [`deployer-effect/${rule}`, severity])),
+            files: ['src/**/*.ts'],
+            ignores: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/**/e2e/**'],
+            plugins: { 'deployer-effect': deployerEffect },
+            rules: Object.fromEntries(
+                ROLE_RULES.map((rule) => [`deployer-effect/${rule}`, severity])
+            ),
         },
         // The ledger, last so it wins: each rule is switched off for exactly the files that have not migrated.
         ...Object.entries(ledger).flatMap(([rule, files]) =>
-            files === undefined || files.length === 0 ? [] : [{ files, rules: { [`deployer-effect/${rule}`]: "off" as const } }],
+            files === undefined || files.length === 0
+                ? []
+                : [
+                      {
+                          files,
+                          rules: {
+                              [`deployer-effect/${rule}`]: 'off' as const,
+                          },
+                      },
+                  ]
         ),
-    ]);
-};
+    ])
+}
 
 /**
  * The Effect conventions, as a gate instead of a code review (`docs/architecture/effect-migration-gap-inventory.md` §12).
@@ -207,17 +224,17 @@ const effectConventions = (options: { ledger?: string } = {}) =>
         // decorator. Judged per concept, per FILE (the ledger), not per folder.
         ...nestRoles(options),
         {
-            files: ["src/**/*.controller.ts"],
+            files: ['src/**/*.controller.ts'],
             rules: {
-                "no-restricted-imports": [
-                    "error",
+                'no-restricted-imports': [
+                    'error',
                     {
                         paths: [
                             {
-                                name: "@orpc/server",
-                                importNames: ["implement"],
+                                name: '@orpc/server',
+                                importNames: ['implement'],
                                 message:
-                                    "Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).",
+                                    'Use procedure() from @deployer/nest-effect: it appends the authz gate (SEC-062).',
                             },
                         ],
                     },
@@ -227,38 +244,49 @@ const effectConventions = (options: { ledger?: string } = {}) =>
         {
             // C5 is scoped to SERVICES on purpose: a repository's `throw` sits inside the `Effect.tryPromise` that turns it
             // into a typed `RepositoryFailure`, so the throw IS the boundary. A service has no such excuse.
-            files: ["src/**/services/**/*.ts"],
-            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            files: ['src/**/services/**/*.ts'],
+            ignores: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/**/e2e/**'],
             rules: {
-                "no-restricted-syntax": [
-                    "error",
+                'no-restricted-syntax': [
+                    'error',
                     {
-                        selector: "ThrowStatement > NewExpression[callee.name='Error']",
+                        selector:
+                            "ThrowStatement > NewExpression[callee.name='Error']",
                         message:
-                            "Throw a tagged domainError (or an AppError subclass), so the transport maps a STATUS instead of a 500.",
+                            'Throw a tagged domainError (or an AppError subclass), so the transport maps a STATUS instead of a 500.',
                     },
                     {
-                        selector: "ThrowStatement > NewExpression[callee.name='TypeError']",
+                        selector:
+                            "ThrowStatement > NewExpression[callee.name='TypeError']",
                         message:
-                            "Throw a tagged domainError (or an AppError subclass), so the transport maps a STATUS instead of a 500.",
+                            'Throw a tagged domainError (or an AppError subclass), so the transport maps a STATUS instead of a 500.',
                     },
                 ],
             },
         },
         {
-            files: ["src/**/*.ts"],
-            ignores: ["src/main.ts", "src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
+            files: ['src/**/*.ts'],
+            ignores: [
+                'src/main.ts',
+                'src/**/*.spec.ts',
+                'src/**/*.test.ts',
+                'src/**/e2e/**',
+            ],
             rules: {
                 // C9: the Logger carries the context and the level; `console` carries neither.
-                "no-console": "error",
+                'no-console': 'error',
                 // C10: a suppression hides the type error the architecture is built on.
-                "@typescript-eslint/ban-ts-comment": [
-                    "error",
-                    { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true },
+                '@typescript-eslint/ban-ts-comment': [
+                    'error',
+                    {
+                        'ts-ignore': true,
+                        'ts-expect-error': true,
+                        'ts-nocheck': true,
+                    },
                 ],
             },
         },
-    ]);
+    ])
 
 /**
  * The module graph's imports and exports, gated on the file that decides them (`docs/architecture/effect-migration-gap-inventory.md` C4).
@@ -271,19 +299,19 @@ const effectConventions = (options: { ledger?: string } = {}) =>
 const moduleContext = () =>
     defineConfig([
         {
-            files: ["src/**/*.ts"],
-            ignores: ["src/**/*.spec.ts", "src/**/*.test.ts", "src/**/e2e/**"],
-            plugins: { "deployer-effect": deployerEffect },
+            files: ['src/**/*.ts'],
+            ignores: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/**/e2e/**'],
+            plugins: { 'deployer-effect': deployerEffect },
             rules: {
-                "deployer-effect/moduleContext": "error",
+                'deployer-effect/moduleContext': 'error',
             },
         },
-    ]);
+    ])
 
 export default {
     meta: {
-        name: "@deployer/config-eslint/nestjs",
-        version: "0.0.0",
+        name: '@deployer/config-eslint/nestjs',
+        version: '0.0.0',
     },
     configs: {
         base,
@@ -295,4 +323,4 @@ export default {
         moduleContext,
         nestRoles,
     },
-} as const;
+} as const

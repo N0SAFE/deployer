@@ -17,5 +17,4 @@ export {
     templateVariableSchema,
     variableTemplateSchema,
     type ProjectSettings,
-} from "@deployer/contracts-entities";
-
+} from '@deployer/contracts-entities'

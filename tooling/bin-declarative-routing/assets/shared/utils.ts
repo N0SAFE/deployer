@@ -3,7 +3,10 @@
 import { z } from 'zod'
 import { safeParse } from 'zod/v4'
 
-interface ParsedData<T> { error?: string; data?: T }
+interface ParsedData<T> {
+    error?: string
+    data?: T
+}
 
 export function safeParseSearchParams<T extends z.ZodType>(
     schema: T,
@@ -134,7 +137,10 @@ function convertToRequiredType(
     return value
 }
 
-function parseValues(schema: z.core.$ZodType, values: string[]): ParsedData<unknown> {
+function parseValues(
+    schema: z.core.$ZodType,
+    values: string[]
+): ParsedData<unknown> {
     switch (schema.constructor) {
         case z.ZodNumber:
             return parseNumber(values[0])
@@ -168,7 +174,9 @@ function getInnerType(schema: z.core.$ZodType) {
     switch (schema.constructor) {
         case z.ZodOptional:
         case z.ZodDefault:
-            return (schema._zod.def as unknown as {innerType: z.core.$ZodType}).innerType
+            return (
+                schema._zod.def as unknown as { innerType: z.core.$ZodType }
+            ).innerType
         default:
             return schema
     }
@@ -199,5 +207,11 @@ function parseArray<T>(
     if (error) {
         return { error }
     }
-    return { data: numbers.filter((n): n is Omit<ParsedData<T>, "data"> & {data: T} => Boolean(n.data)).map((n) => n.data) }
+    return {
+        data: numbers
+            .filter((n): n is Omit<ParsedData<T>, 'data'> & { data: T } =>
+                Boolean(n.data)
+            )
+            .map((n) => n.data),
+    }
 }

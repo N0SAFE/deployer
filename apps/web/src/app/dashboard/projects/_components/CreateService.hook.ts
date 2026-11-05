@@ -18,12 +18,17 @@ import { defaultWizardValues } from './CreateService.defaults'
 import { wizardSchema, type WizardFormData } from './CreateService.schema'
 
 import type { providerSchema } from './CreateService.provider-schema'
-import type { orchestratorSubServiceSchema, runnerSchema } from './CreateService.runner-schema'
+import type {
+    orchestratorSubServiceSchema,
+    runnerSchema,
+} from './CreateService.runner-schema'
 import type z from 'zod/v4'
 
 /* ─── HOOK ────────────────────────────────────────────────────────── */
 
-export function useCreateServiceForm(onConfirm: (data: WizardFormData) => Promise<void>) {
+export function useCreateServiceForm(
+    onConfirm: (data: WizardFormData) => Promise<void>
+) {
     const form = useForm({
         defaultValues: defaultWizardValues,
         onSubmit: async ({ value }) => {
@@ -41,4 +46,6 @@ export type { WizardFormData }
 
 export type ProviderFormData = z.infer<typeof providerSchema>
 export type RunnerFormData = z.infer<typeof runnerSchema>
-export type OrchestratorSubService = z.infer<typeof orchestratorSubServiceSchema>
+export type OrchestratorSubService = z.infer<
+    typeof orchestratorSubServiceSchema
+>

@@ -5,6 +5,7 @@ This document explains the unified contract interface for both ORPC endpoints an
 ## Core Concept
 
 **All endpoints (ORPC and custom) share the same API**:
+
 - `.call(input)` - Direct server-side call
 - `.queryKey(input)` - Query key for cache management
 - `.queryOptions(input)` - TanStack Query options for queries
@@ -30,17 +31,17 @@ import { orpc } from '@/lib/orpc'
 const contract = orpc.user.list
 
 // Already has all methods:
-contract.call(input)                          // Server-side direct call
-contract.queryKey(input)                      // Query key
-contract.queryOptions(input)                  // TanStack Query options
-contract.mutationKey()                        // Mutation key  
-contract.mutationOptions()                    // Mutation options
-contract.infiniteKey(input)                   // Infinite query key
-contract.infiniteOptions(input)               // Infinite query options
-contract.experimental_liveKey(input)          // Live query key
-contract.experimental_liveOptions(input)      // Live query options
-contract.experimental_streamedKey(input)      // Streamed query key
-contract.experimental_streamedOptions(input)  // Streamed query options
+contract.call(input) // Server-side direct call
+contract.queryKey(input) // Query key
+contract.queryOptions(input) // TanStack Query options
+contract.mutationKey() // Mutation key
+contract.mutationOptions() // Mutation options
+contract.infiniteKey(input) // Infinite query key
+contract.infiniteOptions(input) // Infinite query options
+contract.experimental_liveKey(input) // Live query key
+contract.experimental_liveOptions(input) // Live query options
+contract.experimental_streamedKey(input) // Streamed query key
+contract.experimental_streamedOptions(input) // Streamed query options
 ```
 
 ### 2. Custom Contracts (Use custom() Helper)
@@ -52,31 +53,31 @@ import { custom } from '@/domains/shared/helpers'
 
 // Query example
 const sessionContract = custom({
-  type: 'query',
-  queryKey: ['auth', 'session'],
-  fetcher: async () => authClient.getSession(),
-  staleTime: STALE_TIME.DEFAULT,
+    type: 'query',
+    queryKey: ['auth', 'session'],
+    fetcher: async () => authClient.getSession(),
+    staleTime: STALE_TIME.DEFAULT,
 })
 
 // Mutation example
 const logoutContract = custom({
-  type: 'mutation',
-  queryKey: ['auth', 'logout'],
-  mutationFn: async () => authClient.logout(),
+    type: 'mutation',
+    queryKey: ['auth', 'logout'],
+    mutationFn: async () => authClient.logout(),
 })
 
 // Both have same API as ORPC contracts:
-sessionContract.call()                          // Server-side direct call
-sessionContract.queryKey()                      // Query key
-sessionContract.queryOptions()                  // TanStack Query options
-sessionContract.mutationKey()                   // Mutation key  
-sessionContract.mutationOptions()               // Mutation options
-sessionContract.infiniteKey()                   // Infinite query key
-sessionContract.infiniteOptions()               // Infinite query options
-sessionContract.experimental_liveKey()          // Live query key
-sessionContract.experimental_liveOptions()      // Live query options
-sessionContract.experimental_streamedKey()      // Streamed query key
-sessionContract.experimental_streamedOptions()  // Streamed query options
+sessionContract.call() // Server-side direct call
+sessionContract.queryKey() // Query key
+sessionContract.queryOptions() // TanStack Query options
+sessionContract.mutationKey() // Mutation key
+sessionContract.mutationOptions() // Mutation options
+sessionContract.infiniteKey() // Infinite query key
+sessionContract.infiniteOptions() // Infinite query options
+sessionContract.experimental_liveKey() // Live query key
+sessionContract.experimental_liveOptions() // Live query options
+sessionContract.experimental_streamedKey() // Streamed query key
+sessionContract.experimental_streamedOptions() // Streamed query options
 ```
 
 ## Helper Function
@@ -112,24 +113,24 @@ import { custom } from '@/domains/shared/helpers'
 import { authClient } from '@/lib/auth-client'
 
 export const userEndpoints = {
-  // ✅ ORPC contracts - use directly
-  list: orpc.user.list,
-  detail: orpc.user.findById,
-  create: orpc.user.create,
-  
-  // ✅ Custom contracts - create with custom() helper
-  session: custom({
-    type: 'query',
-    queryKey: ['auth', 'session'],
-    fetcher: async () => authClient.getSession(),
-    staleTime: STALE_TIME.DEFAULT,
-  }),
-  
-  logout: custom({
-    type: 'mutation',
-    queryKey: ['auth', 'logout'],
-    mutationFn: async () => authClient.logout(),
-  }),
+    // ✅ ORPC contracts - use directly
+    list: orpc.user.list,
+    detail: orpc.user.findById,
+    create: orpc.user.create,
+
+    // ✅ Custom contracts - create with custom() helper
+    session: custom({
+        type: 'query',
+        queryKey: ['auth', 'session'],
+        fetcher: async () => authClient.getSession(),
+        staleTime: STALE_TIME.DEFAULT,
+    }),
+
+    logout: custom({
+        type: 'mutation',
+        queryKey: ['auth', 'logout'],
+        mutationFn: async () => authClient.logout(),
+    }),
 } as const
 ```
 
@@ -221,39 +222,42 @@ import { userEndpoints } from './endpoints'
 
 // Query hooks
 export function useUserList(filters: UserListInput) {
-  return useQuery(userEndpoints.list.queryOptions(filters))
+    return useQuery(userEndpoints.list.queryOptions(filters))
 }
 
 export function useSession() {
-  return useQuery(userEndpoints.session.queryOptions())
+    return useQuery(userEndpoints.session.queryOptions())
 }
 
 // Mutation hooks with cache invalidation
 export function useCreateUser() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    ...userEndpoints.create.mutationOptions(),
-    onSuccess: () => {
-      // Invalidate using query keys
-      queryClient.invalidateQueries({
-        queryKey: userEndpoints.list.queryOptions({ page: 1, limit: 20 }).queryKey
-      })
-    }
-  })
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        ...userEndpoints.create.mutationOptions(),
+        onSuccess: () => {
+            // Invalidate using query keys
+            queryClient.invalidateQueries({
+                queryKey: userEndpoints.list.queryOptions({
+                    page: 1,
+                    limit: 20,
+                }).queryKey,
+            })
+        },
+    })
 }
 
 export function useLogout() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    ...userEndpoints.logout.mutationOptions(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: userEndpoints.session.queryOptions().queryKey
-      })
-    }
-  })
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        ...userEndpoints.logout.mutationOptions(),
+        onSuccess: () => {
+            queryClient.invalidateQueries({
+                queryKey: userEndpoints.session.queryOptions().queryKey,
+            })
+        },
+    })
 }
 ```
 
@@ -319,19 +323,21 @@ All methods maintain full type safety with automatic type inference:
 
 ```typescript
 // ✅ Type-safe input - inferred from fetcher signature
-const users = await userEndpoints.list.call({ 
-  page: 1, 
-  limit: 20 
+const users = await userEndpoints.list.call({
+    page: 1,
+    limit: 20,
 })
 
 // ❌ TypeScript error - missing required field
-const users = await userEndpoints.list.call({ 
-  page: 1 
-  // Error: Property 'limit' is missing
+const users = await userEndpoints.list.call({
+    page: 1,
+    // Error: Property 'limit' is missing
 })
 
 // ✅ Type-safe output - inferred from fetcher return type
-const { data } = useQuery(userEndpoints.list.queryOptions({ page: 1, limit: 20 }))
+const { data } = useQuery(
+    userEndpoints.list.queryOptions({ page: 1, limit: 20 })
+)
 // data is typed as User[] | undefined
 
 // ✅ Type-safe mutation input
@@ -383,21 +389,21 @@ All contracts (ORPC and custom) expose these methods:
 
 Both ORPC contracts and custom contracts have **identical APIs**:
 
-| Method | ORPC Contract | Custom Contract | Description |
-|--------|---------------|-----------------|-------------|
-| `.call(input)` | ✅ | ✅ | Direct server/client execution |
-| `.queryKey(input)` | ✅ | ✅ | Query cache key |
-| `.queryOptions(input)` | ✅ | ✅ | TanStack Query options |
-| `.mutationKey()` | ✅ | ✅ | Mutation cache key |
-| `.mutationOptions()` | ✅ | ✅ | TanStack Mutation options |
-| `.infiniteKey(input)` | ✅ | ✅ | Infinite query key |
-| `.infiniteOptions(input)` | ✅ | ✅ | Infinite query options |
-| `.experimental_*` | ✅ | ✅ | Experimental features |
+| Method                    | ORPC Contract | Custom Contract | Description                    |
+| ------------------------- | ------------- | --------------- | ------------------------------ |
+| `.call(input)`            | ✅            | ✅              | Direct server/client execution |
+| `.queryKey(input)`        | ✅            | ✅              | Query cache key                |
+| `.queryOptions(input)`    | ✅            | ✅              | TanStack Query options         |
+| `.mutationKey()`          | ✅            | ✅              | Mutation cache key             |
+| `.mutationOptions()`      | ✅            | ✅              | TanStack Mutation options      |
+| `.infiniteKey(input)`     | ✅            | ✅              | Infinite query key             |
+| `.infiniteOptions(input)` | ✅            | ✅              | Infinite query options         |
+| `.experimental_*`         | ✅            | ✅              | Experimental features          |
 
 **Key Points:**
+
 - Use ORPC contracts directly (no wrappers needed)
 - Use `custom()` helper for non-ORPC endpoints
 - Same API for both = consistent usage everywhere
 - Full TypeScript type safety with inference
 - Works in client components, server components, and server actions
-

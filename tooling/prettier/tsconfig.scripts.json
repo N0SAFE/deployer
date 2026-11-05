@@ -1,8 +1,8 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "../tsconfig/config/scripts.json",
-  "compilerOptions": {
-    "outDir": "./dist"
-  },
-  "include": ["./scripts/**/*.ts"]
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "../tsconfig/config/scripts.json",
+    "compilerOptions": {
+        "outDir": "./dist"
+    },
+    "include": ["./scripts/**/*.ts"]
 }

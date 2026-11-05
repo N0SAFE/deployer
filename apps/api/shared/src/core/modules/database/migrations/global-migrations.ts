@@ -1,9 +1,9 @@
-import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
+import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 
-import { AppError } from "@deployer/errors";
-import { isRecord } from "@deployer/type-guards";
+import { AppError } from '@deployer/errors'
+import { isRecord } from '@deployer/type-guards'
 
-import type { GlobalDatabase } from "../global/global-database.service";
+import type { GlobalDatabase } from '../global/global-database.service'
 
 /**
  * What a migration run did.
@@ -22,7 +22,7 @@ import type { GlobalDatabase } from "../global/global-database.service";
  * typed error. `already-applied` is decided by Postgres SQLSTATE, which is part
  * of the protocol and does not move with the message.
  */
-export type GlobalMigrationOutcome = "applied" | "already-applied";
+export type GlobalMigrationOutcome = 'applied' | 'already-applied'
 
 /**
  * Postgres SQLSTATEs that mean "this migration's DDL is already in place".
@@ -33,34 +33,34 @@ export type GlobalMigrationOutcome = "applied" | "already-applied";
  * on anything the operator needs to fix. Any OTHER SQLSTATE is a real failure.
  */
 const ALREADY_APPLIED_SQLSTATES: ReadonlySet<string> = new Set([
-	"42P07", // duplicate_table
-	"42701", // duplicate_column
-	"42710", // duplicate_object (index, constraint, trigger, enum value…)
-	"42723", // duplicate_function
-	"42P06", // duplicate_schema
-	"42P04", // duplicate_database
-]);
+    '42P07', // duplicate_table
+    '42701', // duplicate_column
+    '42710', // duplicate_object (index, constraint, trigger, enum value…)
+    '42723', // duplicate_function
+    '42P06', // duplicate_schema
+    '42P04', // duplicate_database
+])
 
 /** A migration that failed for a reason the schema is NOT already in place for. */
 export class MigrationFailedError extends AppError {
-	constructor(
-		readonly sqlState: string | null,
-		cause: unknown,
-	) {
-		const message = cause instanceof Error ? cause.message : String(cause);
-		super(
-			`Global migrations failed${sqlState === null ? "" : ` (SQLSTATE ${sqlState})`}: ${message}`,
-			"INTERNAL_ERROR",
-			{ sqlState, cause: message },
-		);
-		this.name = "MigrationFailedError";
-	}
+    constructor(
+        readonly sqlState: string | null,
+        cause: unknown
+    ) {
+        const message = cause instanceof Error ? cause.message : String(cause)
+        super(
+            `Global migrations failed${sqlState === null ? '' : ` (SQLSTATE ${sqlState})`}: ${message}`,
+            'INTERNAL_ERROR',
+            { sqlState, cause: message }
+        )
+        this.name = 'MigrationFailedError'
+    }
 }
 
 /** The SQLSTATE of a driver error, when the object carries one. */
 function sqlStateOf(error: unknown): string | null {
-	if (!isRecord(error)) return null;
-	return typeof error.code === "string" ? error.code : null;
+    if (!isRecord(error)) return null
+    return typeof error.code === 'string' ? error.code : null
 }
 
 /**
@@ -71,19 +71,19 @@ function sqlStateOf(error: unknown): string | null {
  * only so a spec can drive both outcomes without a database.
  */
 export async function applyGlobalMigrations(
-	db: GlobalDatabase,
-	options: { migrationsFolder: string; migrate?: typeof migratePg },
+    db: GlobalDatabase,
+    options: { migrationsFolder: string; migrate?: typeof migratePg }
 ): Promise<GlobalMigrationOutcome> {
-	const migrate = options.migrate ?? migratePg;
+    const migrate = options.migrate ?? migratePg
 
-	try {
-		await migrate(db, { migrationsFolder: options.migrationsFolder });
-		return "applied";
-	} catch (error: unknown) {
-		const sqlState = sqlStateOf(error);
-		if (sqlState !== null && ALREADY_APPLIED_SQLSTATES.has(sqlState)) {
-			return "already-applied";
-		}
-		throw new MigrationFailedError(sqlState, error);
-	}
+    try {
+        await migrate(db, { migrationsFolder: options.migrationsFolder })
+        return 'applied'
+    } catch (error: unknown) {
+        const sqlState = sqlStateOf(error)
+        if (sqlState !== null && ALREADY_APPLIED_SQLSTATES.has(sqlState)) {
+            return 'already-applied'
+        }
+        throw new MigrationFailedError(sqlState, error)
+    }
 }

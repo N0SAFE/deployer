@@ -1,8 +1,8 @@
-import { access } from "@deployer/auth/authz/meta";
-import { projectSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { projectSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const projectOps = standard.zod(projectSchema, "project");
+const projectOps = standard.zod(projectSchema, 'project')
 
 export const projectUpdateContract = projectOps
     .update()
@@ -16,6 +16,10 @@ export const projectUpdateContract = projectOps
         // 404 when the project id doesn't exist; 409 on name collision.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: "project:write", scope: { by: "input", path: "id", kind: "project" } }))
-    .build();
-
+    .meta(
+        access({
+            permission: 'project:write',
+            scope: { by: 'input', path: 'id', kind: 'project' },
+        })
+    )
+    .build()

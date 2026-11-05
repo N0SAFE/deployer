@@ -7,11 +7,15 @@
  * handler. Returns `undefined` during SSR.
  */
 export function readUrlSearchParam(key: string): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  return new URLSearchParams(window.location.search).get(key) ?? undefined
+    if (typeof window === 'undefined') return undefined
+    return new URLSearchParams(window.location.search).get(key) ?? undefined
 }
 
 /** Post-sign-in destination, resolved at SUBMIT time: redirectTo ?? callbackUrl ?? '/'. */
 export function getPostSignInTarget(): string {
-  return readUrlSearchParam('redirectTo') ?? readUrlSearchParam('callbackUrl') ?? '/'
+    return (
+        readUrlSearchParam('redirectTo') ??
+        readUrlSearchParam('callbackUrl') ??
+        '/'
+    )
 }

@@ -1,8 +1,8 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
-import z from "zod/v4";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
+import { access } from '@deployer/auth/authz/meta'
 import {
     clusterMasterSchema,
     clusterNodeSchema,
@@ -12,8 +12,8 @@ import {
     swarmNodeResourcesSchema,
     swarmServiceRuntimeSchema,
     swarmTaskRuntimeSchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 // ─── Cluster contract module (SW-003) ───────────────────────────────────────
 // Admin/ops surface for the Swarm cluster: local snapshot, fleet inventory,
@@ -22,27 +22,33 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 // ─── Outputs (reuse canonical schemas where they fit) ───────────────────────
 
-export const clusterSnapshotContractOutput = clusterSnapshotSchema;
+export const clusterSnapshotContractOutput = clusterSnapshotSchema
 
-export const clusterMasterViewSchema = clusterMasterSchema.extend({
-    state: z.enum(["healthy", "suspect", "unreachable"]),
-}).nullable();
-export type ClusterMasterView = z.infer<typeof clusterMasterViewSchema>;
+export const clusterMasterViewSchema = clusterMasterSchema
+    .extend({
+        state: z.enum(['healthy', 'suspect', 'unreachable']),
+    })
+    .nullable()
+export type ClusterMasterView = z.infer<typeof clusterMasterViewSchema>
 
 export const clusterNodeInventoryRowSchema = clusterNodeSchema.extend({
-    hostname: z.string().default(""),
+    hostname: z.string().default(''),
     isLeader: z.boolean().default(false),
-    state: z.enum(["active", "down"]).default("active"),
+    state: z.enum(['active', 'down']).default('active'),
     lastSeenAt: z.string().nullable().default(null),
-});
-export type ClusterNodeInventoryRow = z.infer<typeof clusterNodeInventoryRowSchema>;
+})
+export type ClusterNodeInventoryRow = z.infer<
+    typeof clusterNodeInventoryRowSchema
+>
 
 export const clusterNodeLabelUpdateInputSchema = z.object({
     nodeId: z.string().min(1),
-    platformRole: z.enum(["both", "control", "worker"]).optional(),
+    platformRole: z.enum(['both', 'control', 'worker']).optional(),
     ingress: z.boolean().optional(),
-});
-export type ClusterNodeLabelUpdateInput = z.infer<typeof clusterNodeLabelUpdateInputSchema>;
+})
+export type ClusterNodeLabelUpdateInput = z.infer<
+    typeof clusterNodeLabelUpdateInputSchema
+>
 
 // ─── Fleet runtime views (services / tasks / node resources) ────────────────
 // The live swarm workload surface: services are mesh-wide, tasks carry a
@@ -52,34 +58,48 @@ export type ClusterNodeLabelUpdateInput = z.infer<typeof clusterNodeLabelUpdateI
 export const clusterListTasksQuerySchema = z.object({
     serviceId: z.string().min(1).optional(),
     nodeId: z.string().min(1).optional(),
-});
-export type ClusterListTasksQuery = z.infer<typeof clusterListTasksQuerySchema>;
+})
+export type ClusterListTasksQuery = z.infer<typeof clusterListTasksQuerySchema>
 
 export const clusterGetNodeResourcesQuerySchema = z.object({
     nodeId: z.string().min(1),
-});
-export type ClusterGetNodeResourcesQuery = z.infer<typeof clusterGetNodeResourcesQuerySchema>;
+})
+export type ClusterGetNodeResourcesQuery = z.infer<
+    typeof clusterGetNodeResourcesQuerySchema
+>
 
 // ─── Builders ───────────────────────────────────────────────────────────────
 
-const snapshotOps = standard.zod(clusterSnapshotContractOutput, "clusterSnapshot");
-const inventoryOps = standard.zod(z.array(clusterNodeInventoryRowSchema), "clusterNodeInventory");
-const masterOps = standard.zod(clusterMasterViewSchema, "clusterMasterView");
-const nodeLabelOps = standard.zod(clusterNodeSchema, "clusterNodeLabelUpdate");
-const servicesOps = standard.zod(swarmServiceRuntimeSchema, "swarmServiceRuntime");
-const tasksOps = standard.zod(swarmTaskRuntimeSchema, "swarmTaskRuntime");
-const nodeResourcesOps = standard.zod(swarmNodeResourcesSchema, "swarmNodeResources");
+const snapshotOps = standard.zod(
+    clusterSnapshotContractOutput,
+    'clusterSnapshot'
+)
+const inventoryOps = standard.zod(
+    z.array(clusterNodeInventoryRowSchema),
+    'clusterNodeInventory'
+)
+const masterOps = standard.zod(clusterMasterViewSchema, 'clusterMasterView')
+const nodeLabelOps = standard.zod(clusterNodeSchema, 'clusterNodeLabelUpdate')
+const servicesOps = standard.zod(
+    swarmServiceRuntimeSchema,
+    'swarmServiceRuntime'
+)
+const tasksOps = standard.zod(swarmTaskRuntimeSchema, 'swarmTaskRuntime')
+const nodeResourcesOps = standard.zod(
+    swarmNodeResourcesSchema,
+    'swarmNodeResources'
+)
 
 // ─── Contracts ──────────────────────────────────────────────────────────────
 
 export const clusterGetSnapshotContract = snapshotOps
     .list()
-    .path("/snapshot")
+    .path('/snapshot')
     .input(z.object({}))
     .output(clusterSnapshotContractOutput)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 // NOTE: `includeDown` stays a plain `z.boolean()`. The API wires the ORPC
 // Smart Coercion plugin with the zod/v4 JSON-schema converter, so REST query
@@ -87,125 +107,126 @@ export const clusterGetSnapshotContract = snapshotOps
 // validation. Do NOT re-wrap in a string union — that defeats coercion.
 export const clusterListNodesContract = inventoryOps
     .list()
-    .path("/nodes")
+    .path('/nodes')
     .input(z.object({ includeDown: z.boolean().optional().default(false) }))
     .output(z.array(clusterNodeInventoryRowSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterGetMasterContract = masterOps
     .list()
-    .path("/master")
+    .path('/master')
     .input(z.object({}))
     .output(clusterMasterViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterUpdateNodeContract = nodeLabelOps
-    .update({ idFieldName: "nodeId", idSchema: z.string().min(1) })
+    .update({ idFieldName: 'nodeId', idSchema: z.string().min(1) })
     .input((b) =>
         b
-            .params((p) => p`/nodes/${p("nodeId", z.string().min(1))}/labels`)
+            .params((p) => p`/nodes/${p('nodeId', z.string().min(1))}/labels`)
             .body(
                 z.object({
-                    platformRole: clusterNodeLabelUpdateInputSchema.shape.platformRole,
+                    platformRole:
+                        clusterNodeLabelUpdateInputSchema.shape.platformRole,
                     ingress: clusterNodeLabelUpdateInputSchema.shape.ingress,
-                }),
-            ),
+                })
+            )
     )
     .output(clusterNodeSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "node:operate" }))
-    .build();
+    .meta(access({ permission: 'node:operate' }))
+    .build()
 
 /** Mesh-wide swarm services (global vs replicated + desired/running). */
 export const clusterListServicesContract = servicesOps
     .list()
-    .path("/services")
+    .path('/services')
     .input(z.object({}))
     .output(z.array(swarmServiceRuntimeSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 /** Swarm tasks, optionally filtered by service or node. */
 export const clusterListTasksContract = tasksOps
     .list()
-    .path("/tasks")
+    .path('/tasks')
     .input((b) => b.query(clusterListTasksQuerySchema))
     .output(z.array(swarmTaskRuntimeSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 /** Per-node aggregation: swarm services/tasks + local engine artifacts. */
 export const clusterGetNodeResourcesContract = nodeResourcesOps
     .list()
-    .path("/node-resources")
+    .path('/node-resources')
     .input((b) => b.query(clusterGetNodeResourcesQuerySchema))
     .output((b) => b.body(swarmNodeResourcesSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterStreamSnapshotContract = snapshotOps
     .list()
-    .path("/snapshot/stream")
+    .path('/snapshot/stream')
     .input(z.object({}))
     .output((b) => b.observable(clusterSnapshotContractOutput))
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterStreamNodeResourcesContract = nodeResourcesOps
     .list()
-    .path("/node-resources/stream")
+    .path('/node-resources/stream')
     .input((b) => b.query(clusterGetNodeResourcesQuerySchema))
     .output((b) => b.observable(swarmNodeResourcesSchema))
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 export const clusterStreamNodesContract = inventoryOps
     .list()
-    .path("/nodes/stream")
+    .path('/nodes/stream')
     .input(z.object({ includeDown: z.boolean().optional().default(false) }))
     .output((b) => b.observable(z.array(clusterNodeInventoryRowSchema)))
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterStreamMasterContract = masterOps
     .list()
-    .path("/master/stream")
+    .path('/master/stream')
     .input(z.object({}))
     .output((b) => b.observable(clusterMasterViewSchema))
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterStreamServicesContract = servicesOps
     .list()
-    .path("/services/stream")
+    .path('/services/stream')
     .input(z.object({}))
     .output((b) => b.observable(z.array(swarmServiceRuntimeSchema)))
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterStreamTasksContract = tasksOps
     .list()
-    .path("/tasks/stream")
+    .path('/tasks/stream')
     .input((b) => b.query(clusterListTasksQuerySchema))
     .output((b) => b.observable(z.array(swarmTaskRuntimeSchema)))
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 export const clusterGetSwarmConfigContract = standard
-    .zod(swarmConfigViewSchema, "swarmConfigView")
+    .zod(swarmConfigViewSchema, 'swarmConfigView')
     .list()
-    .path("/swarm-config")
+    .path('/swarm-config')
     .input(z.object({}))
     .output(swarmConfigViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 /**
  * SSE sibling of `getSwarmConfig` — same input, pushed only when it changes.
@@ -215,43 +236,45 @@ export const clusterGetSwarmConfigContract = standard
  * emits on change, so the panel updates without a timer in every tab.
  */
 export const clusterStreamSwarmConfigContract = standard
-    .zod(swarmConfigViewSchema, "swarmConfigView")
+    .zod(swarmConfigViewSchema, 'swarmConfigView')
     .list()
-    .path("/swarm-config/stream")
+    .path('/swarm-config/stream')
     .input(z.object({}))
     .output((b) => b.observable(swarmConfigViewSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:read" }))
-    .build();
+    .meta(access({ permission: 'cluster:read' }))
+    .build()
 
 /** Persist the participation config and converge immediately (post-setup). */
 export const clusterSetSwarmConfigContract = standard
-    .zod(swarmConfigViewSchema, "swarmConfigView")
+    .zod(swarmConfigViewSchema, 'swarmConfigView')
     .create()
-    .path("/swarm-config")
+    .path('/swarm-config')
     .input((b) => b.body(swarmParticipationInputSchema))
     .output(swarmConfigViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "cluster:operate" }))
-    .build();
+    .meta(access({ permission: 'cluster:operate' }))
+    .build()
 
-export const clusterContract = oc.meta(openapi({ tags: ["Cluster"], prefix: "/cluster" })).router({
-    getSnapshot: clusterGetSnapshotContract,
-    streamSnapshot: clusterStreamSnapshotContract,
-    listNodes: clusterListNodesContract,
-    streamNodes: clusterStreamNodesContract,
-    getMaster: clusterGetMasterContract,
-    streamMaster: clusterStreamMasterContract,
-    updateNode: clusterUpdateNodeContract,
-    listServices: clusterListServicesContract,
-    streamServices: clusterStreamServicesContract,
-    listTasks: clusterListTasksContract,
-    streamTasks: clusterStreamTasksContract,
-    getNodeResources: clusterGetNodeResourcesContract,
-    streamNodeResources: clusterStreamNodeResourcesContract,
-    getSwarmConfig: clusterGetSwarmConfigContract,
-    streamSwarmConfig: clusterStreamSwarmConfigContract,
-    setSwarmConfig: clusterSetSwarmConfigContract,
-});
+export const clusterContract = oc
+    .meta(openapi({ tags: ['Cluster'], prefix: '/cluster' }))
+    .router({
+        getSnapshot: clusterGetSnapshotContract,
+        streamSnapshot: clusterStreamSnapshotContract,
+        listNodes: clusterListNodesContract,
+        streamNodes: clusterStreamNodesContract,
+        getMaster: clusterGetMasterContract,
+        streamMaster: clusterStreamMasterContract,
+        updateNode: clusterUpdateNodeContract,
+        listServices: clusterListServicesContract,
+        streamServices: clusterStreamServicesContract,
+        listTasks: clusterListTasksContract,
+        streamTasks: clusterStreamTasksContract,
+        getNodeResources: clusterGetNodeResourcesContract,
+        streamNodeResources: clusterStreamNodeResourcesContract,
+        getSwarmConfig: clusterGetSwarmConfigContract,
+        streamSwarmConfig: clusterStreamSwarmConfigContract,
+        setSwarmConfig: clusterSetSwarmConfigContract,
+    })
 
-export type ClusterContract = typeof clusterContract;
+export type ClusterContract = typeof clusterContract

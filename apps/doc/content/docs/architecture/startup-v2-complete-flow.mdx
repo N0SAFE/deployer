@@ -4,7 +4,10 @@ description: Perfectly detailed Mermaid diagram of the entire application startu
 order: 17
 ---
 
-<DocMeta source="docs/architecture/startup-v2-complete-flow.mdx" scope="canonical" />
+<DocMeta
+    source="docs/architecture/startup-v2-complete-flow.mdx"
+    scope="canonical"
+/>
 
 <DocCallout title="Superseded — kept as a design record" tone="danger">
 **This document describes a design that has since been REPLACED.** The sub-app
@@ -19,8 +22,7 @@ see:
 - [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
 - [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
 - `docs/setup-app-refactor-plan.md` — the refactor that replaced it
-</DocCallout>
-
+    </DocCallout>
 
 # Startup v2 — Complete Bootstrap Flow
 
@@ -259,14 +261,14 @@ timeline
 
 ## Key Design Points
 
-| Aspect | Mechanism | Why |
-|--------|-----------|-----|
-| **Orchestrator** | `BOOTSTRAP_GATE` provider (Phase 2) | Runs before all module factories because it has no `inject` deps |
-| **Sub-app ordering** | Topological sort of `dependsOn` fields | `config → setupWizard → database → auth → mesh → docker` |
-| **Setup wizard** | Embedded in sub-app chain | Only runs on first boot; skipped via fast path if config exists |
-| **Trigger sync** | `emit()` + `complete()` in sub-app, `waitFor()` in module factory | Singleton trigger services bridge sub-app output to main-app DI |
-| **Module barrier** | Each module factory `await`s its trigger | NestJS provider barrier ensures ordering |
-| **Clean teardown** | `app.close()` on each sub-app | `OnModuleDestroy` on all providers, connections closed, GC freed |
+| Aspect               | Mechanism                                                         | Why                                                              |
+| -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Orchestrator**     | `BOOTSTRAP_GATE` provider (Phase 2)                               | Runs before all module factories because it has no `inject` deps |
+| **Sub-app ordering** | Topological sort of `dependsOn` fields                            | `config → setupWizard → database → auth → mesh → docker`         |
+| **Setup wizard**     | Embedded in sub-app chain                                         | Only runs on first boot; skipped via fast path if config exists  |
+| **Trigger sync**     | `emit()` + `complete()` in sub-app, `waitFor()` in module factory | Singleton trigger services bridge sub-app output to main-app DI  |
+| **Module barrier**   | Each module factory `await`s its trigger                          | NestJS provider barrier ensures ordering                         |
+| **Clean teardown**   | `app.close()` on each sub-app                                     | `OnModuleDestroy` on all providers, connections closed, GC freed |
 
 ---
 
@@ -348,22 +350,22 @@ flowchart LR
 
 ## Key Files Involved
 
-| Step | File(s) | Role |
-|------|---------|------|
-| Entry point | `main.ts` | Creates NestJS app, enables shutdown hooks, configures CORS, listens |
-| Module tree | `app.module.ts` | Root module — defines all imports, BOOTSTRAP_GATE provider |
-| Foundation | `EnvModule`, `TriggersModule` (past) | `@Global()` modules — EnvService |
-| Orchestrator | `SubAppOrchestrator.service.ts` | `runAll()` with topological sort |
-| Sub-app runner | `SubAppContextModule`, `sub-app.interface.ts` | Provides SUB_APP_CONTEXT token |
-| Config | `sub-apps/config/config.sub-app*.ts` | Validates env vars |
-| Setup wizard | `sub-apps/setup-wizard/setup-wizard.sub-app*.ts` | HTTP wizard for first-time setup |
-| Database | `sub-apps/database/database.sub-app*.ts` | Creates Pool + Drizzle |
-| Auth | `sub-apps/auth/auth.sub-app*.ts` | Verifies BetterAuth |
-| Mesh | `sub-apps/mesh/mesh.sub-app*.ts` | Connects to mesh peers |
-| Events | `sub-apps/events/events.sub-app*.ts` | Verifies event bus |
-| Docker | `sub-apps/docker/docker.sub-app*.ts` | Validates Docker socket |
-| Trigger base | `core/modules/triggers/base-trigger.service.ts` | Extends BaseEventService |
-| Per-domain triggers | `config.trigger.service.ts` etc. | 7 services with Zod schemas |
-| DB provider | `core/modules/database/global/global.module.ts` | Awaits `databaseTrigger.waitFor()` |
-| Docker provider | `core/modules/docker/docker.module.ts` | Awaits `dockerTrigger.waitFor()` |
-| Registry | `sub-apps/registry.ts` | `ALL_SUB_APPS` list |
+| Step                | File(s)                                          | Role                                                                 |
+| ------------------- | ------------------------------------------------ | -------------------------------------------------------------------- |
+| Entry point         | `main.ts`                                        | Creates NestJS app, enables shutdown hooks, configures CORS, listens |
+| Module tree         | `app.module.ts`                                  | Root module — defines all imports, BOOTSTRAP_GATE provider           |
+| Foundation          | `EnvModule`, `TriggersModule` (past)             | `@Global()` modules — EnvService                                     |
+| Orchestrator        | `SubAppOrchestrator.service.ts`                  | `runAll()` with topological sort                                     |
+| Sub-app runner      | `SubAppContextModule`, `sub-app.interface.ts`    | Provides SUB_APP_CONTEXT token                                       |
+| Config              | `sub-apps/config/config.sub-app*.ts`             | Validates env vars                                                   |
+| Setup wizard        | `sub-apps/setup-wizard/setup-wizard.sub-app*.ts` | HTTP wizard for first-time setup                                     |
+| Database            | `sub-apps/database/database.sub-app*.ts`         | Creates Pool + Drizzle                                               |
+| Auth                | `sub-apps/auth/auth.sub-app*.ts`                 | Verifies BetterAuth                                                  |
+| Mesh                | `sub-apps/mesh/mesh.sub-app*.ts`                 | Connects to mesh peers                                               |
+| Events              | `sub-apps/events/events.sub-app*.ts`             | Verifies event bus                                                   |
+| Docker              | `sub-apps/docker/docker.sub-app*.ts`             | Validates Docker socket                                              |
+| Trigger base        | `core/modules/triggers/base-trigger.service.ts`  | Extends BaseEventService                                             |
+| Per-domain triggers | `config.trigger.service.ts` etc.                 | 7 services with Zod schemas                                          |
+| DB provider         | `core/modules/database/global/global.module.ts`  | Awaits `databaseTrigger.waitFor()`                                   |
+| Docker provider     | `core/modules/docker/docker.module.ts`           | Awaits `dockerTrigger.waitFor()`                                     |
+| Registry            | `sub-apps/registry.ts`                           | `ALL_SUB_APPS` list                                                  |

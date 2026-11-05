@@ -21,24 +21,24 @@ import { orpc } from '@/lib/orpc'
  * remove the first.
  */
 export const bffEndpoints = {
-	/** The operator's landing page: verdict inputs, stats, recent activity, host metrics. */
-	dashboardOverview: orpc.bff.dashboardOverview,
+    /** The operator's landing page: verdict inputs, stats, recent activity, host metrics. */
+    dashboardOverview: orpc.bff.dashboardOverview,
 
-	/** The projects list, each already rolled up (service count, health ratio, last deploy). */
-	listProjectOverviews: orpc.bff.listProjectOverviews,
+    /** The projects list, each already rolled up (service count, health ratio, last deploy). */
+    listProjectOverviews: orpc.bff.listProjectOverviews,
 
-	/** One project's screen: the project, its services and its environments in one answer. */
-	projectDetail: orpc.bff.projectDetail,
+    /** One project's screen: the project, its services and its environments in one answer. */
+    projectDetail: orpc.bff.projectDetail,
 
-	/** One service's screen: config, domains and latest deployment in one answer. */
-	serviceDetail: orpc.bff.serviceDetail,
+    /** One service's screen: config, domains and latest deployment in one answer. */
+    serviceDetail: orpc.bff.serviceDetail,
 
-	/** The analytics screen's eight metric families, read in parallel. */
-	analyticsOverview: orpc.bff.analyticsOverview,
+    /** The analytics screen's eight metric families, read in parallel. */
+    analyticsOverview: orpc.bff.analyticsOverview,
 
-	/** The account screen: profile plus notification count. */
-	accountOverview: orpc.bff.accountOverview,
+    /** The account screen: profile plus notification count. */
+    accountOverview: orpc.bff.accountOverview,
 
-	/** The fleet screen: nodes, allocations and admission requests. */
-	fleetOverview: orpc.bff.fleetOverview,
+    /** The fleet screen: nodes, allocations and admission requests. */
+    fleetOverview: orpc.bff.fleetOverview,
 }

@@ -36,7 +36,10 @@ describe('cache-key environment', () => {
 
     function readEnvOf(relativePath: string): Map<string, string> {
         const found = new Map<string, string>()
-        for (const line of readFileSync(join(REPO_ROOT, relativePath), 'utf8').split('\n')) {
+        for (const line of readFileSync(
+            join(REPO_ROOT, relativePath),
+            'utf8'
+        ).split('\n')) {
             // Skip comments: a doc line mentioning the variable is not a
             // declaration, and matching one produced a value with a stray
             // character during development of this very test.
@@ -45,7 +48,9 @@ describe('cache-key environment', () => {
                 // Dockerfile `ENV K=V` and compose `K: V`, anchored at the start
                 // of the line so an inline mention cannot match.
                 const match = code.match(
-                    new RegExp(`^\\s*(?:ENV\\s+)?${name}[:=\\s]+["']?([^"'\\s]+)`)
+                    new RegExp(
+                        `^\\s*(?:ENV\\s+)?${name}[:=\\s]+["']?([^"'\\s]+)`
+                    )
                 )
                 if (match?.[1] !== undefined) found.set(name, match[1])
             }
@@ -176,7 +181,7 @@ describe('bake graph parity', () => {
         }
     })
 
-    it('keeps build output OUT of every build task\'s inputs', () => {
+    it("keeps build output OUT of every build task's inputs", () => {
         // ── THE DEFECT THIS PINS ────────────────────────────────────────────
         // `$TURBO_DEFAULT$` hashes EVERY file in a workspace when the repo has no
         // `.git` — which is the case in the builder image. Without an exclusion,
@@ -221,7 +226,6 @@ describe('bake graph parity', () => {
         }
     })
 })
-
 
 import { TurboRunner } from './turbo-runner.service'
 
@@ -407,9 +411,12 @@ describe('TurboRunner', () => {
             const root = repo({
                 'packages/infrastructure/logger': { name: '@deployer/logger' },
             })
-            mkdirSync(join(root, 'packages/infrastructure/logger/node_modules'), {
-                recursive: true,
-            })
+            mkdirSync(
+                join(root, 'packages/infrastructure/logger/node_modules'),
+                {
+                    recursive: true,
+                }
+            )
             const out = join(root, 'out')
             const runner = new TurboRunner()
 
@@ -443,17 +450,14 @@ describe('TurboRunner', () => {
 
             runner.linkOutputs(
                 root,
-                [
-                    member(
-                        '@deployer/config-typescript',
-                        'tooling/typescript'
-                    ),
-                ],
+                [member('@deployer/config-typescript', 'tooling/typescript')],
                 out
             )
 
             expect(
-                existsSync(join(out, 'packages/@deployer/config-typescript/dist'))
+                existsSync(
+                    join(out, 'packages/@deployer/config-typescript/dist')
+                )
             ).toBe(false)
         })
 
@@ -463,7 +467,9 @@ describe('TurboRunner', () => {
             })
             const out = join(root, 'out')
             const runner = new TurboRunner()
-            const union = [member('@deployer/logger', 'packages/infrastructure/logger')]
+            const union = [
+                member('@deployer/logger', 'packages/infrastructure/logger'),
+            ]
             const link = join(root, 'packages/infrastructure/logger/dist')
 
             runner.linkOutputs(root, union, out)
@@ -514,7 +520,10 @@ describe('TurboRunner', () => {
 
             const published = runner.linkOutputs(
                 root,
-                [member('@deployer/a', 'packages/a'), member('@deployer/b', 'packages/b')],
+                [
+                    member('@deployer/a', 'packages/a'),
+                    member('@deployer/b', 'packages/b'),
+                ],
                 join(root, 'out')
             )
 
@@ -526,7 +535,10 @@ describe('TurboRunner', () => {
             // The fixture omits `dist/` for a package with a build script only
             // when told to; shaping that here means removing it after creation.
             const root = repo({ 'packages/a': { name: '@deployer/a' } })
-            rmSync(join(root, 'packages/a/dist'), { recursive: true, force: true })
+            rmSync(join(root, 'packages/a/dist'), {
+                recursive: true,
+                force: true,
+            })
             const runner = new TurboRunner()
 
             const published = runner.linkOutputs(
@@ -548,7 +560,9 @@ describe('TurboRunner', () => {
             const union = [member('@deployer/a', 'packages/a')]
 
             // A previous run published a newer artifact into the surviving volume.
-            mkdirSync(join(out, 'packages/@deployer/a/dist'), { recursive: true })
+            mkdirSync(join(out, 'packages/@deployer/a/dist'), {
+                recursive: true,
+            })
             writeFileSync(
                 join(out, 'packages/@deployer/a/dist/index.mjs'),
                 'export const NEWER = 1\n'

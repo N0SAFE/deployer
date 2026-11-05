@@ -10,32 +10,36 @@ import type { Metadata } from 'next'
 // Metadata lives in the layout: the pages under it are client components, and
 // `metadata` cannot be exported from a `'use client'` file.
 export const metadata: Metadata = {
-  title: 'Docker',
-  description: 'Containers, images, networks and volumes on this node',
+    title: 'Docker',
+    description: 'Containers, images, networks and volumes on this node',
 }
 
-export default function DashboardDockerLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="space-y-5">
-      <Suspense fallback={null}>
-        <DockerSectionHeader />
-      </Suspense>
+export default function DashboardDockerLayout({
+    children,
+}: {
+    children: React.ReactNode
+}) {
+    return (
+        <div className="space-y-5">
+            <Suspense fallback={null}>
+                <DockerSectionHeader />
+            </Suspense>
 
-      {/* DockerSectionTabs calls usePathname() (URL data) — wrap in Suspense
+            {/* DockerSectionTabs calls usePathname() (URL data) — wrap in Suspense
           so the docker sub-routes keep their static shell. The fallback is a
           tab-shaped skeleton so the shell is never blank while the pathname
           streams in. */}
-      <Suspense fallback={<DockerTabsSkeleton />}>
-        <DockerSectionTabs />
-      </Suspense>
+            <Suspense fallback={<DockerTabsSkeleton />}>
+                <DockerSectionTabs />
+            </Suspense>
 
-      <DockerScopeNotice />
+            <DockerScopeNotice />
 
-      <DockerRuntimeEventsProviderClient>
-        <div>{children}</div>
-      </DockerRuntimeEventsProviderClient>
-    </div>
-  )
+            <DockerRuntimeEventsProviderClient>
+                <div>{children}</div>
+            </DockerRuntimeEventsProviderClient>
+        </div>
+    )
 }
 
 /**
@@ -43,11 +47,14 @@ export default function DashboardDockerLayout({ children }: { children: React.Re
  * pathname (URL data) streams in during prerendering.
  */
 function DockerTabsSkeleton() {
-  return (
-    <nav aria-hidden className="flex flex-wrap items-center gap-1">
-      {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="h-8 w-24 animate-pulse rounded-md bg-muted" />
-      ))}
-    </nav>
-  )
+    return (
+        <nav aria-hidden className="flex flex-wrap items-center gap-1">
+            {Array.from({ length: 6 }, (_, i) => (
+                <div
+                    key={i}
+                    className="bg-muted h-8 w-24 animate-pulse rounded-md"
+                />
+            ))}
+        </nav>
+    )
 }

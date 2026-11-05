@@ -1,12 +1,12 @@
 {
-  "extends": "@deployer/config-typescript/config/test.json",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@": ["./src"],
-      "#": ["./"]
+    "extends": "@deployer/config-typescript/config/test.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@": ["./src"],
+            "#": ["./"]
+        },
+        "jsx": "react-jsx"
     },
-    "jsx": "react-jsx"
-  },
-  "include": ["__tests__/**/*"]
+    "include": ["__tests__/**/*"]
 }

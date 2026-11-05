@@ -19,37 +19,64 @@ let tickNow = 0
 let tickTimer: ReturnType<typeof setInterval> | undefined
 
 function subscribeToTick(listener: () => void): () => void {
-	if (tickListeners.size === 0) {
-		tickNow = Date.now()
-		tickTimer = setInterval(() => {
-			tickNow = Date.now()
-			tickListeners.forEach((l) => { l() })
-		}, 30_000)
-	}
-	tickListeners.add(listener)
-	return () => {
-		tickListeners.delete(listener)
-		if (tickListeners.size === 0 && tickTimer !== undefined) {
-			clearInterval(tickTimer)
-			tickTimer = undefined
-		}
-	}
+    if (tickListeners.size === 0) {
+        tickNow = Date.now()
+        tickTimer = setInterval(() => {
+            tickNow = Date.now()
+            tickListeners.forEach((l) => {
+                l()
+            })
+        }, 30_000)
+    }
+    tickListeners.add(listener)
+    return () => {
+        tickListeners.delete(listener)
+        if (tickListeners.size === 0 && tickTimer !== undefined) {
+            clearInterval(tickTimer)
+            tickTimer = undefined
+        }
+    }
 }
 
 function getTickSnapshot(): number | null {
-	return tickListeners.size === 0 ? null : tickNow
+    return tickListeners.size === 0 ? null : tickNow
 }
 
-export function RelativeTime({ value, fallback = '—', className }: { value: string | Date | null | undefined; fallback?: string; className?: string }) {
-	const now = useSyncExternalStore(subscribeToTick, getTickSnapshot, () => null)
+export function RelativeTime({
+    value,
+    fallback = '—',
+    className,
+}: {
+    value: string | Date | null | undefined
+    fallback?: string
+    className?: string
+}) {
+    const now = useSyncExternalStore(
+        subscribeToTick,
+        getTickSnapshot,
+        () => null
+    )
 
-	const date = value === null || value === undefined || value === '' ? null : new Date(value)
-	if (date === null || Number.isNaN(date.getTime())) return <span className={className}>{fallback}</span>
-	const absolute = formatDateTime(date)
-	const text = now === null ? absolute : now - date.getTime() < 45_000 ? 'just now' : `${formatDistanceToNowStrict(date)} ago`
-	return (
-		<time dateTime={date.toISOString()} title={absolute} className={className}>
-			{text}
-		</time>
-	)
+    const date =
+        value === null || value === undefined || value === ''
+            ? null
+            : new Date(value)
+    if (date === null || Number.isNaN(date.getTime()))
+        return <span className={className}>{fallback}</span>
+    const absolute = formatDateTime(date)
+    const text =
+        now === null
+            ? absolute
+            : now - date.getTime() < 45_000
+              ? 'just now'
+              : `${formatDistanceToNowStrict(date)} ago`
+    return (
+        <time
+            dateTime={date.toISOString()}
+            title={absolute}
+            className={className}
+        >
+            {text}
+        </time>
+    )
 }

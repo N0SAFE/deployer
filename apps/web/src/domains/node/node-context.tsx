@@ -1,6 +1,12 @@
 'use client'
 
-import { createContext, useContext, useState, useMemo, type ReactNode } from 'react'
+import {
+    createContext,
+    useContext,
+    useState,
+    useMemo,
+    type ReactNode,
+} from 'react'
 
 import { useMeshLocalNode } from '@/domains/mesh/hooks'
 
@@ -16,31 +22,35 @@ import { useMeshLocalNode } from '@/domains/mesh/hooks'
  */
 
 interface NodeScope {
-  /** Currently selected node ID, or null for mesh-wide view */
-  nodeId: string | null
-  /** Set the active node scope. Pass null to return to mesh-wide. */
-  setNodeId: (id: string | null) => void
-  /** Whether a specific node is selected */
-  isNodeSelected: boolean
-  /** The local node ID (from mesh identity), if known */
-  localNodeId: string | undefined
+    /** Currently selected node ID, or null for mesh-wide view */
+    nodeId: string | null
+    /** Set the active node scope. Pass null to return to mesh-wide. */
+    setNodeId: (id: string | null) => void
+    /** Whether a specific node is selected */
+    isNodeSelected: boolean
+    /** The local node ID (from mesh identity), if known */
+    localNodeId: string | undefined
 }
 
 const NodeScopeContext = createContext<NodeScope | null>(null)
 
 export function NodeScopeProvider({ children }: { children: ReactNode }) {
-  const [nodeId, setNodeId] = useState<string | null>(null)
-  const { data: localNode } = useMeshLocalNode()
-  const localNodeId = localNode?.nodeId
+    const [nodeId, setNodeId] = useState<string | null>(null)
+    const { data: localNode } = useMeshLocalNode()
+    const localNodeId = localNode?.nodeId
 
-  const isNodeSelected = nodeId !== null
+    const isNodeSelected = nodeId !== null
 
-  const value = useMemo<NodeScope>(
-    () => ({ nodeId, setNodeId, isNodeSelected, localNodeId }),
-    [nodeId, setNodeId, isNodeSelected, localNodeId],
-  )
+    const value = useMemo<NodeScope>(
+        () => ({ nodeId, setNodeId, isNodeSelected, localNodeId }),
+        [nodeId, setNodeId, isNodeSelected, localNodeId]
+    )
 
-  return <NodeScopeContext.Provider value={value}>{children}</NodeScopeContext.Provider>
+    return (
+        <NodeScopeContext.Provider value={value}>
+            {children}
+        </NodeScopeContext.Provider>
+    )
 }
 
 /**
@@ -61,9 +71,11 @@ export function NodeScopeProvider({ children }: { children: ReactNode }) {
  * ```
  */
 export function useNodeScope(): NodeScope {
-  const ctx = useContext(NodeScopeContext)
-  if (!ctx) {
-    throw new Error('useNodeScope must be used within a <NodeScopeProvider>')
-  }
-  return ctx
+    const ctx = useContext(NodeScopeContext)
+    if (!ctx) {
+        throw new Error(
+            'useNodeScope must be used within a <NodeScopeProvider>'
+        )
+    }
+    return ctx
 }

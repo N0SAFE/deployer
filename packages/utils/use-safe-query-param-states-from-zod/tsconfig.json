@@ -9,18 +9,10 @@
         "skipLibCheck": true,
         "moduleResolution": "bundler",
         "target": "ES2020",
-        "lib": [
-            "ES2022",
-            "dom",
-            "dom.iterable"
-        ],
+        "lib": ["ES2022", "dom", "dom.iterable"],
         "paths": {
-            "@deployer/use-safe-query-param-states-from-zod/*": [
-                "./src/*"
-            ]
+            "@deployer/use-safe-query-param-states-from-zod/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ]
+    "include": ["pkg-build.config.ts", "src/**/*"]
 }

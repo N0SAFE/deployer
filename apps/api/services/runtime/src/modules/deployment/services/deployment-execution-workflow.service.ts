@@ -1,88 +1,102 @@
-import { Context } from "effect";
+import { Context } from 'effect'
 
-import type { EffectHostShape } from "@deployer/nest-effect";
-import type { DeploymentObservabilityContext } from "@deployer/contracts-entities";
-import { runtimeRunnerOptionsSchema } from "@deployer/contracts-entities";
-import type { DomainRoutingService, RouteSyncResult } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
-import type { EgressServiceShape } from "@deployer/shared/core/modules/egress/egress.service";
-import { isRecord } from "@deployer/type-guards"
+import type { DeploymentObservabilityContext } from '@deployer/contracts-entities'
+import { runtimeRunnerOptionsSchema } from '@deployer/contracts-entities'
+import type { EffectHostShape } from '@deployer/nest-effect'
+import type {
+    DomainRoutingService,
+    RouteSyncResult,
+} from '@deployer/shared/core/modules/domain/services/domain-routing.service'
+import type { EgressServiceShape } from '@deployer/shared/core/modules/egress/egress.service'
+import { isRecord } from '@deployer/type-guards'
 
-import type { RuntimeRunnerRegistryShape } from "@/modules/runners/runtime-runner-registry.service";
+import type { RuntimeRunnerRegistryShape } from '@/modules/runners/runtime-runner-registry.service'
 import type {
     BuildArtifactResult,
     HealthGateConfig,
     RuntimeConvergenceConfig,
     RuntimeRunnerExecutionOptions,
-} from "@/modules/runners/runtime-runner.interface";
+} from '@/modules/runners/runtime-runner.interface'
 
-
-import { lift } from "../../../core/effects";
-import { RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
-import type { DeploymentEventService } from "../events/deployment-event.service";
-import type { DeploymentRepositoryPort } from "../deployment.ports";
+import { lift } from '../../../core/effects'
+import { RuntimeInvalid, RuntimeNotFound } from '../../../core/runtime.errors'
 import {
     deploymentStorageBindingSchema,
     type DeploymentStorageBinding,
-} from "../storage/base/storage-provider.interface";
+} from '../storage/base/storage-provider.interface'
 
+import type { DeploymentRepositoryPort } from '../deployment.ports'
+import type { DeploymentEventService } from '../events/deployment-event.service'
 
-
-type RuntimeConvergenceSource = "runtimeRunnerOptions" | "default";
+type RuntimeConvergenceSource = 'runtimeRunnerOptions' | 'default'
 
 type RuntimeConvergenceConfigResolution = {
-    config: RuntimeConvergenceConfig;
+    config: RuntimeConvergenceConfig
     source: {
-        traefikSyncMaxAttempts: RuntimeConvergenceSource;
-        retryBaseDelayMs: RuntimeConvergenceSource;
-    };
+        traefikSyncMaxAttempts: RuntimeConvergenceSource
+        retryBaseDelayMs: RuntimeConvergenceSource
+    }
 }
 
 type DeployPhaseRetryPolicy = {
-    maxRetries: number;
-    retryIntervalMs: number;
+    maxRetries: number
+    retryIntervalMs: number
 }
 
 export type DeploymentExecutionWorkflowPorts = {
-    readonly deploymentRepository: Context.Service.Shape<typeof DeploymentRepositoryPort>;
+    readonly deploymentRepository: Context.Service.Shape<
+        typeof DeploymentRepositoryPort
+    >
     /** The runner registry; its program needs the runners' own services, so it runs on the app-wide host. */
-    readonly runtimeRunnerRegistry: RuntimeRunnerRegistryShape;
-    readonly host: Pick<EffectHostShape, "run" | "runUnwrapped">;
-    readonly deploymentEventService: DeploymentEventService;
-    readonly domainRoutingService: Context.Service.Shape<typeof DomainRoutingService>;
-    readonly egress: EgressServiceShape;
-};
+    readonly runtimeRunnerRegistry: RuntimeRunnerRegistryShape
+    readonly host: Pick<EffectHostShape, 'run' | 'runUnwrapped'>
+    readonly deploymentEventService: DeploymentEventService
+    readonly domainRoutingService: Context.Service.Shape<
+        typeof DomainRoutingService
+    >
+    readonly egress: EgressServiceShape
+}
 
-export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkflowPorts) {
-    const { deploymentRepository, runtimeRunnerRegistry, host, deploymentEventService, domainRoutingService, egress } = ports;
+export function makeDeploymentExecutionWorkflow(
+    ports: DeploymentExecutionWorkflowPorts
+) {
+    const {
+        deploymentRepository,
+        runtimeRunnerRegistry,
+        host,
+        deploymentEventService,
+        domainRoutingService,
+        egress,
+    } = ports
 
     async function markBuildExecutionStarted(
         deploymentId: string,
         startedAt: Date,
-        observability?: DeploymentObservabilityContext | null,
+        observability?: DeploymentObservabilityContext | null
     ) {
-        const deployment = await getDeploymentById(deploymentId);
+        const deployment = await getDeploymentById(deploymentId)
         const metadata = mergeMetadata(deployment.metadata, {
             buildExecution: {
-                status: "started",
+                status: 'started',
                 startedAt: startedAt.toISOString(),
             },
-            stage: "building",
-        });
+            stage: 'building',
+        })
 
         await deploymentRepository.persistBuildArtifacts(deploymentId, {
             buildStartedAt: startedAt,
-            status: "building",
-            phase: "building",
+            status: 'building',
+            phase: 'building',
             phaseProgress: 25,
             metadata,
-        });
+        })
 
         await deploymentRepository.insertLog(deploymentId, {
-            level: "info",
-            message: "Build execution started",
-            phase: "building",
-            step: "build_started",
-            stage: "build",
+            level: 'info',
+            message: 'Build execution started',
+            phase: 'building',
+            step: 'build_started',
+            stage: 'build',
             correlationId: observability?.correlationId ?? deploymentId,
             traceId: observability?.traceId,
             spanId: observability?.spanId,
@@ -90,22 +104,23 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 startedAt: startedAt.toISOString(),
                 structured: true,
             },
-        });
+        })
     }
 
     async function persistBuildExecutionResult(
         deploymentId: string,
         result: Record<string, unknown> | undefined,
-        observability?: DeploymentObservabilityContext | null,
+        observability?: DeploymentObservabilityContext | null
     ) {
-        const completedAt = getResultDate(result, "buildCompletedAt") ?? new Date();
-        const startedAt = getResultDate(result, "buildStartedAt");
-        const artifact = extractArtifactResult(result);
-        const deployment = await getDeploymentById(deploymentId);
+        const completedAt =
+            getResultDate(result, 'buildCompletedAt') ?? new Date()
+        const startedAt = getResultDate(result, 'buildStartedAt')
+        const artifact = extractArtifactResult(result)
+        const deployment = await getDeploymentById(deploymentId)
         const buildDuration =
             startedAt !== undefined
                 ? Math.max(0, completedAt.getTime() - startedAt.getTime())
-                : undefined;
+                : undefined
 
         const metadata = mergeMetadata(deployment.metadata, {
             artifact: {
@@ -117,32 +132,36 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 persistedAt: completedAt.toISOString(),
             },
             buildExecution: {
-                status: "completed",
-                startedAt: startedAt?.toISOString() ?? deployment.buildStartedAt ?? null,
+                status: 'completed',
+                startedAt:
+                    startedAt?.toISOString() ??
+                    deployment.buildStartedAt ??
+                    null,
                 completedAt: completedAt.toISOString(),
                 durationMs: buildDuration,
             },
             ...(buildDuration !== undefined ? { buildDuration } : {}),
-            stage: "deploying",
-        });
+            stage: 'deploying',
+        })
 
         await deploymentRepository.persistBuildArtifacts(deploymentId, {
             buildCompletedAt: completedAt,
             ...(startedAt ? { buildStartedAt: startedAt } : {}),
             containerImage: artifact.containerImage,
             containerName: artifact.containerName,
-            status: "deploying",
-            phase: "copying_files",
+            status: 'deploying',
+            phase: 'copying_files',
             phaseProgress: 50,
             metadata,
-        });
+        })
 
         await deploymentRepository.insertLog(deploymentId, {
-            level: "info",
-            message: "Build execution completed and artifact metadata persisted",
-            phase: "building",
-            step: "build_completed",
-            stage: "build",
+            level: 'info',
+            message:
+                'Build execution completed and artifact metadata persisted',
+            phase: 'building',
+            step: 'build_completed',
+            stage: 'build',
             correlationId: observability?.correlationId ?? deploymentId,
             traceId: observability?.traceId,
             spanId: observability?.spanId,
@@ -155,47 +174,56 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 durationMs: buildDuration,
                 structured: true,
             },
-        });
+        })
 
-        await applyContainerLifecycle(deploymentId, artifact, result, observability);
+        await applyContainerLifecycle(
+            deploymentId,
+            artifact,
+            result,
+            observability
+        )
     }
 
     async function markRollbackExecutionStarted(
         rollbackDeploymentId: string,
         rollbackId: string | null,
         fromDeploymentId: string | null,
-        observability?: DeploymentObservabilityContext | null,
+        observability?: DeploymentObservabilityContext | null
     ) {
-        const startedAt = new Date();
-        const rollbackDeployment = await getDeploymentById(rollbackDeploymentId);
+        const startedAt = new Date()
+        const rollbackDeployment = await getDeploymentById(rollbackDeploymentId)
         const metadata = mergeMetadata(rollbackDeployment.metadata, {
             rollbackExecution: {
-                status: "in_progress",
+                status: 'in_progress',
                 rollbackId,
                 startedAt: startedAt.toISOString(),
             },
-            stage: "rollback",
-        });
+            stage: 'rollback',
+        })
 
         await deploymentRepository.persistBuildArtifacts(rollbackDeploymentId, {
-            status: "deploying",
-            phase: "copying_files",
+            status: 'deploying',
+            phase: 'copying_files',
             phaseProgress: 65,
             metadata,
-        });
+        })
 
         if (rollbackId) {
-            await deploymentRepository.updateRollbackStatus(rollbackId, "in_progress", {
-                startedAt,
-            });
+            await deploymentRepository.updateRollbackStatus(
+                rollbackId,
+                'in_progress',
+                {
+                    startedAt,
+                }
+            )
         }
 
         await deploymentRepository.insertLog(rollbackDeploymentId, {
-            level: "info",
-            message: "Rollback execution started",
-            phase: "deploying",
-            stage: "rollback",
-            step: "rollback_start",
+            level: 'info',
+            message: 'Rollback execution started',
+            phase: 'deploying',
+            stage: 'rollback',
+            step: 'rollback_start',
             correlationId: observability?.correlationId ?? rollbackDeploymentId,
             traceId: observability?.traceId,
             spanId: observability?.spanId,
@@ -205,7 +233,7 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 startedAt: startedAt.toISOString(),
                 structured: true,
             },
-        });
+        })
     }
 
     async function persistRollbackExecutionResult(
@@ -213,43 +241,48 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
         rollbackId: string | null,
         fromDeploymentId: string | null,
         observability?: DeploymentObservabilityContext | null,
-        result?: Record<string, unknown>,
+        result?: Record<string, unknown>
     ) {
-        const completedAt = getResultDate(result, "rollbackCompletedAt") ?? new Date();
-        const rollbackDeployment = await getDeploymentById(rollbackDeploymentId);
+        const completedAt =
+            getResultDate(result, 'rollbackCompletedAt') ?? new Date()
+        const rollbackDeployment = await getDeploymentById(rollbackDeploymentId)
         const metadata = mergeMetadata(rollbackDeployment.metadata, {
             rollbackExecution: {
-                status: "completed",
+                status: 'completed',
                 rollbackId,
                 completedAt: completedAt.toISOString(),
             },
-            stage: "active",
-        });
+            stage: 'active',
+        })
 
         await deploymentRepository.persistBuildArtifacts(rollbackDeploymentId, {
             deployCompletedAt: completedAt,
-            status: "success",
-            phase: "active",
+            status: 'success',
+            phase: 'active',
             phaseProgress: 100,
             metadata,
-        });
+        })
 
         if (rollbackId) {
-            await deploymentRepository.updateRollbackStatus(rollbackId, "completed", {
-                completedAt,
-                metadata: {
-                    ...(rollbackDeployment.metadata ?? {}),
-                    completedByQueue: true,
-                },
-            });
+            await deploymentRepository.updateRollbackStatus(
+                rollbackId,
+                'completed',
+                {
+                    completedAt,
+                    metadata: {
+                        ...(rollbackDeployment.metadata ?? {}),
+                        completedByQueue: true,
+                    },
+                }
+            )
         }
 
         await deploymentRepository.insertLog(rollbackDeploymentId, {
-            level: "info",
-            message: "Rollback execution completed",
-            phase: "active",
-            stage: "rollback",
-            step: "rollback_complete",
+            level: 'info',
+            message: 'Rollback execution completed',
+            phase: 'active',
+            stage: 'rollback',
+            step: 'rollback_complete',
             correlationId: observability?.correlationId ?? rollbackDeploymentId,
             traceId: observability?.traceId,
             spanId: observability?.spanId,
@@ -259,11 +292,11 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 completedAt: completedAt.toISOString(),
                 structured: true,
             },
-        });
+        })
 
         if (fromDeploymentId) {
             deploymentEventService.emit(
-                "rollbackCompleted",
+                'rollbackCompleted',
                 { serviceId: rollbackDeployment.serviceId },
                 {
                     serviceId: rollbackDeployment.serviceId,
@@ -271,8 +304,8 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     toDeploymentId: rollbackDeploymentId,
                     success: true,
                     timestamp: completedAt.toISOString(),
-                },
-            );
+                }
+            )
         }
     }
 
@@ -280,36 +313,48 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
         rollbackDeploymentId: string,
         rollbackId: string | null,
         fromDeploymentId: string | null,
-        errorMessage: string,
+        errorMessage: string
     ) {
-        const failedAt = new Date();
-        const rollbackDeployment = await getDeploymentById(rollbackDeploymentId);
+        const failedAt = new Date()
+        const rollbackDeployment = await getDeploymentById(rollbackDeploymentId)
         const metadata = mergeMetadata(rollbackDeployment.metadata, {
             rollbackExecution: {
-                status: "failed",
+                status: 'failed',
                 rollbackId,
                 failedAt: failedAt.toISOString(),
                 error: errorMessage,
             },
-            stage: "failed",
-        });
+            stage: 'failed',
+        })
 
-        await deploymentRepository.updateStatus(rollbackDeploymentId, "failed", metadata);
-        await deploymentRepository.updatePhase(rollbackDeploymentId, "failed", 100);
+        await deploymentRepository.updateStatus(
+            rollbackDeploymentId,
+            'failed',
+            metadata
+        )
+        await deploymentRepository.updatePhase(
+            rollbackDeploymentId,
+            'failed',
+            100
+        )
 
         if (rollbackId) {
-            await deploymentRepository.updateRollbackStatus(rollbackId, "failed", {
-                failedAt,
-                errorMessage,
-            });
+            await deploymentRepository.updateRollbackStatus(
+                rollbackId,
+                'failed',
+                {
+                    failedAt,
+                    errorMessage,
+                }
+            )
         }
 
         await deploymentRepository.insertLog(rollbackDeploymentId, {
-            level: "error",
-            message: "Rollback execution failed",
-            phase: "failed",
-            stage: "rollback",
-            step: "rollback_fail",
+            level: 'error',
+            message: 'Rollback execution failed',
+            phase: 'failed',
+            stage: 'rollback',
+            step: 'rollback_fail',
             metadata: {
                 rollbackId,
                 fromDeploymentId,
@@ -317,11 +362,11 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 failedAt: failedAt.toISOString(),
                 structured: true,
             },
-        });
+        })
 
         if (fromDeploymentId) {
             deploymentEventService.emit(
-                "rollbackCompleted",
+                'rollbackCompleted',
                 { serviceId: rollbackDeployment.serviceId },
                 {
                     serviceId: rollbackDeployment.serviceId,
@@ -329,8 +374,8 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     toDeploymentId: rollbackDeploymentId,
                     success: false,
                     timestamp: failedAt.toISOString(),
-                },
-            );
+                }
+            )
         }
     }
 
@@ -342,73 +387,86 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
      * path: status → failed, phase → failed (progress 100), error log, and
      * execution metadata stamped.
      */
-    async function persistDeploymentExecutionFailure(deploymentId: string, errorMessage: string) {
-        const failedAt = new Date();
-        const deployment = await getDeploymentById(deploymentId);
+    async function persistDeploymentExecutionFailure(
+        deploymentId: string,
+        errorMessage: string
+    ) {
+        const failedAt = new Date()
+        const deployment = await getDeploymentById(deploymentId)
         const metadata = mergeMetadata(deployment.metadata, {
             buildExecution: {
-                status: "failed",
+                status: 'failed',
                 failedAt: failedAt.toISOString(),
                 error: errorMessage,
             },
-            stage: "failed",
-        });
+            stage: 'failed',
+        })
 
-        await deploymentRepository.updateStatus(deploymentId, "failed", metadata);
-        await deploymentRepository.updatePhase(deploymentId, "failed", 100);
+        await deploymentRepository.updateStatus(
+            deploymentId,
+            'failed',
+            metadata
+        )
+        await deploymentRepository.updatePhase(deploymentId, 'failed', 100)
 
         await deploymentRepository.insertLog(deploymentId, {
-            level: "error",
-            message: "Deployment execution failed (queue exhausted)",
-            phase: "failed",
-            stage: "build",
-            step: "execution_fail",
+            level: 'error',
+            message: 'Deployment execution failed (queue exhausted)',
+            phase: 'failed',
+            stage: 'build',
+            step: 'execution_fail',
             metadata: {
                 errorMessage,
                 failedAt: failedAt.toISOString(),
                 structured: true,
             },
-        });
+        })
     }
 
     async function applyContainerLifecycle(
         deploymentId: string,
         artifact: BuildArtifactResult,
         result: Record<string, unknown> | undefined,
-        observability?: DeploymentObservabilityContext | null,
+        observability?: DeploymentObservabilityContext | null
     ) {
-        const deployment = await getDeploymentById(deploymentId);
-        const deployStartedAt = deployment.deployStartedAt ? new Date(deployment.deployStartedAt) : new Date();
+        const deployment = await getDeploymentById(deploymentId)
+        const deployStartedAt = deployment.deployStartedAt
+            ? new Date(deployment.deployStartedAt)
+            : new Date()
 
         try {
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Container lifecycle cleanup started",
-                phase: "deploying",
-                step: "cleanup",
-                stage: "container_lifecycle",
+                level: 'info',
+                message: 'Container lifecycle cleanup started',
+                phase: 'deploying',
+                step: 'cleanup',
+                stage: 'container_lifecycle',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
                 metadata: {
                     runner: resolveRuntimeRunnerKind(result),
                 },
-            });
+            })
 
-            const storageBinding = resolveStorageBinding(result);
-            const runtimeRunnerOptions = resolveRuntimeRunnerOptions(result);
-            const customRunCommand = getResultString(result, "customRunCommand");
-            const runtimeEnvironmentVariables = resolveRuntimeEnvironmentVariables(result);
-            const convergenceResolution = resolveRuntimeConvergenceConfig(runtimeRunnerOptions);
-            const deployRetryPolicy = resolveDeployPhaseRetryPolicy(result);
-            const projectId = await deploymentRepository.getServiceProjectId(deployment.serviceId);
+            const storageBinding = resolveStorageBinding(result)
+            const runtimeRunnerOptions = resolveRuntimeRunnerOptions(result)
+            const customRunCommand = getResultString(result, 'customRunCommand')
+            const runtimeEnvironmentVariables =
+                resolveRuntimeEnvironmentVariables(result)
+            const convergenceResolution =
+                resolveRuntimeConvergenceConfig(runtimeRunnerOptions)
+            const deployRetryPolicy = resolveDeployPhaseRetryPolicy(result)
+            const projectId = await deploymentRepository.getServiceProjectId(
+                deployment.serviceId
+            )
 
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Runtime convergence policy resolved",
-                phase: "deploying",
-                step: "convergence_policy",
-                stage: "routing",
+                level: 'info',
+                message: 'Runtime convergence policy resolved',
+                phase: 'deploying',
+                step: 'convergence_policy',
+                stage: 'routing',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
@@ -417,35 +475,37 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     source: convergenceResolution.source,
                     structured: true,
                 },
-            });
+            })
 
             if (storageBinding) {
                 await deploymentRepository.insertLog(deploymentId, {
-                    level: "info",
-                    message: "Storage binding materialized for runtime execution",
-                    phase: "deploying",
-                    step: "storage_materialization",
-                    stage: "container_lifecycle",
+                    level: 'info',
+                    message:
+                        'Storage binding materialized for runtime execution',
+                    phase: 'deploying',
+                    step: 'storage_materialization',
+                    stage: 'container_lifecycle',
                     correlationId: observability?.correlationId ?? deploymentId,
                     traceId: observability?.traceId,
                     spanId: observability?.spanId,
                     metadata: {
                         storageType: storageBinding.storageType,
                         mountPath: storageBinding.mountPath,
-                        autoRedeployOnUpdate: storageBinding.autoRedeployOnUpdate,
+                        autoRedeployOnUpdate:
+                            storageBinding.autoRedeployOnUpdate,
                         updateStrategy: storageBinding.updateStrategy,
                         structured: true,
                     },
-                });
+                })
             }
 
-            const runtimeRunnerKind = resolveRuntimeRunnerKind(result);
+            const runtimeRunnerKind = resolveRuntimeRunnerKind(result)
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Runtime runner execution started",
-                phase: "deploying",
-                step: "runtime_execute",
-                stage: "runner",
+                level: 'info',
+                message: 'Runtime runner execution started',
+                phase: 'deploying',
+                step: 'runtime_execute',
+                stage: 'runner',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
@@ -453,7 +513,7 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     runner: runtimeRunnerKind,
                     structured: true,
                 },
-            });
+            })
 
             const runtimeExecutionInput = {
                 deployment: {
@@ -469,85 +529,106 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                         deployment.healthCheckUrl,
                     networkMode:
                         runtimeRunnerOptions?.networkMode ??
-                        getResultString(result, "networkMode") ??
+                        getResultString(result, 'networkMode') ??
                         undefined,
                     cpuShares:
                         runtimeRunnerOptions?.cpuShares ??
-                        getResultNumber(result, "cpuShares") ??
+                        getResultNumber(result, 'cpuShares') ??
                         undefined,
                     memoryLimitBytes:
                         runtimeRunnerOptions?.memoryLimitBytes ??
-                        getResultNumber(result, "memoryLimitBytes") ??
+                        getResultNumber(result, 'memoryLimitBytes') ??
                         undefined,
                 },
                 artifact,
-                healthGateConfig: resolveHealthGateConfig(result, runtimeRunnerOptions),
+                healthGateConfig: resolveHealthGateConfig(
+                    result,
+                    runtimeRunnerOptions
+                ),
                 convergenceConfig: convergenceResolution.config,
                 runtimeRunnerOptions: runtimeRunnerOptions ?? undefined,
                 executorOptions: resolveExecutorOptions(
                     runtimeRunnerOptions,
                     customRunCommand,
-                    runtimeEnvironmentVariables,
+                    runtimeEnvironmentVariables
                 ),
                 storageBinding,
                 observability,
-            };
+            }
 
             // A1: derive the service's reachable URLs from its domain mappings
             // and upsert the Traefik routes BEFORE runtime execution, so the
             // runner finds a real config instead of bootstrapping `localhost`.
             // Pure data-driven (domain mappings) — never env vars.
-            let routeSync: RouteSyncResult | null = null;
+            let routeSync: RouteSyncResult | null = null
             try {
-                routeSync = await host.run(domainRoutingService.syncServiceRoutes(deployment.serviceId, {
-                    healthCheckPath: "/health",
-                }));
+                routeSync = await host.run(
+                    domainRoutingService.syncServiceRoutes(
+                        deployment.serviceId,
+                        {
+                            healthCheckPath: '/health',
+                        }
+                    )
+                )
             } catch (error) {
                 // Non-fatal: deployment continues; the runner will fall back to
                 // its default (localhost) routing when no mappings resolve.
                 await deploymentRepository.insertLog(deploymentId, {
-                    level: "warn",
+                    level: 'warn',
                     message: `Domain route sync skipped for service ${deployment.serviceId}: ${error instanceof Error ? error.message : String(error)}`,
-                    phase: "deploying",
-                    step: "domain_route_sync",
-                    stage: "routing",
+                    phase: 'deploying',
+                    step: 'domain_route_sync',
+                    stage: 'routing',
                     correlationId: observability?.correlationId ?? deploymentId,
                     traceId: observability?.traceId,
                     spanId: observability?.spanId,
                     metadata: { structured: true },
-                });
+                })
             }
 
             // A5: provision TLS certificate for the primary mapped domain
             // (idempotent, data-driven from the mapping's ssl fields).
-            let tlsProvision: { provisioned: boolean; host: string | null; reason?: string };
+            let tlsProvision: {
+                provisioned: boolean
+                host: string | null
+                reason?: string
+            }
             try {
-                tlsProvision = await host.run(domainRoutingService.provisionTlsCertificate(deployment.serviceId));
-                if (tlsProvision.provisioned && tlsProvision.reason !== "already_provisioned") {
+                tlsProvision = await host.run(
+                    domainRoutingService.provisionTlsCertificate(
+                        deployment.serviceId
+                    )
+                )
+                if (
+                    tlsProvision.provisioned &&
+                    tlsProvision.reason !== 'already_provisioned'
+                ) {
                     await deploymentRepository.insertLog(deploymentId, {
-                        level: "info",
-                        message: "TLS certificate provisioned for primary domain",
-                        phase: "deploying",
-                        step: "tls_provision",
-                        stage: "routing",
-                        correlationId: observability?.correlationId ?? deploymentId,
+                        level: 'info',
+                        message:
+                            'TLS certificate provisioned for primary domain',
+                        phase: 'deploying',
+                        step: 'tls_provision',
+                        stage: 'routing',
+                        correlationId:
+                            observability?.correlationId ?? deploymentId,
                         traceId: observability?.traceId,
                         spanId: observability?.spanId,
                         metadata: { host: tlsProvision.host, structured: true },
-                    });
+                    })
                 }
             } catch (error) {
                 await deploymentRepository.insertLog(deploymentId, {
-                    level: "warn",
+                    level: 'warn',
                     message: `TLS provisioning skipped for service ${deployment.serviceId}: ${error instanceof Error ? error.message : String(error)}`,
-                    phase: "deploying",
-                    step: "tls_provision",
-                    stage: "routing",
+                    phase: 'deploying',
+                    step: 'tls_provision',
+                    stage: 'routing',
                     correlationId: observability?.correlationId ?? deploymentId,
                     traceId: observability?.traceId,
                     spanId: observability?.spanId,
                     metadata: { structured: true },
-                });
+                })
             }
 
             const runtimeResult = await executeRuntimeWithDeployRetryPolicy(
@@ -555,24 +636,33 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 runtimeRunnerKind,
                 runtimeExecutionInput,
                 deployRetryPolicy,
-                observability,
-            );
+                observability
+            )
 
-            const deployCompletedAt = new Date();
-            const deployDuration = Math.max(0, deployCompletedAt.getTime() - deployStartedAt.getTime());
+            const deployCompletedAt = new Date()
+            const deployDuration = Math.max(
+                0,
+                deployCompletedAt.getTime() - deployStartedAt.getTime()
+            )
             // A2: primary URL comes from the domain mappings (the single source
             // of truth for how this service is reachable).
-            const domainUrl = routeSync?.success ? (routeSync.primaryUrl ?? null) : null;
+            const domainUrl = routeSync?.success
+                ? (routeSync.primaryUrl ?? null)
+                : null
 
             // A3: snapshot ALL reachable URLs for this deployment (previous
             // deployments keep their own snapshot — "current vs previous" URLs).
-            const reachableUrls = routeSync?.success ? routeSync.urls.map((u) => u.fullUrl) : (domainUrl ? [domainUrl] : []);
+            const reachableUrls = routeSync?.success
+                ? routeSync.urls.map((u) => u.fullUrl)
+                : domainUrl
+                  ? [domainUrl]
+                  : []
 
             const metadata = mergeMetadata(deployment.metadata, {
                 reachableUrls,
                 ...(domainUrl ? { deployedDomainUrl: domainUrl } : {}),
                 containerLifecycle: {
-                    status: "started",
+                    status: 'started',
                     containerId: runtimeResult.containerId,
                     containerName: runtimeResult.containerName,
                     containerImage: runtimeResult.containerImage,
@@ -582,25 +672,35 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 // deploymentId ↔ serviceId ↔ serviceName ↔ tasks so the
                 // reconciliation and ops surfaces resolve `docker service ps`
                 // rows back to the deployment without a separate table.
-                ...(runtimeResult.serviceId || (runtimeResult.taskIds?.length ?? 0) > 0
+                ...(runtimeResult.serviceId ||
+                (runtimeResult.taskIds?.length ?? 0) > 0
                     ? {
                           swarmIdentity: {
                               serviceId: runtimeResult.serviceId ?? null,
-                              serviceName: runtimeResult.serviceName ?? runtimeResult.containerName,
+                              serviceName:
+                                  runtimeResult.serviceName ??
+                                  runtimeResult.containerName,
                               taskIds: runtimeResult.taskIds ?? [],
-                              inventorySource: "deployment_execution",
+                              inventorySource: 'deployment_execution',
                           },
                       }
                     : {}),
-                ...(runtimeResult.managedRuntime?.managedBy === "deployment_service"
+                ...(runtimeResult.managedRuntime?.managedBy ===
+                'deployment_service'
                     ? {
                           managedRuntimeResources: {
                               ownership: {
-                                  managedBy: runtimeResult.managedRuntime.managedBy,
-                                  managedReason: runtimeResult.managedRuntime.managedReason,
-                                  deploymentId: runtimeResult.managedRuntime.deploymentId,
-                                  serviceId: runtimeResult.managedRuntime.serviceId,
-                                  projectId: runtimeResult.managedRuntime.projectId,
+                                  managedBy:
+                                      runtimeResult.managedRuntime.managedBy,
+                                  managedReason:
+                                      runtimeResult.managedRuntime
+                                          .managedReason,
+                                  deploymentId:
+                                      runtimeResult.managedRuntime.deploymentId,
+                                  serviceId:
+                                      runtimeResult.managedRuntime.serviceId,
+                                  projectId:
+                                      runtimeResult.managedRuntime.projectId,
                               },
                               container: {
                                   id: runtimeResult.containerId,
@@ -608,10 +708,12 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                                   labels: runtimeResult.managedRuntime.labels,
                               },
                               image: {
-                                  reference: runtimeResult.managedRuntime.imageRef,
+                                  reference:
+                                      runtimeResult.managedRuntime.imageRef,
                               },
                               network: {
-                                  mode: runtimeResult.managedRuntime.networkMode,
+                                  mode: runtimeResult.managedRuntime
+                                      .networkMode,
                               },
                               persistedAt: new Date().toISOString(),
                           },
@@ -630,12 +732,13 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                               storageType: storageBinding.storageType,
                               mountPath: storageBinding.mountPath,
                               updateStrategy: storageBinding.updateStrategy,
-                              autoRedeployOnUpdate: storageBinding.autoRedeployOnUpdate,
+                              autoRedeployOnUpdate:
+                                  storageBinding.autoRedeployOnUpdate,
                           },
                       }
                     : {}),
-                stage: "active",
-            });
+                stage: 'active',
+            })
 
             await deploymentRepository.persistBuildArtifacts(deploymentId, {
                 deployStartedAt,
@@ -644,18 +747,18 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 containerImage: runtimeResult.containerImage,
                 domainUrl,
                 healthCheckUrl: runtimeResult.healthGate.healthCheckUrl,
-                status: "success",
-                phase: "active",
+                status: 'success',
+                phase: 'active',
                 phaseProgress: 100,
                 metadata,
-            });
+            })
 
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Container lifecycle create/start completed",
-                phase: "deploying",
-                step: "start",
-                stage: "container_lifecycle",
+                level: 'info',
+                message: 'Container lifecycle create/start completed',
+                phase: 'deploying',
+                step: 'start',
+                stage: 'container_lifecycle',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
@@ -672,14 +775,14 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     },
                     structured: true,
                 },
-            });
+            })
 
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Runtime runner execution completed",
-                phase: "deploying",
-                step: "runtime_completed",
-                stage: "runner",
+                level: 'info',
+                message: 'Runtime runner execution completed',
+                phase: 'deploying',
+                step: 'runtime_completed',
+                stage: 'runner',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
@@ -688,42 +791,46 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     containerId: runtimeResult.containerId,
                     structured: true,
                 },
-            });
+            })
 
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Traefik route apply and verification completed",
-                phase: "deploying",
-                step: "route_verification",
-                stage: "routing",
+                level: 'info',
+                message: 'Traefik route apply and verification completed',
+                phase: 'deploying',
+                step: 'route_verification',
+                stage: 'routing',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
                 metadata: runtimeResult.routeVerification,
-            });
+            })
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Readiness health gate passed",
-                phase: "health_check",
-                step: "readiness_gate",
-                stage: "health",
+                level: 'info',
+                message: 'Readiness health gate passed',
+                phase: 'health_check',
+                step: 'readiness_gate',
+                stage: 'health',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
                 metadata: runtimeResult.healthGate,
-            });
+            })
             // A4: non-blocking external probe of the deployed domain(s) — the
             // internal health gate proves the container is up; this proves the
             // public URL is actually reachable from the internet. Best-effort.
             if (domainUrl) {
-                void probeDeployedDomain(deploymentId, domainUrl, observability?.correlationId ?? deploymentId);
+                void probeDeployedDomain(
+                    deploymentId,
+                    domainUrl,
+                    observability?.correlationId ?? deploymentId
+                )
             }
             await deploymentRepository.insertLog(deploymentId, {
-                level: "info",
-                message: "Deployment timeline persisted",
-                phase: "active",
-                step: "timeline",
-                stage: "timeline",
+                level: 'info',
+                message: 'Deployment timeline persisted',
+                phase: 'active',
+                step: 'timeline',
+                stage: 'timeline',
                 correlationId: observability?.correlationId ?? deploymentId,
                 traceId: observability?.traceId,
                 spanId: observability?.spanId,
@@ -737,59 +844,75 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                     },
                     structured: true,
                 },
-            });
+            })
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message =
+                error instanceof Error ? error.message : String(error)
             const metadata = mergeMetadata(deployment.metadata, {
                 containerLifecycle: {
-                    status: "failed",
+                    status: 'failed',
                     error: message,
                     failedAt: new Date().toISOString(),
                 },
-            });
+            })
 
-            await deploymentRepository.updateStatus(deploymentId, "failed", metadata);
+            await deploymentRepository.updateStatus(
+                deploymentId,
+                'failed',
+                metadata
+            )
             await deploymentRepository.insertLog(deploymentId, {
-                level: "error",
-                message: "Container lifecycle failed",
-                phase: "failed",
-                step: "container_lifecycle",
-                stage: "container_lifecycle",
+                level: 'error',
+                message: 'Container lifecycle failed',
+                phase: 'failed',
+                step: 'container_lifecycle',
+                stage: 'container_lifecycle',
                 metadata: {
                     error: message,
                 },
-            });
+            })
 
-            throw new RuntimeInvalid({ reason: `Container lifecycle failed: ${message}` });
+            throw new RuntimeInvalid({
+                reason: `Container lifecycle failed: ${message}`,
+            })
         }
     }
 
     async function executeRuntimeWithDeployRetryPolicy(
         deploymentId: string,
         runtimeRunnerKind: string,
-        runtimeExecutionInput: Parameters<RuntimeRunnerRegistryShape["execute"]>[1],
+        runtimeExecutionInput: Parameters<
+            RuntimeRunnerRegistryShape['execute']
+        >[1],
         policy: DeployPhaseRetryPolicy,
-        observability?: DeploymentObservabilityContext | null,
+        observability?: DeploymentObservabilityContext | null
     ) {
-        let lastError: unknown;
+        let lastError: unknown
 
         for (let attempt = 1; attempt <= policy.maxRetries; attempt += 1) {
             try {
-                return await host.run(runtimeRunnerRegistry.execute(runtimeRunnerKind, runtimeExecutionInput));
+                return await host.run(
+                    runtimeRunnerRegistry.execute(
+                        runtimeRunnerKind,
+                        runtimeExecutionInput
+                    )
+                )
             } catch (error) {
-                lastError = error;
+                lastError = error
 
                 if (attempt >= policy.maxRetries) {
-                    break;
+                    break
                 }
 
-                const errorMessage = error instanceof Error ? error.message : String(error);
+                const errorMessage =
+                    error instanceof Error ? error.message : String(error)
                 await deploymentRepository.insertLog(deploymentId, {
-                    level: "warn",
-                    message: "Deploy phase runtime execution attempt failed; retry scheduled",
-                    phase: "deploying",
-                    step: "deploy_retry",
-                    stage: "container_lifecycle",
+                    level: 'warn',
+                    message:
+                        'Deploy phase runtime execution attempt failed; retry scheduled',
+                    phase: 'deploying',
+                    step: 'deploy_retry',
+                    stage: 'container_lifecycle',
                     correlationId: observability?.correlationId ?? deploymentId,
                     traceId: observability?.traceId,
                     spanId: observability?.spanId,
@@ -800,92 +923,109 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                         error: errorMessage,
                         structured: true,
                     },
-                });
+                })
 
-                await sleep(policy.retryIntervalMs);
+                await sleep(policy.retryIntervalMs)
             }
         }
 
         throw lastError instanceof Error
             ? lastError
-            : new Error("Deploy phase failed after retry policy exhausted");
+            : new Error('Deploy phase failed after retry policy exhausted')
     }
 
     function resolveHealthGateConfig(
         result: Record<string, unknown> | undefined,
-        runtimeRunnerOptions?: RuntimeRunnerExecutionOptions | null,
+        runtimeRunnerOptions?: RuntimeRunnerExecutionOptions | null
     ): HealthGateConfig {
         const maxRetries =
             runtimeRunnerOptions?.healthCheckMaxRetries ??
-            getResultNumber(result, "healthCheckMaxRetries");
+            getResultNumber(result, 'healthCheckMaxRetries')
         const retryIntervalMs =
             runtimeRunnerOptions?.healthCheckRetryIntervalMs ??
-            getResultNumber(result, "healthCheckRetryIntervalMs");
+            getResultNumber(result, 'healthCheckRetryIntervalMs')
 
         return {
             maxRetries:
-                typeof maxRetries === "number" && Number.isInteger(maxRetries) && maxRetries > 0
+                typeof maxRetries === 'number' &&
+                Number.isInteger(maxRetries) &&
+                maxRetries > 0
                     ? maxRetries
                     : 10,
             retryIntervalMs:
-                typeof retryIntervalMs === "number" && Number.isInteger(retryIntervalMs) && retryIntervalMs > 0
+                typeof retryIntervalMs === 'number' &&
+                Number.isInteger(retryIntervalMs) &&
+                retryIntervalMs > 0
                     ? retryIntervalMs
                     : 2_000,
-        };
+        }
     }
 
     function resolveDeployPhaseRetryPolicy(
-        result: Record<string, unknown> | undefined,
+        result: Record<string, unknown> | undefined
     ): DeployPhaseRetryPolicy {
-        const maxRetries = getResultNumber(result, "deployHealthCheckMaxRetries");
-        const retryIntervalMs = getResultNumber(result, "deployHealthCheckRetryIntervalMs");
+        const maxRetries = getResultNumber(
+            result,
+            'deployHealthCheckMaxRetries'
+        )
+        const retryIntervalMs = getResultNumber(
+            result,
+            'deployHealthCheckRetryIntervalMs'
+        )
 
         return {
             maxRetries:
-                typeof maxRetries === "number" && Number.isInteger(maxRetries) && maxRetries > 0
+                typeof maxRetries === 'number' &&
+                Number.isInteger(maxRetries) &&
+                maxRetries > 0
                     ? maxRetries
                     : 1,
             retryIntervalMs:
-                typeof retryIntervalMs === "number" && Number.isInteger(retryIntervalMs) && retryIntervalMs > 0
+                typeof retryIntervalMs === 'number' &&
+                Number.isInteger(retryIntervalMs) &&
+                retryIntervalMs > 0
                     ? retryIntervalMs
                     : 250,
-        };
+        }
     }
 
-    function resolveRuntimeRunnerKind(result: Record<string, unknown> | undefined): string {
-        const runtimeRunner = getResultString(result, "runtimeRunner");
-        const buildRunner = getResultString(result, "buildRunner");
-        return runtimeRunner ?? buildRunner ?? "docker";
+    function resolveRuntimeRunnerKind(
+        result: Record<string, unknown> | undefined
+    ): string {
+        const runtimeRunner = getResultString(result, 'runtimeRunner')
+        const buildRunner = getResultString(result, 'buildRunner')
+        return runtimeRunner ?? buildRunner ?? 'docker'
     }
 
     function resolveStorageBinding(
-        result: Record<string, unknown> | undefined,
+        result: Record<string, unknown> | undefined
     ): DeploymentStorageBinding | null {
         const parsedStorageBinding = deploymentStorageBindingSchema.safeParse(
-            result?.storageBinding,
-        );
-        return parsedStorageBinding.success ? parsedStorageBinding.data : null;
+            result?.storageBinding
+        )
+        return parsedStorageBinding.success ? parsedStorageBinding.data : null
     }
 
     function resolveRuntimeRunnerOptions(
-        result: Record<string, unknown> | undefined,
+        result: Record<string, unknown> | undefined
     ): RuntimeRunnerExecutionOptions | null {
         const parsedRuntimeRunnerOptions = runtimeRunnerOptionsSchema.safeParse(
-            result?.runtimeRunnerOptions,
-        );
-        return parsedRuntimeRunnerOptions.success ? parsedRuntimeRunnerOptions.data : null;
+            result?.runtimeRunnerOptions
+        )
+        return parsedRuntimeRunnerOptions.success
+            ? parsedRuntimeRunnerOptions.data
+            : null
     }
 
     function resolveRuntimeConvergenceConfig(
-        runtimeRunnerOptions?: RuntimeRunnerExecutionOptions | null,
+        runtimeRunnerOptions?: RuntimeRunnerExecutionOptions | null
     ): RuntimeConvergenceConfigResolution {
-        const optionTraefik = runtimeRunnerOptions?.traefikSyncMaxAttempts;
-        const optionDelay = runtimeRunnerOptions?.convergenceRetryBaseDelayMs;
+        const optionTraefik = runtimeRunnerOptions?.traefikSyncMaxAttempts
+        const optionDelay = runtimeRunnerOptions?.convergenceRetryBaseDelayMs
 
-        const traefikSyncMaxAttempts = normalizePositiveInteger(optionTraefik)
-            ?? 3;
-        const retryBaseDelayMs = normalizePositiveInteger(optionDelay)
-            ?? 250;
+        const traefikSyncMaxAttempts =
+            normalizePositiveInteger(optionTraefik) ?? 3
+        const retryBaseDelayMs = normalizePositiveInteger(optionDelay) ?? 250
 
         return {
             config: {
@@ -896,20 +1036,22 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                 traefikSyncMaxAttempts: resolveConvergenceSource(optionTraefik),
                 retryBaseDelayMs: resolveConvergenceSource(optionDelay),
             },
-        };
+        }
     }
 
     function resolveExecutorOptions(
         runtimeRunnerOptions: RuntimeRunnerExecutionOptions | null,
         customRunCommand: string | null,
-        runtimeEnvironmentVariables: Record<string, string> | null,
+        runtimeEnvironmentVariables: Record<string, string> | null
     ) {
-        const startupCommand = customRunCommand ?? runtimeRunnerOptions?.startupCommand;
+        const startupCommand =
+            customRunCommand ?? runtimeRunnerOptions?.startupCommand
         const hasEnvironmentVariables =
-            runtimeEnvironmentVariables !== null && Object.keys(runtimeEnvironmentVariables).length > 0;
+            runtimeEnvironmentVariables !== null &&
+            Object.keys(runtimeEnvironmentVariables).length > 0
 
         if (!startupCommand && !hasEnvironmentVariables) {
-            return undefined;
+            return undefined
         }
 
         return {
@@ -919,59 +1061,66 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
                       environmentVariables: runtimeEnvironmentVariables,
                   }
                 : {}),
-        };
+        }
     }
 
     function resolveRuntimeEnvironmentVariables(
-        result: Record<string, unknown> | undefined,
+        result: Record<string, unknown> | undefined
     ): Record<string, string> | null {
-        const raw = result?.runtimeEnvironmentVariables;
-        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-            return null;
+        const raw = result?.runtimeEnvironmentVariables
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return null
         }
 
-        const sanitized = Object.entries(isRecord(raw) ? raw : {}).reduce<Record<string, string>>(
-            (accumulator, [key, value]) => {
-                const normalizedKey = key.trim();
-                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedKey)) {
-                    return accumulator;
-                }
+        const sanitized = Object.entries(isRecord(raw) ? raw : {}).reduce<
+            Record<string, string>
+        >((accumulator, [key, value]) => {
+            const normalizedKey = key.trim()
+            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedKey)) {
+                return accumulator
+            }
 
-                if (typeof value !== "string" || value.includes('\0')) {
-                    return accumulator;
-                }
+            if (typeof value !== 'string' || value.includes('\0')) {
+                return accumulator
+            }
 
-                accumulator[normalizedKey] = value;
-                return accumulator;
-            },
-            {},
-        );
+            accumulator[normalizedKey] = value
+            return accumulator
+        }, {})
 
-        return Object.keys(sanitized).length > 0 ? sanitized : null;
+        return Object.keys(sanitized).length > 0 ? sanitized : null
     }
 
     function resolveConvergenceSource(
-        runtimeOption: number | undefined,
+        runtimeOption: number | undefined
     ): RuntimeConvergenceSource {
         if (normalizePositiveInteger(runtimeOption) !== null) {
-            return "runtimeRunnerOptions";
+            return 'runtimeRunnerOptions'
         }
-        return "default";
+        return 'default'
     }
 
-    function normalizePositiveInteger(value: number | null | undefined): number | null {
-        if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-            return null;
+    function normalizePositiveInteger(
+        value: number | null | undefined
+    ): number | null {
+        if (
+            typeof value !== 'number' ||
+            !Number.isInteger(value) ||
+            value <= 0
+        ) {
+            return null
         }
-        return value;
+        return value
     }
 
-    function extractArtifactResult(result: Record<string, unknown> | undefined): BuildArtifactResult {
-        const containerImage = getResultString(result, "containerImage");
-        const containerName = getResultString(result, "containerName");
-        const artifactDigest = getResultString(result, "artifactDigest");
-        const buildLogsUrl = getResultString(result, "buildLogsUrl");
-        const artifactSizeBytes = getResultNumber(result, "artifactSizeBytes");
+    function extractArtifactResult(
+        result: Record<string, unknown> | undefined
+    ): BuildArtifactResult {
+        const containerImage = getResultString(result, 'containerImage')
+        const containerName = getResultString(result, 'containerName')
+        const artifactDigest = getResultString(result, 'artifactDigest')
+        const buildLogsUrl = getResultString(result, 'buildLogsUrl')
+        const artifactSizeBytes = getResultNumber(result, 'artifactSizeBytes')
 
         return {
             containerImage,
@@ -979,33 +1128,46 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
             artifactDigest,
             artifactSizeBytes,
             buildLogsUrl,
-        };
+        }
     }
 
-    function getResultString(result: Record<string, unknown> | undefined, key: string): string | null {
-        const value = result?.[key];
-        return typeof value === "string" && value.trim().length > 0 ? value : null;
+    function getResultString(
+        result: Record<string, unknown> | undefined,
+        key: string
+    ): string | null {
+        const value = result?.[key]
+        return typeof value === 'string' && value.trim().length > 0
+            ? value
+            : null
     }
 
-    function getResultNumber(result: Record<string, unknown> | undefined, key: string): number | null {
-        const value = result?.[key];
-        return typeof value === "number" && Number.isFinite(value) ? value : null;
+    function getResultNumber(
+        result: Record<string, unknown> | undefined,
+        key: string
+    ): number | null {
+        const value = result?.[key]
+        return typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : null
     }
 
-    function getResultDate(result: Record<string, unknown> | undefined, key: string): Date | undefined {
-        const raw = getResultString(result, key);
+    function getResultDate(
+        result: Record<string, unknown> | undefined,
+        key: string
+    ): Date | undefined {
+        const raw = getResultString(result, key)
         if (!raw) {
-            return undefined;
+            return undefined
         }
 
-        const parsed = new Date(raw);
-        return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+        const parsed = new Date(raw)
+        return Number.isNaN(parsed.getTime()) ? undefined : parsed
     }
 
     function sleep(delayMs: number): Promise<void> {
         return new Promise((resolve) => {
-            setTimeout(resolve, delayMs);
-        });
+            setTimeout(resolve, delayMs)
+        })
     }
 
     /**
@@ -1013,65 +1175,82 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
      * into the deployment metadata (`externalReachability`) and a log line.
      * Never blocks the deployment.
      */
-    async function probeDeployedDomain(deploymentId: string, url: string, correlationId: string): Promise<void> {
+    async function probeDeployedDomain(
+        deploymentId: string,
+        url: string,
+        correlationId: string
+    ): Promise<void> {
         try {
-            const probeUrl = `${url.replace(/\/$/, "")}/health`;
-            const start = Date.now();
+            const probeUrl = `${url.replace(/\/$/, '')}/health`
+            const start = Date.now()
             // The domain is user-supplied: public targets only, no redirects, result stored in the logs.
-            const resp = await host.runUnwrapped(egress.external({ url: probeUrl }, { timeoutMs: 10_000 }));
-            const reachable = resp.status >= 200 && resp.status < 300;
-            const latencyMs = Date.now() - start;
+            const resp = await host.runUnwrapped(
+                egress.external({ url: probeUrl }, { timeoutMs: 10_000 })
+            )
+            const reachable = resp.status >= 200 && resp.status < 300
+            const latencyMs = Date.now() - start
             const result = {
                 url,
                 statusCode: resp.status,
                 reachable,
                 latencyMs,
                 probedAt: new Date().toISOString(),
-            };
+            }
 
             // Merge (the repository overwrites metadata — preserve existing).
-            const current = await getDeploymentById(deploymentId);
+            const current = await getDeploymentById(deploymentId)
             await deploymentRepository.persistBuildArtifacts(deploymentId, {
-                metadata: mergeMetadata(current.metadata, { externalReachability: result }),
-            });
+                metadata: mergeMetadata(current.metadata, {
+                    externalReachability: result,
+                }),
+            })
             await deploymentRepository.insertLog(deploymentId, {
-                level: reachable ? "info" : "warn",
-                message: reachable ? "Deployed domain is externally reachable" : `Deployed domain returned HTTP ${String(resp.status)}`,
-                phase: "active",
-                step: "external_probe",
-                stage: "health",
+                level: reachable ? 'info' : 'warn',
+                message: reachable
+                    ? 'Deployed domain is externally reachable'
+                    : `Deployed domain returned HTTP ${String(resp.status)}`,
+                phase: 'active',
+                step: 'external_probe',
+                stage: 'health',
                 correlationId,
-                metadata: { url, statusCode: resp.status, latencyMs, structured: true },
-            });
+                metadata: {
+                    url,
+                    statusCode: resp.status,
+                    latencyMs,
+                    structured: true,
+                },
+            })
         } catch (error) {
             await deploymentRepository.insertLog(deploymentId, {
-                level: "warn",
+                level: 'warn',
                 message: `External domain probe failed for ${url}: ${error instanceof Error ? error.message : String(error)}`,
-                phase: "active",
-                step: "external_probe",
-                stage: "health",
+                phase: 'active',
+                step: 'external_probe',
+                stage: 'health',
                 correlationId,
                 metadata: { url, structured: true },
-            });
+            })
         }
     }
 
     function mergeMetadata(
         current: Record<string, unknown> | null,
-        patch: Record<string, unknown>,
+        patch: Record<string, unknown>
     ): Record<string, unknown> {
         return {
             ...(current ?? {}),
             ...patch,
-        };
+        }
     }
 
     async function getDeploymentById(deploymentId: string) {
-        const deployment = await deploymentRepository.findById(deploymentId);
+        const deployment = await deploymentRepository.findById(deploymentId)
         if (!deployment) {
-            throw new RuntimeNotFound({ reason: `Deployment with id '${deploymentId}' not found` });
+            throw new RuntimeNotFound({
+                reason: `Deployment with id '${deploymentId}' not found`,
+            })
         }
-        return deployment;
+        return deployment
     }
 
     return lift({
@@ -1082,16 +1261,18 @@ export function makeDeploymentExecutionWorkflow(ports: DeploymentExecutionWorkfl
         persistRollbackExecutionFailure,
         persistDeploymentExecutionFailure,
         probeDeployedDomain,
-    });
+    })
 }
 
 /**
  * The persistence and runtime steps of one deployment's execution (build started/finished, rollback started/finished/failed,
  * container lifecycle). Stateless over its ports, so a module provides the built shape under this tag.
  */
-export type DeploymentExecutionWorkflowShape = ReturnType<typeof makeDeploymentExecutionWorkflow>;
+export type DeploymentExecutionWorkflowShape = ReturnType<
+    typeof makeDeploymentExecutionWorkflow
+>
 
 export class DeploymentExecutionWorkflow extends Context.Service<
     DeploymentExecutionWorkflow,
     DeploymentExecutionWorkflowShape
->()("runtime/DeploymentExecutionWorkflow") {}
+>()('runtime/DeploymentExecutionWorkflow') {}

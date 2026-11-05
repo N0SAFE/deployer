@@ -1,101 +1,105 @@
-import { describe, expect, it } from 'vitest';
-import * as z from 'zod';
+import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
-import { contractBuilder } from '@deployer/events';
+import { contractBuilder } from '@deployer/events'
 
-import { BaseEventService } from './base/index';
+import { BaseEventService } from './base/index'
 
 const testContracts = {
-  changed: contractBuilder()
-    .input(z.object({ id: z.string() }))
-    .output(z.object({ value: z.string() }))
-    .build(),
-} as const;
+    changed: contractBuilder()
+        .input(z.object({ id: z.string() }))
+        .output(z.object({ value: z.string() }))
+        .build(),
+} as const
 
 class TestEventService extends BaseEventService<typeof testContracts> {
-  constructor() {
-    super('test', testContracts);
-  }
+    constructor() {
+        super('test', testContracts)
+    }
 }
 
 describe('BaseEventService (RxJS internals)', () => {
-  it('should emit to async iterable subscription', async () => {
-    const service = new TestEventService();
-    const subscription = service.subscribe('changed', { id: 'abc' });
+    it('should emit to async iterable subscription', async () => {
+        const service = new TestEventService()
+        const subscription = service.subscribe('changed', { id: 'abc' })
 
-    const pending = subscription.next();
-    service.emit('changed', { id: 'abc' }, { value: 'hello' });
+        const pending = subscription.next()
+        service.emit('changed', { id: 'abc' }, { value: 'hello' })
 
-    await expect(pending).resolves.toEqual({ value: { value: 'hello' }, done: false });
-    await subscription.return?.();
-  });
+        await expect(pending).resolves.toEqual({
+            value: { value: 'hello' },
+            done: false,
+        })
+        await subscription.return?.()
+    })
 
-  it('should track subscriber count and cleanup on return', async () => {
-    const service = new TestEventService();
+    it('should track subscriber count and cleanup on return', async () => {
+        const service = new TestEventService()
 
-    const subscription = service.subscribe('changed', { id: 'abc' });
-    expect(service.getSubscriberCount('changed', { id: 'abc' })).toBe(1);
-    expect(service.hasSubscribers('changed', { id: 'abc' })).toBe(true);
+        const subscription = service.subscribe('changed', { id: 'abc' })
+        expect(service.getSubscriberCount('changed', { id: 'abc' })).toBe(1)
+        expect(service.hasSubscribers('changed', { id: 'abc' })).toBe(true)
 
-    await subscription.return?.();
+        await subscription.return?.()
 
-    expect(service.getSubscriberCount('changed', { id: 'abc' })).toBe(0);
-    expect(service.hasSubscribers('changed', { id: 'abc' })).toBe(false);
-  });
+        expect(service.getSubscriberCount('changed', { id: 'abc' })).toBe(0)
+        expect(service.hasSubscribers('changed', { id: 'abc' })).toBe(false)
+    })
 
-  it('should complete subscription when removeAllSubscribers is called', async () => {
-    const service = new TestEventService();
+    it('should complete subscription when removeAllSubscribers is called', async () => {
+        const service = new TestEventService()
 
-    const subscription = service.subscribe('changed', { id: 'abc' });
-    const pending = subscription.next();
+        const subscription = service.subscribe('changed', { id: 'abc' })
+        const pending = subscription.next()
 
-    service.removeAllSubscribers('changed', { id: 'abc' });
+        service.removeAllSubscribers('changed', { id: 'abc' })
 
-    await expect(pending).resolves.toEqual({ value: undefined, done: true });
-  });
+        await expect(pending).resolves.toEqual({ value: undefined, done: true })
+    })
 
-  it('should clear all active events', async () => {
-    const service = new TestEventService();
+    it('should clear all active events', async () => {
+        const service = new TestEventService()
 
-    const subA = service.subscribe('changed', { id: 'a' });
-    const subB = service.subscribe('changed', { id: 'b' });
+        const subA = service.subscribe('changed', { id: 'a' })
+        const subB = service.subscribe('changed', { id: 'b' })
 
-    expect(service.getActiveEvents()).toHaveLength(2);
+        expect(service.getActiveEvents()).toHaveLength(2)
 
-    service.clearAll();
+        service.clearAll()
 
-    expect(service.getActiveEvents()).toHaveLength(0);
+        expect(service.getActiveEvents()).toHaveLength(0)
 
-    await subA.return?.();
-    await subB.return?.();
-  });
+        await subA.return?.()
+        await subB.return?.()
+    })
 
-  it('should replay and filter events using queryByInput$ fuzzy search', async () => {
-    const service = new TestEventService();
+    it('should replay and filter events using queryByInput$ fuzzy search', async () => {
+        const service = new TestEventService()
 
-    service.emit('changed', { id: 'abc' }, { value: 'first' });
-    service.emit('changed', { id: 'def' }, { value: 'second' });
+        service.emit('changed', { id: 'abc' }, { value: 'first' })
+        service.emit('changed', { id: 'def' }, { value: 'second' })
 
-    const received: { input: { id: string }; output: { value: string } }[] = [];
-    const subscription = service
-      .queryByInput$('changed', {
-        includePersisted: false,
-        fuzzy: 'abc',
-        replayLimit: 20,
-      })
-      .subscribe((event) => {
-        received.push(event);
-      });
+        const received: { input: { id: string }; output: { value: string } }[] =
+            []
+        const subscription = service
+            .queryByInput$('changed', {
+                includePersisted: false,
+                fuzzy: 'abc',
+                replayLimit: 20,
+            })
+            .subscribe((event) => {
+                received.push(event)
+            })
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(received).toEqual([
-      {
-        input: { id: 'abc' },
-        output: { value: 'first' },
-      },
-    ]);
+        expect(received).toEqual([
+            {
+                input: { id: 'abc' },
+                output: { value: 'first' },
+            },
+        ])
 
-    subscription.unsubscribe();
-  });
-});
+        subscription.unsubscribe()
+    })
+})

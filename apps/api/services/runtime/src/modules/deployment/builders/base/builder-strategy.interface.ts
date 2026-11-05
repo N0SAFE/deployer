@@ -1,8 +1,7 @@
-import type { Effect } from "effect";
+import type { DockerError } from '@deployer/docker'
 
-import type { DockerError } from "@deployer/docker";
-
-import type { RuntimeInvalid } from "../../../../core/runtime.errors";
+import type { RuntimeInvalid } from '../../../../core/runtime.errors'
+import type { Effect } from 'effect'
 
 /**
  * BuilderStrategy — the public entry point for "how do we turn source into an artifact".
@@ -32,7 +31,7 @@ import type { RuntimeInvalid } from "../../../../core/runtime.errors";
  */
 export type BuilderStrategy = {
     /** Dispatch key, lowercase: "dockerfile" | "docker_compose" | "nixpacks" | … */
-    readonly builderType: string;
+    readonly builderType: string
 
     /**
      * Whether this strategy can actually run here, right now.
@@ -41,10 +40,10 @@ export type BuilderStrategy = {
      * and when rendering the catalog (to decide what to offer). A strategy that needs
      * an async probe should cache the answer at boot.
      */
-    isAvailable(): boolean;
+    isAvailable(): boolean
 
     /** Human-readable reason when `isAvailable()` is false. */
-    unavailableReason(): string;
+    unavailableReason(): string
 
     /**
      * Produce the artifact for an already-checked-out build context.
@@ -53,26 +52,28 @@ export type BuilderStrategy = {
      * the caller because it is IDENTICAL for every strategy — duplicating it per
      * strategy would be the DRY violation this refactor removes.
      */
-    build(context: BuilderStrategyContext): Effect.Effect<BuilderStrategyResult, BuilderStrategyFailure>;
+    build(
+        context: BuilderStrategyContext
+    ): Effect.Effect<BuilderStrategyResult, BuilderStrategyFailure>
 }
 
 /** What a strategy can refuse with: a precondition of its own, or the Docker engine failing. */
-export type BuilderStrategyFailure = RuntimeInvalid | DockerError;
+export type BuilderStrategyFailure = RuntimeInvalid | DockerError
 
 export type BuilderStrategyContext = {
     /** Absolute path to the checked-out/extracted build context. */
-    readonly buildContextPath: string;
+    readonly buildContextPath: string
     /** The deployment this artifact belongs to (for tagging). */
-    readonly deploymentId: string;
+    readonly deploymentId: string
     /** The service being deployed (for tagging). */
-    readonly serviceId: string;
+    readonly serviceId: string
     /**
      * Dockerfile the caller prepared for custom build/run commands, if any.
      *
      * Present only when the operator supplied custom commands; a strategy that
      * cannot honour it must reject rather than silently ignoring it.
      */
-    readonly dockerfileName: string | null;
+    readonly dockerfileName: string | null
     /**
      * The image tag to produce.
      *
@@ -80,9 +81,9 @@ export type BuilderStrategyContext = {
      * place across every builder — a strategy deriving its own would make pruning,
      * cache tagging and cleanup impossible to implement once for all builders.
      */
-    readonly imageTag: string;
+    readonly imageTag: string
     /** Aborts when the deployment is cancelled or its job loses its lease; a strategy stops its build with it. */
-    readonly signal?: AbortSignal | undefined;
+    readonly signal?: AbortSignal | undefined
 }
 
 /**
@@ -94,5 +95,5 @@ export type BuilderStrategyContext = {
  * old inline code did for `docker_compose`.
  */
 export type BuilderStrategyResult = {
-    readonly image: string | null;
+    readonly image: string | null
 }

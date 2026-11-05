@@ -37,16 +37,18 @@ Deploy with `bun --bun run deploy:doc:s3 --bucket <name>`.
 ## Quick Context via MCP
 
 - Inspect this app:
-  - `repo://app/doc/package.json`
-  - `repo://app/doc/dependencies`
+    - `repo://app/doc/package.json`
+    - `repo://app/doc/dependencies`
 
 ## Workflows
 
 Development:
+
 - Prefer MCP: `docker-up { mode: "dev", target: "web" }` if docs stack shares web infra
 - Legacy: `bun run dev:doc` — start docs site
 
 Content sources:
+
 - Many pages mirror files in `docs/` with short summaries; ensure link references are correct.
 
 ## Boundaries

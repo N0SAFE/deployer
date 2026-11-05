@@ -17,12 +17,15 @@ export class ResourceNotFound extends domainError(
 }
 
 /** Something is missing, and the refusal already says what (a message from a collaborator we do not own). */
-export class ResourceMissing extends domainError("ResourceMissing", "not_found")<{
-	readonly reason: string;
+export class ResourceMissing extends domainError(
+    'ResourceMissing',
+    'not_found'
+)<{
+    readonly reason: string
 }>() {
-	override publicMessage() {
-		return this.reason;
-	}
+    override publicMessage() {
+        return this.reason
+    }
 }
 
 /** The request collides with existing state. `reason` is a sentence written for the client. */

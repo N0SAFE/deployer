@@ -1,4 +1,4 @@
-import type { DockerContainer } from "@deployer/contracts-entities"
+import type { DockerContainer } from '@deployer/contracts-entities'
 
 /**
  * Enrichment data produced by a link resolver for a single container.
@@ -7,17 +7,17 @@ import type { DockerContainer } from "@deployer/contracts-entities"
  * and MUST NOT be resolved inside the docker module.
  */
 export type ContainerEnrichment = {
-  projectId: string
-  serviceId: string
-  environment: DockerContainer["environment"]
-  managedBy: DockerContainer["managedBy"]
-  managedReason: string | null
-  managedDeploymentId: string | null
-  managedServiceId: string | null
-  managedProjectId: string | null
-  managedImageRef: string | null
-  managedNetworkMode: string | null
-  logsStreamId: string | null
+    projectId: string
+    serviceId: string
+    environment: DockerContainer['environment']
+    managedBy: DockerContainer['managedBy']
+    managedReason: string | null
+    managedDeploymentId: string | null
+    managedServiceId: string | null
+    managedProjectId: string | null
+    managedImageRef: string | null
+    managedNetworkMode: string | null
+    logsStreamId: string | null
 }
 
 /**
@@ -27,7 +27,7 @@ export type ContainerEnrichment = {
  * implementation. The deployment module provides the implementation, and the
  * core module wires them together at module init time.
  */
-export const CONTAINER_LINK_RESOLVER = "CONTAINER_LINK_RESOLVER" as const
+export const CONTAINER_LINK_RESOLVER = 'CONTAINER_LINK_RESOLVER' as const
 
 /**
  * Resolves cross-module enrichment for a container from its labels/metadata.
@@ -36,11 +36,11 @@ export const CONTAINER_LINK_RESOLVER = "CONTAINER_LINK_RESOLVER" as const
  * enrichment. Any caching or DB lookups belong inside the implementation.
  */
 export type IContainerLinkResolver = {
-  resolveEnrichment(
-    labels: Record<string, string>,
-    name: string,
-    containerId: string,
-    imageRef: string,
-    networkMode: string | null,
-  ): ContainerEnrichment
+    resolveEnrichment(
+        labels: Record<string, string>,
+        name: string,
+        containerId: string,
+        imageRef: string,
+        networkMode: string | null
+    ): ContainerEnrichment
 }

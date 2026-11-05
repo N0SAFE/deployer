@@ -1,33 +1,33 @@
-import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
+import type { DependencyTemplateConfig } from '@deployer/contracts-entities'
 
-import type { ServiceDag } from "./service-dag.service";
+import type { ServiceDag } from './service-dag.service'
 
 export type FailureDomain = {
     /** Logical domain name (e.g. "frontend", "data-pipeline") */
-    name: string;
-    serviceIds: string[];
+    name: string
+    serviceIds: string[]
 }
 
 export type ContainmentInput = {
     /** The service that failed */
-    failedServiceId: string;
+    failedServiceId: string
     /** How the fleet is divided into isolation domains */
-    domains: FailureDomain[];
-    dag: ServiceDag;
-    failureIsolation: DependencyTemplateConfig["failureIsolation"];
+    domains: FailureDomain[]
+    dag: ServiceDag
+    failureIsolation: DependencyTemplateConfig['failureIsolation']
 }
 
 export type ContainmentResult = {
     /** Whether the failure can be contained within the failed service's domain */
-    containable: boolean;
+    containable: boolean
     /** Domain that the failed service belongs to (or "undomained" if none) */
-    failedDomain: string;
+    failedDomain: string
     /** Services within the failure domain that are at risk */
-    atRiskServices: string[];
+    atRiskServices: string[]
     /** Services that should be isolated (no direct/transitive dependency on failed service, different domain) */
-    safeServices: string[];
+    safeServices: string[]
     /** Services that cross domain boundaries and need manual review */
-    crossDomainRisk: string[];
+    crossDomainRisk: string[]
 }
 
 /**
@@ -46,50 +46,54 @@ export type ContainmentResult = {
  */
 export class FleetFailureContainmentService {
     assess(input: ContainmentInput): ContainmentResult {
-        const { failedServiceId, domains, dag, failureIsolation } = input;
+        const { failedServiceId, domains, dag, failureIsolation } = input
 
-        const domainOf = this.buildDomainIndex(domains);
-        const failedDomain = domainOf.get(failedServiceId) ?? "undomained";
+        const domainOf = this.buildDomainIndex(domains)
+        const failedDomain = domainOf.get(failedServiceId) ?? 'undomained'
 
-        if (failureIsolation === "service") {
+        if (failureIsolation === 'service') {
             // Service-level isolation: only the failed service is affected
-            const domainServices = domains.find((d) => d.name === failedDomain)?.serviceIds ?? [failedServiceId];
+            const domainServices = domains.find((d) => d.name === failedDomain)
+                ?.serviceIds ?? [failedServiceId]
             const safeServices = [...dag.nodes.keys()].filter(
-                (id) => id !== failedServiceId && !domainServices.includes(id),
-            );
+                (id) => id !== failedServiceId && !domainServices.includes(id)
+            )
             return {
                 containable: true,
                 failedDomain,
                 atRiskServices: [],
                 safeServices,
                 crossDomainRisk: [],
-            };
+            }
         }
 
         // Compute transitive dependents (services that may be impacted by the failure)
-        const impacted = this.getTransitiveDependents(dag, failedServiceId);
-        const impactedDomains = new Set(impacted.map((id) => domainOf.get(id) ?? "undomained"));
+        const impacted = this.getTransitiveDependents(dag, failedServiceId)
+        const impactedDomains = new Set(
+            impacted.map((id) => domainOf.get(id) ?? 'undomained')
+        )
 
-        const atRiskServices: string[] = [];
-        const crossDomainRisk: string[] = [];
-        const safeServices: string[] = [];
+        const atRiskServices: string[] = []
+        const crossDomainRisk: string[] = []
+        const safeServices: string[] = []
 
         for (const id of dag.nodes.keys()) {
-            if (id === failedServiceId) continue;
+            if (id === failedServiceId) continue
             if (impacted.includes(id)) {
-                const domain = domainOf.get(id) ?? "undomained";
+                const domain = domainOf.get(id) ?? 'undomained'
                 if (domain === failedDomain) {
-                    atRiskServices.push(id);
+                    atRiskServices.push(id)
                 } else {
-                    crossDomainRisk.push(id);
+                    crossDomainRisk.push(id)
                 }
             } else {
-                safeServices.push(id);
+                safeServices.push(id)
             }
         }
 
         // Containable if dependents don't cross domain boundaries
-        const containable = crossDomainRisk.length === 0 && !impactedDomains.has("undomained");
+        const containable =
+            crossDomainRisk.length === 0 && !impactedDomains.has('undomained')
 
         return {
             containable,
@@ -97,35 +101,38 @@ export class FleetFailureContainmentService {
             atRiskServices,
             safeServices,
             crossDomainRisk,
-        };
+        }
     }
 
     private buildDomainIndex(domains: FailureDomain[]): Map<string, string> {
-        const index = new Map<string, string>();
+        const index = new Map<string, string>()
         for (const domain of domains) {
             for (const serviceId of domain.serviceIds) {
-                index.set(serviceId, domain.name);
+                index.set(serviceId, domain.name)
             }
         }
-        return index;
+        return index
     }
 
-    private getTransitiveDependents(dag: ServiceDag, serviceId: string): string[] {
-        const visited = new Set<string>();
-        const queue = [serviceId];
+    private getTransitiveDependents(
+        dag: ServiceDag,
+        serviceId: string
+    ): string[] {
+        const visited = new Set<string>()
+        const queue = [serviceId]
         while (queue.length > 0) {
-            const current = queue.shift();
-            if (current === undefined) break;
-            const node = dag.nodes.get(current);
-            if (!node) continue;
+            const current = queue.shift()
+            if (current === undefined) break
+            const node = dag.nodes.get(current)
+            if (!node) continue
             for (const dep of node.dependents) {
                 if (!visited.has(dep)) {
-                    visited.add(dep);
-                    queue.push(dep);
+                    visited.add(dep)
+                    queue.push(dep)
                 }
             }
         }
-        visited.delete(serviceId);
-        return [...visited];
+        visited.delete(serviceId)
+        return [...visited]
     }
 }

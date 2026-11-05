@@ -1,29 +1,36 @@
-import { Effect, Fiber } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Effect, Fiber } from 'effect'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Over } from "@deployer/effect-core";
-import type { EffectHostShape } from "@deployer/nest-effect";
+import type { Over } from '@deployer/effect-core'
+import type { EffectHostShape } from '@deployer/nest-effect'
 
-import { startIngressDnsReconciler } from "./ingress-dns-reconciler";
-import { IngressEdgeService, type IngressEdgePorts, type IngressEdgeServiceShape } from "./ingress-edge.service";
+import { startIngressDnsReconciler } from './ingress-dns-reconciler'
+import {
+    IngressEdgeService,
+    type IngressEdgePorts,
+    type IngressEdgeServiceShape,
+} from './ingress-edge.service'
 
 /** A host that records the program instead of running it, so the loop can be started on demand. */
 function fakeHost() {
-	const forks: { label: string; effect: unknown }[] = [];
-	const stop = vi.fn(() => Promise.resolve());
-	const host = {
-		fork: vi.fn((label: string, effect: unknown) => {
-			forks.push({ label, effect });
-			return stop;
-		}),
-	} as unknown as EffectHostShape;
-	return { host, forks, stop };
+    const forks: { label: string; effect: unknown }[] = []
+    const stop = vi.fn(() => Promise.resolve())
+    const host = {
+        fork: vi.fn((label: string, effect: unknown) => {
+            forks.push({ label, effect })
+            return stop
+        }),
+    } as unknown as EffectHostShape
+    return { host, forks, stop }
 }
 
 function fakeIngress() {
-	const reconcileDns = vi.fn(() => Effect.void);
-	const service = { reconcileDns } as unknown as Over<IngressEdgeServiceShape, IngressEdgePorts>;
-	return { reconcileDns, service };
+    const reconcileDns = vi.fn(() => Effect.void)
+    const service = { reconcileDns } as unknown as Over<
+        IngressEdgeServiceShape,
+        IngressEdgePorts
+    >
+    return { reconcileDns, service }
 }
 
 /**
@@ -34,76 +41,88 @@ function fakeIngress() {
  * test that passes alone and fails in the suite proves nothing. `ceilingMs` only bounds a loop that really is stuck.
  */
 async function runUntil(
-	effect: unknown,
-	service: Over<IngressEdgeServiceShape, IngressEdgePorts>,
-	done: () => boolean,
-	ceilingMs = 5_000,
+    effect: unknown,
+    service: Over<IngressEdgeServiceShape, IngressEdgePorts>,
+    done: () => boolean,
+    ceilingMs = 5_000
 ): Promise<void> {
-	const fiber = Effect.runFork(
-		(effect as Effect.Effect<void, never, IngressEdgeService>).pipe(
-			Effect.provideService(IngressEdgeService, service),
-		),
-	);
-	const deadline = Date.now() + ceilingMs;
-	while (!done() && Date.now() < deadline) {
-		await new Promise((resolve) => setTimeout(resolve, 5));
-	}
-	await Effect.runPromise(Fiber.interrupt(fiber));
+    const fiber = Effect.runFork(
+        (effect as Effect.Effect<void, never, IngressEdgeService>).pipe(
+            Effect.provideService(IngressEdgeService, service)
+        )
+    )
+    const deadline = Date.now() + ceilingMs
+    while (!done() && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    await Effect.runPromise(Fiber.interrupt(fiber))
 }
 
 /** Run the forked loop for a short real slice, for the one assertion that is about something NOT happening. */
 async function runFor(
-	effect: unknown,
-	service: Over<IngressEdgeServiceShape, IngressEdgePorts>,
-	ms: number,
+    effect: unknown,
+    service: Over<IngressEdgeServiceShape, IngressEdgePorts>,
+    ms: number
 ): Promise<void> {
-	await runUntil(effect, service, () => false, ms);
+    await runUntil(effect, service, () => false, ms)
 }
 
-describe("startIngressDnsReconciler", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
+describe('startIngressDnsReconciler', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+    })
 
-	it("forks one labelled program on the host and stops it when the application shuts down", async () => {
-		const { host, forks, stop } = fakeHost();
-		const handle = startIngressDnsReconciler(host, 1_000);
+    it('forks one labelled program on the host and stops it when the application shuts down', async () => {
+        const { host, forks, stop } = fakeHost()
+        const handle = startIngressDnsReconciler(host, 1_000)
 
-		expect(forks.map((fork) => fork.label)).toEqual(["fleet/ingress-dns-reconciler"]);
+        expect(forks.map((fork) => fork.label)).toEqual([
+            'fleet/ingress-dns-reconciler',
+        ])
 
-		await handle.onApplicationShutdown();
-		expect(stop).toHaveBeenCalledTimes(1);
-	});
+        await handle.onApplicationShutdown()
+        expect(stop).toHaveBeenCalledTimes(1)
+    })
 
-	it("reconciles on every tick until the fiber is interrupted", async () => {
-		const { host, forks } = fakeHost();
-		const { reconcileDns, service } = fakeIngress();
-		startIngressDnsReconciler(host, 5, 0);
+    it('reconciles on every tick until the fiber is interrupted', async () => {
+        const { host, forks } = fakeHost()
+        const { reconcileDns, service } = fakeIngress()
+        startIngressDnsReconciler(host, 5, 0)
 
-		await runUntil(forks[0]?.effect, service, () => reconcileDns.mock.calls.length > 1);
+        await runUntil(
+            forks[0]?.effect,
+            service,
+            () => reconcileDns.mock.calls.length > 1
+        )
 
-		expect(reconcileDns.mock.calls.length).toBeGreaterThan(1);
-	});
+        expect(reconcileDns.mock.calls.length).toBeGreaterThan(1)
+    })
 
-	it("survives a reconcile that fails, and tries again on the next tick", async () => {
-		const { host, forks } = fakeHost();
-		const { reconcileDns, service } = fakeIngress();
-		reconcileDns.mockImplementation(() => Effect.fail(new Error("platform said no")) as never);
-		startIngressDnsReconciler(host, 5, 0);
+    it('survives a reconcile that fails, and tries again on the next tick', async () => {
+        const { host, forks } = fakeHost()
+        const { reconcileDns, service } = fakeIngress()
+        reconcileDns.mockImplementation(
+            () => Effect.fail(new Error('platform said no')) as never
+        )
+        startIngressDnsReconciler(host, 5, 0)
 
-		await runUntil(forks[0]?.effect, service, () => reconcileDns.mock.calls.length > 1);
+        await runUntil(
+            forks[0]?.effect,
+            service,
+            () => reconcileDns.mock.calls.length > 1
+        )
 
-		// A loop that died on the first failure would have run exactly once.
-		expect(reconcileDns.mock.calls.length).toBeGreaterThan(1);
-	});
+        // A loop that died on the first failure would have run exactly once.
+        expect(reconcileDns.mock.calls.length).toBeGreaterThan(1)
+    })
 
-	it("does not run before the startup delay, so the context is populated when it does", async () => {
-		const { host, forks } = fakeHost();
-		const { reconcileDns, service } = fakeIngress();
-		startIngressDnsReconciler(host, 5, 10_000);
+    it('does not run before the startup delay, so the context is populated when it does', async () => {
+        const { host, forks } = fakeHost()
+        const { reconcileDns, service } = fakeIngress()
+        startIngressDnsReconciler(host, 5, 10_000)
 
-		await runFor(forks[0]?.effect, service, 40);
+        await runFor(forks[0]?.effect, service, 40)
 
-		expect(reconcileDns).not.toHaveBeenCalled();
-	});
-});
+        expect(reconcileDns).not.toHaveBeenCalled()
+    })
+})

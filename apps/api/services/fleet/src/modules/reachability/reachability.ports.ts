@@ -50,6 +50,7 @@ export class PublicAccessPointPort extends Context.Service<
     PublicAccessPointPort,
     PublicAccessPointServiceShape
 >()('fleet/PublicAccessPointPort') {}
-export class EgressPort extends Context.Service<EgressPort, EgressServiceShape>()(
-    'fleet/EgressPort'
-) {}
+export class EgressPort extends Context.Service<
+    EgressPort,
+    EgressServiceShape
+>()('fleet/EgressPort') {}

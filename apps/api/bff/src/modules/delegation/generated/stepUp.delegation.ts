@@ -26,25 +26,27 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { stepUpContract } from "@deployer/identity-contracts";
+import { stepUpContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class StepUpDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", stepUpContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', stepUpContract)
+    }
 
-	@Implement(stepUpContract.status)
-	status() {
-		return implement(stepUpContract.status).handler(({ input }) => this.client.status(input));
-	}
+    @Implement(stepUpContract.status)
+    status() {
+        return implement(stepUpContract.status).handler(({ input }) =>
+            this.client.status(input)
+        )
+    }
 }

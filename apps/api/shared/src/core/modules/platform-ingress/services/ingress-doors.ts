@@ -7,40 +7,45 @@
  * doors from its own roster copy — no API call reaches another node.
  */
 
-import type { IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
-import type { DoorRescueRoute, NodeDoorsSetting } from "@deployer/mesh-client";
+import type { IngressLanes } from '@deployer/contracts-entities/entities/ingress/index'
+import type { DoorRescueRoute, NodeDoorsSetting } from '@deployer/mesh-client'
 
-import { LANE_ENTRYPOINTS } from "./lane-traefik-config";
+import { LANE_ENTRYPOINTS } from './lane-traefik-config'
 
 export type NodeDoorsInput = {
-	lanes: IngressLanes;
-	/** `deployer` or `deployer-<prefix>`: doors are `<namePrefix>-door-<lane>`. */
-	namePrefix: string;
-	/** Platform overlay the doors attach to. */
-	network: string;
-	image: string;
-	/** Traefik's service name on the overlay. */
-	traefikService: string;
-	/** Platform hosts the LOCAL door serves directly when Traefik does not answer. */
-	rescue: readonly DoorRescueRoute[];
+    lanes: IngressLanes
+    /** `deployer` or `deployer-<prefix>`: doors are `<namePrefix>-door-<lane>`. */
+    namePrefix: string
+    /** Platform overlay the doors attach to. */
+    network: string
+    image: string
+    /** Traefik's service name on the overlay. */
+    traefikService: string
+    /** Platform hosts the LOCAL door serves directly when Traefik does not answer. */
+    rescue: readonly DoorRescueRoute[]
 }
 
 export function buildNodeDoors(input: NodeDoorsInput): NodeDoorsSetting {
-	return {
-		image: input.image,
-		network: input.network,
-		namePrefix: input.namePrefix,
-		entryPort: input.lanes.entryPort,
-		upstream: input.traefikService,
-		lanes: {
-			local: { upstreamPort: LANE_ENTRYPOINTS.local.port },
-			private: input.lanes.private.enabled ? { upstreamPort: LANE_ENTRYPOINTS.private.port } : null,
-			// The LAN door serves Traefik's PRIVATE entrypoint: same routers, same
-			// hostnames, reached on a different address. It is the only door a node
-			// can use before it is a member, so it is keyed off `exposeOnLan` rather
-			// than the private lane alone.
-			lan: input.lanes.private.enabled && input.lanes.private.exposeOnLan ? { upstreamPort: LANE_ENTRYPOINTS.private.port } : null,
-		},
-		rescue: [...input.rescue],
-	};
+    return {
+        image: input.image,
+        network: input.network,
+        namePrefix: input.namePrefix,
+        entryPort: input.lanes.entryPort,
+        upstream: input.traefikService,
+        lanes: {
+            local: { upstreamPort: LANE_ENTRYPOINTS.local.port },
+            private: input.lanes.private.enabled
+                ? { upstreamPort: LANE_ENTRYPOINTS.private.port }
+                : null,
+            // The LAN door serves Traefik's PRIVATE entrypoint: same routers, same
+            // hostnames, reached on a different address. It is the only door a node
+            // can use before it is a member, so it is keyed off `exposeOnLan` rather
+            // than the private lane alone.
+            lan:
+                input.lanes.private.enabled && input.lanes.private.exposeOnLan
+                    ? { upstreamPort: LANE_ENTRYPOINTS.private.port }
+                    : null,
+        },
+        rescue: [...input.rescue],
+    }
 }

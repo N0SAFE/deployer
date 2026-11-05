@@ -20,7 +20,9 @@ describe('WithHeaders Middleware', () => {
         const inner = vi.fn(() => Promise.resolve(NextResponse.next()))
         const middleware = withHeaders(inner)
 
-        const request = createMockRequest('http://localhost:3003/dashboard?tab=2')
+        const request = createMockRequest(
+            'http://localhost:3003/dashboard?tab=2'
+        )
         const result = await middleware(request, {} as NextFetchEvent)
 
         if (!result) throw new Error('expected a middleware response')
@@ -31,9 +33,14 @@ describe('WithHeaders Middleware', () => {
         // Middleware continuation marker preserved
         expect(result.headers.get('x-middleware-next')).toBe('1')
         // Request headers forwarded so Server Components can read them via headers()
-        expect(result.headers.get('x-middleware-request-x-pathname')).toBe('/dashboard')
-        expect(result.headers.get('x-middleware-request-x-search')).toBe('?tab=2')
-        const overridden = result.headers.get('x-middleware-override-headers') ?? ''
+        expect(result.headers.get('x-middleware-request-x-pathname')).toBe(
+            '/dashboard'
+        )
+        expect(result.headers.get('x-middleware-request-x-search')).toBe(
+            '?tab=2'
+        )
+        const overridden =
+            result.headers.get('x-middleware-override-headers') ?? ''
         expect(overridden.split(',')).toContain('x-pathname')
         expect(overridden.split(',')).toContain('x-search')
 
@@ -50,7 +57,9 @@ describe('WithHeaders Middleware', () => {
         const result = await middleware(request, {} as NextFetchEvent)
 
         if (!result) throw new Error('expected a middleware response')
-        expect(result.headers.get('x-middleware-request-x-pathname')).toBe('/settings')
+        expect(result.headers.get('x-middleware-request-x-pathname')).toBe(
+            '/settings'
+        )
         expect(result.headers.get('x-middleware-request-x-search')).toBe('')
         expect(result.headers.get('x-pathname')).toBe('/settings')
     })
@@ -59,7 +68,11 @@ describe('WithHeaders Middleware', () => {
         const { withHeaders } = await import('../WithHeaders')
 
         const inner = vi.fn(() =>
-            Promise.resolve(NextResponse.redirect('http://localhost:3003/auth/signin?redirectTo=%2Fdashboard')),
+            Promise.resolve(
+                NextResponse.redirect(
+                    'http://localhost:3003/auth/signin?redirectTo=%2Fdashboard'
+                )
+            )
         )
         const middleware = withHeaders(inner)
 
@@ -69,7 +82,7 @@ describe('WithHeaders Middleware', () => {
         if (!result) throw new Error('expected a middleware response')
         expect(result.status).toBe(307)
         expect(result.headers.get('location')).toBe(
-            'http://localhost:3003/auth/signin?redirectTo=%2Fdashboard',
+            'http://localhost:3003/auth/signin?redirectTo=%2Fdashboard'
         )
         // Response header is still decorated on redirects (existing behavior)
         expect(result.headers.get('x-pathname')).toBe('/dashboard')
@@ -92,6 +105,8 @@ describe('WithHeaders Middleware', () => {
         if (!result) throw new Error('expected a middleware response')
         expect(result.headers.get('x-custom-from-inner')).toBe('yes')
         // Fresh request forwarding is still present
-        expect(result.headers.get('x-middleware-request-x-pathname')).toBe('/settings')
+        expect(result.headers.get('x-middleware-request-x-pathname')).toBe(
+            '/settings'
+        )
     })
 })

@@ -14,16 +14,16 @@
 
 /** A count plus the label the UI renders, so the wording has one owner. */
 export type Stat = {
-	key: string;
-	label: string;
-	value: number;
-	/** Set when the value could not be read, so a card shows WHY not a bare 0. */
-	unavailableReason?: string;
+    key: string
+    label: string
+    value: number
+    /** Set when the value could not be read, so a card shows WHY not a bare 0. */
+    unavailableReason?: string
 }
 
 /** A per-source outcome, so one dead dependency degrades instead of failing. */
 export type Section = {
-	name: string;
-	ok: boolean;
-	reason?: string;
+    name: string
+    ok: boolean
+    reason?: string
 }

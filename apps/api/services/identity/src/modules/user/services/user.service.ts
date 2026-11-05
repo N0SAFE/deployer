@@ -27,13 +27,18 @@ import {
 import { rule } from './user.service.utils'
 
 import type { UserQuery } from './user.service.types'
-import type { NewUser, SelfExportData, User, UserPatch, UserSessionRow } from '../domain/user.types'
+import type {
+    NewUser,
+    SelfExportData,
+    User,
+    UserPatch,
+    UserSessionRow,
+} from '../domain/user.types'
 import type {
     UserFilter,
     UserPage,
 } from '../repositories/user.repository.types'
 import type { UserRepositoryFailure } from '../user.failures'
-
 
 /** What a user use case can fail with: its own refusals, or the database. */
 export type UserFailure = UserDomainFailure | UserRepositoryFailure
@@ -46,10 +51,18 @@ export type UserFailure = UserDomainFailure | UserRepositoryFailure
 export type UserServiceShape = {
     readonly list: (
         query: UserQuery
-    ) => Effect.Effect<UserPage, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        UserPage,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort
+    >
     readonly count: (
         filter: UserFilter
-    ) => Effect.Effect<number, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        number,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort
+    >
     /** Delete the caller's own account (`AUTH-032`): step-up, last-admin guard, then cascade. */
     readonly deleteSelf: () => Effect.Effect<
         void,
@@ -64,16 +77,29 @@ export type UserServiceShape = {
     >
     readonly findById: (
         id: string
-    ) => Effect.Effect<User | null, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        User | null,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort
+    >
     readonly checkEmail: (
         email: string
-    ) => Effect.Effect<boolean, UserFailure, Ambient | UserRepository | DatabasePort>
+    ) => Effect.Effect<
+        boolean,
+        UserFailure,
+        Ambient | UserRepository | DatabasePort
+    >
     readonly create: (
         input: NewUser
     ) => Effect.Effect<
         User,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | RoleService | AuditService | StepUpService
+        | Ambient
+        | UserRepository
+        | DatabasePort
+        | RoleService
+        | AuditService
+        | StepUpService
     >
     readonly update: (
         id: string,
@@ -94,20 +120,29 @@ export type UserServiceShape = {
     >
     readonly setRole: (
         id: string,
-        role: NonNullable<User["role"]>
+        role: NonNullable<User['role']>
     ) => Effect.Effect<
         User,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService | RoleService | AuditService
+        | Ambient
+        | UserRepository
+        | DatabasePort
+        | StepUpService
+        | RoleService
+        | AuditService
     >
     /** Every session a user holds (`session:list`). */
     readonly listSessions: (
-        id: string,
-    ) => Effect.Effect<UserSessionRow[], UserFailure, Ambient | UserRepository | DatabasePort>
+        id: string
+    ) => Effect.Effect<
+        UserSessionRow[],
+        UserFailure,
+        Ambient | UserRepository | DatabasePort
+    >
     /** End ONE session (`session:revoke`), with a passkey proof. */
     readonly revokeSession: (
         id: string,
-        sessionId: string,
+        sessionId: string
     ) => Effect.Effect<
         void,
         UserFailure,
@@ -134,7 +169,12 @@ export type UserServiceShape = {
     ) => Effect.Effect<
         void,
         UserFailure,
-        Ambient | UserRepository | DatabasePort | StepUpService | AuditService | ApprovalService
+        | Ambient
+        | UserRepository
+        | DatabasePort
+        | StepUpService
+        | AuditService
+        | ApprovalService
     >
 }
 
@@ -144,8 +184,7 @@ export class UserService extends Context.Service<
     UserServiceShape
 >()('identity/UserService') {
     /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(UserRepository, makeUserService);
-
+    static readonly live = serviceOver(UserRepository, makeUserService)
 }
 
 const actingUser = Effect.gen(function* () {
@@ -185,11 +224,20 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
         deleteSelf: Effect.fn('UserService.deleteSelf')(function* () {
             const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            yield* stepUp.assertCritical().pipe(
+                Effect.mapError(
+                    () =>
+                        new UserForbidden({
+                            reason: 'step-up required: verify with a passkey and retry',
+                        })
+                )
+            )
 
             const actor = yield* CurrentActor
             if (actor.kind !== 'user') {
-                return yield* new UserForbidden({ reason: 'only a signed-in account can delete itself' })
+                return yield* new UserForbidden({
+                    reason: 'only a signed-in account can delete itself',
+                })
             }
 
             const self = yield* users.findById(actor.id)
@@ -222,7 +270,9 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             const actor = yield* CurrentActor
             // A system actor has no "own data"; answering would mean picking someone else's.
             if (actor.kind !== 'user') {
-                return yield* new UserForbidden({ reason: 'only a signed-in account can export its data' })
+                return yield* new UserForbidden({
+                    reason: 'only a signed-in account can export its data',
+                })
             }
 
             const self = yield* users.findById(actor.id)
@@ -255,7 +305,14 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // `setRole` guards minting an admin. A default `user` account does not need one.
             if (input.role !== undefined && input.role !== 'user') {
                 const stepUp = yield* StepUpService
-                yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new UserForbidden({
+                                reason: 'step-up required: verify with a passkey and retry',
+                            })
+                    )
+                )
             }
 
             // The roles table is the source of truth for what exists; a name it does not know cannot be written into
@@ -263,7 +320,9 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             if (input.role !== undefined) {
                 const roles = yield* RoleService
                 if (!(yield* roles.isKnownPlatformRole(input.role))) {
-                    return yield* new UserInvalid({ reason: `"${input.role}" is not a platform role` })
+                    return yield* new UserInvalid({
+                        reason: `"${input.role}" is not a platform role`,
+                    })
                 }
             }
 
@@ -286,7 +345,9 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // A user with a password is created with a `credential` account row; Better Auth verifies against it.
             const password = input.password
             if (password !== undefined && password.length > 0) {
-                const passwordHash = yield* Effect.promise(() => hashPassword(password))
+                const passwordHash = yield* Effect.promise(() =>
+                    hashPassword(password)
+                )
                 yield* users.setPassword(created.id, passwordHash)
             }
 
@@ -316,18 +377,25 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // account over, so it is a critical action even though the row it writes is only one column.
             const changesPrivilege =
                 (patch.role !== undefined && patch.role !== current.role) ||
-                (patch.banned !== undefined && patch.banned !== (current.banned ?? false)) ||
+                (patch.banned !== undefined &&
+                    patch.banned !== (current.banned ?? false)) ||
                 (patch.email !== undefined && patch.email !== current.email)
             if (changesPrivilege) {
                 const stepUp = yield* StepUpService
-                yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new UserForbidden({
+                                reason: 'step-up required: verify with a passkey and retry',
+                            })
+                    )
+                )
             }
 
             const isSelf = actor.userId === id
             yield* rule(() => {
                 userRules.assertSelfOrAdmin(actor, id)
-                if (!isSelf)
-                    userRules.assertOutranks(actor, current.role)
+                if (!isSelf) userRules.assertOutranks(actor, current.role)
                 if (
                     patch.banned !== undefined &&
                     patch.banned !== (current.banned ?? false)
@@ -415,13 +483,23 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // The capability is checked FIRST: asking a caller who will be refused for a passkey leaks that the action
             // exists and wastes a ceremony on nothing.
             yield* rule(() => {
-                userRules.assertCapability(actor, banned ? 'user:ban' : 'user:unban')
+                userRules.assertCapability(
+                    actor,
+                    banned ? 'user:ban' : 'user:unban'
+                )
                 userRules.assertCanAdminister(actor)
             })
 
             const stepUp = yield* StepUpService
             // A ban ends credentials; it is a critical action, so it needs a fresh passkey proof (`AUTH-062`).
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            yield* stepUp.assertCritical().pipe(
+                Effect.mapError(
+                    () =>
+                        new UserForbidden({
+                            reason: 'step-up required: verify with a passkey and retry',
+                        })
+                )
+            )
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
@@ -459,11 +537,20 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             const stepUp = yield* StepUpService
             // Granting a platform role is privilege; a fresh passkey proof is the price (`AUTH-062`, `SEC-070`).
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            yield* stepUp.assertCritical().pipe(
+                Effect.mapError(
+                    () =>
+                        new UserForbidden({
+                            reason: 'step-up required: verify with a passkey and retry',
+                        })
+                )
+            )
 
             const roles = yield* RoleService
             if (!(yield* roles.isKnownPlatformRole(role))) {
-                return yield* new UserInvalid({ reason: `"${role}" is not a platform role` })
+                return yield* new UserInvalid({
+                    reason: `"${role}" is not a platform role`,
+                })
             }
 
             const current = yield* users.findById(id)
@@ -512,64 +599,90 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             return yield* users.listSessions(id)
         }),
 
-        revokeSession: Effect.fn('UserService.revokeSession')(function* (id, sessionId) {
-            const actor = yield* actingUser
-            yield* rule(() => {
-                userRules.assertCapability(actor, 'session:revoke')
-            })
-
-            const target = yield* users.findById(id)
-            if (target === null) return yield* new UserNotFound({ id })
-
-            if (id !== actor.userId) {
+        revokeSession: Effect.fn('UserService.revokeSession')(
+            function* (id, sessionId) {
+                const actor = yield* actingUser
                 yield* rule(() => {
-                    userRules.assertOutranks(actor, target.role)
+                    userRules.assertCapability(actor, 'session:revoke')
+                })
+
+                const target = yield* users.findById(id)
+                if (target === null) return yield* new UserNotFound({ id })
+
+                if (id !== actor.userId) {
+                    yield* rule(() => {
+                        userRules.assertOutranks(actor, target.role)
+                    })
+                }
+
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new UserForbidden({
+                                reason: 'step-up required: verify with a passkey and retry',
+                            })
+                    )
+                )
+
+                const revoked = yield* users.revokeSession(id, sessionId)
+                if (!revoked) {
+                    return yield* new UserInvalid({
+                        reason: 'that session no longer exists',
+                    })
+                }
+
+                const audit = yield* AuditService
+                yield* audit.record({
+                    action: 'session-revoked',
+                    actorId: actor.userId,
+                    targetId: id,
+                    detail: { sessionId },
                 })
             }
+        ),
 
-            const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+        setPassword: Effect.fn('UserService.setPassword')(
+            function* (id, password) {
+                const actor = yield* actingUser
+                yield* rule(() => {
+                    userRules.assertCapability(actor, 'user:set-password')
+                    userRules.assertCanAdminister(actor)
+                })
 
-            const revoked = yield* users.revokeSession(id, sessionId)
-            if (!revoked) {
-                return yield* new UserInvalid({ reason: 'that session no longer exists' })
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new UserForbidden({
+                                reason: 'step-up required: verify with a passkey and retry',
+                            })
+                    )
+                )
+
+                const current = yield* users.findById(id)
+                if (current === null) return yield* new UserNotFound({ id })
+
+                yield* rule(() => {
+                    userRules.assertOutranks(actor, current.role)
+                })
+
+                // Better Auth verifies against the `credential` account row; its own crypto produces the hash.
+                const passwordHash = yield* Effect.promise(() =>
+                    hashPassword(password)
+                )
+                yield* users.setPassword(id, passwordHash)
+                // A password change that leaves a session alive is not a change: whoever had the old one keeps access.
+                yield* users.revokeCredentials(id)
+
+                const audit = yield* AuditService
+                yield* audit.record({
+                    action: 'password-changed',
+                    actorId: actor.userId,
+                    targetId: id,
+                })
             }
-
-            const audit = yield* AuditService
-            yield* audit.record({
-                action: 'session-revoked',
-                actorId: actor.userId,
-                targetId: id,
-                detail: { sessionId },
-            })
-        }),
-
-        setPassword: Effect.fn('UserService.setPassword')(function* (id, password) {
-            const actor = yield* actingUser
-            yield* rule(() => {
-                userRules.assertCapability(actor, 'user:set-password')
-                userRules.assertCanAdminister(actor)
-            })
-
-            const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
-
-            const current = yield* users.findById(id)
-            if (current === null) return yield* new UserNotFound({ id })
-
-            yield* rule(() => {
-                userRules.assertOutranks(actor, current.role)
-            })
-
-            // Better Auth verifies against the `credential` account row; its own crypto produces the hash.
-            const passwordHash = yield* Effect.promise(() => hashPassword(password))
-            yield* users.setPassword(id, passwordHash)
-            // A password change that leaves a session alive is not a change: whoever had the old one keeps access.
-            yield* users.revokeCredentials(id)
-
-            const audit = yield* AuditService
-            yield* audit.record({ action: 'password-changed', actorId: actor.userId, targetId: id })
-        }),
+        ),
 
         revokeSessions: Effect.fn('UserService.revokeSessions')(function* (id) {
             const actor = yield* actingUser
@@ -579,7 +692,14 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             })
 
             const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            yield* stepUp.assertCritical().pipe(
+                Effect.mapError(
+                    () =>
+                        new UserForbidden({
+                            reason: 'step-up required: verify with a passkey and retry',
+                        })
+                )
+            )
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
@@ -598,7 +718,14 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             })
 
             const stepUp = yield* StepUpService
-            yield* stepUp.assertCritical().pipe(Effect.mapError(() => new UserForbidden({ reason: "step-up required: verify with a passkey and retry" })))
+            yield* stepUp.assertCritical().pipe(
+                Effect.mapError(
+                    () =>
+                        new UserForbidden({
+                            reason: 'step-up required: verify with a passkey and retry',
+                        })
+                )
+            )
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
@@ -611,17 +738,19 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             // Deleting an account destroys its data. Whoever holds `user:delete` (the danger bundle) may do it; anyone
             // else needs a second person's approval for THIS id, consumed atomically at the moment of the write.
             const approvals = yield* ApprovalService
-            yield* approvals.require('user:delete', actionHash('user.delete', id)).pipe(
-                Effect.mapError(
-                    (error) =>
-                        new UserForbidden({
-                            reason:
-                                error._tag === 'ApprovalForbidden'
-                                    ? 'approval required: ask another admin to approve this exact action'
-                                    : 'the approval check failed',
-                        })
+            yield* approvals
+                .require('user:delete', actionHash('user.delete', id))
+                .pipe(
+                    Effect.mapError(
+                        (error) =>
+                            new UserForbidden({
+                                reason:
+                                    error._tag === 'ApprovalForbidden'
+                                        ? 'approval required: ask another admin to approve this exact action'
+                                        : 'the approval check failed',
+                            })
+                    )
                 )
-            )
 
             yield* users.delete(id)
 

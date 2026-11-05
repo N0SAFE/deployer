@@ -1,9 +1,10 @@
 import libraryConfig from '@deployer/config-eslint/library'
-import { defineConfig } from "@deployer/config-eslint"
+import { defineConfig } from '@deployer/config-eslint'
 
 export default defineConfig([
-    {extends:[libraryConfig.configs.base()],
-        files: ["src/**/*.{ts,tsx}"],
+    {
+        extends: [libraryConfig.configs.base()],
+        files: ['src/**/*.{ts,tsx}'],
         rules: {
             /**
              * `Record<never, never>` is this builder's model for "no params /
@@ -22,18 +23,23 @@ export default defineConfig([
              * exemption is the only way to keep a correct type without a
              * per-line `eslint-disable`.
              */
-            "@typescript-eslint/no-generated-empty-object-type": "off",
+            '@typescript-eslint/no-generated-empty-object-type': 'off',
         },
     },
-    {extends: [libraryConfig.configs.test()],
-        files: ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+    {
+        extends: [libraryConfig.configs.test()],
+        files: [
+            '**/__tests__/**/*.{ts,tsx}',
+            '**/*.test.{ts,tsx}',
+            '**/*.spec.{ts,tsx}',
+        ],
         rules: {
-            "@typescript-eslint/no-explicit-any": "off",
-            "@typescript-eslint/no-unsafe-assignment": "off",
-            "@typescript-eslint/no-unsafe-member-access": "off",
-            "@typescript-eslint/no-unsafe-call": "off",
-            "@typescript-eslint/no-unsafe-argument": "off",
-            "@typescript-eslint/no-unsafe-return": "off",
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-unsafe-assignment': 'off',
+            '@typescript-eslint/no-unsafe-member-access': 'off',
+            '@typescript-eslint/no-unsafe-call': 'off',
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            '@typescript-eslint/no-unsafe-return': 'off',
         },
     },
 ])

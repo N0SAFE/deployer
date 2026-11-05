@@ -1,11 +1,13 @@
-import { Logger } from "@nestjs/common";
-import { Context } from "effect";
+import { Logger } from '@nestjs/common'
+import { Context } from 'effect'
 
-import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@deployer/contracts-entities";
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import type {
+    SetupStateSnapshot,
+    SetupBootstrapStrategy,
+} from '@deployer/contracts-entities'
+import { runSyncUnwrapped } from '@deployer/effect-core'
 
-import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
-
+import { NODE_CONFIG_READER, type NodeConfigReader } from './node-config.port'
 
 /**
  * The wizard's PRE-GATE state, answered locally.
@@ -46,115 +48,136 @@ import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
  * What must NOT be duplicated is the provisioning flow, and it is not.
  */
 export class WizardStateServiceImpl {
-  private readonly logger = new Logger("WizardStateService");
+    private readonly logger = new Logger('WizardStateService')
 
-  constructor(private readonly nodeConfig: NodeConfigReader) {}
+    constructor(private readonly nodeConfig: NodeConfigReader) {}
 
-  /**
-   * Whether this node has a COMPLETED platform.
-   *
-   * The same predicate the API uses: a row with `configuredAt` but no
-   * `databaseUrl` is a stale/partial write from an interrupted attempt, and must
-   * report as needing setup so the wizard can re-provision rather than showing a
-   * dashboard over an empty schema.
-   */
-  isConfigured(): boolean {
-    const config = runSyncUnwrapped(this.nodeConfig.find());
-    return Boolean(config?.configuredAt && config.databaseUrl?.trim());
-  }
-
-  /** The wizard's state snapshot, from the shared `node_config` row. */
-  getState(): SetupStateSnapshot {
-    const config = runSyncUnwrapped(this.nodeConfig.find());
-
-    if (config === null || config === undefined) {
-      return this.notStarted();
+    /**
+     * Whether this node has a COMPLETED platform.
+     *
+     * The same predicate the API uses: a row with `configuredAt` but no
+     * `databaseUrl` is a stale/partial write from an interrupted attempt, and must
+     * report as needing setup so the wizard can re-provision rather than showing a
+     * dashboard over an empty schema.
+     */
+    isConfigured(): boolean {
+        const config = runSyncUnwrapped(this.nodeConfig.find())
+        return Boolean(config?.configuredAt && config.databaseUrl?.trim())
     }
 
-    if (this.isConfigured()) {
-      return {
-        state: "completed",
-        needsSetup: false,
-        // Optimistically true: this is the honest answer for a CONFIGURED node
-        // (the overwhelmingly common case), and a false negative would hide the
-        // sign-in step from an operator who has an account. The API performs the
-        // real probe once it is up — setup has no database connection to do it
-        // with, and inventing one would mean carrying the pg client here.
-        hasUsers: true,
-        bootstrapStrategy: config.strategy,
-        availableStrategies: ["local", "remote"],
-        currentStep: null,
-        progressPercent: 100,
-        steps: [],
-        completedAt: config.configuredAt === null ? null : new Date(config.configuredAt),
-      };
+    /** The wizard's state snapshot, from the shared `node_config` row. */
+    getState(): SetupStateSnapshot {
+        const config = runSyncUnwrapped(this.nodeConfig.find())
+
+        if (config === null || config === undefined) {
+            return this.notStarted()
+        }
+
+        if (this.isConfigured()) {
+            return {
+                state: 'completed',
+                needsSetup: false,
+                // Optimistically true: this is the honest answer for a CONFIGURED node
+                // (the overwhelmingly common case), and a false negative would hide the
+                // sign-in step from an operator who has an account. The API performs the
+                // real probe once it is up — setup has no database connection to do it
+                // with, and inventing one would mean carrying the pg client here.
+                hasUsers: true,
+                bootstrapStrategy: config.strategy,
+                availableStrategies: ['local', 'remote'],
+                currentStep: null,
+                progressPercent: 100,
+                steps: [],
+                completedAt:
+                    config.configuredAt === null
+                        ? null
+                        : new Date(config.configuredAt),
+            }
+        }
+
+        return this.notStarted()
     }
 
-    return this.notStarted();
-  }
+    /**
+     * Network identity of this node.
+     *
+     * `isConfigured` uses the same predicate as `getState`, so the wizard's two
+     * pre-gate reads can never disagree about whether setup is needed — a
+     * divergence that would show the wizard and the done page at once.
+     */
+    getNodeStatus(): {
+        isConfigured: boolean
+        nodeId: string | null
+        strategy: SetupBootstrapStrategy | null
+        meshUrlsSnapshot: string[]
+        configuredAt: Date | null
+    } {
+        const config = runSyncUnwrapped(this.nodeConfig.find())
+        const configured = this.isConfigured()
 
-  /**
-   * Network identity of this node.
-   *
-   * `isConfigured` uses the same predicate as `getState`, so the wizard's two
-   * pre-gate reads can never disagree about whether setup is needed — a
-   * divergence that would show the wizard and the done page at once.
-   */
-  getNodeStatus(): {
-    isConfigured: boolean;
-    nodeId: string | null;
-    strategy: SetupBootstrapStrategy | null;
-    meshUrlsSnapshot: string[];
-    configuredAt: Date | null;
-  } {
-    const config = runSyncUnwrapped(this.nodeConfig.find());
-    const configured = this.isConfigured();
+        return {
+            isConfigured: configured,
+            nodeId: config?.nodeId ?? null,
+            // Narrowed to the contract's literal union: the persisted column is a
+            // plain string, but the contract enumerates the only two strategies that
+            // exist, so an unrecognized value is surfaced as `null` rather than
+            // smuggled through as a string the client cannot switch on.
+            strategy:
+                config?.strategy === 'local' || config?.strategy === 'remote'
+                    ? config.strategy
+                    : null,
+            meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
+            configuredAt:
+                configured &&
+                config?.configuredAt !== null &&
+                config?.configuredAt !== undefined
+                    ? new Date(config.configuredAt)
+                    : null,
+        }
+    }
 
-    return {
-      isConfigured: configured,
-      nodeId: config?.nodeId ?? null,
-      // Narrowed to the contract's literal union: the persisted column is a
-      // plain string, but the contract enumerates the only two strategies that
-      // exist, so an unrecognized value is surfaced as `null` rather than
-      // smuggled through as a string the client cannot switch on.
-      strategy: config?.strategy === "local" || config?.strategy === "remote" ? config.strategy : null,
-      meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
-      configuredAt:
-        configured && config?.configuredAt !== null && config?.configuredAt !== undefined
-          ? new Date(config.configuredAt)
-          : null,
-    };
-  }
+    /** The fresh-install snapshot. One definition, so both callers agree. */
+    private notStarted(): SetupStateSnapshot {
+        return {
+            state: 'not_started',
+            needsSetup: true,
+            hasUsers: false,
+            bootstrapStrategy: null,
+            availableStrategies: ['local', 'remote'],
+            currentStep: 'choose_strategy',
+            progressPercent: 0,
+            steps: [
+                {
+                    id: 'choose_strategy',
+                    title: 'Choose bootstrap strategy',
+                    status: 'pending',
+                },
+                {
+                    id: 'configure_account',
+                    title: 'Configure account',
+                    status: 'pending',
+                },
+            ],
+            completedAt: null,
+        }
+    }
 
-  /** The fresh-install snapshot. One definition, so both callers agree. */
-  private notStarted(): SetupStateSnapshot {
-    return {
-      state: "not_started",
-      needsSetup: true,
-      hasUsers: false,
-      bootstrapStrategy: null,
-      availableStrategies: ["local", "remote"],
-      currentStep: "choose_strategy",
-      progressPercent: 0,
-      steps: [
-        { id: "choose_strategy", title: "Choose bootstrap strategy", status: "pending" },
-        { id: "configure_account", title: "Configure account", status: "pending" },
-      ],
-      completedAt: null,
-    };
-  }
-
-  /** Log once, so a wizard served from a stale row is visible in the logs. */
-  describe(): string {
-    const status = this.getNodeStatus();
-    return status.isConfigured
-      ? `configured (node ${status.nodeId ?? "unknown"})`
-      : "not configured — the wizard will collect the details";
-  }
+    /** Log once, so a wizard served from a stale row is visible in the logs. */
+    describe(): string {
+        const status = this.getNodeStatus()
+        return status.isConfigured
+            ? `configured (node ${status.nodeId ?? 'unknown'})`
+            : 'not configured — the wizard will collect the details'
+    }
 }
 
 /** The tag: what a module provides and a consumer asks for (`WizardStateService["Service"]` is its type). */
-export class WizardStateService extends Context.Service<WizardStateService, WizardStateServiceImpl>()("setup/WizardStateService") {}
+export class WizardStateService extends Context.Service<
+    WizardStateService,
+    WizardStateServiceImpl
+>()('setup/WizardStateService') {}
 
 /** The one way to build it — the module's `useFactory` and a spec both call this. */
-export const makeWizardStateService = (...args: ConstructorParameters<typeof WizardStateServiceImpl>): WizardStateServiceImpl => new WizardStateServiceImpl(...args);
+export const makeWizardStateService = (
+    ...args: ConstructorParameters<typeof WizardStateServiceImpl>
+): WizardStateServiceImpl => new WizardStateServiceImpl(...args)

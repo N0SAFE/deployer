@@ -1,25 +1,35 @@
-import { Observable } from "rxjs";
+import { Observable } from 'rxjs'
 
-import { FleetInvalid } from "../../core/fleet.errors";
 import type {
-  NodeAgentJoinTokenInput,
-  NodeAgentJoinTokenResult,
-  NodeAgentLookupInput,
-  NodeAgentLookupResult,
-  NodeAgentNode,
-  NodeAgentNodesResult,
-  NodeAgentSnapshot,
-} from "@deployer/contracts-entities";
+    NodeAgentJoinTokenInput,
+    NodeAgentJoinTokenResult,
+    NodeAgentLookupInput,
+    NodeAgentLookupResult,
+    NodeAgentNode,
+    NodeAgentNodesResult,
+    NodeAgentSnapshot,
+} from '@deployer/contracts-entities'
 
-import type { ClientContext, ClientLink } from "@orpc/client";
+import { FleetInvalid } from '../../core/fleet.errors'
 
-const CALL = { context: {} } as const;
+import type { ClientContext, ClientLink } from '@orpc/client'
 
-type AgentView = { self: { nodeId: string; address: string }; agents: { nodeId: string; address: string }[] };
-type AgentReplica = { service: string; replicaId: string; nodeId: string; load: number; keys: string[] };
+const CALL = { context: {} } as const
+
+type AgentView = {
+    self: { nodeId: string; address: string }
+    agents: { nodeId: string; address: string }[]
+}
+type AgentReplica = {
+    service: string
+    replicaId: string
+    nodeId: string
+    load: number
+    keys: string[]
+}
 
 /** What the dashboard asks of a node without an agent: it is a swarm of one, whose node is known by its own id only. */
-export type StandaloneNode = () => Promise<{ nodeId: string }>;
+export type StandaloneNode = () => Promise<{ nodeId: string }>
 
 /**
  * The dashboard's picture of the mesh, read from the agent of this node.
@@ -28,101 +38,158 @@ export type StandaloneNode = () => Promise<{ nodeId: string }>;
  * which alone holds the swarm's credential. A node without an agent is a swarm of one.
  */
 export class MeshViewService {
-  constructor(
-    private readonly agent: () => ClientLink<ClientContext> | undefined,
-    private readonly standalone: StandaloneNode,
-    /** How often the topology stream looks again. */
-    private readonly pollMs = 3_000,
-  ) {}
+    constructor(
+        private readonly agent: () => ClientLink<ClientContext> | undefined,
+        private readonly standalone: StandaloneNode,
+        /** How often the topology stream looks again. */
+        private readonly pollMs = 3_000
+    ) {}
 
-  async localNode(): Promise<NodeAgentNode> {
-    const link = this.agent();
-    if (link === undefined) {
-      return { nodeId: (await this.standalone()).nodeId, address: "", local: true };
-    }
-    const { self } = (await link.call(["roster", "view"], {}, CALL)) as AgentView;
-    return { ...self, local: true };
-  }
-
-  async peers(): Promise<NodeAgentNodesResult> {
-    const link = this.agent();
-    if (link === undefined) {
-      return { items: [await this.localNode()] };
-    }
-    return { items: await this.nodes(link) };
-  }
-
-  async snapshot(): Promise<NodeAgentSnapshot> {
-    const link = this.agent();
-    if (link === undefined) {
-      return { generatedAt: new Date().toISOString(), nodes: [await this.localNode()], replicas: [] };
-    }
-    const nodes = await this.nodes(link);
-    const { replicas } = (await link.call(["directory", "snapshot"], {}, CALL)) as { replicas: AgentReplica[] };
-    return {
-      generatedAt: new Date().toISOString(),
-      nodes,
-      replicas: replicas.map(({ service, replicaId, nodeId, load, keys }) => ({ service, replicaId, nodeId, load, keys })),
-    };
-  }
-
-  /** The swarm now, and again each time it differs from what was last sent. */
-  topology(): Observable<NodeAgentSnapshot> {
-    return new Observable<NodeAgentSnapshot>((subscriber) => {
-      let last = "";
-      let closed = false;
-      const look = async () => {
-        try {
-          const current = await this.snapshot();
-          const fingerprint = JSON.stringify({ nodes: current.nodes, replicas: current.replicas });
-          if (!closed && fingerprint !== last) {
-            last = fingerprint;
-            subscriber.next(current);
-          }
-        } catch {
-          // The agent is not reachable right now: say nothing, and look again.
+    async localNode(): Promise<NodeAgentNode> {
+        const link = this.agent()
+        if (link === undefined) {
+            return {
+                nodeId: (await this.standalone()).nodeId,
+                address: '',
+                local: true,
+            }
         }
-      };
-      void look();
-      const timer = setInterval(() => void look(), this.pollMs);
-      return () => {
-        closed = true;
-        clearInterval(timer);
-      };
-    });
-  }
-
-  async lookup(input: NodeAgentLookupInput): Promise<NodeAgentLookupResult> {
-    const link = this.agent();
-    if (link === undefined) {
-      return { found: false, replica: null, reason: null };
+        const { self } = (await link.call(
+            ['roster', 'view'],
+            {},
+            CALL
+        )) as AgentView
+        return { ...self, local: true }
     }
-    try {
-      const { replica, reason } = (await link.call(["directory", "resolve"], input, CALL)) as {
-        replica: AgentReplica;
-        reason: NonNullable<NodeAgentLookupResult["reason"]>;
-      };
-      const { service, replicaId, nodeId, load, keys } = replica;
-      return { found: true, replica: { service, replicaId, nodeId, load, keys }, reason };
-    } catch (error) {
-      if (typeof error === "object" && error !== null && "code" in error && (error).code === "NOT_FOUND") {
-        return { found: false, replica: null, reason: null };
-      }
-      throw error;
-    }
-  }
 
-  /** A token for a new node. A node with no agent cannot issue one: there is no swarm credential to hand over. */
-  async issueToken(input: NodeAgentJoinTokenInput): Promise<NodeAgentJoinTokenResult> {
-    const link = this.agent();
-    if (link === undefined) {
-      throw new FleetInvalid({ reason: "This node has no mesh agent, so it cannot issue a join token" });
+    async peers(): Promise<NodeAgentNodesResult> {
+        const link = this.agent()
+        if (link === undefined) {
+            return { items: [await this.localNode()] }
+        }
+        return { items: await this.nodes(link) }
     }
-    return (await link.call(["roster", "token"], input, CALL)) as NodeAgentJoinTokenResult;
-  }
 
-  private async nodes(link: ClientLink<ClientContext>): Promise<NodeAgentNode[]> {
-    const { self, agents } = (await link.call(["roster", "view"], {}, CALL)) as AgentView;
-    return [{ ...self, local: true }, ...agents.map((agent) => ({ ...agent, local: false }))];
-  }
+    async snapshot(): Promise<NodeAgentSnapshot> {
+        const link = this.agent()
+        if (link === undefined) {
+            return {
+                generatedAt: new Date().toISOString(),
+                nodes: [await this.localNode()],
+                replicas: [],
+            }
+        }
+        const nodes = await this.nodes(link)
+        const { replicas } = (await link.call(
+            ['directory', 'snapshot'],
+            {},
+            CALL
+        )) as { replicas: AgentReplica[] }
+        return {
+            generatedAt: new Date().toISOString(),
+            nodes,
+            replicas: replicas.map(
+                ({ service, replicaId, nodeId, load, keys }) => ({
+                    service,
+                    replicaId,
+                    nodeId,
+                    load,
+                    keys,
+                })
+            ),
+        }
+    }
+
+    /** The swarm now, and again each time it differs from what was last sent. */
+    topology(): Observable<NodeAgentSnapshot> {
+        return new Observable<NodeAgentSnapshot>((subscriber) => {
+            let last = ''
+            let closed = false
+            const look = async () => {
+                try {
+                    const current = await this.snapshot()
+                    const fingerprint = JSON.stringify({
+                        nodes: current.nodes,
+                        replicas: current.replicas,
+                    })
+                    if (!closed && fingerprint !== last) {
+                        last = fingerprint
+                        subscriber.next(current)
+                    }
+                } catch {
+                    // The agent is not reachable right now: say nothing, and look again.
+                }
+            }
+            void look()
+            const timer = setInterval(() => void look(), this.pollMs)
+            return () => {
+                closed = true
+                clearInterval(timer)
+            }
+        })
+    }
+
+    async lookup(input: NodeAgentLookupInput): Promise<NodeAgentLookupResult> {
+        const link = this.agent()
+        if (link === undefined) {
+            return { found: false, replica: null, reason: null }
+        }
+        try {
+            const { replica, reason } = (await link.call(
+                ['directory', 'resolve'],
+                input,
+                CALL
+            )) as {
+                replica: AgentReplica
+                reason: NonNullable<NodeAgentLookupResult['reason']>
+            }
+            const { service, replicaId, nodeId, load, keys } = replica
+            return {
+                found: true,
+                replica: { service, replicaId, nodeId, load, keys },
+                reason,
+            }
+        } catch (error) {
+            if (
+                typeof error === 'object' &&
+                error !== null &&
+                'code' in error &&
+                error.code === 'NOT_FOUND'
+            ) {
+                return { found: false, replica: null, reason: null }
+            }
+            throw error
+        }
+    }
+
+    /** A token for a new node. A node with no agent cannot issue one: there is no swarm credential to hand over. */
+    async issueToken(
+        input: NodeAgentJoinTokenInput
+    ): Promise<NodeAgentJoinTokenResult> {
+        const link = this.agent()
+        if (link === undefined) {
+            throw new FleetInvalid({
+                reason: 'This node has no mesh agent, so it cannot issue a join token',
+            })
+        }
+        return (await link.call(
+            ['roster', 'token'],
+            input,
+            CALL
+        )) as NodeAgentJoinTokenResult
+    }
+
+    private async nodes(
+        link: ClientLink<ClientContext>
+    ): Promise<NodeAgentNode[]> {
+        const { self, agents } = (await link.call(
+            ['roster', 'view'],
+            {},
+            CALL
+        )) as AgentView
+        return [
+            { ...self, local: true },
+            ...agents.map((agent) => ({ ...agent, local: false })),
+        ]
+    }
 }

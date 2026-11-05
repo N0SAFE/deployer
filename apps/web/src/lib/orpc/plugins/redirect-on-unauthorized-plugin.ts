@@ -50,63 +50,66 @@ export class RedirectOnUnauthorizedPlugin<
             interceptors: [
                 ...interceptors,
                 async (interceptorOptions) => {
-            try {
-                return await interceptorOptions.next(interceptorOptions)
-            } catch (error) {
-                // Ignore abort errors (user cancelled request)
-                if (
-                    (error as Error | undefined)?.name === 'AbortError' ||
-                    (error &&
-                        typeof error === 'object' &&
-                        'code' in error &&
-                        error.code === 'ABORT_ERR')
-                ) {
-                    throw error
-                }
+                    try {
+                        return await interceptorOptions.next(interceptorOptions)
+                    } catch (error) {
+                        // Ignore abort errors (user cancelled request)
+                        if (
+                            (error as Error | undefined)?.name ===
+                                'AbortError' ||
+                            (error &&
+                                typeof error === 'object' &&
+                                'code' in error &&
+                                error.code === 'ABORT_ERR')
+                        ) {
+                            throw error
+                        }
 
-                // Check if redirect is disabled for this request
-                if (interceptorOptions.context.noRedirectOnUnauthorized) {
-                    throw error
-                }
+                        // Check if redirect is disabled for this request
+                        if (
+                            interceptorOptions.context.noRedirectOnUnauthorized
+                        ) {
+                            throw error
+                        }
 
-                // Check if this is a 401 Unauthorized error
-                if (
-                    error &&
-                    typeof error === 'object' &&
-                    'status' in error &&
-                    error.status === 401
-                ) {
-                    pluginLogger.debug(
-                        'ORPC Unauthorized - redirecting to login'
-                    )
+                        // Check if this is a 401 Unauthorized error
+                        if (
+                            error &&
+                            typeof error === 'object' &&
+                            'status' in error &&
+                            error.status === 401
+                        ) {
+                            pluginLogger.debug(
+                                'ORPC Unauthorized - redirecting to login'
+                            )
 
-                    // Client-side: build redirectTo from the real browser URL so
-                    // the sign-in page can send the user back after login
-                    if (typeof window !== 'undefined') {
-                        const loginUrl = AuthSignin(
-                            {},
-                            {
-                                redirectTo:
-                                    window.location.pathname +
-                                    window.location.search,
+                            // Client-side: build redirectTo from the real browser URL so
+                            // the sign-in page can send the user back after login
+                            if (typeof window !== 'undefined') {
+                                const loginUrl = AuthSignin(
+                                    {},
+                                    {
+                                        redirectTo:
+                                            window.location.pathname +
+                                            window.location.search,
+                                    }
+                                )
+                                void clientRedirect(loginUrl)
+                            } else {
+                                // Server-side (Server Component / Server Action / Route
+                                // Handler): recover the current URL from the request
+                                // headers stamped by the WithHeaders middleware
+                                // (x-pathname / x-search), so the sign-in page redirects
+                                // the user back to the page they were on.
+                                const redirectTo = await getServerRedirectTo()
+                                const loginUrl = AuthSignin({}, { redirectTo })
+                                redirect(loginUrl, RedirectType.replace)
                             }
-                        )
-                        void clientRedirect(loginUrl)
-                    } else {
-                        // Server-side (Server Component / Server Action / Route
-                        // Handler): recover the current URL from the request
-                        // headers stamped by the WithHeaders middleware
-                        // (x-pathname / x-search), so the sign-in page redirects
-                        // the user back to the page they were on.
-                        const redirectTo = await getServerRedirectTo()
-                        const loginUrl = AuthSignin({}, { redirectTo })
-                        redirect(loginUrl, RedirectType.replace)
-                    }
-                }
+                        }
 
-                // Re-throw the error if not handled
-                throw error
-            }
+                        // Re-throw the error if not handled
+                        throw error
+                    }
                 },
             ],
         }

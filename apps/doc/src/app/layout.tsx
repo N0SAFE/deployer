@@ -1,25 +1,29 @@
-import { RootProvider } from 'fumadocs-ui/provider/next';
-import './global.css';
-import { Inter } from 'next/font/google';
+import { RootProvider } from 'fumadocs-ui/provider/next'
+import './global.css'
+import { Inter } from 'next/font/google'
 
-import StaticSearchDialog from '@/components/search';
+import StaticSearchDialog from '@/components/search'
 
-import type { Metadata } from 'next';
+import type { Metadata } from 'next'
 
 const inter = Inter({
-  subsets: ['latin'],
-});
+    subsets: ['latin'],
+})
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_DOC_URL ?? 'http://localhost:3020'),
-};
+    metadataBase: new URL(
+        process.env.NEXT_PUBLIC_DOC_URL ?? 'http://localhost:3020'
+    ),
+}
 
 export default function Layout({ children }: LayoutProps<'/'>) {
-  return (
-    <html lang="en" className={inter.className} suppressHydrationWarning>
-      <body className="flex flex-col min-h-screen">
-        <RootProvider search={{ SearchDialog: StaticSearchDialog }}>{children}</RootProvider>
-      </body>
-    </html>
-  );
+    return (
+        <html lang="en" className={inter.className} suppressHydrationWarning>
+            <body className="flex flex-col min-h-screen">
+                <RootProvider search={{ SearchDialog: StaticSearchDialog }}>
+                    {children}
+                </RootProvider>
+            </body>
+        </html>
+    )
 }

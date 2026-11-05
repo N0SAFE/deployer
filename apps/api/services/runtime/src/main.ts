@@ -1,23 +1,23 @@
-import "reflect-metadata";
-import "@orpc/effect/extensions/effect";
+import 'reflect-metadata'
+import '@orpc/effect/extensions/effect'
 // The oRPC context augmentation (`context.request`, `context.auth`), imported for
 // its side effect and as `@/core/...` so it is the SAME module identity the shared
 // code resolves. The package name would load a second copy.
-import "@deployer/shared/core/orpc/context";
+import '@deployer/shared/core/orpc/context'
 // Adds `effect/context` to `DefaultInitialContext` for `.effect()` handlers.
 
-import { apiServicePort } from "@deployer/env";
-import { assertRequirementsMet } from "@deployer/nest-effect";
+import { apiServicePort } from '@deployer/env'
+import { assertRequirementsMet } from '@deployer/nest-effect'
 import {
-	DEPENDENCIES,
-	DependencyNotReadyError,
-	bootstrapApiServer,
-} from "@deployer/shared/server";
+    DEPENDENCIES,
+    DependencyNotReadyError,
+    bootstrapApiServer,
+} from '@deployer/shared/server'
 
-import { RuntimeServiceModule } from "./app.module";
-import { joinRuntimeMesh } from "./core/mesh/join-runtime-mesh";
+import { RuntimeServiceModule } from './app.module'
+import { joinRuntimeMesh } from './core/mesh/join-runtime-mesh'
 
-import type { Server } from "node:http";
+import type { Server } from 'node:http'
 
 /**
  * The runtime service's process entry point.
@@ -27,8 +27,8 @@ import type { Server } from "node:http";
  * and where the BFF calls it, so a service cannot listen on one port and be
  * addressed on another.
  */
-const PORT = apiServicePort("runtime");
-const NAME = "svc-runtime";
+const PORT = apiServicePort('runtime')
+const NAME = 'svc-runtime'
 
 /**
  * The strict check, before a single provider is built.
@@ -37,31 +37,34 @@ const NAME = "svc-runtime";
  * subtree forwarded is resolved. A missing provider is a compile error on this line, naming the controller and the
  * services, instead of a 500 on the first request.
  */
-const rootModule = assertRequirementsMet(RuntimeServiceModule);
+const rootModule = assertRequirementsMet(RuntimeServiceModule)
 
 /**
  * Reads and writes the global Postgres. Redis is required: this service's
  * queues/coordination run through it.
  */
 void bootstrapApiServer({
-	rootModule,
-	port: PORT,
-	name: NAME,
-	dependencies: DEPENDENCIES.platform,
+    rootModule,
+    port: PORT,
+    name: NAME,
+    dependencies: DEPENDENCIES.platform,
 })
-	.then((app) => {
-		// The port is bound and the dependencies are proven: take the runtime into the mesh of its node, if it has an agent.
-		const membership = joinRuntimeMesh(app);
-		(app.getHttpServer() as Server).once("close", () => void membership?.stop());
-	})
-	.catch((error: unknown) => {
-	// A missing dependency is a KNOWN, reportable condition — not an unhandled boot
-	// crash. Exit 5 (the documented "dependency unavailable" code) so the
-	// orchestrator and the swarm branch on it without parsing a stack trace.
-	if (error instanceof DependencyNotReadyError) {
-		console.error(error.message);
-		process.exit(5);
-	}
-	console.error(error);
-	process.exit(1);
-});
+    .then((app) => {
+        // The port is bound and the dependencies are proven: take the runtime into the mesh of its node, if it has an agent.
+        const membership = joinRuntimeMesh(app)
+        ;(app.getHttpServer() as Server).once(
+            'close',
+            () => void membership?.stop()
+        )
+    })
+    .catch((error: unknown) => {
+        // A missing dependency is a KNOWN, reportable condition — not an unhandled boot
+        // crash. Exit 5 (the documented "dependency unavailable" code) so the
+        // orchestrator and the swarm branch on it without parsing a stack trace.
+        if (error instanceof DependencyNotReadyError) {
+            console.error(error.message)
+            process.exit(5)
+        }
+        console.error(error)
+        process.exit(1)
+    })

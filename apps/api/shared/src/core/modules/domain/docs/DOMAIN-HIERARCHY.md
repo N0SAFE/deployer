@@ -25,6 +25,7 @@ Organization
 ### Subdomain Registration (Multi-Org Collaboration)
 
 Organizations can register:
+
 - **Root domains**: `example.com` → owns entire domain
 - **Subdomains**: `api.example.com` → owns only that subdomain branch
 - **Nested subdomains**: `team.api.example.com` → owns only that nested branch
@@ -43,22 +44,22 @@ Each organization only verifies and controls their registered subdomain branch.
 
 ```typescript
 interface OrganizationDomain {
-  id: string;
-  organizationId: string;         // Owner organization
-  domain: string;                 // Domain OR subdomain (e.g., "example.com" OR "api.example.com")
-  
-  // Verification
-  verificationStatus: 'pending' | 'verified' | 'failed';
-  verificationMethod: 'txt_record' | 'cname_record';
-  verificationToken: string;      // Secret token for DNS verification
-  dnsRecordChecked: boolean;      // Whether DNS was queried
-  lastVerificationAttempt: Date;
-  verifiedAt: Date;
-  
-  // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
-  metadata: JsonObject;
+    id: string
+    organizationId: string // Owner organization
+    domain: string // Domain OR subdomain (e.g., "example.com" OR "api.example.com")
+
+    // Verification
+    verificationStatus: 'pending' | 'verified' | 'failed'
+    verificationMethod: 'txt_record' | 'cname_record'
+    verificationToken: string // Secret token for DNS verification
+    dnsRecordChecked: boolean // Whether DNS was queried
+    lastVerificationAttempt: Date
+    verifiedAt: Date
+
+    // Timestamps
+    createdAt: Date
+    updatedAt: Date
+    metadata: JsonObject
 }
 ```
 
@@ -81,20 +82,20 @@ interface OrganizationDomain {
 ```typescript
 // Register domain
 const domain = await orgDomainRepository.create({
-  organizationId: 'org_abc123',
-  domain: 'example.com',
-  verificationMethod: 'txt_record',
-  verificationToken: 'deployer-verify-xyz789...',
-  verificationStatus: 'pending',
-});
+    organizationId: 'org_abc123',
+    domain: 'example.com',
+    verificationMethod: 'txt_record',
+    verificationToken: 'deployer-verify-xyz789...',
+    verificationStatus: 'pending',
+})
 
 // After DNS verification succeeds
 await orgDomainRepository.updateVerificationStatus(
-  domain.id,
-  'verified',
-  'txt_record',
-  new Date()
-);
+    domain.id,
+    'verified',
+    'txt_record',
+    new Date()
+)
 ```
 
 ### Constraints
@@ -109,20 +110,20 @@ await orgDomainRepository.updateVerificationStatus(
 ```typescript
 // Organization A registers the API subdomain
 await orgDomainRepository.create({
-  organizationId: 'org_acme',
-  domain: 'api.example.com',  // Subdomain, not root
-  verificationMethod: 'txt_record',
-  verificationToken: 'deployer-verify-abc123-api.example.com',
-});
+    organizationId: 'org_acme',
+    domain: 'api.example.com', // Subdomain, not root
+    verificationMethod: 'txt_record',
+    verificationToken: 'deployer-verify-abc123-api.example.com',
+})
 // DNS record: _deployer-verify.api.example.com TXT "deployer-verify-abc123-api.example.com"
 
 // Organization B registers the Admin subdomain (same root domain, different org)
 await orgDomainRepository.create({
-  organizationId: 'org_beta',
-  domain: 'admin.example.com',  // Different subdomain
-  verificationMethod: 'txt_record',
-  verificationToken: 'deployer-verify-xyz789-admin.example.com',
-});
+    organizationId: 'org_beta',
+    domain: 'admin.example.com', // Different subdomain
+    verificationMethod: 'txt_record',
+    verificationToken: 'deployer-verify-xyz789-admin.example.com',
+})
 // DNS record: _deployer-verify.admin.example.com TXT "deployer-verify-xyz789-admin.example.com"
 ```
 
@@ -134,10 +135,10 @@ await orgDomainRepository.create({
 
 Projects can ONLY use subdomains **at or below** the registered domain level. They CANNOT use higher-level (parent) domains.
 
-| Registered Domain | ✅ Project Can Use | ❌ Project CANNOT Use |
-|-------------------|-------------------|----------------------|
-| `example.com` | `example.com`, `api.example.com`, `*.example.com` | (none - owns root) |
-| `api.example.com` | `api.example.com`, `staging.api.example.com`, `*.api.example.com` | `example.com`, `www.example.com` |
+| Registered Domain      | ✅ Project Can Use                                                          | ❌ Project CANNOT Use            |
+| ---------------------- | --------------------------------------------------------------------------- | -------------------------------- |
+| `example.com`          | `example.com`, `api.example.com`, `*.example.com`                           | (none - owns root)               |
+| `api.example.com`      | `api.example.com`, `staging.api.example.com`, `*.api.example.com`           | `example.com`, `www.example.com` |
 | `feat.api.example.com` | `feat.api.example.com`, `v2.feat.api.example.com`, `*.feat.api.example.com` | `api.example.com`, `example.com` |
 
 **Why?** The organization only verified ownership of their specific subdomain, not the parent domains.
@@ -146,34 +147,34 @@ Projects can ONLY use subdomains **at or below** the registered domain level. Th
 
 ```typescript
 interface ProjectDomain {
-  id: string;
-  projectId: string;              // Target project
-  organizationDomainId: string;   // Parent org domain
-  
-  // Subdomain Management
-  allowedSubdomains: string[];    // Allowed subdomains, empty = all
-  // Examples:
-  // ["api", "www", "admin"] - only these subdomains
-  // ["*"] - any subdomain allowed
-  // [] - only root domain, no subdomains
-  
-  isPrimary: boolean;             // Primary domain for project
-  
-  // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
-  metadata: JsonObject;
+    id: string
+    projectId: string // Target project
+    organizationDomainId: string // Parent org domain
+
+    // Subdomain Management
+    allowedSubdomains: string[] // Allowed subdomains, empty = all
+    // Examples:
+    // ["api", "www", "admin"] - only these subdomains
+    // ["*"] - any subdomain allowed
+    // [] - only root domain, no subdomains
+
+    isPrimary: boolean // Primary domain for project
+
+    // Timestamps
+    createdAt: Date
+    updatedAt: Date
+    metadata: JsonObject
 }
 ```
 
 ### Subdomain Rules
 
-| `allowedSubdomains` | Meaning | Valid Subdomains |
-|---------------------|---------|------------------|
-| `[]` | Registered domain only | Exact registered domain only |
-| `["*"]` | Any subdomain at or below | `*.{registered}` |
-| `["staging", "prod"]` | Explicit list | `staging.{registered}`, `prod.{registered}` |
-| `["staging", "*"]` | Mixed (invalid) | Don't mix explicit with wildcard |
+| `allowedSubdomains`   | Meaning                   | Valid Subdomains                            |
+| --------------------- | ------------------------- | ------------------------------------------- |
+| `[]`                  | Registered domain only    | Exact registered domain only                |
+| `["*"]`               | Any subdomain at or below | `*.{registered}`                            |
+| `["staging", "prod"]` | Explicit list             | `staging.{registered}`, `prod.{registered}` |
+| `["staging", "*"]`    | Mixed (invalid)           | Don't mix explicit with wildcard            |
 
 ### Granularity Enforcement Examples
 
@@ -181,11 +182,11 @@ interface ProjectDomain {
 // Organization registered: api.example.com
 
 // ✅ VALID: Using exact registered domain
-allowedSubdomains: []  // Only api.example.com
+allowedSubdomains: [] // Only api.example.com
 
 // ✅ VALID: Using subdomains OF the registered domain
-allowedSubdomains: ['staging', 'prod']  // staging.api.example.com, prod.api.example.com
-allowedSubdomains: ['*']  // Any *.api.example.com
+allowedSubdomains: ['staging', 'prod'] // staging.api.example.com, prod.api.example.com
+allowedSubdomains: ['*'] // Any *.api.example.com
 
 // ❌ INVALID: Cannot use parent domains (would be rejected)
 // Trying to use 'example.com' when registered is 'api.example.com' = ERROR
@@ -196,17 +197,20 @@ allowedSubdomains: ['*']  // Any *.api.example.com
 ```typescript
 // Assign domain to project with specific subdomains
 const projectDomain = await projectDomainRepository.create({
-  projectId: 'proj_def456',
-  organizationDomainId: domain.id,  // Must be verified
-  allowedSubdomains: ['api', 'www', 'admin', 'staging'],
-  isPrimary: true,
-});
+    projectId: 'proj_def456',
+    organizationDomainId: domain.id, // Must be verified
+    allowedSubdomains: ['api', 'www', 'admin', 'staging'],
+    isPrimary: true,
+})
 
 // Update allowed subdomains later
-await projectDomainRepository.updateAllowedSubdomains(
-  projectDomain.id,
-  ['api', 'www', 'admin', 'staging', 'preview']
-);
+await projectDomainRepository.updateAllowedSubdomains(projectDomain.id, [
+    'api',
+    'www',
+    'admin',
+    'staging',
+    'preview',
+])
 ```
 
 ### Constraints
@@ -223,23 +227,23 @@ await projectDomainRepository.updateAllowedSubdomains(
 
 ```typescript
 interface ServiceDomainMapping {
-  id: string;
-  serviceId: string;              // Target service
-  projectDomainId: string;        // Parent project domain
-  
-  // URL Configuration
-  subdomain: string | null;       // null = root domain
-  basePath: string | null;        // null = root path "/"
-  
-  // Priority and SSL
-  isPrimary: boolean;             // Primary URL for service
-  sslEnabled: boolean;            // Enable HTTPS
-  sslProvider: 'letsencrypt' | 'custom' | 'none';
-  
-  // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
-  metadata: JsonObject;
+    id: string
+    serviceId: string // Target service
+    projectDomainId: string // Parent project domain
+
+    // URL Configuration
+    subdomain: string | null // null = root domain
+    basePath: string | null // null = root path "/"
+
+    // Priority and SSL
+    isPrimary: boolean // Primary URL for service
+    sslEnabled: boolean // Enable HTTPS
+    sslProvider: 'letsencrypt' | 'custom' | 'none'
+
+    // Timestamps
+    createdAt: Date
+    updatedAt: Date
+    metadata: JsonObject
 }
 ```
 
@@ -249,13 +253,13 @@ interface ServiceDomainMapping {
 Full URL = https:// + [subdomain.] + domain + [basePath]
 ```
 
-| `subdomain` | `basePath` | Result URL |
-|-------------|------------|------------|
-| `null` | `null` | `https://example.com/` |
-| `"api"` | `null` | `https://api.example.com/` |
-| `null` | `"/docs"` | `https://example.com/docs` |
-| `"api"` | `"/v1"` | `https://api.example.com/v1` |
-| `"api"` | `"/v2"` | `https://api.example.com/v2` |
+| `subdomain` | `basePath` | Result URL                   |
+| ----------- | ---------- | ---------------------------- |
+| `null`      | `null`     | `https://example.com/`       |
+| `"api"`     | `null`     | `https://api.example.com/`   |
+| `null`      | `"/docs"`  | `https://example.com/docs`   |
+| `"api"`     | `"/v1"`    | `https://api.example.com/v1` |
+| `"api"`     | `"/v2"`    | `https://api.example.com/v2` |
 
 ### Shared Subdomains
 
@@ -272,25 +276,25 @@ api.example.com/graphql  →  GraphQL Gateway
 ```typescript
 // Create API service mapping
 const apiMapping = await serviceMappingRepository.create({
-  serviceId: 'svc_api_123',
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',
-  basePath: '/v1',
-  isPrimary: true,
-  sslEnabled: true,
-  sslProvider: 'letsencrypt',
-});
+    serviceId: 'svc_api_123',
+    projectDomainId: projectDomain.id,
+    subdomain: 'api',
+    basePath: '/v1',
+    isPrimary: true,
+    sslEnabled: true,
+    sslProvider: 'letsencrypt',
+})
 
 // Create another version on same subdomain
 const apiV2Mapping = await serviceMappingRepository.create({
-  serviceId: 'svc_api_v2_456',
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',           // Same subdomain
-  basePath: '/v2',            // Different path
-  isPrimary: false,
-  sslEnabled: true,
-  sslProvider: 'letsencrypt',
-});
+    serviceId: 'svc_api_v2_456',
+    projectDomainId: projectDomain.id,
+    subdomain: 'api', // Same subdomain
+    basePath: '/v2', // Different path
+    isPrimary: false,
+    sslEnabled: true,
+    sslProvider: 'letsencrypt',
+})
 ```
 
 ### Constraints
@@ -304,83 +308,83 @@ const apiV2Mapping = await serviceMappingRepository.create({
 ```typescript
 // 1. Organization registers domain
 const orgDomain = await orgDomainRepository.create({
-  organizationId: 'org_acme',
-  domain: 'acme-corp.com',
-  verificationMethod: 'txt_record',
-  verificationToken: 'deployer-verify-abc...',
-});
+    organizationId: 'org_acme',
+    domain: 'acme-corp.com',
+    verificationMethod: 'txt_record',
+    verificationToken: 'deployer-verify-abc...',
+})
 
 // 2. User adds DNS record:
 // _deployer-verify.acme-corp.com TXT "deployer-verify-abc..."
 
 // 3. Verify domain
-await verificationService.verifyDomain(orgDomain.id);
+await verificationService.verifyDomain(orgDomain.id)
 // Status changes to 'verified'
 
 // 4. Assign to project
 const projectDomain = await projectDomainRepository.create({
-  projectId: 'proj_acme_main',
-  organizationDomainId: orgDomain.id,
-  allowedSubdomains: ['api', 'www', 'admin', '*'],  // Flexible
-  isPrimary: true,
-});
+    projectId: 'proj_acme_main',
+    organizationDomainId: orgDomain.id,
+    allowedSubdomains: ['api', 'www', 'admin', '*'], // Flexible
+    isPrimary: true,
+})
 
 // 5. Map services
 // Frontend: www.acme-corp.com
 await serviceMappingRepository.create({
-  serviceId: 'svc_frontend',
-  projectDomainId: projectDomain.id,
-  subdomain: 'www',
-  basePath: null,
-  isPrimary: true,
-});
+    serviceId: 'svc_frontend',
+    projectDomainId: projectDomain.id,
+    subdomain: 'www',
+    basePath: null,
+    isPrimary: true,
+})
 
 // API v1: api.acme-corp.com/v1
 await serviceMappingRepository.create({
-  serviceId: 'svc_api_v1',
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',
-  basePath: '/v1',
-  isPrimary: true,
-});
+    serviceId: 'svc_api_v1',
+    projectDomainId: projectDomain.id,
+    subdomain: 'api',
+    basePath: '/v1',
+    isPrimary: true,
+})
 
 // API v2: api.acme-corp.com/v2
 await serviceMappingRepository.create({
-  serviceId: 'svc_api_v2',
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',
-  basePath: '/v2',
-  isPrimary: true,
-});
+    serviceId: 'svc_api_v2',
+    projectDomainId: projectDomain.id,
+    subdomain: 'api',
+    basePath: '/v2',
+    isPrimary: true,
+})
 
 // Admin: admin.acme-corp.com
 await serviceMappingRepository.create({
-  serviceId: 'svc_admin',
-  projectDomainId: projectDomain.id,
-  subdomain: 'admin',
-  basePath: null,
-  isPrimary: true,
-});
+    serviceId: 'svc_admin',
+    projectDomainId: projectDomain.id,
+    subdomain: 'admin',
+    basePath: null,
+    isPrimary: true,
+})
 
 // Docs: acme-corp.com/docs (root domain with path)
 await serviceMappingRepository.create({
-  serviceId: 'svc_docs',
-  projectDomainId: projectDomain.id,
-  subdomain: null,            // Root domain
-  basePath: '/docs',
-  isPrimary: true,
-});
+    serviceId: 'svc_docs',
+    projectDomainId: projectDomain.id,
+    subdomain: null, // Root domain
+    basePath: '/docs',
+    isPrimary: true,
+})
 ```
 
 ### Resulting URLs
 
-| Service | URL |
-|---------|-----|
-| Frontend | `https://www.acme-corp.com/` |
-| API v1 | `https://api.acme-corp.com/v1` |
-| API v2 | `https://api.acme-corp.com/v2` |
-| Admin | `https://admin.acme-corp.com/` |
-| Docs | `https://acme-corp.com/docs` |
+| Service  | URL                            |
+| -------- | ------------------------------ |
+| Frontend | `https://www.acme-corp.com/`   |
+| API v1   | `https://api.acme-corp.com/v1` |
+| API v2   | `https://api.acme-corp.com/v2` |
+| Admin    | `https://admin.acme-corp.com/` |
+| Docs     | `https://acme-corp.com/docs`   |
 
 ## Cascade Behavior
 
@@ -408,17 +412,17 @@ DELETE service WHERE id = 'svc_789'
 
 ## Access Control Matrix
 
-| Operation | Organization Admin | Project Admin | Service Owner |
-|-----------|-------------------|---------------|---------------|
-| Add Org Domain | ✅ | ❌ | ❌ |
-| Verify Domain | ✅ | ❌ | ❌ |
-| Delete Org Domain | ✅ | ❌ | ❌ |
-| Assign to Project | ✅ | ✅ | ❌ |
-| Update Subdomains | ✅ | ✅ | ❌ |
-| Remove from Project | ✅ | ✅ | ❌ |
-| Map Service URL | ✅ | ✅ | ✅ |
-| Update Mapping | ✅ | ✅ | ✅ |
-| Delete Mapping | ✅ | ✅ | ✅ |
+| Operation           | Organization Admin | Project Admin | Service Owner |
+| ------------------- | ------------------ | ------------- | ------------- |
+| Add Org Domain      | ✅                 | ❌            | ❌            |
+| Verify Domain       | ✅                 | ❌            | ❌            |
+| Delete Org Domain   | ✅                 | ❌            | ❌            |
+| Assign to Project   | ✅                 | ✅            | ❌            |
+| Update Subdomains   | ✅                 | ✅            | ❌            |
+| Remove from Project | ✅                 | ✅            | ❌            |
+| Map Service URL     | ✅                 | ✅            | ✅            |
+| Update Mapping      | ✅                 | ✅            | ✅            |
+| Delete Mapping      | ✅                 | ✅            | ✅            |
 
 ## Best Practices
 
@@ -439,8 +443,8 @@ allowedSubdomains: []
 
 ```typescript
 // ✅ Good: Clear versioned API paths
-api.example.com/v1
-api.example.com/v2
+api.example.com / v1
+api.example.com / v2
 
 // ❌ Bad: Confusing structure
 v1.api.example.com

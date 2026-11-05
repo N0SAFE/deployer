@@ -26,75 +26,97 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { nodesContract } from "@deployer/fleet-contracts";
+import { nodesContract } from '@deployer/fleet-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class NodesDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("fleet", nodesContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('fleet', nodesContract)
+    }
 
-	@Implement(nodesContract.listServers)
-	listServers() {
-		return implement(nodesContract.listServers).handler(({ input }) => this.client.listServers(input));
-	}
+    @Implement(nodesContract.listServers)
+    listServers() {
+        return implement(nodesContract.listServers).handler(({ input }) =>
+            this.client.listServers(input)
+        )
+    }
 
-	@Implement(nodesContract.setServerCapacity)
-	setServerCapacity() {
-		return implement(nodesContract.setServerCapacity).handler(({ input }) => this.client.setServerCapacity(input));
-	}
+    @Implement(nodesContract.setServerCapacity)
+    setServerCapacity() {
+        return implement(nodesContract.setServerCapacity).handler(({ input }) =>
+            this.client.setServerCapacity(input)
+        )
+    }
 
-	@Implement(nodesContract.listAllocations)
-	listAllocations() {
-		return implement(nodesContract.listAllocations).handler(({ input }) => this.client.listAllocations(input));
-	}
+    @Implement(nodesContract.listAllocations)
+    listAllocations() {
+        return implement(nodesContract.listAllocations).handler(({ input }) =>
+            this.client.listAllocations(input)
+        )
+    }
 
-	@Implement(nodesContract.listMyAllocations)
-	listMyAllocations() {
-		return implement(nodesContract.listMyAllocations).handler(({ input }) => this.client.listMyAllocations(input));
-	}
+    @Implement(nodesContract.listMyAllocations)
+    listMyAllocations() {
+        return implement(nodesContract.listMyAllocations).handler(({ input }) =>
+            this.client.listMyAllocations(input)
+        )
+    }
 
-	@Implement(nodesContract.upsertAllocation)
-	upsertAllocation() {
-		return implement(nodesContract.upsertAllocation).handler(({ input }) => this.client.upsertAllocation(input));
-	}
+    @Implement(nodesContract.upsertAllocation)
+    upsertAllocation() {
+        return implement(nodesContract.upsertAllocation).handler(({ input }) =>
+            this.client.upsertAllocation(input)
+        )
+    }
 
-	@Implement(nodesContract.deleteAllocation)
-	deleteAllocation() {
-		return implement(nodesContract.deleteAllocation).handler(({ input }) => this.client.deleteAllocation(input));
-	}
+    @Implement(nodesContract.deleteAllocation)
+    deleteAllocation() {
+        return implement(nodesContract.deleteAllocation).handler(({ input }) =>
+            this.client.deleteAllocation(input)
+        )
+    }
 
-	@Implement(nodesContract.checkMyAdmission)
-	checkMyAdmission() {
-		return implement(nodesContract.checkMyAdmission).handler(({ input }) => this.client.checkMyAdmission(input));
-	}
+    @Implement(nodesContract.checkMyAdmission)
+    checkMyAdmission() {
+        return implement(nodesContract.checkMyAdmission).handler(({ input }) =>
+            this.client.checkMyAdmission(input)
+        )
+    }
 
-	@Implement(nodesContract.createMyAdmissionRequest)
-	createMyAdmissionRequest() {
-		return implement(nodesContract.createMyAdmissionRequest).handler(({ input }) => this.client.createMyAdmissionRequest(input));
-	}
+    @Implement(nodesContract.createMyAdmissionRequest)
+    createMyAdmissionRequest() {
+        return implement(nodesContract.createMyAdmissionRequest).handler(
+            ({ input }) => this.client.createMyAdmissionRequest(input)
+        )
+    }
 
-	@Implement(nodesContract.listMyAdmissionRequests)
-	listMyAdmissionRequests() {
-		return implement(nodesContract.listMyAdmissionRequests).handler(({ input }) => this.client.listMyAdmissionRequests(input));
-	}
+    @Implement(nodesContract.listMyAdmissionRequests)
+    listMyAdmissionRequests() {
+        return implement(nodesContract.listMyAdmissionRequests).handler(
+            ({ input }) => this.client.listMyAdmissionRequests(input)
+        )
+    }
 
-	@Implement(nodesContract.listAdmissionRequests)
-	listAdmissionRequests() {
-		return implement(nodesContract.listAdmissionRequests).handler(({ input }) => this.client.listAdmissionRequests(input));
-	}
+    @Implement(nodesContract.listAdmissionRequests)
+    listAdmissionRequests() {
+        return implement(nodesContract.listAdmissionRequests).handler(
+            ({ input }) => this.client.listAdmissionRequests(input)
+        )
+    }
 
-	@Implement(nodesContract.resolveAdmissionRequest)
-	resolveAdmissionRequest() {
-		return implement(nodesContract.resolveAdmissionRequest).handler(({ input }) => this.client.resolveAdmissionRequest(input));
-	}
+    @Implement(nodesContract.resolveAdmissionRequest)
+    resolveAdmissionRequest() {
+        return implement(nodesContract.resolveAdmissionRequest).handler(
+            ({ input }) => this.client.resolveAdmissionRequest(input)
+        )
+    }
 }

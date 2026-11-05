@@ -28,7 +28,6 @@ import {
 
 import type { z } from 'zod'
 
-
 /**
  * Structural shape every `nuqs` parser builder satisfies. Keeping it
  * local avoids leaking the generic `SingleParser<T>` into the rest of
@@ -65,7 +64,9 @@ export function createParserForZodField(
 
     switch (kind) {
         case 'string':
-            parser = asParserBuilder(parseAsString as unknown as SingleParser<unknown>)
+            parser = asParserBuilder(
+                parseAsString as unknown as SingleParser<unknown>
+            )
             break
         case 'number':
             parser = asParserBuilder(
@@ -84,7 +85,9 @@ export function createParserForZodField(
             const values = extractStringEnumValues(baseSchema)
             if (values.length > 0) {
                 parser = asParserBuilder(
-                    parseAsStringLiteral(values) as unknown as SingleParser<unknown>
+                    parseAsStringLiteral(
+                        values
+                    ) as unknown as SingleParser<unknown>
                 )
             } else {
                 parser = asParserBuilder(
@@ -97,11 +100,15 @@ export function createParserForZodField(
             const literal = extractLiteralValue(baseSchema)
             if (typeof literal === 'string') {
                 parser = asParserBuilder(
-                    parseAsStringLiteral([literal]) as unknown as SingleParser<unknown>
+                    parseAsStringLiteral([
+                        literal,
+                    ]) as unknown as SingleParser<unknown>
                 )
             } else if (typeof literal === 'number') {
                 parser = asParserBuilder(
-                    parseAsNumberLiteral([literal]) as unknown as SingleParser<unknown>
+                    parseAsNumberLiteral([
+                        literal,
+                    ]) as unknown as SingleParser<unknown>
                 )
             } else {
                 parser = asParserBuilder(
@@ -114,21 +121,23 @@ export function createParserForZodField(
             const elementSchema = extractArrayElement(baseSchema)
             const elementParser: NuqsParserBuilder = elementSchema
                 ? createParserForZodField(elementSchema, false)
-                : asParserBuilder(parseAsString as unknown as SingleParser<unknown>)
+                : asParserBuilder(
+                      parseAsString as unknown as SingleParser<unknown>
+                  )
             // `parseAsArrayOf` widens the inner builder to its own
             // generic; we re-narrow through `asParserBuilder` to keep
             // the public type structural.
-            const arrayParser = (parseAsArrayOf as unknown as (
-                inner: NuqsParserBuilder
-            ) => SingleParser<unknown>)(elementParser)
+            const arrayParser = (
+                parseAsArrayOf as unknown as (
+                    inner: NuqsParserBuilder
+                ) => SingleParser<unknown>
+            )(elementParser)
             parser = asParserBuilder(arrayParser)
             break
         }
         case 'object': {
             try {
-                parser = asParserBuilder(
-                    parseAsJson(baseSchema)
-                )
+                parser = asParserBuilder(parseAsJson(baseSchema))
             } catch {
                 parser = asParserBuilder(
                     parseAsString as unknown as SingleParser<unknown>
@@ -162,7 +171,10 @@ export function createParserForZodField(
 // ---------------------------------------------------------------------------
 
 function extractStringEnumValues(schema: z.ZodType): string[] {
-    const def = schema as { options?: readonly string[]; enum?: readonly unknown[] }
+    const def = schema as {
+        options?: readonly string[]
+        enum?: readonly unknown[]
+    }
     if (Array.isArray(def.options)) {
         return def.options.filter(
             (value): value is string => typeof value === 'string'
@@ -176,7 +188,7 @@ function extractStringEnumValues(schema: z.ZodType): string[] {
     const values = (schema as { _def?: { values?: unknown } })._def?.values
     if (values && typeof values === 'object') {
         return Object.values(values).filter(
-            (value): value is string => typeof value === 'string',
+            (value): value is string => typeof value === 'string'
         )
     }
     return []

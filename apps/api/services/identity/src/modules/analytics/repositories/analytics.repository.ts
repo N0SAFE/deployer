@@ -1,15 +1,34 @@
-import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
-import { Context, Effect } from "effect";
+import {
+    and,
+    asc,
+    count,
+    desc,
+    eq,
+    gte,
+    inArray,
+    lte,
+    type SQL,
+} from 'drizzle-orm'
+import { Context, Effect } from 'effect'
 
-import { serviceOver } from "@deployer/effect-core"
-import { analyticsReports } from "@deployer/nest-schema/global/identity/analytics";
-import { analyticsReportConfigs } from "@deployer/nest-schema/global/identity/analytics";
-import { projects, services } from "@deployer/nest-schema/global/project/deployment";
-import { deploymentRollbacks, deployments } from "@deployer/nest-schema/global/runtime/deployment";
+import { serviceOver } from '@deployer/effect-core'
+import { analyticsReports } from '@deployer/nest-schema/global/identity/analytics'
+import { analyticsReportConfigs } from '@deployer/nest-schema/global/identity/analytics'
+import {
+    projects,
+    services,
+} from '@deployer/nest-schema/global/project/deployment'
+import {
+    deploymentRollbacks,
+    deployments,
+} from '@deployer/nest-schema/global/runtime/deployment'
 
-import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+import {
+    DatabasePort,
+    type DatabaseShape,
+} from '@identity/core/database/database.port'
 
-import { AnalyticsRepositoryFailure } from "../analytics.failures";
+import { AnalyticsRepositoryFailure } from '../analytics.failures'
 
 /**
  * One deployment, reduced to what metrics need.
@@ -19,58 +38,58 @@ import { AnalyticsRepositoryFailure } from "../analytics.failures";
  * metric displays.
  */
 export type DeploymentRow = {
-	readonly id: string;
-	readonly serviceId: string;
-	readonly status: string;
-	readonly createdAt: Date;
-	readonly deployCompletedAt: Date | null;
-	readonly errorMessage: string | null;
+    readonly id: string
+    readonly serviceId: string
+    readonly status: string
+    readonly createdAt: Date
+    readonly deployCompletedAt: Date | null
+    readonly errorMessage: string | null
 }
 
 /** One rollback, timed by when it started. */
 export type RollbackRow = {
-	readonly deploymentId: string;
-	readonly status: string;
-	readonly createdAt: Date;
+    readonly deploymentId: string
+    readonly status: string
+    readonly createdAt: Date
 }
 
 /** The identity of a service, for joining metric rows back to a name. */
 export type ServiceRow = {
-	readonly id: string;
-	readonly name: string;
-	readonly projectId: string;
+    readonly id: string
+    readonly name: string
+    readonly projectId: string
 }
 
 /** The report statuses and formats the columns accept. */
-export type ReportStatus = "pending" | "generating" | "completed" | "failed";
-export type ReportFormat = "json" | "pdf" | "csv";
-export type ReportSchedule = "none" | "daily" | "weekly" | "monthly";
+export type ReportStatus = 'pending' | 'generating' | 'completed' | 'failed'
+export type ReportFormat = 'json' | 'pdf' | 'csv'
+export type ReportSchedule = 'none' | 'daily' | 'weekly' | 'monthly'
 
 /** A persisted report, as the contract declares it. */
 export type ReportRow = {
-	readonly id: string;
-	readonly name: string;
-	readonly status: string;
-	readonly generatedAt: Date | null;
-	readonly periodStart: Date;
-	readonly periodEnd: Date;
-	readonly format: string;
-	readonly sizeBytes: number;
-	readonly content: unknown;
-	readonly sections: string[];
-	readonly errorMessage: string | null;
+    readonly id: string
+    readonly name: string
+    readonly status: string
+    readonly generatedAt: Date | null
+    readonly periodStart: Date
+    readonly periodEnd: Date
+    readonly format: string
+    readonly sizeBytes: number
+    readonly content: unknown
+    readonly sections: string[]
+    readonly errorMessage: string | null
 }
 
 /** A stored report definition. */
 export type ReportConfigRow = {
-	readonly id: string;
-	readonly name: string;
-	readonly description: string | null;
-	readonly metrics: string[];
-	readonly schedule: string;
-	readonly recipients: string[];
-	readonly createdAt: Date;
-	readonly updatedAt: Date;
+    readonly id: string
+    readonly name: string
+    readonly description: string | null
+    readonly metrics: string[]
+    readonly schedule: string
+    readonly recipients: string[]
+    readonly createdAt: Date
+    readonly updatedAt: Date
 }
 
 /**
@@ -91,357 +110,427 @@ export type ReportConfigRow = {
  * HTTP call at a time — would turn one dashboard into hundreds of round trips.
  */
 class AnalyticsQueries {
-	constructor(private readonly database: DatabaseShape) {}
+    constructor(private readonly database: DatabaseShape) {}
 
-	/** Deployments created inside the window, optionally scoped to services. */
-	async deploymentsInRange(start: Date, end: Date, serviceIds?: string[]): Promise<DeploymentRow[]> {
-		const conditions: SQL[] = [gte(deployments.createdAt, start), lte(deployments.createdAt, end)];
-		if (serviceIds !== undefined && serviceIds.length > 0) {
-			// `inArray` only when the caller actually scoped: an empty array would render
-			// `IN ()`, which matches nothing and would silently report zero activity for a
-			// request that meant "all services".
-			conditions.push(inArray(deployments.serviceId, serviceIds));
-		}
+    /** Deployments created inside the window, optionally scoped to services. */
+    async deploymentsInRange(
+        start: Date,
+        end: Date,
+        serviceIds?: string[]
+    ): Promise<DeploymentRow[]> {
+        const conditions: SQL[] = [
+            gte(deployments.createdAt, start),
+            lte(deployments.createdAt, end),
+        ]
+        if (serviceIds !== undefined && serviceIds.length > 0) {
+            // `inArray` only when the caller actually scoped: an empty array would render
+            // `IN ()`, which matches nothing and would silently report zero activity for a
+            // request that meant "all services".
+            conditions.push(inArray(deployments.serviceId, serviceIds))
+        }
 
-		const rows = await this.database.db
-			.select({
-				id: deployments.id,
-				serviceId: deployments.serviceId,
-				status: deployments.status,
-				createdAt: deployments.createdAt,
-				deployCompletedAt: deployments.deployCompletedAt,
-				errorMessage: deployments.errorMessage,
-			})
-			.from(deployments)
-			.where(and(...conditions))
-			.orderBy(asc(deployments.createdAt));
+        const rows = await this.database.db
+            .select({
+                id: deployments.id,
+                serviceId: deployments.serviceId,
+                status: deployments.status,
+                createdAt: deployments.createdAt,
+                deployCompletedAt: deployments.deployCompletedAt,
+                errorMessage: deployments.errorMessage,
+            })
+            .from(deployments)
+            .where(and(...conditions))
+            .orderBy(asc(deployments.createdAt))
 
-		return rows.map(toDeployment);
-	}
+        return rows.map(toDeployment)
+    }
 
-	/**
-	 * Rollbacks recorded inside the window.
-	 *
-	 * Timed by `startedAt` with a fallback to `completedAt`: the column is nullable
-	 * because a rollback is written when it begins and completed later, so a row read
-	 * mid-flight has no completion time. Falling back keeps an in-progress rollback in
-	 * the count rather than dropping it from the bucket it belongs to.
-	 */
-	async rollbacksInRange(start: Date, end: Date): Promise<RollbackRow[]> {
-		const rows = await this.database.db
-			.select({
-				deploymentId: deploymentRollbacks.fromDeploymentId,
-				status: deploymentRollbacks.status,
-				startedAt: deploymentRollbacks.startedAt,
-				completedAt: deploymentRollbacks.completedAt,
-			})
-			.from(deploymentRollbacks)
-			.where(and(gte(deploymentRollbacks.startedAt, start), lte(deploymentRollbacks.startedAt, end)));
+    /**
+     * Rollbacks recorded inside the window.
+     *
+     * Timed by `startedAt` with a fallback to `completedAt`: the column is nullable
+     * because a rollback is written when it begins and completed later, so a row read
+     * mid-flight has no completion time. Falling back keeps an in-progress rollback in
+     * the count rather than dropping it from the bucket it belongs to.
+     */
+    async rollbacksInRange(start: Date, end: Date): Promise<RollbackRow[]> {
+        const rows = await this.database.db
+            .select({
+                deploymentId: deploymentRollbacks.fromDeploymentId,
+                status: deploymentRollbacks.status,
+                startedAt: deploymentRollbacks.startedAt,
+                completedAt: deploymentRollbacks.completedAt,
+            })
+            .from(deploymentRollbacks)
+            .where(
+                and(
+                    gte(deploymentRollbacks.startedAt, start),
+                    lte(deploymentRollbacks.startedAt, end)
+                )
+            )
 
-		return rows.map((row) => ({
-			deploymentId: row.deploymentId,
-			status: row.status,
-			createdAt: toDate(row.startedAt ?? row.completedAt ?? new Date(0)),
-		}));
-	}
+        return rows.map((row) => ({
+            deploymentId: row.deploymentId,
+            status: row.status,
+            createdAt: toDate(row.startedAt ?? row.completedAt ?? new Date(0)),
+        }))
+    }
 
-	/** Service identities, optionally narrowed to a set of names. */
-	async serviceRows(serviceNames?: string[]): Promise<ServiceRow[]> {
-		const where =
-			serviceNames !== undefined && serviceNames.length > 0 ? inArray(services.name, serviceNames) : undefined;
-		const rows = await this.database.db
-			.select({ id: services.id, name: services.name, projectId: services.projectId })
-			.from(services)
-			.where(where);
-		return rows.map((row) => ({ id: row.id, name: row.name, projectId: row.projectId }));
-	}
+    /** Service identities, optionally narrowed to a set of names. */
+    async serviceRows(serviceNames?: string[]): Promise<ServiceRow[]> {
+        const where =
+            serviceNames !== undefined && serviceNames.length > 0
+                ? inArray(services.name, serviceNames)
+                : undefined
+        const rows = await this.database.db
+            .select({
+                id: services.id,
+                name: services.name,
+                projectId: services.projectId,
+            })
+            .from(services)
+            .where(where)
+        return rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            projectId: row.projectId,
+        }))
+    }
 
-	/**
-	 * The most recent deployment per service.
-	 *
-	 * ── WHY ONE QUERY AND NOT ONE PER SERVICE ───────────────────────────────
-	 * A dashboard shows every service, so a per-service lookup is a classic N+1: 200
-	 * services becomes 200 round trips for one screen. This reads once and reduces in
-	 * memory, so the cost is bounded by the number of deployments rather than by a round
-	 * trip per service.
-	 *
-	 * No time window on purpose: the question is "what is this service's LATEST
-	 * deployment", which has no natural window. Narrowing it would report `unknown` for
-	 * any service that has not deployed recently — exactly the service an operator is
-	 * looking for.
-	 */
-	async latestDeploymentPerService(serviceIds: string[]): Promise<Map<string, DeploymentRow>> {
-		if (serviceIds.length === 0) return new Map();
+    /**
+     * The most recent deployment per service.
+     *
+     * ── WHY ONE QUERY AND NOT ONE PER SERVICE ───────────────────────────────
+     * A dashboard shows every service, so a per-service lookup is a classic N+1: 200
+     * services becomes 200 round trips for one screen. This reads once and reduces in
+     * memory, so the cost is bounded by the number of deployments rather than by a round
+     * trip per service.
+     *
+     * No time window on purpose: the question is "what is this service's LATEST
+     * deployment", which has no natural window. Narrowing it would report `unknown` for
+     * any service that has not deployed recently — exactly the service an operator is
+     * looking for.
+     */
+    async latestDeploymentPerService(
+        serviceIds: string[]
+    ): Promise<Map<string, DeploymentRow>> {
+        if (serviceIds.length === 0) return new Map()
 
-		const rows = await this.database.db
-			.select({
-				id: deployments.id,
-				serviceId: deployments.serviceId,
-				status: deployments.status,
-				createdAt: deployments.createdAt,
-				deployCompletedAt: deployments.deployCompletedAt,
-				errorMessage: deployments.errorMessage,
-			})
-			.from(deployments)
-			.where(inArray(deployments.serviceId, serviceIds))
-			.orderBy(desc(deployments.createdAt));
+        const rows = await this.database.db
+            .select({
+                id: deployments.id,
+                serviceId: deployments.serviceId,
+                status: deployments.status,
+                createdAt: deployments.createdAt,
+                deployCompletedAt: deployments.deployCompletedAt,
+                errorMessage: deployments.errorMessage,
+            })
+            .from(deployments)
+            .where(inArray(deployments.serviceId, serviceIds))
+            .orderBy(desc(deployments.createdAt))
 
-		// Ordered newest-first, so the first row for a service is its latest. The explicit
-		// comparison is kept anyway: it costs nothing and means a change to the ordering
-		// cannot silently turn "latest" into "first seen".
-		const latest = new Map<string, DeploymentRow>();
-		for (const row of rows) {
-			const candidate = toDeployment(row);
-			const existing = latest.get(candidate.serviceId);
-			if (existing === undefined || candidate.createdAt.getTime() > existing.createdAt.getTime()) {
-				latest.set(candidate.serviceId, candidate);
-			}
-		}
-		return latest;
-	}
+        // Ordered newest-first, so the first row for a service is its latest. The explicit
+        // comparison is kept anyway: it costs nothing and means a change to the ordering
+        // cannot silently turn "latest" into "first seen".
+        const latest = new Map<string, DeploymentRow>()
+        for (const row of rows) {
+            const candidate = toDeployment(row)
+            const existing = latest.get(candidate.serviceId)
+            if (
+                existing === undefined ||
+                candidate.createdAt.getTime() > existing.createdAt.getTime()
+            ) {
+                latest.set(candidate.serviceId, candidate)
+            }
+        }
+        return latest
+    }
 
-	/** Project names for a set of ids, so a summary can show them. */
-	async projectNamesByIds(ids: string[]): Promise<Map<string, string>> {
-		if (ids.length === 0) return new Map();
-		const rows = await this.database.db
-			.select({ id: projects.id, name: projects.name })
-			.from(projects)
-			.where(inArray(projects.id, ids));
-		return new Map(rows.map((row) => [row.id, row.name]));
-	}
+    /** Project names for a set of ids, so a summary can show them. */
+    async projectNamesByIds(ids: string[]): Promise<Map<string, string>> {
+        if (ids.length === 0) return new Map()
+        const rows = await this.database.db
+            .select({ id: projects.id, name: projects.name })
+            .from(projects)
+            .where(inArray(projects.id, ids))
+        return new Map(rows.map((row) => [row.id, row.name]))
+    }
 
-	/**
-	 * How many services each project has.
-	 *
-	 * Counted per project in ONE grouped query rather than by loading every service and
-	 * grouping in memory: the answer is a number per project, and a project with
-	 * thousands of services must not pull thousands of rows to display a count.
-	 */
-	async serviceCountsByProjects(projectIds: string[]): Promise<Map<string, number>> {
-		if (projectIds.length === 0) return new Map();
-		const rows = await this.database.db
-			.select({ projectId: services.projectId, value: count() })
-			.from(services)
-			.where(inArray(services.projectId, projectIds))
-			.groupBy(services.projectId);
-		return new Map(rows.map((row) => [row.projectId, row.value]));
-	}
+    /**
+     * How many services each project has.
+     *
+     * Counted per project in ONE grouped query rather than by loading every service and
+     * grouping in memory: the answer is a number per project, and a project with
+     * thousands of services must not pull thousands of rows to display a count.
+     */
+    async serviceCountsByProjects(
+        projectIds: string[]
+    ): Promise<Map<string, number>> {
+        if (projectIds.length === 0) return new Map()
+        const rows = await this.database.db
+            .select({ projectId: services.projectId, value: count() })
+            .from(services)
+            .where(inArray(services.projectId, projectIds))
+            .groupBy(services.projectId)
+        return new Map(rows.map((row) => [row.projectId, row.value]))
+    }
 
-	// ─── Reports ────────────────────────────────────────────────────────────
+    // ─── Reports ────────────────────────────────────────────────────────────
 
-	/**
-	 * Persist a generated report.
-	 *
-	 * ── WHY `id` IS NOT SUPPLIED ────────────────────────────────────────────
-	 * The column is `uuid().primaryKey().defaultRandom()`, so the DATABASE owns the id.
-	 * Generating one here would be a second source of truth for identity, and it would
-	 * disagree with the column's default rather than replace it.
-	 */
-	async insertReport(input: {
-		name: string;
-		// ── WHY THESE ARE LITERAL UNIONS AND NOT `string` ───────────────────────────
-		// `format` and `status` are Postgres ENUM columns. A `string` does not satisfy the
-		// insert's type (the driver wants one of the enum's members), and the failure is an
-		// overload mismatch that says `'name' does not exist` — pointing at the wrong
-		// property entirely. Declaring the unions here makes the constraint readable and the
-		// error land on the actual problem.
-		format: ReportFormat;
-		periodStart: Date;
-		periodEnd: Date;
-		sections: string[];
-		content: unknown;
-		sizeBytes: number;
-		status: ReportStatus;
-		errorMessage?: string | null;
-	}): Promise<ReportRow> {
-		const rows = await this.database.db
-			.insert(analyticsReports)
-			.values({
-				name: input.name,
-				format: input.format,
-				periodStart: input.periodStart,
-				periodEnd: input.periodEnd,
-				sections: input.sections,
-				content: input.content,
-				sizeBytes: input.sizeBytes,
-				status: input.status,
-				errorMessage: input.errorMessage ?? null,
-				// Set only when the report is actually complete: the column is nullable
-				// because a pending/failed row has no generation time, and stamping one would
-				// make a failed report look finished to anything ordering by it.
-				generatedAt: input.status === "completed" ? new Date() : null,
-			})
-			.returning();
+    /**
+     * Persist a generated report.
+     *
+     * ── WHY `id` IS NOT SUPPLIED ────────────────────────────────────────────
+     * The column is `uuid().primaryKey().defaultRandom()`, so the DATABASE owns the id.
+     * Generating one here would be a second source of truth for identity, and it would
+     * disagree with the column's default rather than replace it.
+     */
+    async insertReport(input: {
+        name: string
+        // ── WHY THESE ARE LITERAL UNIONS AND NOT `string` ───────────────────────────
+        // `format` and `status` are Postgres ENUM columns. A `string` does not satisfy the
+        // insert's type (the driver wants one of the enum's members), and the failure is an
+        // overload mismatch that says `'name' does not exist` — pointing at the wrong
+        // property entirely. Declaring the unions here makes the constraint readable and the
+        // error land on the actual problem.
+        format: ReportFormat
+        periodStart: Date
+        periodEnd: Date
+        sections: string[]
+        content: unknown
+        sizeBytes: number
+        status: ReportStatus
+        errorMessage?: string | null
+    }): Promise<ReportRow> {
+        const rows = await this.database.db
+            .insert(analyticsReports)
+            .values({
+                name: input.name,
+                format: input.format,
+                periodStart: input.periodStart,
+                periodEnd: input.periodEnd,
+                sections: input.sections,
+                content: input.content,
+                sizeBytes: input.sizeBytes,
+                status: input.status,
+                errorMessage: input.errorMessage ?? null,
+                // Set only when the report is actually complete: the column is nullable
+                // because a pending/failed row has no generation time, and stamping one would
+                // make a failed report look finished to anything ordering by it.
+                generatedAt: input.status === 'completed' ? new Date() : null,
+            })
+            .returning()
 
-		const row = rows[0];
-		if (row === undefined) {
-			// `returning()` on a successful insert always yields a row; its absence is a
-			// driver-contract violation, not a user error.
-			throw new Error("insert into analytics_reports returned no row");
-		}
-		return toReport(row);
-	}
+        const row = rows[0]
+        if (row === undefined) {
+            // `returning()` on a successful insert always yields a row; its absence is a
+            // driver-contract violation, not a user error.
+            throw new Error('insert into analytics_reports returned no row')
+        }
+        return toReport(row)
+    }
 
-	async findReport(id: string): Promise<ReportRow | null> {
-		const rows = await this.database.db
-			.select()
-			.from(analyticsReports)
-			.where(eq(analyticsReports.id, id))
-			.limit(1);
-		const row = rows[0];
-		return row === undefined ? null : toReport(row);
-	}
+    async findReport(id: string): Promise<ReportRow | null> {
+        const rows = await this.database.db
+            .select()
+            .from(analyticsReports)
+            .where(eq(analyticsReports.id, id))
+            .limit(1)
+        const row = rows[0]
+        return row === undefined ? null : toReport(row)
+    }
 
-	/**
-	 * A page of reports, optionally filtered by status.
-	 *
-	 * ── WHY `status` IS THE ENUM UNION AND NOT `string` ─────────────────────────
-	 * `analytics_reports.status` is a Postgres ENUM column. `eq(column, "some string")`
-	 * does not type-check against it, and the failure names the COLUMN with an
-	 * unhelpful `not assignable to parameter of type 'never'` — nothing about the actual
-	 * problem, which is that the value is not a member of the enum. Declaring the union
-	 * makes the constraint visible at the signature.
-	 */
-	async listReports(
-		limit: number,
-		offset: number,
-		status?: ReportStatus,
-	): Promise<{ data: ReportRow[]; total: number }> {
-		const where = status === undefined ? undefined : eq(analyticsReports.status, status);
-		const [rows, totals] = await Promise.all([
-			this.database.db
-				.select()
-				.from(analyticsReports)
-				.where(where)
-				.orderBy(desc(analyticsReports.createdAt))
-				.limit(limit)
-				.offset(offset),
-			this.database.db.select({ value: count() }).from(analyticsReports).where(where),
-		]);
-		return { data: rows.map(toReport), total: totals[0]?.value ?? 0 };
-	}
+    /**
+     * A page of reports, optionally filtered by status.
+     *
+     * ── WHY `status` IS THE ENUM UNION AND NOT `string` ─────────────────────────
+     * `analytics_reports.status` is a Postgres ENUM column. `eq(column, "some string")`
+     * does not type-check against it, and the failure names the COLUMN with an
+     * unhelpful `not assignable to parameter of type 'never'` — nothing about the actual
+     * problem, which is that the value is not a member of the enum. Declaring the union
+     * makes the constraint visible at the signature.
+     */
+    async listReports(
+        limit: number,
+        offset: number,
+        status?: ReportStatus
+    ): Promise<{ data: ReportRow[]; total: number }> {
+        const where =
+            status === undefined
+                ? undefined
+                : eq(analyticsReports.status, status)
+        const [rows, totals] = await Promise.all([
+            this.database.db
+                .select()
+                .from(analyticsReports)
+                .where(where)
+                .orderBy(desc(analyticsReports.createdAt))
+                .limit(limit)
+                .offset(offset),
+            this.database.db
+                .select({ value: count() })
+                .from(analyticsReports)
+                .where(where),
+        ])
+        return { data: rows.map(toReport), total: totals[0]?.value ?? 0 }
+    }
 
-	/** Delete a report, reporting whether anything was removed. */
-	async deleteReport(id: string): Promise<boolean> {
-		const rows = await this.database.db
-			.delete(analyticsReports)
-			.where(eq(analyticsReports.id, id))
-			.returning({ id: analyticsReports.id });
-		return rows.length > 0;
-	}
+    /** Delete a report, reporting whether anything was removed. */
+    async deleteReport(id: string): Promise<boolean> {
+        const rows = await this.database.db
+            .delete(analyticsReports)
+            .where(eq(analyticsReports.id, id))
+            .returning({ id: analyticsReports.id })
+        return rows.length > 0
+    }
 
-	async insertReportConfig(input: {
-		name: string;
-		description?: string | null;
-		metrics: string[];
-		schedule: ReportSchedule;
-		recipients: string[];
-	}): Promise<ReportConfigRow> {
-		const rows = await this.database.db
-			.insert(analyticsReportConfigs)
-			.values({
-				name: input.name,
-				description: input.description ?? null,
-				metrics: input.metrics,
-				schedule: input.schedule,
-				recipients: input.recipients,
-			})
-			.returning();
+    async insertReportConfig(input: {
+        name: string
+        description?: string | null
+        metrics: string[]
+        schedule: ReportSchedule
+        recipients: string[]
+    }): Promise<ReportConfigRow> {
+        const rows = await this.database.db
+            .insert(analyticsReportConfigs)
+            .values({
+                name: input.name,
+                description: input.description ?? null,
+                metrics: input.metrics,
+                schedule: input.schedule,
+                recipients: input.recipients,
+            })
+            .returning()
 
-		const row = rows[0];
-		if (row === undefined) throw new Error("insert into analytics_report_configs returned no row");
-		return toReportConfig(row);
-	}
+        const row = rows[0]
+        if (row === undefined)
+            throw new Error(
+                'insert into analytics_report_configs returned no row'
+            )
+        return toReportConfig(row)
+    }
 
-	async listReportConfigs(limit: number, offset: number): Promise<{ data: ReportConfigRow[]; total: number }> {
-		const [rows, totals] = await Promise.all([
-			this.database.db
-				.select()
-				.from(analyticsReportConfigs)
-				.orderBy(desc(analyticsReportConfigs.createdAt))
-				.limit(limit)
-				.offset(offset),
-			this.database.db.select({ value: count() }).from(analyticsReportConfigs),
-		]);
-		return { data: rows.map(toReportConfig), total: totals[0]?.value ?? 0 };
-	}
+    async listReportConfigs(
+        limit: number,
+        offset: number
+    ): Promise<{ data: ReportConfigRow[]; total: number }> {
+        const [rows, totals] = await Promise.all([
+            this.database.db
+                .select()
+                .from(analyticsReportConfigs)
+                .orderBy(desc(analyticsReportConfigs.createdAt))
+                .limit(limit)
+                .offset(offset),
+            this.database.db
+                .select({ value: count() })
+                .from(analyticsReportConfigs),
+        ])
+        return { data: rows.map(toReportConfig), total: totals[0]?.value ?? 0 }
+    }
 
-	/**
-	 * Update a stored config.
-	 *
-	 * Every field is optional and only the supplied ones are written, so a caller
-	 * changing the schedule cannot blank the metrics by omitting them — the usual
-	 * read-modify-write hazard with a PUT-shaped endpoint.
-	 */
-	async updateReportConfig(
-		id: string,
-		updates: {
-			name?: string;
-			description?: string | null;
-			metrics?: string[];
-			schedule?: ReportSchedule;
-			recipients?: string[];
-		},
-	): Promise<ReportConfigRow | null> {
-		const rows = await this.database.db
-			.update(analyticsReportConfigs)
-			.set({
-				...(updates.name === undefined ? {} : { name: updates.name }),
-				...(updates.description === undefined ? {} : { description: updates.description }),
-				...(updates.metrics === undefined ? {} : { metrics: updates.metrics }),
-				...(updates.schedule === undefined ? {} : { schedule: updates.schedule }),
-				...(updates.recipients === undefined ? {} : { recipients: updates.recipients }),
-				updatedAt: new Date(),
-			})
-			.where(eq(analyticsReportConfigs.id, id))
-			.returning();
-		const row = rows[0];
-		return row === undefined ? null : toReportConfig(row);
-	}
+    /**
+     * Update a stored config.
+     *
+     * Every field is optional and only the supplied ones are written, so a caller
+     * changing the schedule cannot blank the metrics by omitting them — the usual
+     * read-modify-write hazard with a PUT-shaped endpoint.
+     */
+    async updateReportConfig(
+        id: string,
+        updates: {
+            name?: string
+            description?: string | null
+            metrics?: string[]
+            schedule?: ReportSchedule
+            recipients?: string[]
+        }
+    ): Promise<ReportConfigRow | null> {
+        const rows = await this.database.db
+            .update(analyticsReportConfigs)
+            .set({
+                ...(updates.name === undefined ? {} : { name: updates.name }),
+                ...(updates.description === undefined
+                    ? {}
+                    : { description: updates.description }),
+                ...(updates.metrics === undefined
+                    ? {}
+                    : { metrics: updates.metrics }),
+                ...(updates.schedule === undefined
+                    ? {}
+                    : { schedule: updates.schedule }),
+                ...(updates.recipients === undefined
+                    ? {}
+                    : { recipients: updates.recipients }),
+                updatedAt: new Date(),
+            })
+            .where(eq(analyticsReportConfigs.id, id))
+            .returning()
+        const row = rows[0]
+        return row === undefined ? null : toReportConfig(row)
+    }
 
-	async deleteReportConfig(id: string): Promise<boolean> {
-		const rows = await this.database.db
-			.delete(analyticsReportConfigs)
-			.where(eq(analyticsReportConfigs.id, id))
-			.returning({ id: analyticsReportConfigs.id });
-		return rows.length > 0;
-	}
+    async deleteReportConfig(id: string): Promise<boolean> {
+        const rows = await this.database.db
+            .delete(analyticsReportConfigs)
+            .where(eq(analyticsReportConfigs.id, id))
+            .returning({ id: analyticsReportConfigs.id })
+        return rows.length > 0
+    }
 }
 
 /** Every query method, as an Effect that fails with `AnalyticsRepositoryFailure` (driver errors are wrapped, not leaked). */
 type Effectful<T> = {
-	readonly [K in keyof T]: T[K] extends (...args: infer A) => Promise<infer R>
-		? (...args: A) => Effect.Effect<R, AnalyticsRepositoryFailure, DatabasePort>
-		: never;
-};
+    readonly [K in keyof T]: T[K] extends (...args: infer A) => Promise<infer R>
+        ? (
+              ...args: A
+          ) => Effect.Effect<R, AnalyticsRepositoryFailure, DatabasePort>
+        : never
+}
 
 /** The repository contract: the queries below, each an Effect. */
-export type AnalyticsRepositoryShape = Effectful<AnalyticsQueries>;
+export type AnalyticsRepositoryShape = Effectful<AnalyticsQueries>
 
 /** One async database boundary; driver errors become `AnalyticsRepositoryFailure`. */
-const attempt = <T>(operation: () => Promise<T>): Effect.Effect<T, AnalyticsRepositoryFailure> =>
-	Effect.tryPromise({ try: operation, catch: (cause) => new AnalyticsRepositoryFailure({ cause }) });
+const attempt = <T>(
+    operation: () => Promise<T>
+): Effect.Effect<T, AnalyticsRepositoryFailure> =>
+    Effect.tryPromise({
+        try: operation,
+        catch: (cause) => new AnalyticsRepositoryFailure({ cause }),
+    })
 
-const makeAnalyticsRepository = (database: DatabaseShape): AnalyticsRepositoryShape => {
-	const queries = new AnalyticsQueries(database);
-	const prototype = Object.getPrototypeOf(queries) as Record<string, unknown>;
-	const entries = Object.getOwnPropertyNames(prototype)
-		.filter((name) => name !== "constructor" && typeof prototype[name] === "function")
-		.map((name) => [
-			name,
-			(...args: unknown[]) =>
-				attempt(async () => (await (prototype[name] as (...a: unknown[]) => Promise<unknown>).apply(queries, args)) as unknown),
-		]);
-	return Object.fromEntries(entries) as AnalyticsRepositoryShape;
-};
+const makeAnalyticsRepository = (
+    database: DatabaseShape
+): AnalyticsRepositoryShape => {
+    const queries = new AnalyticsQueries(database)
+    const prototype = Object.getPrototypeOf(queries) as Record<string, unknown>
+    const entries = Object.getOwnPropertyNames(prototype)
+        .filter(
+            (name) =>
+                name !== 'constructor' && typeof prototype[name] === 'function'
+        )
+        .map((name) => [
+            name,
+            (...args: unknown[]) =>
+                attempt(
+                    async () =>
+                        (await (
+                            prototype[name] as (
+                                ...a: unknown[]
+                            ) => Promise<unknown>
+                        ).apply(queries, args)) as unknown
+                ),
+        ])
+    return Object.fromEntries(entries) as AnalyticsRepositoryShape
+}
 
 /** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
-export class AnalyticsRepository extends Context.Service<AnalyticsRepository, AnalyticsRepositoryShape>()(
-	"identity/AnalyticsRepository",
-) {
+export class AnalyticsRepository extends Context.Service<
+    AnalyticsRepository,
+    AnalyticsRepositoryShape
+>()('identity/AnalyticsRepository') {
     /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(DatabasePort, makeAnalyticsRepository);
-
+    static readonly live = serviceOver(DatabasePort, makeAnalyticsRepository)
 }
 
 /**
@@ -455,54 +544,59 @@ export class AnalyticsRepository extends Context.Service<AnalyticsRepository, An
  * here, means the rest of the module can assume a real `Date`.
  */
 function toDate(value: Date | string): Date {
-	return value instanceof Date ? value : new Date(value);
+    return value instanceof Date ? value : new Date(value)
 }
 
 /** Map a deployment row to the domain shape, coercing the timestamps. */
 function toDeployment(row: {
-	id: string;
-	serviceId: string;
-	status: string;
-	createdAt: Date | string;
-	deployCompletedAt: Date | string | null;
-	errorMessage: string | null;
+    id: string
+    serviceId: string
+    status: string
+    createdAt: Date | string
+    deployCompletedAt: Date | string | null
+    errorMessage: string | null
 }): DeploymentRow {
-	return {
-		id: row.id,
-		serviceId: row.serviceId,
-		status: row.status,
-		createdAt: toDate(row.createdAt),
-		deployCompletedAt: row.deployCompletedAt == null ? null : toDate(row.deployCompletedAt),
-		errorMessage: row.errorMessage,
-	};
+    return {
+        id: row.id,
+        serviceId: row.serviceId,
+        status: row.status,
+        createdAt: toDate(row.createdAt),
+        deployCompletedAt:
+            row.deployCompletedAt == null
+                ? null
+                : toDate(row.deployCompletedAt),
+        errorMessage: row.errorMessage,
+    }
 }
 
 /** Map a report row to the domain shape, normalising the timestamps. */
 function toReport(row: typeof analyticsReports.$inferSelect): ReportRow {
-	return {
-		id: row.id,
-		name: row.name,
-		status: row.status,
-		generatedAt: row.generatedAt == null ? null : toDate(row.generatedAt),
-		periodStart: toDate(row.periodStart),
-		periodEnd: toDate(row.periodEnd),
-		format: row.format,
-		sizeBytes: row.sizeBytes ?? 0,
-		content: row.content,
-		sections: row.sections ?? [],
-		errorMessage: row.errorMessage,
-	};
+    return {
+        id: row.id,
+        name: row.name,
+        status: row.status,
+        generatedAt: row.generatedAt == null ? null : toDate(row.generatedAt),
+        periodStart: toDate(row.periodStart),
+        periodEnd: toDate(row.periodEnd),
+        format: row.format,
+        sizeBytes: row.sizeBytes ?? 0,
+        content: row.content,
+        sections: row.sections ?? [],
+        errorMessage: row.errorMessage,
+    }
 }
 
-function toReportConfig(row: typeof analyticsReportConfigs.$inferSelect): ReportConfigRow {
-	return {
-		id: row.id,
-		name: row.name,
-		description: row.description,
-		metrics: row.metrics,
-		schedule: row.schedule,
-		recipients: row.recipients ?? [],
-		createdAt: toDate(row.createdAt),
-		updatedAt: toDate(row.updatedAt),
-	};
+function toReportConfig(
+    row: typeof analyticsReportConfigs.$inferSelect
+): ReportConfigRow {
+    return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        metrics: row.metrics,
+        schedule: row.schedule,
+        recipients: row.recipients ?? [],
+        createdAt: toDate(row.createdAt),
+        updatedAt: toDate(row.updatedAt),
+    }
 }

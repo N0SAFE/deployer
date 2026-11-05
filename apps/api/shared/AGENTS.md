@@ -22,12 +22,12 @@ shape.
 **There is no plain-container runtime.** Each supervisor declares a `scope`, and
 `resolveSupervisorRuntime` maps it to a swarm mode:
 
-| Scope | Runtime | Examples |
-|---|---|---|
-| `node-local` | `swarm-global` (one task per node) | Traefik ingress |
-| `mesh-wide` | `swarm-replicated` (one shared service) | global Postgres, Redis, database-service instances, managed web, edge connector |
-| n/a | `managed` | `MANAGED_*_ENABLED=true`: link-only wiring, never spawn |
-| n/a | `unavailable` | engine is not a swarm member: **degrade**, never fall back to a container |
+| Scope        | Runtime                                 | Examples                                                                        |
+| ------------ | --------------------------------------- | ------------------------------------------------------------------------------- |
+| `node-local` | `swarm-global` (one task per node)      | Traefik ingress                                                                 |
+| `mesh-wide`  | `swarm-replicated` (one shared service) | global Postgres, Redis, database-service instances, managed web, edge connector |
+| n/a          | `managed`                               | `MANAGED_*_ENABLED=true`: link-only wiring, never spawn                         |
+| n/a          | `unavailable`                           | engine is not a swarm member: **degrade**, never fall back to a container       |
 
 The `SwarmBootstrap` Effect service (`@deployer/swarm`, provided by `SwarmCoreModule`) converges the engine at boot, so a swarm is normally
 available; a supervisor that still finds none reports `unavailable` with an actionable message
@@ -105,9 +105,9 @@ node-local store.
 
 ## Boot model: apps start behind setup, and onboarding belongs to `apps/setup`
 
-| Phase | Owner |
-|---|---|
-| found or join the swarm, WireGuard, the wizard, the handover | **`apps/setup`** |
+| Phase                                                           | Owner                             |
+| --------------------------------------------------------------- | --------------------------------- |
+| found or join the swarm, WireGuard, the wizard, the handover    | **`apps/setup`**                  |
 | DB provisioning, migrations, seed, admin, every product feature | **the API tier** (BFF + services) |
 
 Rules that follow from this:

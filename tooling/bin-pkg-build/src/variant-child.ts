@@ -26,9 +26,7 @@ const OUT_ROOT_PREFIX = '--out-root='
 
 /** Read a `--flag=value` argument, or `undefined`. */
 function flag(prefix: string): string | undefined {
-    return process.argv
-        .find((a) => a.startsWith(prefix))
-        ?.slice(prefix.length)
+    return process.argv.find((a) => a.startsWith(prefix))?.slice(prefix.length)
 }
 
 async function main(): Promise<void> {

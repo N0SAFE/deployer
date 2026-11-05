@@ -1,20 +1,27 @@
 /**
  * Server-side auth configuration for declarative routing.
- * 
+ *
  * This file configures the auth adapter used by SessionPage and SessionLayout wrappers.
  * It must be imported before any SessionPage or SessionLayout is used.
- * 
+ *
  * IMPORTANT: This file has server-side side effects.
  * The configuration is triggered when this module is first imported.
  */
 import 'server-only'
 
-import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query'
+import {
+    HydrationBoundary,
+    QueryClient,
+    dehydrate,
+} from '@tanstack/react-query'
 
 import { configureLayoutAuth } from '@deployer/declarative-routing/layout-wrappers/server'
 import { configureServerAuth } from '@deployer/declarative-routing/page-wrappers/server'
 
-import { getSessionFromCookie, hasSessionCookie } from '@/lib/auth/cookie-session'
+import {
+    getSessionFromCookie,
+    hasSessionCookie,
+} from '@/lib/auth/cookie-session'
 
 import type { ReactNode, ComponentType } from 'react'
 
@@ -27,17 +34,17 @@ async function getServerSession() {
 
 // Shared React Query config
 const reactQueryConfig = {
-    HydrationBoundary: HydrationBoundary as ComponentType<{ state: unknown; children: ReactNode }>,
+    HydrationBoundary: HydrationBoundary as ComponentType<{
+        state: unknown
+        children: ReactNode
+    }>,
     createQueryClient: () => new QueryClient(),
     dehydrate: dehydrate as (client: unknown) => unknown,
 }
 
 // Configure the server auth adapter for PAGES
 // This runs when the module is first imported
-configureServerAuth(
-    { getSession: getServerSession },
-    reactQueryConfig
-)
+configureServerAuth({ getSession: getServerSession }, reactQueryConfig)
 
 // Configure the layout auth adapter for LAYOUTS
 // Uses the same session fetcher and React Query integration

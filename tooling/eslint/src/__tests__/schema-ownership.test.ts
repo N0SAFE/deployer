@@ -13,7 +13,9 @@ describe('schema ownership registry', () => {
     it('claims every table exactly once', () => {
         expect(Object.keys(ownership.tableOwnership).length).toBeGreaterThan(80)
         for (const [table, owner] of Object.entries(ownership.tableOwnership)) {
-            expect(owner, `table ${table}`).toMatch(/^(identity|project|runtime|fleet|health|platform|monolith)$/)
+            expect(owner, `table ${table}`).toMatch(
+                /^(identity|project|runtime|fleet|health|platform|monolith)$/
+            )
         }
     })
 
@@ -29,16 +31,26 @@ describe('schema ownership registry', () => {
     it('treats the shared tables as readable by every declared reader', () => {
         // These are the reads Phase 2 granted; losing one would break analytics,
         // deployment targeting, or the docker view.
-        expect(ownership.readers['services']).toEqual(expect.arrayContaining(['project', 'runtime', 'fleet', 'identity']))
-        expect(ownership.readers['deployments']).toEqual(expect.arrayContaining(['runtime', 'project', 'fleet', 'identity']))
-        expect(ownership.readers['projects']).toEqual(expect.arrayContaining(['project', 'runtime', 'identity']))
-        expect(ownership.readers['environments']).toEqual(expect.arrayContaining(['project', 'runtime']))
+        expect(ownership.readers['services']).toEqual(
+            expect.arrayContaining(['project', 'runtime', 'fleet', 'identity'])
+        )
+        expect(ownership.readers['deployments']).toEqual(
+            expect.arrayContaining(['runtime', 'project', 'fleet', 'identity'])
+        )
+        expect(ownership.readers['projects']).toEqual(
+            expect.arrayContaining(['project', 'runtime', 'identity'])
+        )
+        expect(ownership.readers['environments']).toEqual(
+            expect.arrayContaining(['project', 'runtime'])
+        )
     })
 
     it('does not make a shared table writable by its readers', () => {
         // The writer stays single for the tables whose meaning one service owns.
         for (const table of ['services', 'projects', 'environments']) {
-            expect(ownership.readers[table]?.[0], `${table} writer`).toBe('project')
+            expect(ownership.readers[table]?.[0], `${table} writer`).toBe(
+                'project'
+            )
         }
         expect(ownership.readers['deployments']?.[0]).toBe('runtime')
         expect(ownership.readers['preview_environments']?.[0]).toBe('fleet')

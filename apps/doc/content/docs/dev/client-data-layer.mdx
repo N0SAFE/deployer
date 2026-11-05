@@ -4,7 +4,10 @@ description: Domain-oriented ORPC hook usage, query key strategy, and invalidati
 order: 7
 ---
 
-<DocMeta source="docs/UNIFIED-HOOK-PATTERN.md, docs/QUERY-KEY-INVALIDATION-DESIGN.md" scope="supplemental" />
+<DocMeta
+    source="docs/UNIFIED-HOOK-PATTERN.md, docs/QUERY-KEY-INVALIDATION-DESIGN.md"
+    scope="supplemental"
+/>
 
 ## Purpose
 
@@ -25,7 +28,8 @@ This keeps cache behavior predictable and testable.
 - **ORPC client**: imported from `apps/web/src/lib/orpc`.
 
 <DocCallout title="Hard rule" tone="warning">
-Do not mix ad-hoc `useQuery` calls in components with domain hook behavior for the same feature. That creates cache divergence.
+    Do not mix ad-hoc `useQuery` calls in components with domain hook behavior
+    for the same feature. That creates cache divergence.
 </DocCallout>
 
 ## Query key conventions
@@ -45,12 +49,21 @@ Practical invalidation strategy:
 ## Mutation-side invalidation checklist
 
 <DocChecklist
-	items={[
-		{ label: 'Invalidate list-level queries after creates/deletes', done: false },
-		{ label: 'Invalidate item-level queries after updates', done: false },
-		{ label: 'Prefer exported key factories over hardcoded arrays', done: false },
-		{ label: 'Keep invalidation logic in hook layer (not components)', done: false },
-	]}
+    items={[
+        {
+            label: 'Invalidate list-level queries after creates/deletes',
+            done: false,
+        },
+        { label: 'Invalidate item-level queries after updates', done: false },
+        {
+            label: 'Prefer exported key factories over hardcoded arrays',
+            done: false,
+        },
+        {
+            label: 'Keep invalidation logic in hook layer (not components)',
+            done: false,
+        },
+    ]}
 />
 
 ## Recommended hook API shape

@@ -8,10 +8,12 @@
 **This module's services should be merged with the Git module into a unified Providers structure.**
 
 The target is to create `GitHubProviderModule` that combines:
-- GitHub API operations (webhooks, OAuth, deployments) 
+
+- GitHub API operations (webhooks, OAuth, deployments)
 - Git operations (clone, extract) from GitModule
 
-**See**: 
+**See**:
+
 - [ARCHITECTURE.md](./ARCHITECTURE.md) for the migration plan
 - [CRITICAL-ISSUES.md](../../docs/CRITICAL-ISSUES.md#-issue-3-gitgithub-modules-scattered-responsibility) for tracking
 
@@ -27,36 +29,38 @@ The GitHub module provides GitHub API integration services:
 
 ## Services Provided
 
-| Service | Description |
-|---------|-------------|
+| Service         | Description                                  |
+| --------------- | -------------------------------------------- |
 | `GitHubService` | GitHub API client with multi-org App support |
 
 ## Quick Start
 
 ```typescript
-import { GitHubService } from '@/core/modules/github/services/github.service';
+import { GitHubService } from '@/core/modules/github/services/github.service'
 
 @Injectable()
 export class MyService {
-  constructor(private readonly githubService: GitHubService) {}
+    constructor(private readonly githubService: GitHubService) {}
 
-  async listRepos(orgLogin: string, installationId: number) {
-    const repos = await this.githubService.listInstallationRepositories(
-      orgLogin,
-      installationId
-    );
-    return repos;
-  }
+    async listRepos(orgLogin: string, installationId: number) {
+        const repos = await this.githubService.listInstallationRepositories(
+            orgLogin,
+            installationId
+        )
+        return repos
+    }
 }
 ```
 
 ## Architecture Principles
 
 **This is a CORE module - it should ONLY provide services:**
+
 - NO controllers (moved to feature modules)
 - NO processors (moved to feature modules)
 
 Controllers and processors have been moved to:
+
 - `GitHubOAuthModule` (feature module) - OAuth flow
 - `GitHubWebhookModule` (feature module) - Webhook handling
 
@@ -73,13 +77,14 @@ registerInstallation(organizationLogin: string, config: GitHubAppConfig): void
 ```
 
 **GitHubAppConfig:**
+
 ```typescript
 interface GitHubAppConfig {
-  appId: string;
-  privateKey: string;
-  clientId?: string;
-  clientSecret?: string;
-  webhookSecret?: string;
+    appId: string
+    privateKey: string
+    clientId?: string
+    clientSecret?: string
+    webhookSecret?: string
 }
 ```
 
@@ -286,13 +291,13 @@ getPublicOctokit(): Octokit
 
 ## Configuration
 
-| Environment Variable | Required | Description |
-|---------------------|----------|-------------|
-| `GITHUB_WEBHOOK_SECRET` | No | Default webhook secret for signature verification |
+| Environment Variable    | Required | Description                                       |
+| ----------------------- | -------- | ------------------------------------------------- |
+| `GITHUB_WEBHOOK_SECRET` | No       | Default webhook secret for signature verification |
 
 ## Documentation Index
 
-| Document | Description |
-|----------|-------------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Current architecture and migration plan |
-| [services/README.md](./services/README.md) | Service integration guide |
+| Document                                   | Description                             |
+| ------------------------------------------ | --------------------------------------- |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)       | Current architecture and migration plan |
+| [services/README.md](./services/README.md) | Service integration guide               |

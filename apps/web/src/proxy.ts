@@ -1,27 +1,26 @@
 // middleware.ts
 
-import { stackMiddlewares } from "./middlewares/utils/stackMiddlewares";
-import * as AuthMiddleware from "./middlewares/WithAuth";
-import * as EnvMiddleware from "./middlewares/WithEnv";
-import { withHeaders } from "./middlewares/WithHeaders";
-import * as HealthCheckMiddleware from "./middlewares/WithHealthCheck";
-import * as SetupMiddleware from "./middlewares/WithSetup";
+import { stackMiddlewares } from './middlewares/utils/stackMiddlewares'
+import * as AuthMiddleware from './middlewares/WithAuth'
+import * as EnvMiddleware from './middlewares/WithEnv'
+import { withHeaders } from './middlewares/WithHeaders'
+import * as HealthCheckMiddleware from './middlewares/WithHealthCheck'
+import * as SetupMiddleware from './middlewares/WithSetup'
 
 // import * as WithTiming from './middlewares/WithTiming'
-import type { Middleware } from "./middlewares/utils/types";
-
+import type { Middleware } from './middlewares/utils/types'
 
 const middlewares = [
-  // WithTiming, // use this to know the timing of each request in the middleware stack
-  EnvMiddleware,
-  HealthCheckMiddleware,
-  SetupMiddleware,
-  // WithRedirect,
-  AuthMiddleware,
-  withHeaders,
-] satisfies Middleware[];
+    // WithTiming, // use this to know the timing of each request in the middleware stack
+    EnvMiddleware,
+    HealthCheckMiddleware,
+    SetupMiddleware,
+    // WithRedirect,
+    AuthMiddleware,
+    withHeaders,
+] satisfies Middleware[]
 
-export default stackMiddlewares(middlewares);
+export default stackMiddlewares(middlewares)
 
 // ── WHY THIS IS A LITERAL AND NOT `compileMatchers(middlewares)` ─────────────
 // Next.js statically analyzes this export before running any code, so it must
@@ -50,5 +49,5 @@ export default stackMiddlewares(middlewares);
 // the middleware stack that alters the compiled result fails instead of silently
 // making the two disagree.
 export const config = {
-  matcher: ["/:path*"],
-};
+    matcher: ['/:path*'],
+}

@@ -75,42 +75,46 @@ function UserList() {
 ## Type Safety Guarantees
 
 ### 1. Input Type Safety
+
 ```typescript
-hooks.useList({ 
-  limit: 20,      // ✅ Valid
-  // invalid: 123 // ❌ TypeScript error
-});
+hooks.useList({
+    limit: 20, // ✅ Valid
+    // invalid: 123 // ❌ TypeScript error
+})
 ```
 
 ### 2. Output Type Safety
+
 ```typescript
-const { data } = hooks.useList();
-data?.data       // ✅ Type: User[]
-data?.meta       // ✅ Type: { pagination: {...}, sorting: {...} }
+const { data } = hooks.useList()
+data?.data // ✅ Type: User[]
+data?.meta // ✅ Type: { pagination: {...}, sorting: {...} }
 // data?.invalid // ❌ TypeScript error
 ```
 
 ### 3. Mutation Type Safety
+
 ```typescript
-const { mutate } = hooks.useCreate();
-mutate({ 
-  name: "John",   // ✅ Valid
-  email: "john@example.com", // ✅ Valid
-  // invalid: 123 // ❌ TypeScript error
-});
+const { mutate } = hooks.useCreate()
+mutate({
+    name: 'John', // ✅ Valid
+    email: 'john@example.com', // ✅ Valid
+    // invalid: 123 // ❌ TypeScript error
+})
 ```
 
 ### 4. Cache Invalidation Type Safety
+
 ```typescript
 defineInvalidations(router, {
-  create: ['list', 'count'],     // ✅ Valid procedure names
-  // create: ['invalid'],        // ❌ TypeScript error
-  
-  update: (input) => ({
-    //     ^? input: UpdateInput (fully typed)
-    findById: { id: input.id },  // ✅ Typed reference
-  }),
-});
+    create: ['list', 'count'], // ✅ Valid procedure names
+    // create: ['invalid'],        // ❌ TypeScript error
+
+    update: (input) => ({
+        //     ^? input: UpdateInput (fully typed)
+        findById: { id: input.id }, // ✅ Typed reference
+    }),
+})
 ```
 
 ## HTTP Method to Hook Type Mapping
@@ -143,41 +147,40 @@ graph LR
 
 ## Standard Operations Type Map
 
-| Operation | Method | Input Type | Output Type | Hook Type |
-|-----------|--------|------------|-------------|-----------|
-| `list()` | GET | `{ limit?, offset?, sort?, filter? }` | `{ data: Entity[], meta }` | Query |
-| `read()` | GET | `{ id: string }` | `Entity \| null` | Query |
-| `count()` | GET | `{ filter? }` | `{ count: number }` | Query |
-| `check()` | GET | `{ [field]: value }` | `{ exists: boolean }` | Query |
-| `create()` | POST | `Partial<Entity>` | `Entity` | Mutation |
-| `update()` | PUT | `Entity` | `Entity` | Mutation |
-| `patch()` | PATCH | `Partial<Entity> & { id }` | `Entity` | Mutation |
-| `delete()` | DELETE | `{ id: string }` | `{ success: boolean }` | Mutation |
+| Operation  | Method | Input Type                            | Output Type                | Hook Type |
+| ---------- | ------ | ------------------------------------- | -------------------------- | --------- |
+| `list()`   | GET    | `{ limit?, offset?, sort?, filter? }` | `{ data: Entity[], meta }` | Query     |
+| `read()`   | GET    | `{ id: string }`                      | `Entity \| null`           | Query     |
+| `count()`  | GET    | `{ filter? }`                         | `{ count: number }`        | Query     |
+| `check()`  | GET    | `{ [field]: value }`                  | `{ exists: boolean }`      | Query     |
+| `create()` | POST   | `Partial<Entity>`                     | `Entity`                   | Mutation  |
+| `update()` | PUT    | `Entity`                              | `Entity`                   | Mutation  |
+| `patch()`  | PATCH  | `Partial<Entity> & { id }`            | `Entity`                   | Mutation  |
+| `delete()` | DELETE | `{ id: string }`                      | `{ success: boolean }`     | Mutation  |
 
 ## Metadata Flow
 
 ```typescript
 // RouteBuilder adds metadata during contract creation
-const contract = RouteBuilder
-  .create()
-  .method('GET')  // HTTP method stored in metadata
-  .path('/users')
-  .build();
+const contract = RouteBuilder.create()
+    .method('GET') // HTTP method stored in metadata
+    .path('/users')
+    .build()
 
 // Metadata structure
 contract['~orpc'] = {
-  meta: {
-    __orpc_route_builder_method__: {
-      method: 'GET',  // ← This determines hook type
-      path: '/users',
-    }
-  }
-};
+    meta: {
+        __orpc_route_builder_method__: {
+            method: 'GET', // ← This determines hook type
+            path: '/users',
+        },
+    },
+}
 
 // Hook generator reads metadata
 function detectOperationType(contract) {
-  const method = contract['~orpc']?.meta?.[ROUTE_METHOD_META_KEY]?.method;
-  return method === 'GET' ? 'query' : 'mutation';
+    const method = contract['~orpc']?.meta?.[ROUTE_METHOD_META_KEY]?.method
+    return method === 'GET' ? 'query' : 'mutation'
 }
 ```
 
@@ -185,7 +188,7 @@ function detectOperationType(contract) {
 
 ```typescript
 // 1. Schema defines structure
-type User = z.infer<typeof userSchema>;
+type User = z.infer<typeof userSchema>
 // { id: string, name: string, email: string }
 
 // 2. StandardOperations inherits entity type
@@ -194,16 +197,15 @@ StandardOperations<typeof userSchema>
 
 // 3. Contracts inherit from operations
 listContract: Contract<{
-  input: ListInput<User>,
-  output: ListOutput<User>
+    input: ListInput<User>
+    output: ListOutput<User>
 }>
 
 // 4. Hooks inherit from contracts
-useList: (input?: ListInput<User>) => 
-  UseQueryResult<ListOutput<User>>
+useList: (input?: ListInput<User>) => UseQueryResult<ListOutput<User>>
 
 // 5. Components get full type safety
-const { data } = useList();
+const { data } = useList()
 //     ^? data: ListOutput<User> | undefined
 ```
 

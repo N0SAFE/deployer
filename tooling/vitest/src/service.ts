@@ -1,11 +1,11 @@
 /// <reference types="vitest" />
-import { statSync } from "node:fs";
-import * as path from "node:path";
-import { defineConfig, type ViteUserConfigExport } from "vitest/config";
+import { statSync } from 'node:fs'
+import * as path from 'node:path'
+import { defineConfig, type ViteUserConfigExport } from 'vitest/config'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-import swc from "unplugin-swc";
+import swc from 'unplugin-swc'
 
-import { createNodeConfig } from "./node.js";
+import { createNodeConfig } from './node.js'
 
 /**
  * Test config for an `apps/api` app.
@@ -22,7 +22,7 @@ import { createNodeConfig } from "./node.js";
  * the `zod/v4` subpath, and the e2e env timing.
  */
 
-const IS_BUN_RUNTIME = Boolean(process.versions.bun);
+const IS_BUN_RUNTIME = Boolean(process.versions.bun)
 
 /**
  * Absolute paths the aliases need, resolved by walking up to the workspace root.
@@ -33,16 +33,16 @@ const IS_BUN_RUNTIME = Boolean(process.versions.bun);
  * up until the layout is recognisable is depth-independent.
  */
 function resolveWorkspacePaths(): { sharedSrc: string; workspaceRoot: string } {
-    let dir = process.cwd();
+    let dir = process.cwd()
     for (let i = 0; i < 6; i++) {
-        const sharedSrc = path.join(dir, "apps/api/shared/src");
-        if (isDirectory(sharedSrc)) return { sharedSrc, workspaceRoot: dir };
-        dir = path.dirname(dir);
+        const sharedSrc = path.join(dir, 'apps/api/shared/src')
+        if (isDirectory(sharedSrc)) return { sharedSrc, workspaceRoot: dir }
+        dir = path.dirname(dir)
     }
     throw new Error(
         `@deployer/config-vitest: could not locate apps/api/shared/src ` +
-            `by walking up from ${process.cwd()}`,
-    );
+            `by walking up from ${process.cwd()}`
+    )
 }
 
 /**
@@ -56,52 +56,49 @@ function resolveWorkspacePaths(): { sharedSrc: string; workspaceRoot: string } {
  * `Cannot find package '@/core/...'` while the same spec passed from the app
  * directory. That is the "sometimes" in the reports.
  */
-function resolveAppSrc(
-    service: string,
-    workspaceRoot: string,
-): string {
+function resolveAppSrc(service: string, workspaceRoot: string): string {
     const candidates = [
-        path.resolve(process.cwd(), "src"),
-        path.join(workspaceRoot, "apps/api/services", service, "src"),
-        path.join(workspaceRoot, "apps/api", service, "src"),
-    ];
-    const found = candidates.find(isDirectory);
+        path.resolve(process.cwd(), 'src'),
+        path.join(workspaceRoot, 'apps/api/services', service, 'src'),
+        path.join(workspaceRoot, 'apps/api', service, 'src'),
+    ]
+    const found = candidates.find(isDirectory)
     if (found === undefined) {
         throw new Error(
             `@deployer/config-vitest: could not locate src for service "${service}". ` +
-                `Tried: ${candidates.join(", ")}`,
-        );
+                `Tried: ${candidates.join(', ')}`
+        )
     }
-    return found;
+    return found
 }
 
 function isDirectory(p: string): boolean {
     try {
-        return statSync(p).isDirectory();
+        return statSync(p).isDirectory()
     } catch {
-        return false;
+        return false
     }
 }
 
 export interface ServiceTestConfigOptions {
     /** The service name, used for the project names and the e2e SQLite path. */
-    readonly service: string;
+    readonly service: string
     /** App-local aliases that must win over the `@/` catch-all (e.g. a module-wide `core`). */
-    readonly extraAliases?: readonly { find: string; replacement: string }[];
+    readonly extraAliases?: readonly { find: string; replacement: string }[]
 }
 
 /**
  * `createServiceTestConfig("identity")` — the whole test config for a service app.
  */
 export const createServiceTestConfig = (
-    options: ServiceTestConfigOptions,
+    options: ServiceTestConfigOptions
 ): ViteUserConfigExport => {
-    const { service } = options;
-    const { sharedSrc, workspaceRoot } = resolveWorkspacePaths();
+    const { service } = options
+    const { sharedSrc, workspaceRoot } = resolveWorkspacePaths()
     // The e2e harness (shared Postgres container, global setup/teardown, bun:sqlite shim) lives in
     // `shared`, not in the app: it is the same for the BFF and every service.
-    const harness = path.join(sharedSrc, "e2e-harness/vitest");
-    const appSrc = resolveAppSrc(service, workspaceRoot);
+    const harness = path.join(sharedSrc, 'e2e-harness/vitest')
+    const appSrc = resolveAppSrc(service, workspaceRoot)
 
     // ── THE ARRAY FORM, AND THE ORDER IS THE POINT ────────────────────────────
     // An OBJECT alias is matched by prefix with no guaranteed specificity order, so
@@ -122,11 +119,11 @@ export const createServiceTestConfig = (
             ? []
             : [
                   {
-                      find: "bun:sqlite",
-                      replacement: path.join(harness, "bun-sqlite-shim.ts"),
+                      find: 'bun:sqlite',
+                      replacement: path.join(harness, 'bun-sqlite-shim.ts'),
                   },
               ]),
-    ];
+    ]
 
     // Force one zod instance: workspace packages may lack the `zod/v4` subpath export,
     // so without this the same schema can load twice and fail an `instanceof` check.
@@ -135,10 +132,13 @@ export const createServiceTestConfig = (
     // app's own `src` — the same target the tsconfig declares for `@/*`.
     const appAlias = [
         ...(options.extraAliases ?? []),
-        { find: /^@\//, replacement: appSrc + "/" },
-    ];
+        { find: /^@\//, replacement: appSrc + '/' },
+    ]
 
-    const resolveConfig = { alias: [...sharedAlias, ...appAlias], dedupe: ["zod"] };
+    const resolveConfig = {
+        alias: [...sharedAlias, ...appAlias],
+        dedupe: ['zod'],
+    }
 
     // `createNodeConfig` aliases every `@deployer/*` workspace package to its `src`
     // directory. That is not cosmetic: packages publish `exports` whose runtime targets
@@ -157,9 +157,12 @@ export const createServiceTestConfig = (
             plugins: [
                 swc.vite({
                     jsc: {
-                        target: "es2022",
-                        parser: { syntax: "typescript", decorators: true },
-                        transform: { legacyDecorator: true, decoratorMetadata: true },
+                        target: 'es2022',
+                        parser: { syntax: 'typescript', decorators: true },
+                        transform: {
+                            legacyDecorator: true,
+                            decoratorMetadata: true,
+                        },
                     },
                 }),
             ],
@@ -197,10 +200,14 @@ export const createServiceTestConfig = (
                         resolve: resolveConfig,
                         test: {
                             name: `${service}-unit`,
-                            environment: "node",
+                            environment: 'node',
                             globals: true,
-                            include: ["src/**/*.{test,spec}.{ts,tsx}"],
-                            exclude: ["node_modules", "dist", "src/**/*.e2e-spec.ts"],
+                            include: ['src/**/*.{test,spec}.{ts,tsx}'],
+                            exclude: [
+                                'node_modules',
+                                'dist',
+                                'src/**/*.e2e-spec.ts',
+                            ],
                             testTimeout: 15000,
                             hookTimeout: 15000,
                         },
@@ -212,7 +219,7 @@ export const createServiceTestConfig = (
                                   resolve: resolveConfig,
                                   test: {
                                       name: `${service}-e2e`,
-                                      environment: "node",
+                                      environment: 'node',
                                       globals: true,
                                       // ── WHY `env` AND NOT ONLY THE SETUP FILE ────
                                       // `setupFiles` runs AFTER vitest loads the spec's
@@ -235,7 +242,9 @@ export const createServiceTestConfig = (
                                       // two specs in one worker off the same SQLite file.
                                       // This value only has to be a writable path that is
                                       // not the container's.
-                                      env: { NODE_LOCAL_DB_PATH: `/tmp/deployer-${service}-e2e-local.db` },
+                                      env: {
+                                          NODE_LOCAL_DB_PATH: `/tmp/deployer-${service}-e2e-local.db`,
+                                      },
                                       // ── WHY THE E2E PROJECT IS SERIAL ────────────
                                       // The local SQLite file is a single path shared by
                                       // every spec in this project, and two specs booting at
@@ -261,10 +270,14 @@ export const createServiceTestConfig = (
                                       // Referenced from `shared`, not copied: their imports
                                       // are relative to their own directory, so a copy per
                                       // app would be six identical files to keep in step.
-                                      globalSetup: [path.join(harness, "global-setup.ts")],
-                                      setupFiles: [path.join(harness, "setup.ts")],
-                                      include: ["src/**/*.e2e-spec.ts"],
-                                      exclude: ["node_modules", "dist"],
+                                      globalSetup: [
+                                          path.join(harness, 'global-setup.ts'),
+                                      ],
+                                      setupFiles: [
+                                          path.join(harness, 'setup.ts'),
+                                      ],
+                                      include: ['src/**/*.e2e-spec.ts'],
+                                      exclude: ['node_modules', 'dist'],
                                       testTimeout: 120000,
                                       hookTimeout: 120000,
                                   },
@@ -274,15 +287,17 @@ export const createServiceTestConfig = (
                 ],
             },
             resolve: resolveConfig,
-        } as ViteUserConfigExport),
-    );
-};
+        } as ViteUserConfigExport)
+    )
+}
 
 /**
  * Whether this run includes the e2e project, and therefore boots a Postgres
  * container. `VITEST_E2E=1` (or `true`/`yes`/`on`) turns it on.
  */
 function e2eEnabled(): boolean {
-    const value = process.env.VITEST_E2E?.trim().toLowerCase();
-    return value === "1" || value === "true" || value === "yes" || value === "on";
+    const value = process.env.VITEST_E2E?.trim().toLowerCase()
+    return (
+        value === '1' || value === 'true' || value === 'yes' || value === 'on'
+    )
 }

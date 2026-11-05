@@ -1,6 +1,6 @@
-import type { Linter } from 'eslint';
+import type { Linter } from 'eslint'
 
-import progressRule from './rules/progress';
+import progressRule from './rules/progress'
 
 /**
  * The `file-progress` plugin, typed.
@@ -13,21 +13,21 @@ import progressRule from './rules/progress';
  * `configs` type rather than being strings a consumer can mistype.
  */
 export interface ProgressPlugin {
-  meta: { name: string; version: string };
-  configs: Record<'recommended' | 'recommended-ci', Linter.Config>;
-  rules: Record<'activate', typeof progressRule>;
+    meta: { name: string; version: string }
+    configs: Record<'recommended' | 'recommended-ci', Linter.Config>
+    rules: Record<'activate', typeof progressRule>
 }
 
 const plugin: ProgressPlugin = {
-  meta: {
-    name: 'eslint-plugin-file-progress',
-    version: '3.0.0',
-  },
-  configs: {} as ProgressPlugin['configs'],
-  rules: {
-    activate: progressRule,
-  },
-};
+    meta: {
+        name: 'eslint-plugin-file-progress',
+        version: '3.0.0',
+    },
+    configs: {} as ProgressPlugin['configs'],
+    rules: {
+        activate: progressRule,
+    },
+}
 
 /**
  * Both presets enable the same rule; the split exists because a consumer chooses
@@ -36,26 +36,26 @@ const plugin: ProgressPlugin = {
  * uses so CI logs stay greppable.
  */
 const configs: ProgressPlugin['configs'] = {
-  recommended: {
-    name: 'progress/recommended',
-    plugins: {
-      progress: plugin,
+    recommended: {
+        name: 'progress/recommended',
+        plugins: {
+            progress: plugin,
+        },
+        rules: {
+            'progress/activate': 'error',
+        },
     },
-    rules: {
-      'progress/activate': 'error',
+    'recommended-ci': {
+        name: 'progress/recommended-ci',
+        plugins: {
+            progress: plugin,
+        },
+        rules: {
+            'progress/activate': 'error',
+        },
     },
-  },
-  'recommended-ci': {
-    name: 'progress/recommended-ci',
-    plugins: {
-      progress: plugin,
-    },
-    rules: {
-      'progress/activate': 'error',
-    },
-  },
-};
+}
 
-plugin.configs = configs;
+plugin.configs = configs
 
-export default plugin;
+export default plugin

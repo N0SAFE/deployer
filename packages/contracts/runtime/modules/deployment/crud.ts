@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 import {
     deploymentSchema,
@@ -7,10 +7,10 @@ import {
     deploymentLogSchema,
     deploymentRollbackSchema,
     runtimeRunnerOptionsSchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const deploymentOps = standard.zod(deploymentSchema, "deployment");
+const deploymentOps = standard.zod(deploymentSchema, 'deployment')
 
 // ─── findById ────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export const deploymentFindByIdContract = deploymentOps
         // 404 when the deployment doesn't exist (or is inaccessible).
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── delete ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export const deploymentDeleteContract = deploymentOps
         // 404 for unknown id; 409 when the deployment is still running.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── trigger ─────────────────────────────────────────────────────────────────
 
@@ -41,49 +41,54 @@ export const deploymentDeleteContract = deploymentOps
  */
 export const githubTriggerSourceSchema = z
     .object({
-        sourceType: z.literal("github"),
+        sourceType: z.literal('github'),
         repositoryUrl: z.string().min(1),
         branch: z.string().min(1).optional(),
         commitSha: z.string().min(1).optional(),
         pullRequestNumber: z.number().int().positive().optional(),
     })
-    .strict();
+    .strict()
 
 export const uploadTriggerSourceSchema = z
     .object({
-        sourceType: z.literal("upload"),
+        sourceType: z.literal('upload'),
         uploadId: z.string().min(1),
         uploadPath: z.string().min(1).optional(),
         fileName: z.string().min(1).optional(),
         fileSize: z.number().optional(),
         customData: z.record(z.string(), z.unknown()).optional(),
     })
-    .strict();
+    .strict()
 
 export const gitlabTriggerSourceSchema = z
     .object({
-        sourceType: z.literal("gitlab"),
+        sourceType: z.literal('gitlab'),
         repositoryUrl: z.string().min(1),
         branch: z.string().min(1).optional(),
         commitSha: z.string().min(1).optional(),
         mergeRequestIid: z.number().int().positive().optional(),
     })
-    .strict();
+    .strict()
 
 export const customTriggerSourceSchema = z
     .object({
-        sourceType: z.literal("custom"),
+        sourceType: z.literal('custom'),
         customData: z.record(z.string(), z.unknown()).optional(),
     })
-    .strict();
+    .strict()
 
-export const deploymentTriggerSourceSchema = z.discriminatedUnion("sourceType", [
-    githubTriggerSourceSchema,
-    gitlabTriggerSourceSchema,
-    uploadTriggerSourceSchema,
-    customTriggerSourceSchema,
-]);
-export type DeploymentTriggerSource = z.infer<typeof deploymentTriggerSourceSchema>;
+export const deploymentTriggerSourceSchema = z.discriminatedUnion(
+    'sourceType',
+    [
+        githubTriggerSourceSchema,
+        gitlabTriggerSourceSchema,
+        uploadTriggerSourceSchema,
+        customTriggerSourceSchema,
+    ]
+)
+export type DeploymentTriggerSource = z.infer<
+    typeof deploymentTriggerSourceSchema
+>
 
 export const deploymentTriggerInputSchema = z.object({
     serviceId: z.uuid(),
@@ -91,15 +96,29 @@ export const deploymentTriggerInputSchema = z.object({
     // (`deployment_environment`), so only the canonical environment names are
     // representable. The server still resolves the matching environment row
     // via `resolveEnvironmentId`.
-    environment: deploymentEnvironmentSchema.default("production"),
+    environment: deploymentEnvironmentSchema.default('production'),
     source: deploymentTriggerSourceSchema,
     execution: z
         .object({
             builder: z
-                .enum(["dockerfile", "docker_compose", "nixpacks", "buildpack", "railpack", "external"])
+                .enum([
+                    'dockerfile',
+                    'docker_compose',
+                    'nixpacks',
+                    'buildpack',
+                    'railpack',
+                    'external',
+                ])
                 .optional(),
             runner: z
-                .enum(["docker", "dockerfile", "docker_compose", "nixpacks", "buildpack", "railpack"])
+                .enum([
+                    'docker',
+                    'dockerfile',
+                    'docker_compose',
+                    'nixpacks',
+                    'buildpack',
+                    'railpack',
+                ])
                 .optional(),
             runtimeRunnerOptions: runtimeRunnerOptionsSchema.optional(),
             customCommands: z
@@ -122,46 +141,63 @@ export const deploymentTriggerInputSchema = z.object({
                     build: z
                         .object({
                             maxRetries: z.number().int().positive().optional(),
-                            retryIntervalMs: z.number().int().positive().optional(),
+                            retryIntervalMs: z
+                                .number()
+                                .int()
+                                .positive()
+                                .optional(),
                         })
                         .optional(),
                     deploy: z
                         .object({
                             maxRetries: z.number().int().positive().optional(),
-                            retryIntervalMs: z.number().int().positive().optional(),
+                            retryIntervalMs: z
+                                .number()
+                                .int()
+                                .positive()
+                                .optional(),
                         })
                         .optional(),
                     runtime: z
                         .object({
                             maxRetries: z.number().int().positive().optional(),
-                            retryIntervalMs: z.number().int().positive().optional(),
+                            retryIntervalMs: z
+                                .number()
+                                .int()
+                                .positive()
+                                .optional(),
                         })
                         .optional(),
                 })
                 .optional(),
         })
         .optional(),
-});
-export type DeploymentTriggerInput = z.infer<typeof deploymentTriggerInputSchema>;
+})
+export type DeploymentTriggerInput = z.infer<
+    typeof deploymentTriggerInputSchema
+>
 
 export const deploymentTriggerOutputSchema = z.object({
     deploymentId: z.uuid(),
     status: deploymentStatusSchema,
     message: z.string(),
-});
+})
 
-const deploymentTriggerOps = standard.zod(deploymentTriggerOutputSchema, "deploymentTrigger");
+const deploymentTriggerOps = standard.zod(
+    deploymentTriggerOutputSchema,
+    'deploymentTrigger'
+)
 
 export const deploymentTriggerContract = deploymentTriggerOps
     .create()
-    .path("/trigger")
+    .path('/trigger')
     .input((b) => b.body(deploymentTriggerInputSchema))
     .output(deploymentTriggerOutputSchema)
     .errors((e) => [
         // Service/env not found, invalid source, quota/approval gates.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── trigger from event (peer service → runtime, no user session) ────────────
 
@@ -176,8 +212,10 @@ export const deploymentTriggerFromEventInputSchema = z.object({
     eventName: z.string().min(1),
     deliveryId: z.string().min(1).nullable().optional(),
     payload: z.unknown(),
-});
-export type DeploymentTriggerFromEventInput = z.infer<typeof deploymentTriggerFromEventInputSchema>;
+})
+export type DeploymentTriggerFromEventInput = z.infer<
+    typeof deploymentTriggerFromEventInputSchema
+>
 
 export const deploymentTriggerFromEventOutputSchema = z.object({
     /** True when a deployment was queued. */
@@ -187,20 +225,20 @@ export const deploymentTriggerFromEventOutputSchema = z.object({
     deploymentId: z.uuid().nullable(),
     /** Why nothing was queued (no source, not deployable), null when dispatched. */
     reason: z.string().nullable(),
-});
+})
 
 const deploymentTriggerFromEventOps = standard.zod(
     deploymentTriggerFromEventOutputSchema,
-    "deploymentTriggerFromEvent",
-);
+    'deploymentTriggerFromEvent'
+)
 
 export const deploymentTriggerFromEventContract = deploymentTriggerFromEventOps
     .create()
-    .path("/trigger-event")
+    .path('/trigger-event')
     .input((b) => b.body(deploymentTriggerFromEventInputSchema))
     .output(deploymentTriggerFromEventOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 // ─── upload bundle ────────────────────────────────────────────────────────────
 
@@ -210,26 +248,26 @@ export const deploymentUploadBundleOutputSchema = z.object({
     fileName: z.string().min(1),
     fileSize: z.number().int().nonnegative(),
     mimeType: z.string().min(1),
-});
+})
 
 const deploymentUploadBundleOps = standard.zod(
     deploymentUploadBundleOutputSchema,
-    "deploymentUploadBundle",
-);
+    'deploymentUploadBundle'
+)
 
 export const deploymentUploadBundleContract = deploymentUploadBundleOps
     .create()
-    .path("/upload-bundle")
+    .path('/upload-bundle')
     .input((b) =>
         b.body(
             z.object({
                 file: z.file(),
                 fileName: z.string().min(1).optional(),
-            }),
-        ),
+            })
+        )
     )
     .output(deploymentUploadBundleOutputSchema)
-    .build();
+    .build()
 
 // ─── cancel ──────────────────────────────────────────────────────────────────
 
@@ -238,51 +276,57 @@ export const deploymentCancelOutputSchema = z.object({
     message: z.string(),
     deploymentId: z.uuid(),
     cancelledAt: z.date(),
-});
+})
 
-const deploymentCancelOps = standard.zod(deploymentCancelOutputSchema, "deploymentCancel");
+const deploymentCancelOps = standard.zod(
+    deploymentCancelOutputSchema,
+    'deploymentCancel'
+)
 
 export const deploymentCancelContract = deploymentCancelOps
     .create()
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/cancel`)
-            .body(z.object({ reason: z.string().optional() })),
+            .params((p) => p`/${p('id', z.uuid())}/cancel`)
+            .body(z.object({ reason: z.string().optional() }))
     )
     .output(deploymentCancelOutputSchema)
     .errors((e) => [
         // 404 for unknown id; 409 when the deployment already finished.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── rollback ────────────────────────────────────────────────────────────────
 
 export const deploymentRollbackOutputSchema = z.object({
     rollbackDeploymentId: z.uuid(),
     message: z.string(),
-});
+})
 
-const deploymentRollbackOps = standard.zod(deploymentRollbackOutputSchema, "deploymentRollback");
+const deploymentRollbackOps = standard.zod(
+    deploymentRollbackOutputSchema,
+    'deploymentRollback'
+)
 
 export const deploymentRollbackContract = deploymentRollbackOps
     .create()
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/rollback`)
+            .params((p) => p`/${p('id', z.uuid())}/rollback`)
             .body(
                 z.object({
                     targetDeploymentId: z.uuid(),
                     reason: z.string().optional(),
-                }),
-            ),
+                })
+            )
     )
     .output(deploymentRollbackOutputSchema)
     .errors((e) => [
         // 404 for unknown ids; 409 when rollback isn't allowed from this state.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── getLogs ─────────────────────────────────────────────────────────────────
 
@@ -292,7 +336,7 @@ export const deploymentGetLogsOutputSchema = z.object({
     hasMore: z.boolean(),
     retrySummary: z
         .object({
-            scope: z.literal("deployment"),
+            scope: z.literal('deployment'),
             build: z.object({
                 retryEvents: z.number().int().min(0),
             }),
@@ -302,15 +346,18 @@ export const deploymentGetLogsOutputSchema = z.object({
             totalRetryEvents: z.number().int().min(0),
         })
         .optional(),
-});
+})
 
-const deploymentGetLogsOps = standard.zod(deploymentGetLogsOutputSchema, "deploymentGetLogs");
+const deploymentGetLogsOps = standard.zod(
+    deploymentGetLogsOutputSchema,
+    'deploymentGetLogs'
+)
 
 export const deploymentGetLogsContract = deploymentGetLogsOps
-    .read({ idFieldName: "id", idSchema: z.uuid() })
+    .read({ idFieldName: 'id', idSchema: z.uuid() })
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/logs`)
+            .params((p) => p`/${p('id', z.uuid())}/logs`)
             .query(
                 z.object({
                     limit: z.coerce.number().int().min(1).max(500).default(100),
@@ -319,30 +366,33 @@ export const deploymentGetLogsContract = deploymentGetLogsOps
                     phase: z.string().min(1).max(128).optional(),
                     step: z.string().min(1).max(128).optional(),
                     includeRetrySummary: z.coerce.boolean().default(false),
-                }),
-            ),
+                })
+            )
     )
     .output(deploymentGetLogsOutputSchema)
     .errors((e) => [
         // 404 for unknown deployment id.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── retry ───────────────────────────────────────────────────────────────────
 
 export const deploymentRetryOutputSchema = z.object({
     retryDeploymentId: z.uuid(),
     message: z.string(),
-});
+})
 
-const deploymentRetryOps = standard.zod(deploymentRetryOutputSchema, "deploymentRetry");
+const deploymentRetryOps = standard.zod(
+    deploymentRetryOutputSchema,
+    'deploymentRetry'
+)
 
 export const deploymentRetryContract = deploymentRetryOps
     .create()
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/retry`)
+            .params((p) => p`/${p('id', z.uuid())}/retry`)
             // Retry needs nothing beyond the id: it re-runs THIS deployment and
             // returns the id of the new one. Declaring the (empty) body is not
             // cosmetic — without it the input type is seeded from the OUTPUT
@@ -350,32 +400,32 @@ export const deploymentRetryContract = deploymentRetryOps
             // `message`: the id of the deployment the call is about to create,
             // and its own success message. That is unsatisfiable, and it is why
             // every caller bypassed the type with `as any`.
-            .body(z.object({})),
+            .body(z.object({}))
     )
     .output(deploymentRetryOutputSchema)
     .errors((e) => [
         // 404 for unknown id; 409 when retry isn't allowed from this state.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 // ─── rollback history ────────────────────────────────────────────────────────
 
 export const deploymentRollbackHistoryOutputSchema = z.object({
     rollbacks: z.array(deploymentRollbackSchema),
-});
+})
 
 const deploymentRollbackHistoryOps = standard.zod(
     deploymentRollbackHistoryOutputSchema,
-    "deploymentRollbackHistory",
-);
+    'deploymentRollbackHistory'
+)
 
 export const deploymentGetRollbackHistoryContract = deploymentRollbackHistoryOps
-    .read({ idFieldName: "id", idSchema: z.uuid() })
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/rollbacks`))
+    .read({ idFieldName: 'id', idSchema: z.uuid() })
+    .input((b) => b.params((p) => p`/${p('id', z.uuid())}/rollbacks`))
     .output(deploymentRollbackHistoryOutputSchema)
     .errors((e) => [
         // 404 for unknown deployment id.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()

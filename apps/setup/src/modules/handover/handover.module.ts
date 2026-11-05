@@ -1,24 +1,42 @@
-import { DockerEngine } from "@deployer/docker";
-import { createModuleContext, serviceLifecycle } from "@deployer/nest-effect";
+import { DockerEngine } from '@deployer/docker'
+import { createModuleContext, serviceLifecycle } from '@deployer/nest-effect'
 
-import { EnvModule, EnvService } from "@/config/env/env.module";
-import { SetupHealthModule } from "@/modules/health/setup-health.module";
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { SetupIngressModule } from "@/modules/ingress/setup-ingress.module";
-import { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
-import { SetupProgressModule } from "@/modules/progress/progress.module";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
-import { SetupGateService } from "@/modules/wizard/setup-gate.service";
-import { WizardModule } from "@/modules/wizard/wizard.module";
-import { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
-import { WizardUpstreamService } from "@/modules/wizard/wizard-upstream.service";
+import { EnvModule, EnvService } from '@/config/env/env.module'
+import { SetupHealthModule } from '@/modules/health/setup-health.module'
+import { SetupPhaseService } from '@/modules/health/setup-phase.service'
+import { BootstrapIngressService } from '@/modules/ingress/services/bootstrap-ingress.service'
+import { SetupIngressModule } from '@/modules/ingress/setup-ingress.module'
+import { SetupProgressModule } from '@/modules/progress/progress.module'
+import { OrchestrationStreamService } from '@/modules/progress/services/orchestration-stream.service'
+import { SetupGateService } from '@/modules/wizard/setup-gate.service'
+import { WizardStreamService } from '@/modules/wizard/wizard-stream.service'
+import { WizardUpstreamService } from '@/modules/wizard/wizard-upstream.service'
+import { WizardModule } from '@/modules/wizard/wizard.module'
 
-import { ApiReadinessWatcherService, makeApiReadinessWatcherService } from "./services/api-readiness-watcher.service";
-import { ApiServiceProvisioner, makeApiServiceProvisioner } from "./services/api-service-provisioner.service";
-import { HandoverOrchestratorService, makeHandoverOrchestratorService } from "./services/handover-orchestrator.service";
-import { IngressHandoverService, makeIngressHandoverService } from "./services/ingress-handover.service";
-import { makeServicesTierProvisioner, ServicesTierProvisioner } from "./services/services-tier-provisioner.service";
-import { makeSetupExitService, SetupExitService } from "./services/setup-exit.service";
+import {
+    ApiReadinessWatcherService,
+    makeApiReadinessWatcherService,
+} from './services/api-readiness-watcher.service'
+import {
+    ApiServiceProvisioner,
+    makeApiServiceProvisioner,
+} from './services/api-service-provisioner.service'
+import {
+    HandoverOrchestratorService,
+    makeHandoverOrchestratorService,
+} from './services/handover-orchestrator.service'
+import {
+    IngressHandoverService,
+    makeIngressHandoverService,
+} from './services/ingress-handover.service'
+import {
+    makeServicesTierProvisioner,
+    ServicesTierProvisioner,
+} from './services/services-tier-provisioner.service'
+import {
+    makeSetupExitService,
+    SetupExitService,
+} from './services/setup-exit.service'
 
 /**
  * The handover half of setup: hand the entry port to the full API, then exit.
@@ -67,49 +85,65 @@ import { makeSetupExitService, SetupExitService } from "./services/setup-exit.se
  * one place where the port changes hands.
  */
 export class HandoverModule extends createModuleContext({
-  imports: [
-    EnvModule,
-    SetupHealthModule,
-    SetupIngressModule,
-    SetupProgressModule,
-    WizardModule,
-  ],
-  providers: [
-    { provide: IngressHandoverService, useFactory: makeIngressHandoverService, inject: [EnvService] },
-    serviceLifecycle(IngressHandoverService),
-    // Schedules the BFF + five services onto the swarm, for a node whose
-    // architecture is the microservices tier. Injected into
-    // `ApiServiceProvisioner`, which owns the "what do we hand over to" decision.
-    {
-      provide: ServicesTierProvisioner,
-      useFactory: makeServicesTierProvisioner,
-      inject: [EnvService, DockerEngine, SetupGateService],
-    },
-    serviceLifecycle(ServicesTierProvisioner),
-    {
-      provide: ApiServiceProvisioner,
-      useFactory: makeApiServiceProvisioner,
-      inject: [EnvService, DockerEngine, ServicesTierProvisioner],
-    },
-    { provide: ApiReadinessWatcherService, useFactory: makeApiReadinessWatcherService, inject: [WizardUpstreamService] },
-    {
-      provide: HandoverOrchestratorService,
-      useFactory: makeHandoverOrchestratorService,
-      inject: [
-        ApiServiceProvisioner,
-        ApiReadinessWatcherService,
+    imports: [
+        EnvModule,
+        SetupHealthModule,
+        SetupIngressModule,
+        SetupProgressModule,
+        WizardModule,
+    ],
+    providers: [
+        {
+            provide: IngressHandoverService,
+            useFactory: makeIngressHandoverService,
+            inject: [EnvService],
+        },
+        serviceLifecycle(IngressHandoverService),
+        // Schedules the BFF + five services onto the swarm, for a node whose
+        // architecture is the microservices tier. Injected into
+        // `ApiServiceProvisioner`, which owns the "what do we hand over to" decision.
+        {
+            provide: ServicesTierProvisioner,
+            useFactory: makeServicesTierProvisioner,
+            inject: [EnvService, DockerEngine, SetupGateService],
+        },
+        serviceLifecycle(ServicesTierProvisioner),
+        {
+            provide: ApiServiceProvisioner,
+            useFactory: makeApiServiceProvisioner,
+            inject: [EnvService, DockerEngine, ServicesTierProvisioner],
+        },
+        {
+            provide: ApiReadinessWatcherService,
+            useFactory: makeApiReadinessWatcherService,
+            inject: [WizardUpstreamService],
+        },
+        {
+            provide: HandoverOrchestratorService,
+            useFactory: makeHandoverOrchestratorService,
+            inject: [
+                ApiServiceProvisioner,
+                ApiReadinessWatcherService,
+                IngressHandoverService,
+                SetupPhaseService,
+                SetupGateService,
+                BootstrapIngressService,
+                OrchestrationStreamService,
+                WizardStreamService,
+                EnvService,
+            ],
+        },
+        serviceLifecycle(HandoverOrchestratorService),
+        {
+            provide: SetupExitService,
+            useFactory: makeSetupExitService,
+            inject: [SetupPhaseService],
+        },
+        serviceLifecycle(SetupExitService),
+    ],
+    exports: [
+        HandoverOrchestratorService,
         IngressHandoverService,
-        SetupPhaseService,
-        SetupGateService,
-        BootstrapIngressService,
-        OrchestrationStreamService,
-        WizardStreamService,
-        EnvService,
-      ],
-    },
-    serviceLifecycle(HandoverOrchestratorService),
-    { provide: SetupExitService, useFactory: makeSetupExitService, inject: [SetupPhaseService] },
-    serviceLifecycle(SetupExitService),
-  ],
-  exports: [HandoverOrchestratorService, IngressHandoverService, SetupExitService],
+        SetupExitService,
+    ],
 }) {}

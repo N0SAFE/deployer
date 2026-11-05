@@ -3,12 +3,17 @@
  * DnsProvidersService (server-side provisioning). Single source of truth for
  * record normalization + create-param building, so no cast/duplication.
  */
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import type { RecordCreateParams, RecordResponse } from "cloudflare/resources/dns/records";
+import type {
+    RecordCreateParams,
+    RecordResponse,
+} from 'cloudflare/resources/dns/records'
 
-export type SupportedRecordType = "A" | "AAAA" | "CNAME" | "TXT";
-export type RecordListType = NonNullable<import("cloudflare/resources/dns/records").RecordListParams["type"]>;
+export type SupportedRecordType = 'A' | 'AAAA' | 'CNAME' | 'TXT'
+export type RecordListType = NonNullable<
+    import('cloudflare/resources/dns/records').RecordListParams['type']
+>
 
 /**
  * Runtime schema for a Cloudflare SDK record object. The SDK's union type
@@ -22,15 +27,15 @@ export const cloudflareSdkRecordSchema = z.object({
     content: z.union([z.string(), z.array(z.string())]).optional(),
     ttl: z.number().optional(),
     proxied: z.boolean().optional(),
-});
+})
 
 export type NormalizedDnsRecord = {
-    id: string;
-    type: string;
-    name: string;
-    content: string;
-    ttl: number;
-    proxied: boolean;
+    id: string
+    type: string
+    name: string
+    content: string
+    ttl: number
+    proxied: boolean
 }
 
 /**
@@ -38,19 +43,26 @@ export type NormalizedDnsRecord = {
  * Uses Zod (not casts) at the external-data boundary, per repo rules.
  */
 export function toDnsRecordShape(r: RecordResponse): NormalizedDnsRecord {
-    const parsed = cloudflareSdkRecordSchema.safeParse(r);
+    const parsed = cloudflareSdkRecordSchema.safeParse(r)
     if (!parsed.success) {
-        return { id: "", type: "", name: "", content: "", ttl: 1, proxied: false };
+        return {
+            id: '',
+            type: '',
+            name: '',
+            content: '',
+            ttl: 1,
+            proxied: false,
+        }
     }
-    const { id, type, name, content, ttl, proxied } = parsed.data;
+    const { id, type, name, content, ttl, proxied } = parsed.data
     return {
         id,
         type,
         name,
-        content: Array.isArray(content) ? content.join(" ") : (content ?? ""),
+        content: Array.isArray(content) ? content.join(' ') : (content ?? ''),
         ttl: ttl ?? 1,
         proxied: proxied ?? false,
-    };
+    }
 }
 
 /**
@@ -58,52 +70,52 @@ export function toDnsRecordShape(r: RecordResponse): NormalizedDnsRecord {
  * record types. Returns null for unsupported types.
  */
 export function buildRecordCreateParams(input: {
-    zoneId: string;
-    type: SupportedRecordType;
-    name: string;
-    content: string;
-    ttl?: number;
-    proxied?: boolean;
+    zoneId: string
+    type: SupportedRecordType
+    name: string
+    content: string
+    ttl?: number
+    proxied?: boolean
 }): RecordCreateParams | null {
     const common = {
         zone_id: input.zoneId,
         name: input.name,
         ttl: input.ttl ?? 1,
         ...(input.proxied != null ? { proxied: input.proxied } : {}),
-    } as const;
+    } as const
     switch (input.type) {
-        case "A":
-            return { ...common, type: "A", content: input.content };
-        case "AAAA":
-            return { ...common, type: "AAAA", content: input.content };
-        case "CNAME":
-            return { ...common, type: "CNAME", content: input.content };
-        case "TXT":
-            return { ...common, type: "TXT", content: input.content };
+        case 'A':
+            return { ...common, type: 'A', content: input.content }
+        case 'AAAA':
+            return { ...common, type: 'AAAA', content: input.content }
+        case 'CNAME':
+            return { ...common, type: 'CNAME', content: input.content }
+        case 'TXT':
+            return { ...common, type: 'TXT', content: input.content }
         default:
-            return null;
+            return null
     }
 }
 
 // ─── Tunnel shape helpers ──────────────────────────────────────────────────
 
 export type TunnelConnectionShape = {
-    id: string | null;
-    clientId: string | null;
-    coloName: string | null;
-    clientVersion: string | null;
-    isPendingReconnect: boolean | null;
-    openedAt: string | null;
-    originIp: string | null;
+    id: string | null
+    clientId: string | null
+    coloName: string | null
+    clientVersion: string | null
+    isPendingReconnect: boolean | null
+    openedAt: string | null
+    originIp: string | null
 }
 
 export type TunnelShape = {
-    id: string;
-    name: string | null;
-    status: "inactive" | "degraded" | "healthy" | "down" | null;
-    tunType: string | null;
-    createdAt: string | null;
-    connections: TunnelConnectionShape[];
+    id: string
+    name: string | null
+    status: 'inactive' | 'degraded' | 'healthy' | 'down' | null
+    tunType: string | null
+    createdAt: string | null
+    connections: TunnelConnectionShape[]
 }
 
 /**
@@ -124,13 +136,18 @@ const cloudflareTunnelConnectionSchema = z
         opened_at: z.string().nullish(),
         origin_ip: z.string().nullish(),
     })
-    .passthrough();
+    .passthrough()
 
 /**
  * Raw Cloudflare tunnel summary payload (list + get endpoints).
  * Status is closed over the API's documented enum.
  */
-export const cloudflareTunnelStatusSchema = z.enum(["inactive", "degraded", "healthy", "down"]);
+export const cloudflareTunnelStatusSchema = z.enum([
+    'inactive',
+    'degraded',
+    'healthy',
+    'down',
+])
 
 const cloudflareTunnelSummarySchema = z
     .object({
@@ -140,7 +157,7 @@ const cloudflareTunnelSummarySchema = z
         tun_type: z.string().nullish(),
         created_at: z.string().nullish(),
     })
-    .passthrough();
+    .passthrough()
 
 /** The all-null connection shape used when parsing fails. */
 const emptyTunnelConnectionShape: TunnelConnectionShape = {
@@ -151,7 +168,7 @@ const emptyTunnelConnectionShape: TunnelConnectionShape = {
     isPendingReconnect: null,
     openedAt: null,
     originIp: null,
-};
+}
 
 /**
  * Normalize a raw Cloudflare tunnel connection into the wire shape.
@@ -161,11 +178,11 @@ const emptyTunnelConnectionShape: TunnelConnectionShape = {
  * payloads degrade to the null shape instead of throwing.
  */
 export function toTunnelConnectionShape(input: unknown): TunnelConnectionShape {
-    const parsed = cloudflareTunnelConnectionSchema.safeParse(input);
+    const parsed = cloudflareTunnelConnectionSchema.safeParse(input)
     if (!parsed.success) {
-        return emptyTunnelConnectionShape;
+        return emptyTunnelConnectionShape
     }
-    const c = parsed.data;
+    const c = parsed.data
     return {
         id: c.uuid ?? c.id ?? null,
         clientId: c.client_id ?? null,
@@ -174,7 +191,7 @@ export function toTunnelConnectionShape(input: unknown): TunnelConnectionShape {
         isPendingReconnect: c.is_pending_reconnect ?? null,
         openedAt: c.opened_at ?? null,
         originIp: c.origin_ip ?? null,
-    };
+    }
 }
 
 /**
@@ -183,13 +200,20 @@ export function toTunnelConnectionShape(input: unknown): TunnelConnectionShape {
  */
 export function toTunnelShape(
     input: unknown,
-    connections: TunnelConnectionShape[] = [],
+    connections: TunnelConnectionShape[] = []
 ): TunnelShape {
-    const parsed = cloudflareTunnelSummarySchema.safeParse(input);
+    const parsed = cloudflareTunnelSummarySchema.safeParse(input)
     if (!parsed.success) {
-        return { id: "", name: null, status: null, tunType: null, createdAt: null, connections };
+        return {
+            id: '',
+            name: null,
+            status: null,
+            tunType: null,
+            createdAt: null,
+            connections,
+        }
     }
-    const t = parsed.data;
+    const t = parsed.data
     return {
         id: t.id,
         name: t.name ?? null,
@@ -197,7 +221,7 @@ export function toTunnelShape(
         tunType: t.tun_type ?? null,
         createdAt: t.created_at ?? null,
         connections,
-    };
+    }
 }
 
 /**
@@ -207,18 +231,26 @@ export function toTunnelShape(
  */
 export function toCloudflareErrorMessage(error: unknown): string {
     if (error instanceof Error) {
-        const name = error.name ?? "";
-        const message = error.message ?? "";
-        if (name === "APIConnectionError" || /connection|ECONNREFUSED|ENOTFOUND|fetch failed|network/i.test(message)) {
-            return "Unable to reach Cloudflare — check this server's internet connection (or tunnel/proxy).";
+        const name = error.name ?? ''
+        const message = error.message ?? ''
+        if (
+            name === 'APIConnectionError' ||
+            /connection|ECONNREFUSED|ENOTFOUND|fetch failed|network/i.test(
+                message
+            )
+        ) {
+            return "Unable to reach Cloudflare — check this server's internet connection (or tunnel/proxy)."
         }
-        if (name === "AuthenticationError" || /auth|token|unauthorized|permission|forbidden/i.test(message)) {
-            return "Cloudflare rejected the API token — it may be invalid, expired, or missing required permissions (Zone:Read / DNS:Edit).";
+        if (
+            name === 'AuthenticationError' ||
+            /auth|token|unauthorized|permission|forbidden/i.test(message)
+        ) {
+            return 'Cloudflare rejected the API token — it may be invalid, expired, or missing required permissions (Zone:Read / DNS:Edit).'
         }
         if (/rate.?limit/i.test(message)) {
-            return "Cloudflare rate limit reached — try again shortly.";
+            return 'Cloudflare rate limit reached — try again shortly.'
         }
-        return message || "Unknown Cloudflare error";
+        return message || 'Unknown Cloudflare error'
     }
-    return "Unknown Cloudflare error";
+    return 'Unknown Cloudflare error'
 }

@@ -3,20 +3,29 @@
  * Pure Standard Schema implementation without Zod dependency
  */
 
-import { s } from "@deployer/orpc-utils/operations/base/schema";
-import type { AnySchema, SchemaWithConfig, ObjectSchema } from "@deployer/orpc-utils/operations/base/types";
-import { CONFIG_SYMBOL, withConfig } from "@deployer/orpc-utils/operations/base/types";
+import { s } from '@deployer/orpc-utils/operations/base/schema'
+import type {
+    AnySchema,
+    SchemaWithConfig,
+    ObjectSchema,
+} from '@deployer/orpc-utils/operations/base/types'
+import {
+    CONFIG_SYMBOL,
+    withConfig,
+} from '@deployer/orpc-utils/operations/base/types'
 
 /**
  * Sorting configuration type
  */
-export type SortingConfig<TFields extends readonly string[] = readonly string[]> = {
-    fields: TFields;
-    defaultField: TFields[number] | undefined;
-    defaultDirection: "asc" | "desc";
-    allowMultiple: boolean;
-    allowNullsHandling: boolean;
-};
+export type SortingConfig<
+    TFields extends readonly string[] = readonly string[],
+> = {
+    fields: TFields
+    defaultField: TFields[number] | undefined
+    defaultDirection: 'asc' | 'desc'
+    allowMultiple: boolean
+    allowNullsHandling: boolean
+}
 
 /**
  * Create a sorting config schema with attached config data
@@ -30,52 +39,60 @@ export type SortingConfig<TFields extends readonly string[] = readonly string[]>
 export function createSortingConfigSchema<
     TFields extends readonly string[],
     TAllowMultiple extends boolean = false,
-    TAllowNullsHandling extends boolean = false
+    TAllowNullsHandling extends boolean = false,
 >(
     fields: TFields,
     options?: {
-        defaultField?: TFields[number];
-        defaultDirection?: "asc" | "desc";
-        allowMultiple?: TAllowMultiple;
-        allowNullsHandling?: TAllowNullsHandling;
+        defaultField?: TFields[number]
+        defaultDirection?: 'asc' | 'desc'
+        allowMultiple?: TAllowMultiple
+        allowNullsHandling?: TAllowNullsHandling
     }
 ): SchemaWithConfig<{
-    fields: TFields;
-    defaultField: TFields[number] | undefined;
-    defaultDirection: "asc" | "desc";
-    allowMultiple: TAllowMultiple extends true ? true : false;
-    allowNullsHandling: TAllowNullsHandling extends true ? true : false;
+    fields: TFields
+    defaultField: TFields[number] | undefined
+    defaultDirection: 'asc' | 'desc'
+    allowMultiple: TAllowMultiple extends true ? true : false
+    allowNullsHandling: TAllowNullsHandling extends true ? true : false
 }> {
     const config = {
         fields,
         defaultField: options?.defaultField,
-        defaultDirection: options?.defaultDirection ?? ("asc" as const),
-        allowMultiple: (options?.allowMultiple ?? false) as TAllowMultiple extends true ? true : false,
-        allowNullsHandling: (options?.allowNullsHandling ?? false) as TAllowNullsHandling extends true ? true : false,
-    };
+        defaultDirection: options?.defaultDirection ?? ('asc' as const),
+        allowMultiple: (options?.allowMultiple ??
+            false) as TAllowMultiple extends true ? true : false,
+        allowNullsHandling: (options?.allowNullsHandling ??
+            false) as TAllowNullsHandling extends true ? true : false,
+    }
 
     const schema = s.object({
         fields: s.array(s.string()),
         defaultField: s.optional(s.string()),
-        defaultDirection: s.enum(["asc", "desc"] as const),
+        defaultDirection: s.enum(['asc', 'desc'] as const),
         allowMultiple: s.boolean(),
         allowNullsHandling: s.boolean(),
-    });
+    })
 
-    return withConfig(schema as AnySchema, config);
+    return withConfig(schema as AnySchema, config)
 }
 
 /**
  * Sorting schema output type helper
  */
-export type SortingSchemaOutput<TConfig> = TConfig extends { allowMultiple: true }
+export type SortingSchemaOutput<TConfig> = TConfig extends {
+    allowMultiple: true
+}
     ? {
-          sortBy?: { field: string; direction: "asc" | "desc" }[];
-      } & (TConfig extends { allowNullsHandling: true } ? { nullsHandling?: "first" | "last" } : object)
+          sortBy?: { field: string; direction: 'asc' | 'desc' }[]
+      } & (TConfig extends { allowNullsHandling: true }
+          ? { nullsHandling?: 'first' | 'last' }
+          : object)
     : {
-          sortBy?: string;
-          sortDirection?: "asc" | "desc";
-      } & (TConfig extends { allowNullsHandling: true } ? { nullsHandling?: "first" | "last" } : object);
+          sortBy?: string
+          sortDirection?: 'asc' | 'desc'
+      } & (TConfig extends { allowNullsHandling: true }
+          ? { nullsHandling?: 'first' | 'last' }
+          : object)
 
 /**
  * Create a sorting input schema from config
@@ -83,14 +100,20 @@ export type SortingSchemaOutput<TConfig> = TConfig extends { allowMultiple: true
 export function createSortingSchema<TConfig>(
     configSchema: SchemaWithConfig<TConfig>
 ): ObjectSchema {
-    const config = configSchema[CONFIG_SYMBOL] as SortingConfig;
-    const { fields, defaultField, defaultDirection, allowMultiple, allowNullsHandling } = config;
+    const config = configSchema[CONFIG_SYMBOL] as SortingConfig
+    const {
+        fields,
+        defaultField,
+        defaultDirection,
+        allowMultiple,
+        allowNullsHandling,
+    } = config
 
     if (fields.length === 0) {
-        throw new Error("At least one sortable field must be provided");
+        throw new Error('At least one sortable field must be provided')
     }
 
-    const shape: Record<string, AnySchema> = {};
+    const shape: Record<string, AnySchema> = {}
 
     if (allowMultiple) {
         // Multiple sort fields
@@ -98,49 +121,57 @@ export function createSortingSchema<TConfig>(
             s.array(
                 s.object({
                     field: s.enum(fields as [string, ...string[]]),
-                    direction: s.enum(["asc", "desc"] as const),
+                    direction: s.enum(['asc', 'desc'] as const),
                 }),
                 { min: 1 }
             )
-        );
+        )
     } else {
         // Single sort field
-        shape.sortBy = s.optional(s.enum(fields as [string, ...string[]]));
-        shape.sortDirection = s.optional(s.enum(["asc", "desc"] as const));
+        shape.sortBy = s.optional(s.enum(fields as [string, ...string[]]))
+        shape.sortDirection = s.optional(s.enum(['asc', 'desc'] as const))
     }
 
     if (allowNullsHandling) {
-        shape.nullsHandling = s.optional(s.enum(["first", "last"] as const));
+        shape.nullsHandling = s.optional(s.enum(['first', 'last'] as const))
     }
 
-    const schema = s.object(shape);
+    const schema = s.object(shape)
 
     // Add default value handling
     return {
         ...schema,
-        "~standard": {
-            ...schema["~standard"],
+        '~standard': {
+            ...schema['~standard'],
             validate: (value: unknown) => {
-                const input = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+                const input =
+                    typeof value === 'object' && value !== null
+                        ? (value as Record<string, unknown>)
+                        : {}
 
                 // Apply defaults
-                const withDefaults = { ...input };
+                const withDefaults = { ...input }
 
                 if (allowMultiple) {
                     if (!withDefaults.sortBy && defaultField) {
-                        withDefaults.sortBy = [{ field: defaultField, direction: defaultDirection }];
+                        withDefaults.sortBy = [
+                            {
+                                field: defaultField,
+                                direction: defaultDirection,
+                            },
+                        ]
                     }
                 } else {
                     if (!withDefaults.sortBy && defaultField) {
-                        withDefaults.sortBy = defaultField;
+                        withDefaults.sortBy = defaultField
                     }
-                    withDefaults.sortDirection ??= defaultDirection;
+                    withDefaults.sortDirection ??= defaultDirection
                 }
 
-                return schema["~standard"].validate(withDefaults);
+                return schema['~standard'].validate(withDefaults)
             },
         },
-    };
+    }
 }
 
 /**
@@ -152,23 +183,25 @@ export function createSimpleSortSchema<TFields extends readonly string[]>(
 ): ObjectSchema {
     const configSchema = createSortingConfigSchema(fields, {
         defaultField,
-        defaultDirection: "asc",
+        defaultDirection: 'asc',
         allowMultiple: false,
-    });
-    return createSortingSchema(configSchema);
+    })
+    return createSortingSchema(configSchema)
 }
 
 /**
  * Helper to create a multi-field sort schema
  */
-export function createMultiSortSchema<TFields extends readonly string[]>(fields: TFields): ObjectSchema {
+export function createMultiSortSchema<TFields extends readonly string[]>(
+    fields: TFields
+): ObjectSchema {
     const configSchema = createSortingConfigSchema(fields, {
         allowMultiple: true,
-        defaultDirection: "asc",
-    });
-    return createSortingSchema(configSchema);
+        defaultDirection: 'asc',
+    })
+    return createSortingSchema(configSchema)
 }
 
 // Standalone schemas
-export const sortDirection = s.enum(["asc", "desc"] as const);
-export const nullsHandling = s.optional(s.enum(["first", "last"] as const));
+export const sortDirection = s.enum(['asc', 'desc'] as const)
+export const nullsHandling = s.optional(s.enum(['first', 'last'] as const))

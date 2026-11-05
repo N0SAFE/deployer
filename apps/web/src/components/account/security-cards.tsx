@@ -32,7 +32,11 @@ import {
 import * as React from 'react'
 import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -156,16 +160,22 @@ export function PasskeysCard() {
         } catch (err) {
             // A cancelled WebAuthn prompt is the common case here and is not an
             // error worth shouting about — the browser already told the user.
-            const message = err instanceof Error ? err.message : 'Registration failed'
+            const message =
+                err instanceof Error ? err.message : 'Registration failed'
             if (!/cancel|abort/i.test(message)) {
-                toast.error('Could not register passkey', { description: message })
+                toast.error('Could not register passkey', {
+                    description: message,
+                })
             }
         } finally {
             setAdding(false)
         }
     }
 
-    const handleDelete = async (id: string, name: string | null | undefined) => {
+    const handleDelete = async (
+        id: string,
+        name: string | null | undefined
+    ) => {
         setBusy(id)
         try {
             await deletePasskey(id)
@@ -190,11 +200,20 @@ export function PasskeysCard() {
                             Passkeys
                         </CardTitle>
                         <CardDescription>
-                            Sign in without a password using your device biometrics.
+                            Sign in without a password using your device
+                            biometrics.
                         </CardDescription>
                     </div>
-                    <Button size="sm" onClick={() => void handleAdd()} disabled={adding}>
-                        {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                    <Button
+                        size="sm"
+                        onClick={() => void handleAdd()}
+                        disabled={adding}
+                    >
+                        {adding ? (
+                            <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                            <Plus className="size-4" />
+                        )}
                         <span className="ml-2">Add passkey</span>
                     </Button>
                 </div>
@@ -203,7 +222,11 @@ export function PasskeysCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load passkeys" message={error} onRetry={reload} />
+                    <ResourceError
+                        title="Could not load passkeys"
+                        message={error}
+                        onRetry={reload}
+                    />
                 )}
 
                 {!isLoading && !error && passkeys.length === 0 && (
@@ -211,9 +234,9 @@ export function PasskeysCard() {
                         <AlertTriangle className="size-4" />
                         <AlertTitle>No passkeys yet</AlertTitle>
                         <AlertDescription>
-                            Agents cannot perform write actions on your behalf until at
-                            least one passkey exists — those approvals require a
-                            hardware-backed confirmation.
+                            Agents cannot perform write actions on your behalf
+                            until at least one passkey exists — those approvals
+                            require a hardware-backed confirmation.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -243,7 +266,9 @@ export function PasskeysCard() {
                                         </TableCell>
                                         <TableCell>
                                             {pk.backedUp ? (
-                                                <Badge variant="secondary">synced</Badge>
+                                                <Badge variant="secondary">
+                                                    synced
+                                                </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground text-xs">
                                                     this device
@@ -259,7 +284,12 @@ export function PasskeysCard() {
                                                 variant="ghost"
                                                 disabled={busy === pk.id}
                                                 aria-label={`Remove ${pk.name ?? 'passkey'}`}
-                                                onClick={() => void handleDelete(pk.id, pk.name)}
+                                                onClick={() =>
+                                                    void handleDelete(
+                                                        pk.id,
+                                                        pk.name
+                                                    )
+                                                }
                                             >
                                                 {busy === pk.id ? (
                                                     <Loader2 className="size-4 animate-spin" />
@@ -331,7 +361,8 @@ export function ActiveSessionsCard() {
                             Devices with access
                         </CardTitle>
                         <CardDescription>
-                            Every browser and device holding a session for this account.
+                            Every browser and device holding a session for this
+                            account.
                         </CardDescription>
                     </div>
                     {sessions.length > 1 && (
@@ -341,8 +372,12 @@ export function ActiveSessionsCard() {
                             disabled={revokingOthers}
                             onClick={() => void handleRevokeOthers()}
                         >
-                            {revokingOthers && <Loader2 className="size-4 animate-spin" />}
-                            <span className="ml-2">Sign out everywhere else</span>
+                            {revokingOthers && (
+                                <Loader2 className="size-4 animate-spin" />
+                            )}
+                            <span className="ml-2">
+                                Sign out everywhere else
+                            </span>
                         </Button>
                     )}
                 </div>
@@ -351,7 +386,11 @@ export function ActiveSessionsCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load devices" message={error} onRetry={reload} />
+                    <ResourceError
+                        title="Could not load devices"
+                        message={error}
+                        onRetry={reload}
+                    />
                 )}
 
                 {!isLoading && !error && sessions.length === 0 && (
@@ -386,7 +425,9 @@ export function ActiveSessionsCard() {
                                         </TableCell>
                                         <TableCell className="text-xs">
                                             {isExpired(s.expiresAt) ? (
-                                                <Badge variant="secondary">expired</Badge>
+                                                <Badge variant="secondary">
+                                                    expired
+                                                </Badge>
                                             ) : (
                                                 relativeTime(s.expiresAt, '—')
                                             )}
@@ -397,7 +438,9 @@ export function ActiveSessionsCard() {
                                                 variant="ghost"
                                                 disabled={busy === s.token}
                                                 aria-label="Sign out this device"
-                                                onClick={() => void handleRevoke(s.token)}
+                                                onClick={() =>
+                                                    void handleRevoke(s.token)
+                                                }
                                             >
                                                 {busy === s.token ? (
                                                     <Loader2 className="size-4 animate-spin" />
@@ -451,7 +494,9 @@ export function ApiKeysCard() {
                 expiresIn: 90 * 24 * 60 * 60,
             })
             if (createError || !key) {
-                toast.error('Could not create key', { description: createError ?? undefined })
+                toast.error('Could not create key', {
+                    description: createError ?? undefined,
+                })
                 return
             }
             setFreshKey(key)
@@ -495,27 +540,36 @@ export function ApiKeysCard() {
                     API keys
                 </CardTitle>
                 <CardDescription>
-                    Credentials for the CLI, scripts and CI. Keys expire after 90 days.
+                    Credentials for the CLI, scripts and CI. Keys expire after
+                    90 days.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 {freshKey && (
                     <Alert>
                         <Check className="size-4" />
-                        <AlertTitle>Copy this key now — it will not be shown again</AlertTitle>
+                        <AlertTitle>
+                            Copy this key now — it will not be shown again
+                        </AlertTitle>
                         <AlertDescription className="space-y-2">
                             <div className="flex items-center gap-2">
                                 <code className="bg-muted flex-1 overflow-x-auto rounded px-2 py-1 font-mono text-xs">
                                     {freshKey}
                                 </code>
-                                <Button size="sm" variant="outline" onClick={() => void copyKey()}>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => void copyKey()}
+                                >
                                     <Copy className="size-4" />
                                 </Button>
                             </div>
                             <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => { setFreshKey(null) }}
+                                onClick={() => {
+                                    setFreshKey(null)
+                                }}
                             >
                                 Done
                             </Button>
@@ -530,13 +584,18 @@ export function ApiKeysCard() {
                             id="api-key-name"
                             value={name}
                             placeholder="ci-deploy"
-                            onChange={(e) => { setName(e.target.value) }}
+                            onChange={(e) => {
+                                setName(e.target.value)
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') void handleCreate()
                             }}
                         />
                     </div>
-                    <Button onClick={() => void handleCreate()} disabled={creating}>
+                    <Button
+                        onClick={() => void handleCreate()}
+                        disabled={creating}
+                    >
                         {creating ? (
                             <Loader2 className="size-4 animate-spin" />
                         ) : (
@@ -549,7 +608,11 @@ export function ApiKeysCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load API keys" message={error} onRetry={reload} />
+                    <ResourceError
+                        title="Could not load API keys"
+                        message={error}
+                        onRetry={reload}
+                    />
                 )}
 
                 {!isLoading && !error && keys.length === 0 && (
@@ -584,7 +647,9 @@ export function ApiKeysCard() {
                                             {k.enabled ? (
                                                 <Badge>active</Badge>
                                             ) : (
-                                                <Badge variant="secondary">disabled</Badge>
+                                                <Badge variant="secondary">
+                                                    disabled
+                                                </Badge>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-xs">
@@ -593,7 +658,9 @@ export function ApiKeysCard() {
                                                     never
                                                 </span>
                                             ) : isExpired(k.expiresAt) ? (
-                                                <Badge variant="destructive">expired</Badge>
+                                                <Badge variant="destructive">
+                                                    expired
+                                                </Badge>
                                             ) : (
                                                 relativeTime(k.expiresAt)
                                             )}
@@ -605,9 +672,16 @@ export function ApiKeysCard() {
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                disabled={!k.enabled || busy === k.id}
+                                                disabled={
+                                                    !k.enabled || busy === k.id
+                                                }
                                                 aria-label={`Revoke ${k.name ?? 'key'}`}
-                                                onClick={() => void handleRevoke(k.id, k.name)}
+                                                onClick={() =>
+                                                    void handleRevoke(
+                                                        k.id,
+                                                        k.name
+                                                    )
+                                                }
                                             >
                                                 {busy === k.id ? (
                                                     <Loader2 className="size-4 animate-spin" />
@@ -658,19 +732,28 @@ export function ConnectedAccountsCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load connections" message={error} onRetry={reload} />
+                    <ResourceError
+                        title="Could not load connections"
+                        message={error}
+                        onRetry={reload}
+                    />
                 )}
 
                 {!isLoading && !error && accounts.length === 0 && (
                     <p className="text-muted-foreground text-sm">
-                        No external accounts linked. You sign in with a password.
+                        No external accounts linked. You sign in with a
+                        password.
                     </p>
                 )}
 
                 {accounts.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                         {accounts.map((a) => (
-                            <Badge key={a.id} variant="outline" className="gap-1 py-1">
+                            <Badge
+                                key={a.id}
+                                variant="outline"
+                                className="gap-1 py-1"
+                            >
                                 <Link2 className="size-3" />
                                 {a.providerId}
                             </Badge>
@@ -714,7 +797,8 @@ export function AgentConnectionsCard() {
                     AI agents
                 </CardTitle>
                 <CardDescription>
-                    Agents acting on your behalf, under capability grants you approve.
+                    Agents acting on your behalf, under capability grants you
+                    approve.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -724,7 +808,9 @@ export function AgentConnectionsCard() {
                     </p>
                 ) : (
                     <>
-                        {(agents.isLoading || hosts.isLoading) && <ListSkeleton rows={2} />}
+                        {(agents.isLoading || hosts.isLoading) && (
+                            <ListSkeleton rows={2} />
+                        )}
 
                         {!agents.isLoading && agentList.length === 0 && (
                             <p className="text-muted-foreground text-sm">
@@ -750,12 +836,15 @@ export function AgentConnectionsCard() {
                                                     {a.name}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge variant="outline">{a.mode}</Badge>
+                                                    <Badge variant="outline">
+                                                        {a.mode}
+                                                    </Badge>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge
                                                         variant={
-                                                            a.status === 'active'
+                                                            a.status ===
+                                                            'active'
                                                                 ? 'default'
                                                                 : 'secondary'
                                                         }
@@ -783,7 +872,11 @@ export function AgentConnectionsCard() {
                                 </h4>
                                 <div className="flex flex-wrap gap-2">
                                     {hostList.map((h) => (
-                                        <Badge key={h.id} variant="outline" className="gap-1 py-1">
+                                        <Badge
+                                            key={h.id}
+                                            variant="outline"
+                                            className="gap-1 py-1"
+                                        >
                                             <Server className="size-3" />
                                             {h.name ?? h.id}
                                         </Badge>
@@ -813,7 +906,8 @@ function BackupCodeList({ codes }: { codes: string[] }) {
             <AlertTitle>Backup codes — save them now</AlertTitle>
             <AlertDescription className="space-y-2">
                 <p className="text-sm">
-                    Each one signs you in once if you lose the authenticator. They are not shown again.
+                    Each one signs you in once if you lose the authenticator.
+                    They are not shown again.
                 </p>
                 <pre className="bg-muted overflow-x-auto rounded p-2 font-mono text-xs">
                     {codes.join('\n')}
@@ -822,11 +916,21 @@ function BackupCodeList({ codes }: { codes: string[] }) {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                        void navigator.clipboard.writeText(codes.join('\n')).then(() => { setCopied(true); })
+                        void navigator.clipboard
+                            .writeText(codes.join('\n'))
+                            .then(() => {
+                                setCopied(true)
+                            })
                     }}
                 >
-                    {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                    <span className="ml-2">{copied ? 'Copied' : 'Copy codes'}</span>
+                    {copied ? (
+                        <Check className="size-4" />
+                    ) : (
+                        <Copy className="size-4" />
+                    )}
+                    <span className="ml-2">
+                        {copied ? 'Copied' : 'Copy codes'}
+                    </span>
                 </Button>
             </AlertDescription>
         </Alert>
@@ -865,11 +969,16 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    {enabled ? <ShieldCheck className="size-5" /> : <ShieldOff className="size-5" />}
+                    {enabled ? (
+                        <ShieldCheck className="size-5" />
+                    ) : (
+                        <ShieldOff className="size-5" />
+                    )}
                     Two-factor authentication
                 </CardTitle>
                 <CardDescription>
-                    A second factor on an account that controls production infrastructure.
+                    A second factor on an account that controls production
+                    infrastructure.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -882,13 +991,17 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
                             onClick={() => void twoFactor.disable()}
                             disabled={twoFactor.isBusy}
                         >
-                            {twoFactor.isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                            {twoFactor.isBusy ? (
+                                <Loader2 className="size-4 animate-spin" />
+                            ) : null}
                             <span className="ml-2">Turn off</span>
                         </Button>
                         <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => void twoFactor.regenerateBackupCodes()}
+                            onClick={() =>
+                                void twoFactor.regenerateBackupCodes()
+                            }
                             disabled={twoFactor.isBusy}
                         >
                             New backup codes
@@ -899,10 +1012,14 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
                 {!enabled && twoFactor.totpURI === null && (
                     <>
                         <p className="text-muted-foreground text-sm">
-                            Enrol an authenticator app. Your password is required to start.
+                            Enrol an authenticator app. Your password is
+                            required to start.
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Label htmlFor="two-factor-password" className="sr-only">
+                            <Label
+                                htmlFor="two-factor-password"
+                                className="sr-only"
+                            >
                                 Current password
                             </Label>
                             <Input
@@ -912,14 +1029,20 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
                                 placeholder="Your password"
                                 className="max-w-xs"
                                 value={password}
-                                onChange={(event) => { setPassword(event.target.value); }}
+                                onChange={(event) => {
+                                    setPassword(event.target.value)
+                                }}
                             />
                             <Button
                                 size="sm"
                                 onClick={() => void start()}
-                                disabled={twoFactor.isBusy || password.length === 0}
+                                disabled={
+                                    twoFactor.isBusy || password.length === 0
+                                }
                             >
-                                {twoFactor.isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                                {twoFactor.isBusy ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : null}
                                 <span className="ml-2">Start enrolment</span>
                             </Button>
                         </div>
@@ -929,23 +1052,38 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
                 {twoFactor.totpURI !== null && (
                     <>
                         <div className="space-y-2">
-                            <Label>Add this account to your authenticator app</Label>
-                            <code className="bg-muted block break-all rounded p-2 font-mono text-xs">
+                            <Label>
+                                Add this account to your authenticator app
+                            </Label>
+                            <code className="bg-muted block rounded p-2 font-mono text-xs break-all">
                                 {twoFactor.totpURI}
                             </code>
                             <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                    void navigator.clipboard.writeText(twoFactor.totpURI ?? '').then(() => { setCopied(true); })
+                                    void navigator.clipboard
+                                        .writeText(twoFactor.totpURI ?? '')
+                                        .then(() => {
+                                            setCopied(true)
+                                        })
                                 }}
                             >
-                                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                                <span className="ml-2">{copied ? 'Copied' : 'Copy URI'}</span>
+                                {copied ? (
+                                    <Check className="size-4" />
+                                ) : (
+                                    <Copy className="size-4" />
+                                )}
+                                <span className="ml-2">
+                                    {copied ? 'Copied' : 'Copy URI'}
+                                </span>
                             </Button>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Label htmlFor="two-factor-code" className="sr-only">
+                            <Label
+                                htmlFor="two-factor-code"
+                                className="sr-only"
+                            >
                                 Code from the app
                             </Label>
                             <Input
@@ -955,23 +1093,33 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
                                 placeholder="6-digit code"
                                 className="max-w-40"
                                 value={code}
-                                onChange={(event) => { setCode(event.target.value); }}
+                                onChange={(event) => {
+                                    setCode(event.target.value)
+                                }}
                             />
                             <Button
                                 size="sm"
                                 onClick={() => void confirm()}
                                 disabled={twoFactor.isBusy || code.length < 6}
                             >
-                                {twoFactor.isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                                {twoFactor.isBusy ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : null}
                                 <span className="ml-2">Confirm</span>
                             </Button>
                         </div>
                     </>
                 )}
 
-                {twoFactor.backupCodes.length > 0 && <BackupCodeList codes={twoFactor.backupCodes} />}
+                {twoFactor.backupCodes.length > 0 && (
+                    <BackupCodeList codes={twoFactor.backupCodes} />
+                )}
 
-                {twoFactor.error !== null && <p className="text-destructive text-sm">{twoFactor.error}</p>}
+                {twoFactor.error !== null && (
+                    <p className="text-destructive text-sm">
+                        {twoFactor.error}
+                    </p>
+                )}
             </CardContent>
         </Card>
     )

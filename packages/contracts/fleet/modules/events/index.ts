@@ -1,15 +1,23 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
-import z from "zod/v4";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
+import z from 'zod/v4'
 
 import {
     coreEventStreamDefinitionSchema,
     coreEventScopeSchema,
     coreSyncedEventEnvelopeSchema,
-} from "@deployer/contracts-entities";
-import { createFilterConfig, standard, standardDomainErrorContracts, type ComputeInputSchema } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import {
+    createFilterConfig,
+    standard,
+    standardDomainErrorContracts,
+    type ComputeInputSchema,
+} from '@deployer/orpc-utils'
 
-const coreEventStreamOps = standard.zod(coreEventStreamDefinitionSchema, "coreEventStream");
+const coreEventStreamOps = standard.zod(
+    coreEventStreamDefinitionSchema,
+    'coreEventStream'
+)
 
 const coreEventStreamListConfig = createFilterConfig(coreEventStreamOps)
     .withPagination({
@@ -17,47 +25,49 @@ const coreEventStreamListConfig = createFilterConfig(coreEventStreamOps)
         maxLimit: 100,
         includeOffset: true,
     } as const)
-    .withSorting(["createdAt", "updatedAt", "name", "namespace"] as const, {
-        defaultField: "createdAt",
-        defaultDirection: "desc",
+    .withSorting(['createdAt', 'updatedAt', 'name', 'namespace'] as const, {
+        defaultField: 'createdAt',
+        defaultDirection: 'desc',
     })
     .withFiltering({
         name: {
             schema: coreEventStreamDefinitionSchema.shape.name,
-            operators: ["eq", "like", "ilike"] as const,
+            operators: ['eq', 'like', 'ilike'] as const,
         },
         namespace: {
             schema: coreEventStreamDefinitionSchema.shape.namespace,
-            operators: ["eq", "like", "ilike"] as const,
+            operators: ['eq', 'like', 'ilike'] as const,
         },
         isActive: {
             schema: coreEventStreamDefinitionSchema.shape.isActive,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         scope: {
             schema: coreEventScopeSchema,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         scopeId: {
             schema: coreEventStreamDefinitionSchema.shape.scopeId,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         createdBy: {
             schema: coreEventStreamDefinitionSchema.shape.createdBy,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
     })
-    .buildConfig();
+    .buildConfig()
 
-export const coreEventStreamListConfigSchemas = coreEventStreamListConfig;
+export const coreEventStreamListConfigSchemas = coreEventStreamListConfig
 export const coreEventStreamListContract = coreEventStreamOps
     .list(coreEventStreamListConfig)
     .errors((e) => [
         // 403 when the caller lacks stream visibility.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
-export type CoreEventStreamListInput = ComputeInputSchema<typeof coreEventStreamListConfigSchemas>;
+    .build()
+export type CoreEventStreamListInput = ComputeInputSchema<
+    typeof coreEventStreamListConfigSchemas
+>
 
 export const coreEventStreamFindByIdContract = coreEventStreamOps
     .read()
@@ -65,33 +75,38 @@ export const coreEventStreamFindByIdContract = coreEventStreamOps
         // 404 for unknown stream id.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
 const coreStreamReplayQuerySchema = z.object({
     replay: z.coerce.boolean().default(true),
     replayLimit: z.coerce.number().int().min(1).max(500).default(1),
-});
+})
 
-const coreEventSyncStreamOps = standard.zod(coreSyncedEventEnvelopeSchema, "coreEventSyncStream");
+const coreEventSyncStreamOps = standard.zod(
+    coreSyncedEventEnvelopeSchema,
+    'coreEventSyncStream'
+)
 
 export const coreEventSyncStreamContract = coreEventSyncStreamOps
     .list()
     .input((b) =>
         b
-            .params((p) => p`/sync/${p("id", z.uuid())}/stream`)
-            .query(coreStreamReplayQuerySchema),
+            .params((p) => p`/sync/${p('id', z.uuid())}/stream`)
+            .query(coreStreamReplayQuerySchema)
     )
     .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
     .errors((e) => [
         // 404 for unknown stream id; 403 when not a mesh peer.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()
 
-export const eventSyncContract = oc.meta(openapi({ tags: ["Core Event Sync"], prefix: "/events" })).router({
-    listStreams: coreEventStreamListContract,
-    findStreamById: coreEventStreamFindByIdContract,
-    streamSync: coreEventSyncStreamContract,
-});
+export const eventSyncContract = oc
+    .meta(openapi({ tags: ['Core Event Sync'], prefix: '/events' }))
+    .router({
+        listStreams: coreEventStreamListContract,
+        findStreamById: coreEventStreamFindByIdContract,
+        streamSync: coreEventSyncStreamContract,
+    })
 
-export type EventSyncContract = typeof eventSyncContract;
+export type EventSyncContract = typeof eventSyncContract

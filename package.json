@@ -265,7 +265,7 @@
         "lint": "turbo lint",
         "lint:fix": "turbo lint:fix",
         "lint:fix+": "turbo lint:fix+",
-        "format": "turbo prettify",
+        "format": "turbo format",
         "format:check": "turbo format:check",
         "clean": "turbo clean && rimraf --glob './**/.turbo'",
         "clear:cache": "rimraf --glob '**/.turbo' '.turbo'",

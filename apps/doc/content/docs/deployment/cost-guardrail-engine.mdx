@@ -30,8 +30,8 @@ The platform already has:
 
 What is missing is a first-class FinOps safety gate to answer:
 
-- *Will this deployment likely exceed org/project budget constraints?*
-- *If yes, should it warn or block based on environment and policy?*
+- _Will this deployment likely exceed org/project budget constraints?_
+- _If yes, should it warn or block based on environment and policy?_
 
 ---
 
@@ -57,16 +57,16 @@ What is missing is a first-class FinOps safety gate to answer:
 ## Policy model
 
 ```ts
-type CostGuardrailMode = "off" | "warn" | "enforce";
+type CostGuardrailMode = 'off' | 'warn' | 'enforce'
 
 type CostGuardrailPolicy = {
-  mode: CostGuardrailMode;
-  protectedEnvironments: string[]; // e.g. ["production"]
-  monthlyOrgBudgetUsd?: number;
-  projectBudgetUsd?: number;
-  maxDeploymentDeltaUsd?: number;  // per deployment threshold
-  softHeadroomPercent?: number;     // warn before budget is hit
-};
+    mode: CostGuardrailMode
+    protectedEnvironments: string[] // e.g. ["production"]
+    monthlyOrgBudgetUsd?: number
+    projectBudgetUsd?: number
+    maxDeploymentDeltaUsd?: number // per deployment threshold
+    softHeadroomPercent?: number // warn before budget is hit
+}
 ```
 
 Given projected cost $C_&#123;proj&#125;$ and remaining budget $B_&#123;rem&#125;$:

@@ -1,17 +1,16 @@
-import { NestFactory } from "@nestjs/core";
-import { ExpressAdapter } from "@nestjs/platform-express";
-import express from "express";
+import { NestFactory } from '@nestjs/core'
+import { ExpressAdapter } from '@nestjs/platform-express'
+import express from 'express'
 
-import { assertRequirementsMet } from "@deployer/nest-effect";
-import { createViteAssetsMiddleware } from "@deployer/vite-assets";
+import { assertRequirementsMet } from '@deployer/nest-effect'
+import { createViteAssetsMiddleware } from '@deployer/vite-assets'
 
+import { SetupAppModule } from './app.module'
+import { resolveApiBaseUrl } from './config/api-address'
+import { setupEnvSchema } from './config/env/env.schema'
+import { createSetupAuthProxy } from './middleware/setup-auth-proxy'
 
-import { SetupAppModule } from "./app.module";
-import { resolveApiBaseUrl } from "./config/api-address";
-import { setupEnvSchema } from "./config/env/env.schema";
-import { createSetupAuthProxy } from "./middleware/setup-auth-proxy";
-
-import type { NestApplicationOptions } from "@nestjs/common";
+import type { NestApplicationOptions } from '@nestjs/common'
 
 /**
  * The ONE place the setup app's Nest configuration is decided.
@@ -39,7 +38,7 @@ import type { NestApplicationOptions } from "@nestjs/common";
  * with whatever the schema declares — a hand-written `?? 3016` would silently
  * drift from it.
  */
-export const setupEnv = setupEnvSchema.parse(process.env);
+export const setupEnv = setupEnvSchema.parse(process.env)
 
 /**
  * The root, accepted only once every module's requirement set is empty.
@@ -49,10 +48,10 @@ export const setupEnv = setupEnvSchema.parse(process.env);
  * Wrapping it here means both entry points (`main.ts`, `compile.ts`) get the same guarantee, and a controller that
  * yields a service its module does not export is a compile error instead of a runtime surprise.
  */
-const SetupRootModule = assertRequirementsMet(SetupAppModule);
+const SetupRootModule = assertRequirementsMet(SetupAppModule)
 
 /** The port the setup app binds. Exported so `main.ts` can log it. */
-export const SETUP_PORT = setupEnv.SETUP_APP_PORT;
+export const SETUP_PORT = setupEnv.SETUP_APP_PORT
 
 /**
  * `NestFactory` options, shared by every entry point.
@@ -61,9 +60,9 @@ export const SETUP_PORT = setupEnv.SETUP_APP_PORT;
  * costs a trace of the whole bootstrap on every start.
  */
 export function setupAppOptions(): NestApplicationOptions {
-  return {
-    snapshot: setupEnv.NODE_ENV !== "production",
-  };
+    return {
+        snapshot: setupEnv.NODE_ENV !== 'production',
+    }
 }
 
 /**
@@ -74,42 +73,46 @@ export function setupAppOptions(): NestApplicationOptions {
  * `main.ts` uses. This returns exactly what `main.ts` listens on.
  */
 export async function createSetupApp() {
-  // The Express instance is built here so the SSR wizard's client bundle can be
-  // proxied BEFORE Nest's router. The assets are not app routes — they must not
-  // reach the controller layer, and they must not be refused by anything that
-  // wraps it (the wizard is pre-auth, but its own bundle is static output).
-  //
-  // 5174 is THIS app's Vite dev server; the API's is 5173. Without this the
-  // wizard renders but every asset 404s, because the SSR template emits
-  // `/vite/@vite/client` and nothing is listening for it.
-  const server = express();
-  server.use(express.json());
-  server.use(createViteAssetsMiddleware({ port: 5174 }));
+    // The Express instance is built here so the SSR wizard's client bundle can be
+    // proxied BEFORE Nest's router. The assets are not app routes — they must not
+    // reach the controller layer, and they must not be refused by anything that
+    // wraps it (the wizard is pre-auth, but its own bundle is static output).
+    //
+    // 5174 is THIS app's Vite dev server; the API's is 5173. Without this the
+    // wizard renders but every asset 404s, because the SSR template emits
+    // `/vite/@vite/client` and nothing is listening for it.
+    const server = express()
+    server.use(express.json())
+    server.use(createViteAssetsMiddleware({ port: 5174 }))
 
-  // `/api/auth/*` is served by the API but reached through THIS host: the
-  // wizard's sign-in step calls it with a relative path (see `views/lib/auth.ts`),
-  // so it lands on whichever origin served the page. Without this the operator's
-  // final step failed with `Cannot POST /api/auth/sign-in/email` — and, because
-  // the sign-in precedes the trigger, the run then reported the API as
-  // unreachable, which described the symptom rather than the cause.
-  //
-  // Mounted BEFORE the Nest router for the same reason as the asset proxy: it is
-  // not an app route, and the API does not exist yet when the first call arrives.
-  //
-  // The address goes through `resolveApiBaseUrl` — the SAME resolver the wizard's
-  // forwards use. Passing the raw `SETUP_API_URL` here is what made the sign-in
-  // step target `bff:3005` (a compose-only name that nothing owns under
-  // `SETUP_MODE=prod`) while every other forward correctly used the swarm
-  // service name. It is `undefined` only when nothing is configured, in which
-  // case there is no API to proxy to and the middleware stands down.
-  const apiBaseUrl = resolveApiBaseUrl(setupEnv);
-  if (apiBaseUrl !== null) {
-    server.use(createSetupAuthProxy(apiBaseUrl));
-  }
+    // `/api/auth/*` is served by the API but reached through THIS host: the
+    // wizard's sign-in step calls it with a relative path (see `views/lib/auth.ts`),
+    // so it lands on whichever origin served the page. Without this the operator's
+    // final step failed with `Cannot POST /api/auth/sign-in/email` — and, because
+    // the sign-in precedes the trigger, the run then reported the API as
+    // unreachable, which described the symptom rather than the cause.
+    //
+    // Mounted BEFORE the Nest router for the same reason as the asset proxy: it is
+    // not an app route, and the API does not exist yet when the first call arrives.
+    //
+    // The address goes through `resolveApiBaseUrl` — the SAME resolver the wizard's
+    // forwards use. Passing the raw `SETUP_API_URL` here is what made the sign-in
+    // step target `bff:3005` (a compose-only name that nothing owns under
+    // `SETUP_MODE=prod`) while every other forward correctly used the swarm
+    // service name. It is `undefined` only when nothing is configured, in which
+    // case there is no API to proxy to and the middleware stands down.
+    const apiBaseUrl = resolveApiBaseUrl(setupEnv)
+    if (apiBaseUrl !== null) {
+        server.use(createSetupAuthProxy(apiBaseUrl))
+    }
 
-  const app = await NestFactory.create(SetupRootModule, new ExpressAdapter(server), setupAppOptions());
-  app.enableShutdownHooks();
-  return app;
+    const app = await NestFactory.create(
+        SetupRootModule,
+        new ExpressAdapter(server),
+        setupAppOptions()
+    )
+    app.enableShutdownHooks()
+    return app
 }
 
 /**
@@ -126,13 +129,16 @@ export async function createSetupApp() {
  * depend on cannot drift between them.
  */
 export async function createCompileContext() {
-  return NestFactory.createApplicationContext(SetupRootModule, setupAppOptions());
+    return NestFactory.createApplicationContext(
+        SetupRootModule,
+        setupAppOptions()
+    )
 }
 
 /** Where an operator should point a browser — the public host, not the port. */
 export function setupPublicUrl(): string {
-  const prefix = setupEnv.DEPLOYER_PREFIX;
-  return prefix === ""
-    ? "setup.deployer.localhost"
-    : `setup.${prefix}.deployer.localhost`;
+    const prefix = setupEnv.DEPLOYER_PREFIX
+    return prefix === ''
+        ? 'setup.deployer.localhost'
+        : `setup.${prefix}.deployer.localhost`
 }

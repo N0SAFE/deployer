@@ -1,54 +1,65 @@
-import { Observable } from "rxjs";
+import { Observable } from 'rxjs'
 
 import type {
-  DockerImageInspectDetail,
-  DockerImageSecurityScanEvent,
-} from "@deployer/contracts-entities";
-import type { DockerImageInspectQueryInput } from "@deployer/runtime-contracts/modules/docker/images/inspect";
-import type {
-  DockerImageListInput,
-} from "@deployer/runtime-contracts/modules/docker/images/list";
-import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
-import type {
-  DockerImageSecurityScanStreamQueryInput,
-} from "@deployer/runtime-contracts/modules/docker/security/scanning/images/stream";
+    DockerImageInspectDetail,
+    DockerImageSecurityScanEvent,
+} from '@deployer/contracts-entities'
+import type { DockerImageInspectQueryInput } from '@deployer/runtime-contracts/modules/docker/images/inspect'
+import type { DockerImageListInput } from '@deployer/runtime-contracts/modules/docker/images/list'
+import type { DockerImageInspectStreamQueryInput } from '@deployer/runtime-contracts/modules/docker/images/stream-inspect'
+import type { DockerImageSecurityScanStreamQueryInput } from '@deployer/runtime-contracts/modules/docker/security/scanning/images/stream'
 
-import type { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
-import type { DockerImageCatalogRepository } from "../../../repositories/images/catalog/docker-image-catalog.repository";
+import type { DockerRuntimeStreamOrchestratorService } from '../../../common/runtime/docker-runtime-stream-orchestrator.service'
+import type { DockerImageCatalogRepository } from '../../../repositories/images/catalog/docker-image-catalog.repository'
 import type {
-  DockerImageSecurityScanService,
-  EnsureImageSecurityScanOptions,
-  EnsureImageSecurityScanResult,
-} from "../security/docker-image-security-scan.service";
+    DockerImageSecurityScanService,
+    EnsureImageSecurityScanOptions,
+    EnsureImageSecurityScanResult,
+} from '../security/docker-image-security-scan.service'
 
 /** Built by a factory in `DockerImagesModule`. */
 export class DockerImagesApplicationService {
-  constructor(
-    private readonly dockerImageCatalogRepository: DockerImageCatalogRepository,
-    private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
-    private readonly dockerImageSecurityScanService: DockerImageSecurityScanService,
-  ) {}
+    constructor(
+        private readonly dockerImageCatalogRepository: DockerImageCatalogRepository,
+        private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
+        private readonly dockerImageSecurityScanService: DockerImageSecurityScanService
+    ) {}
 
-  async inspectImage(input: DockerImageInspectQueryInput): Promise<DockerImageInspectDetail> {
-    return this.dockerImageCatalogRepository.inspectImage(input.imageId.trim());
-  }
+    async inspectImage(
+        input: DockerImageInspectQueryInput
+    ): Promise<DockerImageInspectDetail> {
+        return this.dockerImageCatalogRepository.inspectImage(
+            input.imageId.trim()
+        )
+    }
 
-  streamImageInspect(input: DockerImageInspectStreamQueryInput): Observable<DockerImageInspectDetail> {
-    return this.dockerRuntimeStreamOrchestratorService.streamImageInspect(input);
-  }
+    streamImageInspect(
+        input: DockerImageInspectStreamQueryInput
+    ): Observable<DockerImageInspectDetail> {
+        return this.dockerRuntimeStreamOrchestratorService.streamImageInspect(
+            input
+        )
+    }
 
-  streamImageSecurityScan(input: DockerImageSecurityScanStreamQueryInput): Observable<DockerImageSecurityScanEvent> {
-    return this.dockerImageSecurityScanService.streamImageSecurityScan(input);
-  }
+    streamImageSecurityScan(
+        input: DockerImageSecurityScanStreamQueryInput
+    ): Observable<DockerImageSecurityScanEvent> {
+        return this.dockerImageSecurityScanService.streamImageSecurityScan(
+            input
+        )
+    }
 
-  ensureImageSecurityScan(
-    input: DockerImageSecurityScanStreamQueryInput,
-    options: EnsureImageSecurityScanOptions = {},
-  ): Promise<EnsureImageSecurityScanResult> {
-    return this.dockerImageSecurityScanService.ensureImageSecurityScan(input, options);
-  }
+    ensureImageSecurityScan(
+        input: DockerImageSecurityScanStreamQueryInput,
+        options: EnsureImageSecurityScanOptions = {}
+    ): Promise<EnsureImageSecurityScanResult> {
+        return this.dockerImageSecurityScanService.ensureImageSecurityScan(
+            input,
+            options
+        )
+    }
 
-  async listImages(input: DockerImageListInput) {
-    return this.dockerImageCatalogRepository.listImages(input);
-  }
+    async listImages(input: DockerImageListInput) {
+        return this.dockerImageCatalogRepository.listImages(input)
+    }
 }

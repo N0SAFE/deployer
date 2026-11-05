@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 export const serviceSchema = z.object({
     id: z.uuid(),
@@ -37,6 +37,6 @@ export const serviceSchema = z.object({
     metadata: z.record(z.string(), z.unknown()).nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
-});
+})
 
-export type Service = z.infer<typeof serviceSchema>;
+export type Service = z.infer<typeof serviceSchema>

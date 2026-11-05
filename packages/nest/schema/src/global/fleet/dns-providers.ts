@@ -1,6 +1,14 @@
-import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+    boolean,
+    index,
+    jsonb,
+    pgTable,
+    text,
+    timestamp,
+    uuid,
+} from 'drizzle-orm/pg-core'
 
-import { encryptedText } from "../../codecs/codec-registry";
+import { encryptedText } from '../../codecs/codec-registry'
 
 /**
  * Runtime state of a DNS provider app, refreshed live at runtime (never
@@ -8,13 +16,13 @@ import { encryptedText } from "../../codecs/codec-registry";
  * UI before a live re-check lands).
  */
 export type DnsProviderRuntimeState = {
-    status: "ok" | "error" | "unknown";
-    checkedAt: string | null;
+    status: 'ok' | 'error' | 'unknown'
+    checkedAt: string | null
     /** Cloudflare account id resolved from the token at runtime. */
-    accountId: string | null;
-    tokenValid: boolean | null;
+    accountId: string | null
+    tokenValid: boolean | null
     /** Live message when the last check failed (network / auth / rate-limit). */
-    error: string | null;
+    error: string | null
 }
 
 /**
@@ -24,9 +32,9 @@ export type DnsProviderRuntimeState = {
  */
 export type DnsProviderFeatures = {
     /** Manage DNS zones/records through this provider. */
-    dnsManagement: boolean;
+    dnsManagement: boolean
     /** Host Cloudflare Tunnels for node network configs. */
-    tunnelManagement: boolean;
+    tunnelManagement: boolean
 }
 
 /**
@@ -35,36 +43,39 @@ export type DnsProviderFeatures = {
  * connection).
  */
 export const dnsProviders = pgTable(
-    "dns_providers",
+    'dns_providers',
     {
-        id: uuid("id").primaryKey().defaultRandom(),
+        id: uuid('id').primaryKey().defaultRandom(),
         /** Lowercase provider type key used for dispatch: "cloudflare", ... */
-        providerType: text("provider_type").notNull(),
-        name: text("name").notNull(),
-        isActive: boolean("is_active").notNull().default(true),
+        providerType: text('provider_type').notNull(),
+        name: text('name').notNull(),
+        isActive: boolean('is_active').notNull().default(true),
         /** Encrypted JSON credentials: { apiToken?, clientId?, clientSecret? }. */
-        credentials: encryptedText("credentials").notNull(),
+        credentials: encryptedText('credentials').notNull(),
         /** Provider-specific non-secret config (e.g. account id). */
-        config: jsonb("config")
+        config: jsonb('config')
             .$type<{ accountId?: string | null }>()
             .notNull()
             .$defaultFn(() => ({ accountId: null })),
         /** Feature flags enabled for this app. */
-        features: jsonb("features")
+        features: jsonb('features')
             .$type<DnsProviderFeatures>()
             .notNull()
-            .$defaultFn(() => ({ dnsManagement: true, tunnelManagement: false })),
+            .$defaultFn(() => ({
+                dnsManagement: true,
+                tunnelManagement: false,
+            })),
         /** Last-known runtime state (cache only — re-checked live). */
-        state: jsonb("state").$type<DnsProviderRuntimeState | null>().$defaultFn(() => null),
-        createdAt: timestamp("created_at", { withTimezone: true })
+        state: jsonb('state')
+            .$type<DnsProviderRuntimeState | null>()
+            .$defaultFn(() => null),
+        createdAt: timestamp('created_at', { withTimezone: true })
             .notNull()
             .defaultNow(),
-        updatedAt: timestamp("updated_at", { withTimezone: true })
+        updatedAt: timestamp('updated_at', { withTimezone: true })
             .notNull()
             .defaultNow()
             .$onUpdate(() => new Date()),
     },
-    (table) => [
-        index("dns_providers_type_idx").on(table.providerType),
-    ],
-);
+    (table) => [index('dns_providers_type_idx').on(table.providerType)]
+)

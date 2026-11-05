@@ -2,12 +2,10 @@ import snakeCase from 'lodash.snakecase'
 
 import { SnakeCaseSeq } from './type-utils'
 
-
 export function keysToSnake<T extends Record<string, unknown>>(object: T) {
-    return Object.keys(object).reduce<Record<
-            SnakeCaseSeq<keyof T extends string ? keyof T : never>,
-            unknown
-        >>(
+    return Object.keys(object).reduce<
+        Record<SnakeCaseSeq<keyof T extends string ? keyof T : never>, unknown>
+    >(
         (acc, key) => {
             const snakeKey = snakeCase(key) as SnakeCaseSeq<
                 keyof T extends string ? keyof T : never
@@ -15,7 +13,10 @@ export function keysToSnake<T extends Record<string, unknown>>(object: T) {
             acc[snakeKey as keyof typeof acc] = object[key]
             return acc
         },
-        {} as Record<SnakeCaseSeq<keyof T extends string ? keyof T : never>, unknown>
+        {} as Record<
+            SnakeCaseSeq<keyof T extends string ? keyof T : never>,
+            unknown
+        >
     ) as T extends Record<string, unknown>
         ? {
               [K in keyof T as SnakeCaseSeq<K & string>]: T[K] extends Record<

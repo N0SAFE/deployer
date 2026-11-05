@@ -1,25 +1,28 @@
-"use client";
+'use client'
 
-import { useState } from "react";
+import { useState } from 'react'
 
-import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
-import { Badge } from "@deployer/ui/components/shadcn/badge";
-import { Button } from "@deployer/ui/components/shadcn/button";
-import { Separator } from "@deployer/ui/components/shadcn/separator";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@deployer/ui/components/shadcn/table";
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Separator } from '@deployer/ui/components/shadcn/separator'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@deployer/ui/components/shadcn/table'
 
-import { authClient } from "@/lib/auth";
+import { authClient } from '@/lib/auth'
 
-import { useDevtoolsResource } from "../use-devtools-resource";
-
+import { useDevtoolsResource } from '../use-devtools-resource'
 
 /**
  * DevTools panel: account security.
@@ -43,29 +46,29 @@ import { useDevtoolsResource } from "../use-devtools-resource";
  */
 
 interface Passkey {
-  id: string;
-  name?: string | null;
-  createdAt: Date | string;
-  deviceType?: string;
-  backedUp?: boolean;
+    id: string
+    name?: string | null
+    createdAt: Date | string
+    deviceType?: string
+    backedUp?: boolean
 }
 
 function relativeTime(value: Date | string | null | undefined): string {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+    if (!value) return '—'
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
 
-  const diffMs = date.getTime() - Date.now();
-  const abs = Math.abs(diffMs);
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
+    const diffMs = date.getTime() - Date.now()
+    const abs = Math.abs(diffMs)
+    const minute = 60_000
+    const hour = 60 * minute
+    const day = 24 * hour
 
-  const fmt = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (abs < minute) return fmt.format(Math.round(diffMs / 1000), "second");
-  if (abs < hour) return fmt.format(Math.round(diffMs / minute), "minute");
-  if (abs < day) return fmt.format(Math.round(diffMs / hour), "hour");
-  return fmt.format(Math.round(diffMs / day), "day");
+    const fmt = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+    if (abs < minute) return fmt.format(Math.round(diffMs / 1000), 'second')
+    if (abs < hour) return fmt.format(Math.round(diffMs / minute), 'minute')
+    if (abs < day) return fmt.format(Math.round(diffMs / hour), 'hour')
+    return fmt.format(Math.round(diffMs / day), 'day')
 }
 
 // ---------------------------------------------------------------------------
@@ -86,139 +89,174 @@ function relativeTime(value: Date | string | null | undefined): string {
  * same request the atom makes, with none of the framework indirection.
  */
 async function fetchPasskeys(): Promise<Passkey[]> {
-  const result = await authClient.$fetch<Passkey[]>("/passkey/list-user-passkeys", {
-    method: "GET",
-  });
-  if (result.error) {
-    throw new Error(result.error.message ?? "Failed to list passkeys");
-  }
-  return Array.isArray(result.data) ? result.data : [];
+    const result = await authClient.$fetch<Passkey[]>(
+        '/passkey/list-user-passkeys',
+        {
+            method: 'GET',
+        }
+    )
+    if (result.error) {
+        throw new Error(result.error.message ?? 'Failed to list passkeys')
+    }
+    return Array.isArray(result.data) ? result.data : []
 }
 
 function usePasskeys() {
-  const { data, error, loading, reload } = useDevtoolsResource(fetchPasskeys);
-  return { passkeys: data, error, loading, reload };
+    const { data, error, loading, reload } = useDevtoolsResource(fetchPasskeys)
+    return { passkeys: data, error, loading, reload }
 }
 
 function PasskeysSection() {
-  const { passkeys, error, loading, reload } = usePasskeys();
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+    const { passkeys, error, loading, reload } = usePasskeys()
+    const [deleting, setDeleting] = useState<string | null>(null)
+    const [adding, setAdding] = useState(false)
 
-  const handleDelete = async (id: string) => {
-    setDeleting(id);
-    try {
-      await authClient.passkey.deletePasskey({ id });
-      reload();
-    } finally {
-      setDeleting(null);
+    const handleDelete = async (id: string) => {
+        setDeleting(id)
+        try {
+            await authClient.passkey.deletePasskey({ id })
+            reload()
+        } finally {
+            setDeleting(null)
+        }
     }
-  };
 
-  const handleAdd = async () => {
-    setAdding(true);
-    try {
-      await authClient.passkey.addPasskey();
-      reload();
-    } finally {
-      setAdding(false);
+    const handleAdd = async () => {
+        setAdding(true)
+        try {
+            await authClient.passkey.addPasskey()
+            reload()
+        } finally {
+            setAdding(false)
+        }
     }
-  };
 
-  if (loading && passkeys === null) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-    );
-  }
+    if (loading && passkeys === null) {
+        return (
+            <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        )
+    }
 
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Failed to load passkeys</AlertTitle>
-        <AlertDescription className="flex flex-col gap-2">
-          <span>{error}</span>
-          <Button size="sm" variant="outline" className="self-start" onClick={reload}>
-            Retry
-          </Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  const list = passkeys ?? [];
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">
-          Passkeys <span className="text-muted-foreground font-normal">({list.length})</span>
-        </h4>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={reload} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </Button>
-          <Button size="sm" onClick={() => void handleAdd()} disabled={adding}>
-            {adding ? "Waiting…" : "Add passkey"}
-          </Button>
-        </div>
-      </div>
-
-      {list.length === 0 ? (
-        <Alert>
-          <AlertTitle>No passkeys registered</AlertTitle>
-          <AlertDescription className="text-xs">
-            Agent Auth requires WebAuthn for mutating capabilities. Without a passkey,
-            agent write requests fail with <code>WEBAUTHN_NOT_ENROLLED</code>.
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Backed up</TableHead>
-                <TableHead>Added</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((pk) => (
-                <TableRow key={pk.id}>
-                  <TableCell className="font-medium">{pk.name ?? "Unnamed"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{pk.deviceType ?? "unknown"}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {pk.backedUp ? (
-                      <Badge variant="secondary">synced</Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">device-only</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs">{relativeTime(pk.createdAt)}</TableCell>
-                  <TableCell>
+    if (error) {
+        return (
+            <Alert variant="destructive">
+                <AlertTitle>Failed to load passkeys</AlertTitle>
+                <AlertDescription className="flex flex-col gap-2">
+                    <span>{error}</span>
                     <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={deleting === pk.id}
-                      onClick={() => void handleDelete(pk.id)}
+                        size="sm"
+                        variant="outline"
+                        className="self-start"
+                        onClick={reload}
                     >
-                      {deleting === pk.id ? "Deleting…" : "Delete"}
+                        Retry
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                </AlertDescription>
+            </Alert>
+        )
+    }
+
+    const list = passkeys ?? []
+
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">
+                    Passkeys{' '}
+                    <span className="text-muted-foreground font-normal">
+                        ({list.length})
+                    </span>
+                </h4>
+                <div className="flex items-center gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={reload}
+                        disabled={loading}
+                    >
+                        {loading ? 'Refreshing…' : 'Refresh'}
+                    </Button>
+                    <Button
+                        size="sm"
+                        onClick={() => void handleAdd()}
+                        disabled={adding}
+                    >
+                        {adding ? 'Waiting…' : 'Add passkey'}
+                    </Button>
+                </div>
+            </div>
+
+            {list.length === 0 ? (
+                <Alert>
+                    <AlertTitle>No passkeys registered</AlertTitle>
+                    <AlertDescription className="text-xs">
+                        Agent Auth requires WebAuthn for mutating capabilities.
+                        Without a passkey, agent write requests fail with{' '}
+                        <code>WEBAUTHN_NOT_ENROLLED</code>.
+                    </AlertDescription>
+                </Alert>
+            ) : (
+                <div className="overflow-hidden rounded-lg border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Backed up</TableHead>
+                                <TableHead>Added</TableHead>
+                                <TableHead />
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {list.map((pk) => (
+                                <TableRow key={pk.id}>
+                                    <TableCell className="font-medium">
+                                        {pk.name ?? 'Unnamed'}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline">
+                                            {pk.deviceType ?? 'unknown'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {pk.backedUp ? (
+                                            <Badge variant="secondary">
+                                                synced
+                                            </Badge>
+                                        ) : (
+                                            <span className="text-muted-foreground text-xs">
+                                                device-only
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {relativeTime(pk.createdAt)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            disabled={deleting === pk.id}
+                                            onClick={() =>
+                                                void handleDelete(pk.id)
+                                            }
+                                        >
+                                            {deleting === pk.id
+                                                ? 'Deleting…'
+                                                : 'Delete'}
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -226,103 +264,127 @@ function PasskeysSection() {
 // ---------------------------------------------------------------------------
 
 function TwoFactorSection() {
-  const { data: session } = authClient.useSession();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+    const { data: session } = authClient.useSession()
+    const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
 
-  // `twoFactorEnabled` is an additional field on the user, added by the plugin.
-  const enabled = Boolean(
-    (session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled,
-  );
+    // `twoFactorEnabled` is an additional field on the user, added by the plugin.
+    const enabled = Boolean(
+        (session?.user as { twoFactorEnabled?: boolean } | undefined)
+            ?.twoFactorEnabled
+    )
 
-  const handleDisable = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await authClient.twoFactor.disable({});
-      if (result.error) {
-        setError(result.error.message ?? "Failed to disable two-factor");
-        return;
-      }
-      setBackupCodes(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to disable two-factor");
-    } finally {
-      setBusy(false);
+    const handleDisable = async () => {
+        setBusy(true)
+        setError(null)
+        try {
+            const result = await authClient.twoFactor.disable({})
+            if (result.error) {
+                setError(result.error.message ?? 'Failed to disable two-factor')
+                return
+            }
+            setBackupCodes(null)
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to disable two-factor'
+            )
+        } finally {
+            setBusy(false)
+        }
     }
-  };
 
-  const handleRegenerate = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await authClient.twoFactor.generateBackupCodes({});
-      if (result.error) {
-        setError(result.error.message ?? "Failed to generate backup codes");
-        return;
-      }
-      const codes = (result.data as { backupCodes?: string[] } | undefined)?.backupCodes;
-      setBackupCodes(codes ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate backup codes");
-    } finally {
-      setBusy(false);
+    const handleRegenerate = async () => {
+        setBusy(true)
+        setError(null)
+        try {
+            const result = await authClient.twoFactor.generateBackupCodes({})
+            if (result.error) {
+                setError(
+                    result.error.message ?? 'Failed to generate backup codes'
+                )
+                return
+            }
+            const codes = (
+                result.data as { backupCodes?: string[] } | undefined
+            )?.backupCodes
+            setBackupCodes(codes ?? null)
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to generate backup codes'
+            )
+        } finally {
+            setBusy(false)
+        }
     }
-  };
 
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Two-factor (TOTP)</h4>
-        {enabled ? (
-          <Badge variant="default">enabled</Badge>
-        ) : (
-          <Badge variant="secondary">disabled</Badge>
-        )}
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Request failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex items-center gap-2">
-        {enabled ? (
-          <>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => void handleRegenerate()}>
-              {busy ? "Working…" : "Regenerate backup codes"}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void handleDisable()}>
-              Disable
-            </Button>
-          </>
-        ) : (
-          // Enrolment needs the account password and a code confirmation, which only the Account card asks for;
-          // sending `password: ""` here was the call that could never succeed (AUTH-017).
-          <span className="text-muted-foreground text-xs">
-            Enrol from Account → Security: it asks for your password and the first code.
-          </span>
-        )}
-      </div>
-
-      {backupCodes && backupCodes.length > 0 && (
-        <Alert>
-          <AlertTitle>Backup codes — copy them now</AlertTitle>
-          <AlertDescription className="text-xs">
-            These are shown once. Each code works a single time.
-            <div className="mt-2 grid grid-cols-2 gap-1 font-mono">
-              {backupCodes.map((code) => (
-                <span key={code}>{code}</span>
-              ))}
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">Two-factor (TOTP)</h4>
+                {enabled ? (
+                    <Badge variant="default">enabled</Badge>
+                ) : (
+                    <Badge variant="secondary">disabled</Badge>
+                )}
             </div>
-          </AlertDescription>
-        </Alert>
-      )}
-    </div>
-  );
+
+            {error && (
+                <Alert variant="destructive">
+                    <AlertTitle>Request failed</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
+            <div className="flex items-center gap-2">
+                {enabled ? (
+                    <>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => void handleRegenerate()}
+                        >
+                            {busy ? 'Working…' : 'Regenerate backup codes'}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => void handleDisable()}
+                        >
+                            Disable
+                        </Button>
+                    </>
+                ) : (
+                    // Enrolment needs the account password and a code confirmation, which only the Account card asks for;
+                    // sending `password: ""` here was the call that could never succeed (AUTH-017).
+                    <span className="text-muted-foreground text-xs">
+                        Enrol from Account → Security: it asks for your password
+                        and the first code.
+                    </span>
+                )}
+            </div>
+
+            {backupCodes && backupCodes.length > 0 && (
+                <Alert>
+                    <AlertTitle>Backup codes — copy them now</AlertTitle>
+                    <AlertDescription className="text-xs">
+                        These are shown once. Each code works a single time.
+                        <div className="mt-2 grid grid-cols-2 gap-1 font-mono">
+                            {backupCodes.map((code) => (
+                                <span key={code}>{code}</span>
+                            ))}
+                        </div>
+                    </AlertDescription>
+                </Alert>
+            )}
+        </div>
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -330,13 +392,13 @@ function TwoFactorSection() {
 // ---------------------------------------------------------------------------
 
 export function SecurityPanel() {
-  return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-4">
-      <PasskeysSection />
-      <Separator />
-      <TwoFactorSection />
-    </div>
-  );
+    return (
+        <div className="flex h-full flex-col gap-4 overflow-auto p-4">
+            <PasskeysSection />
+            <Separator />
+            <TwoFactorSection />
+        </div>
+    )
 }
 
-export default SecurityPanel;
+export default SecurityPanel

@@ -7,6 +7,6 @@ import { orpc } from '@/lib/orpc'
  * page calls the typed procedure rather than building a URL.
  */
 export const auditEndpoints = {
-  list: orpc.audit.list,
-  export: orpc.audit.export,
+    list: orpc.audit.list,
+    export: orpc.audit.export,
 } as const

@@ -53,12 +53,15 @@ Both access modes — `web.deployer.localhost` and `localhost:3000` — therefor
 ## Operational checklist
 
 <DocChecklist
-	items={[
-		{ label: 'NEXT_PUBLIC_APP_URL has no trailing slash', done: false },
-		{ label: 'Protocol and port match real browser origin', done: false },
-		{ label: 'TRUSTED_ORIGINS includes all production frontends', done: false },
-		{ label: 'API restarted after env update', done: false },
-	]}
+    items={[
+        { label: 'NEXT_PUBLIC_APP_URL has no trailing slash', done: false },
+        { label: 'Protocol and port match real browser origin', done: false },
+        {
+            label: 'TRUSTED_ORIGINS includes all production frontends',
+            done: false,
+        },
+        { label: 'API restarted after env update', done: false },
+    ]}
 />
 
 ## Related docs

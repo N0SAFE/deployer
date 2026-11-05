@@ -1,5 +1,11 @@
-import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities"
-import type { ProgressTask, TaskStatus } from "@deployer/ui/components/setup/progress-tasks"
+import type {
+    SetupPostSetupVerification,
+    SetupVerificationTarget,
+} from '@deployer/contracts-entities'
+import type {
+    ProgressTask,
+    TaskStatus,
+} from '@deployer/ui/components/setup/progress-tasks'
 
 /**
  * The wizard's last gate: do the API and the dashboard REALLY answer?
@@ -25,8 +31,8 @@ import type { ProgressTask, TaskStatus } from "@deployer/ui/components/setup/pro
  */
 
 export interface BrowserProbe {
-  ok: boolean
-  detail: string
+    ok: boolean
+    detail: string
 }
 
 /**
@@ -40,46 +46,50 @@ export interface BrowserProbe {
  * browser get there?".
  */
 export async function probeFromBrowser(
-  url: string,
-  options: { timeoutMs?: number; fetchImpl?: typeof fetch } = {},
+    url: string,
+    options: { timeoutMs?: number; fetchImpl?: typeof fetch } = {}
 ): Promise<BrowserProbe> {
-  const { timeoutMs = 5_000, fetchImpl = fetch } = options
-  const controller = new AbortController()
-  const timer = setTimeout(() => {
-    controller.abort()
-  }, timeoutMs)
-  try {
-    await fetchImpl(url, { mode: "no-cors", cache: "no-store", signal: controller.signal })
-    return { ok: true, detail: "answered" }
-  } catch (error: unknown) {
-    const aborted = controller.signal.aborted
-    return {
-      ok: false,
-      detail: aborted
-        ? `no answer within ${String(timeoutMs / 1000)}s`
-        : `this browser cannot reach it (${error instanceof Error ? error.message : String(error)})`,
+    const { timeoutMs = 5_000, fetchImpl = fetch } = options
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+        controller.abort()
+    }, timeoutMs)
+    try {
+        await fetchImpl(url, {
+            mode: 'no-cors',
+            cache: 'no-store',
+            signal: controller.signal,
+        })
+        return { ok: true, detail: 'answered' }
+    } catch (error: unknown) {
+        const aborted = controller.signal.aborted
+        return {
+            ok: false,
+            detail: aborted
+                ? `no answer within ${String(timeoutMs / 1000)}s`
+                : `this browser cannot reach it (${error instanceof Error ? error.message : String(error)})`,
+        }
+    } finally {
+        clearTimeout(timer)
     }
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 /** What the wizard knows about one target at one moment. */
 export interface TargetObservation {
-  /** The server's verdict, or null while the platform has not answered the question yet. */
-  target: SetupVerificationTarget | null
-  /** The browser's most recent probe of `target.probeUrl`, or null if none ran yet. */
-  browser: BrowserProbe | null
-  /** The platform could not be asked (API mid-swap) — a WAIT, not a verdict. */
-  serverUnavailable: boolean
+    /** The server's verdict, or null while the platform has not answered the question yet. */
+    target: SetupVerificationTarget | null
+    /** The browser's most recent probe of `target.probeUrl`, or null if none ran yet. */
+    browser: BrowserProbe | null
+    /** The platform could not be asked (API mid-swap) — a WAIT, not a verdict. */
+    serverUnavailable: boolean
 }
 
 export type TargetVerdict =
-  | { state: "pending"; lines: string[] }
-  | { state: "checking"; lines: string[] }
-  | { state: "ok"; lines: string[] }
-  | { state: "skipped"; lines: string[] }
-  | { state: "failing"; lines: string[] }
+    | { state: 'pending'; lines: string[] }
+    | { state: 'checking'; lines: string[] }
+    | { state: 'ok'; lines: string[] }
+    | { state: 'skipped'; lines: string[] }
+    | { state: 'failing'; lines: string[] }
 
 /**
  * One target's verdict, with the lines that justify it.
@@ -88,71 +98,94 @@ export type TargetVerdict =
  * its deadline. During the ingress swap every target fails for a while, so
  * treating the first failure as final would reject a healthy platform.
  */
-export function judgeTarget(label: string, observation: TargetObservation): TargetVerdict {
-  const { target, browser, serverUnavailable } = observation
+export function judgeTarget(
+    label: string,
+    observation: TargetObservation
+): TargetVerdict {
+    const { target, browser, serverUnavailable } = observation
 
-  if (target === null) {
-    return serverUnavailable
-      ? { state: "checking", lines: ["Waiting for the platform API to answer (the ingress is switching)…"] }
-      : { state: "pending", lines: [] }
-  }
-  if (!target.expected) {
-    return { state: "skipped", lines: [`${label} is not part of this installation`] }
-  }
+    if (target === null) {
+        return serverUnavailable
+            ? {
+                  state: 'checking',
+                  lines: [
+                      'Waiting for the platform API to answer (the ingress is switching)…',
+                  ],
+              }
+            : { state: 'pending', lines: [] }
+    }
+    if (!target.expected) {
+        return {
+            state: 'skipped',
+            lines: [`${label} is not part of this installation`],
+        }
+    }
 
-  const lines: string[] = []
-  lines.push(
-    target.routed.ok
-      ? `Cluster ingress routes ${target.host}: ${target.routed.detail}`
-      : `Cluster ingress does not route ${target.host} yet: ${target.routed.detail}`,
-  )
-  if (!target.routed.ok) return { state: "failing", lines }
+    const lines: string[] = []
+    lines.push(
+        target.routed.ok
+            ? `Cluster ingress routes ${target.host}: ${target.routed.detail}`
+            : `Cluster ingress does not route ${target.host} yet: ${target.routed.detail}`
+    )
+    if (!target.routed.ok) return { state: 'failing', lines }
 
-  if (target.probeUrl === null) return { state: "ok", lines }
-  if (browser === null) {
-    lines.push(`Checking that this browser can reach ${target.probeUrl}…`)
-    return { state: "checking", lines }
-  }
-  lines.push(
-    browser.ok
-      ? `This browser reached ${target.probeUrl}`
-      : `This browser could not reach ${target.probeUrl}: ${browser.detail}`,
-  )
-  return { state: browser.ok ? "ok" : "failing", lines }
+    if (target.probeUrl === null) return { state: 'ok', lines }
+    if (browser === null) {
+        lines.push(`Checking that this browser can reach ${target.probeUrl}…`)
+        return { state: 'checking', lines }
+    }
+    lines.push(
+        browser.ok
+            ? `This browser reached ${target.probeUrl}`
+            : `This browser could not reach ${target.probeUrl}: ${browser.detail}`
+    )
+    return { state: browser.ok ? 'ok' : 'failing', lines }
 }
 
-const STATUS_BY_STATE: Record<TargetVerdict["state"], (expired: boolean) => TaskStatus> = {
-  pending: () => "pending",
-  checking: () => "running",
-  ok: () => "done",
-  skipped: () => "done",
-  failing: (expired) => (expired ? "error" : "running"),
+const STATUS_BY_STATE: Record<
+    TargetVerdict['state'],
+    (expired: boolean) => TaskStatus
+> = {
+    pending: () => 'pending',
+    checking: () => 'running',
+    ok: () => 'done',
+    skipped: () => 'done',
+    failing: (expired) => (expired ? 'error' : 'running'),
 }
 
 export interface VerificationInput {
-  verification: SetupPostSetupVerification | null
-  browserByTarget: Partial<Record<SetupVerificationTarget["id"], BrowserProbe>>
-  /** The platform could not be asked (a transport error), as opposed to "not asked yet". */
-  serverUnavailable: boolean
-  /** Whether the verification has started (the server pipeline reported done). */
-  active: boolean
-  /** The deadline passed: a target that still fails is now a FAILURE, not a wait. */
-  expired: boolean
+    verification: SetupPostSetupVerification | null
+    browserByTarget: Partial<
+        Record<SetupVerificationTarget['id'], BrowserProbe>
+    >
+    /** The platform could not be asked (a transport error), as opposed to "not asked yet". */
+    serverUnavailable: boolean
+    /** Whether the verification has started (the server pipeline reported done). */
+    active: boolean
+    /** The deadline passed: a target that still fails is now a FAILURE, not a wait. */
+    expired: boolean
 }
 
-const TARGETS: { id: SetupVerificationTarget["id"]; label: string; title: string; description: string }[] = [
-  {
-    id: "api",
-    label: "The API",
-    title: "Check that the API is reachable",
-    description: "Routed by the cluster ingress, and reachable from this browser",
-  },
-  {
-    id: "web",
-    label: "The dashboard",
-    title: "Check that the dashboard is reachable",
-    description: "Routed by the cluster ingress, and reachable from this browser",
-  },
+const TARGETS: {
+    id: SetupVerificationTarget['id']
+    label: string
+    title: string
+    description: string
+}[] = [
+    {
+        id: 'api',
+        label: 'The API',
+        title: 'Check that the API is reachable',
+        description:
+            'Routed by the cluster ingress, and reachable from this browser',
+    },
+    {
+        id: 'web',
+        label: 'The dashboard',
+        title: 'Check that the dashboard is reachable',
+        description:
+            'Routed by the cluster ingress, and reachable from this browser',
+    },
 ]
 
 /**
@@ -163,30 +196,44 @@ const TARGETS: { id: SetupVerificationTarget["id"]; label: string; title: string
  * are produced here, from the platform's answer and the browser's own probes, so
  * a dropped stream event can never fake or hide them.
  */
-export function buildVerificationTasks(input: VerificationInput): ProgressTask[] {
-  return TARGETS.map(({ id, label, title, description }) => {
-    const target = input.verification?.targets.find((candidate) => candidate.id === id) ?? null
-    const verdict = input.active
-      ? judgeTarget(label, { target, browser: input.browserByTarget[id] ?? null, serverUnavailable: input.serverUnavailable })
-      : ({ state: "pending", lines: [] } satisfies TargetVerdict)
-    const status = STATUS_BY_STATE[verdict.state](input.expired)
-    return {
-      id: `verify_${id}`,
-      label: title,
-      description: verdict.state === "skipped" ? `${label} is not part of this installation` : description,
-      status,
-      logs: verdict.lines,
-      ...(status === "error" ? { error: verdict.lines.at(-1) ?? "not reachable" } : {}),
-    }
-  })
+export function buildVerificationTasks(
+    input: VerificationInput
+): ProgressTask[] {
+    return TARGETS.map(({ id, label, title, description }) => {
+        const target =
+            input.verification?.targets.find(
+                (candidate) => candidate.id === id
+            ) ?? null
+        const verdict = input.active
+            ? judgeTarget(label, {
+                  target,
+                  browser: input.browserByTarget[id] ?? null,
+                  serverUnavailable: input.serverUnavailable,
+              })
+            : ({ state: 'pending', lines: [] } satisfies TargetVerdict)
+        const status = STATUS_BY_STATE[verdict.state](input.expired)
+        return {
+            id: `verify_${id}`,
+            label: title,
+            description:
+                verdict.state === 'skipped'
+                    ? `${label} is not part of this installation`
+                    : description,
+            status,
+            logs: verdict.lines,
+            ...(status === 'error'
+                ? { error: verdict.lines.at(-1) ?? 'not reachable' }
+                : {}),
+        }
+    })
 }
 
 /** Whether every verification step passed (skipped counts as passed). */
 export function isVerified(tasks: ProgressTask[]): boolean {
-  return tasks.length > 0 && tasks.every((task) => task.status === "done")
+    return tasks.length > 0 && tasks.every((task) => task.status === 'done')
 }
 
 /** Whether a verification step has given up. */
 export function verificationFailed(tasks: ProgressTask[]): boolean {
-  return tasks.some((task) => task.status === "error")
+    return tasks.some((task) => task.status === 'error')
 }

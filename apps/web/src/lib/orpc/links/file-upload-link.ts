@@ -1,28 +1,28 @@
 /**
  * Custom OpenAPILink that intercepts file uploads and uses XMLHttpRequest for progress tracking
- * 
+ *
  * This is the correct architectural approach for ORPC - modifying the link layer
  * rather than wrapping the client, since createTanstackQueryUtils directly accesses
  * the underlying client properties and bypasses any client-level Proxy wrappers.
- * 
+ *
  * Uses Web Workers to handle uploads in background thread with streaming response support.
  */
 
-import { OpenAPILink } from "@orpc/openapi/fetch";
+import { OpenAPILink } from '@orpc/openapi/fetch'
 
-import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
-import type { ClientContext, NestedClient, Client } from "@orpc/client";
-import type { AnyContractRouter } from "@orpc/contract";
+import type { ClientContext, NestedClient, Client } from '@orpc/client'
+import type { AnyContractRouter } from '@orpc/contract'
 
 /**
  * Progress event for file uploads
  */
 export interface FileUploadProgressEvent {
-  loaded: number;
-  total: number;
-  percentage: number;
-  progress: number; // alias for percentage
+    loaded: number
+    total: number
+    percentage: number
+    progress: number // alias for percentage
 }
 
 /**
@@ -30,85 +30,92 @@ export interface FileUploadProgressEvent {
  * This is merged with the existing ORPC context type
  */
 export interface FileUploadContext {
-  onProgress?: (event: FileUploadProgressEvent) => void;
+    onProgress?: (event: FileUploadProgressEvent) => void
 }
 
 /**
  * Upload tracking registry
  */
 interface ActiveUpload {
-  id: string;
-  endpoint: string;
-  fileName: string;
-  fileSize: number;
-  progress: {
-    loaded: number;
-    total: number;
-    percentage: number;
-  };
-  status: 'pending' | 'uploading' | 'completed' | 'failed';
-  startTime: number;
-  endTime?: number;
-  error?: string;
+    id: string
+    endpoint: string
+    fileName: string
+    fileSize: number
+    progress: {
+        loaded: number
+        total: number
+        percentage: number
+    }
+    status: 'pending' | 'uploading' | 'completed' | 'failed'
+    startTime: number
+    endTime?: number
+    error?: string
 }
 
 class UploadRegistry {
-  private uploads = new Map<string, ActiveUpload>();
-  private listeners = new Set<(uploads: ActiveUpload[]) => void>();
+    private uploads = new Map<string, ActiveUpload>()
+    private listeners = new Set<(uploads: ActiveUpload[]) => void>()
 
-  addUpload(upload: ActiveUpload) {
-    this.uploads.set(upload.id, upload);
-    this.notify();
-  }
-
-  updateUpload(id: string, updates: Partial<ActiveUpload>) {
-    const upload = this.uploads.get(id);
-    if (upload) {
-      Object.assign(upload, updates);
-      this.notify();
+    addUpload(upload: ActiveUpload) {
+        this.uploads.set(upload.id, upload)
+        this.notify()
     }
-  }
 
-  removeUpload(id: string) {
-    this.uploads.delete(id);
-    this.notify();
-  }
+    updateUpload(id: string, updates: Partial<ActiveUpload>) {
+        const upload = this.uploads.get(id)
+        if (upload) {
+            Object.assign(upload, updates)
+            this.notify()
+        }
+    }
 
-  getUpload(id: string): ActiveUpload | undefined {
-    return this.uploads.get(id);
-  }
+    removeUpload(id: string) {
+        this.uploads.delete(id)
+        this.notify()
+    }
 
-  getAllUploads(): ActiveUpload[] {
-    return Array.from(this.uploads.values());
-  }
+    getUpload(id: string): ActiveUpload | undefined {
+        return this.uploads.get(id)
+    }
 
-  getActiveUploads(): ActiveUpload[] {
-    return this.getAllUploads().filter(u => u.status === 'uploading' || u.status === 'pending');
-  }
+    getAllUploads(): ActiveUpload[] {
+        return Array.from(this.uploads.values())
+    }
 
-  subscribe(listener: (uploads: ActiveUpload[]) => void) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
+    getActiveUploads(): ActiveUpload[] {
+        return this.getAllUploads().filter(
+            (u) => u.status === 'uploading' || u.status === 'pending'
+        )
+    }
 
-  private notify() {
-    const uploads = this.getAllUploads();
-    this.listeners.forEach(listener => {listener(uploads)});
-  }
+    subscribe(listener: (uploads: ActiveUpload[]) => void) {
+        this.listeners.add(listener)
+        return () => this.listeners.delete(listener)
+    }
+
+    private notify() {
+        const uploads = this.getAllUploads()
+        this.listeners.forEach((listener) => {
+            listener(uploads)
+        })
+    }
 }
 
 // Global upload registry
-export const uploadRegistry = new UploadRegistry();
+export const uploadRegistry = new UploadRegistry()
 
 // Module-level debug logger gated by NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER env var
-const fileUploadDebug = createContextFilterDebugLogger("FileUploadLink", "orpc-file-upload");
+const fileUploadDebug = createContextFilterDebugLogger(
+    'FileUploadLink',
+    'orpc-file-upload'
+)
 
 /**
  * Creates a Web Worker that handles file uploads with XMLHttpRequest
  * Supports progress tracking and streaming response via MessageChannel
  */
 function createUploadWorker(): Worker {
-  const workerCode = `
+    const workerCode = `
     // Store active XHR requests for tracking/cancellation
     const activeRequests = new Map();
     
@@ -268,19 +275,19 @@ function createUploadWorker(): Worker {
         activeRequests.delete(uploadId);
       }
     }
-  `;
+  `
 
-  const blob = new Blob([workerCode], { type: 'application/javascript' });
-  const workerUrl = URL.createObjectURL(blob);
-  return new Worker(workerUrl);
+    const blob = new Blob([workerCode], { type: 'application/javascript' })
+    const workerUrl = URL.createObjectURL(blob)
+    return new Worker(workerUrl)
 }
 
 // Shared worker instance (singleton)
-let sharedWorker: Worker | null = null;
+let sharedWorker: Worker | null = null
 
 function getUploadWorker(): Worker {
-  sharedWorker ??= createUploadWorker();
-  return sharedWorker;
+    sharedWorker ??= createUploadWorker()
+    return sharedWorker
 }
 
 /**
@@ -291,12 +298,12 @@ function getUploadWorker(): Worker {
  * non-`unknown` union can collapse the parameter to `never`.
  */
 function isFileLike(value: unknown): value is { name: string; size: number } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'name' in value &&
-    'size' in value
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'name' in value &&
+        'size' in value
+    )
 }
 
 /**
@@ -304,164 +311,197 @@ function isFileLike(value: unknown): value is { name: string; size: number } {
  * Returns a Response with streaming body created from MessageChannel
  */
 function uploadWithWorker(
-  input: FormData,
-  endpoint: string,
-  onProgress?: (event: { loaded: number; total: number; percentage: number }) => void
+    input: FormData,
+    endpoint: string,
+    onProgress?: (event: {
+        loaded: number
+        total: number
+        percentage: number
+    }) => void
 ): Promise<Response> {
-  return new Promise((resolve, reject) => {
-    const worker = getUploadWorker();
-    const uploadId = `upload_${String(Date.now())}_${Math.random().toString(36).substring(2, 11)}`;
-    
-    // Extract file info for tracking. FormData is iterable, so this reads the
-    // multipart entries directly (v2 hands the already-built FormData over
-    // instead of the raw input object).
-    let fileName = 'unknown';
-    let fileSize = 0;
-    for (const value of input.values()) {
-      if (isFileLike(value)) {
-        fileName = value.name;
-        fileSize = value.size;
-        break;
-      }
-    }
+    return new Promise((resolve, reject) => {
+        const worker = getUploadWorker()
+        const uploadId = `upload_${String(Date.now())}_${Math.random().toString(36).substring(2, 11)}`
 
-    // Add to registry
-    uploadRegistry.addUpload({
-      id: uploadId,
-      endpoint,
-      fileName,
-      fileSize,
-      progress: { loaded: 0, total: fileSize, percentage: 0 },
-      status: 'pending',
-      startTime: Date.now()
-    });
-
-    // Create MessageChannel for streaming response
-    const channel = new MessageChannel();
-    let responseMetadata: { status: number; statusText: string; contentType: string } | null = null;
-
-    // Create ReadableStream controlled by worker messages
-    const stream = new ReadableStream({
-      start(controller) {
-        channel.port1.onmessage = (e: MessageEvent<{
-          type: string; 
-          data: ArrayBuffer;
-          error?: string;
-        }>) => {
-          const { type, data, error } = e.data;
-
-          if (type === 'chunk') {
-            // Enqueue chunk from worker
-            controller.enqueue(new Uint8Array(data));
-          } else if (type === 'done') {
-            // Close stream
-            controller.close();
-            channel.port1.close();
-          } else if (type === 'error') {
-            // Error in stream
-            controller.error(new Error(error));
-            channel.port1.close();
-          }
-        };
-      },
-      cancel() {
-        // Cancel upload if stream is cancelled
-        worker.postMessage({ type: 'cancel', uploadId });
-        channel.port1.close();
-        uploadRegistry.updateUpload(uploadId, {
-          status: 'failed',
-          error: 'Cancelled by user',
-          endTime: Date.now()
-        });
-      }
-    });
-
-    // Listen to worker messages
-    const messageHandler = (e: MessageEvent<{
-      type: string;
-      uploadId: string;
-      progress: { loaded: number; total: number; percentage: number };
-      status: number;
-      statusText: string;
-      contentType: string;
-      error: string;
-    }>) => {
-      const { type, uploadId: msgUploadId, progress, status, statusText, contentType, error } = e.data;
-
-      // Only handle messages for this upload
-      if (msgUploadId !== uploadId) return;
-
-      if (type === 'started') {
-        uploadRegistry.updateUpload(uploadId, { status: 'uploading' });
-      } else if (type === 'progress') {
-        uploadRegistry.updateUpload(uploadId, { progress });
-        if (onProgress) {
-          fileUploadDebug("Upload progress", { percentage: progress.percentage });
-          onProgress(progress);
-        }
-      } else if (type === 'responseStart') {
-        // Store response metadata
-        responseMetadata = { status, statusText, contentType };
-      } else if (type === 'complete') {
-        fileUploadDebug("Upload completed successfully");
-        uploadRegistry.updateUpload(uploadId, {
-          status: 'completed',
-          endTime: Date.now(),
-          progress: { loaded: fileSize, total: fileSize, percentage: 100 }
-        });
-
-        // Resolve with Response containing the stream
-        if (responseMetadata) {
-          resolve(new Response(stream, {
-            status: responseMetadata.status,
-            statusText: responseMetadata.statusText,
-            headers: { 'Content-Type': responseMetadata.contentType }
-          }));
-        } else {
-          resolve(new Response(stream));
+        // Extract file info for tracking. FormData is iterable, so this reads the
+        // multipart entries directly (v2 hands the already-built FormData over
+        // instead of the raw input object).
+        let fileName = 'unknown'
+        let fileSize = 0
+        for (const value of input.values()) {
+            if (isFileLike(value)) {
+                fileName = value.name
+                fileSize = value.size
+                break
+            }
         }
 
-        // Cleanup listener
-        worker.removeEventListener('message', messageHandler);
-      } else if (type === 'error') {
-        fileUploadDebug("Upload failed", { error });
-        uploadRegistry.updateUpload(uploadId, {
-          status: 'failed',
-          error,
-          endTime: Date.now()
-        });
+        // Add to registry
+        uploadRegistry.addUpload({
+            id: uploadId,
+            endpoint,
+            fileName,
+            fileSize,
+            progress: { loaded: 0, total: fileSize, percentage: 0 },
+            status: 'pending',
+            startTime: Date.now(),
+        })
 
-        reject(new Error(error));
-        worker.removeEventListener('message', messageHandler);
-      }
-    };
+        // Create MessageChannel for streaming response
+        const channel = new MessageChannel()
+        let responseMetadata: {
+            status: number
+            statusText: string
+            contentType: string
+        } | null = null
 
-    worker.addEventListener('message', messageHandler);
+        // Create ReadableStream controlled by worker messages
+        const stream = new ReadableStream({
+            start(controller) {
+                channel.port1.onmessage = (
+                    e: MessageEvent<{
+                        type: string
+                        data: ArrayBuffer
+                        error?: string
+                    }>
+                ) => {
+                    const { type, data, error } = e.data
 
-    // Start upload (transfer port2 to worker)
-    worker.postMessage({
-      type: 'upload',
-      uploadId,
-      input,
-      endpoint,
-      port: channel.port2
-    }, [channel.port2]);
-  });
+                    if (type === 'chunk') {
+                        // Enqueue chunk from worker
+                        controller.enqueue(new Uint8Array(data))
+                    } else if (type === 'done') {
+                        // Close stream
+                        controller.close()
+                        channel.port1.close()
+                    } else if (type === 'error') {
+                        // Error in stream
+                        controller.error(new Error(error))
+                        channel.port1.close()
+                    }
+                }
+            },
+            cancel() {
+                // Cancel upload if stream is cancelled
+                worker.postMessage({ type: 'cancel', uploadId })
+                channel.port1.close()
+                uploadRegistry.updateUpload(uploadId, {
+                    status: 'failed',
+                    error: 'Cancelled by user',
+                    endTime: Date.now(),
+                })
+            },
+        })
+
+        // Listen to worker messages
+        const messageHandler = (
+            e: MessageEvent<{
+                type: string
+                uploadId: string
+                progress: { loaded: number; total: number; percentage: number }
+                status: number
+                statusText: string
+                contentType: string
+                error: string
+            }>
+        ) => {
+            const {
+                type,
+                uploadId: msgUploadId,
+                progress,
+                status,
+                statusText,
+                contentType,
+                error,
+            } = e.data
+
+            // Only handle messages for this upload
+            if (msgUploadId !== uploadId) return
+
+            if (type === 'started') {
+                uploadRegistry.updateUpload(uploadId, { status: 'uploading' })
+            } else if (type === 'progress') {
+                uploadRegistry.updateUpload(uploadId, { progress })
+                if (onProgress) {
+                    fileUploadDebug('Upload progress', {
+                        percentage: progress.percentage,
+                    })
+                    onProgress(progress)
+                }
+            } else if (type === 'responseStart') {
+                // Store response metadata
+                responseMetadata = { status, statusText, contentType }
+            } else if (type === 'complete') {
+                fileUploadDebug('Upload completed successfully')
+                uploadRegistry.updateUpload(uploadId, {
+                    status: 'completed',
+                    endTime: Date.now(),
+                    progress: {
+                        loaded: fileSize,
+                        total: fileSize,
+                        percentage: 100,
+                    },
+                })
+
+                // Resolve with Response containing the stream
+                if (responseMetadata) {
+                    resolve(
+                        new Response(stream, {
+                            status: responseMetadata.status,
+                            statusText: responseMetadata.statusText,
+                            headers: {
+                                'Content-Type': responseMetadata.contentType,
+                            },
+                        })
+                    )
+                } else {
+                    resolve(new Response(stream))
+                }
+
+                // Cleanup listener
+                worker.removeEventListener('message', messageHandler)
+            } else if (type === 'error') {
+                fileUploadDebug('Upload failed', { error })
+                uploadRegistry.updateUpload(uploadId, {
+                    status: 'failed',
+                    error,
+                    endTime: Date.now(),
+                })
+
+                reject(new Error(error))
+                worker.removeEventListener('message', messageHandler)
+            }
+        }
+
+        worker.addEventListener('message', messageHandler)
+
+        // Start upload (transfer port2 to worker)
+        worker.postMessage(
+            {
+                type: 'upload',
+                uploadId,
+                input,
+                endpoint,
+                port: channel.port2,
+            },
+            [channel.port2]
+        )
+    })
 }
 
 /**
  * Check if input contains File objects
  */
 function containsFile(input: unknown): boolean {
-  if (!input || typeof input !== 'object') return false;
+    if (!input || typeof input !== 'object') return false
 
-  if (input instanceof File) return true;
+    if (input instanceof File) return true
 
-  if (Array.isArray(input)) {
-    return input.some(item => containsFile(item));
-  }
+    if (Array.isArray(input)) {
+        return input.some((item) => containsFile(item))
+    }
 
-  return Object.values(input).some(value => containsFile(value));
+    return Object.values(input).some((value) => containsFile(value))
 }
 
 /**
@@ -470,100 +510,108 @@ function containsFile(input: unknown): boolean {
  * Note: This checks the INFERRED TypeScript type, not the Zod schema
  */
 type HasFileInType<T> = T extends File
-  ? true
-  : T extends (infer Element)[]
-    ? HasFileInType<Element>
-    : T extends object
-      ? keyof T extends never
-        ? false // Empty object has no keys, no File
-        : true extends { [K in keyof T]: HasFileInType<T[K]> }[keyof T]
-          ? true
-          : false
-      : false;
+    ? true
+    : T extends (infer Element)[]
+      ? HasFileInType<Element>
+      : T extends object
+        ? keyof T extends never
+            ? false // Empty object has no keys, no File
+            : true extends { [K in keyof T]: HasFileInType<T[K]> }[keyof T]
+              ? true
+              : false
+        : false
 
 /**
  * Transform a client type to extend context with FileUploadContext ONLY for routes with files
  * Routes without files will NOT have FileUploadContext in their type
  */
-export type WithFileUploadsClient<T extends NestedClient<ClientContext>> = 
-  T extends Client<infer UContext, infer UInput, infer UOutput, infer UError>
-    ? HasFileInType<UInput> extends true
-      ? Client<UContext & FileUploadContext, UInput, UOutput, UError>
-      : Client<UContext, UInput, UOutput, UError>
-    : {
-        [K in keyof T]: T[K] extends NestedClient<ClientContext> 
-          ? WithFileUploadsClient<T[K]>
-          : T[K]
-      }
+export type WithFileUploadsClient<T extends NestedClient<ClientContext>> =
+    T extends Client<infer UContext, infer UInput, infer UOutput, infer UError>
+        ? HasFileInType<UInput> extends true
+            ? Client<UContext & FileUploadContext, UInput, UOutput, UError>
+            : Client<UContext, UInput, UOutput, UError>
+        : {
+              [K in keyof T]: T[K] extends NestedClient<ClientContext>
+                  ? WithFileUploadsClient<T[K]>
+                  : T[K]
+          }
 
 /**
  * Custom OpenAPILink that handles file uploads with progress tracking
  */
-export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenAPILink<TContext> {
-  constructor(
-    contract: AnyContractRouter,
-    options: ConstructorParameters<typeof OpenAPILink<TContext>>[1]
-  ) {
-    // Store original fetch function
-    const originalFetch = options?.fetch;
+export class FileUploadOpenAPILink<
+    TContext extends ClientContext,
+> extends OpenAPILink<TContext> {
+    constructor(
+        contract: AnyContractRouter,
+        options: ConstructorParameters<typeof OpenAPILink<TContext>>[1]
+    ) {
+        // Store original fetch function
+        const originalFetch = options?.fetch
 
-    // Create wrapped fetch function.
-    //
-    // oRPC v2 dropped the `input` argument from the fetch transport signature
-    // (`(url, init, options, path)`), so file uploads can no longer be detected
-    // by walking the validated input. `init.body` is the reliable signal
-    // instead: the standard-server codec hands FormData straight to fetch for
-    // multipart requests (it clears content-type and returns the FormData
-    // object as-is), while JSON payloads arrive as a stream.
-    const wrappedFetch: typeof originalFetch = async (
-      url: string,
-      init: RequestInit,
-      linkOptions: Parameters<NonNullable<typeof originalFetch>>[2],
-      path: Parameters<NonNullable<typeof originalFetch>>[3],
-    ) => {
-      const requestUrl = url;
+        // Create wrapped fetch function.
+        //
+        // oRPC v2 dropped the `input` argument from the fetch transport signature
+        // (`(url, init, options, path)`), so file uploads can no longer be detected
+        // by walking the validated input. `init.body` is the reliable signal
+        // instead: the standard-server codec hands FormData straight to fetch for
+        // multipart requests (it clears content-type and returns the FormData
+        // object as-is), while JSON payloads arrive as a stream.
+        const wrappedFetch: typeof originalFetch = async (
+            url: string,
+            init: RequestInit,
+            linkOptions: Parameters<NonNullable<typeof originalFetch>>[2],
+            path: Parameters<NonNullable<typeof originalFetch>>[3]
+        ) => {
+            const requestUrl = url
 
-      // Only a multipart request carrying a declared progress callback can be
-      // uploaded through the XHR worker; everything else takes plain fetch.
-      const isFormData =
-        typeof FormData !== "undefined" && init.body instanceof FormData;
-      const onProgress = (
-        linkOptions.context as {
-          onProgress?: (event: {
-            loaded: number;
-            total: number;
-            percentage: number;
-          }) => void;
+            // Only a multipart request carrying a declared progress callback can be
+            // uploaded through the XHR worker; everything else takes plain fetch.
+            const isFormData =
+                typeof FormData !== 'undefined' && init.body instanceof FormData
+            const onProgress = (
+                linkOptions.context as {
+                    onProgress?: (event: {
+                        loaded: number
+                        total: number
+                        percentage: number
+                    }) => void
+                }
+            ).onProgress
+
+            if (isFormData && onProgress && typeof window !== 'undefined') {
+                fileUploadDebug(
+                    'Intercepted file upload, using XMLHttpRequest for progress'
+                )
+
+                try {
+                    const response = await uploadWithWorker(
+                        init.body as FormData,
+                        requestUrl,
+                        onProgress
+                    )
+
+                    // Return the streamed Response directly
+                    return response
+                } catch (error) {
+                    fileUploadDebug('Error during XHR upload', { error })
+                    // Fall through to regular fetch on error
+                }
+            }
+
+            // Use regular fetch for non-file uploads or if XHR failed
+            if (originalFetch) {
+                return originalFetch(url, init, linkOptions, path)
+            }
+
+            // Fallback to standard fetch (shouldn't happen with OpenAPILink)
+            return fetch(url, init)
         }
-      ).onProgress;
 
-      if (isFormData && onProgress && typeof window !== "undefined") {
-        fileUploadDebug("Intercepted file upload, using XMLHttpRequest for progress");
-
-        try {
-          const response = await uploadWithWorker(init.body as FormData, requestUrl, onProgress);
-
-          // Return the streamed Response directly
-          return response;
-        } catch (error) {
-          fileUploadDebug("Error during XHR upload", { error });
-          // Fall through to regular fetch on error
-        }
-      }
-
-      // Use regular fetch for non-file uploads or if XHR failed
-      if (originalFetch) {
-        return originalFetch(url, init, linkOptions, path);
-      }
-
-      // Fallback to standard fetch (shouldn't happen with OpenAPILink)
-      return fetch(url, init);
-    };
-
-    // Call parent constructor with wrapped fetch
-    super(contract, {
-      ...options,
-      fetch: wrappedFetch
-    });
-  }
+        // Call parent constructor with wrapped fetch
+        super(contract, {
+            ...options,
+            fetch: wrappedFetch,
+        })
+    }
 }

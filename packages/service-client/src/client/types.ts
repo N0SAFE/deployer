@@ -1,25 +1,25 @@
-import type { ContractRouterClient, RouterContract } from "@orpc/contract";
+import type { ContractRouterClient, RouterContract } from '@orpc/contract'
 
 /** A callable member of a client — an oRPC procedure, or a nested router. */
-type Procedure = (...args: never[]) => unknown;
+type Procedure = (...args: never[]) => unknown
 
 /** Turns a union of records into one record (the standard TS idiom). */
-type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
-	k: infer I,
-) => void
-	? I
-	: never;
+type UnionToIntersection<U> = (
+    U extends unknown ? (k: U) => void : never
+) extends (k: infer I) => void
+    ? I
+    : never
 
 /** `3 -> 2 -> 1 -> 0 -> never`, so the recursion below has a hard floor. */
 type Prev<N extends number> = N extends 0
-	? never
-	: N extends 1
-		? 0
-		: N extends 2
-			? 1
-			: N extends 3
-				? 2
-				: 0;
+    ? never
+    : N extends 1
+      ? 0
+      : N extends 2
+        ? 1
+        : N extends 3
+          ? 2
+          : 0
 
 /**
  * Every callable reachable from `T`, re-keyed by its LAST path segment.
@@ -39,16 +39,16 @@ type Prev<N extends number> = N extends 0
  * missing, and the namespaced path is always available.
  */
 export type FlatLeaves<T, Depth extends number = 3> = UnionToIntersection<
-	{
-		[K in keyof T]: T[K] extends Procedure
-			? { [P in K]: T[K] }
-			: Depth extends 0
-				? never
-				: T[K] extends object
-					? FlatLeaves<T[K], Prev<Depth>>
-					: never;
-	}[keyof T]
->;
+    {
+        [K in keyof T]: T[K] extends Procedure
+            ? { [P in K]: T[K] }
+            : Depth extends 0
+              ? never
+              : T[K] extends object
+                ? FlatLeaves<T[K], Prev<Depth>>
+                : never
+    }[keyof T]
+>
 
 /**
  * What a bound service client looks like: the real tree, the flattened procedures,
@@ -68,10 +68,10 @@ export type FlatLeaves<T, Depth extends number = 3> = UnionToIntersection<
  * this design avoids.
  */
 export type ServiceClient<T extends RouterContract> = ContractRouterClient<T> &
-	FlatLeaves<ContractRouterClient<T>> & {
-		/** The unprefixed client, for when a name collides at the root. */
-		readonly raw: ContractRouterClient<T>;
-	};
+    FlatLeaves<ContractRouterClient<T>> & {
+        /** The unprefixed client, for when a name collides at the root. */
+        readonly raw: ContractRouterClient<T>
+    }
 
 /**
  * What an addressable service looks like from the outside.
@@ -84,6 +84,9 @@ export type ServiceClient<T extends RouterContract> = ContractRouterClient<T> &
  * should know about. This is the seam that keeps that dependency one-way.
  */
 export type ServiceClientBinder = {
-	/** The bound client for `service`, driven by `contract`. */
-	bind<T extends RouterContract>(service: string, contract: T): ServiceClient<T>;
+    /** The bound client for `service`, driven by `contract`. */
+    bind<T extends RouterContract>(
+        service: string,
+        contract: T
+    ): ServiceClient<T>
 }

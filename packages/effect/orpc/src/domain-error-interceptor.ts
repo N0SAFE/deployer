@@ -1,11 +1,10 @@
-import { onError } from "@orpc/server";
+import { onError } from '@orpc/server'
 
-import { isDomainError } from "@deployer/effect-core";
+import { isDomainError } from '@deployer/effect-core'
 
-import { mapDomainError } from "./map-domain-error";
+import { mapDomainError } from './map-domain-error'
 
-import type { Interceptor } from "@orpc/shared";
-
+import type { Interceptor } from '@orpc/shared'
 
 /**
  * oRPC interceptor for code that THROWS a domain error (Promise-based services, middleware)
@@ -14,7 +13,7 @@ import type { Interceptor } from "@orpc/shared";
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the host accepts interceptors of any context
 export function domainErrorInterceptor(): Interceptor<any, any> {
-	return onError((error: unknown) => {
-		if (isDomainError(error)) throw mapDomainError(error);
-	});
+    return onError((error: unknown) => {
+        if (isDomainError(error)) throw mapDomainError(error)
+    })
 }

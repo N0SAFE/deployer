@@ -41,27 +41,27 @@ config/auth/permissions/
 ```typescript
 // Import from main entry point
 import {
-  // Built configuration
-  statement,        // Statement definitions
-  ac,              // Access control instance
-  roles,           // Role definitions
-  
-  // Common permissions
-  commonPermissions,
-  
-  // System classes (if building custom permissions)
-  PermissionBuilder,
-  StatementsConfig,
-  StatementConfigCollection,
-  RolesConfig,
-  RoleConfigCollection,
-} from '@/config/auth/permissions';
+    // Built configuration
+    statement, // Statement definitions
+    ac, // Access control instance
+    roles, // Role definitions
+
+    // Common permissions
+    commonPermissions,
+
+    // System classes (if building custom permissions)
+    PermissionBuilder,
+    StatementsConfig,
+    StatementConfigCollection,
+    RolesConfig,
+    RoleConfigCollection,
+} from '@/config/auth/permissions'
 
 // Or import directly from system
-import { 
-  PermissionBuilder,
-  RoleConfigCollection 
-} from '@/config/auth/permissions/system';
+import {
+    PermissionBuilder,
+    RoleConfigCollection,
+} from '@/config/auth/permissions/system'
 ```
 
 ### 2. Use Pre-Built Configuration
@@ -69,20 +69,20 @@ import {
 The system comes with a pre-built configuration exported from `index.ts`:
 
 ```typescript
-import { statement, ac, roles } from '@/config/auth/permissions';
+import { statement, ac, roles } from '@/config/auth/permissions'
 
 // Use in Better Auth configuration
 betterAuth({
-  plugins: [
-    admin({
-      ac: {
-        statement,
-        ac,
-        roles,
-      },
-    }),
-  ],
-});
+    plugins: [
+        admin({
+            ac: {
+                statement,
+                ac,
+                roles,
+            },
+        }),
+    ],
+})
 ```
 
 ### 3. Use Common Permissions
@@ -109,10 +109,10 @@ Statements define what resources exist and what actions can be performed on them
 
 ```typescript
 const statement = {
-  user: ['create', 'read', 'update', 'delete', 'ban'],
-  project: ['create', 'read', 'update', 'delete', 'share'],
-  organization: ['create', 'read', 'manage-members'],
-};
+    user: ['create', 'read', 'update', 'delete', 'ban'],
+    project: ['create', 'read', 'update', 'delete', 'share'],
+    organization: ['create', 'read', 'manage-members'],
+}
 ```
 
 ### 2. Roles
@@ -121,22 +121,22 @@ Roles define what permissions a user has:
 
 ```typescript
 const roles = {
-  admin: ac.newRole({
-    user: ['*'],        // All user actions
-    project: ['*'],     // All project actions
-    organization: ['*'], // All organization actions
-  }),
-  
-  editor: ac.newRole({
-    project: ['create', 'read', 'update'],
-    organization: ['read'],
-  }),
-  
-  viewer: ac.newRole({
-    project: ['read'],
-    organization: ['read'],
-  }),
-};
+    admin: ac.newRole({
+        user: ['*'], // All user actions
+        project: ['*'], // All project actions
+        organization: ['*'], // All organization actions
+    }),
+
+    editor: ac.newRole({
+        project: ['create', 'read', 'update'],
+        organization: ['read'],
+    }),
+
+    viewer: ac.newRole({
+        project: ['read'],
+        organization: ['read'],
+    }),
+}
 ```
 
 ### 3. Access Control
@@ -146,14 +146,14 @@ The `ac` (access control) object is used to create roles and check permissions:
 ```typescript
 // Create a role
 const role = ac.newRole({
-  project: ['create', 'read'],
-});
+    project: ['create', 'read'],
+})
 
 // Check permissions (done by Better Auth)
 const hasPermission = await auth.api.userHasPermission({
-  userId: user.id,
-  permissions: { project: ['create'] },
-});
+    userId: user.id,
+    permissions: { project: ['create'] },
+})
 ```
 
 ## Building Custom Permissions
@@ -163,35 +163,37 @@ const hasPermission = await auth.api.userHasPermission({
 The builder provides a fluent API for creating permissions:
 
 ```typescript
-import { PermissionBuilder } from '@/config/auth/permissions/system';
-import { defaultStatements } from 'better-auth/plugins/admin';
+import { PermissionBuilder } from '@/config/auth/permissions/system'
+import { defaultStatements } from 'better-auth/plugins/admin'
 
-const { statement, ac, roles } = PermissionBuilder
-  .withDefaults(defaultStatements)
-  
-  // Define resources and their actions
-  .resources({
-    project: ['create', 'read', 'update', 'delete', 'share'],
-    organization: ['create', 'read', 'manage-members'],
-  })
-  
-  // Define roles
-  .roles((ac) => ({
-    admin: ac.newRole({
-      project: ['*'],
-      organization: ['*'],
-    }),
-    editor: ac.newRole({
-      project: ['create', 'read', 'update'],
-    }),
-  }))
-  
-  .build();
+const { statement, ac, roles } = PermissionBuilder.withDefaults(
+    defaultStatements
+)
 
-export { statement, ac, roles };
+    // Define resources and their actions
+    .resources({
+        project: ['create', 'read', 'update', 'delete', 'share'],
+        organization: ['create', 'read', 'manage-members'],
+    })
+
+    // Define roles
+    .roles((ac) => ({
+        admin: ac.newRole({
+            project: ['*'],
+            organization: ['*'],
+        }),
+        editor: ac.newRole({
+            project: ['create', 'read', 'update'],
+        }),
+    }))
+
+    .build()
+
+export { statement, ac, roles }
 ```
 
 **Key Points:**
+
 - Always start with `.withDefaults()` to include Better Auth's built-in resources
 - Use `.resources()` for batch resource definition
 - Use `.roles()` to define all roles at once
@@ -203,14 +205,15 @@ The system provides **compile-time type safety**:
 
 ```typescript
 // ✅ Valid - 'read' exists in statements
-statementsConfig.getAll().pick(['read'] as const);
+statementsConfig.getAll().pick(['read'] as const)
 
 // ❌ Type Error - 'invalid' doesn't exist
-statementsConfig.getAll().pick(['invalid'] as const);
+statementsConfig.getAll().pick(['invalid'] as const)
 // TypeScript error: Type '"invalid"' is not assignable to type AllActions<TStatement>
 ```
 
 **Benefits:**
+
 - Catch typos at compile time
 - IDE auto-completion for valid actions
 - Refactoring safety
@@ -223,29 +226,26 @@ statementsConfig.getAll().pick(['invalid'] as const);
 The statement collection API allows batch operations on multiple resources:
 
 ```typescript
-import { statementsConfig } from '@/config/auth/permissions';
+import { statementsConfig } from '@/config/auth/permissions'
 
 // Get all resources with only 'read' action
-const readOnly = statementsConfig.getAll().readOnly();
+const readOnly = statementsConfig.getAll().readOnly()
 // Returns: { user: ['read'], project: ['read'], ... }
 
 // Get all resources with CRUD actions
-const crud = statementsConfig.getAll().crudOnly();
+const crud = statementsConfig.getAll().crudOnly()
 // Returns: { user: ['create', 'read', 'update', 'delete'], ... }
 
 // Get specific resources
-const userProject = statementsConfig
-  .getMany(['user', 'project'])
-  .all();
+const userProject = statementsConfig.getMany(['user', 'project']).all()
 
 // Filter by action
-const withCreate = statementsConfig
-  .getAll()
-  .withAction('create');
+const withCreate = statementsConfig.getAll().withAction('create')
 // Returns only resources that have 'create' action
 ```
 
 **Key Methods for Statements:**
+
 - `.all()` - Get all actions for all resources
 - `.readOnly()` - Only 'read' action
 - `.writeOnly()` - Only write actions (create, update, delete)
@@ -261,38 +261,39 @@ const withCreate = statementsConfig
 The role collection API allows batch operations on multiple roles with type-safe filtering:
 
 ```typescript
-import { rolesConfig } from '@/config/auth/permissions';
+import { rolesConfig } from '@/config/auth/permissions'
 
 // Get all roles as a collection
-const allRoles = rolesConfig.getAll();
+const allRoles = rolesConfig.getAll()
 
 // Filter roles with 'delete' permission
-const deleteCapableRoles = allRoles.withAction('delete');
+const deleteCapableRoles = allRoles.withAction('delete')
 // Returns only roles that have 'delete' action on any resource
 
 // Filter roles with access to specific resource
-const projectRoles = allRoles.withResource('project');
+const projectRoles = allRoles.withResource('project')
 // Returns only roles that have access to 'project' resource
 
 // Filter roles that can create projects
-const projectCreators = allRoles.withActionOnResource('project', 'create');
+const projectCreators = allRoles.withActionOnResource('project', 'create')
 // Returns only roles that can create projects
 
 // Get only read-only roles
-const readOnlyRoles = allRoles.readOnly();
+const readOnlyRoles = allRoles.readOnly()
 // Returns roles with only 'read' permissions
 
 // Get only write roles
-const writeRoles = allRoles.writeOnly();
+const writeRoles = allRoles.writeOnly()
 // Returns roles with write permissions (create, update, delete)
 
 // Get specific roles as collection
-const adminManager = rolesConfig.getMany(['admin', 'manager'] as const, true);
-const withDelete = adminManager.withAction('delete');
+const adminManager = rolesConfig.getMany(['admin', 'manager'] as const, true)
+const withDelete = adminManager.withAction('delete')
 // Returns only admin/manager roles that have 'delete' permission
 ```
 
 **Key Methods for Roles:**
+
 - `.withResource(resource)` - Filter roles with specific resource access
 - `.withAction(action)` - Filter roles with action on any resource
 - `.withActionOnResource(resource, action)` - Filter roles with action on specific resource
@@ -309,17 +310,17 @@ Both statement and role collections provide compile-time type safety:
 
 ```typescript
 // ✅ Valid - 'create' exists in statements
-statementsConfig.getAll().withAction('create');
+statementsConfig.getAll().withAction('create')
 
 // ❌ Type Error - 'invalid' doesn't exist
-statementsConfig.getAll().withAction('invalid');
+statementsConfig.getAll().withAction('invalid')
 // TypeScript error: Type '"invalid"' is not assignable to AllActions<TStatement>
 
 // ✅ Valid - 'project' resource exists
-rolesConfig.getAll().withResource('project');
+rolesConfig.getAll().withResource('project')
 
 // ❌ Type Error - 'invalid' resource doesn't exist
-rolesConfig.getAll().withResource('invalid');
+rolesConfig.getAll().withResource('invalid')
 // TypeScript error: Type '"invalid"' is not assignable to AllRoleResources<TRoles>
 ```
 
@@ -328,38 +329,37 @@ rolesConfig.getAll().withResource('invalid');
 ### Protect Routes with Decorators
 
 ```typescript
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@/core/modules/auth/guards/auth.guard';
-import { RoleGuard } from '@/core/modules/auth/guards/role.guard';
-import { RequireRole, RequirePermissions } from '@/core/modules/auth/decorators';
+import { Controller, Get, Post, UseGuards } from '@nestjs/common'
+import { AuthGuard } from '@/core/modules/auth/guards/auth.guard'
+import { RoleGuard } from '@/core/modules/auth/guards/role.guard'
+import { RequireRole, RequirePermissions } from '@/core/modules/auth/decorators'
 
 @Controller('projects')
 @UseGuards(AuthGuard, RoleGuard)
 export class ProjectsController {
-  
-  // Require specific role
-  @Get()
-  @RequireRole('admin', 'manager')
-  findAll() {
-    return { message: 'List of projects' };
-  }
-  
-  // Require specific permissions
-  @Post()
-  @RequirePermissions({
-    project: ['create'],
-    organization: ['read'],
-  })
-  create() {
-    return { message: 'Project created' };
-  }
-  
-  // Use common permission pattern
-  @Post('/admin')
-  @RequireCommonPermission('projectFullAccess')
-  adminCreate() {
-    return { message: 'Admin project created' };
-  }
+    // Require specific role
+    @Get()
+    @RequireRole('admin', 'manager')
+    findAll() {
+        return { message: 'List of projects' }
+    }
+
+    // Require specific permissions
+    @Post()
+    @RequirePermissions({
+        project: ['create'],
+        organization: ['read'],
+    })
+    create() {
+        return { message: 'Project created' }
+    }
+
+    // Use common permission pattern
+    @Post('/admin')
+    @RequireCommonPermission('projectFullAccess')
+    adminCreate() {
+        return { message: 'Admin project created' }
+    }
 }
 ```
 
@@ -518,14 +518,15 @@ collection.pick(['read', 'create'] as const)
 ```typescript
 // Set role
 await authClient.admin.setRole({
-  userId: user.id,
-  role: 'admin',
-});
+    userId: user.id,
+    role: 'admin',
+})
 ```
 
 ## Support
 
 For questions or issues:
+
 1. Check the documentation files in `docs/`
 2. Review the type safety guide in `system/TYPE_SAFETY.md`
 3. Look at real-world examples in `BUILDER-EXAMPLES.md`

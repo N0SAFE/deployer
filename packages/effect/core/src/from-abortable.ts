@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
 /**
  * Lift a Promise-returning API into an Effect **that honours interruption**.
@@ -16,10 +16,10 @@ import { Effect } from "effect";
  * function's declared arity.
  */
 export const fromAbortable = <A, E>(
-  attempt: (signal: AbortSignal) => PromiseLike<A>,
-  mapError: (cause: unknown) => E,
+    attempt: (signal: AbortSignal) => PromiseLike<A>,
+    mapError: (cause: unknown) => E
 ): Effect.Effect<A, E> =>
-  Effect.tryPromise({
-    try: (signal) => attempt(signal),
-    catch: mapError,
-  });
+    Effect.tryPromise({
+        try: (signal) => attempt(signal),
+        catch: mapError,
+    })

@@ -1,113 +1,118 @@
-import defaultMdxComponents from 'fumadocs-ui/mdx';
-import { createElement, isValidElement } from 'react';
+import defaultMdxComponents from 'fumadocs-ui/mdx'
+import { createElement, isValidElement } from 'react'
 
-import { DocCallout } from './components/docs/DocCallout';
-import { DocCard, DocCardGrid } from './components/docs/DocCardGrid';
-import { DocChart } from './components/docs/DocChart';
-import { DocChecklist } from './components/docs/DocChecklist';
-import { DocMeta } from './components/docs/DocMeta';
-import { DocStepFlow } from './components/docs/DocStepFlow';
-import { MermaidDiagram } from './components/docs/MermaidDiagram';
-import { MeshLifecycle } from './components/docs/mesh/MeshLifecycle';
-import { MeshRelayDecision } from './components/docs/mesh/MeshRelayDecision';
-import { MeshStories } from './components/docs/mesh/MeshStories';
+import { DocCallout } from './components/docs/DocCallout'
+import { DocCard, DocCardGrid } from './components/docs/DocCardGrid'
+import { DocChart } from './components/docs/DocChart'
+import { DocChecklist } from './components/docs/DocChecklist'
+import { DocMeta } from './components/docs/DocMeta'
+import { DocStepFlow } from './components/docs/DocStepFlow'
+import { MermaidDiagram } from './components/docs/MermaidDiagram'
+import { MeshLifecycle } from './components/docs/mesh/MeshLifecycle'
+import { MeshRelayDecision } from './components/docs/mesh/MeshRelayDecision'
+import { MeshStories } from './components/docs/mesh/MeshStories'
 
-import type { MDXComponents } from 'mdx/types';
-import type { ComponentProps, ReactNode } from 'react';
+import type { MDXComponents } from 'mdx/types'
+import type { ComponentProps, ReactNode } from 'react'
 
 interface NodeProps {
-  className?: string;
-  children?: ReactNode;
+    className?: string
+    children?: ReactNode
 }
 
 function flattenText(node: ReactNode): string | null {
-  if (typeof node === 'string') return node;
-  if (typeof node === 'number') return String(node);
-  if (!node) return null;
+    if (typeof node === 'string') return node
+    if (typeof node === 'number') return String(node)
+    if (!node) return null
 
-  if (Array.isArray(node)) {
-    const parts = node
-      .map(flattenText)
-      .filter((part): part is string => typeof part === 'string' && part.length > 0);
+    if (Array.isArray(node)) {
+        const parts = node
+            .map(flattenText)
+            .filter(
+                (part): part is string =>
+                    typeof part === 'string' && part.length > 0
+            )
 
-    return parts.length > 0 ? parts.join('') : null;
-  }
+        return parts.length > 0 ? parts.join('') : null
+    }
 
-  if (isValidElement<NodeProps>(node)) {
-    return flattenText(node.props.children);
-  }
+    if (isValidElement<NodeProps>(node)) {
+        return flattenText(node.props.children)
+    }
 
-  return null;
+    return null
 }
 
 function extractMermaidChart(node: ReactNode): string | null {
-  if (!node) return null;
+    if (!node) return null
 
-  if (Array.isArray(node)) {
-    const children = node as ReactNode[];
-    for (const child of children) {
-      const found = extractMermaidChart(child);
-      if (found) return found;
+    if (Array.isArray(node)) {
+        const children = node as ReactNode[]
+        for (const child of children) {
+            const found = extractMermaidChart(child)
+            if (found) return found
+        }
+        return null
     }
-    return null;
-  }
 
-  if (!isValidElement<NodeProps>(node)) return null;
+    if (!isValidElement<NodeProps>(node)) return null
 
-  const className = typeof node.props.className === 'string' ? node.props.className : '';
-  if (className.includes('language-mermaid')) {
-    return flattenText(node.props.children);
-  }
+    const className =
+        typeof node.props.className === 'string' ? node.props.className : ''
+    if (className.includes('language-mermaid')) {
+        return flattenText(node.props.children)
+    }
 
-  return extractMermaidChart(node.props.children);
+    return extractMermaidChart(node.props.children)
 }
 
 type MermaidPreProps = ComponentProps<'pre'> & {
-  children?: ReactNode;
-  'data-language'?: unknown;
-  lang?: unknown;
-};
+    children?: ReactNode
+    'data-language'?: unknown
+    lang?: unknown
+}
 
 function hasMermaidLanguage(props: MermaidPreProps): boolean {
-  const className = typeof props.className === 'string' ? props.className : '';
-  const dataLanguage = typeof props['data-language'] === 'string' ? props['data-language'] : '';
-  const lang = typeof props.lang === 'string' ? props.lang : '';
+    const className = typeof props.className === 'string' ? props.className : ''
+    const dataLanguage =
+        typeof props['data-language'] === 'string' ? props['data-language'] : ''
+    const lang = typeof props.lang === 'string' ? props.lang : ''
 
-  return (
-    className.includes('language-mermaid')
-    || dataLanguage.toLowerCase() === 'mermaid'
-    || lang.toLowerCase() === 'mermaid'
-  );
+    return (
+        className.includes('language-mermaid') ||
+        dataLanguage.toLowerCase() === 'mermaid' ||
+        lang.toLowerCase() === 'mermaid'
+    )
 }
 
 function MermaidAwarePre(props: MermaidPreProps) {
-  const chart = hasMermaidLanguage(props)
-    ? flattenText(props.children)
-    : extractMermaidChart(props.children);
+    const chart = hasMermaidLanguage(props)
+        ? flattenText(props.children)
+        : extractMermaidChart(props.children)
 
-  if (chart) {
-    return <MermaidDiagram chart={chart} />;
-  }
+    if (chart) {
+        return <MermaidDiagram chart={chart} />
+    }
 
-  return createElement(defaultMdxComponents.pre as never, props as never);
+    return createElement(defaultMdxComponents.pre as never, props as never)
 }
 
 export function getMDXComponents(components?: MDXComponents): MDXComponents {
-  return {
-    ...defaultMdxComponents,
-    DocMeta,
-    DocCallout,
-    DocChecklist,
-    DocCard,
-    DocCardGrid,
-    DocStepFlow,
-    MeshLifecycle,
-    MeshRelayDecision,
-    MeshStories,
-    Mermaid: MermaidDiagram,
-    DocChart,
-    Chart: DocChart,
-    pre: MermaidAwarePre,
-    ...components,
-  };
+    return {
+        ...defaultMdxComponents,
+        DocMeta,
+        DocCallout,
+        DocChecklist,
+        DocCard,
+        DocCardGrid,
+        DocStepFlow,
+        MeshLifecycle,
+        MeshRelayDecision,
+        MeshStories,
+        Mermaid: MermaidDiagram,
+        DocChart,
+        Chart: DocChart,
+        pre: MermaidAwarePre,
+        ...components,
+    }
 }

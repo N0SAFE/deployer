@@ -1,8 +1,8 @@
-import { Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common'
 
-import type * as localSchema from '@deployer/nest-schema/local';
+import type * as localSchema from '@deployer/nest-schema/local'
 
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 
 /**
  * Drop every table in the local SQLite file.
@@ -35,21 +35,25 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
  * `PRAGMA foreign_keys` is a no-op inside a transaction, so this must stay a
  * bare statement.
  */
-export function resetLocal(localDb: BunSQLiteDatabase<typeof localSchema>): void {
-  const logger = new Logger('resetLocal');
+export function resetLocal(
+    localDb: BunSQLiteDatabase<typeof localSchema>
+): void {
+    const logger = new Logger('resetLocal')
 
-  const tables = localDb.all<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-  );
+    const tables = localDb.all<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+    )
 
-  localDb.run("PRAGMA foreign_keys=OFF");
-  // Quoted because the names come from the database rather than from literals —
-  // `cluster_nodes` needs no quoting today, but a name that is a keyword or
-  // contains a dot would make the statement fail where nobody is reading.
-  for (const { name } of tables) {
-    localDb.run(`DROP TABLE IF EXISTS "${name}"`);
-  }
-  localDb.run("PRAGMA foreign_keys=ON");
+    localDb.run('PRAGMA foreign_keys=OFF')
+    // Quoted because the names come from the database rather than from literals —
+    // `cluster_nodes` needs no quoting today, but a name that is a keyword or
+    // contains a dot would make the statement fail where nobody is reading.
+    for (const { name } of tables) {
+        localDb.run(`DROP TABLE IF EXISTS "${name}"`)
+    }
+    localDb.run('PRAGMA foreign_keys=ON')
 
-  logger.log(`✅ Local database reset completed — ${String(tables.length)} tables dropped`);
+    logger.log(
+        `✅ Local database reset completed — ${String(tables.length)} tables dropped`
+    )
 }

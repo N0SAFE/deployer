@@ -1,26 +1,26 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 import {
     Command,
     CommandEmpty,
     CommandGroup,
     CommandItem,
     CommandList,
-} from "@/components/ui/command"
+} from '@/components/ui/command'
 import {
     InputGroup,
     InputGroupAddon,
     InputGroupInput,
-} from "@/components/ui/input-group"
-import { Spinner } from "@/components/ui/spinner"
-import type { BBox, Feature, FeatureCollection, Point } from "geojson"
-import { MapPinIcon, SearchIcon } from "lucide-react"
-import * as React from "react"
+} from '@/components/ui/input-group'
+import { Spinner } from '@/components/ui/spinner'
+import type { BBox, Feature, FeatureCollection, Point } from 'geojson'
+import { MapPinIcon, SearchIcon } from 'lucide-react'
+import * as React from 'react'
 
 interface PlaceFeatureProperties {
     osm_id: number
-    osm_type: "N" | "W" | "R"
+    osm_type: 'N' | 'W' | 'R'
     osm_key: string
     osm_value: string
     type: string
@@ -73,8 +73,9 @@ interface PlaceSearchOptions {
 }
 
 interface PlaceAutocompleteProps
-    extends Omit<PlaceSearchOptions, "query">,
-        Omit<React.ComponentProps<"input">, "value" | "onChange"> {
+    extends
+        Omit<PlaceSearchOptions, 'query'>,
+        Omit<React.ComponentProps<'input'>, 'value' | 'onChange'> {
     debounceMs?: number
     value?: string
     defaultValue?: string
@@ -110,7 +111,7 @@ function formatAddress(properties: PlaceFeatureProperties) {
         parts.push(properties.country)
     }
 
-    return [...new Set(parts)].join(", ")
+    return [...new Set(parts)].join(', ')
 }
 
 function buildSearchUrl({
@@ -123,32 +124,32 @@ function buildSearchUrl({
     lon,
     zoom,
 }: PlaceSearchOptions) {
-    const url = new URL("https://photon.komoot.io/api")
-    url.searchParams.set("q", query)
+    const url = new URL('https://photon.komoot.io/api')
+    url.searchParams.set('q', query)
 
     if (lang) {
-        url.searchParams.set("lang", lang)
+        url.searchParams.set('lang', lang)
     }
 
     if (limit) {
-        url.searchParams.set("limit", String(limit))
+        url.searchParams.set('limit', String(limit))
     }
 
     if (bbox) {
-        url.searchParams.set("bbox", bbox.join(","))
+        url.searchParams.set('bbox', bbox.join(','))
     }
 
     if (lat !== undefined && lon !== undefined) {
-        url.searchParams.set("lat", String(lat))
-        url.searchParams.set("lon", String(lon))
+        url.searchParams.set('lat', String(lat))
+        url.searchParams.set('lon', String(lon))
     }
 
     if (zoom !== undefined) {
-        url.searchParams.set("zoom", String(zoom))
+        url.searchParams.set('zoom', String(zoom))
     }
 
     if (locationBiasScale !== undefined) {
-        url.searchParams.set("location_bias_scale", String(locationBiasScale))
+        url.searchParams.set('location_bias_scale', String(locationBiasScale))
     }
 
     return String(url)
@@ -158,8 +159,12 @@ function useDebounce<T>(value: T, delay = 300) {
     const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
 
     React.useEffect(() => {
-        const timer = setTimeout(() => { setDebouncedValue(value); }, delay)
-        return () => { clearTimeout(timer); }
+        const timer = setTimeout(() => {
+            setDebouncedValue(value)
+        }, delay)
+        return () => {
+            clearTimeout(timer)
+        }
     }, [value, delay])
 
     return debouncedValue
@@ -216,7 +221,7 @@ function usePlaceSearch({
                 })
                 setResults(dedupedFeatures)
             } catch (err) {
-                if (err instanceof Error && err.name !== "AbortError") {
+                if (err instanceof Error && err.name !== 'AbortError') {
                     setError(err)
                     setResults([])
                 }
@@ -227,7 +232,9 @@ function usePlaceSearch({
 
         fetchResults()
 
-        return () => { abortController.abort(); }
+        return () => {
+            abortController.abort()
+        }
     }, [
         debouncedQuery,
         props.lang,
@@ -253,14 +260,14 @@ function PlaceAutocomplete({
     locationBiasScale,
     className,
     value: controlledValue,
-    defaultValue = "",
+    defaultValue = '',
     onChange: controlledOnChange,
     onPlaceSelect,
     onResultsChange,
     ...props
 }: PlaceAutocompleteProps) {
     const [internalValue, setInternalValue] = React.useState(defaultValue)
-    const [searchQuery, setSearchQuery] = React.useState("")
+    const [searchQuery, setSearchQuery] = React.useState('')
 
     const isControlled = controlledValue !== undefined
     const displayValue = isControlled ? controlledValue : internalValue
@@ -287,15 +294,17 @@ function PlaceAutocomplete({
 
     return (
         <Command
-            className={cn("h-fit overflow-visible", className)}
+            className={cn('h-fit overflow-visible', className)}
             shouldFilter={false}
-            loop>
+            loop
+        >
             <div className="relative">
                 <InputGroup
                     className={cn(
-                        "border-input! bg-popover! ring-0!",
-                        showCommandList && "rounded-b-none"
-                    )}>
+                        'border-input! bg-popover! ring-0!',
+                        showCommandList && 'rounded-b-none'
+                    )}
+                >
                     <InputGroupAddon>
                         <SearchIcon />
                     </InputGroupAddon>
@@ -320,14 +329,15 @@ function PlaceAutocomplete({
                 </InputGroup>
                 {showCommandList && (
                     <CommandList
-                        data-state={showCommandList ? "open" : "closed"}
+                        data-state={showCommandList ? 'open' : 'closed'}
                         className={cn(
-                            "bg-popover border-input absolute top-full right-0 left-0 rounded-b-md border border-t-0 shadow-md",
-                            "data-[state=open]:animate-in data-[state=closed]:animate-out",
-                            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-                            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-                            "data-[state=open]:slide-in-from-top-2 data-[state=closed]:slide-out-to-top-2"
-                        )}>
+                            'bg-popover border-input absolute top-full right-0 left-0 rounded-b-md border border-t-0 shadow-md',
+                            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+                            'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+                            'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+                            'data-[state=open]:slide-in-from-top-2 data-[state=closed]:slide-out-to-top-2'
+                        )}
+                    >
                         {error && (
                             <CommandEmpty>Error: {error.message}</CommandEmpty>
                         )}
@@ -360,19 +370,20 @@ function PlaceAutocomplete({
                                                     )
                                                 }
 
-                                                setSearchQuery("")
+                                                setSearchQuery('')
                                                 controlledOnChange?.(
                                                     formattedAddress
                                                 )
                                                 onPlaceSelect?.(feature)
-                                            }}>
+                                            }}
+                                        >
                                             <MapPinIcon />
                                             <div className="flex flex-col items-start text-start">
                                                 <span className="font-medium">
                                                     {feature.properties.name ||
                                                         feature.properties
                                                             .street ||
-                                                        "Unknown"}
+                                                        'Unknown'}
                                                 </span>
                                                 <span className="text-muted-foreground text-xs">
                                                     {formattedAddress}

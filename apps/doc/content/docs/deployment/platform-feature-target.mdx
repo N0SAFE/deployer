@@ -34,20 +34,20 @@ See [Platform Product Specification](/docs/architecture/platform-product-spec) f
 **Must have**
 
 - Strongly typed template system for every deployment capability:
-	- provider templates (GitHub, GitLab, generic Git, upload, custom)
-	- build strategy templates (`dockerfile`, `nixpacks`, custom pipelines)
-	- deployment strategy templates (rolling, recreate, blue/green, canary)
-	- routing templates (Traefik rules, middleware chains, SSL policies)
-	- preview templates (domain pattern, TTL, auto-delete, env overlay)
-	- dependency/order templates (service graph policies, gates, retries)
+    - provider templates (GitHub, GitLab, generic Git, upload, custom)
+    - build strategy templates (`dockerfile`, `nixpacks`, custom pipelines)
+    - deployment strategy templates (rolling, recreate, blue/green, canary)
+    - routing templates (Traefik rules, middleware chains, SSL policies)
+    - preview templates (domain pattern, TTL, auto-delete, env overlay)
+    - dependency/order templates (service graph policies, gates, retries)
 - Validation + compile pipeline: `template -> normalized plan -> executable workflow`
 - Versioned templates with rollback-safe migration
 - Inheritance/override model:
-	- global defaults
-	- provider defaults
-	- project overrides
-	- environment overrides
-	- deployment-run overrides
+    - global defaults
+    - provider defaults
+    - project overrides
+    - environment overrides
+    - deployment-run overrides
 
 **Current status**: 🟡
 
@@ -190,17 +190,17 @@ All runtime operations should come from a compiled deployment plan.
 ### Template layers
 
 1. `ProviderTemplate`
-	- Source checkout behavior, webhook mapping, branch/PR semantics, secret requirements.
+    - Source checkout behavior, webhook mapping, branch/PR semantics, secret requirements.
 2. `BuildTemplate`
-	- Build inputs, cache keys, build args, artifact contracts.
+    - Build inputs, cache keys, build args, artifact contracts.
 3. `DeployTemplate`
-	- Runtime strategy (`rolling`, `canary`, `blueGreen`, `recreate`), readiness and rollback conditions.
+    - Runtime strategy (`rolling`, `canary`, `blueGreen`, `recreate`), readiness and rollback conditions.
 4. `RouteTemplate`
-	- Traefik router/service/middleware/TLS policy generation.
+    - Traefik router/service/middleware/TLS policy generation.
 5. `PreviewTemplate`
-	- Preview naming, domain pattern, retention and cleanup triggers.
+    - Preview naming, domain pattern, retention and cleanup triggers.
 6. `DependencyTemplate`
-	- Ordering gates between services/projects, failure propagation policy.
+    - Ordering gates between services/projects, failure propagation policy.
 
 ### Execution model
 
@@ -250,23 +250,23 @@ After MVP, parity and upgrades should include:
 ## Advanced ideas to push the platform further
 
 1. **Plan Simulation Mode**
-	- Compile and simulate deployment graph without executing (cost/risk preview + expected ordering).
+    - Compile and simulate deployment graph without executing (cost/risk preview + expected ordering).
 2. **Policy Engine for Safe Deploys**
-	- Gate deploys using configurable policies (time windows, approval rules, blast radius limits).
+    - Gate deploys using configurable policies (time windows, approval rules, blast radius limits).
 3. **Progressive Delivery Strategies**
-	- Canary percentage ramps with automatic rollback on SLO violations.
+    - Canary percentage ramps with automatic rollback on SLO violations.
 4. **Environment Matrix Deploys**
-	- One config triggers coordinated deploy across multiple environments with dependency gates.
+    - One config triggers coordinated deploy across multiple environments with dependency gates.
 5. **Cross-Project Dependency Graph**
-	- Allow project A service to gate project B deployment when hard dependencies exist.
+    - Allow project A service to gate project B deployment when hard dependencies exist.
 6. **Drift Detection and Auto-Reconcile**
-	- Compare desired state (compiled plan) vs actual state (containers/routes) and reconcile safely.
+    - Compare desired state (compiled plan) vs actual state (containers/routes) and reconcile safely.
 7. **Template Marketplace (internal)**
-	- Reusable validated templates for common stacks and deployment patterns.
+    - Reusable validated templates for common stacks and deployment patterns.
 8. **SLO-Aware Auto-Rollback**
-	- Tie health metrics and error budgets directly to rollback triggers.
+    - Tie health metrics and error budgets directly to rollback triggers.
 9. **Config Provenance Timeline**
-	- For each deployment, show exactly which template versions and overrides were applied.
+    - For each deployment, show exactly which template versions and overrides were applied.
 
 ## Related docs
 

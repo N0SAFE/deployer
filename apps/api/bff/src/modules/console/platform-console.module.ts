@@ -1,13 +1,13 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { ServiceClientRegistry } from "@/clients/service-registry";
-import { EnvModule } from "@/config/env/env.module";
-import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
+import { ServiceClientRegistry } from '@/clients/service-registry'
+import { EnvModule } from '@/config/env/env.module'
+import { CorePlatformIngressModule } from '@/core/modules/platform-ingress/platform-ingress.module'
 
-import { ManagedWebClient } from "./clients/managed-web.client";
-import { ConsoleControlController } from "./controllers/console-control.controller";
-import { PlatformConsoleController } from "./controllers/platform-console.controller";
-import { SetupDoneController } from "./controllers/setup-done.controller";
+import { ManagedWebClient } from './clients/managed-web.client'
+import { ConsoleControlController } from './controllers/console-control.controller'
+import { PlatformConsoleController } from './controllers/platform-console.controller'
+import { SetupDoneController } from './controllers/setup-done.controller'
 
 /**
  * The management console: the API-rendered pages, and the procedures they drive.
@@ -25,9 +25,18 @@ import { SetupDoneController } from "./controllers/setup-done.controller";
  * Importing them here is what makes the module self-contained.
  */
 export class PlatformConsoleModule extends createModuleContext({
-	imports: [EnvModule, CorePlatformIngressModule],
-	controllers: [PlatformConsoleController, SetupDoneController, ConsoleControlController],
-	providers: [
-		{ provide: ManagedWebClient, useFactory: (registry: ServiceClientRegistry) => new ManagedWebClient(registry), inject: [ServiceClientRegistry] },
-	],
+    imports: [EnvModule, CorePlatformIngressModule],
+    controllers: [
+        PlatformConsoleController,
+        SetupDoneController,
+        ConsoleControlController,
+    ],
+    providers: [
+        {
+            provide: ManagedWebClient,
+            useFactory: (registry: ServiceClientRegistry) =>
+                new ManagedWebClient(registry),
+            inject: [ServiceClientRegistry],
+        },
+    ],
 }) {}

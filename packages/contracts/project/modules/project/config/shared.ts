@@ -1,3 +1,3 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-export const projectIdParamSchema = z.object({ id: z.uuid() });
+export const projectIdParamSchema = z.object({ id: z.uuid() })

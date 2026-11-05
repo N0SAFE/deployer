@@ -4,7 +4,10 @@ description: Comprehensive analysis of dev/prod entrypoints, startup orchestrato
 order: 16
 ---
 
-<DocMeta source="Architecture audit of entrypoints, StartupOrchestrator, module graph, and global-db-migration-management doc" scope="v3" />
+<DocMeta
+    source="Architecture audit of entrypoints, StartupOrchestrator, module graph, and global-db-migration-management doc"
+    scope="v3"
+/>
 
 <DocCallout title="Superseded — kept as a design record" tone="danger">
 **This document describes a design that has since been REPLACED.** The sub-app
@@ -19,40 +22,39 @@ see:
 - [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
 - [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
 - `docs/setup-app-refactor-plan.md` — the refactor that replaced it
-</DocCallout>
-
+    </DocCallout>
 
 ## Part 1: Current State Analysis
 
 ### Entrypoints
 
-| Aspect | `entrypoint.dev.ts` | `entrypoint.prod.ts` |
-|--------|---------------------|----------------------|
-| **Phases** | 6 phases: Version → StartupCheck → EnvValidation → Diagnostics → MeshRegistration → StartNestJS | 3 phases: ValidateEnv → StartAPI → StartWeb |
-| **CLI interaction** | `spawnSync('bun --bun src/cli.ts node-startup-check')` and `register-mesh-node` | None — delegates to `StartupOrchestratorService.onModuleInit()` |
-| **Version extraction** | `readFileSync('package.json')` at module load time | No version extraction |
-| **Error handling** | Exit codes from spawn, interpreted per-state | `try/catch` on API start |
-| **Mesh registration** | CLI command before NestJS starts (when `DATABASE_URL` set) — **OR** deferred to sub-app chain (`SetupSubAppModule` → `MeshInitializerAppModule` → `GlobalDatabaseModule` bridge) in dev auto-provisioning mode | Internal via `StartupOrchestrator` after NestJS starts |
-| **Update marker detection** | None | None (both missing) |
-| **Seeding** | Not handled | Not handled (must be done manually) |
-| **Diagnostics** | Phase 4 runs `bun --bun --watch diagnose.ts` | None |
+| Aspect                      | `entrypoint.dev.ts`                                                                                                                                                                                            | `entrypoint.prod.ts`                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **Phases**                  | 6 phases: Version → StartupCheck → EnvValidation → Diagnostics → MeshRegistration → StartNestJS                                                                                                                | 3 phases: ValidateEnv → StartAPI → StartWeb                     |
+| **CLI interaction**         | `spawnSync('bun --bun src/cli.ts node-startup-check')` and `register-mesh-node`                                                                                                                                | None — delegates to `StartupOrchestratorService.onModuleInit()` |
+| **Version extraction**      | `readFileSync('package.json')` at module load time                                                                                                                                                             | No version extraction                                           |
+| **Error handling**          | Exit codes from spawn, interpreted per-state                                                                                                                                                                   | `try/catch` on API start                                        |
+| **Mesh registration**       | CLI command before NestJS starts (when `DATABASE_URL` set) — **OR** deferred to sub-app chain (`SetupSubAppModule` → `MeshInitializerAppModule` → `GlobalDatabaseModule` bridge) in dev auto-provisioning mode | Internal via `StartupOrchestrator` after NestJS starts          |
+| **Update marker detection** | None                                                                                                                                                                                                           | None (both missing)                                             |
+| **Seeding**                 | Not handled                                                                                                                                                                                                    | Not handled (must be done manually)                             |
+| **Diagnostics**             | Phase 4 runs `bun --bun --watch diagnose.ts`                                                                                                                                                                   | None                                                            |
 
 ### StartupOrchestratorService
 
 The current implementation in `apps/api/src/core/modules/startup/startup-orchestrator.service.ts`:
 
-| Step | Current Implementation | Doc Spec (10-Phase) | Gap |
-|------|----------------------|---------------------|-----|
-| **1. Run migrations** | ✅ Calls `migrate()` via Drizzle migrator | Phase 4: Apply pending migrations | ✅ Matches |
-| **2. Create admin** | ⚠️ Shells out via `execSync('bun --bun dist/cli.js create-default-admin')` | Step 2 in doc | ❌ Should use DI (AuthService) instead of subprocess |
-| **3. Register mesh node** | ⚠️ Raw SQL upsert into `cluster_nodes` | Phase 10: Register in cluster_nodes | ⚠️ No guard check before registering |
-| **4. Report schema version** | ⚠️ Raw SQL upsert into `schema_version` | Phase 5: Upsert own schema_version | ⚠️ No `cluster_migration_state` read |
-| **5. Registration guard** | ❌ Missing entirely | Phase 7: Compare journal vs DB applied | ❌ **Critical gap** — outdated nodes not blocked |
-| **6. Check peer versions** | ❌ Missing entirely | Phase 8: Query `schema_version` for peers | ❌ **Critical gap** — no mesh version awareness |
-| **7. Consensus check** | ❌ Missing entirely | Phase 9: Compare local vs cluster state | ❌ **Critical gap** — can't detect cluster disagreements |
-| **8. cluster_migration_state** | ❌ Missing entirely | Phase 6: Read/create singleton row | ❌ Table won't advance |
-| **9. Error isolation** | ⚠️ All steps wrapped in try/catch, errors pushed to array | Each step independent | ⚠️ Acceptable but exit codes not propagated |
-| **10. Lazy module startup** | ❌ Not addressed | Not in current doc | ❌ All 25+ modules eagerly loaded |
+| Step                           | Current Implementation                                                     | Doc Spec (10-Phase)                       | Gap                                                      |
+| ------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
+| **1. Run migrations**          | ✅ Calls `migrate()` via Drizzle migrator                                  | Phase 4: Apply pending migrations         | ✅ Matches                                               |
+| **2. Create admin**            | ⚠️ Shells out via `execSync('bun --bun dist/cli.js create-default-admin')` | Step 2 in doc                             | ❌ Should use DI (AuthService) instead of subprocess     |
+| **3. Register mesh node**      | ⚠️ Raw SQL upsert into `cluster_nodes`                                     | Phase 10: Register in cluster_nodes       | ⚠️ No guard check before registering                     |
+| **4. Report schema version**   | ⚠️ Raw SQL upsert into `schema_version`                                    | Phase 5: Upsert own schema_version        | ⚠️ No `cluster_migration_state` read                     |
+| **5. Registration guard**      | ❌ Missing entirely                                                        | Phase 7: Compare journal vs DB applied    | ❌ **Critical gap** — outdated nodes not blocked         |
+| **6. Check peer versions**     | ❌ Missing entirely                                                        | Phase 8: Query `schema_version` for peers | ❌ **Critical gap** — no mesh version awareness          |
+| **7. Consensus check**         | ❌ Missing entirely                                                        | Phase 9: Compare local vs cluster state   | ❌ **Critical gap** — can't detect cluster disagreements |
+| **8. cluster_migration_state** | ❌ Missing entirely                                                        | Phase 6: Read/create singleton row        | ❌ Table won't advance                                   |
+| **9. Error isolation**         | ⚠️ All steps wrapped in try/catch, errors pushed to array                  | Each step independent                     | ⚠️ Acceptable but exit codes not propagated              |
+| **10. Lazy module startup**    | ❌ Not addressed                                                           | Not in current doc                        | ❌ All 25+ modules eagerly loaded                        |
 
 ### Module Loading (Current State)
 
@@ -68,6 +70,7 @@ StartupModule → ORPCModule
 ```
 
 **Problem**: Every module is instantiated and constructed before any `onModuleInit` hook runs. Modules like `DockerModule`, `FleetModule`, `MeshModule`, `AnalyticsModule` start initializing their providers (opening connections, spawning workers) even when:
+
 - The node hasn't passed registration guard yet
 - The node is in setup mode (first run)
 - The node's version mismatches the cluster
@@ -119,6 +122,7 @@ bun run dev -- all            # Seed + migrate + start
 ```
 
 It should **never** use `spawnSync` for CLI commands that duplicate NestJS DI context. Instead:
+
 - Use direct imports for simple operations (version checks, env validation)
 - Start NestJS in minimal mode for operations that need DI (migrations, seeding, mesh registration)
 - Use the `StartupOrchestratorService` methods directly after booting a minimal app
@@ -344,19 +348,21 @@ In NestJS, true lazy loading of modules is done via `LazyModuleLoader` or dynami
 ```typescript
 // apps/api/src/app.module.ts
 @Module({
-  imports: [
-    // Core — always needed
-    EnvModule,
-    LocalModule,           // Local SQLite
-    StartupModule,         // Orchestrator + version services
-    HealthModule.forRoot({ mode: 'basic' }),  // Basic health
-    ORPCModule.forRootAsync({ /* minimal — only auth-less routes */ }),
-  ],
+    imports: [
+        // Core — always needed
+        EnvModule,
+        LocalModule, // Local SQLite
+        StartupModule, // Orchestrator + version services
+        HealthModule.forRoot({ mode: 'basic' }), // Basic health
+        ORPCModule.forRootAsync({/* minimal — only auth-less routes */}),
+    ],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(InternalErrorContextMiddleware, LoggerMiddleware).forRoutes('*');
-  }
+    configure(consumer: MiddlewareConsumer) {
+        consumer
+            .apply(InternalErrorContextMiddleware, LoggerMiddleware)
+            .forRoutes('*')
+    }
 }
 ```
 
@@ -450,16 +456,16 @@ stateDiagram-v2
 
 ### Critical Gaps
 
-| # | Gap | Location | Impact | Fix |
-|---|-----|----------|--------|-----|
-| 1 | **No registration guard** | `StartupOrchestrator` doesn't check `__drizzle_migrations` vs `_journal.json` | Outdated nodes can join the mesh and corrupt data | Implement Phase 7 in orchestrator |
-| 2 | **No peer version check** | `StartupOrchestrator` doesn't query `schema_version` for peers | Can't detect cluster version disagreements | Add Phase 8-9 to orchestrator |
-| 3 | **No cluster_migration_state** | Never created or advanced | Schema version registry is useless — no cluster-wide SSOT | Add Phase 6 read/write in orchestrator |
-| 4 | **CLI duplication in dev entrypoint** | `entrypoint.dev.ts` uses `spawnSync` for CLI commands | Duplicates logic, bypasses DI, DI context built twice | Replace with direct NestJS bootstrap + method calls |
-| 5 | **All modules eagerly loaded** | `AppModule` imports 25+ modules | Heavy modules (Docker, Mesh, Fleet) start before guard passes | Use `LazyModuleLoader` for feature modules |
-| 6 | **Admin creation shells to CLI** | `StartupOrchestrator` uses `execSync('bun --bun dist/cli.js create-default-admin')` | Duplicate DI, brittle path, breaks in production | Use `AuthService` via DI |
-| 7 | **No update marker detection** | Both entrypoints missing | Self-update protocol can't signal completion | Add `/tmp/pending-update.json` check |
-| 8 | **GlobalModule setup deadlock** | Provider factory waits for `InitializationService.waitForSetup()` | Fragile workaround with `checkConfigAndEmit()` | Restructure: core init doesn't need global DB |
+| #   | Gap                                   | Location                                                                            | Impact                                                        | Fix                                                 |
+| --- | ------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | **No registration guard**             | `StartupOrchestrator` doesn't check `__drizzle_migrations` vs `_journal.json`       | Outdated nodes can join the mesh and corrupt data             | Implement Phase 7 in orchestrator                   |
+| 2   | **No peer version check**             | `StartupOrchestrator` doesn't query `schema_version` for peers                      | Can't detect cluster version disagreements                    | Add Phase 8-9 to orchestrator                       |
+| 3   | **No cluster_migration_state**        | Never created or advanced                                                           | Schema version registry is useless — no cluster-wide SSOT     | Add Phase 6 read/write in orchestrator              |
+| 4   | **CLI duplication in dev entrypoint** | `entrypoint.dev.ts` uses `spawnSync` for CLI commands                               | Duplicates logic, bypasses DI, DI context built twice         | Replace with direct NestJS bootstrap + method calls |
+| 5   | **All modules eagerly loaded**        | `AppModule` imports 25+ modules                                                     | Heavy modules (Docker, Mesh, Fleet) start before guard passes | Use `LazyModuleLoader` for feature modules          |
+| 6   | **Admin creation shells to CLI**      | `StartupOrchestrator` uses `execSync('bun --bun dist/cli.js create-default-admin')` | Duplicate DI, brittle path, breaks in production              | Use `AuthService` via DI                            |
+| 7   | **No update marker detection**        | Both entrypoints missing                                                            | Self-update protocol can't signal completion                  | Add `/tmp/pending-update.json` check                |
+| 8   | **GlobalModule setup deadlock**       | Provider factory waits for `InitializationService.waitForSetup()`                   | Fragile workaround with `checkConfigAndEmit()`                | Restructure: core init doesn't need global DB       |
 
 ### Fix Priority
 
@@ -681,42 +687,42 @@ The single dev entrypoint should look like:
 //   bun run dev -- all            → seed + migrate + start
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  
-  // 1. Always: validate environment
-  validateEnvironment();
-  
-  // 2. Check update markers
-  checkPendingUpdate();
-  
-  // 3. Execute requested commands in order
-  if (args.seed || args.all || args.only === 'seed') {
-    await executeSeed();
-  }
-  
-  if (args.migrate || args.all || args.only === 'migrate') {
-    await executeMigrations();
-  }
-  
-  if (args.diagnose || args.only === 'diagnose') {
-    await runDiagnostics();
-  }
-  
-  if (args.setup || args.only === 'setup') {
-    await startSetupWizard();
-    return;  // Setup runs as a server, doesn't return to CLI
-  }
-  
-  if (args.start || args.all || !args.only) {
-    await startFullStack();  // Default
-  }
+    const args = parseArgs(process.argv.slice(2))
+
+    // 1. Always: validate environment
+    validateEnvironment()
+
+    // 2. Check update markers
+    checkPendingUpdate()
+
+    // 3. Execute requested commands in order
+    if (args.seed || args.all || args.only === 'seed') {
+        await executeSeed()
+    }
+
+    if (args.migrate || args.all || args.only === 'migrate') {
+        await executeMigrations()
+    }
+
+    if (args.diagnose || args.only === 'diagnose') {
+        await runDiagnostics()
+    }
+
+    if (args.setup || args.only === 'setup') {
+        await startSetupWizard()
+        return // Setup runs as a server, doesn't return to CLI
+    }
+
+    if (args.start || args.all || !args.only) {
+        await startFullStack() // Default
+    }
 }
 
 // Each function boots NestJS in the appropriate mode
 async function executeMigrations() {
-  // Boot minimal NestJS app (Core modules only)
-  // Call StartupOrchestrator.runMigrations() directly
-  // Shutdown
+    // Boot minimal NestJS app (Core modules only)
+    // Call StartupOrchestrator.runMigrations() directly
+    // Shutdown
 }
 ```
 
@@ -724,16 +730,16 @@ async function executeMigrations() {
 
 ## Part 6: Gaps Between Doc & Reality
 
-| Doc Statement | Current Reality | Fix Needed |
-|--------------|----------------|------------|
-| "10-phase startup protocol" | Only 4 phases implemented | Add Phases 4-9 to orchestrator |
-| "Registration guard blocks outdated nodes" | No guard exists | Implement Phase 7 |
-| "Peer version check in Phase 8" | `MeshVersionService` exists but not wired into orchestrator | Wire into `StartupOrchestrator.onModuleInit()` |
-| "cluster_migration_state managed at startup" | Table schema may not even exist yet | Create migration 0011 if not done, add read/write logic |
-| "Self-contained startup — no external CLI" | Dev entrypoint uses CLI commands | Unify dev entrypoint, remove spawnSync |
-| "Startup tasks in OnModuleInit lifecycle hooks" | True for production, but orchestrator misses critical phases | Add missing phases |
-| "schema_version upserted every startup" | ⚠️ Table may not exist (pre-0011) | Add graceful skip |
-| "Health endpoint exposes migration status" | Not yet implemented | Add `MigrationHealthIndicator` |
+| Doc Statement                                   | Current Reality                                              | Fix Needed                                              |
+| ----------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------- |
+| "10-phase startup protocol"                     | Only 4 phases implemented                                    | Add Phases 4-9 to orchestrator                          |
+| "Registration guard blocks outdated nodes"      | No guard exists                                              | Implement Phase 7                                       |
+| "Peer version check in Phase 8"                 | `MeshVersionService` exists but not wired into orchestrator  | Wire into `StartupOrchestrator.onModuleInit()`          |
+| "cluster_migration_state managed at startup"    | Table schema may not even exist yet                          | Create migration 0011 if not done, add read/write logic |
+| "Self-contained startup — no external CLI"      | Dev entrypoint uses CLI commands                             | Unify dev entrypoint, remove spawnSync                  |
+| "Startup tasks in OnModuleInit lifecycle hooks" | True for production, but orchestrator misses critical phases | Add missing phases                                      |
+| "schema_version upserted every startup"         | ⚠️ Table may not exist (pre-0011)                            | Add graceful skip                                       |
+| "Health endpoint exposes migration status"      | Not yet implemented                                          | Add `MigrationHealthIndicator`                          |
 
 ---
 
@@ -742,18 +748,18 @@ async function executeMigrations() {
 ### Phase A: Fix Critical Gaps (P0)
 
 1. **Add registration guard** to `StartupOrchestratorService`:
-   - Read `__drizzle_migrations` from global DB
-   - Compare against `_journal.json` entries
-   - Exit 5 if code is missing migrations
+    - Read `__drizzle_migrations` from global DB
+    - Compare against `_journal.json` entries
+    - Exit 5 if code is missing migrations
 
 2. **Add peer version check**:
-   - Wire `MeshVersionService` into `StartupOrchestratorService`
-   - Call `compareLocalWithMesh()` during startup
-   - Handle all 5 return statuses
+    - Wire `MeshVersionService` into `StartupOrchestratorService`
+    - Call `compareLocalWithMesh()` during startup
+    - Handle all 5 return statuses
 
 3. **Add cluster_migration_state management**:
-   - Read/create singleton at startup
-   - Update on consensus agreement
+    - Read/create singleton at startup
+    - Update on consensus agreement
 
 ### Phase B: Fix Architecture Issues (P1)
 

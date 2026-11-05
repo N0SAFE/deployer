@@ -1,9 +1,9 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
-import { routeVisibilitySchema } from "@deployer/contracts-entities/entities/ingress/index";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { serviceNetworkConfigSchema } from '@deployer/contracts-entities'
+import { routeVisibilitySchema } from '@deployer/contracts-entities/entities/ingress/index'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /** Service network read model — config + resolved project context + zone records. */
 export const serviceNetworkViewSchema = z.object({
@@ -19,11 +19,32 @@ export const serviceNetworkViewSchema = z.object({
             id: z.string(),
             zoneId: z.string(),
             name: z.string(),
-            type: z.enum(["A", "AAAA", "CAA", "CERT", "CNAME", "DNSKEY", "DS", "HTTPS", "LOC", "MX", "NAPTR", "NS", "OPENPGPKEY", "PTR", "SMIMEA", "SRV", "SVCB", "TLSA", "TXT", "URI"]),
+            type: z.enum([
+                'A',
+                'AAAA',
+                'CAA',
+                'CERT',
+                'CNAME',
+                'DNSKEY',
+                'DS',
+                'HTTPS',
+                'LOC',
+                'MX',
+                'NAPTR',
+                'NS',
+                'OPENPGPKEY',
+                'PTR',
+                'SMIMEA',
+                'SRV',
+                'SVCB',
+                'TLSA',
+                'TXT',
+                'URI',
+            ]),
             content: z.string(),
             ttl: z.number().int().nonnegative(),
             proxied: z.boolean(),
-        }),
+        })
     ),
     /** Existing project domain bindings (subdomain + basePath + full URL). */
     projectDomains: z.array(
@@ -39,74 +60,88 @@ export const serviceNetworkViewSchema = z.object({
                     subdomain: z.string().nullable(),
                     basePath: z.string().nullable(),
                     fullUrl: z.string(),
-                }),
+                })
             ),
-        }),
+        })
     ),
-});
+})
 
-export const serviceUpdateNetworkInputSchema = z
-    .object({
-        dnsProviderId: z.string().nullable().optional(),
-        zoneId: z.string().nullable().optional(),
-        zoneName: z.string().nullable().optional(),
-        recordType: z.enum(["A", "AAAA", "CNAME", "TXT"]).optional(),
-        recordContent: z.string().nullable().optional(),
-        proxied: z.boolean().optional(),
-        autoProvision: z.boolean().optional(),
-        visibility: routeVisibilitySchema.optional(),
-        tls: z
-            .object({
-                enabled: z.boolean().optional(),
-                httpRedirect: z.boolean().optional(),
-            })
-            .optional(),
-    });
+export const serviceUpdateNetworkInputSchema = z.object({
+    dnsProviderId: z.string().nullable().optional(),
+    zoneId: z.string().nullable().optional(),
+    zoneName: z.string().nullable().optional(),
+    recordType: z.enum(['A', 'AAAA', 'CNAME', 'TXT']).optional(),
+    recordContent: z.string().nullable().optional(),
+    proxied: z.boolean().optional(),
+    autoProvision: z.boolean().optional(),
+    visibility: routeVisibilitySchema.optional(),
+    tls: z
+        .object({
+            enabled: z.boolean().optional(),
+            httpRedirect: z.boolean().optional(),
+        })
+        .optional(),
+})
 
 /** Body for provisioning a DNS record for this service in the resolved zone. */
-export const serviceProvisionDnsRecordInputSchema = z
-    .object({
-        /** Full record name, e.g. "api.example.com" (or "api" for zone-root). */
-        name: z.string().min(1),
-        type: z.enum(["A", "AAAA", "CNAME", "TXT"]),
-        content: z.string().min(1),
-        ttl: z.number().int().nonnegative().optional(),
-        proxied: z.boolean().optional(),
-    });
+export const serviceProvisionDnsRecordInputSchema = z.object({
+    /** Full record name, e.g. "api.example.com" (or "api" for zone-root). */
+    name: z.string().min(1),
+    type: z.enum(['A', 'AAAA', 'CNAME', 'TXT']),
+    content: z.string().min(1),
+    ttl: z.number().int().nonnegative().optional(),
+    proxied: z.boolean().optional(),
+})
 
-const serviceNetworkOps = standard.zod(serviceNetworkViewSchema, "serviceNetwork");
+const serviceNetworkOps = standard.zod(
+    serviceNetworkViewSchema,
+    'serviceNetwork'
+)
 
 /** GET /services/:id/network — service network config + resolved zone context. */
 export const serviceGetNetworkContract = serviceNetworkOps
     .read()
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/network`))
+    .input((b) => b.params((p) => p`/${p('id', z.uuid())}/network`))
     .output(serviceNetworkViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'service:read',
+            scope: { by: 'input', path: 'params.id', kind: 'service' },
+        })
+    )
+    .build()
 
 /** PUT /services/:id/network — update service network config (overrides project). */
 export const serviceUpdateNetworkContract = serviceNetworkOps
     .update()
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/network`)
-            .body(serviceUpdateNetworkInputSchema),
+            .params((p) => p`/${p('id', z.uuid())}/network`)
+            .body(serviceUpdateNetworkInputSchema)
     )
     .output(serviceNetworkViewSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "service:update", scope: { by: "input", path: "params.id", kind: "service" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'service:update',
+            scope: { by: 'input', path: 'params.id', kind: 'service' },
+        })
+    )
+    .build()
 
-const serviceRecordOps = standard.zod(serviceNetworkViewSchema, "serviceNetworkRecord");
+const serviceRecordOps = standard.zod(
+    serviceNetworkViewSchema,
+    'serviceNetworkRecord'
+)
 
 /** POST /services/:id/network/records — auto-provision a DNS record via the provider. */
 export const serviceProvisionDnsRecordContract = serviceRecordOps
     .create()
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/network/records`)
-            .body(serviceProvisionDnsRecordInputSchema),
+            .params((p) => p`/${p('id', z.uuid())}/network/records`)
+            .body(serviceProvisionDnsRecordInputSchema)
     )
     .output(
         z.object({
@@ -116,29 +151,61 @@ export const serviceProvisionDnsRecordContract = serviceRecordOps
                     id: z.string(),
                     zoneId: z.string(),
                     name: z.string(),
-                    type: z.enum(["A", "AAAA", "CAA", "CERT", "CNAME", "DNSKEY", "DS", "HTTPS", "LOC", "MX", "NAPTR", "NS", "OPENPGPKEY", "PTR", "SMIMEA", "SRV", "SVCB", "TLSA", "TXT", "URI"]),
+                    type: z.enum([
+                        'A',
+                        'AAAA',
+                        'CAA',
+                        'CERT',
+                        'CNAME',
+                        'DNSKEY',
+                        'DS',
+                        'HTTPS',
+                        'LOC',
+                        'MX',
+                        'NAPTR',
+                        'NS',
+                        'OPENPGPKEY',
+                        'PTR',
+                        'SMIMEA',
+                        'SRV',
+                        'SVCB',
+                        'TLSA',
+                        'TXT',
+                        'URI',
+                    ]),
                     content: z.string(),
                     ttl: z.number().int().nonnegative(),
                     proxied: z.boolean(),
                 })
                 .nullable(),
             message: z.string(),
-        }),
+        })
     )
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "dns.record:write", scope: { by: "input", path: "params.id", kind: "service" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'dns.record:write',
+            scope: { by: 'input', path: 'params.id', kind: 'service' },
+        })
+    )
+    .build()
 
-export type ServiceNetworkView = z.infer<typeof serviceNetworkViewSchema>;
-export type ServiceUpdateNetworkInput = z.infer<typeof serviceUpdateNetworkInputSchema>;
-export type ServiceProvisionDnsRecordInput = z.infer<typeof serviceProvisionDnsRecordInputSchema>;
+export type ServiceNetworkView = z.infer<typeof serviceNetworkViewSchema>
+export type ServiceUpdateNetworkInput = z.infer<
+    typeof serviceUpdateNetworkInputSchema
+>
+export type ServiceProvisionDnsRecordInput = z.infer<
+    typeof serviceProvisionDnsRecordInputSchema
+>
 
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
 /** Aggregate service network router: get/update/provision records. */
-export const serviceNetworkContract = oc.meta(openapi({ tags: ["Service Network"] })).router({
-    get: serviceGetNetworkContract,
-    update: serviceUpdateNetworkContract,
-    provisionRecord: serviceProvisionDnsRecordContract,
-});
+export const serviceNetworkContract = oc
+    .meta(openapi({ tags: ['Service Network'] }))
+    .router({
+        get: serviceGetNetworkContract,
+        update: serviceUpdateNetworkContract,
+        provisionRecord: serviceProvisionDnsRecordContract,
+    })

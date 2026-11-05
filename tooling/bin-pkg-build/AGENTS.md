@@ -156,20 +156,20 @@ the type-check proves it:
 
 Two independent axes decide what a given output file looks like:
 
-| Axis | Values | Source |
-| --- | --- | --- |
-| **mode** | `dev` \| `prod` | `NODE_ENV` at process start, or `--mode` |
-| **variant** | `development` \| `production` | the JSX runtime the file targets |
+| Axis        | Values                        | Source                                   |
+| ----------- | ----------------------------- | ---------------------------------------- |
+| **mode**    | `dev` \| `prod`               | `NODE_ENV` at process start, or `--mode` |
+| **variant** | `development` \| `production` | the JSX runtime the file targets         |
 
 They are not the same thing, and conflating them is a bug: a non-JSX package
 emits a single `production` variant, so a variant-only rule would minify every
 dev-container build and drop the maps that make local debugging possible.
 
-| mode | variant | minified | sourcemap |
-| --- | --- | --- | --- |
-| `dev` | either | no | `linked` |
-| `prod` | `development` | no | `linked` |
-| `prod` | `production` | yes | `none` |
+| mode   | variant       | minified | sourcemap |
+| ------ | ------------- | -------- | --------- |
+| `dev`  | either        | no       | `linked`  |
+| `prod` | `development` | no       | `linked`  |
+| `prod` | `production`  | yes      | `none`    |
 
 The rule is "what a production consumer actually loads is minified and carries no
 maps; everything else stays debuggable". `dev` is the default, so an unqualified
@@ -263,7 +263,7 @@ This is why `packages/auth` can keep `"@deployer/auth/*": ["./src/*"]` — a
 self-name alias, so its internal imports resolve through `exports` — and still
 ship declarations a consumer can read.
 
-**A cross-package import must use the package name.** `@/` is a *within-package*
+**A cross-package import must use the package name.** `@/` is a _within-package_
 alias; using it to reach another workspace (`@/entities/…` from
 `@deployer/fleet-contracts`) is a source error the compiler reports as TS2307,
 because that package's tsconfig has no such mapping. Write
@@ -428,7 +428,7 @@ different TypeScripts.
   `exports.types` points at `./dist/types/*.d.ts` so a consumer type-checks
   declarations instead of re-compiling package sources. `type-check` and `lint`
   (type-aware) depend on `^build:types` in `turbo.json`. Any `@/…` a declaration
-  carries is made relative by the build (see *Declaration emit* above), so a
+  carries is made relative by the build (see _Declaration emit_ above), so a
   package-internal alias is free to appear in source.
 - **Package-internal imports may use the package's own name**
   (`@deployer/<pkg>/<path>`) so resolution goes through `exports`, which is

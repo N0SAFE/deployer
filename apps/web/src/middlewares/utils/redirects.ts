@@ -19,7 +19,10 @@ import { NextResponse, type NextRequest } from 'next/server'
  * unreachable target. Use this for every in-deployment redirect; use an explicit
  * absolute URL only for a genuinely external destination.
  */
-export function redirectSameOrigin(request: NextRequest, path: string): NextResponse {
+export function redirectSameOrigin(
+    request: NextRequest,
+    path: string
+): NextResponse {
     // `path` is a relative in-deployment route ("/auth/signin?..."); `new URL`
     // drops the base entirely if an absolute URL is passed, so an accidental
     // absolute value here would silently cross origins. Guard it explicitly.

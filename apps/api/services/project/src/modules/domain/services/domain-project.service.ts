@@ -1,282 +1,323 @@
-import { DomainVerificationService } from "@deployer/shared/core/modules/domain/services/domain-verification.service";
-import { ServiceDomainMappingRepository } from "@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository";
-import { ProjectDomainRepository } from "@deployer/shared/core/modules/domain/repositories/project-domain.repository";
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { DomainAdapter } from "@deployer/shared/core/modules/domain/adapters/domain.adapter";
-import { DomainAlreadyExistsError } from "@deployer/shared/core/modules/domain/errors/domain-errors";
+import { DomainAdapter } from '@deployer/shared/core/modules/domain/adapters/domain.adapter'
+import { DomainAlreadyExistsError } from '@deployer/shared/core/modules/domain/errors/domain-errors'
 import {
-	ProjectDomainDeletionError,
-	ProjectDomainNotFoundError,
-	ProjectDomainUpdateError,
-} from "@deployer/shared/core/modules/domain/errors/index";
-import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+    ProjectDomainDeletionError,
+    ProjectDomainNotFoundError,
+    ProjectDomainUpdateError,
+} from '@deployer/shared/core/modules/domain/errors/index'
+import { ProjectDomainRepository } from '@deployer/shared/core/modules/domain/repositories/project-domain.repository'
+import { ServiceDomainMappingRepository } from '@deployer/shared/core/modules/domain/repositories/service-domain-mapping.repository'
+import { DomainVerificationService } from '@deployer/shared/core/modules/domain/services/domain-verification.service'
+import { ProjectAccessService } from '@deployer/shared/core/modules/project/services/project-access.service'
 
-import { attempt, toFailure, refuse } from "@/modules/project/project-effects";
-
+import { attempt, toFailure, refuse } from '@/modules/project/project-effects'
 
 export type AddProjectDomainInput = {
-	readonly projectId: string;
-	readonly domain: string;
-	readonly verificationMethod: "txt_record" | "cname_record";
-	readonly allowedSubdomains: string[];
-	readonly isPrimary: boolean;
-};
+    readonly projectId: string
+    readonly domain: string
+    readonly verificationMethod: 'txt_record' | 'cname_record'
+    readonly allowedSubdomains: string[]
+    readonly isPrimary: boolean
+}
 
 export type UpdateProjectDomainInput = {
-	readonly domainId: string;
-	readonly allowedSubdomains?: string[];
-	readonly isPrimary?: boolean;
-};
+    readonly domainId: string
+    readonly allowedSubdomains?: string[]
+    readonly isPrimary?: boolean
+}
 
 /** Shared access rule: only owner or maintainer may manage this project's domains. */
 function assertAccess(projectId: string, requesterId: string) {
-	return Effect.gen(function* () {
-		const access = yield* ProjectAccessService;
-		yield* access.assertProjectAccess(
-			projectId,
-			requesterId,
-			["owner", "maintainer"],
-			"You do not have permission to manage domains for this project",
-		);
-	});
+    return Effect.gen(function* () {
+        const access = yield* ProjectAccessService
+        yield* access.assertProjectAccess(
+            projectId,
+            requesterId,
+            ['owner', 'maintainer'],
+            'You do not have permission to manage domains for this project'
+        )
+    })
 }
 
 /** The project-domain use cases, composed as Effects over the shared tables. */
 export class DomainProjectServiceImpl {
-	addProjectDomain(input: AddProjectDomainInput, requesterId: string) {
-		return Effect.gen(function* () {
-			yield* assertAccess(input.projectId, requesterId);
+    addProjectDomain(input: AddProjectDomainInput, requesterId: string) {
+        return Effect.gen(function* () {
+            yield* assertAccess(input.projectId, requesterId)
 
-			const domains = yield* ProjectDomainRepository;
-			const existing = yield* refuse(
-				domains.findByProjectAndDomain(input.projectId, input.domain),
-			);
-			if (existing) {
-				return yield* Effect.fail(toFailure(new DomainAlreadyExistsError({ projectId: input.projectId, domain: input.domain })));
-			}
+            const domains = yield* ProjectDomainRepository
+            const existing = yield* refuse(
+                domains.findByProjectAndDomain(input.projectId, input.domain)
+            )
+            if (existing) {
+                return yield* Effect.fail(
+                    toFailure(
+                        new DomainAlreadyExistsError({
+                            projectId: input.projectId,
+                            domain: input.domain,
+                        })
+                    )
+                )
+            }
 
-			const verificationToken = crypto.randomUUID().replace(/-/g, "");
-			const projectDomain = yield* refuse(
-				domains.create({
-					projectId: input.projectId,
-					domain: input.domain,
-					verificationMethod: input.verificationMethod,
-					verificationToken,
-					dnsRecordChecked: false,
-					verificationStatus: "pending",
-					allowedSubdomains: input.allowedSubdomains,
-					isPrimary: input.isPrimary,
-				}),
-			);
+            const verificationToken = crypto.randomUUID().replace(/-/g, '')
+            const projectDomain = yield* refuse(
+                domains.create({
+                    projectId: input.projectId,
+                    domain: input.domain,
+                    verificationMethod: input.verificationMethod,
+                    verificationToken,
+                    dnsRecordChecked: false,
+                    verificationStatus: 'pending',
+                    allowedSubdomains: input.allowedSubdomains,
+                    isPrimary: input.isPrimary,
+                })
+            )
 
-			const recordName =
-				input.verificationMethod === "cname_record"
-					? `_deployer.${input.domain}`
-					: "_deployer-challenge";
-			const recordValue =
-				input.verificationMethod === "cname_record"
-					? `verify.deployer.${verificationToken}.acme.`
-					: `deployer-verification=${verificationToken}`;
+            const recordName =
+                input.verificationMethod === 'cname_record'
+                    ? `_deployer.${input.domain}`
+                    : '_deployer-challenge'
+            const recordValue =
+                input.verificationMethod === 'cname_record'
+                    ? `verify.deployer.${verificationToken}.acme.`
+                    : `deployer-verification=${verificationToken}`
 
-			const contract = DomainAdapter.toProjectDomainContract(projectDomain);
-			const verificationInstructions = {
-				method: input.verificationMethod,
-				recordName,
-				recordValue,
-				instructions: `Create a ${input.verificationMethod.toUpperCase()} record: name "${recordName}" -> value "${recordValue}", then verify.`,
-			};
+            const contract =
+                DomainAdapter.toProjectDomainContract(projectDomain)
+            const verificationInstructions = {
+                method: input.verificationMethod,
+                recordName,
+                recordValue,
+                instructions: `Create a ${input.verificationMethod.toUpperCase()} record: name "${recordName}" -> value "${recordValue}", then verify.`,
+            }
 
-			return {
-				projectDomain: { ...contract, verificationInstructions },
-				verificationInstructions,
-				suggestions: {
-					commonSubdomains: ["api", "www", "app", "admin", "staging"],
-					wildcardOption: "*",
-				},
-			};
-		});
-	}
+            return {
+                projectDomain: { ...contract, verificationInstructions },
+                verificationInstructions,
+                suggestions: {
+                    commonSubdomains: ['api', 'www', 'app', 'admin', 'staging'],
+                    wildcardOption: '*',
+                },
+            }
+        })
+    }
 
-	listProjectDomains(input: { readonly projectId: string }) {
-		return Effect.gen(function* () {
-			const domains = yield* ProjectDomainRepository;
-			const projectDomains = yield* refuse(
-				domains.findByProjectId(input.projectId),
-			);
-			return projectDomains.map((projectDomain) =>
-				DomainAdapter.toProjectDomainContract(projectDomain),
-			);
-		});
-	}
+    listProjectDomains(input: { readonly projectId: string }) {
+        return Effect.gen(function* () {
+            const domains = yield* ProjectDomainRepository
+            const projectDomains = yield* refuse(
+                domains.findByProjectId(input.projectId)
+            )
+            return projectDomains.map((projectDomain) =>
+                DomainAdapter.toProjectDomainContract(projectDomain)
+            )
+        })
+    }
 
-	getAvailableDomains(input: { readonly projectId: string }) {
-		return Effect.gen(function* () {
-			const domains = yield* ProjectDomainRepository;
-			const mappings = yield* ServiceDomainMappingRepository;
+    getAvailableDomains(input: { readonly projectId: string }) {
+        return Effect.gen(function* () {
+            const domains = yield* ProjectDomainRepository
+            const mappings = yield* ServiceDomainMappingRepository
 
-			const availableDomains = yield* refuse(
-				domains.getAvailableDomainsForProject(input.projectId),
-			);
+            const availableDomains = yield* refuse(
+                domains.getAvailableDomainsForProject(input.projectId)
+            )
 
-			return yield* Effect.all(
-				availableDomains.map((availableDomain) =>
-					Effect.gen(function* () {
-						const alreadySelected = yield* refuse(
-							mappings.hasProjectDomainMappings(availableDomain.id),
-						);
-						return {
-							id: availableDomain.id,
-							domain: availableDomain.domain,
-							verificationStatus: "verified" as const,
-							verifiedAt: availableDomain.verifiedAt,
-							alreadySelected,
-						};
-					}),
-				),
-			);
-		});
-	}
+            return yield* Effect.all(
+                availableDomains.map((availableDomain) =>
+                    Effect.gen(function* () {
+                        const alreadySelected = yield* refuse(
+                            mappings.hasProjectDomainMappings(
+                                availableDomain.id
+                            )
+                        )
+                        return {
+                            id: availableDomain.id,
+                            domain: availableDomain.domain,
+                            verificationStatus: 'verified' as const,
+                            verifiedAt: availableDomain.verifiedAt,
+                            alreadySelected,
+                        }
+                    })
+                )
+            )
+        })
+    }
 
-	getAvailableDomainsForService(input: {
-		readonly projectId: string;
-		readonly serviceId?: string;
-	}) {
-		return Effect.gen(function* () {
-			const domains = yield* ProjectDomainRepository;
-			const mappings = yield* ServiceDomainMappingRepository;
+    getAvailableDomainsForService(input: {
+        readonly projectId: string
+        readonly serviceId?: string
+    }) {
+        return Effect.gen(function* () {
+            const domains = yield* ProjectDomainRepository
+            const mappings = yield* ServiceDomainMappingRepository
 
-			const projectDomains = yield* refuse(
-				domains.findByProjectId(input.projectId),
-			);
+            const projectDomains = yield* refuse(
+                domains.findByProjectId(input.projectId)
+            )
 
-			return yield* Effect.all(
-				projectDomains.map((projectDomain) =>
-					Effect.gen(function* () {
-						const domainMappings = yield* refuse(
-							mappings.findByProjectDomainId(projectDomain.id),
-						);
+            return yield* Effect.all(
+                projectDomains.map((projectDomain) =>
+                    Effect.gen(function* () {
+                        const domainMappings = yield* refuse(
+                            mappings.findByProjectDomainId(projectDomain.id)
+                        )
 
-						const existingMappings = yield* Effect.all(
-							domainMappings
-								.filter(
-									(mapping) =>
-										!input.serviceId || mapping.serviceId !== input.serviceId,
-								)
-								.map((mapping) =>
-									Effect.gen(function* () {
-										const fullUrl = yield* refuse(
-											mappings.getFullUrl(mapping.id),
-										);
-										return {
-											serviceId: mapping.serviceId,
-											serviceName: mapping.serviceId,
-											subdomain: mapping.subdomain,
-											basePath: mapping.basePath,
-											fullUrl: fullUrl ?? "",
-										};
-									}),
-								),
-						);
+                        const existingMappings = yield* Effect.all(
+                            domainMappings
+                                .filter(
+                                    (mapping) =>
+                                        !input.serviceId ||
+                                        mapping.serviceId !== input.serviceId
+                                )
+                                .map((mapping) =>
+                                    Effect.gen(function* () {
+                                        const fullUrl = yield* refuse(
+                                            mappings.getFullUrl(mapping.id)
+                                        )
+                                        return {
+                                            serviceId: mapping.serviceId,
+                                            serviceName: mapping.serviceId,
+                                            subdomain: mapping.subdomain,
+                                            basePath: mapping.basePath,
+                                            fullUrl: fullUrl ?? '',
+                                        }
+                                    })
+                                )
+                        )
 
-						return {
-							projectDomainId: projectDomain.id,
-							domain: projectDomain.domain,
-							allowedSubdomains: projectDomain.allowedSubdomains,
-							isPrimary: projectDomain.isPrimary,
-							existingMappings,
-						};
-					}),
-				),
-			);
-		});
-	}
+                        return {
+                            projectDomainId: projectDomain.id,
+                            domain: projectDomain.domain,
+                            allowedSubdomains: projectDomain.allowedSubdomains,
+                            isPrimary: projectDomain.isPrimary,
+                            existingMappings,
+                        }
+                    })
+                )
+            )
+        })
+    }
 
-	updateProjectDomain(input: UpdateProjectDomainInput, requesterId: string) {
-		return Effect.gen(function* () {
-			const domains = yield* ProjectDomainRepository;
+    updateProjectDomain(input: UpdateProjectDomainInput, requesterId: string) {
+        return Effect.gen(function* () {
+            const domains = yield* ProjectDomainRepository
 
-			const projectDomain = yield* refuse(
-				domains.findById(input.domainId),
-			);
-			if (!projectDomain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: input.domainId })));
-			}
+            const projectDomain = yield* refuse(
+                domains.findById(input.domainId)
+            )
+            if (!projectDomain) {
+                return yield* Effect.fail(
+                    toFailure(
+                        new ProjectDomainNotFoundError({
+                            identifier: input.domainId,
+                        })
+                    )
+                )
+            }
 
-			yield* assertAccess(projectDomain.projectId, requesterId);
+            yield* assertAccess(projectDomain.projectId, requesterId)
 
-			const updated = yield* refuse(
-				domains.update(input.domainId, {
-					...(input.allowedSubdomains !== undefined
-						? { allowedSubdomains: input.allowedSubdomains }
-						: {}),
-					...(input.isPrimary !== undefined ? { isPrimary: input.isPrimary } : {}),
-				}),
-			);
-			if (!updated) {
-				return yield* Effect.fail(toFailure(new ProjectDomainUpdateError({ domainId: input.domainId })));
-			}
+            const updated = yield* refuse(
+                domains.update(input.domainId, {
+                    ...(input.allowedSubdomains !== undefined
+                        ? { allowedSubdomains: input.allowedSubdomains }
+                        : {}),
+                    ...(input.isPrimary !== undefined
+                        ? { isPrimary: input.isPrimary }
+                        : {}),
+                })
+            )
+            if (!updated) {
+                return yield* Effect.fail(
+                    toFailure(
+                        new ProjectDomainUpdateError({
+                            domainId: input.domainId,
+                        })
+                    )
+                )
+            }
 
-			return DomainAdapter.toProjectDomainContract(updated);
-		});
-	}
+            return DomainAdapter.toProjectDomainContract(updated)
+        })
+    }
 
-	verifyProjectDomain(input: {
-		readonly projectId: string;
-		readonly domainId: string;
-		readonly requesterId: string;
-	}) {
-		return Effect.gen(function* () {
-			yield* assertAccess(input.projectId, input.requesterId);
+    verifyProjectDomain(input: {
+        readonly projectId: string
+        readonly domainId: string
+        readonly requesterId: string
+    }) {
+        return Effect.gen(function* () {
+            yield* assertAccess(input.projectId, input.requesterId)
 
-			const verification = yield* DomainVerificationService;
-			return yield* refuse(
-				verification.verifyProjectDomain(input.projectId, input.domainId),
-			);
-		});
-	}
+            const verification = yield* DomainVerificationService
+            return yield* refuse(
+                verification.verifyProjectDomain(
+                    input.projectId,
+                    input.domainId
+                )
+            )
+        })
+    }
 
-	removeProjectDomain(input: {
-		readonly domainId: string;
-		readonly requesterId: string;
-	}) {
-		return Effect.gen(function* () {
-			const domains = yield* ProjectDomainRepository;
-			const mappings = yield* ServiceDomainMappingRepository;
+    removeProjectDomain(input: {
+        readonly domainId: string
+        readonly requesterId: string
+    }) {
+        return Effect.gen(function* () {
+            const domains = yield* ProjectDomainRepository
+            const mappings = yield* ServiceDomainMappingRepository
 
-			const projectDomain = yield* refuse(
-				domains.findById(input.domainId),
-			);
-			if (!projectDomain) {
-				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError({ identifier: input.domainId })));
-			}
+            const projectDomain = yield* refuse(
+                domains.findById(input.domainId)
+            )
+            if (!projectDomain) {
+                return yield* Effect.fail(
+                    toFailure(
+                        new ProjectDomainNotFoundError({
+                            identifier: input.domainId,
+                        })
+                    )
+                )
+            }
 
-			yield* assertAccess(projectDomain.projectId, input.requesterId);
+            yield* assertAccess(projectDomain.projectId, input.requesterId)
 
-			const affectedServices = yield* refuse(
-				mappings.countByProjectDomainId(input.domainId),
-			);
-			const deleted = yield* refuse( domains.delete(input.domainId));
-			if (!deleted) {
-				return yield* Effect.fail(toFailure(new ProjectDomainDeletionError({ domainId: input.domainId })));
-			}
+            const affectedServices = yield* refuse(
+                mappings.countByProjectDomainId(input.domainId)
+            )
+            const deleted = yield* refuse(domains.delete(input.domainId))
+            if (!deleted) {
+                return yield* Effect.fail(
+                    toFailure(
+                        new ProjectDomainDeletionError({
+                            domainId: input.domainId,
+                        })
+                    )
+                )
+            }
 
-			return {
-				success: true,
-				message: "Domain removed from project successfully",
-				affectedServices,
-			};
-		});
-	}
+            return {
+                success: true,
+                message: 'Domain removed from project successfully',
+                affectedServices,
+            }
+        })
+    }
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type DomainProjectServiceShape = DomainProjectServiceImpl;
+export type DomainProjectServiceShape = DomainProjectServiceImpl
 
 /** Effect key = NestJS token. */
-export class DomainProjectService extends Context.Service<DomainProjectService, DomainProjectServiceShape>()(
-	"project/DomainProjectService",
-) {
-	/** Resolves the requirements the methods name when the layer is built. */
-	static readonly live: DomainProjectServiceShape = new DomainProjectServiceImpl();
+export class DomainProjectService extends Context.Service<
+    DomainProjectService,
+    DomainProjectServiceShape
+>()('project/DomainProjectService') {
+    /** Resolves the requirements the methods name when the layer is built. */
+    static readonly live: DomainProjectServiceShape =
+        new DomainProjectServiceImpl()
 }

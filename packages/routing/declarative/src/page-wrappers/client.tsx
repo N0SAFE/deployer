@@ -19,8 +19,7 @@ import { z } from 'zod'
 
 import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
 
-import type {
-} from "@deployer/declarative-routing/types";
+import type {} from '@deployer/declarative-routing/types'
 import type {
     Session,
     ClientAuthAdapter,
@@ -81,7 +80,9 @@ type NextPagePropsInternal<
 // Helper Functions
 // ============================================================================
 
-function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentType<T> {
+function asPageComponent<T>(
+    component: React.ComponentType<T>
+): React.ComponentType<T> {
     return component
 }
 
@@ -178,9 +179,7 @@ function useClientRouteHelpers<
             ]
         }
         // Fallback for non-object schemas: read from URL on demand.
-        const fallback = searchSchema.parse(
-            normalizeRecord(rawNextParams)
-        )
+        const fallback = searchSchema.parse(normalizeRecord(rawNextParams))
         return [fallback, () => undefined]
     })()
 
@@ -203,8 +202,8 @@ function useClientRouteHelpers<
             options?: RouteNavigationOptions
         ) => {
             const href = buildUrl(
-                (input?.params ?? (params as z.input<Params>)),
-                (input?.search ?? (search as z.input<Search>))
+                input?.params ?? (params as z.input<Params>),
+                input?.search ?? (search as z.input<Search>)
             )
             router.push(href, { scroll: options?.scroll })
             return href
@@ -218,8 +217,8 @@ function useClientRouteHelpers<
             options?: RouteNavigationOptions
         ) => {
             const href = buildUrl(
-                (input?.params ?? (params as z.input<Params>)),
-                (input?.search ?? (search as z.input<Search>))
+                input?.params ?? (params as z.input<Params>),
+                input?.search ?? (search as z.input<Search>)
             )
             router.replace(href, { scroll: options?.scroll })
             return href
@@ -255,7 +254,10 @@ function useClientRouteHelpers<
                 }
             }
             setSearchParamsRaw(next as z.input<Search>)
-            const href = buildUrl(params as z.input<Params>, next as z.input<Search>)
+            const href = buildUrl(
+                params as z.input<Params>,
+                next as z.input<Search>
+            )
             return Promise.resolve(href)
         },
         [buildUrl, params, search, setSearchParamsRaw]
@@ -266,7 +268,7 @@ function useClientRouteHelpers<
             setSearchParamsRaw(value)
             const href = buildUrl(
                 params as z.input<Params>,
-                (value ?? ({} as z.input<Search>))
+                value ?? ({} as z.input<Search>)
             )
             return Promise.resolve(href)
         },
@@ -340,10 +342,16 @@ export function createPage<
     AdditionalProps extends object = object,
 >(
     schemas: SchemasConfig<Params, Search>,
-    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+    Component: React.ComponentType<
+        UnwrappedPageProps<Params, Search> & AdditionalProps
+    >,
     runtime?: RouteRuntimeConfig<Params, Search>
-): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
-    type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
+): React.ComponentType<
+    NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
+> {
+    type WrapperProps = NextPagePropsInternal<Params, Search> &
+        BasePageProps &
+        AdditionalProps
 
     function InnerComponent(props: WrapperProps): React.ReactNode {
         const router = useRouter()
@@ -354,7 +362,8 @@ export function createPage<
         )
         const additionalProps = extractAdditionalProps(props)
 
-        const componentProps: UnwrappedPageProps<Params, Search> & AdditionalProps = {
+        const componentProps: UnwrappedPageProps<Params, Search> &
+            AdditionalProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams: search,
@@ -372,9 +381,10 @@ export function createPage<
         )
     }
 
-    const displayName = (Component as { displayName?: string; name?: string }).displayName
-        ?? (Component as { name?: string }).name
-        ?? 'Component'
+    const displayName =
+        (Component as { displayName?: string; name?: string }).displayName ??
+        (Component as { name?: string }).name ??
+        'Component'
     WrappedComponent.displayName = `ClientPage(${displayName})`
 
     return asPageComponent<WrapperProps>(WrappedComponent)
@@ -384,17 +394,25 @@ export function createPage<
  * Helper to wrap a page component with type-safe params/search unwrapping.
  * This is the HOC pattern version of createPage.
  */
-export function withPage<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
->(
+export function withPage<Params extends z.ZodType, Search extends z.ZodType>(
     paramsSchema: Params,
     searchSchema: Search
 ) {
     return function wrapper<AdditionalProps extends object = object>(
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>
-    ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
-        return createPage({ params: paramsSchema, search: searchSchema }, Component) as React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps>
+        Component: React.ComponentType<
+            UnwrappedPageProps<Params, Search> & AdditionalProps
+        >
+    ): React.ComponentType<
+        NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
+    > {
+        return createPage(
+            { params: paramsSchema, search: searchSchema },
+            Component
+        ) as React.ComponentType<
+            NextPagePropsInternal<Params, Search> &
+                BasePageProps &
+                AdditionalProps
+        >
     }
 }
 
@@ -414,14 +432,19 @@ export function createSessionPage<
     schemas: SchemasConfig<Params, Search>,
     Component: React.ComponentType<
         UnwrappedPageProps<Params, Search> &
-        AdditionalProps &
-        ClientSessionProps<S>
+            AdditionalProps &
+            ClientSessionProps<S>
     >,
     _options?: SessionOptions,
     runtime?: RouteRuntimeConfig<Params, Search>
-): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>> {
-
-    type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>
+): React.ComponentType<
+    NextPagePropsInternal<Params, Search> &
+        BasePageProps &
+        Omit<AdditionalProps, keyof ClientSessionProps<S>>
+> {
+    type WrapperProps = NextPagePropsInternal<Params, Search> &
+        BasePageProps &
+        Omit<AdditionalProps, keyof ClientSessionProps<S>>
 
     function InnerComponent(props: WrapperProps): React.ReactNode {
         const authAdapter = getClientAuthAdapter()
@@ -441,8 +464,12 @@ export function createSessionPage<
             route,
             session: sessionHook.data ?? null,
             isLoading: sessionHook.isPending === true,
-            refetch: () => { void sessionHook.refetch() },
-        } as UnwrappedPageProps<Params, Search> & AdditionalProps & ClientSessionProps<S>
+            refetch: () => {
+                void sessionHook.refetch()
+            },
+        } as UnwrappedPageProps<Params, Search> &
+            AdditionalProps &
+            ClientSessionProps<S>
 
         return <Component {...componentProps} />
     }
@@ -455,9 +482,10 @@ export function createSessionPage<
         )
     }
 
-    const displayName = (Component as { displayName?: string; name?: string }).displayName
-        ?? (Component as { name?: string }).name
-        ?? 'Component'
+    const displayName =
+        (Component as { displayName?: string; name?: string }).displayName ??
+        (Component as { name?: string }).name ??
+        'Component'
     WrappedComponent.displayName = `ClientSessionPage(${displayName})`
 
     return asPageComponent<WrapperProps>(WrappedComponent)
@@ -476,7 +504,9 @@ export function withClientSession<
 >(
     WrappedComponent: React.ComponentType<P>
 ): React.ComponentType<Omit<P, keyof ClientSessionProps<S>>> {
-    function WithSessionComponent(props: Omit<P, keyof ClientSessionProps<S>>): React.ReactNode {
+    function WithSessionComponent(
+        props: Omit<P, keyof ClientSessionProps<S>>
+    ): React.ReactNode {
         const authAdapter = getClientAuthAdapter()
         const sessionHook = authAdapter.useSession()
 
@@ -484,15 +514,19 @@ export function withClientSession<
             ...props,
             session: sessionHook.data ?? null,
             isLoading: sessionHook.isPending === true,
-            refetch: () => { void sessionHook.refetch() },
+            refetch: () => {
+                void sessionHook.refetch()
+            },
         } as P
 
         return <WrappedComponent {...enhancedProps} />
     }
 
-    const displayName = (WrappedComponent as { displayName?: string; name?: string }).displayName
-        ?? (WrappedComponent as { name?: string }).name
-        ?? 'Component'
+    const displayName =
+        (WrappedComponent as { displayName?: string; name?: string })
+            .displayName ??
+        (WrappedComponent as { name?: string }).name ??
+        'Component'
     WithSessionComponent.displayName = `WithClientSession(${displayName})`
 
     return WithSessionComponent
@@ -522,17 +556,18 @@ export function createPageWrappers<S extends Session = Session>(
             schemas: SchemasConfig<Params, Search>,
             Component: React.ComponentType<
                 UnwrappedPageProps<Params, Search> &
-                AdditionalProps &
-                ClientSessionProps<S>
+                    AdditionalProps &
+                    ClientSessionProps<S>
             >,
             options?: SessionOptions,
             runtime?: RouteRuntimeConfig<Params, Search>
-        ) => createSessionPage<Params, Search, AdditionalProps, S>(
-            schemas,
-            Component,
-            options,
-            runtime
-        ),
+        ) =>
+            createSessionPage<Params, Search, AdditionalProps, S>(
+                schemas,
+                Component,
+                options,
+                runtime
+            ),
     }
 }
 

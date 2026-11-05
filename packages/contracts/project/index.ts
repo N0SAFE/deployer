@@ -4,15 +4,15 @@
 // nothing else, so the contract cannot drift from the implementation. The BFF
 // composes this into its public router.
 
-export * from "./modules/domain";
-export * from "./modules/project";
-export * from "./modules/service";
+export * from './modules/domain'
+export * from './modules/project'
+export * from './modules/service'
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { domainContract } from "./modules/domain";
-import { projectContract } from "./modules/project";
-import { serviceContract } from "./modules/service";
+import { domainContract } from './modules/domain'
+import { projectContract } from './modules/project'
+import { serviceContract } from './modules/service'
 
 /**
  * The WHOLE project service, as one contract.
@@ -27,9 +27,9 @@ import { serviceContract } from "./modules/service";
  * (`project.user.findById`) stays valid and matches the HTTP route.
  */
 export const projectServiceContract = oc.router({
-	domain: domainContract,
-	project: projectContract,
-	service: serviceContract,
-});
+    domain: domainContract,
+    project: projectContract,
+    service: serviceContract,
+})
 
-export type ProjectServiceContract = typeof projectServiceContract;
+export type ProjectServiceContract = typeof projectServiceContract

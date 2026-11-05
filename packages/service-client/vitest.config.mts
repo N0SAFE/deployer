@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config'
 
 /**
  * The package's own test project.
@@ -9,9 +9,9 @@ import { defineConfig } from 'vitest/config';
  * no DOM in it.
  */
 export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'node',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-  },
-});
+    test: {
+        globals: true,
+        environment: 'node',
+        include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    },
+})

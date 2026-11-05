@@ -6,27 +6,27 @@
  * a DNS-provider-backed tunnel) plus a live probe of the node's own endpoints.
  * Broadcast through the global relay observable (see PublicAccessPointRelayService).
  */
-export type PublicAccessPointKind = "ip" | "hostname" | "tunnel" | null;
+export type PublicAccessPointKind = 'ip' | 'hostname' | 'tunnel' | null
 
 export type PublicAccessPointState = {
     /** Whether any access point is configured (address or tunnel hostname). */
-    configured: boolean;
+    configured: boolean
     /** What kind of access point is configured. */
-    kind: PublicAccessPointKind;
+    kind: PublicAccessPointKind
     /** Raw configured value (IP, hostname, or tunnel hostname). */
-    address: string | null;
+    address: string | null
     /** Full origin + path, e.g. https://example.com/base or http://203.0.113.10. */
-    publicUrl: string | null;
+    publicUrl: string | null
     /** DNS provider account backing the tunnel (when tunnel-based). */
-    providerId: string | null;
-    tunnelEnabled: boolean;
+    providerId: string | null
+    tunnelEnabled: boolean
     /** Live probe result — null before the first check. */
-    reachable: boolean | null;
-    lastCheckedAt: string | null;
-    latencyMs: number | null;
-    statusCode: number | null;
+    reachable: boolean | null
+    lastCheckedAt: string | null
+    latencyMs: number | null
+    statusCode: number | null
     /** Why it's not configured / not reachable (null when healthy). */
-    error: string | null;
+    error: string | null
 }
 
 export const EMPTY_PUBLIC_ACCESS_POINT_STATE: PublicAccessPointState = {
@@ -41,4 +41,4 @@ export const EMPTY_PUBLIC_ACCESS_POINT_STATE: PublicAccessPointState = {
     latencyMs: null,
     statusCode: null,
     error: null,
-};
+}

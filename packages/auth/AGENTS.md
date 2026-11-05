@@ -5,16 +5,16 @@ question it answers. This file is the rule list.
 
 ## Areas (and the one-line rule for each)
 
-| Area | Path | Rule |
-|---|---|---|
-| `authz` | `src/authz/` | The permission VOCABULARY, the pure decision, and the declaration (`platform.ts`) + builder (`builder/`) that turn it into a statement and role maps. Dependency-free on purpose (no Better Auth, no Effect, no Nest, no React): the web app imports it. |
-| `adapters/better-auth` | `src/adapters/better-auth/` | CONVERTS the authz model into what Better Auth needs (`createAccessControl`, `newRole`, role schemas) plus the role helpers (`checks.ts`) and the plugin layer. It never declares a permission or a role. |
-| `rules` | `src/rules/` | Row-level `ResourceRule`s compiled to SQL filters. Pure; no database handle. |
-| `server` | `src/server/` | The `betterAuth(...)` instance: providers, plugins, hooks, session policy, audit. Node only. |
-| `client` | `src/client/` | Browser auth client + plugins. |
-| `react` | `src/react/` | `<RequirePermission>`, `usePermissions`, session helpers. |
-| `mesh` | `src/mesh/` | Tokens between nodes. |
-| `audit` | `src/audit/` | Audit event schema, `AuthAuditSink`, request→event mapping. |
+| Area                   | Path                        | Rule                                                                                                                                                                                                                                                     |
+| ---------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authz`                | `src/authz/`                | The permission VOCABULARY, the pure decision, and the declaration (`platform.ts`) + builder (`builder/`) that turn it into a statement and role maps. Dependency-free on purpose (no Better Auth, no Effect, no Nest, no React): the web app imports it. |
+| `adapters/better-auth` | `src/adapters/better-auth/` | CONVERTS the authz model into what Better Auth needs (`createAccessControl`, `newRole`, role schemas) plus the role helpers (`checks.ts`) and the plugin layer. It never declares a permission or a role.                                                |
+| `rules`                | `src/rules/`                | Row-level `ResourceRule`s compiled to SQL filters. Pure; no database handle.                                                                                                                                                                             |
+| `server`               | `src/server/`               | The `betterAuth(...)` instance: providers, plugins, hooks, session policy, audit. Node only.                                                                                                                                                             |
+| `client`               | `src/client/`               | Browser auth client + plugins.                                                                                                                                                                                                                           |
+| `react`                | `src/react/`                | `<RequirePermission>`, `usePermissions`, session helpers.                                                                                                                                                                                                |
+| `mesh`                 | `src/mesh/`                 | Tokens between nodes.                                                                                                                                                                                                                                    |
+| `audit`                | `src/audit/`                | Audit event schema, `AuthAuditSink`, request→event mapping.                                                                                                                                                                                              |
 
 ## Rules
 
@@ -35,7 +35,7 @@ question it answers. This file is the rule list.
   `src/client/auth-client.ts` for client.
 - **`multiSession` is cookie-only.** It adds one signed `{prefix}.session_token_multi-<token>` cookie per retained
   account (max 5). No DB table, no migration — never add an auth-table write for it.
-- **Never swap identity client-side.** `multiSession.setActive` rewrites the primary session cookie *and* the cookie
+- **Never swap identity client-side.** `multiSession.setActive` rewrites the primary session cookie _and_ the cookie
   cache server-side via `setSessionCookie`. Consumers must re-read identity (reload or refetch) rather than patch
   user-scoped state in place.
 - **Sign-out is browser-wide.** The `multiSession` after-hook on `/sign-out` expires every `_multi-` cookie and deletes
@@ -58,6 +58,7 @@ question it answers. This file is the rule list.
 ## Key exports
 
 ### Server (`@deployer/auth/server`)
+
 - `betterAuthFactory(db, env, { audit? })` — the instance; the third argument is the only opt-in.
 - Server plugins: `deployerUserSchemaPlugin`, `stepUpPlugin`, `impersonationPlugin`, `masterTokenPlugin`,
   `loginAsPlugin`, `pushNotificationsPlugin`, `useInvite`, plus Better Auth's built-ins `openAPI` and `multiSession`. (`useOrganization` is **not** implemented — see
@@ -65,10 +66,12 @@ question it answers. This file is the rule list.
   user administration is the identity service's oRPC procedures.)
 
 ### Client (`@deployer/auth/client`)
+
 - `createAuthClientFactory`, plugins `deployerUserSchemaClient`, `impersonationClient`, `masterTokenClient`,
   `loginAsClientPlugin`, `useInviteClient`, guard `hasMasterTokenPlugin`.
 
 ### Root
+
 - Types `Session`, `User`, `Auth`, `InferSessionFromAuth`, `IEnvService`; `authz`'s catalog and decision; the Better Auth
   AC surface; the row-rule engine (`ForbiddenError`, `PermissionEngine`, …).
 

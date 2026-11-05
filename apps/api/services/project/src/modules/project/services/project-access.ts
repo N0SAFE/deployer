@@ -1,9 +1,13 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import { projectRules, type ProjectAccess, type ProjectRole } from "../domain/project.entity";
-import { ResourceNotFound } from "../domain/project.errors";
-import { rule } from "../project-effects";
-import { ProjectStore } from "../repositories/project.repository";
+import {
+    projectRules,
+    type ProjectAccess,
+    type ProjectRole,
+} from '../domain/project.entity'
+import { ResourceNotFound } from '../domain/project.errors'
+import { rule } from '../project-effects'
+import { ProjectStore } from '../repositories/project.repository'
 
 /**
  * Load a project and prove the caller may act on it at `access` level.
@@ -20,34 +24,43 @@ import { ProjectStore } from "../repositories/project.repository";
  * `projectRules.assertCanGrant`).
  */
 export function assertProjectAccessWithRole(
-	projectId: string,
-	userId: string,
-	access: ProjectAccess,
+    projectId: string,
+    userId: string,
+    access: ProjectAccess
 ) {
-	return Effect.gen(function* () {
-		const projects = yield* ProjectStore;
-		const project = yield* projects.findById(projectId);
-		if (!project) {
-			return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
-		}
+    return Effect.gen(function* () {
+        const projects = yield* ProjectStore
+        const project = yield* projects.findById(projectId)
+        if (!project) {
+            return yield* Effect.fail(
+                new ResourceNotFound({ entity: 'Project', id: projectId })
+            )
+        }
 
-		// The owner is the owner by virtue of the ROW, so a missing collaborator
-		// record must not read as "no access" for them.
-		const collaborator =
-			project.ownerId === userId
-				? null
-				: yield* projects.findCollaboratorByUserAndProject(userId, projectId);
+        // The owner is the owner by virtue of the ROW, so a missing collaborator
+        // record must not read as "no access" for them.
+        const collaborator =
+            project.ownerId === userId
+                ? null
+                : yield* projects.findCollaboratorByUserAndProject(
+                      userId,
+                      projectId
+                  )
 
-		const role: ProjectRole = yield* rule(() =>
-			projectRules.assertAccess(project, userId, collaborator, access),
-		);
-		return { project, role };
-	});
+        const role: ProjectRole = yield* rule(() =>
+            projectRules.assertAccess(project, userId, collaborator, access)
+        )
+        return { project, role }
+    })
 }
 
 /** The project, when only its fields are needed. */
-export function assertProjectAccess(projectId: string, userId: string, access: ProjectAccess) {
-	return assertProjectAccessWithRole(projectId, userId, access).pipe(
-		Effect.map(({ project }) => project),
-	);
+export function assertProjectAccess(
+    projectId: string,
+    userId: string,
+    access: ProjectAccess
+) {
+    return assertProjectAccessWithRole(projectId, userId, access).pipe(
+        Effect.map(({ project }) => project)
+    )
 }

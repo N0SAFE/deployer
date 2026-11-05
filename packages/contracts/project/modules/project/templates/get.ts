@@ -1,13 +1,23 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { projectVariableTemplateOps } from "./shared";
+import { projectVariableTemplateOps } from './shared'
 
 export const projectGetVariableTemplateContract = projectVariableTemplateOps
-    .read({ idFieldName: "templateId", idSchema: z.uuid() })
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/variable-templates/${p("templateId", z.uuid())}`))
+    .read({ idFieldName: 'templateId', idSchema: z.uuid() })
+    .input((b) =>
+        b.params(
+            (p) =>
+                p`/${p('id', z.uuid())}/variable-templates/${p('templateId', z.uuid())}`
+        )
+    )
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "template:read", scope: { by: "input", path: "params.id", kind: "project" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'template:read',
+            scope: { by: 'input', path: 'params.id', kind: 'project' },
+        })
+    )
+    .build()
 
-import { access } from "@deployer/auth/authz/meta";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standardDomainErrorContracts } from '@deployer/orpc-utils'

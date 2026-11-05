@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 /**
  * The auth events the platform records.
@@ -8,36 +8,36 @@ import z from "zod/v4";
  * matches.
  */
 export const AUTH_AUDIT_ACTIONS = [
-	"sign-in",
-	"sign-out",
-	"user-created",
-	"user-deleted",
-	"email-change",
-	"role-change",
-	"access-denied",
-	"role-created",
-	"role-updated",
-	"role-deleted",
-	"ban",
-	"unban",
-	"password-changed",
-	"session-revoked",
-	"two-factor-enabled",
-	"passkey-added",
-	"api-key-created",
-	"api-key-revoked",
-	"invite-created",
-	"invite-accepted",
-	"device-approved",
-	"impersonation-start",
-	"impersonation-stop",
-	"impersonation-writes-enabled",
-	"approval-requested",
-	"approval-decided",
-	"approval-consumed",
-] as const;
+    'sign-in',
+    'sign-out',
+    'user-created',
+    'user-deleted',
+    'email-change',
+    'role-change',
+    'access-denied',
+    'role-created',
+    'role-updated',
+    'role-deleted',
+    'ban',
+    'unban',
+    'password-changed',
+    'session-revoked',
+    'two-factor-enabled',
+    'passkey-added',
+    'api-key-created',
+    'api-key-revoked',
+    'invite-created',
+    'invite-accepted',
+    'device-approved',
+    'impersonation-start',
+    'impersonation-stop',
+    'impersonation-writes-enabled',
+    'approval-requested',
+    'approval-decided',
+    'approval-consumed',
+] as const
 
-export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[number];
+export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[number]
 
 /**
  * One recorded event.
@@ -46,17 +46,17 @@ export type AuthAuditAction = (typeof AUTH_AUDIT_ACTIONS)[number];
  * whoever holds `audit:read`, which is a wider audience than the action's own capability.
  */
 export const authAuditEventSchema = z.object({
-	action: z.enum(AUTH_AUDIT_ACTIONS),
-	/** Who caused it, when the request was authenticated. */
-	actorId: z.string().min(1).optional(),
-	/** Who it happened to, when the action names a subject. */
-	targetId: z.string().min(1).optional(),
-	ip: z.string().optional(),
-	userAgent: z.string().optional(),
-	detail: z.record(z.string(), z.unknown()).optional(),
-});
+    action: z.enum(AUTH_AUDIT_ACTIONS),
+    /** Who caused it, when the request was authenticated. */
+    actorId: z.string().min(1).optional(),
+    /** Who it happened to, when the action names a subject. */
+    targetId: z.string().min(1).optional(),
+    ip: z.string().optional(),
+    userAgent: z.string().optional(),
+    detail: z.record(z.string(), z.unknown()).optional(),
+})
 
-export type AuthAuditEvent = z.infer<typeof authAuditEventSchema>;
+export type AuthAuditEvent = z.infer<typeof authAuditEventSchema>
 
 /**
  * Where a produced event goes.
@@ -66,5 +66,5 @@ export type AuthAuditEvent = z.infer<typeof authAuditEventSchema>;
  * failures (a counter, a log line) — the producer cannot.
  */
 export interface AuthAuditSink {
-	record: (event: AuthAuditEvent) => void;
+    record: (event: AuthAuditEvent) => void
 }

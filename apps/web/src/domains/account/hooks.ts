@@ -101,7 +101,7 @@ export interface AgentHostSummary {
  */
 function useAccountResource<T>(
     loader: () => Promise<{ data: T | null; error: string | null }>,
-    label: string,
+    label: string
 ): AccountResource<T> {
     const [data, setData] = React.useState<T | null>(null)
     const [error, setError] = React.useState<string | null>(null)
@@ -120,12 +120,16 @@ function useAccountResource<T>(
                     // A thrown error and a returned error mean the same thing to the
                     // caller, so normalise here rather than at every call site.
                     logger.error(`Failed to load ${label}`, { error: err })
-                    setError(err instanceof Error ? err.message : `Failed to load ${label}`)
+                    setError(
+                        err instanceof Error
+                            ? err.message
+                            : `Failed to load ${label}`
+                    )
                 })
                 .finally(() => {
                     setIsLoading(false)
                 }),
-        [loader, label],
+        [loader, label]
     )
 
     const run = React.useCallback(async () => {
@@ -154,7 +158,7 @@ function useAccountResource<T>(
 /** Normalise a Better Auth client result into `{ data, error }`. */
 function fromClient<T>(
     result: { data?: T | null; error?: { message?: string } | null },
-    fallback: string,
+    fallback: string
 ): { data: T | null; error: string | null } {
     if (result.error) {
         return { data: null, error: result.error.message ?? fallback }
@@ -189,7 +193,7 @@ export function usePasskeys(): AccountResource<PasskeySummary[]> {
     const loader = React.useCallback(async () => {
         const result = await authClient.$fetch<PasskeySummary[]>(
             '/passkey/list-user-passkeys',
-            { method: 'GET' },
+            { method: 'GET' }
         )
         const { data, error } = fromClient(result, 'Failed to load passkeys')
         return { data: pickArray<PasskeySummary>(data, 'passkeys'), error }
@@ -250,8 +254,11 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
 
     const run = React.useCallback(
         async (
-            action: () => Promise<{ data?: unknown; error?: { message?: string } | null }>,
-            onSuccess?: (data: unknown) => void,
+            action: () => Promise<{
+                data?: unknown
+                error?: { message?: string } | null
+            }>,
+            onSuccess?: (data: unknown) => void
         ) => {
             setIsBusy(true)
             setError(null)
@@ -269,7 +276,7 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
                 setIsBusy(false)
             }
         },
-        [],
+        []
     )
 
     // `enable` returns `false` when the server refused, so the caller can keep the password field from clearing.
@@ -279,17 +286,21 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
             await run(
                 () => authClient.twoFactor.enable({ password }),
                 (data) => {
-                    const payload = data as { totpURI?: string; backupCodes?: string[] } | null
+                    const payload = data as {
+                        totpURI?: string
+                        backupCodes?: string[]
+                    } | null
                     if (payload?.totpURI) {
                         setTotpURI(payload.totpURI)
                         started = true
                     }
-                    if (payload?.backupCodes?.length) setBackupCodes(payload.backupCodes)
-                },
+                    if (payload?.backupCodes?.length)
+                        setBackupCodes(payload.backupCodes)
+                }
             )
             return started
         },
-        [run],
+        [run]
     )
 
     /**
@@ -308,20 +319,22 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
                 () => {
                     confirmed = true
                     setTotpURI(null)
-                },
+                }
             )
             return confirmed
         },
-        [run],
+        [run]
     )
 
     const disable = React.useCallback(
         () =>
             run(
                 () => authClient.twoFactor.disable({}),
-                () => { setBackupCodes([]); },
+                () => {
+                    setBackupCodes([])
+                }
             ),
-        [run],
+        [run]
     )
 
     const regenerateBackupCodes = React.useCallback(
@@ -329,11 +342,12 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
             run(
                 () => authClient.twoFactor.generateBackupCodes({}),
                 (data) => {
-                    const codes = (data as { backupCodes?: string[] } | null)?.backupCodes
+                    const codes = (data as { backupCodes?: string[] } | null)
+                        ?.backupCodes
                     setBackupCodes(codes ?? [])
-                },
+                }
             ),
-        [run],
+        [run]
     )
 
     const clearBackupCodes = React.useCallback(() => {
@@ -344,7 +358,17 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
     // `_enabledFromSession` is accepted but unused here: the caller already holds
     // the session, so reading it again would double the requests for one boolean.
 
-    return { backupCodes, totpURI, isBusy, error, enable, verify, disable, regenerateBackupCodes, clearBackupCodes }
+    return {
+        backupCodes,
+        totpURI,
+        isBusy,
+        error,
+        enable,
+        verify,
+        disable,
+        regenerateBackupCodes,
+        clearBackupCodes,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -354,7 +378,9 @@ export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
 /** API keys owned by the signed-in account. */
 export function useApiKeys(): AccountResource<ApiKeySummary[]> {
     const loader = React.useCallback(async () => {
-        const result = await authClient.apiKey.list({ query: { limit: 50, offset: 0 } })
+        const result = await authClient.apiKey.list({
+            query: { limit: 50, offset: 0 },
+        })
         const { data, error } = fromClient(result, 'Failed to load API keys')
         return { data: pickArray<ApiKeySummary>(data, 'apiKeys'), error }
     }, [])
@@ -372,16 +398,21 @@ export interface CreateApiKeyOptions {
 
 /** Mint a key. Returns the raw key ONCE — it is never retrievable again. */
 export async function createApiKey(
-    options: CreateApiKeyOptions,
+    options: CreateApiKeyOptions
 ): Promise<{ key: string | null; error: string | null }> {
     const result = await authClient.apiKey.create({
         name: options.name,
-        ...(options.expiresIn !== undefined ? { expiresIn: options.expiresIn } : {}),
+        ...(options.expiresIn !== undefined
+            ? { expiresIn: options.expiresIn }
+            : {}),
         ...(options.metadata ? { metadata: options.metadata } : {}),
     })
 
     if (result.error) {
-        return { key: null, error: result.error.message ?? 'Failed to create API key' }
+        return {
+            key: null,
+            error: result.error.message ?? 'Failed to create API key',
+        }
     }
 
     const created = result.data as { key?: string } | null
@@ -455,7 +486,10 @@ export interface LinkedAccount {
 export function useLinkedAccounts(): AccountResource<LinkedAccount[]> {
     const loader = React.useCallback(async () => {
         const result = await authClient.listAccounts()
-        const { data, error } = fromClient(result, 'Failed to load connected accounts')
+        const { data, error } = fromClient(
+            result,
+            'Failed to load connected accounts'
+        )
         return { data: (data as LinkedAccount[] | null) ?? [], error }
     }, [])
 
@@ -469,7 +503,9 @@ export function useLinkedAccounts(): AccountResource<LinkedAccount[]> {
 /** AI agents registered against this platform. */
 export function useAgents(): AccountResource<AgentSummary[]> {
     const loader = React.useCallback(async () => {
-        const result = await authClient.$fetch<unknown>('/agent/list', { method: 'GET' })
+        const result = await authClient.$fetch<unknown>('/agent/list', {
+            method: 'GET',
+        })
         const { data, error } = fromClient(result, 'Failed to load agents')
         return { data: pickArray<AgentSummary>(data, 'agents'), error }
     }, [])
@@ -480,7 +516,9 @@ export function useAgents(): AccountResource<AgentSummary[]> {
 /** Hosts that can run agents. */
 export function useAgentHosts(): AccountResource<AgentHostSummary[]> {
     const loader = React.useCallback(async () => {
-        const result = await authClient.$fetch<unknown>('/host/list', { method: 'GET' })
+        const result = await authClient.$fetch<unknown>('/host/list', {
+            method: 'GET',
+        })
         const { data, error } = fromClient(result, 'Failed to load agent hosts')
         return { data: pickArray<AgentHostSummary>(data, 'hosts'), error }
     }, [])
@@ -495,7 +533,7 @@ export function useAgentHosts(): AccountResource<AgentHostSummary[]> {
 /** Human-readable "3 minutes ago", or `fallback` for absent/invalid values. */
 export function relativeTime(
     value: Date | string | null | undefined,
-    fallback = 'never',
+    fallback = 'never'
 ): string {
     if (!value) return fallback
     const date = value instanceof Date ? value : new Date(value)
@@ -528,25 +566,35 @@ export function isExpired(value: Date | string | null | undefined): boolean {
  * Deliberately coarse: the goal is "which of my logins is this", not analytics.
  * A full UA parser would be a dependency for a string nobody reads twice.
  */
-export function describeUserAgent(userAgent: string | null | undefined): string {
+export function describeUserAgent(
+    userAgent: string | null | undefined
+): string {
     if (!userAgent) return 'Unknown device'
     const ua = userAgent.toLowerCase()
 
-    const browser =
-        ua.includes('edg/') ? 'Edge'
-        : ua.includes('opr/') || ua.includes('opera') ? 'Opera'
-        : ua.includes('firefox') ? 'Firefox'
-        : ua.includes('chrome') ? 'Chrome'
-        : ua.includes('safari') ? 'Safari'
-        : 'Browser'
+    const browser = ua.includes('edg/')
+        ? 'Edge'
+        : ua.includes('opr/') || ua.includes('opera')
+          ? 'Opera'
+          : ua.includes('firefox')
+            ? 'Firefox'
+            : ua.includes('chrome')
+              ? 'Chrome'
+              : ua.includes('safari')
+                ? 'Safari'
+                : 'Browser'
 
-    const os =
-        ua.includes('windows') ? 'Windows'
-        : ua.includes('android') ? 'Android'
-        : ua.includes('iphone') || ua.includes('ipad') ? 'iOS'
-        : ua.includes('mac os') ? 'macOS'
-        : ua.includes('linux') ? 'Linux'
-        : ''
+    const os = ua.includes('windows')
+        ? 'Windows'
+        : ua.includes('android')
+          ? 'Android'
+          : ua.includes('iphone') || ua.includes('ipad')
+            ? 'iOS'
+            : ua.includes('mac os')
+              ? 'macOS'
+              : ua.includes('linux')
+                ? 'Linux'
+                : ''
 
     return os ? `${browser} on ${os}` : browser
 }

@@ -1,11 +1,9 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 
-
 import { userContract } from '@deployer/identity-contracts'
 import { procedure } from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
-
 
 import { UserService } from '../services/user.service'
 
@@ -33,12 +31,12 @@ export class UserController {
                 const offset = input.query.offset
 
                 const page = yield* users.list({
-                        limit,
-                        offset,
-                        sortField: readSortField(input.query.sortBy),
-                        sortDirection: input.query.sortDirection ?? 'desc',
-                        filter: readFilter(input.query.filter),
-                    })
+                    limit,
+                    offset,
+                    sortField: readSortField(input.query.sortBy),
+                    sortDirection: input.query.sortDirection ?? 'desc',
+                    filter: readFilter(input.query.filter),
+                })
 
                 return {
                     data: page.data,
@@ -109,7 +107,10 @@ export class UserController {
             .use(requireAuth())
             .effect(function* ({ input }) {
                 const users = yield* UserService
-                yield* users.revokeSession(input.params.id, input.params.sessionId)
+                yield* users.revokeSession(
+                    input.params.id,
+                    input.params.sessionId
+                )
                 return { revoked: true as const }
             })
     }
@@ -134,10 +135,10 @@ export class UserController {
                 const users = yield* UserService
 
                 const created = yield* users.create({
-                        name: input.name,
-                        email: input.email,
-                        image: input.image ?? null,
-                    })
+                    name: input.name,
+                    email: input.email,
+                    image: input.image ?? null,
+                })
 
                 return { status: 201 as const, headers: {}, body: created }
             })
@@ -185,7 +186,10 @@ export class UserController {
             .use(requireAuth())
             .effect(function* ({ input }) {
                 const users = yield* UserService
-                const updated = yield* users.setRole(input.params.id, input.body.role)
+                const updated = yield* users.setRole(
+                    input.params.id,
+                    input.body.role
+                )
                 return updated
             })
     }
@@ -196,7 +200,10 @@ export class UserController {
             .use(requireAuth())
             .effect(function* ({ input }) {
                 const users = yield* UserService
-                return yield* users.setBanned(input.params.id, input.body.banned)
+                return yield* users.setBanned(
+                    input.params.id,
+                    input.body.banned
+                )
             })
     }
 
@@ -214,12 +221,11 @@ export class UserController {
     /** Public by design: the signup form's "is this address taken" probe. */
     @Implement(userContract.checkEmail)
     checkEmail() {
-        return procedure(userContract.checkEmail)
-            .effect(function* ({ input }) {
-                const users = yield* UserService
-                const exists = yield* users.checkEmail(input.email)
-                return { exists }
-            })
+        return procedure(userContract.checkEmail).effect(function* ({ input }) {
+            const users = yield* UserService
+            const exists = yield* users.checkEmail(input.email)
+            return { exists }
+        })
     }
 
     @Implement(userContract.count)

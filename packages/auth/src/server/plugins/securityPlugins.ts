@@ -12,13 +12,10 @@
  * in the TanStack DevTools panels (`apps/web/src/components/devtools/plugins/`).
  */
 
-import { passkey } from "@better-auth/passkey";
-import { twoFactor } from "better-auth/plugins";
-import {
-    deviceAuthorization,
-    type TimeString,
-} from "better-auth/plugins";
-import { lastLoginMethod } from "better-auth/plugins";
+import { passkey } from '@better-auth/passkey'
+import { twoFactor } from 'better-auth/plugins'
+import { deviceAuthorization, type TimeString } from 'better-auth/plugins'
+import { lastLoginMethod } from 'better-auth/plugins'
 
 // ============================================================================
 // Passkey Plugin
@@ -26,7 +23,7 @@ import { lastLoginMethod } from "better-auth/plugins";
 
 export interface UsePasskeyOptions {
     /** Relying-party display name shown by the OS during enrolment. */
-    rpName?: string;
+    rpName?: string
     /**
      * The WebAuthn relying-party ID: the registrable domain the credential is bound to, WITHOUT a leading dot.
      *
@@ -34,9 +31,9 @@ export interface UsePasskeyOptions {
      * origin while this API answers it on `api.<domain>` — leaving it to the default makes the plugin use the API's own
      * hostname, and the browser then rejects every credential as "wrong RP".
      */
-    rpID?: string;
+    rpID?: string
     /** The origin(s) the ceremony may come from — the web app, not the API. Defaults to inferring from the request. */
-    origin?: string | string[];
+    origin?: string | string[]
 }
 
 /**
@@ -63,7 +60,7 @@ export function usePasskey(options: UsePasskeyOptions = {}) {
         rpName: options.rpName ?? 'Deployer',
         ...(options.rpID ? { rpID: options.rpID } : {}),
         ...(options.origin ? { origin: options.origin } : {}),
-    });
+    })
 }
 
 /**
@@ -75,28 +72,30 @@ export function usePasskey(options: UsePasskeyOptions = {}) {
  * needs.
  */
 export function passkeyCoordinates(input: {
-    readonly authBaseDomain?: string;
-    readonly appUrl?: string;
-    readonly rpIdOverride?: string;
-    readonly originOverride?: string;
+    readonly authBaseDomain?: string
+    readonly appUrl?: string
+    readonly rpIdOverride?: string
+    readonly originOverride?: string
 }): { rpID?: string; origin?: string[] } {
-    const fromDomain = input.authBaseDomain?.replace(/^\./u, '').trim();
-    const rpID = input.rpIdOverride?.trim() ?? (fromDomain === undefined || fromDomain === '' ? undefined : fromDomain);
+    const fromDomain = input.authBaseDomain?.replace(/^\./u, '').trim()
+    const rpID =
+        input.rpIdOverride?.trim() ??
+        (fromDomain === undefined || fromDomain === '' ? undefined : fromDomain)
 
     const pinned = (input.originOverride ?? '')
         .split(',')
         .map((origin) => origin.trim())
-        .filter((origin) => origin.length > 0);
-    const inferred = input.appUrl?.trim();
-    const origin = pinned.length > 0 ? pinned : inferred ? [inferred] : [];
+        .filter((origin) => origin.length > 0)
+    const inferred = input.appUrl?.trim()
+    const origin = pinned.length > 0 ? pinned : inferred ? [inferred] : []
 
     return {
         ...(rpID ? { rpID } : {}),
         ...(origin.length > 0 ? { origin } : {}),
-    };
+    }
 }
 
-export type PasskeyPlugin = ReturnType<typeof usePasskey>;
+export type PasskeyPlugin = ReturnType<typeof usePasskey>
 
 // ============================================================================
 // Two-Factor Plugin
@@ -104,9 +103,9 @@ export type PasskeyPlugin = ReturnType<typeof usePasskey>;
 
 export interface UseTwoFactorOptions {
     /** Shown by authenticator apps as the account issuer. */
-    issuer?: string;
+    issuer?: string
     /** Number of single-use recovery codes to generate. */
-    backupCodeCount?: number;
+    backupCodeCount?: number
 }
 
 /**
@@ -132,10 +131,10 @@ export function useTwoFactor(options: UseTwoFactorOptions = {}) {
             amount: options.backupCodeCount ?? 10,
             length: 10,
         },
-    });
+    })
 }
 
-export type TwoFactorPlugin = ReturnType<typeof useTwoFactor>;
+export type TwoFactorPlugin = ReturnType<typeof useTwoFactor>
 
 // ============================================================================
 // Device Authorization Plugin
@@ -143,11 +142,11 @@ export type TwoFactorPlugin = ReturnType<typeof useTwoFactor>;
 
 export interface UseDeviceAuthorizationOptions {
     /** Web path a user visits to approve a device code. */
-    verificationUri?: string;
+    verificationUri?: string
     /** How long a device code stays valid. A duration the plugin parses (`'30m'`, `'1h'`). */
-    expiresIn?: TimeString;
+    expiresIn?: TimeString
     /** Number of characters in the human-typed user code. */
-    userCodeLength?: number;
+    userCodeLength?: number
 }
 
 /**
@@ -175,18 +174,20 @@ export interface UseDeviceAuthorizationOptions {
  * betterAuth({ plugins: [useDeviceAuthorization()] })
  * ```
  */
-export function useDeviceAuthorization(): ReturnType<typeof deviceAuthorization<undefined>> {
+export function useDeviceAuthorization(): ReturnType<
+    typeof deviceAuthorization<undefined>
+> {
     return deviceAuthorization({
         verificationUri: '/device',
         // `TimeString` is a template-literal type (`'30m'`, `'1h'`), not a number.
         expiresIn: '30m',
         userCodeLength: 8,
-    });
+    })
 }
 
 export type DeviceAuthorizationPlugin = ReturnType<
     typeof deviceAuthorization<undefined>
->;
+>
 
 // ============================================================================
 // Last Login Method Plugin
@@ -205,7 +206,7 @@ export type DeviceAuthorizationPlugin = ReturnType<
  * ```
  */
 export function useLastLoginMethod() {
-    return lastLoginMethod();
+    return lastLoginMethod()
 }
 
-export type LastLoginMethodPlugin = ReturnType<typeof useLastLoginMethod>;
+export type LastLoginMethodPlugin = ReturnType<typeof useLastLoginMethod>

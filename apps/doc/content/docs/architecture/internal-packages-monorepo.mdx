@@ -4,7 +4,10 @@ description: How @deployer/* packages map to workspace paths, dependency flow, a
 order: 4
 ---
 
-<DocMeta source=".docs/concepts/internal-packages.md, .docs/concepts/monorepo.md" scope="canonical" />
+<DocMeta
+    source=".docs/concepts/internal-packages.md, .docs/concepts/monorepo.md"
+    scope="canonical"
+/>
 
 ## The two names model
 
@@ -25,26 +28,26 @@ Both are expected and intentionally different.
 
 ## High-value package examples
 
-| Import name | Physical path |
-| --- | --- |
-| `@deployer/contracts-entities` | `packages/contracts/api` |
-| `@deployer/contracts-entities` | `packages/contracts/entities` |
-| `@deployer/auth` | `packages/auth` |
-| `@deployer/orpc-utils` | `packages/transport/orpc` |
-| `@deployer/errors` | `packages/utils/errors` |
-| `@deployer/logger` | `packages/infrastructure/logger` |
-| `@deployer/declarative-routing` | `packages/routing/declarative` |
-| `@deployer/env` | `packages/config/env` |
-| `@deployer/ui` | `packages/ui/base` |
-| `@deployer/environment` | `packages/environment` |
-| `@deployer/nest-schema` | `packages/nest/schema` |
-| `@deployer/nest-database-core` | `packages/nest/database-core` |
-| `@deployer/nest-database-local` | `packages/nest/database-local` |
-| `@deployer/nest-docker` | `packages/nest/docker` |
-| `@deployer/nest-nodes` | `packages/nest/nodes` |
-| `@deployer/nest-supervisor-core` | `packages/nest/supervisor-core` |
-| `@deployer/lifecycle` | `packages/lifecycle` |
-| `@deployer/events` | `packages/events` |
+| Import name                      | Physical path                    |
+| -------------------------------- | -------------------------------- |
+| `@deployer/contracts-entities`   | `packages/contracts/api`         |
+| `@deployer/contracts-entities`   | `packages/contracts/entities`    |
+| `@deployer/auth`                 | `packages/auth`                  |
+| `@deployer/orpc-utils`           | `packages/transport/orpc`        |
+| `@deployer/errors`               | `packages/utils/errors`          |
+| `@deployer/logger`               | `packages/infrastructure/logger` |
+| `@deployer/declarative-routing`  | `packages/routing/declarative`   |
+| `@deployer/env`                  | `packages/config/env`            |
+| `@deployer/ui`                   | `packages/ui/base`               |
+| `@deployer/environment`          | `packages/environment`           |
+| `@deployer/nest-schema`          | `packages/nest/schema`           |
+| `@deployer/nest-database-core`   | `packages/nest/database-core`    |
+| `@deployer/nest-database-local`  | `packages/nest/database-local`   |
+| `@deployer/nest-docker`          | `packages/nest/docker`           |
+| `@deployer/nest-nodes`           | `packages/nest/nodes`            |
+| `@deployer/nest-supervisor-core` | `packages/nest/supervisor-core`  |
+| `@deployer/lifecycle`            | `packages/lifecycle`             |
+| `@deployer/events`               | `packages/events`                |
 
 ## The `packages/nest/*` family
 
@@ -53,28 +56,28 @@ These are pre-wired NestJS building blocks shared between the Nest apps (`api`,
 
 **The package owns the MECHANISM. The app owns the POLICY.**
 
-| Package | Ships | The app supplies |
-| --- | --- | --- |
-| `environment` | the validated environment (Effect), provided by each app's `EnvModule` | — |
-| `nest-schema` | drizzle table definitions + the codec registry | the encryption key + traefik builder (via `configureSchemaCodecs`) |
-| `nest-database-core` | `BaseDatabaseService` over any drizzle client | the concrete database service |
-| `nest-database-local` | the SQLite connection + `@Global` module | — |
-| `nest-docker` | the engine client, container lifecycle, swarm-spec mapping | connection + scanner + Postgres-identity CONFIG as data |
-| `nest-nodes` | node/cluster repositories | — |
-| `nest-supervisor-core` | supervisor base classes + event bus | each supervisor's `buildSwarmSpec()` |
-| `lifecycle` | the app-lifecycle phase and its change stream (Effect); provided by `AppLifecycleModule` | — |
+| Package                | Ships                                                                                    | The app supplies                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `environment`          | the validated environment (Effect), provided by each app's `EnvModule`                   | —                                                                  |
+| `nest-schema`          | drizzle table definitions + the codec registry                                           | the encryption key + traefik builder (via `configureSchemaCodecs`) |
+| `nest-database-core`   | `BaseDatabaseService` over any drizzle client                                            | the concrete database service                                      |
+| `nest-database-local`  | the SQLite connection + `@Global` module                                                 | —                                                                  |
+| `nest-docker`          | the engine client, container lifecycle, swarm-spec mapping                               | connection + scanner + Postgres-identity CONFIG as data            |
+| `nest-nodes`           | node/cluster repositories                                                                | —                                                                  |
+| `nest-supervisor-core` | supervisor base classes + event bus                                                      | each supervisor's `buildSwarmSpec()`                               |
+| `lifecycle`            | the app-lifecycle phase and its change stream (Effect); provided by `AppLifecycleModule` | —                                                                  |
 
 Two consequences worth knowing before you add code:
 
 - **No package names a platform service.** `@deployer/nest-docker` knows HOW to schedule
-a swarm service; the supervisor topology table (which services exist, on how many
-nodes) stays in the app, because naming our ingress/redis/database is a platform
-decision. The same applies to `PLATFORM_SUPERVISOR_TOPOLOGY` versus the generic
-runtime vocabulary.
+  a swarm service; the supervisor topology table (which services exist, on how many
+  nodes) stays in the app, because naming our ingress/redis/database is a platform
+  decision. The same applies to `PLATFORM_SUPERVISOR_TOPOLOGY` versus the generic
+  runtime vocabulary.
 - **No package reads `process.env`.** Configuration arrives as data through a narrow
-interface (`DockerConnectionConfig`, `ScannerConfig`, `PostgresIdentityConfig`) or
-through a `forRoot({ schema })` call, so a second Nest app can use the primitives
-with its own variables instead of inheriting the first app's environment contract.
+  interface (`DockerConnectionConfig`, `ScannerConfig`, `PostgresIdentityConfig`) or
+  through a `forRoot({ schema })` call, so a second Nest app can use the primitives
+  with its own variables instead of inheriting the first app's environment contract.
 
 When adding behaviour, ask which side of that line it falls on. Business logic that
 exactly one app consumes belongs in that app, even if the package is where it would
@@ -100,12 +103,12 @@ Every package is consumed as built output, never as raw TypeScript. One builder,
 JS. That is what keeps a consumer's type-check to declarations instead of
 re-compiling every package implementation. Turbo drives it:
 
-| Task | What it does |
-| --- | --- |
-| `build` | JS + declarations (dependency order via `^build`) |
-| `build:types` | declarations only (`dist/types/**`), ordered by `^build:types` |
-| `watch:types` | root script: `turbo watch build:types` |
-| `type-check` / `lint` | wait for dependencies' `build:types` |
+| Task                  | What it does                                                   |
+| --------------------- | -------------------------------------------------------------- |
+| `build`               | JS + declarations (dependency order via `^build`)              |
+| `build:types`         | declarations only (`dist/types/**`), ordered by `^build:types` |
+| `watch:types`         | root script: `turbo watch build:types`                         |
+| `type-check` / `lint` | wait for dependencies' `build:types`                           |
 
 ### Configuring a package
 
@@ -163,7 +166,8 @@ bun run check
 4. Keep docs aligned in the same change set.
 
 <DocCallout title="Boundary reminder" tone="info">
-Avoid deep imports into package internals. Prefer stable public exports from each package `exports` map.
+    Avoid deep imports into package internals. Prefer stable public exports from
+    each package `exports` map.
 </DocCallout>
 
 ## Common pitfalls

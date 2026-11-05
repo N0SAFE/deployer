@@ -9,31 +9,43 @@
  * Global because the registry is read by the ingress supervisors, the reachability core and the Edge API alike.
  */
 
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule } from '@deployer/nest-effect'
 
-import { ClusterSettings, type ClusterSettingsShape } from "../mesh-node/cluster-settings";
-import { MeshNodeModule } from "../mesh-node/mesh-node.module";
+import {
+    ClusterSettings,
+    type ClusterSettingsShape,
+} from '../mesh-node/cluster-settings'
+import { MeshNodeModule } from '../mesh-node/mesh-node.module'
 
-import { EdgeProviderRegistry, makeEdgeProviderRegistry, type EdgeProviderRegistryShape } from "./edge-provider.registry";
-import { EdgeStateStore, makeEdgeStateStore } from "./edge-state.store";
-import { DirectEdgeProvider } from "./providers/direct.edge-provider";
+import {
+    EdgeProviderRegistry,
+    makeEdgeProviderRegistry,
+    type EdgeProviderRegistryShape,
+} from './edge-provider.registry'
+import { EdgeStateStore, makeEdgeStateStore } from './edge-state.store'
+import { DirectEdgeProvider } from './providers/direct.edge-provider'
 
 export const CoreEdgeModule = createGlobalModule({
-	imports: [MeshNodeModule],
-	providers: [
-		{ provide: EdgeProviderRegistry, useFactory: makeEdgeProviderRegistry },
-		{ provide: EdgeStateStore, useFactory: (settings: ClusterSettingsShape) => makeEdgeStateStore(settings), inject: [ClusterSettings] },
-		{
-			// Built in: it needs nothing but the nodes, so the module registers it when it builds the provider.
-			provide: DirectEdgeProvider,
-			useFactory: (registry: EdgeProviderRegistryShape) => {
-				Effect.runSync(registry.register(DirectEdgeProvider.live));
-				return DirectEdgeProvider.live;
-			},
-			inject: [EdgeProviderRegistry],
-		},
-	],
-	exports: [EdgeProviderRegistry, EdgeStateStore],
-});
+    imports: [MeshNodeModule],
+    providers: [
+        { provide: EdgeProviderRegistry, useFactory: makeEdgeProviderRegistry },
+        {
+            provide: EdgeStateStore,
+            useFactory: (settings: ClusterSettingsShape) =>
+                makeEdgeStateStore(settings),
+            inject: [ClusterSettings],
+        },
+        {
+            // Built in: it needs nothing but the nodes, so the module registers it when it builds the provider.
+            provide: DirectEdgeProvider,
+            useFactory: (registry: EdgeProviderRegistryShape) => {
+                Effect.runSync(registry.register(DirectEdgeProvider.live))
+                return DirectEdgeProvider.live
+            },
+            inject: [EdgeProviderRegistry],
+        },
+    ],
+    exports: [EdgeProviderRegistry, EdgeStateStore],
+})

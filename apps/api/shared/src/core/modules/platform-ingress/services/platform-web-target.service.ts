@@ -19,44 +19,54 @@
  * network; managed web: the supervisor spawns it there).
  */
 
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { MANAGED_WEB_CONTAINER_BASE_NAME } from "./platform-names";
+import { MANAGED_WEB_CONTAINER_BASE_NAME } from './platform-names'
 
-import type { PlatformConfigServiceShape } from "./platform-config.service";
+import type { PlatformConfigServiceShape } from './platform-config.service'
 
 export type PlatformWebTargetServiceShape = {
-	/** The web container name on the platform network, or null when no web should be served (no route / no forward). */
-	readonly resolveWebTarget: () => Effect.Effect<string | null>;
-};
-
-type Ports = {
-	readonly platformConfig: Pick<PlatformConfigServiceShape, "isManagedWebAppEnabled">;
-	/** The environment values the resolution reads. */
-	readonly env: {
-		readonly webTarget: () => string | undefined;
-		readonly managedWebExternal: () => boolean;
-		readonly prefix: () => string;
-	};
-};
-
-export function makePlatformWebTargetService({ platformConfig, env }: Ports): PlatformWebTargetServiceShape {
-	return {
-		resolveWebTarget: () =>
-			Effect.gen(function* () {
-				const explicit = env.webTarget()?.trim();
-				if (explicit !== undefined && explicit !== "") return explicit;
-
-				// The API-supervised managed web owns the surface unless an external web (compose side-by-side / BYO) is declared.
-				if (env.managedWebExternal()) return null;
-				if (!(yield* platformConfig.isManagedWebAppEnabled())) return null;
-
-				const prefix = env.prefix();
-				return prefix === "" ? MANAGED_WEB_CONTAINER_BASE_NAME : `${MANAGED_WEB_CONTAINER_BASE_NAME}-${prefix}`;
-			}),
-	};
+    /** The web container name on the platform network, or null when no web should be served (no route / no forward). */
+    readonly resolveWebTarget: () => Effect.Effect<string | null>
 }
 
-export class PlatformWebTargetService extends Context.Service<PlatformWebTargetService, PlatformWebTargetServiceShape>()(
-	"shared/PlatformWebTargetService",
-) {}
+type Ports = {
+    readonly platformConfig: Pick<
+        PlatformConfigServiceShape,
+        'isManagedWebAppEnabled'
+    >
+    /** The environment values the resolution reads. */
+    readonly env: {
+        readonly webTarget: () => string | undefined
+        readonly managedWebExternal: () => boolean
+        readonly prefix: () => string
+    }
+}
+
+export function makePlatformWebTargetService({
+    platformConfig,
+    env,
+}: Ports): PlatformWebTargetServiceShape {
+    return {
+        resolveWebTarget: () =>
+            Effect.gen(function* () {
+                const explicit = env.webTarget()?.trim()
+                if (explicit !== undefined && explicit !== '') return explicit
+
+                // The API-supervised managed web owns the surface unless an external web (compose side-by-side / BYO) is declared.
+                if (env.managedWebExternal()) return null
+                if (!(yield* platformConfig.isManagedWebAppEnabled()))
+                    return null
+
+                const prefix = env.prefix()
+                return prefix === ''
+                    ? MANAGED_WEB_CONTAINER_BASE_NAME
+                    : `${MANAGED_WEB_CONTAINER_BASE_NAME}-${prefix}`
+            }),
+    }
+}
+
+export class PlatformWebTargetService extends Context.Service<
+    PlatformWebTargetService,
+    PlatformWebTargetServiceShape
+>()('shared/PlatformWebTargetService') {}

@@ -11,40 +11,40 @@ import DashboardDockerShellPage from './shell/page'
 import DashboardDockerVolumesPage from './volumes/page'
 
 describePageStates('Docker overview', {
-	page: () => <DashboardDockerPage />,
-	empty: { action: /all containers|projects|cluster/i },
+    page: () => <DashboardDockerPage />,
+    empty: { action: /all containers|projects|cluster/i },
 })
 describePageStates('Docker containers', {
-	page: () => {
-		const Page = asComponent(DashboardDockerContainersPage)
-		return <Page />
-	},
-	empty: { action: /create|run|new/i },
+    page: () => {
+        const Page = asComponent(DashboardDockerContainersPage)
+        return <Page />
+    },
+    empty: { action: /create|run|new/i },
 })
 describePageStates('Docker images', {
-	page: () => {
-		const Page = asComponent(DashboardDockerImagesPage)
-		return <Page />
-	},
-	empty: { action: /pull|create|run|deploy/i },
+    page: () => {
+        const Page = asComponent(DashboardDockerImagesPage)
+        return <Page />
+    },
+    empty: { action: /pull|create|run|deploy/i },
 })
 describePageStates('Docker networks', {
-	page: () => <DashboardDockerNetworksPage />,
-	empty: { action: /refresh|create/i },
+    page: () => <DashboardDockerNetworksPage />,
+    empty: { action: /refresh|create/i },
 })
 describePageStates('Docker volumes', {
-	page: () => <DashboardDockerVolumesPage />,
-	empty: { action: /refresh|create/i },
+    page: () => <DashboardDockerVolumesPage />,
+    empty: { action: /refresh|create/i },
 })
 describePageStates('Docker logs', {
-	page: () => <DashboardDockerLogsPage />,
-	empty: { action: /containers|deploy|projects/i },
+    page: () => <DashboardDockerLogsPage />,
+    empty: { action: /containers|deploy|projects/i },
 })
 describePageStates('Docker activity', {
-	page: () => <DashboardDockerActivityPage />,
-	empty: { action: /.+/ },
+    page: () => <DashboardDockerActivityPage />,
+    empty: { action: /.+/ },
 })
 describePageStates('Docker shell', {
-	page: () => <DashboardDockerShellPage />,
-	empty: { action: /containers|deploy|projects/i },
+    page: () => <DashboardDockerShellPage />,
+    empty: { action: /containers|deploy|projects/i },
 })

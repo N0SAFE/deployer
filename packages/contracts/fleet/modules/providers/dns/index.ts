@@ -6,16 +6,16 @@
  * provider variant (cloudflare, route53, ...) owns a sub-router exposed as
  * `orpc.providers.dns.<variant>.*`.
  */
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { cloudflareProviderContract } from "./cloudflare";
+import { cloudflareProviderContract } from './cloudflare'
 import {
     dnsProviderListContract,
     dnsProviderCreateContract,
     dnsProviderUpdateContract,
     dnsProviderDeleteContract,
     dnsProviderCheckStateContract,
-} from "./shared";
+} from './shared'
 
 export const dnsProvidersContract = oc.router({
     // Generic provider-app CRUD (shared across all DNS provider variants)
@@ -26,11 +26,11 @@ export const dnsProvidersContract = oc.router({
     checkState: dnsProviderCheckStateContract,
     // Provider variants
     cloudflare: cloudflareProviderContract,
-});
+})
 
-export type DnsProvidersContract = typeof dnsProvidersContract;
+export type DnsProvidersContract = typeof dnsProvidersContract
 
-export * from "./shared";
-export * from "./cloudflare";
-export { dnsProviderAppContract } from "./shared";
-export { cloudflareProviderContract } from "./cloudflare";
+export * from './shared'
+export * from './cloudflare'
+export { dnsProviderAppContract } from './shared'
+export { cloudflareProviderContract } from './cloudflare'

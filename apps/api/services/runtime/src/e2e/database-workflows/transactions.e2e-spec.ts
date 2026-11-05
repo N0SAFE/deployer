@@ -10,9 +10,11 @@ import {
 } from '@deployer/nest-schema/global/project/deployment'
 import { deployments } from '@deployer/nest-schema/global/runtime/deployment'
 import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
-import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@deployer/shared/core/modules/database/services/global-database.service'
+import {
+    GlobalDatabaseService,
+    type GlobalDatabaseServiceShape,
+} from '@deployer/shared/core/modules/database/services/global-database.service'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
-
 
 import { RuntimeDatabasePort, RuntimeDb } from '@/core/database/runtime-db'
 import { getSharedApiRuntimeContext } from '@/e2e/runtime'
@@ -40,7 +42,9 @@ describe('RuntimeDb e2e: transactions and cancellation', () => {
     let serviceId: string
     const probe = `tx_probe_${randomUUID().replaceAll('-', '')}`
 
-    const withDb = <A, E>(effect: Effect.Effect<A, E, RuntimeDb | RuntimeDatabasePort>) =>
+    const withDb = <A, E>(
+        effect: Effect.Effect<A, E, RuntimeDb | RuntimeDatabasePort>
+    ) =>
         Effect.runPromise(
             effect.pipe(
                 Effect.provideService(RuntimeDb, RuntimeDb.live),
@@ -50,7 +54,9 @@ describe('RuntimeDb e2e: transactions and cancellation', () => {
 
     beforeAll(async () => {
         const context = await getSharedApiRuntimeContext()
-        database = context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape
+        database = context.serviceMapper.get(
+            GlobalDatabaseService
+        ) as unknown as GlobalDatabaseServiceShape
         repository = context.serviceMapper.get(DeploymentRepository)
         pool = (database.db as unknown as { $client: Pool }).$client
 

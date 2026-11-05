@@ -1,10 +1,10 @@
-import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { Effect } from 'effect'
+import { describe, expect, it, vi } from 'vitest'
 
-import type { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import type { PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
+import type { HostnameService } from '@/core/modules/platform-ingress/services/hostname.service'
+import type { PlatformConfigServiceShape } from '@/core/modules/platform-ingress/services/platform-config.service'
 
-import { makePostSetupDestinationService } from "./post-setup-destination.service";
+import { makePostSetupDestinationService } from './post-setup-destination.service'
 
 /**
  * The destination the wizard's final click uses.
@@ -14,76 +14,89 @@ import { makePostSetupDestinationService } from "./post-setup-destination.servic
  * the last click of a successful setup. The two cases below are the contract.
  */
 function makeService(options: {
-	enabled?: boolean;
-	enabledThrows?: boolean;
-	origin?: string | null;
+    enabled?: boolean
+    enabledThrows?: boolean
+    origin?: string | null
 }) {
-	const isManagedWebAppEnabled = vi.fn(() =>
-		options.enabledThrows === true ? Effect.die(new Error("relation does not exist")) : Effect.succeed(options.enabled ?? false),
-	);
-	const getManagedWebOrigin = vi.fn(() => Effect.succeed(options.origin ?? null));
+    const isManagedWebAppEnabled = vi.fn(() =>
+        options.enabledThrows === true
+            ? Effect.die(new Error('relation does not exist'))
+            : Effect.succeed(options.enabled ?? false)
+    )
+    const getManagedWebOrigin = vi.fn(() =>
+        Effect.succeed(options.origin ?? null)
+    )
 
-	// The ports are plain objects: each carries only the members this unit exercises, and the cast states the narrowing.
-	const shape = makePostSetupDestinationService({
-		hostnameService: {
-			webOrigin: () => "http://web.deployer.localhost",
-			apiOrigin: () => "http://api.deployer.localhost",
-		} as unknown as HostnameService,
-		platformConfig: { isManagedWebAppEnabled, getManagedWebOrigin } as unknown as PlatformConfigServiceShape,
-	});
-	// `resolve` never fails (its error type is `never`), so the result is the value itself.
-	const service = { resolve: () => Effect.runPromise(shape.resolve()) };
-	return { service, isManagedWebAppEnabled, getManagedWebOrigin };
+    // The ports are plain objects: each carries only the members this unit exercises, and the cast states the narrowing.
+    const shape = makePostSetupDestinationService({
+        hostnameService: {
+            webOrigin: () => 'http://web.deployer.localhost',
+            apiOrigin: () => 'http://api.deployer.localhost',
+        } as unknown as HostnameService,
+        platformConfig: {
+            isManagedWebAppEnabled,
+            getManagedWebOrigin,
+        } as unknown as PlatformConfigServiceShape,
+    })
+    // `resolve` never fails (its error type is `never`), so the result is the value itself.
+    const service = { resolve: () => Effect.runPromise(shape.resolve()) }
+    return { service, isManagedWebAppEnabled, getManagedWebOrigin }
 }
 
-describe("PostSetupDestinationService", () => {
-	it("sends the operator to the dashboard when it is enabled", async () => {
-		const { service } = makeService({ enabled: true });
+describe('PostSetupDestinationService', () => {
+    it('sends the operator to the dashboard when it is enabled', async () => {
+        const { service } = makeService({ enabled: true })
 
-		const result = await service.resolve();
+        const result = await service.resolve()
 
-		expect(result.kind).toBe("dashboard");
-		expect(result.url).toBe("http://web.deployer.localhost");
-		expect(result.managedWebEnabled).toBe(true);
-	});
+        expect(result.kind).toBe('dashboard')
+        expect(result.url).toBe('http://web.deployer.localhost')
+        expect(result.managedWebEnabled).toBe(true)
+    })
 
-	it("prefers an explicit operator origin over the derived hostname", async () => {
-		// The ingress publishes the web router for this origin too, so the URL and
-		// the route cannot disagree — which is why it wins here as well.
-		const { service } = makeService({ enabled: true, origin: "app.example.com" });
+    it('prefers an explicit operator origin over the derived hostname', async () => {
+        // The ingress publishes the web router for this origin too, so the URL and
+        // the route cannot disagree — which is why it wins here as well.
+        const { service } = makeService({
+            enabled: true,
+            origin: 'app.example.com',
+        })
 
-		expect((await service.resolve()).url).toBe("http://app.example.com");
-	});
+        expect((await service.resolve()).url).toBe('http://app.example.com')
+    })
 
-	it("sends the operator to the API console when no dashboard is enabled", async () => {
-		const { service } = makeService({ enabled: false });
+    it('sends the operator to the API console when no dashboard is enabled', async () => {
+        const { service } = makeService({ enabled: false })
 
-		const result = await service.resolve();
+        const result = await service.resolve()
 
-		// The API's own page — it cannot 404 the way an unrouted web host would,
-		// and it is where a dashboard can be turned on.
-		expect(result.kind).toBe("api-console");
-		expect(result.url).toBe("http://api.deployer.localhost/manage/web-app");
-		expect(result.managedWebEnabled).toBe(false);
-	});
+        // The API's own page — it cannot 404 the way an unrouted web host would,
+        // and it is where a dashboard can be turned on.
+        expect(result.kind).toBe('api-console')
+        expect(result.url).toBe('http://api.deployer.localhost/manage/web-app')
+        expect(result.managedWebEnabled).toBe(false)
+    })
 
-	it("falls back to the API console when the flag cannot be read", async () => {
-		// The flag lives in a table setup provisions, so a read can legitimately
-		// fail. The operator must still have somewhere to go, and the console is
-		// the answer that also lets them enable a dashboard.
-		const { service } = makeService({ enabledThrows: true });
+    it('falls back to the API console when the flag cannot be read', async () => {
+        // The flag lives in a table setup provisions, so a read can legitimately
+        // fail. The operator must still have somewhere to go, and the console is
+        // the answer that also lets them enable a dashboard.
+        const { service } = makeService({ enabledThrows: true })
 
-		const result = await service.resolve();
+        const result = await service.resolve()
 
-		expect(result.kind).toBe("api-console");
-		expect(result.managedWebEnabled).toBe(false);
-	});
+        expect(result.kind).toBe('api-console')
+        expect(result.managedWebEnabled).toBe(false)
+    })
 
-	it("adds a scheme to a stored bare host", async () => {
-		// `getManagedWebOrigin` stores hosts without a scheme (it normalizes them
-		// away), so navigating to it verbatim would be a relative URL.
-		const { service } = makeService({ enabled: true, origin: "app.example.com" });
+    it('adds a scheme to a stored bare host', async () => {
+        // `getManagedWebOrigin` stores hosts without a scheme (it normalizes them
+        // away), so navigating to it verbatim would be a relative URL.
+        const { service } = makeService({
+            enabled: true,
+            origin: 'app.example.com',
+        })
 
-		expect((await service.resolve()).url).toMatch(/^http:\/\//);
-	});
-});
+        expect((await service.resolve()).url).toMatch(/^http:\/\//)
+    })
+})

@@ -1,16 +1,16 @@
-import { Logger } from "@nestjs/common";
-import { Context } from "effect";
+import { Logger } from '@nestjs/common'
+import { Context } from 'effect'
 
 import type {
-  SetupMeshJoinInput,
-  SetupMeshJoinResult,
-  SetupMeshStatus,
-  SetupMeshTokenInput,
-  SetupMeshTokenResult,
-} from "@deployer/contracts-entities";
-import { nodeDoorFromEnv, type NodeDoorClient } from "@deployer/mesh-client";
+    SetupMeshJoinInput,
+    SetupMeshJoinResult,
+    SetupMeshStatus,
+    SetupMeshTokenInput,
+    SetupMeshTokenResult,
+} from '@deployer/contracts-entities'
+import { nodeDoorFromEnv, type NodeDoorClient } from '@deployer/mesh-client'
 
-import { EnvService } from "@/config/env/env.module";
+import { EnvService } from '@/config/env/env.module'
 
 /**
  * The wizard's mesh surface, over this node's mesh agent.
@@ -26,98 +26,115 @@ import { EnvService } from "@/config/env/env.module";
  * or when the operator clicks. Nothing here schedules a timer.
  */
 export class MeshOnboardingServiceImpl {
-  private readonly logger = new Logger("MeshOnboardingService");
-  private readonly door: NodeDoorClient;
+    private readonly logger = new Logger('MeshOnboardingService')
+    private readonly door: NodeDoorClient
 
-  /** `door` is the test seam; production resolves it from `NODE_AGENT_SOCKET`. */
-  constructor(env: EnvService, door?: NodeDoorClient) {
-    this.door = door ?? nodeDoorFromEnv(env);
-  }
-
-  /** This node's mesh state, or `available: false` when the agent is silent. */
-  async getStatus(): Promise<SetupMeshStatus> {
-    const status = await this.door.status();
-    if (status === null) {
-      return {
-        available: false,
-        agentId: null,
-        interfaceUp: false,
-        meshAddress: null,
-        nodeId: null,
-        swarm: null,
-      };
+    /** `door` is the test seam; production resolves it from `NODE_AGENT_SOCKET`. */
+    constructor(env: EnvService, door?: NodeDoorClient) {
+        this.door = door ?? nodeDoorFromEnv(env)
     }
 
-    // The platform node id is a label the API stamps once it has booted, so a
-    // pre-platform node legitimately has none.
-    const view = await this.door.view();
+    /** This node's mesh state, or `available: false` when the agent is silent. */
+    async getStatus(): Promise<SetupMeshStatus> {
+        const status = await this.door.status()
+        if (status === null) {
+            return {
+                available: false,
+                agentId: null,
+                interfaceUp: false,
+                meshAddress: null,
+                nodeId: null,
+                swarm: null,
+            }
+        }
 
-    // WireGuard's own peer list is the honest source: an agent with no
-    // configured peers is alone, whatever the roster says.
-    const peers = status.peers.map((peer) => ({
-      nodeId: peer.nodeId,
-      meshAddress: peer.meshAddress,
-      handshake: peer.latestHandshakeAt !== null,
-    }));
+        // The platform node id is a label the API stamps once it has booted, so a
+        // pre-platform node legitimately has none.
+        const view = await this.door.view()
 
-    return {
-      available: true,
-      agentId: status.agentId,
-      interfaceUp: status.interfaceUp,
-      meshAddress: status.meshAddress,
-      nodeId: view?.self.nodeId ?? null,
-      swarm: peers.length === 0 ? null : { nodes: peers.length + 1, peers },
-    };
-  }
+        // WireGuard's own peer list is the honest source: an agent with no
+        // configured peers is alone, whatever the roster says.
+        const peers = status.peers.map((peer) => ({
+            nodeId: peer.nodeId,
+            meshAddress: peer.meshAddress,
+            handshake: peer.latestHandshakeAt !== null,
+        }))
 
-  /**
-   * Redeem an invite token.
-   *
-   * A refusal is returned as `joined: false` with a reason — never thrown. The
-   * operator typed a token; a wrong token is an answer, not an outage.
-   */
-  async join(input: SetupMeshJoinInput): Promise<SetupMeshJoinResult> {
-    const result = await this.door.joinWithToken(input.token);
-    if (result !== null && result.learned) {
-      this.logger.log(`Joined a mesh swarm through the node door (${String(result.agents.length)} agent(s))`);
-      // The join result carries the credential and the agents; the swarm identity is a fact about the agent, asked after.
-      const joinedStatus = await this.door.status();
-      return {
-        joined: true,
-        swarmId: joinedStatus?.swarmId ?? null,
-        agents: result.agents.map((agent) => ({ nodeId: agent.nodeId, address: agent.address })),
-        reason: null,
-      };
+        return {
+            available: true,
+            agentId: status.agentId,
+            interfaceUp: status.interfaceUp,
+            meshAddress: status.meshAddress,
+            nodeId: view?.self.nodeId ?? null,
+            swarm:
+                peers.length === 0 ? null : { nodes: peers.length + 1, peers },
+        }
     }
 
-    // Distinguish "the token is bad" from "the agent is not there": the wizard
-    // shows the first to the operator and retries the second.
-    const valid = await this.door.checkJoinToken(input.token);
-    const reason =
-      valid === false
-        ? "This invite is not valid for this swarm — it may have expired, already been used, or been mistyped."
-        : valid === true
-          ? "The mesh agent refused the invite even though it is valid. Check the agent's logs."
-          : "This node's mesh agent is not answering, so the invite could not be redeemed.";
+    /**
+     * Redeem an invite token.
+     *
+     * A refusal is returned as `joined: false` with a reason — never thrown. The
+     * operator typed a token; a wrong token is an answer, not an outage.
+     */
+    async join(input: SetupMeshJoinInput): Promise<SetupMeshJoinResult> {
+        const result = await this.door.joinWithToken(input.token)
+        if (result !== null && result.learned) {
+            this.logger.log(
+                `Joined a mesh swarm through the node door (${String(result.agents.length)} agent(s))`
+            )
+            // The join result carries the credential and the agents; the swarm identity is a fact about the agent, asked after.
+            const joinedStatus = await this.door.status()
+            return {
+                joined: true,
+                swarmId: joinedStatus?.swarmId ?? null,
+                agents: result.agents.map((agent) => ({
+                    nodeId: agent.nodeId,
+                    address: agent.address,
+                })),
+                reason: null,
+            }
+        }
 
-    this.logger.warn(`Mesh join did not happen: ${reason}`);
-    return {
-      joined: false,
-      swarmId: null,
-      agents: result?.agents.map((agent) => ({ nodeId: agent.nodeId, address: agent.address })) ?? [],
-      reason,
-    };
-  }
+        // Distinguish "the token is bad" from "the agent is not there": the wizard
+        // shows the first to the operator and retries the second.
+        const valid = await this.door.checkJoinToken(input.token)
+        const reason =
+            valid === false
+                ? 'This invite is not valid for this swarm — it may have expired, already been used, or been mistyped.'
+                : valid === true
+                  ? "The mesh agent refused the invite even though it is valid. Check the agent's logs."
+                  : "This node's mesh agent is not answering, so the invite could not be redeemed."
 
-  /** Issue a one-time invite; `token: null` when the agent does not answer. */
-  async issueToken(input: SetupMeshTokenInput): Promise<SetupMeshTokenResult> {
-    const issued = await this.door.issueJoinToken(input.ttlMs);
-    return { token: issued?.token ?? null };
-  }
+        this.logger.warn(`Mesh join did not happen: ${reason}`)
+        return {
+            joined: false,
+            swarmId: null,
+            agents:
+                result?.agents.map((agent) => ({
+                    nodeId: agent.nodeId,
+                    address: agent.address,
+                })) ?? [],
+            reason,
+        }
+    }
+
+    /** Issue a one-time invite; `token: null` when the agent does not answer. */
+    async issueToken(
+        input: SetupMeshTokenInput
+    ): Promise<SetupMeshTokenResult> {
+        const issued = await this.door.issueJoinToken(input.ttlMs)
+        return { token: issued?.token ?? null }
+    }
 }
 
 /** The tag: what a module provides and a consumer asks for (`MeshOnboardingService["Service"]` is its type). */
-export class MeshOnboardingService extends Context.Service<MeshOnboardingService, MeshOnboardingServiceImpl>()("setup/MeshOnboardingService") {}
+export class MeshOnboardingService extends Context.Service<
+    MeshOnboardingService,
+    MeshOnboardingServiceImpl
+>()('setup/MeshOnboardingService') {}
 
 /** The one way to build it — the module's `useFactory` and a spec both call this. */
-export const makeMeshOnboardingService = (...args: ConstructorParameters<typeof MeshOnboardingServiceImpl>): MeshOnboardingServiceImpl => new MeshOnboardingServiceImpl(...args);
+export const makeMeshOnboardingService = (
+    ...args: ConstructorParameters<typeof MeshOnboardingServiceImpl>
+): MeshOnboardingServiceImpl => new MeshOnboardingServiceImpl(...args)

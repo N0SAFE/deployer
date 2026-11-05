@@ -4,24 +4,28 @@ import { Check, ChevronsUpDown, PencilLine } from 'lucide-react'
 import { useState } from 'react'
 
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
 } from '@deployer/ui/components/shadcn/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@deployer/ui/components/shadcn/popover'
 import { cn } from '@deployer/ui/lib/utils'
 
 export interface SearchableOption {
-  value: string
-  /** Shown label (defaults to value). */
-  label?: string
-  /** Secondary line (e.g. repo language · private). */
-  description?: string
-  /** Small badge text on the right (e.g. "detected", "prod"). */
-  badge?: string
+    value: string
+    /** Shown label (defaults to value). */
+    label?: string
+    /** Secondary line (e.g. repo language · private). */
+    description?: string
+    /** Small badge text on the right (e.g. "detected", "prod"). */
+    badge?: string
 }
 
 /**
@@ -31,110 +35,160 @@ export interface SearchableOption {
  * apps, compose candidates, …).
  */
 export function SearchableSelect({
-  value,
-  onChange,
-  options,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search…',
-  emptyMessage = 'No match found.',
-  allowCustom = false,
-  className,
-  onClose,
+    value,
+    onChange,
+    options,
+    placeholder = 'Select…',
+    searchPlaceholder = 'Search…',
+    emptyMessage = 'No match found.',
+    allowCustom = false,
+    className,
+    onClose,
 }: {
-  value: string
-  onChange: (next: string) => void
-  options: SearchableOption[]
-  placeholder?: string
-  searchPlaceholder?: string
-  emptyMessage?: string
-  /** Allow the typed text to be committed as a custom value. */
-  allowCustom?: boolean
-  className?: string
-  /** Called when the popover closes (wire to the field's blur). */
-  onClose?: () => void
+    value: string
+    onChange: (next: string) => void
+    options: SearchableOption[]
+    placeholder?: string
+    searchPlaceholder?: string
+    emptyMessage?: string
+    /** Allow the typed text to be committed as a custom value. */
+    allowCustom?: boolean
+    className?: string
+    /** Called when the popover closes (wire to the field's blur). */
+    onClose?: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
+    const [open, setOpen] = useState(false)
+    const [search, setSearch] = useState('')
 
-  const q = search.trim().toLowerCase()
-  const filtered = q ? options.filter((o) => (o.label ?? o.value).toLowerCase().includes(q) || o.value.toLowerCase().includes(q)) : options
-  const selected = options.find((o) => o.value === value)
-  const customValue = search.trim()
+    const q = search.trim().toLowerCase()
+    const filtered = q
+        ? options.filter(
+              (o) =>
+                  (o.label ?? o.value).toLowerCase().includes(q) ||
+                  o.value.toLowerCase().includes(q)
+          )
+        : options
+    const selected = options.find((o) => o.value === value)
+    const customValue = search.trim()
 
-  const select = (next: string) => {
-    onChange(next)
-    setOpen(false)
-    setSearch('')
-  }
+    const select = (next: string) => {
+        onChange(next)
+        setOpen(false)
+        setSearch('')
+    }
 
-  return (
-    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) onClose?.() }}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            'flex w-full items-center justify-between gap-1.5 rounded-md border border-input bg-input/20 px-2 py-1.5 text-xs text-left whitespace-nowrap transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 data-placeholder:text-muted-foreground',
-            className,
-          )}
+    return (
+        <Popover
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next)
+                if (!next) onClose?.()
+            }}
         >
-          <span className={cn('flex min-w-0 items-center gap-1.5', !value && 'text-muted-foreground')}>
-            {selected ? (
-              <>
-                <span className="truncate">{selected.label ?? selected.value}</span>
-                {selected.badge ? (
-                  <span className="shrink-0 rounded bg-muted px-1 py-px text-xs font-medium text-muted-foreground">{selected.badge}</span>
-                ) : null}
-              </>
-            ) : (
-              <span className="truncate">{value || placeholder}</span>
-            )}
-          </span>
-          <ChevronsUpDown className="ml-2 size-3.5 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
-          <CommandList>
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
-            {filtered.length > 0 && (
-              <CommandGroup>
-                {filtered.map((o) => (
-                  <CommandItem
-                    key={o.value}
-                    value={o.value}
-                    onSelect={() => { select(o.value) }}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate">{o.label ?? o.value}</span>
-                      {o.description ? <span className="truncate text-xs text-muted-foreground">{o.description}</span> : null}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {o.badge ? <span className="rounded bg-muted px-1 py-px text-xs font-medium text-muted-foreground">{o.badge}</span> : null}
-                      {value === o.value && <Check className="size-3.5 text-primary" />}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-            {allowCustom && customValue && !options.some((o) => o.value === customValue) && (
-              <CommandGroup heading="Custom value">
-                <CommandItem
-                  value={`__custom__${customValue}`}
-                  onSelect={() => { select(customValue) }}
-                  className="flex items-center gap-2 text-primary"
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    role="combobox"
+                    aria-expanded={open}
+                    className={cn(
+                        'border-input bg-input/20 focus-visible:border-ring focus-visible:ring-ring/30 data-placeholder:text-muted-foreground flex w-full items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-left text-xs whitespace-nowrap transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50',
+                        className
+                    )}
                 >
-                  <PencilLine className="size-3.5" />
-                  <span className="truncate">Use “{customValue}”</span>
-                </CommandItem>
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
+                    <span
+                        className={cn(
+                            'flex min-w-0 items-center gap-1.5',
+                            !value && 'text-muted-foreground'
+                        )}
+                    >
+                        {selected ? (
+                            <>
+                                <span className="truncate">
+                                    {selected.label ?? selected.value}
+                                </span>
+                                {selected.badge ? (
+                                    <span className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-px text-xs font-medium">
+                                        {selected.badge}
+                                    </span>
+                                ) : null}
+                            </>
+                        ) : (
+                            <span className="truncate">
+                                {value || placeholder}
+                            </span>
+                        )}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-3.5 shrink-0 opacity-50" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent
+                className="w-(--radix-popover-trigger-width) p-0"
+                align="start"
+            >
+                <Command shouldFilter={false}>
+                    <CommandInput
+                        placeholder={searchPlaceholder}
+                        value={search}
+                        onValueChange={setSearch}
+                    />
+                    <CommandList>
+                        <CommandEmpty>{emptyMessage}</CommandEmpty>
+                        {filtered.length > 0 && (
+                            <CommandGroup>
+                                {filtered.map((o) => (
+                                    <CommandItem
+                                        key={o.value}
+                                        value={o.value}
+                                        onSelect={() => {
+                                            select(o.value)
+                                        }}
+                                        className="flex items-center justify-between gap-2"
+                                    >
+                                        <span className="flex min-w-0 flex-col">
+                                            <span className="truncate">
+                                                {o.label ?? o.value}
+                                            </span>
+                                            {o.description ? (
+                                                <span className="text-muted-foreground truncate text-xs">
+                                                    {o.description}
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                        <span className="flex shrink-0 items-center gap-1.5">
+                                            {o.badge ? (
+                                                <span className="bg-muted text-muted-foreground rounded px-1 py-px text-xs font-medium">
+                                                    {o.badge}
+                                                </span>
+                                            ) : null}
+                                            {value === o.value && (
+                                                <Check className="text-primary size-3.5" />
+                                            )}
+                                        </span>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        )}
+                        {allowCustom &&
+                            customValue &&
+                            !options.some((o) => o.value === customValue) && (
+                                <CommandGroup heading="Custom value">
+                                    <CommandItem
+                                        value={`__custom__${customValue}`}
+                                        onSelect={() => {
+                                            select(customValue)
+                                        }}
+                                        className="text-primary flex items-center gap-2"
+                                    >
+                                        <PencilLine className="size-3.5" />
+                                        <span className="truncate">
+                                            Use “{customValue}”
+                                        </span>
+                                    </CommandItem>
+                                </CommandGroup>
+                            )}
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
 }

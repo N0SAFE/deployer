@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * The setup data hooks for the API-served wizard.
@@ -8,50 +8,50 @@
  * so these differ from the web app's hooks only in the client they use.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import type {
-	SetupInitializeInput,
-	SetupMeshJoinInput,
-	SetupMeshJoinResult,
-	SetupMeshTokenInput,
-	SetupMeshTokenResult,
-	SetupStreamEvent,
-} from "@deployer/contracts-entities";
-import { isSetupRunFinished } from "@deployer/ui/components/setup/progress-tasks";
+    SetupInitializeInput,
+    SetupMeshJoinInput,
+    SetupMeshJoinResult,
+    SetupMeshTokenInput,
+    SetupMeshTokenResult,
+    SetupStreamEvent,
+} from '@deployer/contracts-entities'
+import { isSetupRunFinished } from '@deployer/ui/components/setup/progress-tasks'
 
-import { getErrorMessage } from "@/views/lib/errors";
-import { setupEndpoints } from "@/views/setup-adapters/endpoints";
+import { getErrorMessage } from '@/views/lib/errors'
+import { setupEndpoints } from '@/views/setup-adapters/endpoints'
 
 const setupKeys = {
-	all: ["setup"] as const,
-	state: () => [...setupKeys.all, "state"] as const,
-	nodeStatus: () => [...setupKeys.all, "nodeStatus"] as const,
-	mesh: () => [...setupKeys.all, "mesh"] as const,
-	destination: () => [...setupKeys.all, "destination"] as const,
-};
+    all: ['setup'] as const,
+    state: () => [...setupKeys.all, 'state'] as const,
+    nodeStatus: () => [...setupKeys.all, 'nodeStatus'] as const,
+    mesh: () => [...setupKeys.all, 'mesh'] as const,
+    destination: () => [...setupKeys.all, 'destination'] as const,
+}
 
 /** Current setup state (drives step selection + recovery adoption). */
 export function useSetupState(options?: { enabled?: boolean }) {
-	return useQuery({
-		queryKey: setupKeys.state(),
-		queryFn: () => setupEndpoints.getState.call({}),
-		enabled: options?.enabled ?? true,
-		staleTime: 15_000,
-		gcTime: 60_000,
-	});
+    return useQuery({
+        queryKey: setupKeys.state(),
+        queryFn: () => setupEndpoints.getState.call({}),
+        enabled: options?.enabled ?? true,
+        staleTime: 15_000,
+        gcTime: 60_000,
+    })
 }
 
 /** Node status — network identity, configuredAt, etc. */
 export function useNodeStatus(options?: { enabled?: boolean }) {
-	return useQuery({
-		queryKey: setupKeys.nodeStatus(),
-		queryFn: () => setupEndpoints.getNodeStatus.call({}),
-		enabled: options?.enabled ?? true,
-		staleTime: 30_000,
-		gcTime: 120_000,
-	});
+    return useQuery({
+        queryKey: setupKeys.nodeStatus(),
+        queryFn: () => setupEndpoints.getNodeStatus.call({}),
+        enabled: options?.enabled ?? true,
+        staleTime: 30_000,
+        gcTime: 120_000,
+    })
 }
 
 /**
@@ -61,52 +61,59 @@ export function useNodeStatus(options?: { enabled?: boolean }) {
  * when an operator joins or starts an agent, not continuously.
  */
 export function useMeshStatus(options?: { enabled?: boolean }) {
-	return useQuery({
-		queryKey: setupKeys.mesh(),
-		queryFn: () => setupEndpoints.getMeshStatus.call({}),
-		enabled: options?.enabled ?? true,
-		staleTime: 0,
-		gcTime: 30_000,
-		retry: false,
-	});
+    return useQuery({
+        queryKey: setupKeys.mesh(),
+        queryFn: () => setupEndpoints.getMeshStatus.call({}),
+        enabled: options?.enabled ?? true,
+        staleTime: 0,
+        gcTime: 30_000,
+        retry: false,
+    })
 }
 
 /** Redeem an invite token. A refusal comes back as `joined: false` with a reason. */
-export async function joinMesh(input: SetupMeshJoinInput): Promise<SetupMeshJoinResult> {
-	const response = await setupEndpoints.joinMesh.call(input);
-	return response.body;
+export async function joinMesh(
+    input: SetupMeshJoinInput
+): Promise<SetupMeshJoinResult> {
+    const response = await setupEndpoints.joinMesh.call(input)
+    return response.body
 }
 
 /** Issue a one-time invite for another node. */
-export async function issueMeshToken(input: SetupMeshTokenInput): Promise<SetupMeshTokenResult> {
-	const response = await setupEndpoints.issueMeshToken.call(input);
-	return response.body;
+export async function issueMeshToken(
+    input: SetupMeshTokenInput
+): Promise<SetupMeshTokenResult> {
+    const response = await setupEndpoints.issueMeshToken.call(input)
+    return response.body
 }
 
 /** Test a PostgreSQL URL — instant feedback, no side effects. */
 export function useProbeDatabase() {
-	return useMutation({
-		mutationFn: async (databaseUrl: string) => {
-			const res = await setupEndpoints.probeDatabase.call({ databaseUrl });
-			return res.body;
-		},
-	});
+    return useMutation({
+        mutationFn: async (databaseUrl: string) => {
+            const res = await setupEndpoints.probeDatabase.call({ databaseUrl })
+            return res.body
+        },
+    })
 }
 
 /** Start provisioning in the background (progress arrives on the stream). */
 export function useTriggerInitialize() {
-	const queryClient = useQueryClient();
+    const queryClient = useQueryClient()
 
-	return useMutation({
-		mutationFn: (input: SetupInitializeInput) => setupEndpoints.triggerInitialize.call(input),
-		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: setupKeys.state() });
-			void queryClient.invalidateQueries({ queryKey: setupKeys.nodeStatus() });
-		},
-		onError: (error: Error) => {
-			toast.error(getErrorMessage(error, "Setup trigger failed"));
-		},
-	});
+    return useMutation({
+        mutationFn: (input: SetupInitializeInput) =>
+            setupEndpoints.triggerInitialize.call(input),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: setupKeys.state() })
+            void queryClient.invalidateQueries({
+                queryKey: setupKeys.nodeStatus(),
+            })
+        },
+        onError: (error: Error) => {
+            toast.error(getErrorMessage(error, 'Setup trigger failed'))
+        },
+    })
 }
 
 /**
@@ -142,14 +149,14 @@ export function useTriggerInitialize() {
  * onto the cached values), so the operator keeps seeing the progress they
  * already had instead of an empty "Starting setup…" view.
  */
-const STREAM_RETRY_INTERVAL_MS = 1_500;
+const STREAM_RETRY_INTERVAL_MS = 1_500
 /**
  * Bounded so a genuinely dead stream eventually reports rather than retrying
  * forever. Long enough to cover the ingress swap on a warm node, which is a port
  * release plus a service scheduling round trip — setup itself waits up to 90s
  * for that, so the client must not give up first.
  */
-const STREAM_MAX_RETRIES = 30;
+const STREAM_MAX_RETRIES = 30
 
 /**
  * How long the stream may go SILENT before the connection is treated as dead.
@@ -165,39 +172,42 @@ const STREAM_MAX_RETRIES = 30;
  * aborted healthy runs and a long one left a genuinely dropped connection
  * unnoticed for minutes. With a ping, only a DEAD socket is silent this long.
  */
-const STREAM_INACTIVITY_TIMEOUT_MS = 10_000;
+const STREAM_INACTIVITY_TIMEOUT_MS = 10_000
 
 export function useInitializeStream(options?: { enabled?: boolean }): {
-	data?: SetupStreamEvent[] | undefined;
-	error: unknown;
-	reconnecting: boolean;
+    data?: SetupStreamEvent[] | undefined
+    error: unknown
+    reconnecting: boolean
 } {
-	const query = useQuery({
-		...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions({
-			input: undefined,
-			enabled: options?.enabled ?? false,
-			refetchInterval: false,
-			// See the hook note: this is what turns a cut connection into a
-			// RETRYABLE failure rather than a silent success.
-			isComplete: isSetupRunFinished,
-			// Short window, so a half-open socket is abandoned in seconds instead of
-			// leaving a `pending` request the operator watches indefinitely.
-			inactivityTimeoutMs: STREAM_INACTIVITY_TIMEOUT_MS,
-		}),
-		staleTime: Infinity,
-		gcTime: 0,
-		// Now reachable, because `isComplete` rejects an incomplete stream.
-		retry: (failureCount) => failureCount < STREAM_MAX_RETRIES,
-		retryDelay: (attempt) => Math.min(STREAM_RETRY_INTERVAL_MS * (attempt + 1), 5_000),
-	});
-	return {
-		data: query.data,
-		error: query.error,
-		// A failed attempt that is being retried, with no terminal error yet. This is
-		// what the handover looks like from here: the ingress is replaced under the
-		// connection. Surfaced so the wizard says so instead of freezing silently.
-		reconnecting: query.failureCount > 0 && query.error === null,
-	};
+    const query = useQuery({
+        ...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions(
+            {
+                input: undefined,
+                enabled: options?.enabled ?? false,
+                refetchInterval: false,
+                // See the hook note: this is what turns a cut connection into a
+                // RETRYABLE failure rather than a silent success.
+                isComplete: isSetupRunFinished,
+                // Short window, so a half-open socket is abandoned in seconds instead of
+                // leaving a `pending` request the operator watches indefinitely.
+                inactivityTimeoutMs: STREAM_INACTIVITY_TIMEOUT_MS,
+            }
+        ),
+        staleTime: Infinity,
+        gcTime: 0,
+        // Now reachable, because `isComplete` rejects an incomplete stream.
+        retry: (failureCount) => failureCount < STREAM_MAX_RETRIES,
+        retryDelay: (attempt) =>
+            Math.min(STREAM_RETRY_INTERVAL_MS * (attempt + 1), 5_000),
+    })
+    return {
+        data: query.data,
+        error: query.error,
+        // A failed attempt that is being retried, with no terminal error yet. This is
+        // what the handover looks like from here: the ingress is replaced under the
+        // connection. Surfaced so the wizard says so instead of freezing silently.
+        reconnecting: query.failureCount > 0 && query.error === null,
+    }
 }
 
 /**
@@ -211,13 +221,13 @@ export function useInitializeStream(options?: { enabled?: boolean }): {
  * before there is anything to ask about.
  */
 export function usePostSetupDestination(options?: { enabled?: boolean }) {
-	return useQuery({
-		queryKey: setupKeys.destination(),
-		queryFn: () => setupEndpoints.getPostSetupDestination.call({}),
-		enabled: options?.enabled ?? true,
-		staleTime: Infinity,
-		gcTime: 60_000,
-	});
+    return useQuery({
+        queryKey: setupKeys.destination(),
+        queryFn: () => setupEndpoints.getPostSetupDestination.call({}),
+        enabled: options?.enabled ?? true,
+        staleTime: Infinity,
+        gcTime: 60_000,
+    })
 }
 
 /**
@@ -231,19 +241,20 @@ export function usePostSetupDestination(options?: { enabled?: boolean }) {
  * can never outlive the platform going away.
  */
 export function usePostSetupVerification(options?: { enabled?: boolean }) {
-	return useQuery({
-		queryKey: [...setupKeys.all, "verification"] as const,
-		queryFn: async () => (await setupEndpoints.getPostSetupVerification.call({})),
-		enabled: options?.enabled ?? false,
-		refetchInterval: 2_000,
-		retry: false,
-		staleTime: 0,
-		gcTime: 0,
-	});
+    return useQuery({
+        queryKey: [...setupKeys.all, 'verification'] as const,
+        queryFn: async () =>
+            await setupEndpoints.getPostSetupVerification.call({}),
+        enabled: options?.enabled ?? false,
+        refetchInterval: 2_000,
+        retry: false,
+        staleTime: 0,
+        gcTime: 0,
+    })
 }
 
 /** Run a failed handover again. */
 export async function retryHandover(): Promise<{ accepted: boolean }> {
-	const response = await setupEndpoints.retryHandover.call({});
-	return response.body;
+    const response = await setupEndpoints.retryHandover.call({})
+    return response.body
 }

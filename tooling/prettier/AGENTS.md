@@ -3,6 +3,7 @@
 Shared Prettier configuration.
 
 ## Rules
+
 - Keep formatting consistent across the repo.
 - Document any non-default decisions in `docs/STYLEGUIDE.md`.
 
@@ -11,7 +12,7 @@ Shared Prettier configuration.
 Every workspace formats with Bun's built-in formatter:
 
 ```jsonc
-"prettify":     "bun fmt .",
+"format":       "bun fmt .",
 "format:check": "bun fmt --check ."
 ```
 
@@ -32,13 +33,13 @@ Two consequences worth knowing:
 
 - **`prettier` is still a dependency** (of `apps/web`, `tooling/bin-pkg-build`,
   `tooling/dependency-builder` and this package). `bun fmt` replaces the CLI
-  invocation, not the config package: a `[fmt]` section *does* override a
+  invocation, not the config package: a `[fmt]` section _does_ override a
   `.prettierrc` file, so the config chain must stay the one that decides.
 - **Never add a script named `fmt`.** `bun fmt` delegates to a `package.json`
   script of that name, so a `"fmt"` entry would run instead of formatting. The
-  `prettify` / `format` / `format:check` names are what the repo uses and what
+  `format` / `format:check` names are what the repo uses and what
   `turbo.json` wires.
 
-`@deployer/config-prettier#build` remains a `dependsOn` of the `prettify` and
+`@deployer/config-prettier#build` remains a `dependsOn` of the `format` and
 `format:check` turbo tasks: `bun fmt` loads `.prettierrc.ts`, which imports
 `@deployer/config-prettier/{base,tailwind}` from `dist/`.

@@ -1,7 +1,7 @@
-import * as z from "zod/v4";
+import * as z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * DRY-RUN preview topology resolution — the read-model that shows how a
@@ -23,13 +23,13 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  *          └─ api-cache-prod (fixed → staging — shared cache)
  */
 export const previewResolutionKindSchema = z.enum([
-    "root",
-    "linked-preview",
-    "fixed",
-    "mock",
-    "derive",
-]);
-export type PreviewResolutionKind = z.infer<typeof previewResolutionKindSchema>;
+    'root',
+    'linked-preview',
+    'fixed',
+    'mock',
+    'derive',
+])
+export type PreviewResolutionKind = z.infer<typeof previewResolutionKindSchema>
 
 /**
  * One resolved hop in the preview topology chain (FLAT list — the UI builds
@@ -53,11 +53,11 @@ export const resolvedPreviewNodeSchema = z
         contractRef: z.string().optional(),
         /** Tree position: depth (0 = root) and slash path (e.g. "root/api"). */
         depth: z.number().int().nonnegative().default(0),
-        path: z.string().min(1).default("root"),
+        path: z.string().min(1).default('root'),
     })
-    .strict();
+    .strict()
 
-export type ResolvedPreviewNode = z.infer<typeof resolvedPreviewNodeSchema>;
+export type ResolvedPreviewNode = z.infer<typeof resolvedPreviewNodeSchema>
 
 export const previewTopologyResolveOutputSchema = z.object({
     /** The requested service's resolved chain (flat list, root first). */
@@ -71,9 +71,12 @@ export const previewTopologyResolveOutputSchema = z.object({
     }),
     /** Contracts consulted during validation. */
     contracts: z.array(z.string()).default([]),
-});
+})
 
-const previewTopologyOps = standard.zod(previewTopologyResolveOutputSchema, "previewTopologyResolve");
+const previewTopologyOps = standard.zod(
+    previewTopologyResolveOutputSchema,
+    'previewTopologyResolve'
+)
 
 /**
  * POST /services/:id/preview-topology
@@ -83,20 +86,32 @@ const previewTopologyOps = standard.zod(previewTopologyResolveOutputSchema, "pre
  */
 export const previewTopologyResolveContract = previewTopologyOps
     .create()
-    .summary("Dry-run preview topology resolution (linked services)")
-    .path("/preview-topology")
+    .summary('Dry-run preview topology resolution (linked services)')
+    .path('/preview-topology')
     .input((b) =>
         b
-            .params((p) => p`/${p("serviceId", z.uuid())}`)
+            .params((p) => p`/${p('serviceId', z.uuid())}`)
             .body(
                 z.object({
-                    environment: z.enum(["production", "staging", "preview", "development"]).default("preview"),
+                    environment: z
+                        .enum([
+                            'production',
+                            'staging',
+                            'preview',
+                            'development',
+                        ])
+                        .default('preview'),
                     pullRequestNumber: z.number().int().positive().optional(),
                     branch: z.string().optional(),
-                }),
-            ),
+                })
+            )
     )
     .output(previewTopologyResolveOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "service:read", scope: { by: "input", path: "params.serviceId", kind: "service" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'service:read',
+            scope: { by: 'input', path: 'params.serviceId', kind: 'service' },
+        })
+    )
+    .build()

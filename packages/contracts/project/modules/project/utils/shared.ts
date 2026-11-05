@@ -1,16 +1,21 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { environmentStatusSchema } from "@deployer/contracts-common";
-import { standard } from "@deployer/orpc-utils";
+import { environmentStatusSchema } from '@deployer/contracts-common'
+import { standard } from '@deployer/orpc-utils'
 
-export const projectIdParamSchema = z.object({ id: z.uuid() });
+export const projectIdParamSchema = z.object({ id: z.uuid() })
 
 export const projectEnvironmentParamsSchema = z.object({
     id: z.uuid(),
     environmentId: z.uuid(),
-});
+})
 
-export const projectScopeSchema = z.enum(["project", "service", "environment", "global"]);
+export const projectScopeSchema = z.enum([
+    'project',
+    'service',
+    'environment',
+    'global',
+])
 
 export const availableVariableEntrySchema = z.object({
     key: z.string(),
@@ -18,7 +23,7 @@ export const availableVariableEntrySchema = z.object({
     scope: z.string(),
     description: z.string().nullable(),
     example: z.string().nullable(),
-});
+})
 
 export const environmentStatusOutputSchema = z.object({
     environmentId: z.uuid(),
@@ -26,24 +31,24 @@ export const environmentStatusOutputSchema = z.object({
     servicesCount: z.number(),
     healthyServicesCount: z.number(),
     lastChecked: z.string(),
-});
+})
 
 export const resolvedVariablesOutputSchema = z.object({
     resolved: z.string(),
     variables: z.record(z.string(), z.string()),
-});
+})
 
 export const projectEnvironmentStatusOps = standard.zod(
     environmentStatusOutputSchema,
-    "projectEnvironmentStatus",
-);
+    'projectEnvironmentStatus'
+)
 
 export const projectAvailableVariableOps = standard.zod(
     availableVariableEntrySchema,
-    "projectAvailableVariable",
-);
+    'projectAvailableVariable'
+)
 
 export const projectResolvedVariablesOps = standard.zod(
     resolvedVariablesOutputSchema,
-    "projectResolvedVariables",
-);
+    'projectResolvedVariables'
+)

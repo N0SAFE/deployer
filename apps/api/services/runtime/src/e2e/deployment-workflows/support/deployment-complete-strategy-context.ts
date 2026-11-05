@@ -1,11 +1,14 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 
-import { user } from "@deployer/nest-schema/global/identity/auth";
-import { services } from "@deployer/nest-schema/global/project/deployment";
-import { projects } from "@deployer/nest-schema/global/project/deployment";
-import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { user } from '@deployer/nest-schema/global/identity/auth'
+import { services } from '@deployer/nest-schema/global/project/deployment'
+import { projects } from '@deployer/nest-schema/global/project/deployment'
+import {
+    GlobalDatabaseService,
+    type GlobalDatabaseServiceShape,
+} from '@deployer/shared/core/modules/database/services/global-database.service'
 
-import {  type SharedApiRuntimeContext } from "@/e2e/runtime";
+import { type SharedApiRuntimeContext } from '@/e2e/runtime'
 
 /**
  * Fixtures for the deployment workflow suite.
@@ -22,81 +25,90 @@ import {  type SharedApiRuntimeContext } from "@/e2e/runtime";
  * service, and a direct insert states that premise precisely.
  */
 export class DeploymentFixtures {
-	constructor(private readonly database: GlobalDatabaseServiceShape) {}
+    constructor(private readonly database: GlobalDatabaseServiceShape) {}
 
-	/** An owner to hang fixtures off. */
-	async owner(): Promise<string> {
-		const ownerId = `e2e-owner-${randomUUID()}`;
-		const now = new Date();
-		await this.database.db.insert(user).values({
-			id: ownerId,
-			name: "E2E Owner",
-			email: `${ownerId}@example.test`,
-			emailVerified: true,
-			createdAt: now,
-			updatedAt: now,
-			role: "admin",
-		});
-		return ownerId;
-	}
+    /** An owner to hang fixtures off. */
+    async owner(): Promise<string> {
+        const ownerId = `e2e-owner-${randomUUID()}`
+        const now = new Date()
+        await this.database.db.insert(user).values({
+            id: ownerId,
+            name: 'E2E Owner',
+            email: `${ownerId}@example.test`,
+            emailVerified: true,
+            createdAt: now,
+            updatedAt: now,
+            role: 'admin',
+        })
+        return ownerId
+    }
 
-	/** A project owned by `ownerId`. */
-	async project(ownerId: string, overrides: { name?: string; baseDomain?: string } = {}) {
-		const [created] = await this.database.db
-			.insert(projects)
-			.values({
-				name: overrides.name ?? `e2e-project-${randomUUID()}`,
-				description: "E2E deployment fixture",
-				baseDomain: overrides.baseDomain ?? "e2e.example.test",
-				ownerId,
-			})
-			.returning();
-		if (created === undefined) throw new Error("failed to seed a project");
-		return created;
-	}
+    /** A project owned by `ownerId`. */
+    async project(
+        ownerId: string,
+        overrides: { name?: string; baseDomain?: string } = {}
+    ) {
+        const [created] = await this.database.db
+            .insert(projects)
+            .values({
+                name: overrides.name ?? `e2e-project-${randomUUID()}`,
+                description: 'E2E deployment fixture',
+                baseDomain: overrides.baseDomain ?? 'e2e.example.test',
+                ownerId,
+            })
+            .returning()
+        if (created === undefined) throw new Error('failed to seed a project')
+        return created
+    }
 
-	/** A service inside `projectId`. */
-	async service(
-		projectId: string,
-		overrides: { name?: string; port?: number; healthCheckPath?: string } = {},
-	) {
-		const [created] = await this.database.db
-			.insert(services)
-			.values({
-				projectId,
-				name: overrides.name ?? `svc-${randomUUID()}`,
-				description: "E2E service fixture",
-				type: "application",
-				// `artifact-bundle` + `manual` because the flow under test deploys an uploaded
-				// bundle with the manual runner. A github provider would need a live Git
-				// installation, which belongs to a different suite.
-				providerId: "artifact-bundle",
-				builderId: "manual",
-				port: overrides.port ?? 3000,
-				healthCheckPath: overrides.healthCheckPath ?? "/health",
-			})
-			.returning();
-		if (created === undefined) throw new Error("failed to seed a service");
-		return created;
-	}
+    /** A service inside `projectId`. */
+    async service(
+        projectId: string,
+        overrides: {
+            name?: string
+            port?: number
+            healthCheckPath?: string
+        } = {}
+    ) {
+        const [created] = await this.database.db
+            .insert(services)
+            .values({
+                projectId,
+                name: overrides.name ?? `svc-${randomUUID()}`,
+                description: 'E2E service fixture',
+                type: 'application',
+                // `artifact-bundle` + `manual` because the flow under test deploys an uploaded
+                // bundle with the manual runner. A github provider would need a live Git
+                // installation, which belongs to a different suite.
+                providerId: 'artifact-bundle',
+                builderId: 'manual',
+                port: overrides.port ?? 3000,
+                healthCheckPath: overrides.healthCheckPath ?? '/health',
+            })
+            .returning()
+        if (created === undefined) throw new Error('failed to seed a service')
+        return created
+    }
 }
 
 /** The seeded world a deployment spec works against. */
 export type DeploymentCompleteStrategyContext = {
-	ownerId: string;
-	workerId: string;
-	fixtures: DeploymentFixtures;
+    ownerId: string
+    workerId: string
+    fixtures: DeploymentFixtures
 }
 
 export async function createDeploymentCompleteStrategyContext(
-	context: SharedApiRuntimeContext,
+    context: SharedApiRuntimeContext
 ): Promise<DeploymentCompleteStrategyContext> {
-	const database = context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape;
-	const fixtures = new DeploymentFixtures(database);
+    const database = context.serviceMapper.get(
+        GlobalDatabaseService
+    ) as unknown as GlobalDatabaseServiceShape
+    const fixtures = new DeploymentFixtures(database)
 
-	return {
-		ownerId: await fixtures.owner(),
-		workerId: `e2e-worker-${randomUUID()}`,
-		fixtures,
-	};
+    return {
+        ownerId: await fixtures.owner(),
+        workerId: `e2e-worker-${randomUUID()}`,
+        fixtures,
+    }
 }

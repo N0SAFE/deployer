@@ -14,22 +14,22 @@
 /**
  * Represents a string value that can contain variables (~##varName##~)
  */
-export type VariableString = string;
+export type VariableString = string
 
 /**
  * Represents a numeric value that can be a variable
  */
-export type VariableNumber = number | VariableString;
+export type VariableNumber = number | VariableString
 
 /**
  * Represents a boolean value that can be a variable
  */
-export type VariableBoolean = boolean | VariableString;
+export type VariableBoolean = boolean | VariableString
 
 /**
  * Represents an array that can contain variables
  */
-export type VariableArray<T> = (T | VariableString)[];
+export type VariableArray<T> = (T | VariableString)[]
 
 // ============================================================================
 // SERVER TYPES
@@ -39,22 +39,22 @@ export type VariableArray<T> = (T | VariableString)[];
  * Server definition for load balancers
  */
 export type Server = {
-  url: VariableString;
-  weight?: VariableNumber;
+    url: VariableString
+    weight?: VariableNumber
 }
 
 /**
  * Health check configuration for services
  */
 export type HealthCheck = {
-  scheme?: 'http' | 'https';
-  path?: VariableString;
-  interval?: VariableString;
-  timeout?: VariableString;
-  hostname?: VariableString;
-  port?: VariableNumber;
-  followRedirects?: VariableBoolean;
-  headers?: Record<string, VariableString>;
+    scheme?: 'http' | 'https'
+    path?: VariableString
+    interval?: VariableString
+    timeout?: VariableString
+    hostname?: VariableString
+    port?: VariableNumber
+    followRedirects?: VariableBoolean
+    headers?: Record<string, VariableString>
 }
 
 // ============================================================================
@@ -65,12 +65,12 @@ export type HealthCheck = {
  * TLS configuration options for routers
  */
 export type TLSOptions = {
-  certResolver?: VariableString;
-  domains?: {
-    main: VariableString;
-    sans?: VariableArray<string>;
-  }[];
-  options?: VariableString;
+    certResolver?: VariableString
+    domains?: {
+        main: VariableString
+        sans?: VariableArray<string>
+    }[]
+    options?: VariableString
 }
 
 // ============================================================================
@@ -81,17 +81,17 @@ export type TLSOptions = {
  * Rate limit configuration
  */
 export type RateLimitConfig = {
-  average?: VariableNumber;
-  burst?: VariableNumber;
-  period?: VariableString;
-  sourceCriterion?: {
-    ipStrategy?: {
-      depth?: VariableNumber;
-      excludedIPs?: VariableArray<string>;
-    };
-    requestHeaderName?: VariableString;
-    requestHost?: VariableBoolean;
-  };
+    average?: VariableNumber
+    burst?: VariableNumber
+    period?: VariableString
+    sourceCriterion?: {
+        ipStrategy?: {
+            depth?: VariableNumber
+            excludedIPs?: VariableArray<string>
+        }
+        requestHeaderName?: VariableString
+        requestHost?: VariableBoolean
+    }
 }
 
 // ============================================================================
@@ -102,12 +102,12 @@ export type RateLimitConfig = {
  * CORS configuration options for middleware builder
  */
 export type CorsOptions = {
-  origins?: VariableArray<string>;
-  methods?: VariableArray<string>;
-  headers?: VariableArray<string>;
-  exposedHeaders?: VariableArray<string>;
-  credentials?: VariableBoolean;
-  maxAge?: VariableNumber;
+    origins?: VariableArray<string>
+    methods?: VariableArray<string>
+    headers?: VariableArray<string>
+    exposedHeaders?: VariableArray<string>
+    credentials?: VariableBoolean
+    maxAge?: VariableNumber
 }
 
 // ============================================================================
@@ -118,11 +118,11 @@ export type CorsOptions = {
  * IP whitelist/allowlist configuration
  */
 export type IPWhiteListConfig = {
-  sourceRange?: VariableArray<string>;
-  ipStrategy?: {
-    depth?: VariableNumber;
-    excludedIPs?: VariableArray<string>;
-  };
+    sourceRange?: VariableArray<string>
+    ipStrategy?: {
+        depth?: VariableNumber
+        excludedIPs?: VariableArray<string>
+    }
 }
 
 // ============================================================================
@@ -133,25 +133,25 @@ export type IPWhiteListConfig = {
  * Entrypoint configuration
  */
 export type EntrypointConfig = {
-  address?: VariableString;
-  http?: {
-    redirections?: {
-      entryPoint?: {
-        to?: VariableString;
-        scheme?: VariableString;
-        permanent?: VariableBoolean;
-      };
-    };
-  };
-  transport?: {
-    lifeCycle?: {
-      requestAcceptGraceTimeout?: VariableString;
-      graceTimeOut?: VariableString;
-    };
-    respondingTimeouts?: {
-      readTimeout?: VariableString;
-      writeTimeout?: VariableString;
-      idleTimeout?: VariableString;
-    };
-  };
+    address?: VariableString
+    http?: {
+        redirections?: {
+            entryPoint?: {
+                to?: VariableString
+                scheme?: VariableString
+                permanent?: VariableBoolean
+            }
+        }
+    }
+    transport?: {
+        lifeCycle?: {
+            requestAcceptGraceTimeout?: VariableString
+            graceTimeOut?: VariableString
+        }
+        respondingTimeouts?: {
+            readTimeout?: VariableString
+            writeTimeout?: VariableString
+            idleTimeout?: VariableString
+        }
+    }
 }

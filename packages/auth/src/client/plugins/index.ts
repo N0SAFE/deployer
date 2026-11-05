@@ -1,23 +1,21 @@
 /**
  * Client-side Better Auth plugins
- * 
+ *
  * This module exports all client plugins and their wrapper functions.
  * Use the `use*Client` functions for plugins that require access control configuration.
  */
 
-
-import type { invitePlugin } from "../../server/plugins/invite";
-
-import type { BetterAuthClientPlugin } from "better-auth/client";
+import type { invitePlugin } from '../../server/plugins/invite'
+import type { BetterAuthClientPlugin } from 'better-auth/client'
 
 // ============================================================================
 // Re-export existing plugins
 // ============================================================================
 
-export { deployerUserSchemaClient } from "./schema";
-export { impersonationClient } from "./impersonation";
-export { default as masterTokenClient } from "./masterToken/index";
-export { loginAsClientPlugin } from "./loginAs/index";
+export { deployerUserSchemaClient } from './schema'
+export { impersonationClient } from './impersonation'
+export { default as masterTokenClient } from './masterToken/index'
+export { loginAsClientPlugin } from './loginAs/index'
 
 // Re-export guards.
 //
@@ -32,20 +30,20 @@ export { loginAsClientPlugin } from "./loginAs/index";
 // with "Export hasMasterTokenPlugin doesn't exist in target module".
 //
 // Keep these lists in sync with the source modules they mirror.
-export { hasMasterTokenPlugin } from "./masterToken/guard";
-export type { MasterTokenActions } from "./masterToken/guard";
+export { hasMasterTokenPlugin } from './masterToken/guard'
+export type { MasterTokenActions } from './masterToken/guard'
 
 // Re-export plugin utilities.
 export {
-  MASTER_TOKEN_COOKIE_NAME,
-  MasterTokenManager,
-  clearMasterToken,
-  getDevtoolsApiKey,
-  getMasterTokenEnabled,
-  setDevtoolsApiKeyProvider,
-  setMasterTokenEnabled,
-} from "./masterToken/state";
-export type { MasterTokenSubscriber } from "./masterToken/state";
+    MASTER_TOKEN_COOKIE_NAME,
+    MasterTokenManager,
+    clearMasterToken,
+    getDevtoolsApiKey,
+    getMasterTokenEnabled,
+    setDevtoolsApiKeyProvider,
+    setMasterTokenEnabled,
+} from './masterToken/state'
+export type { MasterTokenSubscriber } from './masterToken/state'
 
 // NO React components in this barrel. `MasterTokenProvider`/`useMasterToken` used
 // to be re-exported here, which made `@deployer/auth/client` depend on
@@ -60,42 +58,42 @@ export type { MasterTokenSubscriber } from "./masterToken/state";
 
 /**
  * Client plugin for the invitation system
- * 
+ *
  * Provides type-safe methods for:
  * - Creating invitations with email and role
  * - Checking invitation token validity
  * - Validating invitation and creating user account
- * 
+ *
  * @example
  * ```typescript
  * import { useInviteClient } from './index'
- * 
+ *
  * const authClient = createAuthClient({
  *   plugins: [useInviteClient()]
  * })
- * 
+ *
  * // Create an invite
  * const { data, error } = await authClient.invite.create({
  *   email: 'user@example.com',
  *   role: 'user'
  * })
- * 
+ *
  * // Check an invite
  * const check = await authClient.invite.check({ token: 'abc123...' })
- * 
+ *
  * // Validate and create user
- * await authClient.invite.validate({ 
- *   token: 'abc123...', 
+ * await authClient.invite.validate({
+ *   token: 'abc123...',
  *   password: 'password123',
  *   name: 'John Doe'
  * })
  * ```
  */
 export function useInviteClient() {
-  return {
-    id: "invite",
-    $InferServerPlugin: {} as ReturnType<typeof invitePlugin>,
-  } satisfies BetterAuthClientPlugin;
+    return {
+        id: 'invite',
+        $InferServerPlugin: {} as ReturnType<typeof invitePlugin>,
+    } satisfies BetterAuthClientPlugin
 }
 
-export type InviteClientPlugin = ReturnType<typeof useInviteClient>;
+export type InviteClientPlugin = ReturnType<typeof useInviteClient>

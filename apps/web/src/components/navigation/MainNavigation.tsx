@@ -1,21 +1,13 @@
 'use client'
 
-import {
-    Home as HomeIcon,
-    Server,
-    LayoutDashboard,
-} from 'lucide-react'
+import { Home as HomeIcon, Server, LayoutDashboard } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import React, { Suspense } from 'react'
 
 import { Button } from '@deployer/ui/components/shadcn/button'
 
 import { useSession } from '@/lib/auth'
-import {
-    Home,
-    AuthSignin,
-    AuthDashboard,
-} from '@/routes'
+import { Home, AuthSignin, AuthDashboard } from '@/routes'
 
 import SignOutButton from '../signout/signoutButton'
 
@@ -23,14 +15,14 @@ import { validateEnvPath } from '#/env'
 
 /**
  * MainNavigation — top navigation bar for the (app) route group.
- * 
+ *
  * The nav shell (logo, Home, Docs) renders statically. The session-dependent
  * right side (Sign In / Dashboard / Sign Out) calls useSession(), which
  * subscribes to Better Auth's session atom — that subscription triggers a
  * Date.now() during prerendering (blocking-prerender-current-time). Deferring
  * only the session-dependent part behind its own Suspense boundary keeps the
  * nav shell in the static shell while the auth state streams in.
- * 
+ *
  * The usePathname() read is covered by the Suspense boundary in the (app)
  * layout (server tree) — this component must NOT wrap itself in Suspense
  * because a boundary inside a client component does not help server-side
@@ -38,13 +30,16 @@ import { validateEnvPath } from '#/env'
  */
 const MainNavigation: React.FC = () => {
     const pathname = usePathname()
-    const docsUrl = validateEnvPath(process.env.NEXT_PUBLIC_DOC_URL, 'NEXT_PUBLIC_DOC_URL')
+    const docsUrl = validateEnvPath(
+        process.env.NEXT_PUBLIC_DOC_URL,
+        'NEXT_PUBLIC_DOC_URL'
+    )
 
     const isActive = (path: string) => pathname === path
     const isActivePath = (path: string) => pathname.startsWith(path)
 
     return (
-        <nav className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur flex justify-center">
+        <nav className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 flex w-full justify-center border-b backdrop-blur">
             <div className="container flex h-14 items-center justify-between">
                 <div className="flex items-center space-x-4">
                     <Home.Link className="flex items-center space-x-2">
@@ -75,7 +70,9 @@ const MainNavigation: React.FC = () => {
                     {docsUrl && (
                         <a href={docsUrl} target="_blank" rel="noreferrer">
                             <Button
-                                variant={isActive('/docs') ? 'default' : 'ghost'}
+                                variant={
+                                    isActive('/docs') ? 'default' : 'ghost'
+                                }
                                 size="sm"
                                 className="flex items-center space-x-2"
                             >
@@ -89,7 +86,10 @@ const MainNavigation: React.FC = () => {
                 {/* Session-dependent right side — deferred behind a skeleton */}
                 <Suspense
                     fallback={
-                        <div className="bg-muted h-8 w-8 animate-pulse rounded-md" aria-hidden />
+                        <div
+                            className="bg-muted h-8 w-8 animate-pulse rounded-md"
+                            aria-hidden
+                        />
                     }
                 >
                     <SessionNav />
@@ -100,7 +100,11 @@ const MainNavigation: React.FC = () => {
 }
 
 /** Dashboard link — only visible when authenticated. */
-function DashboardNavLink({ isActivePath }: { isActivePath: (path: string) => boolean }) {
+function DashboardNavLink({
+    isActivePath,
+}: {
+    isActivePath: (path: string) => boolean
+}) {
     const { data: session } = useSession()
     if (!session?.user) return null
     return (
@@ -121,7 +125,12 @@ function DashboardNavLink({ isActivePath }: { isActivePath: (path: string) => bo
 function SessionNav() {
     const { data: session, isPending } = useSession()
     if (isPending) {
-        return <div className="bg-muted h-8 w-8 animate-pulse rounded-md" aria-hidden />
+        return (
+            <div
+                className="bg-muted h-8 w-8 animate-pulse rounded-md"
+                aria-hidden
+            />
+        )
     }
     if (session?.user) {
         return (

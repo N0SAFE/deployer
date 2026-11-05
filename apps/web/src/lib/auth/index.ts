@@ -1,5 +1,8 @@
 import { hasMasterTokenPlugin } from '@deployer/auth/client'
-import { createSessionAwareAuthClient, DEFAULT_SESSION_QUERY_KEY } from '@deployer/auth/react/session'
+import {
+    createSessionAwareAuthClient,
+    DEFAULT_SESSION_QUERY_KEY,
+} from '@deployer/auth/react/session'
 
 import { authClient as originalAuthClient } from './options'
 
@@ -24,9 +27,10 @@ export const SESSION_QUERY_KEY = DEFAULT_SESSION_QUERY_KEY
 // The enhanced useSession hook will:
 // 1. Subscribe to React Query cache via useSyncExternalStore (picks up HydrationBoundary data)
 // 2. Fall back to Better Auth's useSession (client-side fetch)
-export const authClient: typeof originalAuthClient = createSessionAwareAuthClient(originalAuthClient, {
-    sessionQueryKey: SESSION_QUERY_KEY,
-})
+export const authClient: typeof originalAuthClient =
+    createSessionAwareAuthClient(originalAuthClient, {
+        sessionQueryKey: SESSION_QUERY_KEY,
+    })
 
 // Re-export common auth client methods and types
 export const signIn: typeof authClient.signIn = authClient.signIn
@@ -35,7 +39,8 @@ export const getSession: typeof authClient.getSession = authClient.getSession
 export const useSession: typeof authClient.useSession = authClient.useSession
 export const $store: typeof authClient.$store = authClient.$store
 export const $fetch: typeof authClient.$fetch = authClient.$fetch
-export const $ERROR_CODES: typeof authClient.$ERROR_CODES = authClient.$ERROR_CODES
+export const $ERROR_CODES: typeof authClient.$ERROR_CODES =
+    authClient.$ERROR_CODES
 export const $Infer: typeof authClient.$Infer = authClient.$Infer
 
 // Create the masterTokenSignOut by wrapping the original signOut with the plugin's factory
@@ -54,10 +59,13 @@ export const signOut = hasMasterTokenPlugin(authClient)
  * `{ data, error }` (it does not throw), so we normalize the failure into a
  * thrown Error with the server message.
  */
-export async function signInWithEmail(input: { email: string; password: string }) {
+export async function signInWithEmail(input: {
+    email: string
+    password: string
+}) {
     const result = await authClient.signIn.email(input)
     if (result.error) {
-        throw new Error(result.error.message ?? "Sign in failed")
+        throw new Error(result.error.message ?? 'Sign in failed')
     }
     return result.data
 }

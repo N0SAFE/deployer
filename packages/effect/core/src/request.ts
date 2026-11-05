@@ -1,9 +1,9 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
 /** The two header shapes a request actually arrives as: a Web `Headers`, or Node's plain record. */
 export type HeaderSource =
-	| { get(name: string): string | null }
-	| Readonly<Record<string, string | readonly string[] | undefined>>;
+    | { get(name: string): string | null }
+    | Readonly<Record<string, string | readonly string[] | undefined>>
 
 /**
  * The HTTP request a handler is running for.
@@ -20,12 +20,15 @@ export type HeaderSource =
  * also uses fetch types.
  */
 export type HttpRequestShape = {
-	readonly method: string;
-	readonly url: string;
-	readonly headers: HeaderSource;
-};
+    readonly method: string
+    readonly url: string
+    readonly headers: HeaderSource
+}
 
-export class HttpRequest extends Context.Service<HttpRequest, HttpRequestShape>()("http/Request") {}
+export class HttpRequest extends Context.Service<
+    HttpRequest,
+    HttpRequestShape
+>()('http/Request') {}
 
 /**
  * One header from a request, whichever shape its headers arrived in.
@@ -33,18 +36,27 @@ export class HttpRequest extends Context.Service<HttpRequest, HttpRequestShape>(
  * Returns `undefined` for absent and for empty, so a caller never has to special-case `""`; repeated headers (Node) are
  * joined the way the HTTP spec says, which is what makes an `x-forwarded-for` chain readable.
  */
-export function headerOf(request: HttpRequestShape | null | undefined, name: string): string | undefined {
-	const headers = request?.headers;
-	if (headers === undefined) return undefined;
+export function headerOf(
+    request: HttpRequestShape | null | undefined,
+    name: string
+): string | undefined {
+    const headers = request?.headers
+    if (headers === undefined) return undefined
 
-	if (typeof (headers as { get?: unknown }).get === "function") {
-		const value = (headers as { get(name: string): string | null }).get(name) ?? undefined;
-		return value === "" ? undefined : value;
-	}
+    if (typeof (headers as { get?: unknown }).get === 'function') {
+        const value =
+            (headers as { get(name: string): string | null }).get(name) ??
+            undefined
+        return value === '' ? undefined : value
+    }
 
-	const value = (headers as Readonly<Record<string, string | readonly string[] | undefined>>)[name];
-	const text = typeof value === "string" ? value : value?.join(", ");
-	return text === undefined || text === "" ? undefined : text;
+    const value = (
+        headers as Readonly<
+            Record<string, string | readonly string[] | undefined>
+        >
+    )[name]
+    const text = typeof value === 'string' ? value : value?.join(', ')
+    return text === undefined || text === '' ? undefined : text
 }
 
 /**
@@ -54,10 +66,14 @@ export function headerOf(request: HttpRequestShape | null | undefined, name: str
  * a single-proxy setup sends. Neither is trusted for AUTHORIZATION — a client can send both — so this is for the audit
  * trail, which wants "where did this come from" and not "may this caller act".
  */
-export function clientAddressOf(request: HttpRequestShape | null | undefined): string | undefined {
-	const forwarded = headerOf(request, "x-forwarded-for")?.split(",")[0]?.trim();
-	if (forwarded !== undefined && forwarded !== "") return forwarded;
-	return headerOf(request, "x-real-ip");
+export function clientAddressOf(
+    request: HttpRequestShape | null | undefined
+): string | undefined {
+    const forwarded = headerOf(request, 'x-forwarded-for')
+        ?.split(',')[0]
+        ?.trim()
+    if (forwarded !== undefined && forwarded !== '') return forwarded
+    return headerOf(request, 'x-real-ip')
 }
 
 /**
@@ -67,7 +83,11 @@ export function clientAddressOf(request: HttpRequestShape | null | undefined): s
  * provide one — the same rule `Scope.REQUEST` enforces in Nest, expressed in `R`. A caller with no HTTP request supplies
  * this value, so the audit trail records "no address" rather than the code pretending the request might not exist.
  */
-export const systemRequest: HttpRequestShape = { method: "SYSTEM", url: "", headers: {} };
+export const systemRequest: HttpRequestShape = {
+    method: 'SYSTEM',
+    url: '',
+    headers: {},
+}
 
 /**
  * The current request, as a REQUIREMENT.
@@ -77,4 +97,8 @@ export const systemRequest: HttpRequestShape = { method: "SYSTEM", url: "", head
  * service that reads the request therefore has it in its `R`, which is what makes "this needs a request" visible instead
  * of a null check.
  */
-export const currentRequest: Effect.Effect<HttpRequestShape, never, HttpRequest> = Effect.service(HttpRequest);
+export const currentRequest: Effect.Effect<
+    HttpRequestShape,
+    never,
+    HttpRequest
+> = Effect.service(HttpRequest)

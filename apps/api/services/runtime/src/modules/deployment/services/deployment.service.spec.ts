@@ -1,11 +1,9 @@
-import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
-import { Effect } from 'effect';
-import { firstValueFrom, take, toArray } from 'rxjs';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Effect } from 'effect'
+import { firstValueFrom, take, toArray } from 'rxjs'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-
-import { DockerEngine } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { DockerEngine } from '@deployer/docker'
+import { runPromiseUnwrapped } from '@deployer/effect-core'
 import {
     runtimeConfigurationContextSchema,
     meshRuntimeConfigSchema,
@@ -13,33 +11,45 @@ import {
     serviceRuntimeConfigSchema,
     userRuntimeConfigSchema,
     type ResolvedRuntimeConfiguration,
-} from '@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema';
-import { DeploymentProviderBuilderRunnerStateMachineService } from '@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service';
-import { SwarmCluster } from "@deployer/swarm";
+} from '@deployer/shared/core/modules/configuration/schemas/runtime-configuration.schema'
+import { DeploymentProviderBuilderRunnerStateMachineService } from '@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service'
+import { TraefikService } from '@deployer/shared/core/modules/traefik/services/traefik.service'
+import { SwarmCluster } from '@deployer/swarm'
 
-import { CustomSourceProvider } from "@/modules/providers/code/custom/services/custom-source-provider.service";
-import { makeGithubSourceProvider } from "@/modules/providers/code/github/services/github-source-provider.service";
-import { makeCodeProviderRegistry } from "@/modules/providers/code/shared/code-provider-registry.service";
-import { makeUploadSourceProvider } from "@/modules/providers/code/upload/services/upload-source-provider.service";
-import { DockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
-import { RunnerEnvPort } from "@/modules/runners/runners.ports";
-import { RuntimeRunnerRegistry } from "@/modules/runners/runtime-runner-registry.service";
-import { SwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
-import { run as runEffect } from "@/modules/runners/testing";
+import { CustomSourceProvider } from '@/modules/providers/code/custom/services/custom-source-provider.service'
+import { makeGithubSourceProvider } from '@/modules/providers/code/github/services/github-source-provider.service'
+import { makeCodeProviderRegistry } from '@/modules/providers/code/shared/code-provider-registry.service'
+import { makeUploadSourceProvider } from '@/modules/providers/code/upload/services/upload-source-provider.service'
+import { DockerRuntimeRunner } from '@/modules/runners/docker/docker-runtime-runner.service'
+import { RunnerEnvPort } from '@/modules/runners/runners.ports'
+import { RuntimeRunnerRegistry } from '@/modules/runners/runtime-runner-registry.service'
+import { SwarmRuntimeRunner } from '@/modules/runners/swarm/swarm-runtime-runner.service'
+import { run as runEffect } from '@/modules/runners/testing'
 
-import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
-import { makeDeploymentQueueLifecycle } from '../queue/deployment-queue-lifecycle.service';
-import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository';
-import { StoragePolicyResolverRegistry } from '../storage/policy/storage-policy-resolver-registry.service';
-import { StorageProviderRegistry } from '../storage/storage-provider-registry.service';
+import {
+    RuntimeForbidden,
+    RuntimeInvalid,
+    RuntimeNotFound,
+} from '../../../core/runtime.errors'
+import { makeDeploymentQueueLifecycle } from '../queue/deployment-queue-lifecycle.service'
+import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository'
+import { StoragePolicyResolverRegistry } from '../storage/policy/storage-policy-resolver-registry.service'
+import { StorageProviderRegistry } from '../storage/storage-provider-registry.service'
 
-import { makeDeploymentExecutionWorkflow } from './deployment-execution-workflow.service';
-import { makeDeploymentService, type DeploymentServiceShape } from './deployment.service';
+import { makeDeploymentExecutionWorkflow } from './deployment-execution-workflow.service'
+import {
+    makeDeploymentService,
+    type DeploymentServiceShape,
+} from './deployment.service'
 
 /** The service answers Effects; the suite reads better awaiting them, so each Effect-returning method becomes a Promise. */
 type Awaitable<T> = {
-    [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer R, unknown, never> ? (...args: A) => Promise<R> : T[K];
-};
+    [K in keyof T]: T[K] extends (
+        ...args: infer A
+    ) => Effect.Effect<infer R, unknown>
+        ? (...args: A) => Promise<R>
+        : T[K]
+}
 
 function awaitable<T extends object>(shape: T): Awaitable<T> {
     return Object.fromEntries(
@@ -47,37 +57,43 @@ function awaitable<T extends object>(shape: T): Awaitable<T> {
             name,
             typeof member === 'function'
                 ? (...args: unknown[]) => {
-                      const result = (member as (...a: unknown[]) => unknown)(...args);
-                      return Effect.isEffect(result) ? runPromiseUnwrapped(result as Effect.Effect<unknown>) : result;
+                      const result = (member as (...a: unknown[]) => unknown)(
+                          ...args
+                      )
+                      return Effect.isEffect(result)
+                          ? runPromiseUnwrapped(
+                                result as Effect.Effect<unknown>
+                            )
+                          : result
                   }
                 : member,
-        ]),
-    ) as Awaitable<T>;
+        ])
+    ) as Awaitable<T>
 }
 
 async function* fromArray<T>(items: T[]): AsyncGenerator<T> {
     for (const item of items) {
-        await Promise.resolve();
-        yield item;
+        await Promise.resolve()
+        yield item
     }
 }
 
 describe('DeploymentService', () => {
-    let service: Awaitable<DeploymentServiceShape>;
-    let mockRepository: any;
-    let mockDeploymentEventService: any;
-    let mockCoreEventSyncService: any;
-    let mockGitService: any;
-    let mockContainers: any;
-    let mockTraefikService: any;
-    let mockDeploymentQueueEventService: any;
-    let mockProjectAccessService: any;
-    let mockUploadBundleRegistryService: any;
-    let mockDomainRoutingService: any;
-    let mockRuntimeConfigurationAccessor: any;
-    let mockIngressRefresher: any;
+    let service: Awaitable<DeploymentServiceShape>
+    let mockRepository: any
+    let mockDeploymentEventService: any
+    let mockCoreEventSyncService: any
+    let mockGitService: any
+    let mockContainers: any
+    let mockTraefikService: any
+    let mockDeploymentQueueEventService: any
+    let mockProjectAccessService: any
+    let mockUploadBundleRegistryService: any
+    let mockDomainRoutingService: any
+    let mockRuntimeConfigurationAccessor: any
+    let mockIngressRefresher: any
 
-    const now = '2024-01-01T00:00:00.000Z';
+    const now = '2024-01-01T00:00:00.000Z'
 
     function defaultResolvedRuntimeConfiguration(): ResolvedRuntimeConfiguration {
         return {
@@ -133,7 +149,7 @@ describe('DeploymentService', () => {
                 },
             },
             dispatchAudit: { evaluatedRules: 0, appliedRuleIds: [] },
-        };
+        }
     }
 
     const mockDeployment = {
@@ -156,13 +172,13 @@ describe('DeploymentService', () => {
         metadata: null,
         createdAt: now,
         updatedAt: now,
-    };
+    }
 
     const mockSuccessDeployment = {
         ...mockDeployment,
         id: 'deploy-2',
         status: 'success' as const,
-    };
+    }
 
     const mockFailedDeployment = {
         ...mockDeployment,
@@ -174,7 +190,7 @@ describe('DeploymentService', () => {
             repositoryUrl: 'https://github.com/acme/repo',
             branch: 'main',
         },
-    };
+    }
 
     const mockRollback = {
         id: 'rollback-1',
@@ -190,7 +206,7 @@ describe('DeploymentService', () => {
         metadata: null,
         createdAt: now,
         updatedAt: now,
-    };
+    }
 
     const mockLog = {
         id: 'log-1',
@@ -203,7 +219,7 @@ describe('DeploymentService', () => {
         stage: null,
         metadata: null,
         timestamp: now,
-    };
+    }
 
     const mockEventLog = {
         id: 'log-event-1',
@@ -216,7 +232,7 @@ describe('DeploymentService', () => {
         stage: 'queue',
         metadata: null,
         timestamp: now,
-    };
+    }
 
     beforeEach(() => {
         mockRepository = {
@@ -240,28 +256,28 @@ describe('DeploymentService', () => {
             getRuntimeConfigurationSeed: vi.fn(),
             getServiceDependencies: vi.fn(),
             resolveEnvironmentId: vi.fn().mockResolvedValue('env-prod-1'),
-        };
+        }
 
         mockProjectAccessService = {
             findProjectById: vi.fn(),
             findCollaboratorByUserAndProject: vi.fn(),
-        };
+        }
 
         mockDeploymentEventService = {
             emit: vi.fn(),
             subscribe: vi.fn(),
-        };
+        }
 
         mockCoreEventSyncService = {
             registerNamespaceAdapter: vi.fn(),
             createStream: vi.fn(),
             updateStream: vi.fn(),
             deleteStream: vi.fn(),
-        };
+        }
 
         mockGitService = {
             validateRepository: vi.fn(() => Effect.succeed(false)),
-        };
+        }
 
         mockContainers = {
             stopByDeployment: vi.fn(() => Effect.void),
@@ -270,28 +286,32 @@ describe('DeploymentService', () => {
             create: vi.fn(),
             start: vi.fn(),
             waitForHealth: vi.fn(),
-        };
+        }
 
         mockTraefikService = {
             syncServiceConfiguration: vi.fn(),
             getHealthStatus: vi.fn(),
-        };
+        }
 
         mockDomainRoutingService = {
-            promotePreviewToStable: vi.fn(() => Effect.succeed({ promoted: true, host: null })),
-        };
+            promotePreviewToStable: vi.fn(() =>
+                Effect.succeed({ promoted: true, host: null })
+            ),
+        }
 
         mockRuntimeConfigurationAccessor = {
-            resolveForDeployment: vi.fn(() => Effect.succeed(defaultResolvedRuntimeConfiguration())),
-        };
+            resolveForDeployment: vi.fn(() =>
+                Effect.succeed(defaultResolvedRuntimeConfiguration())
+            ),
+        }
 
         mockIngressRefresher = {
             refresh: vi.fn().mockResolvedValue(undefined),
-        };
+        }
 
         mockDeploymentQueueEventService = {
             emit: vi.fn(),
-        };
+        }
 
         mockUploadBundleRegistryService = {
             register: vi.fn((record: any) => ({
@@ -299,35 +319,57 @@ describe('DeploymentService', () => {
                 uploadedAt: now,
             })),
             findByUploadId: vi.fn(),
-        };
+        }
 
         const uploadBundles = {
-            register: (record: any) => Effect.sync(() => mockUploadBundleRegistryService.register(record)),
-            findByUploadId: (id: string) => Effect.sync(() => mockUploadBundleRegistryService.findByUploadId(id)),
-        };
+            register: (record: any) =>
+                Effect.sync(() =>
+                    mockUploadBundleRegistryService.register(record)
+                ),
+            findByUploadId: (id: string) =>
+                Effect.sync(() =>
+                    mockUploadBundleRegistryService.findByUploadId(id)
+                ),
+        }
         // The runners run on a stand-in runtime that holds what `RunnersLive` provides: the mocked docker runner, and a
         // swarm cluster this suite never exercises.
         const runnerHost = {
             run: (effect: Effect.Effect<unknown>) =>
                 runEffect(
                     effect.pipe(
-                        Effect.provideService(RuntimeRunnerRegistry, new RuntimeRunnerRegistry.live()),
-                        Effect.provideService(DockerRuntimeRunner, new DockerRuntimeRunner.live()),
-                        Effect.provideService(SwarmRuntimeRunner, new SwarmRuntimeRunner.live()),
+                        Effect.provideService(
+                            RuntimeRunnerRegistry,
+                            new RuntimeRunnerRegistry.live()
+                        ),
+                        Effect.provideService(
+                            DockerRuntimeRunner,
+                            new DockerRuntimeRunner.live()
+                        ),
+                        Effect.provideService(
+                            SwarmRuntimeRunner,
+                            new SwarmRuntimeRunner.live()
+                        ),
                         Effect.provideService(DockerEngine, {
                             containers: mockContainers,
                             swarmServices: {},
                             networks: {},
                         } as never),
-                        Effect.provideService(TraefikService, mockTraefikService as never),
+                        Effect.provideService(
+                            TraefikService,
+                            mockTraefikService as never
+                        ),
                         Effect.provideService(SwarmCluster, {
-                            getSwarmState: vi.fn().mockResolvedValue({ active: false }),
+                            getSwarmState: vi
+                                .fn()
+                                .mockResolvedValue({ active: false }),
                         } as never),
                         // `DEPLOYER_PREFIX` is the only env key read; "" is the unprefixed default install.
-                        Effect.provideService(RunnerEnvPort, { get: vi.fn(() => "") } as never),
-                    ),
+                        Effect.provideService(RunnerEnvPort, {
+                            get: vi.fn(() => ''),
+                        } as never)
+                    )
                 ),
-        };
+        }
         const workflow = makeDeploymentExecutionWorkflow({
             deploymentRepository: mockRepository,
             runtimeRunnerRegistry: new RuntimeRunnerRegistry.live(),
@@ -335,7 +377,7 @@ describe('DeploymentService', () => {
             deploymentEventService: mockDeploymentEventService,
             domainRoutingService: mockDomainRoutingService,
             egress: { external: vi.fn() } as never,
-        });
+        })
         const built = makeDeploymentService({
             deploymentRepository: mockRepository,
             deploymentEventService: mockDeploymentEventService,
@@ -352,20 +394,24 @@ describe('DeploymentService', () => {
                 repository: makeInMemoryDeploymentQueueRepository(),
                 events: mockDeploymentQueueEventService,
             }),
-            deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService.live,
+            deploymentStateMachineService:
+                DeploymentProviderBuilderRunnerStateMachineService.live,
             uploadBundles,
             projectAccessService: mockProjectAccessService,
             domainRoutingService: mockDomainRoutingService,
             runtimeConfigurationAccessor: mockRuntimeConfigurationAccessor,
             ingressRefresher: mockIngressRefresher,
-            host: { runUnwrapped: (effect: Effect.Effect<unknown>) => runPromiseUnwrapped(effect) } as never,
+            host: {
+                runUnwrapped: (effect: Effect.Effect<unknown>) =>
+                    runPromiseUnwrapped(effect),
+            } as never,
             // Approval has its own spec; this suite's deploys are assumed approved.
-            approvalGuard: { require: () => Effect.void } as never,
-        });
-        service = awaitable(built);
-        vi.clearAllMocks();
+            approvalGuard: { require: () => Effect.void },
+        })
+        service = awaitable(built)
+        vi.clearAllMocks()
 
-        mockRepository.getServiceProjectId.mockResolvedValue('proj-1');
+        mockRepository.getServiceProjectId.mockResolvedValue('proj-1')
         mockRepository.getRuntimeConfigurationSeed.mockResolvedValue({
             projectId: 'proj-1',
             projectSettings: null,
@@ -376,14 +422,18 @@ describe('DeploymentService', () => {
                 environmentVariables: null,
                 resourceLimits: null,
             },
-        });
-        mockRepository.getServiceDependencies.mockResolvedValue([]);
-        mockProjectAccessService.findProjectById.mockReturnValue(Effect.succeed({ id: 'proj-1', ownerId: 'user-1' }));
-        mockProjectAccessService.findCollaboratorByUserAndProject.mockReturnValue(Effect.succeed(null));
+        })
+        mockRepository.getServiceDependencies.mockResolvedValue([])
+        mockProjectAccessService.findProjectById.mockReturnValue(
+            Effect.succeed({ id: 'proj-1', ownerId: 'user-1' })
+        )
+        mockProjectAccessService.findCollaboratorByUserAndProject.mockReturnValue(
+            Effect.succeed(null)
+        )
 
-        mockRepository.updatePhase.mockResolvedValue(mockDeployment);
-        mockRepository.persistBuildArtifacts.mockResolvedValue(mockDeployment);
-        mockRepository.insertLog.mockResolvedValue(mockEventLog);
+        mockRepository.updatePhase.mockResolvedValue(mockDeployment)
+        mockRepository.persistBuildArtifacts.mockResolvedValue(mockDeployment)
+        mockRepository.insertLog.mockResolvedValue(mockEventLog)
         mockRepository.createRollback.mockResolvedValue({
             id: 'rb-1',
             fromDeploymentId: 'deploy-1',
@@ -398,7 +448,7 @@ describe('DeploymentService', () => {
             metadata: null,
             createdAt: now,
             updatedAt: now,
-        });
+        })
         mockRepository.updateRollbackStatus.mockResolvedValue({
             id: 'rb-1',
             fromDeploymentId: 'deploy-1',
@@ -413,30 +463,38 @@ describe('DeploymentService', () => {
             metadata: null,
             createdAt: now,
             updatedAt: now,
-        });
-        mockContainers.listByDeployment.mockReturnValue(Effect.succeed([]));
-        mockContainers.create.mockReturnValue(Effect.succeed({ id: 'container-1' }));
-        mockContainers.start.mockReturnValue(Effect.succeed(undefined));
-        mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
-        mockTraefikService.syncServiceConfiguration.mockReturnValue(Effect.succeed({
-            configId: 'cfg-1',
-            configName: 'service-route',
-            success: true,
-            action: 'updated',
-            message: 'ok',
-        }));
-        mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true }));
-    });
+        })
+        mockContainers.listByDeployment.mockReturnValue(Effect.succeed([]))
+        mockContainers.create.mockReturnValue(
+            Effect.succeed({ id: 'container-1' })
+        )
+        mockContainers.start.mockReturnValue(Effect.succeed(undefined))
+        mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true))
+        mockTraefikService.syncServiceConfiguration.mockReturnValue(
+            Effect.succeed({
+                configId: 'cfg-1',
+                configName: 'service-route',
+                success: true,
+                action: 'updated',
+                message: 'ok',
+            })
+        )
+        mockTraefikService.getHealthStatus.mockReturnValue(
+            Effect.succeed({ healthy: true })
+        )
+    })
 
     it('should be defined', () => {
-        expect(service).toBeDefined();
-    });
+        expect(service).toBeDefined()
+    })
 
     it('registers the deployment event namespace when it starts', async () => {
-        await service.onStart();
+        await service.onStart()
 
-        expect(mockCoreEventSyncService.registerNamespaceAdapter).toHaveBeenCalledWith('deployment', expect.any(Function));
-    });
+        expect(
+            mockCoreEventSyncService.registerNamespaceAdapter
+        ).toHaveBeenCalledWith('deployment', expect.any(Function))
+    })
 
     // ========================================
     // listDeployments
@@ -444,16 +502,19 @@ describe('DeploymentService', () => {
 
     describe('listDeployments', () => {
         it('should delegate to repository findMany', async () => {
-            const input = { limit: 20, offset: 0 };
-            const mockResult = { data: [mockDeployment], meta: { total: 1, limit: 20, offset: 0, hasMore: false } };
-            mockRepository.findMany.mockResolvedValue(mockResult);
+            const input = { limit: 20, offset: 0 }
+            const mockResult = {
+                data: [mockDeployment],
+                meta: { total: 1, limit: 20, offset: 0, hasMore: false },
+            }
+            mockRepository.findMany.mockResolvedValue(mockResult)
 
-            const result = await service.listDeployments(input);
+            const result = await service.listDeployments(input)
 
-            expect(result).toEqual(mockResult);
-            expect(mockRepository.findMany).toHaveBeenCalledWith(input);
-        });
-    });
+            expect(result).toEqual(mockResult)
+            expect(mockRepository.findMany).toHaveBeenCalledWith(input)
+        })
+    })
 
     // ========================================
     // getDeploymentById
@@ -461,43 +522,51 @@ describe('DeploymentService', () => {
 
     describe('getDeploymentById', () => {
         it('should return deployment when found', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
 
-            const result = await service.getDeploymentById('deploy-1');
+            const result = await service.getDeploymentById('deploy-1')
 
-            expect(result).toEqual(mockDeployment);
-            expect(mockRepository.findById).toHaveBeenCalledWith('deploy-1');
-        });
+            expect(result).toEqual(mockDeployment)
+            expect(mockRepository.findById).toHaveBeenCalledWith('deploy-1')
+        })
 
         it('should throw RuntimeNotFound when not found', async () => {
-            mockRepository.findById.mockResolvedValue(null);
+            mockRepository.findById.mockResolvedValue(null)
 
-            await expect(service.getDeploymentById('missing')).rejects.toThrow(RuntimeNotFound);
-        });
-    });
+            await expect(service.getDeploymentById('missing')).rejects.toThrow(
+                RuntimeNotFound
+            )
+        })
+    })
 
     describe('uploadBundle', () => {
         it('should register uploaded bundle metadata in registry', async () => {
-            const file = new File([new Uint8Array([1, 2, 3, 4])], 'bundle.zip', {
-                type: 'application/zip',
-            });
+            const file = new File(
+                [new Uint8Array([1, 2, 3, 4])],
+                'bundle.zip',
+                {
+                    type: 'application/zip',
+                }
+            )
 
-            const result = await service.uploadBundle({ file });
+            const result = await service.uploadBundle({ file })
 
-            expect(result.uploadId).toBeTruthy();
-            expect(result.fileName).toBe('bundle.zip');
-            expect(result.fileSize).toBe(4);
-            expect(mockUploadBundleRegistryService.register).toHaveBeenCalledWith(
+            expect(result.uploadId).toBeTruthy()
+            expect(result.fileName).toBe('bundle.zip')
+            expect(result.fileSize).toBe(4)
+            expect(
+                mockUploadBundleRegistryService.register
+            ).toHaveBeenCalledWith(
                 expect.objectContaining({
                     uploadId: result.uploadId,
                     uploadPath: result.uploadPath,
                     fileName: 'bundle.zip',
                     fileSize: 4,
                     mimeType: 'application/zip',
-                }),
-            );
-        });
-    });
+                })
+            )
+        })
+    })
 
     // ========================================
     // triggerDeployment
@@ -505,8 +574,10 @@ describe('DeploymentService', () => {
 
     describe('triggerDeployment', () => {
         it('should create a deployment record and return it', async () => {
-            mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
+            mockRepository.create.mockResolvedValue(mockDeployment)
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
 
             const input = {
                 serviceId: 'service-1',
@@ -516,26 +587,31 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
-            const result = await service.triggerDeployment(input, 'user-1');
+            } as any
+            const result = await service.triggerDeployment(input, 'user-1')
 
-            expect(result).toEqual(mockDeployment);
+            expect(result).toEqual(mockDeployment)
             expect(mockRepository.create).toHaveBeenCalledWith(
-                expect.objectContaining({ serviceId: 'service-1', triggeredBy: 'user-1' }),
-            );
+                expect.objectContaining({
+                    serviceId: 'service-1',
+                    triggeredBy: 'user-1',
+                })
+            )
             expect(mockRepository.insertLog).toHaveBeenCalledWith(
                 'deploy-1',
                 expect.objectContaining({
                     stage: 'provider',
                     step: 'checkout_resolved',
                     phase: 'queued',
-                }),
-            );
-        });
+                })
+            )
+        })
 
         it('should enqueue a deploy orchestration queue job', async () => {
-            mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
+            mockRepository.create.mockResolvedValue(mockDeployment)
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
 
             const input = {
                 serviceId: 'service-1',
@@ -545,11 +621,13 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
-            await service.triggerDeployment(input, 'user-1');
+            } as any
+            await service.triggerDeployment(input, 'user-1')
 
-            const jobs = (await service.listQueueJobs({ limit: 100, offset: 0 })).items;
-            expect(jobs).toHaveLength(1);
+            const jobs = (
+                await service.listQueueJobs({ limit: 100, offset: 0 })
+            ).items
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]).toMatchObject({
                 type: 'deploy',
                 status: 'queued',
@@ -572,8 +650,8 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
-            });
-        });
+            })
+        })
 
         it('should reject deployment when service dependency graph crosses project boundaries', async () => {
             mockRepository.getServiceDependencies.mockResolvedValue([
@@ -582,7 +660,7 @@ describe('DeploymentService', () => {
                     isRequired: true,
                     dependsOnProjectId: 'proj-2',
                 },
-            ]);
+            ])
 
             const input = {
                 serviceId: 'service-1',
@@ -592,11 +670,13 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should propagate required dependency ids into deployment queue context', async () => {
             mockRepository.getServiceDependencies.mockResolvedValue([
@@ -610,9 +690,11 @@ describe('DeploymentService', () => {
                     isRequired: false,
                     dependsOnProjectId: 'proj-1',
                 },
-            ]);
-            mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
+            ])
+            mockRepository.create.mockResolvedValue(mockDeployment)
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
 
             await service.triggerDeployment(
                 {
@@ -624,14 +706,16 @@ describe('DeploymentService', () => {
                         branch: 'main',
                     },
                 } as any,
-                'user-1',
-            );
+                'user-1'
+            )
 
-            const jobs: { payload?: { context?: { dependencyGraph?: unknown } } }[] = Array.from(
-                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
-            );
+            const jobs: {
+                payload?: { context?: { dependencyGraph?: unknown } }
+            }[] = Array.from(
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items
+            )
 
-            expect(jobs).toHaveLength(1);
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]?.payload?.context?.dependencyGraph).toEqual({
                 serviceId: 'service-1',
                 dependencies: [
@@ -639,8 +723,8 @@ describe('DeploymentService', () => {
                     { dependsOnServiceId: 'service-3', isRequired: false },
                 ],
                 requiredServiceIds: ['service-2'],
-            });
-        });
+            })
+        })
 
         it('should reject github trigger without repository url', async () => {
             const input = {
@@ -649,14 +733,18 @@ describe('DeploymentService', () => {
                 source: {
                     sourceType: 'github',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should reject github trigger when repository is not accessible', async () => {
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(false));
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(false)
+            )
 
             const input = {
                 serviceId: 'service-1',
@@ -666,11 +754,13 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should reject deployment when runtime configuration blocks target environment', async () => {
             mockRepository.getRuntimeConfigurationSeed.mockResolvedValue({
@@ -685,7 +775,7 @@ describe('DeploymentService', () => {
                     environmentVariables: null,
                     resourceLimits: null,
                 },
-            });
+            })
 
             const input = {
                 serviceId: 'service-1',
@@ -695,11 +785,13 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
             const input = {
@@ -710,15 +802,19 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'other-user')).rejects.toThrow(RuntimeForbidden);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'other-user')
+            ).rejects.toThrow(RuntimeForbidden)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should allow platform operator to trigger deployment without project membership', async () => {
-            mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
+            mockRepository.create.mockResolvedValue(mockDeployment)
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
 
             const input = {
                 serviceId: 'service-1',
@@ -728,15 +824,22 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            const result = await service.triggerDeployment(input, 'other-user', 'operator');
+            const result = await service.triggerDeployment(
+                input,
+                'other-user',
+                'operator'
+            )
 
-            expect(result).toEqual(mockDeployment);
+            expect(result).toEqual(mockDeployment)
             expect(mockRepository.create).toHaveBeenCalledWith(
-                expect.objectContaining({ serviceId: 'service-1', triggeredBy: 'other-user' }),
-            );
-        });
+                expect.objectContaining({
+                    serviceId: 'service-1',
+                    triggeredBy: 'other-user',
+                })
+            )
+        })
 
         it('should enqueue an upload deployment with upload source context', async () => {
             mockRepository.create.mockResolvedValue({
@@ -751,7 +854,7 @@ describe('DeploymentService', () => {
                         uploadPath: '/tmp/uploads/upload-123',
                     },
                 },
-            });
+            })
 
             const input = {
                 serviceId: 'service-1',
@@ -767,15 +870,17 @@ describe('DeploymentService', () => {
                         uploadPath: '/tmp/uploads/upload-123',
                     },
                 },
-            } as any;
+            } as any
 
-            const result = await service.triggerDeployment(input, 'user-1');
+            const result = await service.triggerDeployment(input, 'user-1')
 
-            expect(result.id).toBe('deploy-upload-1');
-            const jobs: { payload?: { context?: { sourceCheckout?: unknown } } }[] = Array.from(
-                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
-            );
-            expect(jobs).toHaveLength(1);
+            expect(result.id).toBe('deploy-upload-1')
+            const jobs: {
+                payload?: { context?: { sourceCheckout?: unknown } }
+            }[] = Array.from(
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items
+            )
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]?.payload?.context?.sourceCheckout).toEqual({
                 provider: 'upload',
                 uploadId: 'upload-123',
@@ -783,15 +888,19 @@ describe('DeploymentService', () => {
                 fileName: 'bundle.zip',
                 fileSize: 12345,
                 runtimeRunnerOptions: { runner: 'docker' },
-            });
-            expect((jobs[0]?.payload as { context?: { storageBinding?: unknown } } | undefined)?.context?.storageBinding)
-                .toMatchObject({
-                    storageType: 'local',
-                    autoRedeployOnUpdate: false,
-                    updateStrategy: 'manual_update_button',
-                });
-            expect(mockGitService.validateRepository).not.toHaveBeenCalled();
-        });
+            })
+            expect(
+                (
+                    jobs[0]?.payload as
+                        { context?: { storageBinding?: unknown } } | undefined
+                )?.context?.storageBinding
+            ).toMatchObject({
+                storageType: 'local',
+                autoRedeployOnUpdate: false,
+                updateStrategy: 'manual_update_button',
+            })
+            expect(mockGitService.validateRepository).not.toHaveBeenCalled()
+        })
 
         it('should resolve upload source path from registry when trigger provides uploadId only', async () => {
             mockUploadBundleRegistryService.findByUploadId.mockReturnValue({
@@ -801,7 +910,7 @@ describe('DeploymentService', () => {
                 fileSize: 45678,
                 mimeType: 'application/zip',
                 uploadedAt: now,
-            });
+            })
 
             mockRepository.create.mockResolvedValue({
                 ...mockDeployment,
@@ -814,7 +923,7 @@ describe('DeploymentService', () => {
                         uploadId: 'upload-registry-1',
                     },
                 },
-            });
+            })
 
             const input = {
                 serviceId: 'service-1',
@@ -826,17 +935,21 @@ describe('DeploymentService', () => {
                         uploadId: 'upload-registry-1',
                     },
                 },
-            } as any;
+            } as any
 
-            const result = await service.triggerDeployment(input, 'user-1');
+            const result = await service.triggerDeployment(input, 'user-1')
 
-            expect(result.id).toBe('deploy-upload-registry-1');
-            expect(mockUploadBundleRegistryService.findByUploadId).toHaveBeenCalledWith('upload-registry-1');
+            expect(result.id).toBe('deploy-upload-registry-1')
+            expect(
+                mockUploadBundleRegistryService.findByUploadId
+            ).toHaveBeenCalledWith('upload-registry-1')
 
-            const jobs: { payload?: { context?: { sourceCheckout?: unknown } } }[] = Array.from(
-                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
-            );
-            expect(jobs).toHaveLength(1);
+            const jobs: {
+                payload?: { context?: { sourceCheckout?: unknown } }
+            }[] = Array.from(
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items
+            )
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]?.payload?.context?.sourceCheckout).toEqual({
                 provider: 'upload',
                 uploadId: 'upload-registry-1',
@@ -844,11 +957,11 @@ describe('DeploymentService', () => {
                 fileName: 'bundle.zip',
                 fileSize: 45678,
                 runtimeRunnerOptions: { runner: 'docker' },
-            });
-        });
+            })
+        })
 
         it('should reject upload trigger when uploadId cannot be resolved and uploadPath is absent', async () => {
-            mockUploadBundleRegistryService.findByUploadId.mockReturnValue(null);
+            mockUploadBundleRegistryService.findByUploadId.mockReturnValue(null)
 
             const input = {
                 serviceId: 'service-1',
@@ -860,12 +973,16 @@ describe('DeploymentService', () => {
                         uploadId: 'upload-missing-1',
                     },
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockUploadBundleRegistryService.findByUploadId).toHaveBeenCalledWith('upload-missing-1');
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(
+                mockUploadBundleRegistryService.findByUploadId
+            ).toHaveBeenCalledWith('upload-missing-1')
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should derive storage redeploy policy from service metadata when trigger has no storage config', async () => {
             mockRepository.getRuntimeConfigurationSeed.mockResolvedValue({
@@ -890,28 +1007,33 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
-            });
-            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(Effect.succeed({
-                ...defaultResolvedRuntimeConfiguration(),
-                service: {
-                    ...defaultResolvedRuntimeConfiguration().service,
-                    metadata: {
-                        customData: {
-                            storage: {
-                                type: 'local',
-                                autoRedeployOnUpdate: true,
-                                mountPath: '/workspace/persisted',
-                                local: {
-                                    rootPath: '/srv/storage/services/service-1',
+            })
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(
+                Effect.succeed({
+                    ...defaultResolvedRuntimeConfiguration(),
+                    service: {
+                        ...defaultResolvedRuntimeConfiguration().service,
+                        metadata: {
+                            customData: {
+                                storage: {
+                                    type: 'local',
+                                    autoRedeployOnUpdate: true,
+                                    mountPath: '/workspace/persisted',
+                                    local: {
+                                        rootPath:
+                                            '/srv/storage/services/service-1',
+                                    },
                                 },
                             },
                         },
                     },
-                },
-            }));
+                })
+            )
 
-            mockRepository.create.mockResolvedValue(mockDeployment);
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
+            mockRepository.create.mockResolvedValue(mockDeployment)
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
 
             const input = {
                 serviceId: 'service-1',
@@ -921,22 +1043,23 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            await service.triggerDeployment(input, 'user-1');
+            await service.triggerDeployment(input, 'user-1')
 
-            const jobs: { payload?: { context?: { storageBinding?: unknown } } }[] = Array.from(
-                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
-            );
-            expect(jobs).toHaveLength(1);
-            expect((jobs[0]?.payload)?.context?.storageBinding)
-                .toMatchObject({
-                    storageType: 'local',
-                    autoRedeployOnUpdate: true,
-                    updateStrategy: 'auto_redeploy',
-                    mountPath: '/workspace/persisted',
-                });
-        });
+            const jobs: {
+                payload?: { context?: { storageBinding?: unknown } }
+            }[] = Array.from(
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items
+            )
+            expect(jobs).toHaveLength(1)
+            expect(jobs[0]?.payload?.context?.storageBinding).toMatchObject({
+                storageType: 'local',
+                autoRedeployOnUpdate: true,
+                updateStrategy: 'auto_redeploy',
+                mountPath: '/workspace/persisted',
+            })
+        })
 
         it('should reject upload trigger without sourceConfig.customData.uploadId', async () => {
             const input = {
@@ -947,13 +1070,15 @@ describe('DeploymentService', () => {
                     fileName: 'bundle.zip',
                     fileSize: 12345,
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
-        it("should reject upload trigger targeting dockerfile runtime without containerImage", async () => {
+        it('should reject upload trigger targeting dockerfile runtime without containerImage', async () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
@@ -964,13 +1089,15 @@ describe('DeploymentService', () => {
                     uploadId: 'upload-123',
                     runtimeRunner: 'dockerfile',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
-        it("should allow dockerfile runtime without containerImage when execution.builder is provided", async () => {
+        it('should allow dockerfile runtime without containerImage when execution.builder is provided', async () => {
             mockRepository.create.mockResolvedValue({
                 ...mockDeployment,
                 id: 'deploy-upload-builder-1',
@@ -984,7 +1111,7 @@ describe('DeploymentService', () => {
                         runtimeRunner: 'dockerfile',
                     },
                 },
-            });
+            })
 
             const input = {
                 serviceId: 'service-1',
@@ -1012,15 +1139,17 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
-            } as any;
+            } as any
 
-            const result = await service.triggerDeployment(input, 'user-1');
+            const result = await service.triggerDeployment(input, 'user-1')
 
-            expect(result.id).toBe('deploy-upload-builder-1');
-            const jobs: { payload?: { context?: { executionPlan?: unknown } } }[] = Array.from(
-                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
-            );
-            expect(jobs).toHaveLength(1);
+            expect(result.id).toBe('deploy-upload-builder-1')
+            const jobs: {
+                payload?: { context?: { executionPlan?: unknown } }
+            }[] = Array.from(
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items
+            )
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]?.payload?.context?.executionPlan).toEqual(
                 expect.objectContaining({
                     builder: 'nixpacks',
@@ -1031,9 +1160,9 @@ describe('DeploymentService', () => {
                             retryIntervalMs: 600,
                         },
                     },
-                }),
-            );
-        });
+                })
+            )
+        })
 
         it('should enqueue custom source dockerfile deployment when containerImage is provided', async () => {
             mockRepository.create.mockResolvedValue({
@@ -1046,36 +1175,51 @@ describe('DeploymentService', () => {
                         runtimeRunner: 'dockerfile',
                     },
                 },
-            });
+            })
 
             const input = {
                 serviceId: 'service-1',
                 environment: 'preview',
                 source: {
                     sourceType: 'custom',
-                    customData: { containerImage: 'registry.local/custom:latest', containerName: 'svc-custom-1', runtimeRunner: 'dockerfile' },
+                    customData: {
+                        containerImage: 'registry.local/custom:latest',
+                        containerName: 'svc-custom-1',
+                        runtimeRunner: 'dockerfile',
+                    },
                 },
-            } as any;
+            } as any
 
-            const result = await service.triggerDeployment(input, 'user-1');
+            const result = await service.triggerDeployment(input, 'user-1')
 
-            expect(result.id).toBe('deploy-custom-1');
+            expect(result.id).toBe('deploy-custom-1')
 
-            const jobs: { payload?: { context?: { sourceCheckout?: unknown } } }[] = Array.from(
-                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
-            );
+            const jobs: {
+                payload?: { context?: { sourceCheckout?: unknown } }
+            }[] = Array.from(
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items
+            )
 
-            expect(jobs).toHaveLength(1);
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]?.payload?.context?.sourceCheckout).toEqual(
                 expect.objectContaining({
                     provider: 'custom',
                     containerImage: 'registry.local/custom:latest',
                     runtimeRunner: 'dockerfile',
-                }),
-            );
-            expect((jobs[0]?.payload as { context?: { executionPlan?: { builder?: string | null } } } | undefined)?.context?.executionPlan?.builder)
-                .toBe('external');
-        });
+                })
+            )
+            expect(
+                (
+                    jobs[0]?.payload as
+                        | {
+                              context?: {
+                                  executionPlan?: { builder?: string | null }
+                              }
+                          }
+                        | undefined
+                )?.context?.executionPlan?.builder
+            ).toBe('external')
+        })
 
         it('should reject non-external builder for docker registry/custom provider', async () => {
             const input = {
@@ -1083,17 +1227,22 @@ describe('DeploymentService', () => {
                 environment: 'production',
                 source: {
                     sourceType: 'custom',
-                    customData: { containerImage: 'registry.local/custom:latest', runtimeRunner: 'dockerfile' },
+                    customData: {
+                        containerImage: 'registry.local/custom:latest',
+                        runtimeRunner: 'dockerfile',
+                    },
                 },
                 execution: {
                     builder: 'nixpacks',
                     runner: 'dockerfile',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should reject custom commands for docker registry/custom provider', async () => {
             const input = {
@@ -1101,7 +1250,10 @@ describe('DeploymentService', () => {
                 environment: 'production',
                 source: {
                     sourceType: 'custom',
-                    customData: { containerImage: 'registry.local/custom:latest', runtimeRunner: 'dockerfile' },
+                    customData: {
+                        containerImage: 'registry.local/custom:latest',
+                        runtimeRunner: 'dockerfile',
+                    },
                 },
                 execution: {
                     customCommands: {
@@ -1109,11 +1261,13 @@ describe('DeploymentService', () => {
                         runCommand: 'node server.js',
                     },
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
 
         it('should reject preview deployment when state-machine policy disables preview creation', async () => {
             mockRepository.getRuntimeConfigurationSeed.mockResolvedValue({
@@ -1132,7 +1286,7 @@ describe('DeploymentService', () => {
                     environmentVariables: null,
                     resourceLimits: null,
                 },
-            });
+            })
 
             const input = {
                 serviceId: 'service-1',
@@ -1142,12 +1296,14 @@ describe('DeploymentService', () => {
                     repositoryUrl: 'https://github.com/acme/repo',
                     branch: 'main',
                 },
-            } as any;
+            } as any
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
-    });
+            await expect(
+                service.triggerDeployment(input, 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
+    })
 
     describe('queue build execution persistence', () => {
         it('should complete MVP smoke flow (trigger -> reachable URL metadata -> health green)', async () => {
@@ -1155,13 +1311,20 @@ describe('DeploymentService', () => {
                 ...mockDeployment,
                 id: 'deploy-smoke-1',
                 healthCheckUrl: 'http://service-1.internal/healthz',
-            };
+            }
 
-            mockRepository.create.mockResolvedValue(queuedDeployment);
-            mockRepository.findById.mockResolvedValue(queuedDeployment);
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
-            mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
-            mockTraefikService.getHealthStatus.mockReturnValue(Effect.succeed({ healthy: true, route: 'https://app.example.com' }));
+            mockRepository.create.mockResolvedValue(queuedDeployment)
+            mockRepository.findById.mockResolvedValue(queuedDeployment)
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
+            mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true))
+            mockTraefikService.getHealthStatus.mockReturnValue(
+                Effect.succeed({
+                    healthy: true,
+                    route: 'https://app.example.com',
+                })
+            )
 
             const triggered = await service.triggerDeployment(
                 {
@@ -1173,25 +1336,25 @@ describe('DeploymentService', () => {
                         branch: 'main',
                     },
                 } as any,
-                'user-1',
-            );
+                'user-1'
+            )
 
-            expect(triggered.id).toBe('deploy-smoke-1');
+            expect(triggered.id).toBe('deploy-smoke-1')
 
             const claim = await service.claimQueueJobs({
                 workerId: 'worker-smoke-1',
                 limit: 1,
                 leaseDurationSec: 120,
                 types: ['deploy'],
-            } as any);
+            } as any)
 
-            const claimedJob = claim.claimed[0];
-            expect(claimedJob).toBeDefined();
-            expect(claimedJob?.lockToken).toBeTruthy();
+            const claimedJob = claim.claimed[0]
+            expect(claimedJob).toBeDefined()
+            expect(claimedJob?.lockToken).toBeTruthy()
 
-            const lockToken = claimedJob?.lockToken;
+            const lockToken = claimedJob?.lockToken
             if (!lockToken) {
-                throw new Error('Expected smoke flow lock token');
+                throw new Error('Expected smoke flow lock token')
             }
 
             const completion = await service.completeQueueJob(claimedJob.id, {
@@ -1203,15 +1366,18 @@ describe('DeploymentService', () => {
                     healthCheckMaxRetries: 4,
                     healthCheckRetryIntervalMs: 250,
                 },
-            });
+            })
 
-            expect(completion.updated).toBe(true);
-            expect(completion.job.status).toBe('succeeded');
-            expect(mockContainers.waitForHealth).toHaveBeenCalledWith('container-1', {
-                maxRetries: 4,
-                retryIntervalMs: 250,
-                healthCheckUrl: 'http://service-1.internal/healthz',
-            });
+            expect(completion.updated).toBe(true)
+            expect(completion.job.status).toBe('succeeded')
+            expect(mockContainers.waitForHealth).toHaveBeenCalledWith(
+                'container-1',
+                {
+                    maxRetries: 4,
+                    retryIntervalMs: 250,
+                    healthCheckUrl: 'http://service-1.internal/healthz',
+                }
+            )
 
             expect(mockRepository.persistBuildArtifacts).toHaveBeenCalledWith(
                 'deploy-smoke-1',
@@ -1222,18 +1388,22 @@ describe('DeploymentService', () => {
                     metadata: expect.objectContaining({
                         routeVerification: expect.objectContaining({
                             applied: true,
-                            healthSummary: expect.objectContaining({ healthy: true }),
+                            healthSummary: expect.objectContaining({
+                                healthy: true,
+                            }),
                         }),
                         healthGate: expect.objectContaining({
                             passed: true,
                             healthCheckUrl: 'http://service-1.internal/healthz',
                         }),
                     }),
-                }),
-            );
-            expect(mockTraefikService.syncServiceConfiguration).toHaveBeenCalledWith('service-1');
-            expect(mockTraefikService.getHealthStatus).toHaveBeenCalled();
-        });
+                })
+            )
+            expect(
+                mockTraefikService.syncServiceConfiguration
+            ).toHaveBeenCalledWith('service-1')
+            expect(mockTraefikService.getHealthStatus).toHaveBeenCalled()
+        })
 
         it('should mark deployment as building when deploy job is claimed', async () => {
             const enqueued = await service.enqueueQueueJob({
@@ -1246,27 +1416,27 @@ describe('DeploymentService', () => {
                     context: {},
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
-            mockRepository.findById.mockResolvedValue(mockDeployment);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-1',
                 limit: 1,
                 leaseDurationSec: 120,
-            });
+            })
 
-            expect(claimed.claimed).toHaveLength(1);
-            expect(claimed.claimed[0]?.id).toBe(enqueued.job.id);
+            expect(claimed.claimed).toHaveLength(1)
+            expect(claimed.claimed[0]?.id).toBe(enqueued.job.id)
             expect(mockRepository.persistBuildArtifacts).toHaveBeenCalledWith(
                 'deploy-1',
                 expect.objectContaining({
                     status: 'building',
                     phase: 'building',
                     phaseProgress: 25,
-                }),
-            );
-        });
+                })
+            )
+        })
 
         it('should claim only the targeted queued job by idempotency key', async () => {
             const first = await service.enqueueQueueJob({
@@ -1279,7 +1449,7 @@ describe('DeploymentService', () => {
                     context: {},
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
             const second = await service.enqueueQueueJob({
                 type: 'deploy',
@@ -1291,48 +1461,68 @@ describe('DeploymentService', () => {
                     context: {},
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
             mockRepository.findById.mockImplementation((id: string) => {
-                if (id === 'deploy-first') return Promise.resolve({ ...mockDeployment, id: 'deploy-first' });
-                if (id === 'deploy-second') return Promise.resolve({ ...mockDeployment, id: 'deploy-second' });
-                return Promise.resolve(mockDeployment);
-            });
+                if (id === 'deploy-first')
+                    return Promise.resolve({
+                        ...mockDeployment,
+                        id: 'deploy-first',
+                    })
+                if (id === 'deploy-second')
+                    return Promise.resolve({
+                        ...mockDeployment,
+                        id: 'deploy-second',
+                    })
+                return Promise.resolve(mockDeployment)
+            })
 
-            const claimed = await service.claimQueueJobByIdempotencyKey('deploy:test:target:second', {
-                workerId: 'worker-targeted-1',
-                limit: 1,
-                leaseDurationSec: 120,
-                types: ['deploy'],
-            } as any);
+            const claimed = await service.claimQueueJobByIdempotencyKey(
+                'deploy:test:target:second',
+                {
+                    workerId: 'worker-targeted-1',
+                    limit: 1,
+                    leaseDurationSec: 120,
+                    types: ['deploy'],
+                } as any
+            )
 
-            expect(claimed?.id).toBe(second.job.id);
-            expect((await service.findQueueJobById(first.job.id))?.status).toBe('queued');
-            expect((await service.findQueueJobById(second.job.id))?.status).toBe('claimed');
+            expect(claimed?.id).toBe(second.job.id)
+            expect((await service.findQueueJobById(first.job.id))?.status).toBe(
+                'queued'
+            )
+            expect(
+                (await service.findQueueJobById(second.job.id))?.status
+            ).toBe('claimed')
             expect(mockRepository.persistBuildArtifacts).toHaveBeenCalledWith(
                 'deploy-second',
                 expect.objectContaining({
                     status: 'building',
                     phase: 'building',
                     phaseProgress: 25,
-                }),
-            );
-        });
+                })
+            )
+        })
 
         it('should return null when targeted idempotency key cannot be claimed', async () => {
-            const claimed = await service.claimQueueJobByIdempotencyKey('deploy:test:missing', {
-                workerId: 'worker-targeted-2',
-                limit: 1,
-                leaseDurationSec: 120,
-                types: ['deploy'],
-            } as any);
+            const claimed = await service.claimQueueJobByIdempotencyKey(
+                'deploy:test:missing',
+                {
+                    workerId: 'worker-targeted-2',
+                    limit: 1,
+                    leaseDurationSec: 120,
+                    types: ['deploy'],
+                } as any
+            )
 
-            expect(claimed).toBeNull();
-            expect(mockRepository.persistBuildArtifacts).not.toHaveBeenCalledWith(
+            expect(claimed).toBeNull()
+            expect(
+                mockRepository.persistBuildArtifacts
+            ).not.toHaveBeenCalledWith(
                 expect.any(String),
-                expect.objectContaining({ status: 'building' }),
-            );
-        });
+                expect.objectContaining({ status: 'building' })
+            )
+        })
 
         it('should persist artifact metadata when deploy job is completed', async () => {
             const enqueued = await service.enqueueQueueJob({
@@ -1345,23 +1535,23 @@ describe('DeploymentService', () => {
                     context: {},
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
-            mockRepository.findById.mockResolvedValue(mockDeployment);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-2',
                 limit: 1,
                 leaseDurationSec: 120,
-            });
+            })
 
-            const claimedJob = claimed.claimed[0];
-            expect(claimedJob).toBeDefined();
-            expect(claimedJob?.lockToken).toBeTruthy();
+            const claimedJob = claimed.claimed[0]
+            expect(claimedJob).toBeDefined()
+            expect(claimedJob?.lockToken).toBeTruthy()
 
-            const lockToken = claimedJob?.lockToken;
+            const lockToken = claimedJob?.lockToken
             if (!lockToken) {
-                throw new Error('Expected claimed queue job lock token');
+                throw new Error('Expected claimed queue job lock token')
             }
 
             const result = await service.completeQueueJob(enqueued.job.id, {
@@ -1374,10 +1564,10 @@ describe('DeploymentService', () => {
                     artifactSizeBytes: 2048,
                     buildLogsUrl: 'https://logs.example.com/build/123',
                 },
-            });
+            })
 
-            expect(result.updated).toBe(true);
-            expect(result.job.status).toBe('succeeded');
+            expect(result.updated).toBe(true)
+            expect(result.job.status).toBe('succeeded')
             expect(mockRepository.persistBuildArtifacts).toHaveBeenCalledWith(
                 'deploy-1',
                 expect.objectContaining({
@@ -1386,29 +1576,36 @@ describe('DeploymentService', () => {
                     status: 'success',
                     phase: 'active',
                     phaseProgress: 100,
-                }),
-            );
-            expect(mockContainers.stopByDeployment).toHaveBeenCalledWith('deploy-1');
+                })
+            )
+            expect(mockContainers.stopByDeployment).toHaveBeenCalledWith(
+                'deploy-1'
+            )
             expect(mockContainers.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     Image: 'registry.local/my-app:sha-123',
                     name: 'svc-my-app-123',
-                }),
-            );
-            expect(mockContainers.start).toHaveBeenCalledWith('container-1');
-            expect(mockTraefikService.syncServiceConfiguration).toHaveBeenCalledWith('service-1');
-            expect(mockTraefikService.getHealthStatus).toHaveBeenCalled();
-            expect(mockContainers.waitForHealth).toHaveBeenCalledWith('container-1', {
-                maxRetries: 10,
-                retryIntervalMs: 2000,
-                            });
-        });
+                })
+            )
+            expect(mockContainers.start).toHaveBeenCalledWith('container-1')
+            expect(
+                mockTraefikService.syncServiceConfiguration
+            ).toHaveBeenCalledWith('service-1')
+            expect(mockTraefikService.getHealthStatus).toHaveBeenCalled()
+            expect(mockContainers.waitForHealth).toHaveBeenCalledWith(
+                'container-1',
+                {
+                    maxRetries: 10,
+                    retryIntervalMs: 2000,
+                }
+            )
+        })
 
         it('should fail fast when readiness health gate does not pass', async () => {
             const healthCheckedDeployment = {
                 ...mockDeployment,
                 healthCheckUrl: 'http://service-1.internal/healthz',
-            };
+            }
 
             const enqueued = await service.enqueueQueueJob({
                 type: 'deploy',
@@ -1420,24 +1617,24 @@ describe('DeploymentService', () => {
                     context: {},
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
-            mockRepository.findById.mockResolvedValue(healthCheckedDeployment);
-            mockContainers.waitForHealth.mockReturnValue(Effect.succeed(false));
+            mockRepository.findById.mockResolvedValue(healthCheckedDeployment)
+            mockContainers.waitForHealth.mockReturnValue(Effect.succeed(false))
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-3',
                 limit: 1,
                 leaseDurationSec: 120,
-            });
+            })
 
-            const claimedJob = claimed.claimed[0];
-            expect(claimedJob).toBeDefined();
-            expect(claimedJob?.lockToken).toBeTruthy();
+            const claimedJob = claimed.claimed[0]
+            expect(claimedJob).toBeDefined()
+            expect(claimedJob?.lockToken).toBeTruthy()
 
-            const lockToken = claimedJob?.lockToken;
+            const lockToken = claimedJob?.lockToken
             if (!lockToken) {
-                throw new Error('Expected claimed queue job lock token');
+                throw new Error('Expected claimed queue job lock token')
             }
 
             await expect(
@@ -1450,15 +1647,18 @@ describe('DeploymentService', () => {
                         healthCheckMaxRetries: 3,
                         healthCheckRetryIntervalMs: 500,
                     },
-                }),
-            ).rejects.toThrow(RuntimeInvalid);
+                })
+            ).rejects.toThrow(RuntimeInvalid)
 
-            expect(mockContainers.waitForHealth).toHaveBeenCalledWith('container-1', {
-                maxRetries: 3,
-                retryIntervalMs: 500,
-                healthCheckUrl: 'http://service-1.internal/healthz',
-            });
-            expect(mockContainers.remove).toHaveBeenCalledWith('container-1');
+            expect(mockContainers.waitForHealth).toHaveBeenCalledWith(
+                'container-1',
+                {
+                    maxRetries: 3,
+                    retryIntervalMs: 500,
+                    healthCheckUrl: 'http://service-1.internal/healthz',
+                }
+            )
+            expect(mockContainers.remove).toHaveBeenCalledWith('container-1')
             expect(mockRepository.updateStatus).toHaveBeenCalledWith(
                 'deploy-1',
                 'failed',
@@ -1466,9 +1666,9 @@ describe('DeploymentService', () => {
                     containerLifecycle: expect.objectContaining({
                         status: 'failed',
                     }),
-                }),
-            );
-        });
+                })
+            )
+        })
 
         it('should execute manual upload lifecycle with local storage bind and traefik sync', async () => {
             const manualDeployment = {
@@ -1483,7 +1683,7 @@ describe('DeploymentService', () => {
                         uploadPath: '/tmp/uploads/upload-manual-1',
                     },
                 },
-            };
+            }
 
             const enqueued = await service.enqueueQueueJob({
                 type: 'deploy',
@@ -1503,19 +1703,19 @@ describe('DeploymentService', () => {
                     },
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
-            mockRepository.findById.mockResolvedValue(manualDeployment);
+            mockRepository.findById.mockResolvedValue(manualDeployment)
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-manual-1',
                 limit: 1,
                 leaseDurationSec: 120,
-            });
+            })
 
-            const lockToken = claimed.claimed[0]?.lockToken;
+            const lockToken = claimed.claimed[0]?.lockToken
             if (!lockToken) {
-                throw new Error('Expected claimed queue job lock token');
+                throw new Error('Expected claimed queue job lock token')
             }
 
             await service.completeQueueJob(enqueued.job.id, {
@@ -1535,25 +1735,30 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
-            });
+            })
 
             expect(mockContainers.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     Image: 'registry.local/manual:latest',
                     name: 'svc-manual-upload-1',
                     HostConfig: expect.objectContaining({
-                        Binds: [expect.stringMatching(/:\/workspace\/storage$/)],
+                        Binds: [
+                            expect.stringMatching(/:\/workspace\/storage$/),
+                        ],
                     }),
                     Labels: expect.objectContaining({
                         'deployer.storage.type': 'local',
-                        'deployer.storage.update_strategy': 'manual_update_button',
+                        'deployer.storage.update_strategy':
+                            'manual_update_button',
                     }),
-                }),
-            );
-            expect(mockTraefikService.syncServiceConfiguration).toHaveBeenCalledWith('service-1');
-            expect(mockTraefikService.getHealthStatus).toHaveBeenCalled();
-        });
-    });
+                })
+            )
+            expect(
+                mockTraefikService.syncServiceConfiguration
+            ).toHaveBeenCalledWith('service-1')
+            expect(mockTraefikService.getHealthStatus).toHaveBeenCalled()
+        })
+    })
 
     // ========================================
     // cancelDeployment
@@ -1561,61 +1766,87 @@ describe('DeploymentService', () => {
 
     describe('cancelDeployment', () => {
         it('should cancel a queued deployment', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.updateStatus.mockResolvedValue({ ...mockDeployment, status: 'cancelled' });
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.updateStatus.mockResolvedValue({
+                ...mockDeployment,
+                status: 'cancelled',
+            })
 
-            const result = await service.cancelDeployment('deploy-1', 'user-1', 'user_requested');
+            const result = await service.cancelDeployment(
+                'deploy-1',
+                'user-1',
+                'user_requested'
+            )
 
-            expect(result.deploymentId).toBe('deploy-1');
-            expect(result.cancelledAt).toBeDefined();
+            expect(result.deploymentId).toBe('deploy-1')
+            expect(result.cancelledAt).toBeDefined()
             expect(mockRepository.updateStatus).toHaveBeenCalledWith(
                 'deploy-1',
                 'cancelled',
-                expect.objectContaining({ cancelReason: 'user_requested' }),
-            );
-        });
+                expect.objectContaining({ cancelReason: 'user_requested' })
+            )
+        })
 
         it('should throw RuntimeNotFound when deployment not found', async () => {
-            mockRepository.findById.mockResolvedValue(null);
-
-            await expect(service.cancelDeployment('missing', 'user-1')).rejects.toThrow(RuntimeNotFound);
-        });
-
-        it('should throw RuntimeInvalid for already-completed deployment', async () => {
-            mockRepository.findById.mockResolvedValue(mockSuccessDeployment);
-
-            await expect(service.cancelDeployment('deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
-        });
-
-        it('should throw RuntimeInvalid for cancelled deployment', async () => {
-            const cancelledDeploy = { ...mockDeployment, status: 'cancelled' as const };
-            mockRepository.findById.mockResolvedValue(cancelledDeploy);
-
-            await expect(service.cancelDeployment('deploy-1', 'user-1')).rejects.toThrow(RuntimeInvalid);
-        });
-
-        it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-
-            await expect(service.cancelDeployment('deploy-1', 'other-user')).rejects.toThrow(RuntimeForbidden);
-        });
-
-        it('should allow platform admin to cancel deployment without project membership', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.updateStatus.mockResolvedValue({ ...mockDeployment, status: 'cancelled' });
+            mockRepository.findById.mockResolvedValue(null)
 
             await expect(
-                service.cancelDeployment('deploy-1', 'other-user', 'operator_cancel', 'admin'),
+                service.cancelDeployment('missing', 'user-1')
+            ).rejects.toThrow(RuntimeNotFound)
+        })
+
+        it('should throw RuntimeInvalid for already-completed deployment', async () => {
+            mockRepository.findById.mockResolvedValue(mockSuccessDeployment)
+
+            await expect(
+                service.cancelDeployment('deploy-2', 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+        })
+
+        it('should throw RuntimeInvalid for cancelled deployment', async () => {
+            const cancelledDeploy = {
+                ...mockDeployment,
+                status: 'cancelled' as const,
+            }
+            mockRepository.findById.mockResolvedValue(cancelledDeploy)
+
+            await expect(
+                service.cancelDeployment('deploy-1', 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+        })
+
+        it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+
+            await expect(
+                service.cancelDeployment('deploy-1', 'other-user')
+            ).rejects.toThrow(RuntimeForbidden)
+        })
+
+        it('should allow platform admin to cancel deployment without project membership', async () => {
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.updateStatus.mockResolvedValue({
+                ...mockDeployment,
+                status: 'cancelled',
+            })
+
+            await expect(
+                service.cancelDeployment(
+                    'deploy-1',
+                    'other-user',
+                    'operator_cancel',
+                    'admin'
+                )
             ).resolves.toEqual(
-                expect.objectContaining({ deploymentId: 'deploy-1' }),
-            );
+                expect.objectContaining({ deploymentId: 'deploy-1' })
+            )
             expect(mockRepository.updateStatus).toHaveBeenCalledWith(
                 'deploy-1',
                 'cancelled',
-                expect.objectContaining({ cancelReason: 'operator_cancel' }),
-            );
-        });
-    });
+                expect.objectContaining({ cancelReason: 'operator_cancel' })
+            )
+        })
+    })
 
     // ========================================
     // rollbackDeployment
@@ -1623,82 +1854,119 @@ describe('DeploymentService', () => {
 
     describe('rollbackDeployment', () => {
         it('should create a rollback deployment', async () => {
-            const rollbackResult = { ...mockDeployment, id: 'deploy-3', metadata: { rollbackFrom: 'deploy-1', targetDeploymentId: 'deploy-2' } };
+            const rollbackResult = {
+                ...mockDeployment,
+                id: 'deploy-3',
+                metadata: {
+                    rollbackFrom: 'deploy-1',
+                    targetDeploymentId: 'deploy-2',
+                },
+            }
             mockRepository.findById.mockImplementation((id: string) => {
-                if (id === 'deploy-1') return Promise.resolve(mockDeployment);
-                if (id === 'deploy-2') return Promise.resolve(mockSuccessDeployment);
-                return Promise.resolve(null);
-            });
-            mockRepository.create.mockResolvedValue(rollbackResult);
+                if (id === 'deploy-1') return Promise.resolve(mockDeployment)
+                if (id === 'deploy-2')
+                    return Promise.resolve(mockSuccessDeployment)
+                return Promise.resolve(null)
+            })
+            mockRepository.create.mockResolvedValue(rollbackResult)
 
-            const result = await service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1');
+            const result = await service.rollbackDeployment(
+                'deploy-1',
+                'deploy-2',
+                'user-1'
+            )
 
-            expect(result.id).toBe('deploy-3');
+            expect(result.id).toBe('deploy-3')
             expect(mockRepository.create).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    metadata: expect.objectContaining({ rollbackFrom: 'deploy-1', targetDeploymentId: 'deploy-2' }),
-                }),
-            );
+                    metadata: expect.objectContaining({
+                        rollbackFrom: 'deploy-1',
+                        targetDeploymentId: 'deploy-2',
+                    }),
+                })
+            )
             expect(mockRepository.createRollback).toHaveBeenCalledWith(
                 expect.objectContaining({
                     fromDeploymentId: 'deploy-1',
                     toDeploymentId: 'deploy-3',
-                }),
-            );
+                })
+            )
 
             type QueueJobLike = {
-                type: string;
+                type: string
                 payload: {
-                    deploymentId?: string;
-                    projectId?: string;
-                };
-            };
+                    deploymentId?: string
+                    projectId?: string
+                }
+            }
 
-            const jobs = (await service.listQueueJobs({ limit: 100, offset: 0 })).items as unknown as QueueJobLike[];
-            expect(jobs.some((job) => job.type === 'rollback' && job.payload.deploymentId === 'deploy-3')).toBe(
-                true,
-            );
-            const rollbackJob = jobs.find((job) => job.type === 'rollback');
-            expect(rollbackJob?.payload?.projectId).toBe('proj-1');
-        });
+            const jobs = (
+                await service.listQueueJobs({ limit: 100, offset: 0 })
+            ).items as unknown as QueueJobLike[]
+            expect(
+                jobs.some(
+                    (job) =>
+                        job.type === 'rollback' &&
+                        job.payload.deploymentId === 'deploy-3'
+                )
+            ).toBe(true)
+            const rollbackJob = jobs.find((job) => job.type === 'rollback')
+            expect(rollbackJob?.payload?.projectId).toBe('proj-1')
+        })
 
         it('should throw RuntimeNotFound when from-deployment not found', async () => {
-            mockRepository.findById.mockResolvedValue(null);
+            mockRepository.findById.mockResolvedValue(null)
 
-            await expect(service.rollbackDeployment('missing', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeNotFound);
-        });
+            await expect(
+                service.rollbackDeployment('missing', 'deploy-2', 'user-1')
+            ).rejects.toThrow(RuntimeNotFound)
+        })
 
         it('should throw RuntimeInvalid when services differ', async () => {
-            const differentService = { ...mockSuccessDeployment, serviceId: 'service-99' };
+            const differentService = {
+                ...mockSuccessDeployment,
+                serviceId: 'service-99',
+            }
             mockRepository.findById.mockImplementation((id: string) => {
-                if (id === 'deploy-1') return Promise.resolve(mockDeployment);
-                if (id === 'deploy-2') return Promise.resolve(differentService);
-                return Promise.resolve(null);
-            });
+                if (id === 'deploy-1') return Promise.resolve(mockDeployment)
+                if (id === 'deploy-2') return Promise.resolve(differentService)
+                return Promise.resolve(null)
+            })
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
-        });
+            await expect(
+                service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+        })
 
         it('should throw RuntimeInvalid when target deployment is not successful', async () => {
-            const failedTarget = { ...mockDeployment, id: 'deploy-2', status: 'failed' as const };
+            const failedTarget = {
+                ...mockDeployment,
+                id: 'deploy-2',
+                status: 'failed' as const,
+            }
             mockRepository.findById.mockImplementation((id: string) => {
-                if (id === 'deploy-1') return Promise.resolve(mockDeployment);
-                if (id === 'deploy-2') return Promise.resolve(failedTarget);
-                return Promise.resolve(null);
-            });
+                if (id === 'deploy-1') return Promise.resolve(mockDeployment)
+                if (id === 'deploy-2') return Promise.resolve(failedTarget)
+                return Promise.resolve(null)
+            })
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
-        });
+            await expect(
+                service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+        })
 
         it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
             mockRepository.findById.mockImplementation((id: string) => {
-                if (id === 'deploy-1') return Promise.resolve(mockDeployment);
-                if (id === 'deploy-2') return Promise.resolve(mockSuccessDeployment);
-                return Promise.resolve(null);
-            });
+                if (id === 'deploy-1') return Promise.resolve(mockDeployment)
+                if (id === 'deploy-2')
+                    return Promise.resolve(mockSuccessDeployment)
+                return Promise.resolve(null)
+            })
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'other-user')).rejects.toThrow(RuntimeForbidden);
-        });
+            await expect(
+                service.rollbackDeployment('deploy-1', 'deploy-2', 'other-user')
+            ).rejects.toThrow(RuntimeForbidden)
+        })
 
         it('should reject rollback when state-machine policy disables rollback', async () => {
             mockRepository.getRuntimeConfigurationSeed.mockResolvedValue({
@@ -1717,26 +1985,35 @@ describe('DeploymentService', () => {
                     environmentVariables: null,
                     resourceLimits: null,
                 },
-            });
+            })
 
             mockRepository.findById.mockImplementation((id: string) => {
-                if (id === 'deploy-1') return Promise.resolve(mockDeployment);
-                if (id === 'deploy-2') return Promise.resolve(mockSuccessDeployment);
-                return Promise.resolve(null);
-            });
+                if (id === 'deploy-1') return Promise.resolve(mockDeployment)
+                if (id === 'deploy-2')
+                    return Promise.resolve(mockSuccessDeployment)
+                return Promise.resolve(null)
+            })
 
-            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(Effect.succeed({
-                ...defaultResolvedRuntimeConfiguration(),
-                project: {
-                    ...defaultResolvedRuntimeConfiguration().project,
-                    metadata: { deploymentStateMachine: { rollback: { enabled: false } } },
-                },
-            }));
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue(
+                Effect.succeed({
+                    ...defaultResolvedRuntimeConfiguration(),
+                    project: {
+                        ...defaultResolvedRuntimeConfiguration().project,
+                        metadata: {
+                            deploymentStateMachine: {
+                                rollback: { enabled: false },
+                            },
+                        },
+                    },
+                })
+            )
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
-            expect(mockRepository.create).not.toHaveBeenCalled();
-        });
-    });
+            await expect(
+                service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+            expect(mockRepository.create).not.toHaveBeenCalled()
+        })
+    })
 
     describe('rollback queue execution', () => {
         it('should mark rollback in progress when rollback job is claimed', async () => {
@@ -1747,7 +2024,7 @@ describe('DeploymentService', () => {
                     rollbackFrom: 'deploy-1',
                     targetDeploymentId: 'deploy-2',
                 },
-            };
+            }
 
             await service.enqueueQueueJob({
                 type: 'rollback',
@@ -1762,23 +2039,23 @@ describe('DeploymentService', () => {
                     },
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
-            mockRepository.findById.mockResolvedValue(rollbackDeployment);
+            mockRepository.findById.mockResolvedValue(rollbackDeployment)
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-rb-1',
                 limit: 1,
                 leaseDurationSec: 120,
-            });
+            })
 
-            expect(claimed.claimed).toHaveLength(1);
+            expect(claimed.claimed).toHaveLength(1)
             expect(mockRepository.updateRollbackStatus).toHaveBeenCalledWith(
                 'rb-claim-1',
                 'in_progress',
-                expect.objectContaining({ startedAt: expect.any(Date) }),
-            );
-        });
+                expect.objectContaining({ startedAt: expect.any(Date) })
+            )
+        })
 
         it('should mark rollback completed when rollback job is completed', async () => {
             const rollbackDeployment = {
@@ -1788,7 +2065,7 @@ describe('DeploymentService', () => {
                     rollbackFrom: 'deploy-1',
                     targetDeploymentId: 'deploy-2',
                 },
-            };
+            }
 
             const enqueued = await service.enqueueQueueJob({
                 type: 'rollback',
@@ -1803,19 +2080,21 @@ describe('DeploymentService', () => {
                     },
                 },
                 maxAttempts: 3,
-            } as any);
+            } as any)
 
-            mockRepository.findById.mockResolvedValue(rollbackDeployment);
+            mockRepository.findById.mockResolvedValue(rollbackDeployment)
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-rb-2',
                 limit: 1,
                 leaseDurationSec: 120,
-            });
+            })
 
-            const lockToken = claimed.claimed[0]?.lockToken;
+            const lockToken = claimed.claimed[0]?.lockToken
             if (!lockToken) {
-                throw new Error('Expected rollback claimed queue job lock token');
+                throw new Error(
+                    'Expected rollback claimed queue job lock token'
+                )
             }
 
             await service.completeQueueJob(enqueued.job.id, {
@@ -1824,13 +2103,13 @@ describe('DeploymentService', () => {
                 result: {
                     rollbackCompletedAt: now,
                 },
-            });
+            })
 
             expect(mockRepository.updateRollbackStatus).toHaveBeenCalledWith(
                 'rb-complete-1',
                 'completed',
-                expect.objectContaining({ completedAt: expect.any(Date) }),
-            );
+                expect.objectContaining({ completedAt: expect.any(Date) })
+            )
             expect(mockDeploymentEventService.emit).toHaveBeenCalledWith(
                 'rollbackCompleted',
                 { serviceId: 'service-1' },
@@ -1838,10 +2117,10 @@ describe('DeploymentService', () => {
                     fromDeploymentId: 'deploy-1',
                     toDeploymentId: 'deploy-rollback-complete',
                     success: true,
-                }),
-            );
-        });
-    });
+                })
+            )
+        })
+    })
 
     // ========================================
     // getDeploymentLogs
@@ -1849,59 +2128,72 @@ describe('DeploymentService', () => {
 
     describe('getDeploymentLogs', () => {
         it('should return logs with pagination metadata', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.findLogs.mockResolvedValue([mockLog]);
-            mockRepository.countLogs.mockResolvedValue(1);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.findLogs.mockResolvedValue([mockLog])
+            mockRepository.countLogs.mockResolvedValue(1)
 
-            const result = await service.getDeploymentLogs('deploy-1', 100, 0);
+            const result = await service.getDeploymentLogs('deploy-1', 100, 0)
 
-            expect(result.logs).toEqual([mockLog]);
-            expect(result.total).toBe(1);
-            expect(result.hasMore).toBe(false);
-            expect(mockRepository.findLogs).toHaveBeenCalledWith('deploy-1', 100, 0, undefined);
-            expect(mockRepository.countLogs).toHaveBeenCalledWith('deploy-1', undefined);
-            expect(result).not.toHaveProperty('retrySummary');
-        });
+            expect(result.logs).toEqual([mockLog])
+            expect(result.total).toBe(1)
+            expect(result.hasMore).toBe(false)
+            expect(mockRepository.findLogs).toHaveBeenCalledWith(
+                'deploy-1',
+                100,
+                0,
+                undefined
+            )
+            expect(mockRepository.countLogs).toHaveBeenCalledWith(
+                'deploy-1',
+                undefined
+            )
+            expect(result).not.toHaveProperty('retrySummary')
+        })
 
         it('should apply log filters when provided', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.findLogs.mockResolvedValue([mockLog]);
-            mockRepository.countLogs.mockResolvedValue(1);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.findLogs.mockResolvedValue([mockLog])
+            mockRepository.countLogs.mockResolvedValue(1)
 
             const result = await service.getDeploymentLogs('deploy-1', 50, 0, {
                 level: 'info',
                 phase: 'deploying',
                 step: 'convergence_policy',
-            });
+            })
 
-            expect(result.logs).toEqual([mockLog]);
-            expect(mockRepository.findLogs).toHaveBeenCalledWith('deploy-1', 50, 0, {
-                level: 'info',
-                phase: 'deploying',
-                step: 'convergence_policy',
-            });
+            expect(result.logs).toEqual([mockLog])
+            expect(mockRepository.findLogs).toHaveBeenCalledWith(
+                'deploy-1',
+                50,
+                0,
+                {
+                    level: 'info',
+                    phase: 'deploying',
+                    step: 'convergence_policy',
+                }
+            )
             expect(mockRepository.countLogs).toHaveBeenCalledWith('deploy-1', {
                 level: 'info',
                 phase: 'deploying',
                 step: 'convergence_policy',
-            });
-        });
+            })
+        })
 
         it('should include retry summary when requested', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.findLogs.mockResolvedValue([mockLog]);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.findLogs.mockResolvedValue([mockLog])
             mockRepository.countLogs
                 .mockResolvedValueOnce(12)
                 .mockResolvedValueOnce(2)
-                .mockResolvedValueOnce(3);
+                .mockResolvedValueOnce(3)
 
             const result = await service.getDeploymentLogs(
                 'deploy-1',
                 100,
                 0,
                 undefined,
-                { includeRetrySummary: true },
-            );
+                { includeRetrySummary: true }
+            )
 
             expect(result.retrySummary).toEqual({
                 scope: 'deployment',
@@ -1912,32 +2204,46 @@ describe('DeploymentService', () => {
                     retryEvents: 3,
                 },
                 totalRetryEvents: 5,
-            });
-            expect(mockRepository.countLogs).toHaveBeenNthCalledWith(1, 'deploy-1', undefined);
-            expect(mockRepository.countLogs).toHaveBeenNthCalledWith(2, 'deploy-1', {
-                step: 'build_retry',
-            });
-            expect(mockRepository.countLogs).toHaveBeenNthCalledWith(3, 'deploy-1', {
-                step: 'deploy_retry',
-            });
-        });
+            })
+            expect(mockRepository.countLogs).toHaveBeenNthCalledWith(
+                1,
+                'deploy-1',
+                undefined
+            )
+            expect(mockRepository.countLogs).toHaveBeenNthCalledWith(
+                2,
+                'deploy-1',
+                {
+                    step: 'build_retry',
+                }
+            )
+            expect(mockRepository.countLogs).toHaveBeenNthCalledWith(
+                3,
+                'deploy-1',
+                {
+                    step: 'deploy_retry',
+                }
+            )
+        })
 
         it('should throw RuntimeNotFound when deployment not found', async () => {
-            mockRepository.findById.mockResolvedValue(null);
+            mockRepository.findById.mockResolvedValue(null)
 
-            await expect(service.getDeploymentLogs('missing', 100, 0)).rejects.toThrow(RuntimeNotFound);
-        });
+            await expect(
+                service.getDeploymentLogs('missing', 100, 0)
+            ).rejects.toThrow(RuntimeNotFound)
+        })
 
         it('should indicate hasMore when more logs available', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.findLogs.mockResolvedValue([mockLog]);
-            mockRepository.countLogs.mockResolvedValue(200);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.findLogs.mockResolvedValue([mockLog])
+            mockRepository.countLogs.mockResolvedValue(200)
 
-            const result = await service.getDeploymentLogs('deploy-1', 100, 0);
+            const result = await service.getDeploymentLogs('deploy-1', 100, 0)
 
-            expect(result.hasMore).toBe(true);
-        });
-    });
+            expect(result.hasMore).toBe(true)
+        })
+    })
 
     // ========================================
     // deleteDeployment
@@ -1945,25 +2251,31 @@ describe('DeploymentService', () => {
 
     describe('deleteDeployment', () => {
         it('should delete the deployment', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.delete.mockResolvedValue(undefined);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.delete.mockResolvedValue(undefined)
 
-            await expect(service.deleteDeployment('deploy-1', 'user-1')).resolves.toBeUndefined();
-            expect(mockRepository.delete).toHaveBeenCalledWith('deploy-1');
-        });
+            await expect(
+                service.deleteDeployment('deploy-1', 'user-1')
+            ).resolves.toBeUndefined()
+            expect(mockRepository.delete).toHaveBeenCalledWith('deploy-1')
+        })
 
         it('should throw RuntimeNotFound when not found', async () => {
-            mockRepository.findById.mockResolvedValue(null);
+            mockRepository.findById.mockResolvedValue(null)
 
-            await expect(service.deleteDeployment('missing', 'user-1')).rejects.toThrow(RuntimeNotFound);
-        });
+            await expect(
+                service.deleteDeployment('missing', 'user-1')
+            ).rejects.toThrow(RuntimeNotFound)
+        })
 
         it('should throw RuntimeForbidden when requester is not owner or collaborator', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
 
-            await expect(service.deleteDeployment('deploy-1', 'other-user')).rejects.toThrow(RuntimeForbidden);
-        });
-    });
+            await expect(
+                service.deleteDeployment('deploy-1', 'other-user')
+            ).rejects.toThrow(RuntimeForbidden)
+        })
+    })
 
     // ========================================
     // retryDeployment
@@ -1971,38 +2283,45 @@ describe('DeploymentService', () => {
 
     describe('retryDeployment', () => {
         const enableRetryCheckout = () => {
-            mockGitService.validateRepository.mockReturnValue(Effect.succeed(true));
-        };
+            mockGitService.validateRepository.mockReturnValue(
+                Effect.succeed(true)
+            )
+        }
 
         it('should create a retry deployment for failed deployment', async () => {
-            enableRetryCheckout();
-            const retryDeployment = { ...mockDeployment, id: 'deploy-retry' };
-            mockRepository.findById.mockResolvedValue(mockFailedDeployment);
-            mockRepository.create.mockResolvedValue(retryDeployment);
-            mockRepository.getServiceProjectId.mockResolvedValue('proj-1');
+            enableRetryCheckout()
+            const retryDeployment = { ...mockDeployment, id: 'deploy-retry' }
+            mockRepository.findById.mockResolvedValue(mockFailedDeployment)
+            mockRepository.create.mockResolvedValue(retryDeployment)
+            mockRepository.getServiceProjectId.mockResolvedValue('proj-1')
 
-            const result = await service.retryDeployment('deploy-failed', 'user-1');
+            const result = await service.retryDeployment(
+                'deploy-failed',
+                'user-1'
+            )
 
-            expect(result.id).toBe('deploy-retry');
+            expect(result.id).toBe('deploy-retry')
             expect(mockRepository.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     serviceId: mockFailedDeployment.serviceId,
                     triggeredBy: 'user-1',
-                }),
-            );
-        });
+                })
+            )
+        })
 
         it('should enqueue a real retry job carrying the original source context (W10)', async () => {
-            enableRetryCheckout();
-            const retryDeployment = { ...mockDeployment, id: 'deploy-retry' };
-            mockRepository.findById.mockResolvedValue(mockFailedDeployment);
-            mockRepository.create.mockResolvedValue(retryDeployment);
-            mockRepository.getServiceProjectId.mockResolvedValue('proj-1');
+            enableRetryCheckout()
+            const retryDeployment = { ...mockDeployment, id: 'deploy-retry' }
+            mockRepository.findById.mockResolvedValue(mockFailedDeployment)
+            mockRepository.create.mockResolvedValue(retryDeployment)
+            mockRepository.getServiceProjectId.mockResolvedValue('proj-1')
 
-            await service.retryDeployment('deploy-failed', 'user-1');
+            await service.retryDeployment('deploy-failed', 'user-1')
 
-            const jobs = (await service.listQueueJobs({ limit: 100, offset: 0 })).items;
-            expect(jobs).toHaveLength(1);
+            const jobs = (
+                await service.listQueueJobs({ limit: 100, offset: 0 })
+            ).items
+            expect(jobs).toHaveLength(1)
             expect(jobs[0]).toMatchObject({
                 type: 'retry',
                 idempotencyKey: 'retry:deploy-retry',
@@ -2022,21 +2341,25 @@ describe('DeploymentService', () => {
                         }),
                     },
                 },
-            });
-        });
+            })
+        })
 
         it('should throw RuntimeInvalid for non-retryable status', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
 
-            await expect(service.retryDeployment('deploy-1', 'user-1')).rejects.toThrow(RuntimeInvalid);
-        });
+            await expect(
+                service.retryDeployment('deploy-1', 'user-1')
+            ).rejects.toThrow(RuntimeInvalid)
+        })
 
         it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
-            mockRepository.findById.mockResolvedValue(mockFailedDeployment);
+            mockRepository.findById.mockResolvedValue(mockFailedDeployment)
 
-            await expect(service.retryDeployment('deploy-failed', 'other-user')).rejects.toThrow(RuntimeForbidden);
-        });
-    });
+            await expect(
+                service.retryDeployment('deploy-failed', 'other-user')
+            ).rejects.toThrow(RuntimeForbidden)
+        })
+    })
 
     // ========================================
     // getRollbackHistory
@@ -2044,21 +2367,25 @@ describe('DeploymentService', () => {
 
     describe('getRollbackHistory', () => {
         it('should return rollback history when deployment exists', async () => {
-            mockRepository.findById.mockResolvedValue(mockDeployment);
-            mockRepository.findRollbacks.mockResolvedValue([mockRollback]);
+            mockRepository.findById.mockResolvedValue(mockDeployment)
+            mockRepository.findRollbacks.mockResolvedValue([mockRollback])
 
-            const result = await service.getRollbackHistory('deploy-1');
+            const result = await service.getRollbackHistory('deploy-1')
 
-            expect(result).toEqual({ rollbacks: [mockRollback] });
-            expect(mockRepository.findRollbacks).toHaveBeenCalledWith('deploy-1');
-        });
+            expect(result).toEqual({ rollbacks: [mockRollback] })
+            expect(mockRepository.findRollbacks).toHaveBeenCalledWith(
+                'deploy-1'
+            )
+        })
 
         it('should throw RuntimeNotFound when deployment does not exist', async () => {
-            mockRepository.findById.mockResolvedValue(null);
+            mockRepository.findById.mockResolvedValue(null)
 
-            await expect(service.getRollbackHistory('missing')).rejects.toThrow(RuntimeNotFound);
-        });
-    });
+            await expect(service.getRollbackHistory('missing')).rejects.toThrow(
+                RuntimeNotFound
+            )
+        })
+    })
 
     // ========================================
     // getDeploymentReplayEvents
@@ -2070,22 +2397,39 @@ describe('DeploymentService', () => {
                 ...mockDeployment,
                 phase: 'deploying' as const,
                 phaseProgress: 42,
-            };
-            mockRepository.findById.mockResolvedValue(deploymentWithPhase);
-            mockRepository.findLogs.mockResolvedValue([mockLog]);
+            }
+            mockRepository.findById.mockResolvedValue(deploymentWithPhase)
+            mockRepository.findLogs.mockResolvedValue([mockLog])
 
-            const events = await service.getDeploymentReplayEvents('deploy-1', 20);
+            const events = await service.getDeploymentReplayEvents(
+                'deploy-1',
+                20
+            )
 
-            expect(events[0]).toMatchObject({ type: 'statusChanged', status: 'queued' });
+            expect(events[0]).toMatchObject({
+                type: 'statusChanged',
+                status: 'queued',
+            })
             expect(events).toEqual(
                 expect.arrayContaining([
-                    expect.objectContaining({ type: 'phaseUpdated', phase: 'deploying', phaseProgress: 42 }),
-                    expect.objectContaining({ type: 'logAppended', log: mockLog }),
-                ]),
-            );
-            expect(mockRepository.findLogs).toHaveBeenCalledWith('deploy-1', 20, 0);
-        });
-    });
+                    expect.objectContaining({
+                        type: 'phaseUpdated',
+                        phase: 'deploying',
+                        phaseProgress: 42,
+                    }),
+                    expect.objectContaining({
+                        type: 'logAppended',
+                        log: mockLog,
+                    }),
+                ])
+            )
+            expect(mockRepository.findLogs).toHaveBeenCalledWith(
+                'deploy-1',
+                20,
+                0
+            )
+        })
+    })
 
     // ========================================
     // getServiceReplayEvents
@@ -2094,7 +2438,10 @@ describe('DeploymentService', () => {
     describe('getServiceReplayEvents', () => {
         it('should map deployment history to service events', async () => {
             mockRepository.findRecentDeployments.mockResolvedValue([
-                { deployment: { ...mockDeployment, status: 'success' }, projectId: null },
+                {
+                    deployment: { ...mockDeployment, status: 'success' },
+                    projectId: null,
+                },
                 {
                     deployment: {
                         ...mockDeployment,
@@ -2113,21 +2460,33 @@ describe('DeploymentService', () => {
                     },
                     projectId: null,
                 },
-            ]);
+            ])
 
-            const events = await service.getServiceReplayEvents('service-1', 10);
+            const events = await service.getServiceReplayEvents('service-1', 10)
 
             expect(events).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({ type: 'deploymentTriggered' }),
-                    expect.objectContaining({ type: 'deploymentCompleted', deploymentId: 'deploy-1' }),
-                    expect.objectContaining({ type: 'deploymentFailed', deploymentId: 'deploy-3' }),
-                    expect.objectContaining({ type: 'deploymentCancelled', deploymentId: 'deploy-4' }),
-                ]),
-            );
-            expect(mockRepository.findRecentDeployments).toHaveBeenCalledWith({ serviceId: 'service-1' }, 10);
-        });
-    });
+                    expect.objectContaining({
+                        type: 'deploymentCompleted',
+                        deploymentId: 'deploy-1',
+                    }),
+                    expect.objectContaining({
+                        type: 'deploymentFailed',
+                        deploymentId: 'deploy-3',
+                    }),
+                    expect.objectContaining({
+                        type: 'deploymentCancelled',
+                        deploymentId: 'deploy-4',
+                    }),
+                ])
+            )
+            expect(mockRepository.findRecentDeployments).toHaveBeenCalledWith(
+                { serviceId: 'service-1' },
+                10
+            )
+        })
+    })
 
     // ========================================
     // getFilteredReplayEvents / getProjectServiceIds
@@ -2145,7 +2504,7 @@ describe('DeploymentService', () => {
                     },
                     projectId: 'project-1',
                 },
-            ]);
+            ])
             mockRepository.findRecentLogs.mockResolvedValue([
                 {
                     log: mockLog,
@@ -2153,22 +2512,43 @@ describe('DeploymentService', () => {
                     serviceId: 'service-1',
                     projectId: 'project-1',
                 },
-            ]);
+            ])
 
-            const events = await service.getFilteredReplayEvents({ projectId: 'project-1' }, 30);
+            const events = await service.getFilteredReplayEvents(
+                { projectId: 'project-1' },
+                30
+            )
 
             expect(events).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({ type: 'deploymentTriggered' }),
-                    expect.objectContaining({ type: 'statusChanged', projectId: 'project-1' }),
-                    expect.objectContaining({ type: 'phaseUpdated', phase: 'build' }),
-                    expect.objectContaining({ type: 'rollbackStarted', fromDeploymentId: 'deploy-origin' }),
-                    expect.objectContaining({ type: 'logAppended', log: mockLog }),
-                ]),
-            );
-            expect(mockRepository.findRecentDeployments).toHaveBeenCalledWith({ projectId: 'project-1' }, 30);
-            expect(mockRepository.findRecentLogs).toHaveBeenCalledWith({ projectId: 'project-1' }, 30);
-        });
+                    expect.objectContaining({
+                        type: 'statusChanged',
+                        projectId: 'project-1',
+                    }),
+                    expect.objectContaining({
+                        type: 'phaseUpdated',
+                        phase: 'build',
+                    }),
+                    expect.objectContaining({
+                        type: 'rollbackStarted',
+                        fromDeploymentId: 'deploy-origin',
+                    }),
+                    expect.objectContaining({
+                        type: 'logAppended',
+                        log: mockLog,
+                    }),
+                ])
+            )
+            expect(mockRepository.findRecentDeployments).toHaveBeenCalledWith(
+                { projectId: 'project-1' },
+                30
+            )
+            expect(mockRepository.findRecentLogs).toHaveBeenCalledWith(
+                { projectId: 'project-1' },
+                30
+            )
+        })
 
         it('should apply aggregateId/eventType/since filters to replay payloads', async () => {
             mockRepository.findRecentDeployments.mockResolvedValue([
@@ -2190,8 +2570,8 @@ describe('DeploymentService', () => {
                     },
                     projectId: 'project-1',
                 },
-            ]);
-            mockRepository.findRecentLogs.mockResolvedValue([]);
+            ])
+            mockRepository.findRecentLogs.mockResolvedValue([])
 
             const events = await service.getFilteredReplayEvents(
                 {
@@ -2200,83 +2580,107 @@ describe('DeploymentService', () => {
                     eventType: 'statusChanged',
                     since: '2026-03-20T00:00:00.000Z',
                 },
-                30,
-            );
+                30
+            )
 
             expect(events).toEqual([
                 expect.objectContaining({
                     type: 'statusChanged',
                     deploymentId: 'deploy-new',
                 }),
-            ]);
-        });
-    });
+            ])
+        })
+    })
 
     describe('getProjectServiceIds', () => {
         it('should return project service ids from repository', async () => {
-            mockRepository.findServiceIdsByProject.mockResolvedValue(['service-1', 'service-2']);
+            mockRepository.findServiceIdsByProject.mockResolvedValue([
+                'service-1',
+                'service-2',
+            ])
 
-            const result = await service.getProjectServiceIds('project-1');
+            const result = await service.getProjectServiceIds('project-1')
 
-            expect(result).toEqual(['service-1', 'service-2']);
-            expect(mockRepository.findServiceIdsByProject).toHaveBeenCalledWith('project-1');
-        });
-    });
+            expect(result).toEqual(['service-1', 'service-2'])
+            expect(mockRepository.findServiceIdsByProject).toHaveBeenCalledWith(
+                'project-1'
+            )
+        })
+    })
 
     describe('streamQueryEvents', () => {
         it('should emit sequenced replay events before live events', async () => {
             // The replay is read through the repository (the service calls its own method directly, so it cannot be spied).
             mockRepository.findRecentDeployments.mockResolvedValue([
-                { deployment: { ...mockDeployment, phase: null, status: 'queued' }, projectId: undefined },
-            ]);
-            mockRepository.findRecentLogs.mockResolvedValue([]);
+                {
+                    deployment: {
+                        ...mockDeployment,
+                        phase: null,
+                        status: 'queued',
+                    },
+                    projectId: undefined,
+                },
+            ])
+            mockRepository.findRecentLogs.mockResolvedValue([])
 
-            mockDeploymentEventService.subscribe.mockImplementation((name: string) => {
-                if (name === 'statusChanged') {
-                    return fromArray([
-                        {
-                            deploymentId: 'deploy-1',
-                            status: 'deploying',
-                        },
-                    ]);
+            mockDeploymentEventService.subscribe.mockImplementation(
+                (name: string) => {
+                    if (name === 'statusChanged') {
+                        return fromArray([
+                            {
+                                deploymentId: 'deploy-1',
+                                status: 'deploying',
+                            },
+                        ])
+                    }
+                    return fromArray([])
                 }
-                return fromArray([]);
-            });
+            )
 
             const iterable = service.streamQueryEvents({
                 deploymentId: 'deploy-1',
                 eventType: 'statusChanged',
                 replay: true,
                 replayLimit: 10,
-            });
+            })
 
-            const [first, second] = await firstValueFrom(iterable.pipe(take(2), toArray()));
+            const [first, second] = await firstValueFrom(
+                iterable.pipe(take(2), toArray())
+            )
 
             expect(first).toMatchObject({
                 type: 'statusChanged',
                 sequence: 1,
                 replayed: true,
-            });
+            })
 
             expect(second).toMatchObject({
                 type: 'statusChanged',
                 sequence: 2,
                 replayed: false,
-            });
-        });
+            })
+        })
 
         it('should resume sequence from cursor and filter live events by type/aggregate', async () => {
-            vi.spyOn(service, 'getFilteredReplayEvents').mockResolvedValue([]);
+            vi.spyOn(service, 'getFilteredReplayEvents').mockResolvedValue([])
 
-            mockDeploymentEventService.subscribe.mockImplementation((name: string) => {
-                if (name === 'statusChanged') {
-                    return fromArray([
-                        { deploymentId: 'deploy-allowed', status: 'deploying' },
-                        { deploymentId: 'deploy-blocked', status: 'failed' },
-                    ]);
+            mockDeploymentEventService.subscribe.mockImplementation(
+                (name: string) => {
+                    if (name === 'statusChanged') {
+                        return fromArray([
+                            {
+                                deploymentId: 'deploy-allowed',
+                                status: 'deploying',
+                            },
+                            {
+                                deploymentId: 'deploy-blocked',
+                                status: 'failed',
+                            },
+                        ])
+                    }
+                    return fromArray([])
                 }
-                return fromArray([]);
-            });
+            )
 
             const iterable = service.streamQueryEvents({
                 deploymentId: 'deploy-allowed',
@@ -2285,9 +2689,9 @@ describe('DeploymentService', () => {
                 replay: false,
                 replayLimit: 10,
                 cursor: 9,
-            });
+            })
 
-            const first = await firstValueFrom(iterable);
+            const first = await firstValueFrom(iterable)
 
             expect(first).toMatchObject({
                 type: 'statusChanged',
@@ -2295,7 +2699,7 @@ describe('DeploymentService', () => {
                 sequence: 10,
                 cursor: '10',
                 replayed: false,
-            });
-        });
-    });
-});
+            })
+        })
+    })
+})

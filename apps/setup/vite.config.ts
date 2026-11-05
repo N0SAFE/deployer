@@ -1,8 +1,8 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
-import { redact } from '@tanstack/redact/vite';
-import { resolve } from 'path';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { redact } from '@tanstack/redact/vite'
+import { resolve } from 'path'
 
 /**
  * Every dev asset (the HMR client, the entry module, lazy chunks, CSS,
@@ -14,7 +14,7 @@ import { resolve } from 'path';
  * which means whitelisting them all. One prefix makes the whole dev asset
  * surface a single forwardable path — the same reason apps/api does it.
  */
-export const VITE_BASE = '/vite/';
+export const VITE_BASE = '/vite/'
 
 /**
  * Silence the one Vite log class that is pure noise here.
@@ -26,13 +26,16 @@ export const VITE_BASE = '/vite/';
  * error still comes through.
  */
 const SOURCE_MAP_NOISE = [
-  /Failed to load source map for/,
-  /An error occurred while trying to read the map file at/,
-];
+    /Failed to load source map for/,
+    /An error occurred while trying to read the map file at/,
+]
 
 function isSourceMapNoise(args: unknown[]): boolean {
-  const first = args[0];
-  return typeof first === 'string' && SOURCE_MAP_NOISE.some((re) => re.test(first));
+    const first = args[0]
+    return (
+        typeof first === 'string' &&
+        SOURCE_MAP_NOISE.some((re) => re.test(first))
+    )
 }
 
 // The SSR lib (RenderModule) proxies Vite asset requests to this dev server in
@@ -43,115 +46,115 @@ function isSourceMapNoise(args: unknown[]): boolean {
 // collision a loud failure rather than a silent fallback to another port that
 // the RenderModule proxy would then not know about.
 export default defineConfig(({ isSsrBuild }) => ({
-  base: VITE_BASE,
-  customLogger: {
-    info: (msg) => {
-      if (!isSourceMapNoise([msg])) console.log(msg);
+    base: VITE_BASE,
+    customLogger: {
+        info: (msg) => {
+            if (!isSourceMapNoise([msg])) console.log(msg)
+        },
+        warn: (msg, options) => {
+            if (!isSourceMapNoise([msg])) console.warn(msg, options ?? '')
+        },
+        warnOnce: (msg, options) => {
+            if (!isSourceMapNoise([msg])) console.warn(msg, options ?? '')
+        },
+        error: (msg, options) => {
+            // Errors are NEVER filtered: a suppressed error is how a real failure
+            // becomes invisible.
+            console.error(msg, options ?? '')
+        },
+        clearScreen: () => {
+            /* no-op: keep the surrounding server logs on screen */
+        },
+        hasWarned: false,
     },
-    warn: (msg, options) => {
-      if (!isSourceMapNoise([msg])) console.warn(msg, options ?? '');
-    },
-    warnOnce: (msg, options) => {
-      if (!isSourceMapNoise([msg])) console.warn(msg, options ?? '');
-    },
-    error: (msg, options) => {
-      // Errors are NEVER filtered: a suppressed error is how a real failure
-      // becomes invisible.
-      console.error(msg, options ?? '');
-    },
-    clearScreen: () => {
-      /* no-op: keep the surrounding server logs on screen */
-    },
-    hasWarned: false,
-  },
-  plugins: [
-    // Tailwind v4 is compiled by the BUNDLER, not by PostCSS — the integration
-    // the framework documents for Vite, and the same model apps/web uses
-    // (Turbopack compiles Tailwind natively there; see apps/web/next.config.ts).
-    //
-    // Without this plugin Vite only INLINES `@import "tailwindcss"`: the theme
-    // tokens arrive, but not one utility class is generated, so every
-    // `className` in the wizard renders as unstyled markup.
-    tailwindcss(),
-    react({}),
-    // Redact replaces React with its smaller synchronous runtime in BOTH the
-    // client and the SSR bundle. Keep importing `react`/`react-dom` everywhere;
-    // the plugin rewrites the resolved entries. It must come after the React
-    // plugin (documented order) and needs the deps in `ssr.noExternal` above so
-    // their React imports are rewritten too.
-    redact(),
-  ],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
-    // Dedupe is REQUIRED, not an optimisation: this is a monorepo whose
-    // workspace packages (e.g. @deployer/orpc-utils) carry their own nested
-    // react-query. Without dedupe the SSR bundle gets TWO react-query
-    // instances, so a component reading a provider set by the other instance
-    // throws "No QueryClient set" — which is exactly how the setup wizard
-    // failed to render.
-    dedupe: [
-      'react',
-      'react-dom',
-      '@nestjs-ssr/react',
-      '@tanstack/react-query',
-      '@tanstack/react-form',
-      '@orpc/client',
-      '@orpc/tanstack-query',
+    plugins: [
+        // Tailwind v4 is compiled by the BUNDLER, not by PostCSS — the integration
+        // the framework documents for Vite, and the same model apps/web uses
+        // (Turbopack compiles Tailwind natively there; see apps/web/next.config.ts).
+        //
+        // Without this plugin Vite only INLINES `@import "tailwindcss"`: the theme
+        // tokens arrive, but not one utility class is generated, so every
+        // `className` in the wizard renders as unstyled markup.
+        tailwindcss(),
+        react({}),
+        // Redact replaces React with its smaller synchronous runtime in BOTH the
+        // client and the SSR bundle. Keep importing `react`/`react-dom` everywhere;
+        // the plugin rewrites the resolved entries. It must come after the React
+        // plugin (documented order) and needs the deps in `ssr.noExternal` above so
+        // their React imports are rewritten too.
+        redact(),
     ],
-  },
-  ssr: {
-    // @deployer/ui, lucide-react, sonner etc are workspace/local deps the SSR
-    // bundle must inline (vite would externalize node_modules otherwise).
-    noExternal: [
-      '@nestjs-ssr/react',
-      '@deployer/ui',
-      // Workspace ORPC helpers must be inlined too: loaded externally, they
-      // resolve their OWN @tanstack/react-query (see the dedupe note above).
-      '@deployer/orpc-utils',
-      '@deployer/bff-contracts',
-      '@deployer/contracts-entities',
-      '@deployer/errors',
-      '@tanstack/react-query',
-      '@tanstack/react-form',
-      'next-themes',
-      'lucide-react',
-      'sonner',
-      'clsx',
-      'tailwind-merge',
-      'class-variance-authority',
-      'radix-ui',
-      'tw-animate-css',
-    ],
-  },
-  server: {
-    // Bind IPv4 loopback EXPLICITLY. Vite's default `localhost` resolves to
-    // `::1` inside the container, so the server listened on IPv6 ONLY and every
-    // IPv4 consumer (the SSR library's own proxy) got ECONNREFUSED → 503.
-    host: '127.0.0.1',
-    port: 5174,
-    strictPort: true,
-    hmr: { port: 5174 },
-  },
-  build: {
-    outDir: isSsrBuild ? 'dist/setup/server' : 'dist/setup/client',
-    manifest: true,
-    rollupOptions: {
-      input: !isSsrBuild
-        ? {
-            client: resolve(__dirname, 'src/views/entry-client.tsx'),
-          }
-        : undefined,
-      external: (id: string) => {
-        if (id.includes('/fsevents') || id.endsWith('fsevents')) {
-          return true;
-        }
-        if (id.endsWith('.node')) {
-          return true;
-        }
-        return false;
-      },
+    resolve: {
+        alias: {
+            '@': resolve(__dirname, 'src'),
+        },
+        // Dedupe is REQUIRED, not an optimisation: this is a monorepo whose
+        // workspace packages (e.g. @deployer/orpc-utils) carry their own nested
+        // react-query. Without dedupe the SSR bundle gets TWO react-query
+        // instances, so a component reading a provider set by the other instance
+        // throws "No QueryClient set" — which is exactly how the setup wizard
+        // failed to render.
+        dedupe: [
+            'react',
+            'react-dom',
+            '@nestjs-ssr/react',
+            '@tanstack/react-query',
+            '@tanstack/react-form',
+            '@orpc/client',
+            '@orpc/tanstack-query',
+        ],
     },
-  },
-}));
+    ssr: {
+        // @deployer/ui, lucide-react, sonner etc are workspace/local deps the SSR
+        // bundle must inline (vite would externalize node_modules otherwise).
+        noExternal: [
+            '@nestjs-ssr/react',
+            '@deployer/ui',
+            // Workspace ORPC helpers must be inlined too: loaded externally, they
+            // resolve their OWN @tanstack/react-query (see the dedupe note above).
+            '@deployer/orpc-utils',
+            '@deployer/bff-contracts',
+            '@deployer/contracts-entities',
+            '@deployer/errors',
+            '@tanstack/react-query',
+            '@tanstack/react-form',
+            'next-themes',
+            'lucide-react',
+            'sonner',
+            'clsx',
+            'tailwind-merge',
+            'class-variance-authority',
+            'radix-ui',
+            'tw-animate-css',
+        ],
+    },
+    server: {
+        // Bind IPv4 loopback EXPLICITLY. Vite's default `localhost` resolves to
+        // `::1` inside the container, so the server listened on IPv6 ONLY and every
+        // IPv4 consumer (the SSR library's own proxy) got ECONNREFUSED → 503.
+        host: '127.0.0.1',
+        port: 5174,
+        strictPort: true,
+        hmr: { port: 5174 },
+    },
+    build: {
+        outDir: isSsrBuild ? 'dist/setup/server' : 'dist/setup/client',
+        manifest: true,
+        rollupOptions: {
+            input: !isSsrBuild
+                ? {
+                      client: resolve(__dirname, 'src/views/entry-client.tsx'),
+                  }
+                : undefined,
+            external: (id: string) => {
+                if (id.includes('/fsevents') || id.endsWith('fsevents')) {
+                    return true
+                }
+                if (id.endsWith('.node')) {
+                    return true
+                }
+                return false
+            },
+        },
+    },
+}))

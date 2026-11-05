@@ -22,7 +22,11 @@ import { KeyRound, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
 import * as React from 'react'
 import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -74,27 +78,39 @@ function DeviceApprovalForm() {
      * for the authenticated owner, so the page can show them and ask again. Cleared when the code changes, so a review
      * can never approve a different request.
      */
-    const [review, setReview] = React.useState<{ clientId: string | null; scopes: string[] } | null>(null)
+    const [review, setReview] = React.useState<{
+        clientId: string | null
+        scopes: string[]
+    } | null>(null)
 
     const reviewCode = async (code: string): Promise<boolean> => {
-        const result = await authClient.$fetch<{ client_id?: string; scope?: string; status?: string }>(
-            `/device?user_code=${encodeURIComponent(code)}`,
-            { method: 'GET' },
-        )
+        const result = await authClient.$fetch<{
+            client_id?: string
+            scope?: string
+            status?: string
+        }>(`/device?user_code=${encodeURIComponent(code)}`, { method: 'GET' })
         if (result.error) {
-            setOutcome({ kind: 'error', message: result.error.message ?? 'The code was rejected' })
+            setOutcome({
+                kind: 'error',
+                message: result.error.message ?? 'The code was rejected',
+            })
             return false
         }
 
         const data = result.data
         if (data.status !== 'pending') {
-            setOutcome({ kind: 'error', message: `This request was already ${data.status ?? 'processed'}.` })
+            setOutcome({
+                kind: 'error',
+                message: `This request was already ${data.status ?? 'processed'}.`,
+            })
             return false
         }
 
         setReview({
             clientId: data.client_id ?? null,
-            scopes: (data.scope ?? '').split(/\s+/).filter((scope) => scope.length > 0),
+            scopes: (data.scope ?? '')
+                .split(/\s+/)
+                .filter((scope) => scope.length > 0),
         })
         return true
     }
@@ -117,10 +133,13 @@ function DeviceApprovalForm() {
             // `/device/approve` and `/device/deny` are the plugin's own
             // endpoints; a code that is unknown or expired is rejected there.
             const result = approve
-                ? await authClient.$fetch<{ detail?: string }>('/device/approve', {
-                      method: 'POST',
-                      body: { userCode: code },
-                  })
+                ? await authClient.$fetch<{ detail?: string }>(
+                      '/device/approve',
+                      {
+                          method: 'POST',
+                          body: { userCode: code },
+                      }
+                  )
                 : await authClient.$fetch('/device/deny', {
                       method: 'POST',
                       body: { userCode: code },
@@ -136,13 +155,18 @@ function DeviceApprovalForm() {
 
             setOutcome(
                 approve
-                    ? { kind: 'approved', detail: (result.data as { detail?: string } | null)?.detail }
-                    : { kind: 'denied' },
+                    ? {
+                          kind: 'approved',
+                          detail: (result.data as { detail?: string } | null)
+                              ?.detail,
+                      }
+                    : { kind: 'denied' }
             )
         } catch (err) {
             setOutcome({
                 kind: 'error',
-                message: err instanceof Error ? err.message : 'The request failed',
+                message:
+                    err instanceof Error ? err.message : 'The request failed',
             })
         } finally {
             setBusy(false)
@@ -193,7 +217,10 @@ function DeviceApprovalForm() {
                     spellCheck={false}
                     placeholder="ABCD-1234"
                     className="font-mono tracking-widest uppercase"
-                    onChange={(e) => { setUserCode(e.target.value); setReview(null); }}
+                    onChange={(e) => {
+                        setUserCode(e.target.value)
+                        setReview(null)
+                    }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') void submit(true)
                     }}
@@ -206,15 +233,21 @@ function DeviceApprovalForm() {
             {review !== null && (
                 <div className="rounded-md border p-3 text-sm">
                     <p className="font-medium">This request will sign in:</p>
-                    <p className="text-muted-foreground mt-1 break-all font-mono text-xs">
+                    <p className="text-muted-foreground mt-1 font-mono text-xs break-all">
                         {review.clientId ?? 'an unnamed client'}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1">
                         {review.scopes.length === 0 ? (
-                            <span className="text-muted-foreground text-xs">with your full account access</span>
+                            <span className="text-muted-foreground text-xs">
+                                with your full account access
+                            </span>
                         ) : (
                             review.scopes.map((scope) => (
-                                <Badge key={scope} variant="secondary" className="font-mono text-xs">
+                                <Badge
+                                    key={scope}
+                                    variant="secondary"
+                                    className="font-mono text-xs"
+                                >
                                     {scope}
                                 </Badge>
                             ))
@@ -226,9 +259,15 @@ function DeviceApprovalForm() {
             <div className="flex gap-2">
                 <Button disabled={busy} onClick={() => void submit(true)}>
                     {busy && <Loader2 className="size-4 animate-spin" />}
-                    <span className="ml-2">{review === null ? 'Review request' : 'Approve device'}</span>
+                    <span className="ml-2">
+                        {review === null ? 'Review request' : 'Approve device'}
+                    </span>
                 </Button>
-                <Button variant="outline" disabled={busy} onClick={() => void submit(false)}>
+                <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => void submit(false)}
+                >
                     Deny
                 </Button>
             </div>
@@ -246,8 +285,9 @@ export default function DevicePage() {
                         Approve device access
                     </CardTitle>
                     <CardDescription>
-                        Confirm the code shown on your device or tool. Approving signs it
-                        in as you — only do this if you started the request.
+                        Confirm the code shown on your device or tool. Approving
+                        signs it in as you — only do this if you started the
+                        request.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -285,7 +325,9 @@ function CurrentIdentity() {
     return (
         <div className="bg-muted/40 flex items-center justify-between rounded-lg border px-3 py-2">
             <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{session.user.name}</div>
+                <div className="truncate text-sm font-medium">
+                    {session.user.name}
+                </div>
                 <div className="text-muted-foreground truncate text-xs">
                     {session.user.email}
                 </div>

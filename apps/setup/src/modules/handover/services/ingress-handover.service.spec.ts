@@ -1,13 +1,14 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { makeEnvService } from "@/test-support/env";
+import { makeEnvService } from '@/test-support/env'
 
-import { makeIngressHandoverService } from "./ingress-handover.service";
-import type { IngressHandoverService } from "./ingress-handover.service";
+import { makeIngressHandoverService } from './ingress-handover.service'
+
+import type { IngressHandoverService } from './ingress-handover.service'
 
 /**
  * The handover writes the two files that decide who owns each hostname. Both
@@ -22,177 +23,193 @@ import type { IngressHandoverService } from "./ingress-handover.service";
  * The real filesystem is used (a temp dir), not a mocked `fs`: the failure this
  * guards against is a MALFORMED FILE, and a mock would happily accept one.
  */
-describe("IngressHandoverService", () => {
-  let dir: string;
-  let ingress: IngressHandoverService["Service"];
+describe('IngressHandoverService', () => {
+    let dir: string
+    let ingress: IngressHandoverService['Service']
 
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "setup-ingress-"));
-    ingress = makeIngressHandoverService(makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir }));
-  });
+    beforeEach(async () => {
+        dir = await mkdtemp(path.join(tmpdir(), 'setup-ingress-'))
+        ingress = makeIngressHandoverService(
+            makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir })
+        )
+    })
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
-  });
+    afterEach(async () => {
+        await rm(dir, { recursive: true, force: true })
+    })
 
-  /** Read a written file, or `null` when it was never created. */
-  async function read(name: string): Promise<string | null> {
-    try {
-      return await readFile(path.join(dir, name), "utf8");
-    } catch {
-      return null;
+    /** Read a written file, or `null` when it was never created. */
+    async function read(name: string): Promise<string | null> {
+        try {
+            return await readFile(path.join(dir, name), 'utf8')
+        } catch {
+            return null
+        }
     }
-  }
 
-  describe("hostname grammar", () => {
-    it("uses the unprefixed form when DEPLOYER_PREFIX is empty", () => {
-      expect(ingress.apiHostname()).toBe("api.deployer.localhost");
-      expect(ingress.setupHostname()).toBe("setup.deployer.localhost");
-    });
+    describe('hostname grammar', () => {
+        it('uses the unprefixed form when DEPLOYER_PREFIX is empty', () => {
+            expect(ingress.apiHostname()).toBe('api.deployer.localhost')
+            expect(ingress.setupHostname()).toBe('setup.deployer.localhost')
+        })
 
-    it("inserts the prefix after the service label", () => {
-      const prefixed = makeIngressHandoverService(
-        makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir, DEPLOYER_PREFIX: "acme" }),
-      );
+        it('inserts the prefix after the service label', () => {
+            const prefixed = makeIngressHandoverService(
+                makeEnvService({
+                    TRAEFIK_CONFIG_BASE_PATH: dir,
+                    DEPLOYER_PREFIX: 'acme',
+                })
+            )
 
-      // The prefix goes in the MIDDLE: `setup.acme.deployer.localhost`. Building
-      // it any other way (`acme.setup.…`) would resolve to nothing.
-      expect(prefixed.apiHostname()).toBe("api.acme.deployer.localhost");
-      expect(prefixed.setupHostname()).toBe("setup.acme.deployer.localhost");
-    });
-  });
+            // The prefix goes in the MIDDLE: `setup.acme.deployer.localhost`. Building
+            // it any other way (`acme.setup.…`) would resolve to nothing.
+            expect(prefixed.apiHostname()).toBe('api.acme.deployer.localhost')
+            expect(prefixed.setupHostname()).toBe(
+                'setup.acme.deployer.localhost'
+            )
+        })
+    })
 
-  describe("pointApiAt", () => {
-    it("creates the api router pointing at the backend", async () => {
-      await ingress.pointApiAt("http://bff:3005");
+    describe('pointApiAt', () => {
+        it('creates the api router pointing at the backend', async () => {
+            await ingress.pointApiAt('http://bff:3005')
 
-      const yaml = await read("dynamic-api.yml");
+            const yaml = await read('dynamic-api.yml')
 
-      expect(yaml).toContain("platform-api:");
-      expect(yaml).toContain("http://bff:3005");
-      expect(yaml).toContain("Host(`api.deployer.localhost`)");
-    });
+            expect(yaml).toContain('platform-api:')
+            expect(yaml).toContain('http://bff:3005')
+            expect(yaml).toContain('Host(`api.deployer.localhost`)')
+        })
 
-    it("RETARGETS rather than appending, keeping one router per name", async () => {
-      await ingress.pointApiAt("http://bff:3005");
-      await ingress.pointApiAt("http://svc-bff:3005");
+        it('RETARGETS rather than appending, keeping one router per name', async () => {
+            await ingress.pointApiAt('http://bff:3005')
+            await ingress.pointApiAt('http://svc-bff:3005')
 
-      const yaml = await read("dynamic-api.yml");
+            const yaml = await read('dynamic-api.yml')
 
-      // The whole point of the swap: the operator must see ONE router with the
-      // NEW backend. Two `platform-api` routers would be a Traefik config error,
-      // and the old backend would keep winning on reload order.
-      expect(yaml?.match(/platform-api:/g)).toHaveLength(1);
-      expect(yaml).toContain("http://svc-bff:3005");
-      expect(yaml).not.toContain("http://bff:3005");
-    });
+            // The whole point of the swap: the operator must see ONE router with the
+            // NEW backend. Two `platform-api` routers would be a Traefik config error,
+            // and the old backend would keep winning on reload order.
+            expect(yaml?.match(/platform-api:/g)).toHaveLength(1)
+            expect(yaml).toContain('http://svc-bff:3005')
+            expect(yaml).not.toContain('http://bff:3005')
+        })
 
-    it("leaves no temp file behind", async () => {
-      await ingress.pointApiAt("http://bff:3005");
+        it('leaves no temp file behind', async () => {
+            await ingress.pointApiAt('http://bff:3005')
 
-      // The write is temp-file + rename for atomicity; a leftover `.tmp` would
-      // be a file Traefik's watcher might read and fail on.
-      expect(await read("dynamic-api.yml.tmp")).toBeNull();
-    });
-  });
+            // The write is temp-file + rename for atomicity; a leftover `.tmp` would
+            // be a file Traefik's watcher might read and fail on.
+            expect(await read('dynamic-api.yml.tmp')).toBeNull()
+        })
+    })
 
-  describe("pointSetupAtSelf", () => {
-    it("routes the setup host to this app, so the wizard is reachable while it runs", async () => {
-      await ingress.pointSetupAtSelf();
+    describe('pointSetupAtSelf', () => {
+        it('routes the setup host to this app, so the wizard is reachable while it runs', async () => {
+            await ingress.pointSetupAtSelf()
 
-      const yaml = await read("dynamic-setup.yml");
+            const yaml = await read('dynamic-setup.yml')
 
-      expect(yaml).toContain("platform-setup:");
-      expect(yaml).toContain("Host(`setup.deployer.localhost`)");
-      // The network ALIAS with the app's real port: Traefik resolves this over
-      // the docker network, where the public hostname would mean nothing.
-      expect(yaml).toContain("http://setup:3016");
-    });
+            expect(yaml).toContain('platform-setup:')
+            expect(yaml).toContain('Host(`setup.deployer.localhost`)')
+            // The network ALIAS with the app's real port: Traefik resolves this over
+            // the docker network, where the public hostname would mean nothing.
+            expect(yaml).toContain('http://setup:3016')
+        })
 
-    it("uses the CONFIGURED port rather than a hardcoded one", async () => {
-      const custom = makeIngressHandoverService(
-        makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir, SETUP_APP_PORT: "4444" }),
-      );
+        it('uses the CONFIGURED port rather than a hardcoded one', async () => {
+            const custom = makeIngressHandoverService(
+                makeEnvService({
+                    TRAEFIK_CONFIG_BASE_PATH: dir,
+                    SETUP_APP_PORT: '4444',
+                })
+            )
 
-      await custom.pointSetupAtSelf();
+            await custom.pointSetupAtSelf()
 
-      // A hardcoded 3016 would silently disagree with a container that bound
-      // something else, and the symptom would be a Traefik 502.
-      expect(await read("dynamic-setup.yml")).toContain("http://setup:4444");
-    });
+            // A hardcoded 3016 would silently disagree with a container that bound
+            // something else, and the symptom would be a Traefik 502.
+            expect(await read('dynamic-setup.yml')).toContain(
+                'http://setup:4444'
+            )
+        })
 
-    it("is superseded by the done-page write rather than leaving two routers", async () => {
-      await ingress.pointSetupAtSelf();
-      await ingress.pointSetupAtDonePage("http://svc-bff:3005");
+        it('is superseded by the done-page write rather than leaving two routers', async () => {
+            await ingress.pointSetupAtSelf()
+            await ingress.pointSetupAtDonePage('http://svc-bff:3005')
 
-      const yaml = await read("dynamic-setup.yml");
+            const yaml = await read('dynamic-setup.yml')
 
-      // Boot writes the wizard, handover rewrites to the done page. ONE router
-      // per name, or the reload order decides which backend wins.
-      expect(yaml?.match(/platform-setup:/g)).toHaveLength(1);
-      expect(yaml).toContain("/setup/done");
-      expect(yaml).not.toContain("http://setup:3016");
-    });
+            // Boot writes the wizard, handover rewrites to the done page. ONE router
+            // per name, or the reload order decides which backend wins.
+            expect(yaml?.match(/platform-setup:/g)).toHaveLength(1)
+            expect(yaml).toContain('/setup/done')
+            expect(yaml).not.toContain('http://setup:3016')
+        })
 
-    it("does NOT throw when the config directory is unwritable", async () => {
-      // A failure here must not restart-loop the container: the process still
-      // serves on its internal port, where the healthcheck and the handover
-      // reach it, and the handover retries the same write later.
-      const broken = makeIngressHandoverService(
-        makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: "/proc/nonexistent/read-only" }),
-      );
+        it('does NOT throw when the config directory is unwritable', async () => {
+            // A failure here must not restart-loop the container: the process still
+            // serves on its internal port, where the healthcheck and the handover
+            // reach it, and the handover retries the same write later.
+            const broken = makeIngressHandoverService(
+                makeEnvService({
+                    TRAEFIK_CONFIG_BASE_PATH: '/proc/nonexistent/read-only',
+                })
+            )
 
-      await expect(broken.bootstrap()).resolves.toBeUndefined();
-    });
-  });
+            await expect(broken.bootstrap()).resolves.toBeUndefined()
+        })
+    })
 
-  describe("pointSetupAtDonePage", () => {
-    it("points the setup host at the API's done page", async () => {
-      await ingress.pointSetupAtDonePage("http://svc-bff:3005");
+    describe('pointSetupAtDonePage', () => {
+        it("points the setup host at the API's done page", async () => {
+            await ingress.pointSetupAtDonePage('http://svc-bff:3005')
 
-      const yaml = await read("dynamic-setup.yml");
+            const yaml = await read('dynamic-setup.yml')
 
-      expect(yaml).toContain("platform-setup:");
-      expect(yaml).toContain("Host(`setup.deployer.localhost`)");
-      // The path matters as much as the host: this is the ROUTE the redirect
-      // sends the operator to, so it must be the controller's actual path.
-      expect(yaml).toContain("http://svc-bff:3005/setup/done");
-    });
+            expect(yaml).toContain('platform-setup:')
+            expect(yaml).toContain('Host(`setup.deployer.localhost`)')
+            // The path matters as much as the host: this is the ROUTE the redirect
+            // sends the operator to, so it must be the controller's actual path.
+            expect(yaml).toContain('http://svc-bff:3005/setup/done')
+        })
 
-    it("gives the setup router a priority above the API console router", async () => {
-      await ingress.pointSetupAtDonePage("http://svc-bff:3005");
+        it('gives the setup router a priority above the API console router', async () => {
+            await ingress.pointSetupAtDonePage('http://svc-bff:3005')
 
-      const yaml = await read("dynamic-setup.yml");
+            const yaml = await read('dynamic-setup.yml')
 
-      // >2000, the console router's priority. Equal or lower and a future API
-      // rule could shadow the setup hostname.
-      expect(yaml).toMatch(/priority:\s*(\d+)/);
-      const priority = Number(/priority:\s*(\d+)/.exec(yaml ?? "")?.[1] ?? "0");
-      expect(priority).toBeGreaterThan(2000);
-    });
-  });
+            // >2000, the console router's priority. Equal or lower and a future API
+            // rule could shadow the setup hostname.
+            expect(yaml).toMatch(/priority:\s*(\d+)/)
+            const priority = Number(
+                /priority:\s*(\d+)/.exec(yaml ?? '')?.[1] ?? '0'
+            )
+            expect(priority).toBeGreaterThan(2000)
+        })
+    })
 
-  describe("document shape", () => {
-    it("declares exactly one http root, which Traefik requires", async () => {
-      await ingress.pointApiAt("http://bff:3005");
-      const api = await read("dynamic-api.yml");
-      await ingress.pointSetupAtDonePage("http://bff:3005");
-      const setup = await read("dynamic-setup.yml");
+    describe('document shape', () => {
+        it('declares exactly one http root, which Traefik requires', async () => {
+            await ingress.pointApiAt('http://bff:3005')
+            const api = await read('dynamic-api.yml')
+            await ingress.pointSetupAtDonePage('http://bff:3005')
+            const setup = await read('dynamic-setup.yml')
 
-      // Traefik's file provider rejects a document with two `http:` keys, so a
-      // second root would take down the whole file rather than one router.
-      expect(api?.match(/^http:/gm)).toHaveLength(1);
-      expect(setup?.match(/^http:/gm)).toHaveLength(1);
-    });
+            // Traefik's file provider rejects a document with two `http:` keys, so a
+            // second root would take down the whole file rather than one router.
+            expect(api?.match(/^http:/gm)).toHaveLength(1)
+            expect(setup?.match(/^http:/gm)).toHaveLength(1)
+        })
 
-    it("emits a service for every router, so no rule dangles", async () => {
-      await ingress.pointApiAt("http://bff:3005");
-      const yaml = await read("dynamic-api.yml");
+        it('emits a service for every router, so no rule dangles', async () => {
+            await ingress.pointApiAt('http://bff:3005')
+            const yaml = await read('dynamic-api.yml')
 
-      // A router naming a service that does not exist is a Traefik error that
-      // silently drops the route.
-      expect(yaml).toContain("platform-api:");
-      expect(yaml).toContain("platform-api-svc:");
-    });
-  });
-});
+            // A router naming a service that does not exist is a Traefik error that
+            // silently drops the route.
+            expect(yaml).toContain('platform-api:')
+            expect(yaml).toContain('platform-api-svc:')
+        })
+    })
+})

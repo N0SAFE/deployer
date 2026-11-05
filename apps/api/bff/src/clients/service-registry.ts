@@ -1,16 +1,14 @@
-
-import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
-import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
+import { API_SERVICES, apiServiceUrl, type ApiServiceName } from '@deployer/env'
+import { nodeAgentLink, serviceLink } from '@deployer/mesh-client'
 import {
-	ServiceClientRegistry as PackageRegistry,
-	type ServiceClient,
-	type ServiceClientOptions,
-} from "@deployer/service-client";
+    ServiceClientRegistry as PackageRegistry,
+    type ServiceClient,
+    type ServiceClientOptions,
+} from '@deployer/service-client'
 
-import { serviceAuthHeaders } from "./service-auth-context";
+import { serviceAuthHeaders } from './service-auth-context'
 
-import type { RouterContract } from "@orpc/contract";
-
+import type { RouterContract } from '@orpc/contract'
 
 /**
  * The link to the agent of this node, when it has one. Lazy: the socket is only opened by the first call.
@@ -20,7 +18,7 @@ import type { RouterContract } from "@orpc/contract";
  * replica, answers redirects and carries the answer back. `NODE_AGENT_SOCKET` is where the deployment mounted the socket,
  * not a node setting.
  */
-const nodeAgent = nodeAgentLink();
+const nodeAgent = nodeAgentLink()
 
 /**
  * How the BFF reaches a service.
@@ -33,17 +31,23 @@ const nodeAgent = nodeAgentLink();
  * impossible for a service to be listening on one address and called on another.
  */
 export const bffServiceClientOptions: ServiceClientOptions = {
-	resolveOrigin: (service) => apiServiceUrl(service as ApiServiceName),
-	// Per request, not at construction: the credentials belong to the CALLER, and the
-	// client instances are cached across requests.
-	headers: () => serviceAuthHeaders(),
-	// Through the agent when there is one: the caller's credentials ride on each call, so the service authenticates the
-	// caller exactly as it did when the BFF called it directly.
-	link:
-		nodeAgent === undefined
-			? undefined
-			: (service, contract) => serviceLink({ agent: nodeAgent, service, contract, headers: () => serviceAuthHeaders() }),
-};
+    resolveOrigin: (service) => apiServiceUrl(service as ApiServiceName),
+    // Per request, not at construction: the credentials belong to the CALLER, and the
+    // client instances are cached across requests.
+    headers: () => serviceAuthHeaders(),
+    // Through the agent when there is one: the caller's credentials ride on each call, so the service authenticates the
+    // caller exactly as it did when the BFF called it directly.
+    link:
+        nodeAgent === undefined
+            ? undefined
+            : (service, contract) =>
+                  serviceLink({
+                      agent: nodeAgent,
+                      service,
+                      contract,
+                      headers: () => serviceAuthHeaders(),
+                  }),
+}
 
 /**
  * The BFF's binding of its own service catalog to the shared client registry.
@@ -62,38 +66,42 @@ export const bffServiceClientOptions: ServiceClientOptions = {
  * this, because it extends it.
  */
 export class ServiceClientRegistry extends PackageRegistry {
-	constructor() {
-		super(bffServiceClientOptions);
-	}
+    constructor() {
+        super(bffServiceClientOptions)
+    }
 
-	/**
-	 * The client for `name`, typed by `contract`.
-	 *
-	 * Kept as the PRIMARY API for callers that reach a service with a contract they
-	 * already hold — a composer that needs one procedure and no dedicated client
-	 * class. A module that reaches the same service from many places should declare a
-	 * `BaseClient` subclass instead, so the service/contract pairing is written once.
-	 */
-	for<TContract extends RouterContract>(
-		name: ApiServiceName,
-		contract: TContract,
-	): ServiceClient<TContract> {
-		return this.bind(name, contract);
-	}
+    /**
+     * The client for `name`, typed by `contract`.
+     *
+     * Kept as the PRIMARY API for callers that reach a service with a contract they
+     * already hold — a composer that needs one procedure and no dedicated client
+     * class. A module that reaches the same service from many places should declare a
+     * `BaseClient` subclass instead, so the service/contract pairing is written once.
+     */
+    for<TContract extends RouterContract>(
+        name: ApiServiceName,
+        contract: TContract
+    ): ServiceClient<TContract> {
+        return this.bind(name, contract)
+    }
 
-	/**
-	 * Every service the catalog declares, with where it is expected to answer.
-	 *
-	 * The shape is the BASE class's (`{ service, origin }`) because an override must
-	 * remain assignable to what it overrides. The catalog's own descriptions are
-	 * exposed separately by `describeCatalog()`, so a caller that wants the human
-	 * wording asks for it rather than the base method being widened for everyone.
-	 */
-	describeCatalog(): { name: ApiServiceName; url: string; description: string }[] {
-		return (Object.keys(API_SERVICES) as ApiServiceName[]).map((name) => ({
-			name,
-			url: apiServiceUrl(name),
-			description: API_SERVICES[name].description,
-		}));
-	}
+    /**
+     * Every service the catalog declares, with where it is expected to answer.
+     *
+     * The shape is the BASE class's (`{ service, origin }`) because an override must
+     * remain assignable to what it overrides. The catalog's own descriptions are
+     * exposed separately by `describeCatalog()`, so a caller that wants the human
+     * wording asks for it rather than the base method being widened for everyone.
+     */
+    describeCatalog(): {
+        name: ApiServiceName
+        url: string
+        description: string
+    }[] {
+        return (Object.keys(API_SERVICES) as ApiServiceName[]).map((name) => ({
+            name,
+            url: apiServiceUrl(name),
+            description: API_SERVICES[name].description,
+        }))
+    }
 }

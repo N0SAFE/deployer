@@ -4,12 +4,16 @@ description: Practical operating model for running multiple deployer instances a
 order: 26
 ---
 
-<DocMeta source="fleet architecture + platform usage synthesis" scope="canonical" />
+<DocMeta
+    source="fleet architecture + platform usage synthesis"
+    scope="canonical"
+/>
 
 <DocCallout title="Scope note" tone="warning">
 The default v3 production baseline is Docker Swarm manager/worker orchestration with Traefik-first ingress.
 
 This page focuses on advanced federation and optional active-active custom LB patterns.
+
 </DocCallout>
 
 ## What this platform is used for
@@ -88,15 +92,15 @@ In short: **org scope is global, workload execution is local.**
 Use a hybrid of centralized identity intent + decentralized runtime authority:
 
 1. **Global org intent**
-	- org membership, high-level policy, and placement intent are fleet-visible metadata
+    - org membership, high-level policy, and placement intent are fleet-visible metadata
 2. **Local execution authority**
-	- each server is authoritative for workloads it currently owns
+    - each server is authoritative for workloads it currently owns
 3. **Ownership index**
-	- mesh stores where each resource is owned (`ownerServerUrl`, endpoint hints)
+    - mesh stores where each resource is owned (`ownerServerUrl`, endpoint hints)
 4. **Direct-to-owner execution**
-	- API/stream requests resolve owner first, then connect directly
+    - API/stream requests resolve owner first, then connect directly
 5. **Controlled replication**
-	- replicate control metadata (ownership, membership mapping, capabilities), not full tenant data mirrors
+    - replicate control metadata (ownership, membership mapping, capabilities), not full tenant data mirrors
 
 This gives predictable operations while avoiding a fragile global single runtime authority.
 
@@ -105,13 +109,13 @@ This gives predictable operations while avoiding a fragile global single runtime
 Your proposed split is correct and recommended:
 
 1. **Fleet Allocator (server handler)**
-	- controls server inventory, health, and available capacity slices
-	- enforces placement constraints and admission rules
-	- decides if an org request can be scheduled and where
+    - controls server inventory, health, and available capacity slices
+    - enforces placement constraints and admission rules
+    - decides if an org request can be scheduled and where
 2. **Organization Requester (tenant side)**
-	- requests workload placement/deployment
-	- can only request within org quota and policy
-	- never receives global fleet visibility by default
+    - requests workload placement/deployment
+    - can only request within org quota and policy
+    - never receives global fleet visibility by default
 
 Think of it as: org asks for capacity, allocator grants a constrained placement decision.
 
@@ -167,23 +171,23 @@ Example:
 - Org A and Org B both run workloads on Server 1 and Server 2
 - do **not** use one shared tenant-blind mesh context
 - maintain two logical overlays:
-	- `mesh(org-a)` over Server 1 to Server 2
-	- `mesh(org-b)` over Server 1 to Server 2
+    - `mesh(org-a)` over Server 1 to Server 2
+    - `mesh(org-b)` over Server 1 to Server 2
 
 Even if the physical links are the same, authorization and workload visibility remain separated per org.
 
 ## Required implementation consequences
 
 1. **Org-qualified mesh keys**
-	- resource lookup/index keys should include `orgId`
-	- ownership resolution must return owner within org scope
+    - resource lookup/index keys should include `orgId`
+    - ownership resolution must return owner within org scope
 2. **Org-qualified control envelopes**
-	- membership/control events should carry org context (or explicit global/fleet context)
+    - membership/control events should carry org context (or explicit global/fleet context)
 3. **Org-qualified routing hints**
-	- direct-owner hints must be valid only for authorized org context
+    - direct-owner hints must be valid only for authorized org context
 4. **Org-qualified observability**
-	- org users see only org-scoped topology/workload metrics
-	- fleet users may see infra-wide metrics according to fleet policy
+    - org users see only org-scoped topology/workload metrics
+    - fleet users may see infra-wide metrics according to fleet policy
 
 ## Why this model is important
 
@@ -197,17 +201,17 @@ Even if the physical links are the same, authorization and workload visibility r
 This section is the definitive model for fleet + org behavior.
 
 1. **Server is fleet-capacity first**
-	- A server is an infrastructure unit; not implicitly bound to a single org forever.
+    - A server is an infrastructure unit; not implicitly bound to a single org forever.
 2. **Org is security and policy boundary**
-	- Every workload action, query, and stream is authorized in org context.
+    - Every workload action, query, and stream is authorized in org context.
 3. **Mesh overlays are org-scoped**
-	- Load sharing and ownership lookup are keyed by org scope.
+    - Load sharing and ownership lookup are keyed by org scope.
 4. **Direct-owner execution remains mandatory**
-	- Mesh discovers; owner server executes.
+    - Mesh discovers; owner server executes.
 5. **Dual-role users are explicit bindings**
-	- Same identity can hold fleet and org roles; authorization is context-specific.
+    - Same identity can hold fleet and org roles; authorization is context-specific.
 6. **Bootstrap-simple, split-later lifecycle is supported**
-	- Start as org-led instance, evolve to fleet allocator model without tenant rewrite.
+    - Start as org-led instance, evolve to fleet allocator model without tenant rewrite.
 
 ## Bootstrap now, split later (lifecycle)
 
@@ -286,11 +290,11 @@ Recommended identity model:
 
 - one human identity (same person)
 - multiple role bindings:
-  - fleet-level role(s)
-  - one or more org-level role(s)
+    - fleet-level role(s)
+    - one or more org-level role(s)
 - authorization is evaluated per request context:
-  - fleet endpoint -> fleet role check
-  - org endpoint -> org membership + org role check
+    - fleet endpoint -> fleet role check
+    - org endpoint -> org membership + org role check
 
 Recommended access flow:
 
@@ -484,38 +488,38 @@ This keeps onboarding simple while preserving symmetric runtime trust.
 
 - Avoid one permanent global secret for all concerns.
 - Use separate material:
-	- **Enrollment grant key(s)** (short-lived join grants)
-	- **Inter-node transport/auth key(s)** (mTLS certs or signing keys)
-	- **LB route-token signing keyring** (`kid`, active + previous during rotation)
+    - **Enrollment grant key(s)** (short-lived join grants)
+    - **Inter-node transport/auth key(s)** (mTLS certs or signing keys)
+    - **LB route-token signing keyring** (`kid`, active + previous during rotation)
 
 ### Canonical persistence schema (recommended)
 
 Use persistent store for durability + in-memory cache for hot path:
 
-| Table | Purpose | Key fields |
-|---|---|---|
-| `cluster_nodes` | Registered node identities and status | `node_id`, `base_url`, `public_key_or_cert`, `status`, `last_seen_at`, `capabilities` |
-| `cluster_join_grants` | One-time/short-lived node enrollment grants | `grant_id`, `issued_by_user_id`, `expires_at`, `used_at`, `scope`, `nonce` |
-| `cluster_signing_keys` | Route/control token keyring | `kid`, `algorithm`, `key_material_ref`, `status(active/previous/retired)`, `created_at` |
-| `cluster_node_metrics` | Latest health/load snapshot per node/org | `node_id`, `organization_id`, `cpu_usage`, `memory_usage`, `active_streams`, `queue_depth`, `reported_at` |
-| `resource_ownership_index` | Org-qualified owner resolution | `organization_id`, `kind`, `resource_key`, `owner_node_id`, `owner_server_url`, `updated_at`, `priority` |
+| Table                      | Purpose                                     | Key fields                                                                                                |
+| -------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `cluster_nodes`            | Registered node identities and status       | `node_id`, `base_url`, `public_key_or_cert`, `status`, `last_seen_at`, `capabilities`                     |
+| `cluster_join_grants`      | One-time/short-lived node enrollment grants | `grant_id`, `issued_by_user_id`, `expires_at`, `used_at`, `scope`, `nonce`                                |
+| `cluster_signing_keys`     | Route/control token keyring                 | `kid`, `algorithm`, `key_material_ref`, `status(active/previous/retired)`, `created_at`                   |
+| `cluster_node_metrics`     | Latest health/load snapshot per node/org    | `node_id`, `organization_id`, `cpu_usage`, `memory_usage`, `active_streams`, `queue_depth`, `reported_at` |
+| `resource_ownership_index` | Org-qualified owner resolution              | `organization_id`, `kind`, `resource_key`, `owner_node_id`, `owner_server_url`, `updated_at`, `priority`  |
 
 ### Canonical control message schema (recommended)
 
 `mesh.load.report` envelope fields:
 
-| Field | Type | Notes |
-|---|---|---|
-| `organizationId` | `string` | Tenant scope |
-| `nodeId` | `string` | Reporting node identity |
-| `serverUrl` | `string` | Owner endpoint base URL |
-| `healthy` | `boolean` | Health gate |
-| `metrics.cpuUsage` | `number (0..1)` | Current CPU pressure |
-| `metrics.memoryUsage` | `number (0..1)` | Current memory pressure |
-| `metrics.activeStreams` | `integer` | Active stream pressure |
-| `metrics.queueDepth` | `integer` | Queue pressure |
-| `resources[]` | array | Optional ownership hints (`streamKey`, owner flag, priority) |
-| `reportedAt` | ISO string | Staleness/TTL filtering |
+| Field                   | Type            | Notes                                                        |
+| ----------------------- | --------------- | ------------------------------------------------------------ |
+| `organizationId`        | `string`        | Tenant scope                                                 |
+| `nodeId`                | `string`        | Reporting node identity                                      |
+| `serverUrl`             | `string`        | Owner endpoint base URL                                      |
+| `healthy`               | `boolean`       | Health gate                                                  |
+| `metrics.cpuUsage`      | `number (0..1)` | Current CPU pressure                                         |
+| `metrics.memoryUsage`   | `number (0..1)` | Current memory pressure                                      |
+| `metrics.activeStreams` | `integer`       | Active stream pressure                                       |
+| `metrics.queueDepth`    | `integer`       | Queue pressure                                               |
+| `resources[]`           | array           | Optional ownership hints (`streamKey`, owner flag, priority) |
+| `reportedAt`            | ISO string      | Staleness/TTL filtering                                      |
 
 ### Request routing algorithm
 
@@ -530,12 +534,12 @@ For `(organizationId, streamKey)`:
 
 ### Deployment setup matrix (flexible by scale)
 
-| Setup | Nodes | DNS strategy | LB mode | Data store |
-|---|---:|---|---|---|
-| Single VPS | 1 | `api.example.com -> node1` | local-only | local DB |
-| Small capacity pool | 2-3 | RR/health-checked A records | active-active | shared DB/Redis |
-| Multi-AZ | 3-6 | edge LB + regional pools | active-active | shared DB + replicated cache |
-| Multi-region | 6+ | geo DNS + regional failover | active-active regional | regional stores + replication strategy |
+| Setup               | Nodes | DNS strategy                | LB mode                | Data store                             |
+| ------------------- | ----: | --------------------------- | ---------------------- | -------------------------------------- |
+| Single VPS          |     1 | `api.example.com -> node1`  | local-only             | local DB                               |
+| Small capacity pool |   2-3 | RR/health-checked A records | active-active          | shared DB/Redis                        |
+| Multi-AZ            |   3-6 | edge LB + regional pools    | active-active          | shared DB + replicated cache           |
+| Multi-region        |    6+ | geo DNS + regional failover | active-active regional | regional stores + replication strategy |
 
 ### DNS canonical patterns
 

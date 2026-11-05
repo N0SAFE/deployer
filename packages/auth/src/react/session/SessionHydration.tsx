@@ -1,9 +1,13 @@
-import "server-only";
+import 'server-only'
 
-import { QueryClient, HydrationBoundary, dehydrate } from "@tanstack/react-query";
-import React, { type ReactNode } from "react";
+import {
+    QueryClient,
+    HydrationBoundary,
+    dehydrate,
+} from '@tanstack/react-query'
+import React, { type ReactNode } from 'react'
 
-import { DEFAULT_SESSION_QUERY_KEY } from "./shared";
+import { DEFAULT_SESSION_QUERY_KEY } from './shared'
 
 /**
  * Props for SessionHydration component.
@@ -12,25 +16,27 @@ export interface SessionHydrationProps<TSession> {
     /**
      * Children to render. Will have access to hydrated session data via React Query cache.
      */
-    children: ReactNode;
+    children: ReactNode
     /**
      * Function to fetch the session on the server.
      * Can return either:
      * - Direct session: Session | null
      * - Wrapped session: { data: Session | null }
      */
-    fetchSession: () => Promise<TSession | { data: TSession | null | undefined } | null>;
+    fetchSession: () => Promise<
+        TSession | { data: TSession | null | undefined } | null
+    >
     /**
      * Optional custom query key for the session.
      * @default ['session']
      */
-    sessionQueryKey?: readonly unknown[];
+    sessionQueryKey?: readonly unknown[]
     /**
      * Optional: Skip session fetch if condition is false.
      * Useful for checking auth cookies before fetching.
      * @default true
      */
-    shouldFetch?: boolean;
+    shouldFetch?: boolean
 }
 
 /**
@@ -73,23 +79,23 @@ export async function SessionHydration<TSession>({
     sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
     shouldFetch = true,
 }: SessionHydrationProps<TSession>): Promise<React.ReactElement> {
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient()
 
     // Fetch session if we should
-    let session: TSession | null = null;
+    let session: TSession | null = null
     if (shouldFetch) {
-        const result = await fetchSession();
+        const result = await fetchSession()
 
         // Handle both formats:
         // - Direct session: Session | null
         // - Wrapped session: { data: Session | null }
         if (result !== null && result !== undefined) {
             // Check if it's a wrapped response with 'data' property
-            if (typeof result === "object" && "data" in result) {
-                session = (result).data ?? null;
+            if (typeof result === 'object' && 'data' in result) {
+                session = result.data ?? null
             } else {
                 // It's a direct session object
-                session = result;
+                session = result
             }
         }
     }
@@ -104,12 +110,16 @@ export async function SessionHydration<TSession>({
     // `blocking-prerender-current-time`. The value is irrelevant here — the
     // session query is `staleTime: Infinity` — so pinning it keeps the write
     // deterministic and prerender-safe.
-    queryClient.setQueryData(sessionQueryKey, session, { updatedAt: 0 });
+    queryClient.setQueryData(sessionQueryKey, session, { updatedAt: 0 })
 
     // Dehydrate the query client state
-    const dehydratedState = dehydrate(queryClient);
+    const dehydratedState = dehydrate(queryClient)
 
-    return <HydrationBoundary state={dehydratedState}>{children}</HydrationBoundary>;
+    return (
+        <HydrationBoundary state={dehydratedState}>
+            {children}
+        </HydrationBoundary>
+    )
 }
 
 /**
@@ -133,11 +143,13 @@ export async function SessionHydration<TSession>({
  * </SessionHydration>
  * ```
  */
-export function createSessionHydration<TSession>(config: Omit<SessionHydrationProps<TSession>, "children">): React.FC<{ children: ReactNode }> {
+export function createSessionHydration<TSession>(
+    config: Omit<SessionHydrationProps<TSession>, 'children'>
+): React.FC<{ children: ReactNode }> {
     return async function ConfiguredSessionHydration({ children }) {
         return SessionHydration<TSession>({
             ...config,
             children,
-        });
-    };
+        })
+    }
 }

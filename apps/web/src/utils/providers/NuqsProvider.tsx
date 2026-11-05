@@ -43,14 +43,24 @@
  * | `pathname` | Left `undefined` — nuqs falls back to `location.pathname`, what `usePathname()` returns client-side |
  */
 
-import { ReadonlyURLSearchParams, useRouter, useSearchParams } from 'next/navigation'
 import {
-  renderQueryString,
-  unstable_createAdapterProvider,
-  type unstable_AdapterInterface,
-  type unstable_UpdateUrlFunction,
+    ReadonlyURLSearchParams,
+    useRouter,
+    useSearchParams,
+} from 'next/navigation'
+import {
+    renderQueryString,
+    unstable_createAdapterProvider,
+    type unstable_AdapterInterface,
+    type unstable_UpdateUrlFunction,
 } from 'nuqs/adapters/custom'
-import { startTransition, useCallback, useOptimistic, type ReactElement, type ReactNode } from 'react'
+import {
+    startTransition,
+    useCallback,
+    useOptimistic,
+    type ReactElement,
+    type ReactNode,
+} from 'react'
 
 /**
  * nuqs issues three History calls per URL update; the rate limiter uses this to
@@ -59,62 +69,66 @@ import { startTransition, useCallback, useOptimistic, type ReactElement, type Re
 const NUM_HISTORY_CALLS_PER_UPDATE = 3
 
 function renderURL(search: URLSearchParams): string {
-  const { origin, pathname, hash } = location
-  return origin + pathname + renderQueryString(search) + hash
+    const { origin, pathname, hash } = location
+    return origin + pathname + renderQueryString(search) + hash
 }
 
 function useNuqsAppRouterAdapter(): unstable_AdapterInterface {
-  const router = useRouter()
-  // The one read kept from the stock adapter. Next.js reports URL reads through
-  // the `usePathname()` gate above, so this no longer produces diagnostics.
-  //
-  // `useOptimistic` mirrors the stock adapter: a `shallow: false` update also
-  // triggers a router navigation, which is async, so the query state is applied
-  // optimistically first to keep the UI in step with the URL.
-  //
-  // Next.js types `useSearchParams()` as `ReadonlyURLSearchParams`, so the
-  // optimistic state must carry the same type; the new value has to be an
-  // instance of it rather than a bare `URLSearchParams`.
-  const [searchParams, setSearchParams] = useOptimistic(useSearchParams())
+    const router = useRouter()
+    // The one read kept from the stock adapter. Next.js reports URL reads through
+    // the `usePathname()` gate above, so this no longer produces diagnostics.
+    //
+    // `useOptimistic` mirrors the stock adapter: a `shallow: false` update also
+    // triggers a router navigation, which is async, so the query state is applied
+    // optimistically first to keep the UI in step with the URL.
+    //
+    // Next.js types `useSearchParams()` as `ReadonlyURLSearchParams`, so the
+    // optimistic state must carry the same type; the new value has to be an
+    // instance of it rather than a bare `URLSearchParams`.
+    const [searchParams, setSearchParams] = useOptimistic(useSearchParams())
 
-  const updateUrl = useCallback<unstable_UpdateUrlFunction>(
-    (search, options) => {
-      startTransition(() => {
-        if (!options.shallow) {
-          setSearchParams(new ReadonlyURLSearchParams(search))
-        }
+    const updateUrl = useCallback<unstable_UpdateUrlFunction>(
+        (search, options) => {
+            startTransition(() => {
+                if (!options.shallow) {
+                    setSearchParams(new ReadonlyURLSearchParams(search))
+                }
 
-        const url = renderURL(search)
-        // Argument 2 is the (ignored) document title. Argument 1 carries the
-        // existing router state through, so a shallow URL rewrite does not
-        // clobber the App Router's history entry. Called on `history` directly
-        // (not detached) so the receiver is correct and the lint rule for
-        // unbound methods stays satisfied.
-        if (options.history === 'push') {
-          history.pushState(history.state, '', url)
-        } else {
-          history.replaceState(history.state, '', url)
-        }
+                const url = renderURL(search)
+                // Argument 2 is the (ignored) document title. Argument 1 carries the
+                // existing router state through, so a shallow URL rewrite does not
+                // clobber the App Router's history entry. Called on `history` directly
+                // (not detached) so the receiver is correct and the lint rule for
+                // unbound methods stays satisfied.
+                if (options.history === 'push') {
+                    history.pushState(history.state, '', url)
+                } else {
+                    history.replaceState(history.state, '', url)
+                }
 
-        if (options.scroll) window.scrollTo(0, 0)
-        if (!options.shallow) router.replace(url, { scroll: false })
-      })
-    },
-    [router, setSearchParams]
-  )
+                if (options.scroll) window.scrollTo(0, 0)
+                if (!options.shallow) router.replace(url, { scroll: false })
+            })
+        },
+        [router, setSearchParams]
+    )
 
-  return {
-    searchParams,
-    updateUrl,
-    rateLimitFactor: NUM_HISTORY_CALLS_PER_UPDATE,
-    autoResetQueueOnUpdate: false,
-  }
+    return {
+        searchParams,
+        updateUrl,
+        rateLimitFactor: NUM_HISTORY_CALLS_PER_UPDATE,
+        autoResetQueueOnUpdate: false,
+    }
 }
 
 const AdapterProvider = unstable_createAdapterProvider(useNuqsAppRouterAdapter)
 
-export function NuqsAdapter({ children }: { children: ReactNode }): ReactElement {
-  return <AdapterProvider>{children}</AdapterProvider>
+export function NuqsAdapter({
+    children,
+}: {
+    children: ReactNode
+}): ReactElement {
+    return <AdapterProvider>{children}</AdapterProvider>
 }
 
 export default NuqsAdapter

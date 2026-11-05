@@ -4,7 +4,11 @@ import { useCallback } from 'react'
 
 import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
 
-import { projectFilterSchema, deploymentFilterSchema, type ProjectFilterParams } from '../_models/project-filters-schema'
+import {
+    projectFilterSchema,
+    deploymentFilterSchema,
+    type ProjectFilterParams,
+} from '../_models/project-filters-schema'
 
 /**
  * Project filters hook
@@ -18,55 +22,62 @@ import { projectFilterSchema, deploymentFilterSchema, type ProjectFilterParams }
  */
 
 const FILTER_DEFAULTS: ProjectFilterParams = {
-  search: '',
-  status: 'all',
-  risk: 'all',
-  env: 'all',
-  runtime: 'all',
-  type: 'all',
-  provider: 'all',
-  runner: 'all',
-  tags: [],
-  fl: '_and',
-  ar: undefined,
-  tab: 'overview',
+    search: '',
+    status: 'all',
+    risk: 'all',
+    env: 'all',
+    runtime: 'all',
+    type: 'all',
+    provider: 'all',
+    runner: 'all',
+    tags: [],
+    fl: '_and',
+    ar: undefined,
+    tab: 'overview',
 }
 
 /** A patch that puts a single filter back to its default. */
-function defaultPatch<K extends keyof ProjectFilterParams>(key: K): Partial<ProjectFilterParams> {
-  const patch: Partial<ProjectFilterParams> = {}
-  patch[key] = FILTER_DEFAULTS[key]
-  return patch
+function defaultPatch<K extends keyof ProjectFilterParams>(
+    key: K
+): Partial<ProjectFilterParams> {
+    const patch: Partial<ProjectFilterParams> = {}
+    patch[key] = FILTER_DEFAULTS[key]
+    return patch
 }
 
 export function useProjectFilters() {
-  const [filters, setFilters] = useSafeQueryParamStatesFromZod(projectFilterSchema, {
-    delay: 200,
-  })
+    const [filters, setFilters] = useSafeQueryParamStatesFromZod(
+        projectFilterSchema,
+        {
+            delay: 200,
+        }
+    )
 
-  const resetAllFilters = useCallback(() => {
-    setFilters(null)
-  }, [setFilters])
+    const resetAllFilters = useCallback(() => {
+        setFilters(null)
+    }, [setFilters])
 
-  const clearFilter = useCallback(
-    (key: keyof ProjectFilterParams) => {
-      setFilters(defaultPatch(key))
-    },
-    [setFilters],
-  )
+    const clearFilter = useCallback(
+        (key: keyof ProjectFilterParams) => {
+            setFilters(defaultPatch(key))
+        },
+        [setFilters]
+    )
 
-  return { filters, setFilters, resetAllFilters, clearFilter }
+    return { filters, setFilters, resetAllFilters, clearFilter }
 }
 
 /**
  * Deployments tab filters hook
  */
 export function useDeploymentFilters() {
-  const [filters, setFilters] = useSafeQueryParamStatesFromZod(deploymentFilterSchema)
+    const [filters, setFilters] = useSafeQueryParamStatesFromZod(
+        deploymentFilterSchema
+    )
 
-  const resetFilters = useCallback(() => {
-    setFilters(null)
-  }, [setFilters])
+    const resetFilters = useCallback(() => {
+        setFilters(null)
+    }, [setFilters])
 
-  return { filters, setFilters, resetFilters }
+    return { filters, setFilters, resetFilters }
 }

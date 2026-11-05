@@ -1,39 +1,32 @@
 {
-  "compilerOptions": {
-    "types": [
-      "node"
-    ],
-    "target": "ES2017",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "outDir": "./dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
-    "resolveJsonModule": true,
-    "noImplicitAny": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    }
-  },
-  "include": [
-    "pkg-build.config.ts",
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "plugins",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ]
+    "compilerOptions": {
+        "types": ["node"],
+        "target": "ES2017",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "outDir": "./dist",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "allowJs": true,
+        "resolveJsonModule": true,
+        "noImplicitAny": false,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "paths": {
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["pkg-build.config.ts", "src/**/*"],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "plugins",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+    ]
 }

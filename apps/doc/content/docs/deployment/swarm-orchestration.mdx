@@ -30,7 +30,7 @@ Full design docs and the phased implementation checklist live in `docs/swarm-orc
 ## Developer workflow
 
 Swarm is entirely API-driven — no CLI scripts, and **not optional**: the deployer always
-runs its supervised workloads on Swarm. Only *how* a node enters the cluster is decided.
+runs its supervised workloads on Swarm. Only _how_ a node enters the cluster is decided.
 
 - During setup the wizard records how this node joins the cluster (`SWARM_MODE=create|join`,
   persisted in `node_config.swarmConfig`) and its role policy (`SWARM_POLICY=auto|manager|worker`).
@@ -59,11 +59,11 @@ runs its supervised workloads on Swarm. Only *how* a node enters the cluster is 
 Swarm is bound to the node's mesh address, never to a LAN or public address and never to an
 env-configured one (there is no `SWARM_ADVERTISE_ADDR`):
 
-| Swarm option | Value |
-|---|---|
-| `AdvertiseAddr` | `<mesh address>:2377` |
-| `ListenAddr` | `<mesh address>:2377` |
-| `DataPathAddr` | `<mesh address>` — VXLAN (4789) travels inside WireGuard |
+| Swarm option    | Value                                                    |
+| --------------- | -------------------------------------------------------- |
+| `AdvertiseAddr` | `<mesh address>:2377`                                    |
+| `ListenAddr`    | `<mesh address>:2377`                                    |
+| `DataPathAddr`  | `<mesh address>` — VXLAN (4789) travels inside WireGuard |
 
 - **Loopback fallback.** When the node has no mesh interface (no WireGuard kernel module, the
   agent cannot run, or the mesh is not up yet), Swarm binds `127.0.0.1` and the node runs as a
@@ -84,15 +84,15 @@ A node's platform configuration lives on the **Swarm node**, never only in a loc
 The API's local inventory is rebuilt from `docker node ls` on every sweep, so any value that
 exists solely there is destroyed by the next sweep — the labels are the source of truth.
 
-| Label | Values | Meaning |
-|---|---|---|
-| `deployer.ingress` | `"true"` (absent = false) | Node may run the node-local ingress (Traefik global service). |
-| `deployer.node.role` | `both` \| `control` \| `worker` | Platform role. **`both` is the default and is stored as an ABSENT label.** |
-| `deployer.region` | free-form | Spread preference source for `prefer-region` placement. |
-| `deployer.tenant.<id>` | `"true"` | Restricted to a tenant's dedicated deployments. |
+| Label                  | Values                          | Meaning                                                                    |
+| ---------------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| `deployer.ingress`     | `"true"` (absent = false)       | Node may run the node-local ingress (Traefik global service).              |
+| `deployer.node.role`   | `both` \| `control` \| `worker` | Platform role. **`both` is the default and is stored as an ABSENT label.** |
+| `deployer.region`      | free-form                       | Spread preference source for `prefer-region` placement.                    |
+| `deployer.tenant.<id>` | `"true"`                        | Restricted to a tenant's dedicated deployments.                            |
 
 Vocabulary note: the participation **policy** (`auto` / `manager` / `worker`) describes how a node
-*joins*; the **role** label describes what a node *is*. The mapping is
+_joins_; the **role** label describes what a node _is_. The mapping is
 `auto → both`, `manager → control`, `worker → worker`
 (`platformRoleForPolicy` in `packages/nest/nodes/src/swarm-node-labels.ts`, the SSOT for
 every label key and reader).
@@ -123,7 +123,7 @@ unit-tested without a daemon).
 
 `NodeSpec.Labels` is the **authoritative** map. Every caller passes a **complete desired set** —
 it derives the map from the node's current labels and then adds or removes entries (that is
-exactly how `both` is expressed: by *dropping* the key). The update therefore sends the map
+exactly how `both` is expressed: by _dropping_ the key). The update therefore sends the map
 as-is; only a role/availability update, which has no labels of its own, inherits the current
 labels.
 
@@ -134,7 +134,7 @@ inventory sweep read the old role straight back.
 
 For the same reason `ClusterService.updateNodeLabels` answers from a **re-inspect of the engine**
 after the write, not from the requested values — the response and the inventory cache describe the
-node as it now *is*, so a write the engine did not apply is visible immediately instead of being
+node as it now _is_, so a write the engine did not apply is visible immediately instead of being
 reported as success.
 
 ## Related documentation

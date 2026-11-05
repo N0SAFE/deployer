@@ -9,10 +9,10 @@ order: 9
 The v3 event architecture is split into **two complementary systems**:
 
 1. **Business/User stream API** (deployment module)
-   - what product features consume directly (`/deployments/...` endpoints)
+    - what product features consume directly (`/deployments/...` endpoints)
 2. **Core sync stream API** (core events module)
-   - business-agnostic sync layer (`/core/events/...` endpoints)
-   - reusable across namespaces via adapters (`deployment`, later `project`, `service`, etc.)
+    - business-agnostic sync layer (`/core/events/...` endpoints)
+    - reusable across namespaces via adapters (`deployment`, later `project`, `service`, etc.)
 
 This gives strong DX: business modules define stream intent once, and core sync handles normalized streaming envelopes.
 
@@ -85,10 +85,10 @@ File: `packages/nest/events/src/base-event.service.ts`
 - In-memory event channels keyed by `eventPrefix:eventName:firstInputValue`
 - Type-safe `subscribe(...)` and `emit(...)` with Zod validation
 - Supports processing strategies:
-  - `parallel`
-  - `queue`
-  - `abort`
-  - `ignore`
+    - `parallel`
+    - `queue`
+    - `abort`
+    - `ignore`
 
 This is the low-level primitive used by feature event services like deployment.
 
@@ -109,9 +109,9 @@ Each stream endpoint composes:
 - **Replay** from DB (`deployments`, `deployment_logs`)
 - **Live** from event subscriptions
 - normalization with:
-  - `sequence`
-  - `replayed`
-  - `emittedAt`
+    - `sequence`
+    - `replayed`
+    - `emittedAt`
 
 via `toSequencedAsyncIterable(...)`.
 
@@ -124,13 +124,13 @@ Core sync stores stream definitions in `core_event_streams`, then streams throug
 - `registerNamespaceAdapter(namespace, adapter)`
 - `streamSync({ id, replay, replayLimit })`
 - wraps emitted events in a generic envelope:
-  - `streamId`
-  - `namespace`
-  - `eventName`
-  - `payload`
-  - `sequence`
-  - `replayed`
-  - `emittedAt`
+    - `streamId`
+    - `namespace`
+    - `eventName`
+    - `payload`
+    - `sequence`
+    - `replayed`
+    - `emittedAt`
 
 ### 5) Auto-mirroring from deployment stream definitions to core stream definitions
 
@@ -197,7 +197,7 @@ Controller: `apps/api/services/runtime/src/modules/deployment/controllers/deploy
 - `GET /deployments/services/{serviceId}/stream`
 - `GET /deployments/stream/query`
 - CRUD/list of saved deployment stream definitions:
-  - list, findById, create, update, delete
+    - list, findById, create, update, delete
 
 ### B) Core sync endpoints
 
@@ -251,7 +251,7 @@ sequenceDiagram
 1. Define namespace-specific events (typed contracts) with `BaseEventService`.
 2. Implement namespace replay + live composition function returning `AsyncIterable`.
 3. Register adapter in your service constructor:
-   - `coreEventSyncService.registerNamespaceAdapter("<namespace>", adapter)`
+    - `coreEventSyncService.registerNamespaceAdapter("<namespace>", adapter)`
 4. Optionally add business stream-definition CRUD and mirror into core stream definitions.
 
 ## Current limits / important notes

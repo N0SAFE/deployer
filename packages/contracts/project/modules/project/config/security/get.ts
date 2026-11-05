@@ -1,8 +1,8 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { projectSecurityConfigSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { projectSecurityConfigSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * What a security-config READ answers.
@@ -16,19 +16,28 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  * unchanged — a new secret is still accepted — so a client sends a secret and
  * gets only confirmation back.
  */
-export const projectSecurityConfigReadSchema = projectSecurityConfigSchema.extend({
-    webhookSecret: z.string().nullish(),
-    basicAuthPassword: z.string().nullish(),
-    hasWebhookSecret: z.boolean(),
-    hasBasicAuthPassword: z.boolean(),
-});
+export const projectSecurityConfigReadSchema =
+    projectSecurityConfigSchema.extend({
+        webhookSecret: z.string().nullish(),
+        basicAuthPassword: z.string().nullish(),
+        hasWebhookSecret: z.boolean(),
+        hasBasicAuthPassword: z.boolean(),
+    })
 
-const projectSecurityConfigOps = standard.zod(projectSecurityConfigSchema, "projectSecurityConfig");
+const projectSecurityConfigOps = standard.zod(
+    projectSecurityConfigSchema,
+    'projectSecurityConfig'
+)
 
 export const projectGetSecurityConfigContract = projectSecurityConfigOps
-    .read({ idFieldName: "id", idSchema: z.uuid() })
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/config/security`))
+    .read({ idFieldName: 'id', idSchema: z.uuid() })
+    .input((b) => b.params((p) => p`/${p('id', z.uuid())}/config/security`))
     .output(projectSecurityConfigReadSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'project:read',
+            scope: { by: 'input', path: 'params.id', kind: 'project' },
+        })
+    )
+    .build()

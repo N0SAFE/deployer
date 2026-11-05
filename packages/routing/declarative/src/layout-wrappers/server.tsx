@@ -1,12 +1,12 @@
 /**
  * Server-side layout wrappers for session hydration.
- * 
+ *
  * This file provides layout wrappers that fetch and hydrate session data
  * at the layout level, ensuring all components in the layout tree
  * (including MainNavigation) have access to the cached session.
- * 
+ *
  * Similar to createSessionPage but for layouts - no params/search validation needed.
- * 
+ *
  * @packageDocumentation
  */
 import 'server-only'
@@ -14,7 +14,10 @@ import 'server-only'
 import { unstable_rethrow } from 'next/navigation'
 import React from 'react'
 
-import type { Session, ServerAuthAdapter } from '@deployer/declarative-routing/types'
+import type {
+    Session,
+    ServerAuthAdapter,
+} from '@deployer/declarative-routing/types'
 
 // Session constants - must match page-wrappers
 const SESSION_QUERY_KEY = ['session']
@@ -24,15 +27,20 @@ const SESSION_QUERY_KEY = ['session']
 // ============================================================================
 
 let serverAuthAdapter: ServerAuthAdapter | null = null
-let HydrationBoundary: React.ComponentType<{ state: unknown; children: React.ReactNode }> | null = null
-let createQueryClient: (() => { setQueryData: (key: unknown[], data: unknown) => void }) | null = null
+let HydrationBoundary: React.ComponentType<{
+    state: unknown
+    children: React.ReactNode
+}> | null = null
+let createQueryClient:
+    (() => { setQueryData: (key: unknown[], data: unknown) => void }) | null =
+    null
 let dehydrateQueryClient: ((client: unknown) => unknown) | null = null
 let checkAuthCookieFn: (() => Promise<boolean>) | null = null
 
 /**
  * Configure the server-side auth adapter and React Query integration for layouts.
  * Must be called before using createSessionLayout.
- * 
+ *
  * @example
  * ```tsx
  * // In your app's route setup (e.g., @/routes/configure-auth.ts)
@@ -40,7 +48,7 @@ let checkAuthCookieFn: (() => Promise<boolean>) | null = null
  * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * import { cookies } from 'next/headers'
- * 
+ *
  * configureLayoutAuth({
  *   getSession: async () => {
  *     const { data } = await getSession()
@@ -59,8 +67,13 @@ let checkAuthCookieFn: (() => Promise<boolean>) | null = null
 export function configureLayoutAuth(
     adapter: ServerAuthAdapter,
     reactQuery?: {
-        HydrationBoundary: React.ComponentType<{ state: unknown; children: React.ReactNode }>
-        createQueryClient: () => { setQueryData: (key: unknown[], data: unknown) => void }
+        HydrationBoundary: React.ComponentType<{
+            state: unknown
+            children: React.ReactNode
+        }>
+        createQueryClient: () => {
+            setQueryData: (key: unknown[], data: unknown) => void
+        }
         dehydrate: (client: unknown) => unknown
     },
     checkAuthCookie?: () => Promise<boolean>
@@ -122,10 +135,10 @@ export type SessionLayoutOptions = {
     /**
      * Custom fallback to render during Suspense (static prerendering).
      * If not provided, a default loading skeleton is used.
-     * 
+     *
      * IMPORTANT: The fallback must not use hooks that require context
      * (like useSession, useQuery, etc.) as it renders during static generation.
-     * 
+     *
      * @default Simple loading div
      */
     fallback?: React.ReactNode
@@ -140,18 +153,18 @@ export type SessionLayoutOptions = {
  * 1. Fetches session on the server using the configured auth adapter
  * 2. Hydrates React Query cache (if configured)
  * 3. Passes session as a prop to the layout component
- * 
+ *
  * Works like RouteBuilder.SessionPage but for layouts - no params/search validation.
- * 
+ *
  * Uses an internal Suspense boundary to handle Next.js prerendering gracefully.
  * During static prerendering, the session fetch is deferred and the layout renders
  * with session=null in the fallback.
- * 
+ *
  * @example
  * ```tsx
  * // apps/web/src/app/dashboard/layout.tsx
  * import { createSessionLayout } from '@deployer/declarative-routing/layout-wrappers/server'
- * 
+ *
  * export default createSessionLayout(({ children, session }) => {
  *   return (
  *     <div>
@@ -168,23 +181,29 @@ export function createSessionLayout<
 >(
     Component: React.ComponentType<SessionLayoutProps<S> & AdditionalProps>,
     options: SessionLayoutOptions = {}
-): React.ComponentType<NextLayoutProps & Omit<AdditionalProps, 'session' | 'children'>> {
-    type WrapperProps = NextLayoutProps & Omit<AdditionalProps, 'session' | 'children'>
-    
+): React.ComponentType<
+    NextLayoutProps & Omit<AdditionalProps, 'session' | 'children'>
+> {
+    type WrapperProps = NextLayoutProps &
+        Omit<AdditionalProps, 'session' | 'children'>
+
     const { checkCookie = true, fallback: customFallback } = options
 
     // Inner async component that handles session fetching
     // This is wrapped in Suspense by the outer component
-    async function SessionFetchingLayout(props: WrapperProps): Promise<React.ReactNode> {
-        const { children, ...additionalProps } = props as NextLayoutProps & Record<string, unknown>
+    async function SessionFetchingLayout(
+        props: WrapperProps
+    ): Promise<React.ReactNode> {
+        const { children, ...additionalProps } = props as NextLayoutProps &
+            Record<string, unknown>
         const authAdapter = getServerAuthAdapter()
-        
+
         // Check for auth cookie to avoid unnecessary session fetch
         let hasAuthCookie = true
         if (checkCookie && checkAuthCookieFn) {
             hasAuthCookie = await checkAuthCookieFn()
         }
-        
+
         let session: S | null = null
         if (hasAuthCookie) {
             try {
@@ -193,7 +212,10 @@ export function createSessionLayout<
             } catch (error) {
                 // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
                 unstable_rethrow(error)
-                console.error('[createSessionLayout] Failed to fetch session:', error)
+                console.error(
+                    '[createSessionLayout] Failed to fetch session:',
+                    error
+                )
             }
         }
 
@@ -209,14 +231,14 @@ export function createSessionLayout<
             const queryClient = createQueryClient()
             queryClient.setQueryData(SESSION_QUERY_KEY, session)
             const dehydratedState = dehydrateQueryClient(queryClient)
-            
+
             return (
                 <HydrationBoundary state={dehydratedState}>
                     <Component {...componentProps} />
                 </HydrationBoundary>
             )
         }
-        
+
         return <Component {...componentProps} />
     }
 
@@ -251,9 +273,10 @@ export function createSessionLayout<
         )
     }
 
-    const displayName = (Component as { displayName?: string; name?: string }).displayName 
-        ?? (Component as { name?: string }).name 
-        ?? 'Component'
+    const displayName =
+        (Component as { displayName?: string; name?: string }).displayName ??
+        (Component as { name?: string }).name ??
+        'Component'
     WrappedLayout.displayName = `SessionLayout(${displayName})`
 
     return WrappedLayout as React.ComponentType<WrapperProps>
@@ -273,17 +296,17 @@ export type SessionHydratorProps = {
 /**
  * A standalone server component that fetches and hydrates the session.
  * Use this when you can't use createSessionLayout (e.g., in root layout).
- * 
+ *
  * This component:
  * 1. Fetches session on the server
  * 2. Hydrates React Query cache with the session
  * 3. Renders children inside HydrationBoundary
- * 
+ *
  * @example
  * ```tsx
  * // apps/web/src/app/layout.tsx
  * import { SessionHydrator } from '@deployer/declarative-routing/layout-wrappers/server'
- * 
+ *
  * export default function RootLayout({ children }) {
  *   return (
  *     <html>
@@ -300,12 +323,19 @@ export type SessionHydratorProps = {
  * }
  * ```
  */
-export async function SessionHydrator({ children }: SessionHydratorProps): Promise<React.ReactNode> {
+export async function SessionHydrator({
+    children,
+}: SessionHydratorProps): Promise<React.ReactNode> {
     // If not configured, just render children
-    if (!serverAuthAdapter || !HydrationBoundary || !createQueryClient || !dehydrateQueryClient) {
+    if (
+        !serverAuthAdapter ||
+        !HydrationBoundary ||
+        !createQueryClient ||
+        !dehydrateQueryClient
+    ) {
         return children
     }
-    
+
     // Check for auth cookie to avoid unnecessary session fetch
     // Use try-catch to handle static prerendering where cookies() is not available
     let hasAuthCookie = true
@@ -320,7 +350,7 @@ export async function SessionHydrator({ children }: SessionHydratorProps): Promi
             return children
         }
     }
-    
+
     let session: Session | null = null
     if (hasAuthCookie) {
         try {
@@ -334,12 +364,12 @@ export async function SessionHydrator({ children }: SessionHydratorProps): Promi
             console.error('[SessionHydrator] Failed to fetch session:', error)
         }
     }
-    
+
     // Hydrate React Query cache
     const queryClient = createQueryClient()
     queryClient.setQueryData(SESSION_QUERY_KEY, session)
     const dehydratedState = dehydrateQueryClient(queryClient)
-    
+
     return (
         <HydrationBoundary state={dehydratedState}>
             {children}
@@ -351,4 +381,7 @@ export async function SessionHydrator({ children }: SessionHydratorProps): Promi
 // Re-export types
 // ============================================================================
 
-export type { Session, ServerAuthAdapter } from '@deployer/declarative-routing/types'
+export type {
+    Session,
+    ServerAuthAdapter,
+} from '@deployer/declarative-routing/types'

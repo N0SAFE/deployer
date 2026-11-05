@@ -16,24 +16,30 @@
  * transport and of Effect.
  */
 
-import { SYSTEM_ROLES_TABLE } from "./definition";
-import { rankInRoles, type RoleTable } from "./roles";
+import { SYSTEM_ROLES_TABLE } from './definition'
+import { rankInRoles, type RoleTable } from './roles'
 
 /**
  * Platform roles, highest first. The DB default (`user`) and an empty column are not platform roles: they rank below
  * every entry here, which is what makes a freshly created account untouchable by another plain account.
  */
-export const PLATFORM_ROLE_ORDER = ["superAdmin", "admin", "operator", "viewer"] as const;
+export const PLATFORM_ROLE_ORDER = [
+    'superAdmin',
+    'admin',
+    'operator',
+    'viewer',
+] as const
 
-export type PlatformRoleName = (typeof PLATFORM_ROLE_ORDER)[number];
-
-
+export type PlatformRoleName = (typeof PLATFORM_ROLE_ORDER)[number]
 
 /** The one role that may act on everyone and grant anything. */
-const ROOT_ROLE: PlatformRoleName = "superAdmin";
+const ROOT_ROLE: PlatformRoleName = 'superAdmin'
 
 /** Roles that may administer other accounts at all. */
-const ADMINISTRATOR_ROLES: ReadonlySet<string> = new Set<string>([ROOT_ROLE, "admin"]);
+const ADMINISTRATOR_ROLES: ReadonlySet<string> = new Set<string>([
+    ROOT_ROLE,
+    'admin',
+])
 
 /**
  * Position of a stored role, read from the role table.
@@ -41,34 +47,39 @@ const ADMINISTRATOR_ROLES: ReadonlySet<string> = new Set<string>([ROOT_ROLE, "ad
  * One source: the same table a `roles` row will supply, so a custom role inherits its rank from its definition rather
  * than from a constant here. Unknown (the `user` default, a removed role, nothing) ranks below every declared role.
  */
-export function platformRoleRank(role: string | null | undefined, table: RoleTable = SYSTEM_ROLES_TABLE): number {
-	return rankInRoles(table, role);
+export function platformRoleRank(
+    role: string | null | undefined,
+    table: RoleTable = SYSTEM_ROLES_TABLE
+): number {
+    return rankInRoles(table, role)
 }
 
 /** Whether a role may administer other accounts. */
-export function isPlatformAdministrator(role: string | null | undefined): boolean {
-	return ADMINISTRATOR_ROLES.has(role ?? "");
+export function isPlatformAdministrator(
+    role: string | null | undefined
+): boolean {
+    return ADMINISTRATOR_ROLES.has(role ?? '')
 }
 
 /** Why a hierarchy check refused. `message` is safe to show a client. */
 export type HierarchyRefusal =
-	| {
-			readonly reason: "not-an-administrator";
-			readonly message: string;
-			readonly actorRole: string | null;
-	  }
-	| {
-			readonly reason: "outranked";
-			readonly message: string;
-			readonly actorRole: string | null;
-			readonly targetRole: string | null;
-	  }
-	| {
-			readonly reason: "not-grantable";
-			readonly message: string;
-			readonly actorRole: string | null;
-			readonly grantedRole: string | null;
-	  };
+    | {
+          readonly reason: 'not-an-administrator'
+          readonly message: string
+          readonly actorRole: string | null
+      }
+    | {
+          readonly reason: 'outranked'
+          readonly message: string
+          readonly actorRole: string | null
+          readonly targetRole: string | null
+      }
+    | {
+          readonly reason: 'not-grantable'
+          readonly message: string
+          readonly actorRole: string | null
+          readonly grantedRole: string | null
+      }
 
 /**
  * May `actorRole` act on an account whose role is `targetRole`?
@@ -78,30 +89,30 @@ export type HierarchyRefusal =
  * `superAdmin`), and what keeps privilege from being escalated by demoting whoever is above you.
  */
 export function refuseAdminAction(input: {
-	readonly actorRole?: string | null;
-	readonly targetRole?: string | null;
+    readonly actorRole?: string | null
+    readonly targetRole?: string | null
 }): HierarchyRefusal | null {
-	const actorRole = input.actorRole ?? null;
-	const targetRole = input.targetRole ?? null;
+    const actorRole = input.actorRole ?? null
+    const targetRole = input.targetRole ?? null
 
-	if (!isPlatformAdministrator(actorRole)) {
-		return {
-			reason: "not-an-administrator",
-			message: "this operation requires platform administration",
-			actorRole,
-		};
-	}
+    if (!isPlatformAdministrator(actorRole)) {
+        return {
+            reason: 'not-an-administrator',
+            message: 'this operation requires platform administration',
+            actorRole,
+        }
+    }
 
-	if (actorRole === ROOT_ROLE) return null;
+    if (actorRole === ROOT_ROLE) return null
 
-	if (platformRoleRank(targetRole) < platformRoleRank(actorRole)) return null;
+    if (platformRoleRank(targetRole) < platformRoleRank(actorRole)) return null
 
-	return {
-		reason: "outranked",
-		message: `a ${String(actorRole)} may not act on an account whose role is ${targetRole ?? "unset"}`,
-		actorRole,
-		targetRole,
-	};
+    return {
+        reason: 'outranked',
+        message: `a ${String(actorRole)} may not act on an account whose role is ${targetRole ?? 'unset'}`,
+        actorRole,
+        targetRole,
+    }
 }
 
 /**
@@ -112,41 +123,41 @@ export function refuseAdminAction(input: {
  * escalation the platform had before this rule existed.
  */
 export function refuseRoleGrant(input: {
-	readonly actorRole?: string | null;
-	readonly grantedRole?: string | null;
+    readonly actorRole?: string | null
+    readonly grantedRole?: string | null
 }): HierarchyRefusal | null {
-	const actorRole = input.actorRole ?? null;
-	const grantedRole = input.grantedRole ?? null;
+    const actorRole = input.actorRole ?? null
+    const grantedRole = input.grantedRole ?? null
 
-	if (!isPlatformAdministrator(actorRole)) {
-		return {
-			reason: "not-an-administrator",
-			message: "this operation requires platform administration",
-			actorRole,
-		};
-	}
+    if (!isPlatformAdministrator(actorRole)) {
+        return {
+            reason: 'not-an-administrator',
+            message: 'this operation requires platform administration',
+            actorRole,
+        }
+    }
 
-	if (grantedRole === ROOT_ROLE) {
-		return actorRole === ROOT_ROLE
-			? null
-			: {
-					reason: "not-grantable",
-					message: `only a ${ROOT_ROLE} may grant the ${ROOT_ROLE} role`,
-					actorRole,
-					grantedRole,
-				};
-	}
+    if (grantedRole === ROOT_ROLE) {
+        return actorRole === ROOT_ROLE
+            ? null
+            : {
+                  reason: 'not-grantable',
+                  message: `only a ${ROOT_ROLE} may grant the ${ROOT_ROLE} role`,
+                  actorRole,
+                  grantedRole,
+              }
+    }
 
-	if (actorRole === ROOT_ROLE) return null;
+    if (actorRole === ROOT_ROLE) return null
 
-	if (grantedRole === null) return null;
+    if (grantedRole === null) return null
 
-	if (platformRoleRank(grantedRole) < platformRoleRank(actorRole)) return null;
+    if (platformRoleRank(grantedRole) < platformRoleRank(actorRole)) return null
 
-	return {
-		reason: "not-grantable",
-		message: `a ${String(actorRole)} may not grant the ${grantedRole} role`,
-		actorRole,
-		grantedRole,
-	};
+    return {
+        reason: 'not-grantable',
+        message: `a ${String(actorRole)} may not grant the ${grantedRole} role`,
+        actorRole,
+        grantedRole,
+    }
 }

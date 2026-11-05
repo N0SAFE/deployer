@@ -30,9 +30,9 @@ const distDir = path.join(rootDir, 'dist')
 
 /** Remove the previous build so a stale file cannot masquerade as a fresh one. */
 function cleanup(): void {
-  if (existsSync(distDir)) {
-    rmSync(distDir, { recursive: true })
-  }
+    if (existsSync(distDir)) {
+        rmSync(distDir, { recursive: true })
+    }
 }
 
 /**
@@ -45,32 +45,32 @@ function cleanup(): void {
  * boot.
  */
 async function runBuild(): Promise<void> {
-  const config = {
-    entrypoints: [
-      path.join(srcDir, 'main.ts'),
-      path.join(srcDir, 'compile.ts'),
-    ],
-    outdir: distDir,
-    minify: true,
-    splitting: true,
-    target: 'bun' as const,
-    packages: 'external',
-    naming: {
-      entry: '[dir]/[name].[ext]',
-      chunk: 'chunk-[hash].[ext]',
-    },
-  } as BuildConfig
+    const config = {
+        entrypoints: [
+            path.join(srcDir, 'main.ts'),
+            path.join(srcDir, 'compile.ts'),
+        ],
+        outdir: distDir,
+        minify: true,
+        splitting: true,
+        target: 'bun' as const,
+        packages: 'external',
+        naming: {
+            entry: '[dir]/[name].[ext]',
+            chunk: 'chunk-[hash].[ext]',
+        },
+    } as BuildConfig
 
-  console.log('🔨 Building setup entry points...')
+    console.log('🔨 Building setup entry points...')
 
-  const result = await build(config)
+    const result = await build(config)
 
-  if (!result.success) {
-    console.error('❌ Build failed')
-    process.exit(1)
-  }
+    if (!result.success) {
+        console.error('❌ Build failed')
+        process.exit(1)
+    }
 
-  console.log(`✅ Built to ${distDir}`)
+    console.log(`✅ Built to ${distDir}`)
 }
 
 /**
@@ -81,24 +81,24 @@ async function runBuild(): Promise<void> {
  * `index.html` copy) that make the output loadable by `@nestjs-ssr/react`.
  */
 function runSsrBuild(script: 'build:client' | 'build:server'): Promise<void> {
-  return new Promise((resolve, reject) => {
-    console.log(`🎨 Building SSR bundle (${script})...`)
-    const proc = spawn('bun', ['--bun', 'run', script], {
-      stdio: 'inherit',
-      shell: false,
-      cwd: rootDir,
-      env: { ...process.env, NODE_ENV: 'production' },
+    return new Promise((resolve, reject) => {
+        console.log(`🎨 Building SSR bundle (${script})...`)
+        const proc = spawn('bun', ['--bun', 'run', script], {
+            stdio: 'inherit',
+            shell: false,
+            cwd: rootDir,
+            env: { ...process.env, NODE_ENV: 'production' },
+        })
+        proc.on('exit', (code) => {
+            if (code === 0) {
+                console.log(`✅ SSR bundle built (${script})`)
+                resolve()
+            } else {
+                reject(new Error(`${script} exited with code ${String(code)}`))
+            }
+        })
+        proc.on('error', reject)
     })
-    proc.on('exit', (code) => {
-      if (code === 0) {
-        console.log(`✅ SSR bundle built (${script})`)
-        resolve()
-      } else {
-        reject(new Error(`${script} exited with code ${String(code)}`))
-      }
-    })
-    proc.on('error', reject)
-  })
 }
 
 /**
@@ -116,26 +116,30 @@ function runSsrBuild(script: 'build:client' | 'build:server'): Promise<void> {
  * CI and alongside a live dev stack.
  */
 function runCompileCheck(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    console.log('🔎 Verifying the Nest graph assembles (dist/compile.js)...')
-    const proc = spawn('bun', ['--bun', path.join(distDir, 'compile.js')], {
-      stdio: 'inherit',
-      shell: false,
-      cwd: rootDir,
-      // Force a non-production boot so the check exercises the same path a
-      // developer sees, not the migration/supervisor work of a real deploy.
-      env: { ...process.env, NODE_ENV: 'test' },
+    return new Promise((resolve, reject) => {
+        console.log(
+            '🔎 Verifying the Nest graph assembles (dist/compile.js)...'
+        )
+        const proc = spawn('bun', ['--bun', path.join(distDir, 'compile.js')], {
+            stdio: 'inherit',
+            shell: false,
+            cwd: rootDir,
+            // Force a non-production boot so the check exercises the same path a
+            // developer sees, not the migration/supervisor work of a real deploy.
+            env: { ...process.env, NODE_ENV: 'test' },
+        })
+        proc.on('exit', (code) => {
+            if (code === 0) {
+                console.log('✅ Nest graph assembles cleanly')
+                resolve()
+            } else {
+                reject(
+                    new Error(`compile check exited with code ${String(code)}`)
+                )
+            }
+        })
+        proc.on('error', reject)
     })
-    proc.on('exit', (code) => {
-      if (code === 0) {
-        console.log('✅ Nest graph assembles cleanly')
-        resolve()
-      } else {
-        reject(new Error(`compile check exited with code ${String(code)}`))
-      }
-    })
-    proc.on('error', reject)
-  })
 }
 
 /**
@@ -144,22 +148,22 @@ function runCompileCheck(): Promise<void> {
  *   2. compile check MUST be last: it executes what step 1 produced
  */
 async function main(): Promise<void> {
-  try {
-    cleanup()
+    try {
+        cleanup()
 
-    await Promise.all([
-      runBuild(),
-      runSsrBuild('build:client'),
-      runSsrBuild('build:server'),
-    ])
+        await Promise.all([
+            runBuild(),
+            runSsrBuild('build:client'),
+            runSsrBuild('build:server'),
+        ])
 
-    await runCompileCheck()
+        await runCompileCheck()
 
-    console.log('\n✅ Build completed successfully!')
-  } catch (error) {
-    console.error('\n❌ Build failed:', error)
-    process.exit(1)
-  }
+        console.log('\n✅ Build completed successfully!')
+    } catch (error) {
+        console.error('\n❌ Build failed:', error)
+        process.exit(1)
+    }
 }
 
 await main()

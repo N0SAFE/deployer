@@ -275,7 +275,7 @@
     },
     "test": {
       "dependsOn": [
-        "@deployer/config-vitest#build"
+        "^build"
       ],
       "inputs": [
         "src/**",
@@ -289,7 +289,7 @@
     },
     "test:e2e": {
       "dependsOn": [
-        "@deployer/config-vitest#build"
+        "^build"
       ],
       "env": [
         "VITEST_E2E"
@@ -300,28 +300,19 @@
       "cache": false,
       "persistent": true,
       "dependsOn": [
-        "^build",
-        "@deployer/config-eslint#build",
-        "@deployer/config-prettier#build",
-        "@deployer/config-vitest#build"
+        "^build"
       ]
     },
     "test:ui": {
       "cache": false,
       "persistent": true,
       "dependsOn": [
-        "^build",
-        "@deployer/config-eslint#build",
-        "@deployer/config-prettier#build",
-        "@deployer/config-vitest#build"
+        "^build"
       ]
     },
     "test:coverage": {
       "dependsOn": [
-        "^build",
-        "@deployer/config-eslint#build",
-        "@deployer/config-prettier#build",
-        "@deployer/config-vitest#build"
+        "^build"
       ],
       "outputs": [
         "coverage/**"
@@ -371,9 +362,8 @@
         "package.json"
       ]
     },
-    "prettify": {
+    "format": {
       "dependsOn": [
-        "^lint",
         "@deployer/config-prettier#build"
       ]
     },

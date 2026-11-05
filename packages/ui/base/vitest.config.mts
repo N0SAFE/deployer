@@ -12,12 +12,12 @@ export default defineProject(
             environment: 'jsdom',
             include: [
                 '**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-                '**/__tests__/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
+                '**/__tests__/**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
             ],
             exclude: [
-                'node_modules', 
+                'node_modules',
                 'dist',
-                'components/shadcn/**/*' // Exclude shadcn components from testing
+                'components/shadcn/**/*', // Exclude shadcn components from testing
             ],
             setupFiles: ['./vitest.setup.ts'],
             globals: true,

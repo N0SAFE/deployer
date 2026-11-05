@@ -1,6 +1,9 @@
-import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { RuntimeInvalid } from '../../../core/runtime.errors'
 
-import type { BuildArtifactResult, RuntimeDeploymentContext } from "../runtime-runner.interface";
+import type {
+    BuildArtifactResult,
+    RuntimeDeploymentContext,
+} from '../runtime-runner.interface'
 
 /**
  * The image a runner must run, or a loud failure.
@@ -17,13 +20,16 @@ import type { BuildArtifactResult, RuntimeDeploymentContext } from "../runtime-r
 export function resolveContainerImage(
     artifact: BuildArtifactResult,
     deployment: RuntimeDeploymentContext,
-    runnerType: string,
+    runnerType: string
 ): string {
-    const image = artifact.containerImage ?? deployment.deploymentContainerImage;
-    if (typeof image === "string" && image.trim().length > 0) {
-        return image;
+    const image = artifact.containerImage ?? deployment.deploymentContainerImage
+    if (typeof image === 'string' && image.trim().length > 0) {
+        return image
     }
 
-    throw new RuntimeInvalid({ reason: `No container image was produced, so the '${runnerType}' runner has nothing to start. ` +
-            "Add a Dockerfile to the build context, set an explicit builder, or provide a prebuilt image." });
+    throw new RuntimeInvalid({
+        reason:
+            `No container image was produced, so the '${runnerType}' runner has nothing to start. ` +
+            'Add a Dockerfile to the build context, set an explicit builder, or provide a prebuilt image.',
+    })
 }

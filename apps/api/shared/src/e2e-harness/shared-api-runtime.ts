@@ -5,7 +5,10 @@ import { afterAll, beforeAll } from 'vitest'
 
 import { setupContract } from '@deployer/bff-contracts'
 
-import { AuthCoreService, type AuthCoreServiceShape } from '../core/modules/auth/services/auth-core.service'
+import {
+    AuthCoreService,
+    type AuthCoreServiceShape,
+} from '../core/modules/auth/services/auth-core.service'
 import { appContract } from '../core/orpc/app-contract'
 
 import { SharedApiRuntimeManager } from './shared-api-runtime/manager'
@@ -28,7 +31,10 @@ import type {
 import type { AnyContractRouter } from '@orpc/contract'
 
 const sharedRuntimeManager = new SharedApiRuntimeManager()
-const runtimeContextPromisesByKey = new Map<string, Promise<SharedApiRuntimeContext>>()
+const runtimeContextPromisesByKey = new Map<
+    string,
+    Promise<SharedApiRuntimeContext>
+>()
 
 function resolveDefaultRuntimeKey(): string {
     const workerKey = process.env.VITEST_WORKER_ID ?? process.env.VITEST_POOL_ID
@@ -47,7 +53,9 @@ function resolveRuntimeKey(options?: SharedApiRuntimeOptions): string {
     return resolveDefaultRuntimeKey()
 }
 
-function createServiceMapper(runtime: SharedApiRuntime): SharedRuntimeServiceMapper {
+function createServiceMapper(
+    runtime: SharedApiRuntime
+): SharedRuntimeServiceMapper {
     return {
         get<T>(service: ClassConstructor<T>): T {
             return runtime.moduleRef.get<T>(service)
@@ -56,11 +64,14 @@ function createServiceMapper(runtime: SharedApiRuntime): SharedRuntimeServiceMap
 }
 
 async function buildSharedApiRuntimeContext(
-    options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<SharedApiRuntimeContext> {
     const runtime = await sharedRuntimeManager.getRuntime(options)
     const serviceMapper = createServiceMapper(runtime)
-    const betterAuth = runtime.moduleRef.get<typeof AuthCoreService, AuthCoreServiceShape>(AuthCoreService).instance
+    const betterAuth = runtime.moduleRef.get<
+        typeof AuthCoreService,
+        AuthCoreServiceShape
+    >(AuthCoreService).instance
     const tracker = createSharedOrpcResponseTracker()
 
     return {
@@ -68,7 +79,9 @@ async function buildSharedApiRuntimeContext(
         orpc: createSharedRuntimeOrpcClient(appContract, runtime, {
             tracker,
         }),
-        http: request(runtime.app.getHttpServer() as Parameters<typeof request>[0]),
+        http: request(
+            runtime.app.getHttpServer() as Parameters<typeof request>[0]
+        ),
         betterAuth,
         serviceMapper,
         orpcTracker: tracker,
@@ -92,7 +105,7 @@ export type DescribeSharedRuntimeScope = {
 }
 
 export function useDescribeSharedApiRuntime(
-    options: SharedApiRuntimeOptions = {},
+    options: SharedApiRuntimeOptions = {}
 ): DescribeSharedRuntimeScope {
     const instanceKey =
         options.instanceKey && options.instanceKey.length > 0
@@ -140,20 +153,20 @@ export { resolveSharedRuntimeMaxConcurrency }
 
 export async function createSharedSetupOrpcClient(
     options?: SharedRuntimeOrpcClientOptions,
-    runtimeOptions?: SharedApiRuntimeOptions,
+    runtimeOptions?: SharedApiRuntimeOptions
 ): Promise<SharedRuntimeOrpcClient<typeof setupContract>> {
     const runtime = await getSharedApiRuntime(runtimeOptions)
     return createSharedRuntimeOrpcClient(setupContract, runtime, options)
 }
 
 export async function getSharedApiRuntime(
-    options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<SharedApiRuntime> {
     return await sharedRuntimeManager.getRuntime(options)
 }
 
 export async function getSharedApiRuntimeContext(
-    options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<SharedApiRuntimeContext> {
     const key = resolveRuntimeKey(options)
     const existing = runtimeContextPromisesByKey.get(key)
@@ -173,7 +186,7 @@ export async function getSharedApiRuntimeContext(
 }
 
 export async function stopSharedApiRuntime(
-    options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<void> {
     const key = resolveRuntimeKey(options)
     runtimeContextPromisesByKey.delete(key)

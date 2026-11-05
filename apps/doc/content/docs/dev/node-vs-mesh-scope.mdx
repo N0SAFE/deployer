@@ -11,10 +11,10 @@ order: 20
 The platform has exactly two scopes. There is **no organization layer** — the
 mesh is the single tenant, so access control is platform-wide.
 
-| Scope | Meaning | Owns |
-|-------|---------|------|
-| **Mesh** | Data that spans every node | Projects, services, domains, mesh-wide configuration defaults |
-| **Node** | Data pinned to one cluster node | Deployments, Docker, per-node configuration and capacity |
+| Scope    | Meaning                         | Owns                                                          |
+| -------- | ------------------------------- | ------------------------------------------------------------- |
+| **Mesh** | Data that spans every node      | Projects, services, domains, mesh-wide configuration defaults |
+| **Node** | Data pinned to one cluster node | Deployments, Docker, per-node configuration and capacity      |
 
 Every dashboard page states its scope with a `ScopeLabel` badge (Mesh outline
 badge / Node badge) so the operator always knows what they are looking at.

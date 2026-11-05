@@ -1,45 +1,47 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
-import { dockerRuntimeActivityContract } from "./activity";
-import { dockerRuntimeActivityStreamContract } from "./activity-stream";
-import { dockerRuntimeSnapshotContract } from "./snapshot";
-import { dockerRuntimeEventsStreamContract } from "./stream";
+import { dockerRuntimeActivityContract } from './activity'
+import { dockerRuntimeActivityStreamContract } from './activity-stream'
+import { dockerRuntimeSnapshotContract } from './snapshot'
+import { dockerRuntimeEventsStreamContract } from './stream'
 
-export const dockerRuntimeContract = oc.meta(openapi({ tags: ["Docker Runtime"], prefix: "/runtime" })).router({
-  snapshot: dockerRuntimeSnapshotContract,
-  stream: dockerRuntimeEventsStreamContract,
-  activity: dockerRuntimeActivityContract,
-  activityStream: dockerRuntimeActivityStreamContract,
-});
-
-export {
-  dockerRuntimeStreamFilterEntitySchema,
-  dockerRuntimeStreamFilterConfigSchemas,
-  dockerRuntimeStreamFilterInputSchema,
-  dockerRuntimeEventsStreamQuerySchema,
-} from "./shared";
+export const dockerRuntimeContract = oc
+    .meta(openapi({ tags: ['Docker Runtime'], prefix: '/runtime' }))
+    .router({
+        snapshot: dockerRuntimeSnapshotContract,
+        stream: dockerRuntimeEventsStreamContract,
+        activity: dockerRuntimeActivityContract,
+        activityStream: dockerRuntimeActivityStreamContract,
+    })
 
 export {
-  dockerRuntimeActivityContract,
-  dockerRuntimeActivityListContract,
-  dockerRuntimeActivityDetailContract,
-  dockerRuntimeActivityListConfigSchemas,
-  dockerRuntimeActivityDetailQuerySchema,
-} from "./activity";
+    dockerRuntimeStreamFilterEntitySchema,
+    dockerRuntimeStreamFilterConfigSchemas,
+    dockerRuntimeStreamFilterInputSchema,
+    dockerRuntimeEventsStreamQuerySchema,
+} from './shared'
 
-export { dockerRuntimeActivityStreamContract } from "./activity-stream";
+export {
+    dockerRuntimeActivityContract,
+    dockerRuntimeActivityListContract,
+    dockerRuntimeActivityDetailContract,
+    dockerRuntimeActivityListConfigSchemas,
+    dockerRuntimeActivityDetailQuerySchema,
+} from './activity'
 
-export { dockerRuntimeSnapshotContract } from "./snapshot";
-export { dockerRuntimeEventsStreamContract } from "./stream";
+export { dockerRuntimeActivityStreamContract } from './activity-stream'
+
+export { dockerRuntimeSnapshotContract } from './snapshot'
+export { dockerRuntimeEventsStreamContract } from './stream'
 export type {
-  DockerRuntimeStreamFilterInput,
-  DockerRuntimeEventsStreamQueryInput,
-} from "./shared";
+    DockerRuntimeStreamFilterInput,
+    DockerRuntimeEventsStreamQueryInput,
+} from './shared'
 
 export type {
-  DockerRuntimeActivityListInput,
-  DockerRuntimeActivityDetailQueryInput,
-} from "./activity";
+    DockerRuntimeActivityListInput,
+    DockerRuntimeActivityDetailQueryInput,
+} from './activity'
 
-export type { DockerRuntimeActivityStreamInput } from "./activity-stream";
+export type { DockerRuntimeActivityStreamInput } from './activity-stream'

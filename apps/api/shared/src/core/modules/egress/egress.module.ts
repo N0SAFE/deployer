@@ -1,6 +1,6 @@
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule } from '@deployer/nest-effect'
 
-import { EgressService, makeEgressService } from "./egress.service";
+import { EgressService, makeEgressService } from './egress.service'
 
 /**
  * CORE: outbound requests to targets a user or operator chooses go through `EgressService`.
@@ -9,6 +9,11 @@ import { EgressService, makeEgressService } from "./egress.service";
  * module is imported anywhere in the app graph (`CoreReachabilityModule` imports it).
  */
 export const CoreEgressModule = createGlobalModule({
-	providers: [{ provide: EgressService, useFactory: () => makeEgressService({ env: process.env }) }],
-	exports: [EgressService],
-});
+    providers: [
+        {
+            provide: EgressService,
+            useFactory: () => makeEgressService({ env: process.env }),
+        },
+    ],
+    exports: [EgressService],
+})

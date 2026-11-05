@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import { isSwarmVersionConflict } from "./swarm-services";
+import { isSwarmVersionConflict } from './swarm-services'
 
 /**
  * REGRESSION GUARD for a silent, permanent convergence failure.
@@ -16,29 +16,41 @@ import { isSwarmVersionConflict } from "./swarm-services";
  * the supervisor still reported success, which is exactly how the managed web
  * console kept booting with a two-variable env it cannot start with.
  */
-describe("isSwarmVersionConflict", () => {
+describe('isSwarmVersionConflict', () => {
     it("detects the engine's out-of-sequence version rejection", () => {
         expect(
             isSwarmVersionConflict(
-                new Error("(HTTP code 500) server error - rpc error: code = Unknown desc = update out of sequence"),
-            ),
-        ).toBe(true);
-        expect(isSwarmVersionConflict(new Error("update out of sequence"))).toBe(true);
-    });
+                new Error(
+                    '(HTTP code 500) server error - rpc error: code = Unknown desc = update out of sequence'
+                )
+            )
+        ).toBe(true)
+        expect(
+            isSwarmVersionConflict(new Error('update out of sequence'))
+        ).toBe(true)
+    })
 
-    it("does NOT treat genuine failures as a lost race", () => {
+    it('does NOT treat genuine failures as a lost race', () => {
         // A real rejection must propagate: retrying it would hide the cause and
         // turn one clear error into five.
-        expect(isSwarmVersionConflict(new Error("no suitable node (host-mode port already in use on 1 node)"))).toBe(
-            false,
-        );
-        expect(isSwarmVersionConflict(new Error("network deployer-x not found"))).toBe(false);
-        expect(isSwarmVersionConflict(new Error("service is not a swarm manager"))).toBe(false);
-    });
+        expect(
+            isSwarmVersionConflict(
+                new Error(
+                    'no suitable node (host-mode port already in use on 1 node)'
+                )
+            )
+        ).toBe(false)
+        expect(
+            isSwarmVersionConflict(new Error('network deployer-x not found'))
+        ).toBe(false)
+        expect(
+            isSwarmVersionConflict(new Error('service is not a swarm manager'))
+        ).toBe(false)
+    })
 
-    it("handles non-Error throwables without crashing", () => {
-        expect(isSwarmVersionConflict("update out of sequence")).toBe(true);
-        expect(isSwarmVersionConflict(undefined)).toBe(false);
-        expect(isSwarmVersionConflict(null)).toBe(false);
-    });
-});
+    it('handles non-Error throwables without crashing', () => {
+        expect(isSwarmVersionConflict('update out of sequence')).toBe(true)
+        expect(isSwarmVersionConflict(undefined)).toBe(false)
+        expect(isSwarmVersionConflict(null)).toBe(false)
+    })
+})

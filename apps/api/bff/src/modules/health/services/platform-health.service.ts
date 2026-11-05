@@ -1,13 +1,17 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { API_SERVICE_NAMES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
+import {
+    API_SERVICE_NAMES,
+    apiServiceUrl,
+    type ApiServiceName,
+} from '@deployer/env'
 
-import type { PlatformHealth, ServiceHealth } from "../platform-health.schema";
+import type { PlatformHealth, ServiceHealth } from '../platform-health.schema'
 
 export type PlatformHealthServiceShape = {
-	/** The roll-up: every service's `/health/ready`, probed in parallel. Never fails: an unreachable service is the answer. */
-	readonly getHealth: () => Effect.Effect<PlatformHealth>;
-};
+    /** The roll-up: every service's `/health/ready`, probed in parallel. Never fails: an unreachable service is the answer. */
+    readonly getHealth: () => Effect.Effect<PlatformHealth>
+}
 
 /**
  * The platform health roll-up.
@@ -26,64 +30,78 @@ export type PlatformHealthServiceShape = {
  * while requests fail. `/health/ready` is the 503-until-ready gate the shared server
  * binds (preflight), so probing it is probing the real answer.
  */
-export class PlatformHealthService extends Context.Service<PlatformHealthService, PlatformHealthServiceShape>()("bff/PlatformHealthService") {
-	/** The platform's `fetch`; a spec passes a fake to `makePlatformHealthService`. */
-	static readonly live: PlatformHealthServiceShape = makePlatformHealthService(globalThis.fetch);
+export class PlatformHealthService extends Context.Service<
+    PlatformHealthService,
+    PlatformHealthServiceShape
+>()('bff/PlatformHealthService') {
+    /** The platform's `fetch`; a spec passes a fake to `makePlatformHealthService`. */
+    static readonly live: PlatformHealthServiceShape =
+        makePlatformHealthService(globalThis.fetch)
 }
 
-export function makePlatformHealthService(fetchReady: typeof fetch): PlatformHealthServiceShape {
-	const probe = async (name: ApiServiceName): Promise<ServiceHealth> => {
-		const url = apiServiceUrl(name);
-		const started = Date.now();
+export function makePlatformHealthService(
+    fetchReady: typeof fetch
+): PlatformHealthServiceShape {
+    const probe = async (name: ApiServiceName): Promise<ServiceHealth> => {
+        const url = apiServiceUrl(name)
+        const started = Date.now()
 
-		try {
-			const response = await fetchReady(`${url}/health/ready`, {
-				// Bounded: a hung service must not hang the roll-up, or `deployer status`
-				// would be unusable in exactly the situation it is needed.
-				signal: AbortSignal.timeout(3_000),
-			});
-			const latencyMs = Date.now() - started;
+        try {
+            const response = await fetchReady(`${url}/health/ready`, {
+                // Bounded: a hung service must not hang the roll-up, or `deployer status`
+                // would be unusable in exactly the situation it is needed.
+                signal: AbortSignal.timeout(3_000),
+            })
+            const latencyMs = Date.now() - started
 
-			if (response.ok) {
-				return { name, healthy: true, url, latencyMs };
-			}
-			return {
-				name,
-				healthy: false,
-				url,
-				latencyMs,
-				reason:
-					response.status === 503
-						? "not ready (starting or a dependency is down)"
-						: `HTTP ${String(response.status)}`,
-			};
-		} catch (error: unknown) {
-			return {
-				name,
-				healthy: false,
-				url,
-				reason: error instanceof Error ? error.message : String(error),
-			};
-		}
-	};
+            if (response.ok) {
+                return { name, healthy: true, url, latencyMs }
+            }
+            return {
+                name,
+                healthy: false,
+                url,
+                latencyMs,
+                reason:
+                    response.status === 503
+                        ? 'not ready (starting or a dependency is down)'
+                        : `HTTP ${String(response.status)}`,
+            }
+        } catch (error: unknown) {
+            return {
+                name,
+                healthy: false,
+                url,
+                reason: error instanceof Error ? error.message : String(error),
+            }
+        }
+    }
 
-	return {
-		getHealth: () =>
-			Effect.promise(async () => {
-				const results = await Promise.all(API_SERVICE_NAMES.map((name) => probe(name)));
+    return {
+        getHealth: () =>
+            Effect.promise(async () => {
+                const results = await Promise.all(
+                    API_SERVICE_NAMES.map((name) => probe(name))
+                )
 
-				// Three states, not a boolean — see `platformHealthSchema`. `latencyMs` is what
-				// tells "did not answer" apart from "answered with a failure": only a response
-				// sets it.
-				const reachable = results.filter((result) => result.latencyMs !== undefined);
-				const state =
-					reachable.length === 0
-						? "unreachable"
-						: results.every((result) => result.healthy)
-							? "healthy"
-							: "degraded";
+                // Three states, not a boolean — see `platformHealthSchema`. `latencyMs` is what
+                // tells "did not answer" apart from "answered with a failure": only a response
+                // sets it.
+                const reachable = results.filter(
+                    (result) => result.latencyMs !== undefined
+                )
+                const state =
+                    reachable.length === 0
+                        ? 'unreachable'
+                        : results.every((result) => result.healthy)
+                          ? 'healthy'
+                          : 'degraded'
 
-				return { state, services: results, checkedAt: new Date().toISOString() };
-			}),
-	};
+                return {
+                    state,
+                    services: results,
+                    checkedAt: new Date().toISOString(),
+                }
+            }),
+    }
 }

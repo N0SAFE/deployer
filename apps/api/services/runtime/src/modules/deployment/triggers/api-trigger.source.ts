@@ -1,15 +1,18 @@
-import { Effect } from "effect";
-import z from "zod/v4";
+import { Effect } from 'effect'
+import z from 'zod/v4'
 
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
-import type { DeploymentTriggerEvent, DeploymentTriggerSource } from "./base/deployment-trigger-source.interface";
+import type {
+    DeploymentTriggerEvent,
+    DeploymentTriggerSource,
+} from './base/deployment-trigger-source.interface'
 
 /** What the seam itself depends on: a service to deploy and a source that names its type. */
 const apiTriggerSeamSchema = z.object({
     serviceId: z.string().min(1),
     source: z.object({ sourceType: z.string() }),
-});
+})
 
 /**
  * The API-triggered source: an operator (or a script) POSTs a deployment.
@@ -24,23 +27,23 @@ const apiTriggerSeamSchema = z.object({
  * `source`, so it cannot accidentally claim a webhook event.
  */
 export class ApiTriggerSource implements DeploymentTriggerSource {
-    readonly sourceId = "api";
+    readonly sourceId = 'api'
 
     isEnabled(): boolean {
-        return true;
+        return true
     }
 
     disabledReason(): string {
-        return "";
+        return ''
     }
 
     matches(event: DeploymentTriggerEvent): boolean {
-        if (event.provider !== "api") return false;
-        return this.cast(event.payload) !== null;
+        if (event.provider !== 'api') return false
+        return this.cast(event.payload) !== null
     }
 
     toTriggerInput(event: DeploymentTriggerEvent) {
-        return Effect.succeed(this.cast(event.payload));
+        return Effect.succeed(this.cast(event.payload))
     }
 
     /**
@@ -50,7 +53,7 @@ export class ApiTriggerSource implements DeploymentTriggerSource {
     private cast(payload: unknown): DeploymentTriggerInput | null {
         // The contract's schema validates the full shape at the oRPC boundary; this one names only what `matches()`
         // reads, so the predicate cannot claim an event whose payload lacks a service or a source type.
-        const parsed = apiTriggerSeamSchema.safeParse(payload);
-        return parsed.success ? (payload as DeploymentTriggerInput) : null;
+        const parsed = apiTriggerSeamSchema.safeParse(payload)
+        return parsed.success ? (payload as DeploymentTriggerInput) : null
     }
 }

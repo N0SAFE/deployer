@@ -13,22 +13,25 @@ Follow the root `AGENTS.md` first. This file adds Web-specific guidance.
 ## Quick Context via MCP
 
 - Inspect this app:
-  - `repo://app/web/package.json`
-  - `repo://app/web/dependencies`
-  - `repo://graph/uses/web` and `repo://graph/used-by/web`
+    - `repo://app/web/package.json`
+    - `repo://app/web/dependencies`
+    - `repo://graph/uses/web` and `repo://graph/used-by/web`
 
 ## Workflows
 
 Development (Docker-first):
+
 - Prefer MCP: `docker-up { mode: "dev", target: "web" }` — start the web app stack
 - Legacy: `bun run dev:web` — also starts the web app
 - Logs: `bun run dev:web:logs`
 
 Routing:
+
 - Routes defined by `src/app/**/route.info.ts`
 - Generate routes: use MCP `run-script { targetType: "app", targetName: "web", script: "dr:build" }` or watch `dr:build:watch`
 
 Testing and checks:
+
 - Type-check: `bun run web -- type-check`
 - Test: `bun run web -- test`
 - **Build:** `bun run local:build` (root) or `bun run local:build` (this app) — a bare
@@ -52,7 +55,7 @@ actions. Application code stays unchanged: keep importing from `react`,
 
 **It is currently disabled** (the import and the `withRedact(...)` call are
 commented out in `next.config.ts`): the adapter rewrites React's browser entries
-with browser-only Turbopack *loader* rules, and Turbopack refuses loader output
+with browser-only Turbopack _loader_ rules, and Turbopack refuses loader output
 for a module that lives in an `experimental.turbopackAdditionalRoots` root —
 which is where bun's `globalStore` puts React, and that root is required for the
 build to resolve the store at all:
@@ -62,7 +65,7 @@ Resource path "…/node_modules/react/index.js" needs to be on project filesyste
 ```
 
 Aliases are not an alternative: Turbopack applies its built-in React aliases
-*after* user aliases, which is why Redact uses loaders. Verified with
+_after_ user aliases, which is why Redact uses loaders. Verified with
 `@tanstack/redact` 0.2.3 and 0.2.4 on Next 16.4.4. Re-enable both lines once
 TanStack ships an integration that works across additional roots. `apps/doc`,
 which does not cross an additional root, still runs `withRedact`.
@@ -76,7 +79,7 @@ Rules that break silently if ignored:
   at config load outside that. The `next` catalog in the root `package.json` is
   therefore an **exact pin** (`16.4.4`), not a caret. Bump Next only to a version
   the adapter lists, and bump `@tanstack/redact` with it.
-- Custom Turbopack/Webpack transforms of React's *own* entry files conflict with
+- Custom Turbopack/Webpack transforms of React's _own_ entry files conflict with
   the integration; its loader rules target the resolved `react`/`react-dom`
   entries.
 
@@ -121,20 +124,24 @@ In dense dashboard screens, top metric card strips push actionable controls belo
 Use this preferred structure instead:
 
 1. **Context-first header**
-  - Title + one concise subtitle + current status sentence.
-  - Keep primary actions visible (top-right) and mirrored in sticky footer actions when forms are long.
+
+- Title + one concise subtitle + current status sentence.
+- Keep primary actions visible (top-right) and mirrored in sticky footer actions when forms are long.
 
 2. **Section-first information placement**
-  - Put metrics next to the section they affect (services stats in services section, dependency stats in dependencies section).
-  - Prefer compact inline indicators (`Badge`, muted text rows, compact key/value lines) over decorative standalone cards.
+
+- Put metrics next to the section they affect (services stats in services section, dependency stats in dependencies section).
+- Prefer compact inline indicators (`Badge`, muted text rows, compact key/value lines) over decorative standalone cards.
 
 3. **Action-oriented summary blocks (not decorative cards)**
-  - Use lightweight callouts/toolbars near interactive controls (bulk actions, filters, policy scope selectors).
-  - Keep summary text concise and decision-oriented.
+
+- Use lightweight callouts/toolbars near interactive controls (bulk actions, filters, policy scope selectors).
+- Keep summary text concise and decision-oriented.
 
 4. **Responsive behavior**
-  - Prioritize controls and context in first viewport.
-  - Avoid large summary grids that consume vertical space before interaction areas.
+
+- Prioritize controls and context in first viewport.
+- Avoid large summary grids that consume vertical space before interaction areas.
 
 ### Anti-pattern (forbidden)
 

@@ -5,16 +5,8 @@ import ClientAuthProviders from './ClientAuthProviders'
 // Session is only fetched when:
 // 1. A page uses SessionPage wrapper (explicit server-side fetch + hydration)
 // 2. A component calls useSession() (client-side fetch on-demand)
-const AuthProviders = ({
-    children,
-}: {
-    children: React.ReactNode
-}) => {
-    return (
-        <ClientAuthProviders>
-            {children}
-        </ClientAuthProviders>
-    )
+const AuthProviders = ({ children }: { children: React.ReactNode }) => {
+    return <ClientAuthProviders>{children}</ClientAuthProviders>
 }
 
 export default AuthProviders

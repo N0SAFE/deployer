@@ -1,19 +1,30 @@
-import { NestFactory } from "@nestjs/core";
-import { ExpressAdapter } from "@nestjs/platform-express";
-import express from "express";
-import { Effect } from "effect";
+import { NestFactory } from '@nestjs/core'
+import { ExpressAdapter } from '@nestjs/platform-express'
+import { Effect } from 'effect'
+import express from 'express'
 
-import { logger } from "@deployer/logger";
-import { type RequirementsMet } from "@deployer/nest-effect";
+import { logger } from '@deployer/logger'
+import { type RequirementsMet } from '@deployer/nest-effect'
 
-import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "../core/utils/cors.utils";
+import {
+    buildAllowedOrigins,
+    resolveCorsDecision,
+    CORS_ALLOWED_HEADERS,
+} from '../core/utils/cors.utils'
 
-import { containerHttpEdge, mountHttpEdge, type HttpEdgeEntry } from "./http-edge";
-import { PreflightService, type PreflightServiceShape } from "./preflight/preflight.service";
+import {
+    containerHttpEdge,
+    mountHttpEdge,
+    type HttpEdgeEntry,
+} from './http-edge'
+import {
+    PreflightService,
+    type PreflightServiceShape,
+} from './preflight/preflight.service'
 
-import type { PreflightDependency, PreflightReport } from "./preflight/types";
-import type { INestApplication, Type } from "@nestjs/common";
-import type { NestApplicationOptions } from "@nestjs/common";
+import type { PreflightDependency, PreflightReport } from './preflight/types'
+import type { INestApplication, Type } from '@nestjs/common'
+import type { NestApplicationOptions } from '@nestjs/common'
 
 /**
  * CORS for a platform app.
@@ -25,52 +36,64 @@ import type { NestApplicationOptions } from "@nestjs/common";
  * it identical removes a class of "works locally, 403 in compose" reports.
  */
 export function createCorsMiddleware(): express.RequestHandler {
-	const corsAllowedOrigins = buildAllowedOrigins(process.env as Record<string, string | undefined>);
-	const isDevelopment = process.env.NODE_ENV !== "production";
+    const corsAllowedOrigins = buildAllowedOrigins(
+        process.env as Record<string, string | undefined>
+    )
+    const isDevelopment = process.env.NODE_ENV !== 'production'
 
-	return (req, res, next) => {
-		const cookieHeader = req.headers.cookie;
-		const hasCookieHeader = typeof cookieHeader === "string" && cookieHeader.length > 0;
+    return (req, res, next) => {
+        const cookieHeader = req.headers.cookie
+        const hasCookieHeader =
+            typeof cookieHeader === 'string' && cookieHeader.length > 0
 
-		const decision = resolveCorsDecision({
-			origin: req.headers.origin,
-			hasCookieHeader,
-			allowedOrigins: corsAllowedOrigins,
-			isDevelopment,
-		});
+        const decision = resolveCorsDecision({
+            origin: req.headers.origin,
+            hasCookieHeader,
+            allowedOrigins: corsAllowedOrigins,
+            isDevelopment,
+        })
 
-		if (decision.allowOrigin) {
-			res.setHeader("Access-Control-Allow-Origin", req.headers.origin ?? "*");
-			if (decision.allowCredentials) {
-				res.setHeader("Access-Control-Allow-Credentials", "true");
-				res.setHeader("Access-Control-Expose-Headers", "Set-Cookie");
-			}
-			res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-			res.setHeader("Access-Control-Allow-Headers", CORS_ALLOWED_HEADERS.join(", "));
-		}
+        if (decision.allowOrigin) {
+            res.setHeader(
+                'Access-Control-Allow-Origin',
+                req.headers.origin ?? '*'
+            )
+            if (decision.allowCredentials) {
+                res.setHeader('Access-Control-Allow-Credentials', 'true')
+                res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie')
+            }
+            res.setHeader(
+                'Access-Control-Allow-Methods',
+                'GET, POST, PUT, DELETE, PATCH, OPTIONS'
+            )
+            res.setHeader(
+                'Access-Control-Allow-Headers',
+                CORS_ALLOWED_HEADERS.join(', ')
+            )
+        }
 
-		if (req.method === "OPTIONS") {
-			res.status(204).end();
-			return;
-		}
+        if (req.method === 'OPTIONS') {
+            res.status(204).end()
+            return
+        }
 
-		next();
-	};
+        next()
+    }
 }
 
 /** The `NestFactory` options every app shares. */
 export function apiAppOptions(): NestApplicationOptions {
-	return {
-		// `snapshot` traces the whole bootstrap on every start, costing boot time and
-		// memory, so it is opt-in rather than implied by NODE_ENV: a dev who is not
-		// debugging startup should not pay for it. Set APP_BOOT_SNAPSHOT=true to get
-		// a readable boot trace.
-		snapshot: process.env.APP_BOOT_SNAPSHOT === "true",
-		// Nest must not parse the body twice: each app hands it an Express
-		// instance it built itself (so CORS and the probes can answer before the
-		// graph resolves).
-		bodyParser: false,
-	};
+    return {
+        // `snapshot` traces the whole bootstrap on every start, costing boot time and
+        // memory, so it is opt-in rather than implied by NODE_ENV: a dev who is not
+        // debugging startup should not pay for it. Set APP_BOOT_SNAPSHOT=true to get
+        // a readable boot trace.
+        snapshot: process.env.APP_BOOT_SNAPSHOT === 'true',
+        // Nest must not parse the body twice: each app hands it an Express
+        // instance it built itself (so CORS and the probes can answer before the
+        // graph resolves).
+        bodyParser: false,
+    }
 }
 
 /**
@@ -84,35 +107,39 @@ export function apiAppOptions(): NestApplicationOptions {
  * the same cap everywhere else. A chunked body without `content-length` is not caught here — that is the streaming case,
  * which belongs to the route that consumes it.
  */
-export const MAX_JSON_BODY_BYTES = Number(process.env.MAX_JSON_BODY_BYTES ?? 10 * 1024 * 1024);
+export const MAX_JSON_BODY_BYTES = Number(
+    process.env.MAX_JSON_BODY_BYTES ?? 10 * 1024 * 1024
+)
 
-export function jsonBodyLimit(maxBytes: number = MAX_JSON_BODY_BYTES): express.RequestHandler {
-	return (req, res, next) => {
-		const contentType = req.headers["content-type"] ?? "";
-		if (!contentType.includes("application/json")) {
-			next();
-			return;
-		}
+export function jsonBodyLimit(
+    maxBytes: number = MAX_JSON_BODY_BYTES
+): express.RequestHandler {
+    return (req, res, next) => {
+        const contentType = req.headers['content-type'] ?? ''
+        if (!contentType.includes('application/json')) {
+            next()
+            return
+        }
 
-		const declared = Number(req.headers["content-length"] ?? "0");
-		if (Number.isFinite(declared) && declared > maxBytes) {
-			res.status(413).json({
-				statusCode: 413,
-				code: "PAYLOAD_TOO_LARGE",
-				message: `request body exceeds ${String(maxBytes)} bytes`,
-			});
-			return;
-		}
-		next();
-	};
+        const declared = Number(req.headers['content-length'] ?? '0')
+        if (Number.isFinite(declared) && declared > maxBytes) {
+            res.status(413).json({
+                statusCode: 413,
+                code: 'PAYLOAD_TOO_LARGE',
+                message: `request body exceeds ${String(maxBytes)} bytes`,
+            })
+            return
+        }
+        next()
+    }
 }
 
 /** The bare Express instance an app's middleware is attached to. */
 export function createGateway(): express.Express {
-	const gateway = express();
-	gateway.use(jsonBodyLimit());
-	gateway.use(createCorsMiddleware());
-	return gateway;
+    const gateway = express()
+    gateway.use(jsonBodyLimit())
+    gateway.use(createCorsMiddleware())
+    return gateway
 }
 
 /**
@@ -124,9 +151,9 @@ export function createGateway(): express.Express {
  * would connection-refuse and report a healthy process as dead.
  */
 export function mountLiveness(gateway: express.Express): void {
-	gateway.get("/health", (_req, res) => {
-		res.status(200).json({ status: "ok", uptime: process.uptime() });
-	});
+    gateway.get('/health', (_req, res) => {
+        res.status(200).json({ status: 'ok', uptime: process.uptime() })
+    })
 }
 
 /**
@@ -140,21 +167,25 @@ export function mountLiveness(gateway: express.Express): void {
  * the app a `compile`-style check validates would not be the app that ships.
  */
 export async function createApiServerApp(
-	rootModule: Type<unknown>,
-	options: { readonly edge?: readonly HttpEdgeEntry[] } = {},
+    rootModule: Type<unknown>,
+    options: { readonly edge?: readonly HttpEdgeEntry[] } = {}
 ): Promise<INestApplication> {
-	const gateway = createGateway();
-	mountLiveness(gateway);
+    const gateway = createGateway()
+    mountLiveness(gateway)
 
-	const app = await NestFactory.create(rootModule, new ExpressAdapter(gateway), apiAppOptions());
-	applySecurityHeaders(app);
-	// Between `create()` (the container is live) and `init()` (the router is registered): the edge runs before any route.
-	// What the container holds (Better Auth's routes, if `AuthModule` is imported) first, then what the app adds.
-	mountHttpEdge(app, [...containerHttpEdge(app), ...(options.edge ?? [])]);
-	app.enableShutdownHooks();
-	await app.init();
+    const app = await NestFactory.create(
+        rootModule,
+        new ExpressAdapter(gateway),
+        apiAppOptions()
+    )
+    applySecurityHeaders(app)
+    // Between `create()` (the container is live) and `init()` (the router is registered): the edge runs before any route.
+    // What the container holds (Better Auth's routes, if `AuthModule` is imported) first, then what the app adds.
+    mountHttpEdge(app, [...containerHttpEdge(app), ...(options.edge ?? [])])
+    app.enableShutdownHooks()
+    await app.init()
 
-	return app;
+    return app
 }
 
 /**
@@ -167,17 +198,23 @@ export async function createApiServerApp(
  * plain HTTP in dev.
  */
 function applySecurityHeaders(app: INestApplication): void {
-	app.use((_req: unknown, res: { setHeader: (name: string, value: string) => void }, next: () => void) => {
-		res.setHeader("X-Content-Type-Options", "nosniff");
-		res.setHeader("X-Frame-Options", "DENY");
-		res.setHeader("Referrer-Policy", "no-referrer");
-		next();
-	});
+    app.use(
+        (
+            _req: unknown,
+            res: { setHeader: (name: string, value: string) => void },
+            next: () => void
+        ) => {
+            res.setHeader('X-Content-Type-Options', 'nosniff')
+            res.setHeader('X-Frame-Options', 'DENY')
+            res.setHeader('Referrer-Policy', 'no-referrer')
+            next()
+        }
+    )
 }
 
 /** Build the graph WITHOUT an HTTP adapter, for a boot check. */
 export async function createCompileContext(rootModule: Type<unknown>) {
-	return NestFactory.createApplicationContext(rootModule, apiAppOptions());
+    return NestFactory.createApplicationContext(rootModule, apiAppOptions())
 }
 
 /**
@@ -204,46 +241,55 @@ export async function createCompileContext(rootModule: Type<unknown>) {
  * rather than "the database is not up yet".
  */
 export async function bootstrapApiServer<M extends Type<unknown>>(options: {
-	/** The composition root, accepted only once its requirement set is empty. */
-	rootModule: M & RequirementsMet<M>;
-	port: number;
-	/**
-	 * The interface to bind. Defaults to every interface (`0.0.0.0`); an app whose peer door must stay off the public
-	 * one binds the node's own address instead.
-	 */
-	host?: string;
-	name: string;
-	/**
-	 * Dependency set to prove before serving. Omit for an app with none, in which
-	 * case the port binds and the app is immediately ready.
-	 */
-	dependencies?: readonly PreflightDependency[];
-	/** Extra HTTP-edge pieces for this app (plain functions, mounted after the container's own). */
-	edge?: readonly HttpEdgeEntry[];
+    /** The composition root, accepted only once its requirement set is empty. */
+    rootModule: M & RequirementsMet<M>
+    port: number
+    /**
+     * The interface to bind. Defaults to every interface (`0.0.0.0`); an app whose peer door must stay off the public
+     * one binds the node's own address instead.
+     */
+    host?: string
+    name: string
+    /**
+     * Dependency set to prove before serving. Omit for an app with none, in which
+     * case the port binds and the app is immediately ready.
+     */
+    dependencies?: readonly PreflightDependency[]
+    /** Extra HTTP-edge pieces for this app (plain functions, mounted after the container's own). */
+    edge?: readonly HttpEdgeEntry[]
 }): Promise<INestApplication> {
-	const app = await createApiServerApp(options.rootModule, { edge: options.edge });
+    const app = await createApiServerApp(options.rootModule, {
+        edge: options.edge,
+    })
 
-	// `init()` already ran inside `createApiServerApp`, so the container is live.
-	// Resolve preflight LAZILY: an app that declares no dependencies never
-	// imports `PreflightModule`, and `strict: false` turns that into `null`
-	// instead of an unresolvable-dependency crash on a correct configuration.
-	const preflight = app.get<typeof PreflightService, PreflightServiceShape | null>(PreflightService, { strict: false });
+    // `init()` already ran inside `createApiServerApp`, so the container is live.
+    // Resolve preflight LAZILY: an app that declares no dependencies never
+    // imports `PreflightModule`, and `strict: false` turns that into `null`
+    // instead of an unresolvable-dependency crash on a correct configuration.
+    const preflight = app.get<
+        typeof PreflightService,
+        PreflightServiceShape | null
+    >(PreflightService, { strict: false })
 
-	// Bind BEFORE the checks. See the ordering note above.
-	await app.listen(options.port, options.host ?? "0.0.0.0");
-	logger.scope(options.name).info(`🚀 ${options.name} listening on ${options.host ?? "0.0.0.0"}:${String(options.port)}`);
+    // Bind BEFORE the checks. See the ordering note above.
+    await app.listen(options.port, options.host ?? '0.0.0.0')
+    logger
+        .scope(options.name)
+        .info(
+            `🚀 ${options.name} listening on ${options.host ?? '0.0.0.0'}:${String(options.port)}`
+        )
 
-	if (preflight !== null) {
-		const report = await Effect.runPromise(preflight.run());
-		if (!report.ready) {
-			// Close the listener so the port is not left answering probes with a
-			// process that will not serve, then exit non-zero for the orchestrator.
-			await app.close();
-			throw new DependencyNotReadyError(options.name, report);
-		}
-	}
+    if (preflight !== null) {
+        const report = await Effect.runPromise(preflight.run())
+        if (!report.ready) {
+            // Close the listener so the port is not left answering probes with a
+            // process that will not serve, then exit non-zero for the orchestrator.
+            await app.close()
+            throw new DependencyNotReadyError(options.name, report)
+        }
+    }
 
-	return app;
+    return app
 }
 
 /**
@@ -254,18 +300,18 @@ export async function bootstrapApiServer<M extends Type<unknown>>(options: {
  * runs the same checks — can recognise the same condition.
  */
 export class DependencyNotReadyError extends Error {
-	readonly appName: string;
-	readonly report: PreflightReport;
+    readonly appName: string
+    readonly report: PreflightReport
 
-	constructor(appName: string, report: PreflightReport) {
-		super(
-			`${appName} cannot serve: ${report.results
-				.filter((result) => result.outcome === "failed")
-				.map((result) => `${result.dependency} (${result.detail})`)
-				.join(", ")}`,
-		);
-		this.name = "DependencyNotReadyError";
-		this.appName = appName;
-		this.report = report;
-	}
+    constructor(appName: string, report: PreflightReport) {
+        super(
+            `${appName} cannot serve: ${report.results
+                .filter((result) => result.outcome === 'failed')
+                .map((result) => `${result.dependency} (${result.detail})`)
+                .join(', ')}`
+        )
+        this.name = 'DependencyNotReadyError'
+        this.appName = appName
+        this.report = report
+    }
 }

@@ -1,17 +1,30 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import type { LocalDatabaseError, NodeConfigRepositoryShape } from "@deployer/node-state";
-import type { ServiceLifecycleShape } from "@deployer/nest-effect";
+import type { ServiceLifecycleShape } from '@deployer/nest-effect'
+import type {
+    LocalDatabaseError,
+    NodeConfigRepositoryShape,
+} from '@deployer/node-state'
 
-import { readNodeRecord, writeNodeRecord, type NodeRecord, type NodeRecordConfig } from "./node-record.client";
+import {
+    readNodeRecord,
+    writeNodeRecord,
+    type NodeRecord,
+    type NodeRecordConfig,
+} from './node-record.client'
 
-import type { NodeMeshConfigRepositoryShape, NodeMeshConfigRow } from "../repositories/node-mesh-config.repository";
+import type {
+    NodeMeshConfigRepositoryShape,
+    NodeMeshConfigRow,
+} from '../repositories/node-mesh-config.repository'
 
 /** What the agent's record says about this node's mesh: the section `node.configure` writes. */
-type AgentMeshConfig = NonNullable<NonNullable<NodeRecord["config"]>["mesh"]>
+type AgentMeshConfig = NonNullable<NonNullable<NodeRecord['config']>['mesh']>
 
 /** The mesh row as a patch of the agent's record: only the mesh section, nothing of the node config itself. */
-const meshConfigPatch = (row: NodeMeshConfigRow): Partial<NodeRecordConfig> => ({
+const meshConfigPatch = (
+    row: NodeMeshConfigRow
+): Partial<NodeRecordConfig> => ({
     mesh: {
         nodeServerUrl: row.nodeServerUrl ?? null,
         bootstrapPeers: row.bootstrapPeersEncrypted ?? null,
@@ -50,7 +63,9 @@ export type SystemMeshConfigServiceShape = ServiceLifecycleShape & {
      * Takes the record this node's agent serves and resolves what depends on it. Public so a test can supply a record without
      * a socket; `onStart` is its only production caller.
      */
-    readonly applyAgentRecord: (record: NodeRecord | null) => Effect.Effect<void, MeshConfigResolutionFailure>
+    readonly applyAgentRecord: (
+        record: NodeRecord | null
+    ) => Effect.Effect<void, MeshConfigResolutionFailure>
     /**
      * This node's platform id, or `""` when the node is not configured yet. Nothing invents one: an unconfigured node has no
      * id, and no environment variable is read here.
@@ -72,7 +87,10 @@ type Ports = {
     readonly nodeConfig: NodeConfigRepositoryShape
     readonly meshConfigs: NodeMeshConfigRepositoryShape
     /** `APP_URL` and `MESH_BOOTSTRAP_PEERS`, read when the config is first resolved. */
-    readonly env: { readonly appUrl: () => string | undefined; readonly bootstrapPeers: () => string | undefined }
+    readonly env: {
+        readonly appUrl: () => string | undefined
+        readonly bootstrapPeers: () => string | undefined
+    }
     /** This node's agent record; both calls resolve null (never throw) when the agent is absent or too old. */
     readonly agent?: {
         readonly read: () => Promise<NodeRecord | null>
@@ -98,7 +116,9 @@ const rowFromAgentMesh = (mesh: AgentMeshConfig): NodeMeshConfigRow => {
     }
 }
 
-const defaultRow = (overrides: Partial<NodeMeshConfigRow> = {}): NodeMeshConfigRow => {
+const defaultRow = (
+    overrides: Partial<NodeMeshConfigRow> = {}
+): NodeMeshConfigRow => {
     const now = new Date().toISOString()
     return {
         id: 1,
@@ -120,7 +140,10 @@ export function makeSystemMeshConfigService({
     nodeConfig,
     meshConfigs,
     env,
-    agent = { read: () => readNodeRecord(), write: (patch) => writeNodeRecord(patch) },
+    agent = {
+        read: () => readNodeRecord(),
+        write: (patch) => writeNodeRecord(patch),
+    },
 }: Ports): SystemMeshConfigServiceShape {
     let cachedNodeId: string | null = null
     /** The mesh config resolved at boot. */
@@ -135,11 +158,17 @@ export function makeSystemMeshConfigService({
     const mirrorToAgent = (row: NodeMeshConfigRow) =>
         Effect.tryPromise(() => agent.write(meshConfigPatch(row))).pipe(
             Effect.flatMap((taken) =>
-                taken === null ? Effect.logDebug('The node agent did not take the mesh configuration — the local row stays the source') : Effect.void,
+                taken === null
+                    ? Effect.logDebug(
+                          'The node agent did not take the mesh configuration — the local row stays the source'
+                      )
+                    : Effect.void
             ),
             Effect.catch((err: unknown) =>
-                Effect.logWarning(`Failed to mirror the mesh configuration to the node agent: ${err instanceof Error ? err.message : String(err)}`),
-            ),
+                Effect.logWarning(
+                    `Failed to mirror the mesh configuration to the node agent: ${err instanceof Error ? err.message : String(err)}`
+                )
+            )
         )
 
     /**
@@ -166,7 +195,9 @@ export function makeSystemMeshConfigService({
         // The agent owns the node: a mesh config it serves is the node's, not a suggestion the local row may override.
         const agentMesh = agentRecord?.config?.mesh
         if (agentMesh) {
-            yield* Effect.logInfo('Mesh configuration resolved from the node agent')
+            yield* Effect.logInfo(
+                'Mesh configuration resolved from the node agent'
+            )
             return rowFromAgentMesh(agentMesh)
         }
 
@@ -179,18 +210,31 @@ export function makeSystemMeshConfigService({
 
         // Prefer the setup snapshot on the node config, then fall back to MESH_BOOTSTRAP_PEERS.
         const node = yield* nodeConfig.find()
-        const snapshotPeers = agentRecord?.config?.meshUrlsSnapshot ?? node?.meshUrlsSnapshot ?? []
+        const snapshotPeers =
+            agentRecord?.config?.meshUrlsSnapshot ??
+            node?.meshUrlsSnapshot ??
+            []
 
         const envBootstrapPeers = env.bootstrapPeers()?.trim()
         const bootstrapPeersEncrypted =
-            snapshotPeers.length > 0 ? snapshotPeers.join(',') : envBootstrapPeers?.length ? envBootstrapPeers : null
+            snapshotPeers.length > 0
+                ? snapshotPeers.join(',')
+                : envBootstrapPeers?.length
+                  ? envBootstrapPeers
+                  : null
 
         if (snapshotPeers.length > 0) {
-            yield* Effect.logInfo(`🔗 Bootstrap peers resolved from setup snapshot: [${snapshotPeers.join(', ')}]`)
+            yield* Effect.logInfo(
+                `🔗 Bootstrap peers resolved from setup snapshot: [${snapshotPeers.join(', ')}]`
+            )
         } else if (bootstrapPeersEncrypted) {
-            yield* Effect.logInfo(`🔗 Bootstrap peers resolved from MESH_BOOTSTRAP_PEERS env var`)
+            yield* Effect.logInfo(
+                `🔗 Bootstrap peers resolved from MESH_BOOTSTRAP_PEERS env var`
+            )
         } else {
-            yield* Effect.logWarning('⚠️  No bootstrap peers configured — this node will start isolated.')
+            yield* Effect.logWarning(
+                '⚠️  No bootstrap peers configured — this node will start isolated.'
+            )
         }
 
         yield* Effect.logInfo('Initializing local mesh configuration defaults…')
@@ -201,10 +245,12 @@ export function makeSystemMeshConfigService({
             bootstrapPeersEncrypted,
             syncIntervalMs: DEFAULT_SYNC_INTERVAL_MS,
             trustStrictMinAckRatio: DEFAULT_TRUST_STRICT_MIN_ACK_RATIO,
-            trustStrictMaxAckAgeSeconds: DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
+            trustStrictMaxAckAgeSeconds:
+                DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
             trustStrictRolloutWaveSize: DEFAULT_TRUST_STRICT_ROLLOUT_WAVE_SIZE,
             trustStrictAutoRollback: DEFAULT_TRUST_STRICT_AUTO_ROLLBACK,
-            controlEnvelopeTrustRequired: DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
+            controlEnvelopeTrustRequired:
+                DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
             createdAt: now,
             updatedAt: now,
         })
@@ -217,7 +263,9 @@ export function makeSystemMeshConfigService({
         return defaultRow({ nodeServerUrl, bootstrapPeersEncrypted })
     })
 
-    const applyAgentRecord: SystemMeshConfigServiceShape['applyAgentRecord'] = (record) =>
+    const applyAgentRecord: SystemMeshConfigServiceShape['applyAgentRecord'] = (
+        record
+    ) =>
         Effect.gen(function* () {
             agentRecord = record
             cachedNodeId = (yield* nodeConfig.find())?.nodeId ?? null
@@ -230,27 +278,36 @@ export function makeSystemMeshConfigService({
         onStart: () =>
             Effect.promise(() => agent.read()).pipe(
                 Effect.flatMap(applyAgentRecord),
-                Effect.catch((err) => Effect.logError(`Failed to initialize mesh defaults: ${err instanceof Error ? err.message : String(err)}`)),
+                Effect.catch((err) =>
+                    Effect.logError(
+                        `Failed to initialize mesh defaults: ${err instanceof Error ? err.message : String(err)}`
+                    )
+                )
             ),
         applyAgentRecord,
 
         getNodeId: () => agentRecord?.config?.nodeId ?? cachedNodeId ?? '',
         getStreamSharedSecret: () => null,
         getNodeServerUrl: () => config().nodeServerUrl ?? null,
-        getControlEnvelopeTrustKeys: () => new Map<string, MeshConfigTrustKeys>(),
+        getControlEnvelopeTrustKeys: () =>
+            new Map<string, MeshConfigTrustKeys>(),
         getBootstrapPeers: () => config().bootstrapPeersEncrypted ?? null,
         getSyncIntervalMs: () => config().syncIntervalMs,
         getTrustStrictMinAckRatio: () => {
             const ratio = Number(config().trustStrictMinAckRatio)
             return Number.isFinite(ratio) ? ratio : 1
         },
-        getTrustStrictMaxAckAgeSeconds: () => config().trustStrictMaxAckAgeSeconds,
-        getTrustStrictRolloutWaveSize: () => config().trustStrictRolloutWaveSize,
+        getTrustStrictMaxAckAgeSeconds: () =>
+            config().trustStrictMaxAckAgeSeconds,
+        getTrustStrictRolloutWaveSize: () =>
+            config().trustStrictRolloutWaveSize,
         getTrustStrictAutoRollback: () => config().trustStrictAutoRollback,
-        getControlEnvelopeTrustRequired: () => config().controlEnvelopeTrustRequired,
+        getControlEnvelopeTrustRequired: () =>
+            config().controlEnvelopeTrustRequired,
     }
 }
 
-export class SystemMeshConfigService extends Context.Service<SystemMeshConfigService, SystemMeshConfigServiceShape>()(
-    "shared/SystemMeshConfigService",
-) {}
+export class SystemMeshConfigService extends Context.Service<
+    SystemMeshConfigService,
+    SystemMeshConfigServiceShape
+>()('shared/SystemMeshConfigService') {}

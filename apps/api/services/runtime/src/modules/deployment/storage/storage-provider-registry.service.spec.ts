@@ -1,192 +1,200 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import { runPromiseUnwrapped } from '@deployer/effect-core'
+import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
-import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { RuntimeInvalid } from '../../../core/runtime.errors'
 
-import { StorageProviderRegistry } from "./storage-provider-registry.service";
+import { StorageProviderRegistry } from './storage-provider-registry.service'
 
-describe("StorageProviderRegistry", () => {
+describe('StorageProviderRegistry', () => {
     // The registry answers Effects; the cases below read better awaiting them.
     const createRegistry = () => ({
-        resolveStorageBinding: (...args: Parameters<typeof StorageProviderRegistry.live.resolveStorageBinding>) =>
-            runPromiseUnwrapped(StorageProviderRegistry.live.resolveStorageBinding(...args)),
-    });
+        resolveStorageBinding: (
+            ...args: Parameters<
+                typeof StorageProviderRegistry.live.resolveStorageBinding
+            >
+        ) =>
+            runPromiseUnwrapped(
+                StorageProviderRegistry.live.resolveStorageBinding(...args)
+            ),
+    })
 
-    it("should default to local storage provider when no storage config is provided", async () => {
-        const registry = createRegistry();
+    it('should default to local storage provider when no storage config is provided', async () => {
+        const registry = createRegistry()
         const input: DeploymentTriggerInput = {
-            serviceId: "e6f5987e-7f79-4f40-9a14-42daf132f7ef",
-            environment: "production",
+            serviceId: 'e6f5987e-7f79-4f40-9a14-42daf132f7ef',
+            environment: 'production',
             source: {
-                sourceType: "upload",
-                uploadId: "upload-default",
-                fileName: "bundle.zip",
+                sourceType: 'upload',
+                uploadId: 'upload-default',
+                fileName: 'bundle.zip',
                 fileSize: 1024,
             },
-        };
+        }
 
-        const binding = await registry.resolveStorageBinding(input);
+        const binding = await registry.resolveStorageBinding(input)
 
         expect(binding).toMatchObject({
-            storageType: "local",
+            storageType: 'local',
             autoRedeployOnUpdate: false,
-            updateStrategy: "manual_update_button",
-            mountPath: "/workspace/storage",
-        });
-    });
+            updateStrategy: 'manual_update_button',
+            mountPath: '/workspace/storage',
+        })
+    })
 
-    it("should resolve local storage with auto redeploy strategy when enabled", async () => {
-        const registry = createRegistry();
+    it('should resolve local storage with auto redeploy strategy when enabled', async () => {
+        const registry = createRegistry()
         const input: DeploymentTriggerInput = {
-            serviceId: "8f8fa2f8-3912-45eb-8ec8-4f89f7f3f8a5",
-            environment: "production",
+            serviceId: '8f8fa2f8-3912-45eb-8ec8-4f89f7f3f8a5',
+            environment: 'production',
             source: {
-                sourceType: "upload",
-                uploadId: "upload-local-auto",
+                sourceType: 'upload',
+                uploadId: 'upload-local-auto',
                 customData: {
                     storage: {
-                        type: "local",
+                        type: 'local',
                         autoRedeployOnUpdate: true,
-                        mountPath: "/workspace/data",
+                        mountPath: '/workspace/data',
                         local: {
-                            rootPath: "/srv/deployer/storage",
+                            rootPath: '/srv/deployer/storage',
                         },
                     },
                 },
             },
-        };
+        }
 
-        const binding = await registry.resolveStorageBinding(input);
+        const binding = await registry.resolveStorageBinding(input)
 
         expect(binding).toMatchObject({
-            storageType: "local",
+            storageType: 'local',
             autoRedeployOnUpdate: true,
-            updateStrategy: "auto_redeploy",
-            mountPath: "/workspace/data",
-        });
+            updateStrategy: 'auto_redeploy',
+            mountPath: '/workspace/data',
+        })
         expect(binding.metadata).toMatchObject({
-            rootPath: "/srv/deployer/storage",
-            watchPath: "/srv/deployer/storage",
-        });
-    });
+            rootPath: '/srv/deployer/storage',
+            watchPath: '/srv/deployer/storage',
+        })
+    })
 
-    it("should resolve s3 storage config with manual update button strategy when auto redeploy is disabled", async () => {
-        const registry = createRegistry();
+    it('should resolve s3 storage config with manual update button strategy when auto redeploy is disabled', async () => {
+        const registry = createRegistry()
         const input: DeploymentTriggerInput = {
-            serviceId: "744f6f12-c31f-42e1-b470-08ca66ead8ca",
-            environment: "production",
+            serviceId: '744f6f12-c31f-42e1-b470-08ca66ead8ca',
+            environment: 'production',
             source: {
-                sourceType: "upload",
-                uploadId: "upload-s3-manual",
+                sourceType: 'upload',
+                uploadId: 'upload-s3-manual',
                 customData: {
                     storage: {
-                        type: "s3",
+                        type: 's3',
                         autoRedeployOnUpdate: false,
                         s3: {
-                            bucket: "deployer-artifacts",
-                            region: "eu-west-3",
+                            bucket: 'deployer-artifacts',
+                            region: 'eu-west-3',
                         },
                     },
                 },
             },
-        };
+        }
 
-        const binding = await registry.resolveStorageBinding(input);
+        const binding = await registry.resolveStorageBinding(input)
 
         expect(binding).toMatchObject({
-            storageType: "s3",
+            storageType: 's3',
             autoRedeployOnUpdate: false,
-            updateStrategy: "manual_update_button",
-        });
+            updateStrategy: 'manual_update_button',
+        })
         expect(binding.metadata).toMatchObject({
-            bucket: "deployer-artifacts",
-            region: "eu-west-3",
-        });
-    });
+            bucket: 'deployer-artifacts',
+            region: 'eu-west-3',
+        })
+    })
 
-    it("should throw RuntimeInvalid for unsupported storage provider type", async () => {
-        const registry = createRegistry();
+    it('should throw RuntimeInvalid for unsupported storage provider type', async () => {
+        const registry = createRegistry()
         const input: DeploymentTriggerInput = {
-            serviceId: "698f1ffb-c560-42b6-b4d9-74f42d338d44",
-            environment: "production",
+            serviceId: '698f1ffb-c560-42b6-b4d9-74f42d338d44',
+            environment: 'production',
             source: {
-                sourceType: "upload",
-                uploadId: "upload-unsupported",
+                sourceType: 'upload',
+                uploadId: 'upload-unsupported',
                 customData: {
                     storage: {
-                        type: "unsupported",
+                        type: 'unsupported',
                     },
                 },
             },
-        };
+        }
 
-        await expect(registry.resolveStorageBinding(input)).rejects.toThrow(RuntimeInvalid);
-    });
+        await expect(registry.resolveStorageBinding(input)).rejects.toThrow(
+            RuntimeInvalid
+        )
+    })
 
-    it("should use service-level storage policy when trigger source config has no storage section", async () => {
-        const registry = createRegistry();
+    it('should use service-level storage policy when trigger source config has no storage section', async () => {
+        const registry = createRegistry()
         const input: DeploymentTriggerInput = {
-            serviceId: "3072a3b0-cf50-4be5-8c9f-30e496f68095",
-            environment: "production",
+            serviceId: '3072a3b0-cf50-4be5-8c9f-30e496f68095',
+            environment: 'production',
             source: {
-                sourceType: "upload",
-                uploadId: "upload-service-policy",
-                fileName: "bundle.zip",
+                sourceType: 'upload',
+                uploadId: 'upload-service-policy',
+                fileName: 'bundle.zip',
                 fileSize: 2048,
             },
-        };
+        }
 
         const binding = await registry.resolveStorageBinding(input, {
-            type: "local",
+            type: 'local',
             autoRedeployOnUpdate: true,
-            mountPath: "/workspace/persisted",
+            mountPath: '/workspace/persisted',
             local: {
-                rootPath: "/srv/storage/service",
+                rootPath: '/srv/storage/service',
             },
-        });
+        })
 
         expect(binding).toMatchObject({
-            storageType: "local",
+            storageType: 'local',
             autoRedeployOnUpdate: true,
-            updateStrategy: "auto_redeploy",
-            mountPath: "/workspace/persisted",
-        });
+            updateStrategy: 'auto_redeploy',
+            mountPath: '/workspace/persisted',
+        })
         expect(binding.metadata).toMatchObject({
-            rootPath: "/srv/storage/service",
-        });
-    });
+            rootPath: '/srv/storage/service',
+        })
+    })
 
-    it("should let trigger storage config override service-level storage policy", async () => {
-        const registry = createRegistry();
+    it('should let trigger storage config override service-level storage policy', async () => {
+        const registry = createRegistry()
         const input: DeploymentTriggerInput = {
-            serviceId: "f211e6f9-3553-4e13-a60d-8f9f535a2e9e",
-            environment: "production",
+            serviceId: 'f211e6f9-3553-4e13-a60d-8f9f535a2e9e',
+            environment: 'production',
             source: {
-                sourceType: "upload",
-                uploadId: "upload-override",
+                sourceType: 'upload',
+                uploadId: 'upload-override',
                 customData: {
                     storage: {
-                        type: "local",
+                        type: 'local',
                         autoRedeployOnUpdate: false,
                     },
                 },
             },
-        };
+        }
 
         const binding = await registry.resolveStorageBinding(input, {
-            type: "local",
+            type: 'local',
             autoRedeployOnUpdate: true,
             local: {
-                rootPath: "/srv/storage/default",
+                rootPath: '/srv/storage/default',
             },
-        });
+        })
 
         expect(binding).toMatchObject({
-            storageType: "local",
+            storageType: 'local',
             autoRedeployOnUpdate: false,
-            updateStrategy: "manual_update_button",
-        });
-    });
-});
+            updateStrategy: 'manual_update_button',
+        })
+    })
+})

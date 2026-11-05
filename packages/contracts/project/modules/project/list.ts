@@ -1,9 +1,14 @@
-import { access } from "@deployer/auth/authz/meta";
-import { projectSchema } from "@deployer/contracts-entities";
-import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { projectSchema } from '@deployer/contracts-entities'
+import {
+    createFilterConfig,
+    standard,
+    type ComputeInputSchema,
+    standardDomainErrorContracts,
+} from '@deployer/orpc-utils'
 
 // Create standard operations builder for projects
-const projectOps = standard.zod(projectSchema, "project");
+const projectOps = standard.zod(projectSchema, 'project')
 
 // Build reusable list config with fluent API
 const projectListConfig = createFilterConfig(projectOps)
@@ -12,25 +17,31 @@ const projectListConfig = createFilterConfig(projectOps)
         maxLimit: 100,
         includeOffset: true,
     } as const)
-    .withSorting(["createdAt", "name", "updatedAt"] as const, {
-        defaultField: "updatedAt",
-        defaultDirection: "desc",
+    .withSorting(['createdAt', 'name', 'updatedAt'] as const, {
+        defaultField: 'updatedAt',
+        defaultDirection: 'desc',
     })
     .withFiltering({
         id: projectSchema.shape.id,
         name: {
             schema: projectSchema.shape.name,
-            operators: ["eq", "like", "ilike"] as const,
+            operators: ['eq', 'like', 'ilike'] as const,
         },
         ownerId: projectSchema.shape.ownerId,
     })
-    .buildConfig();
+    .buildConfig()
 
 // Export reusable query configuration schemas
-export const projectListConfigSchemas = projectListConfig;
+export const projectListConfigSchemas = projectListConfig
 
 // Build the list contract
-export const projectListContract = projectOps.list(projectListConfig).errors((e) => [...standardDomainErrorContracts(e)]).meta(access({ permission: "project:read" })).build();
+export const projectListContract = projectOps
+    .list(projectListConfig)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: 'project:read' }))
+    .build()
 
 // Export input type helper - computed from the config
-export type ProjectListInput = ComputeInputSchema<typeof projectListConfigSchemas>;
+export type ProjectListInput = ComputeInputSchema<
+    typeof projectListConfigSchemas
+>

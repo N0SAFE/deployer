@@ -57,7 +57,8 @@ function readStoredKey(): string | null {
         }
 
         const { key, expiresAt } = parsed
-        if (typeof key !== 'string' || typeof expiresAt !== 'number') return null
+        if (typeof key !== 'string' || typeof expiresAt !== 'number')
+            return null
         if (Date.now() >= expiresAt) {
             window.sessionStorage.removeItem(STORAGE_KEY)
             return null
@@ -74,7 +75,7 @@ function storeKey(key: string, keyId: string): void {
     try {
         window.sessionStorage.setItem(
             STORAGE_KEY,
-            JSON.stringify({ key, keyId, expiresAt: Date.now() + KEY_TTL_MS }),
+            JSON.stringify({ key, keyId, expiresAt: Date.now() + KEY_TTL_MS })
         )
     } catch {
         // Storage may be unavailable (private mode / quota). The key still
@@ -88,7 +89,12 @@ function readStoredKeyId(): string | null {
         const raw = window.sessionStorage.getItem(STORAGE_KEY)
         if (!raw) return null
         const parsed: unknown = JSON.parse(raw)
-        if (typeof parsed !== 'object' || parsed === null || !('keyId' in parsed)) return null
+        if (
+            typeof parsed !== 'object' ||
+            parsed === null ||
+            !('keyId' in parsed)
+        )
+            return null
         const { keyId } = parsed
         return typeof keyId === 'string' ? keyId : null
     } catch {
@@ -143,7 +149,11 @@ export function useDevtoolsApiKey(enabled: boolean): UseDevtoolsApiKeyResult {
     // sessionStorage is the source of truth; the store re-reads it whenever this
     // module mints or revokes a key. Deliberately not auto-minting: minting is an
     // explicit user action so the panel never silently creates credentials.
-    const stored = useSyncExternalStore(subscribeToKey, readStoredKey, () => null)
+    const stored = useSyncExternalStore(
+        subscribeToKey,
+        readStoredKey,
+        () => null
+    )
     const key = enabled ? stored : null
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -172,7 +182,9 @@ export function useDevtoolsApiKey(enabled: boolean): UseDevtoolsApiKeyResult {
             storeKey(created.key, created.id)
             notifyKeyChanged()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to mint API key')
+            setError(
+                err instanceof Error ? err.message : 'Failed to mint API key'
+            )
         } finally {
             setIsLoading(false)
         }

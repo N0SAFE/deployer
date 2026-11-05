@@ -4,6 +4,6 @@ import { z } from 'zod'
 export const page = true
 export const layout = false
 export const Route = {
-  name: 'AuthDashboardDeployments',
-  params: z.object({}),
+    name: 'AuthDashboardDeployments',
+    params: z.object({}),
 }

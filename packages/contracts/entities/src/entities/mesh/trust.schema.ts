@@ -1,18 +1,22 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 export const meshJoinGrantIssueInputSchema = z.object({
-
     targetNodeId: z.uuid().nullable().optional(),
     ttlSeconds: z.number().int().min(30).max(86_400).default(900),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
-});
-export type MeshJoinGrantIssueInput = z.infer<typeof meshJoinGrantIssueInputSchema>;
+})
+export type MeshJoinGrantIssueInput = z.infer<
+    typeof meshJoinGrantIssueInputSchema
+>
 
-export const meshJoinGrantIssueCommandInputSchema = meshJoinGrantIssueInputSchema.extend({
-    issuedByUserId: z.string().min(1),
-    issuedByRole: z.string().min(1).nullable().optional(),
-});
-export type MeshJoinGrantIssueCommandInput = z.infer<typeof meshJoinGrantIssueCommandInputSchema>;
+export const meshJoinGrantIssueCommandInputSchema =
+    meshJoinGrantIssueInputSchema.extend({
+        issuedByUserId: z.string().min(1),
+        issuedByRole: z.string().min(1).nullable().optional(),
+    })
+export type MeshJoinGrantIssueCommandInput = z.infer<
+    typeof meshJoinGrantIssueCommandInputSchema
+>
 
 /**
  * The peer-equal network the joiner must enter first (see
@@ -23,14 +27,14 @@ export type MeshJoinGrantIssueCommandInput = z.infer<typeof meshJoinGrantIssueCo
 export const meshNetworkClusterSchema = z.object({
     clusterId: z.string().min(1),
     cidr: z.string().min(1),
-});
-export type MeshNetworkCluster = z.infer<typeof meshNetworkClusterSchema>;
+})
+export type MeshNetworkCluster = z.infer<typeof meshNetworkClusterSchema>
 
 export const meshJoinGrantIssueResultSchema = z.object({
     grantId: z.uuid(),
     grantToken: z.string().min(1),
     expiresAt: z.string(),
-    status: z.enum(["issued"]),
+    status: z.enum(['issued']),
     meshNetwork: meshNetworkClusterSchema.nullable().default(null),
     /**
      * The token the joining node's own agent accepts on `roster.join`, minted by the ISSUING node's agent. It is what
@@ -38,8 +42,10 @@ export const meshJoinGrantIssueResultSchema = z.object({
      * node runs an agent that cannot mint one, in which case the old signed-entry admission is still the path.
      */
     meshJoinToken: z.string().min(1).nullable().default(null),
-});
-export type MeshJoinGrantIssueResult = z.infer<typeof meshJoinGrantIssueResultSchema>;
+})
+export type MeshJoinGrantIssueResult = z.infer<
+    typeof meshJoinGrantIssueResultSchema
+>
 
 export const meshJoinGrantConsumeInputSchema = z.object({
     grantToken: z.string().min(1),
@@ -55,15 +61,17 @@ export const meshJoinGrantConsumeInputSchema = z.object({
      * CANDIDATE, not an entitlement: the fleet only promotes it once quorum
      * sizing and the master-weight score justify another manager.
      */
-    requestedSwarmPolicy: z.enum(["auto", "manager", "worker"]).optional(),
+    requestedSwarmPolicy: z.enum(['auto', 'manager', 'worker']).optional(),
     /**
      * The joiner's self-signed mesh member entry. Opaque here on purpose: the
      * ADMITTING node's mesh agent verifies it (signature, key-derived id and
      * address, no collision) — the API only carries it.
      */
     meshJoinRequest: z.json().optional(),
-});
-export type MeshJoinGrantConsumeInput = z.infer<typeof meshJoinGrantConsumeInputSchema>;
+})
+export type MeshJoinGrantConsumeInput = z.infer<
+    typeof meshJoinGrantConsumeInputSchema
+>
 
 /**
  * The SWARM join credentials + role decision the mesh hands to a joining node.
@@ -90,11 +98,11 @@ export const meshSwarmJoinGrantSchema = z.object({
      *   - "manager" → the mesh admitted it to quorum (it may become master).
      *   - "worker"  → capacity only; the fleet declined another manager.
      */
-    role: z.enum(["manager", "worker"]),
+    role: z.enum(['manager', 'worker']),
     /** Why the fleet decided this (shown in the setup stream + cluster UI). */
     reason: z.string().min(1),
-});
-export type MeshSwarmJoinGrant = z.infer<typeof meshSwarmJoinGrantSchema>;
+})
+export type MeshSwarmJoinGrant = z.infer<typeof meshSwarmJoinGrantSchema>
 
 export const meshJoinGrantConsumeResultSchema = z.object({
     accepted: z.boolean(),
@@ -149,13 +157,17 @@ export const meshJoinGrantConsumeResultSchema = z.object({
      * no token was involved (signed-entry admission on an old agent).
      */
     meshJoinToken: z.string().min(1).nullable().default(null),
-});
-export type MeshJoinGrantConsumeResult = z.infer<typeof meshJoinGrantConsumeResultSchema>;
+})
+export type MeshJoinGrantConsumeResult = z.infer<
+    typeof meshJoinGrantConsumeResultSchema
+>
 
-export const meshRegisterNodeInputSchema = meshJoinGrantConsumeInputSchema.omit({
-    grantToken: true,
-});
-export type MeshRegisterNodeInput = z.infer<typeof meshRegisterNodeInputSchema>;
+export const meshRegisterNodeInputSchema = meshJoinGrantConsumeInputSchema.omit(
+    {
+        grantToken: true,
+    }
+)
+export type MeshRegisterNodeInput = z.infer<typeof meshRegisterNodeInputSchema>
 
 /**
  * `registerNode` is a re-registration call from an already-enrolled
@@ -169,74 +181,94 @@ export type MeshRegisterNodeInput = z.infer<typeof meshRegisterNodeInputSchema>;
 export const meshRegisterNodeResultSchema = z.object({
     accepted: z.boolean(),
     nodeId: z.uuid(),
-    status: z.enum(["registered", "updated"]),
+    status: z.enum(['registered', 'updated']),
     enrolledAt: z.string(),
-});
-export type MeshRegisterNodeResult = z.infer<typeof meshRegisterNodeResultSchema>;
+})
+export type MeshRegisterNodeResult = z.infer<
+    typeof meshRegisterNodeResultSchema
+>
 
 export const meshJoinGrantRevokeInputSchema = z.object({
     grantId: z.uuid(),
     reason: z.string().min(1).max(500).nullable().optional(),
-});
-export type MeshJoinGrantRevokeInput = z.infer<typeof meshJoinGrantRevokeInputSchema>;
+})
+export type MeshJoinGrantRevokeInput = z.infer<
+    typeof meshJoinGrantRevokeInputSchema
+>
 
-export const meshJoinGrantRevokeCommandInputSchema = meshJoinGrantRevokeInputSchema.extend({
-    revokedByUserId: z.string().min(1),
-    revokedByRole: z.string().min(1).nullable().optional(),
-});
-export type MeshJoinGrantRevokeCommandInput = z.infer<typeof meshJoinGrantRevokeCommandInputSchema>;
+export const meshJoinGrantRevokeCommandInputSchema =
+    meshJoinGrantRevokeInputSchema.extend({
+        revokedByUserId: z.string().min(1),
+        revokedByRole: z.string().min(1).nullable().optional(),
+    })
+export type MeshJoinGrantRevokeCommandInput = z.infer<
+    typeof meshJoinGrantRevokeCommandInputSchema
+>
 
 export const meshJoinGrantRevokeResultSchema = z.object({
     revoked: z.boolean(),
     grantId: z.uuid(),
-    status: z.enum(["revoked"]),
+    status: z.enum(['revoked']),
     revokedAt: z.string(),
-});
-export type MeshJoinGrantRevokeResult = z.infer<typeof meshJoinGrantRevokeResultSchema>;
+})
+export type MeshJoinGrantRevokeResult = z.infer<
+    typeof meshJoinGrantRevokeResultSchema
+>
 
 export const meshTrustKeySchema = z.object({
     keyId: z.string().min(1),
-    algorithm: z.enum(["HS256"]),
-    status: z.enum(["active", "previous"]),
-});
-export type MeshTrustKey = z.infer<typeof meshTrustKeySchema>;
+    algorithm: z.enum(['HS256']),
+    status: z.enum(['active', 'previous']),
+})
+export type MeshTrustKey = z.infer<typeof meshTrustKeySchema>
 
 export const meshTrustKeyringStatusResultSchema = z.object({
     activeKeyId: z.string().min(1).nullable(),
     keys: z.array(meshTrustKeySchema),
-});
-export type MeshTrustKeyringStatusResult = z.infer<typeof meshTrustKeyringStatusResultSchema>;
+})
+export type MeshTrustKeyringStatusResult = z.infer<
+    typeof meshTrustKeyringStatusResultSchema
+>
 
 export const meshTrustSecretKeySchema = meshTrustKeySchema.extend({
     secretMaterial: z.string().min(1),
-});
-export type MeshTrustSecretKey = z.infer<typeof meshTrustSecretKeySchema>;
+})
+export type MeshTrustSecretKey = z.infer<typeof meshTrustSecretKeySchema>
 
 export const meshTrustKeyringSecretsResultSchema = z.object({
     activeKeyId: z.string().min(1).nullable(),
     keys: z.array(meshTrustSecretKeySchema),
-});
-export type MeshTrustKeyringSecretsResult = z.infer<typeof meshTrustKeyringSecretsResultSchema>;
+})
+export type MeshTrustKeyringSecretsResult = z.infer<
+    typeof meshTrustKeyringSecretsResultSchema
+>
 
 export const meshTrustKeyringRotateInputSchema = z.object({
     keyId: z.string().min(1).optional(),
     secretMaterial: z.string().min(16).optional(),
     expiresAt: z.string().nullable().optional(),
-});
-export type MeshTrustKeyringRotateInput = z.infer<typeof meshTrustKeyringRotateInputSchema>;
+})
+export type MeshTrustKeyringRotateInput = z.infer<
+    typeof meshTrustKeyringRotateInputSchema
+>
 
-export const meshTrustKeyringRotateCommandInputSchema = meshTrustKeyringRotateInputSchema.extend({
-    rotatedByRole: z.string().min(1).nullable().optional(),
-});
-export type MeshTrustKeyringRotateCommandInput = z.infer<typeof meshTrustKeyringRotateCommandInputSchema>;
+export const meshTrustKeyringRotateCommandInputSchema =
+    meshTrustKeyringRotateInputSchema.extend({
+        rotatedByRole: z.string().min(1).nullable().optional(),
+    })
+export type MeshTrustKeyringRotateCommandInput = z.infer<
+    typeof meshTrustKeyringRotateCommandInputSchema
+>
 
 export const meshTrustKeyringRotateResultSchema = z.object({
     activeKeyId: z.string().min(1),
     rotatedKeyId: z.string().min(1),
     secretMaterial: z.string().min(1),
     keys: z.array(meshTrustKeySchema),
-});
-export type MeshTrustKeyringRotateResult = z.infer<typeof meshTrustKeyringRotateResultSchema>;
+})
+export type MeshTrustKeyringRotateResult = z.infer<
+    typeof meshTrustKeyringRotateResultSchema
+>
 
 export const meshTrustKeyringConvergenceStatusResultSchema = z.object({
     activeKeyId: z.string().min(1).nullable(),
@@ -245,8 +277,10 @@ export const meshTrustKeyringConvergenceStatusResultSchema = z.object({
     receivedAcks: z.number().int().min(0),
     pendingNodeIds: z.array(z.uuid()),
     lastRotatedAt: z.string().nullable(),
-});
-export type MeshTrustKeyringConvergenceStatusResult = z.infer<typeof meshTrustKeyringConvergenceStatusResultSchema>;
+})
+export type MeshTrustKeyringConvergenceStatusResult = z.infer<
+    typeof meshTrustKeyringConvergenceStatusResultSchema
+>
 
 export const meshTrustStrictReadinessResultSchema = z.object({
     ready: z.boolean(),
@@ -263,19 +297,25 @@ export const meshTrustStrictReadinessResultSchema = z.object({
     rollbackRecommended: z.boolean(),
     rollbackTriggers: z.array(z.string().min(1)),
     reasons: z.array(z.string().min(1)),
-});
-export type MeshTrustStrictReadinessResult = z.infer<typeof meshTrustStrictReadinessResultSchema>;
+})
+export type MeshTrustStrictReadinessResult = z.infer<
+    typeof meshTrustStrictReadinessResultSchema
+>
 
 export const meshTrustStrictRolloutPlanQuerySchema = z.object({
     waveSize: z.coerce.number().int().min(1).max(100).optional(),
-});
-export type MeshTrustStrictRolloutPlanQuery = z.infer<typeof meshTrustStrictRolloutPlanQuerySchema>;
+})
+export type MeshTrustStrictRolloutPlanQuery = z.infer<
+    typeof meshTrustStrictRolloutPlanQuerySchema
+>
 
 export const meshTrustStrictRolloutWaveSchema = z.object({
     index: z.number().int().min(1),
     nodeIds: z.array(z.uuid()),
-});
-export type MeshTrustStrictRolloutWave = z.infer<typeof meshTrustStrictRolloutWaveSchema>;
+})
+export type MeshTrustStrictRolloutWave = z.infer<
+    typeof meshTrustStrictRolloutWaveSchema
+>
 
 export const meshTrustStrictRolloutPlanResultSchema = z.object({
     activeKeyId: z.string().min(1).nullable(),
@@ -287,40 +327,61 @@ export const meshTrustStrictRolloutPlanResultSchema = z.object({
     waves: z.array(meshTrustStrictRolloutWaveSchema),
     rollbackRecommended: z.boolean(),
     rollbackTriggers: z.array(z.string().min(1)),
-});
-export type MeshTrustStrictRolloutPlanResult = z.infer<typeof meshTrustStrictRolloutPlanResultSchema>;
+})
+export type MeshTrustStrictRolloutPlanResult = z.infer<
+    typeof meshTrustStrictRolloutPlanResultSchema
+>
 
 export const meshTrustStrictModeSetInputSchema = z.object({
     enabled: z.boolean(),
-});
-export type MeshTrustStrictModeSetInput = z.infer<typeof meshTrustStrictModeSetInputSchema>;
+})
+export type MeshTrustStrictModeSetInput = z.infer<
+    typeof meshTrustStrictModeSetInputSchema
+>
 
-export const meshTrustStrictModeSetCommandInputSchema = meshTrustStrictModeSetInputSchema.extend({
-    setByRole: z.string().min(1).nullable().optional(),
-});
-export type MeshTrustStrictModeSetCommandInput = z.infer<typeof meshTrustStrictModeSetCommandInputSchema>;
+export const meshTrustStrictModeSetCommandInputSchema =
+    meshTrustStrictModeSetInputSchema.extend({
+        setByRole: z.string().min(1).nullable().optional(),
+    })
+export type MeshTrustStrictModeSetCommandInput = z.infer<
+    typeof meshTrustStrictModeSetCommandInputSchema
+>
 
-export const meshTrustStrictModeSetResultSchema = meshTrustStrictReadinessResultSchema.extend({
-    requested: z.boolean(),
-});
-export type MeshTrustStrictModeSetResult = z.infer<typeof meshTrustStrictModeSetResultSchema>;
+export const meshTrustStrictModeSetResultSchema =
+    meshTrustStrictReadinessResultSchema.extend({
+        requested: z.boolean(),
+    })
+export type MeshTrustStrictModeSetResult = z.infer<
+    typeof meshTrustStrictModeSetResultSchema
+>
 
 export const meshTrustStrictRollbackInputSchema = z.object({
     force: z.boolean().default(false),
     reason: z.string().min(1).max(500).optional(),
-});
-export type MeshTrustStrictRollbackInput = z.infer<typeof meshTrustStrictRollbackInputSchema>;
+})
+export type MeshTrustStrictRollbackInput = z.infer<
+    typeof meshTrustStrictRollbackInputSchema
+>
 
-export const meshTrustStrictRollbackCommandInputSchema = meshTrustStrictRollbackInputSchema.extend({
-    setByRole: z.string().min(1).nullable().optional(),
-});
-export type MeshTrustStrictRollbackCommandInput = z.infer<typeof meshTrustStrictRollbackCommandInputSchema>;
+export const meshTrustStrictRollbackCommandInputSchema =
+    meshTrustStrictRollbackInputSchema.extend({
+        setByRole: z.string().min(1).nullable().optional(),
+    })
+export type MeshTrustStrictRollbackCommandInput = z.infer<
+    typeof meshTrustStrictRollbackCommandInputSchema
+>
 
-export const meshTrustStrictRolloutPlanInputSchema = meshTrustStrictRolloutPlanQuerySchema;
-export type MeshTrustStrictRolloutPlanInput = z.infer<typeof meshTrustStrictRolloutPlanInputSchema>;
+export const meshTrustStrictRolloutPlanInputSchema =
+    meshTrustStrictRolloutPlanQuerySchema
+export type MeshTrustStrictRolloutPlanInput = z.infer<
+    typeof meshTrustStrictRolloutPlanInputSchema
+>
 
-export const meshTrustStrictRollbackResultSchema = meshTrustStrictReadinessResultSchema.extend({
-    requested: z.boolean(),
-    rolledBack: z.boolean(),
-});
-export type MeshTrustStrictRollbackResult = z.infer<typeof meshTrustStrictRollbackResultSchema>;
+export const meshTrustStrictRollbackResultSchema =
+    meshTrustStrictReadinessResultSchema.extend({
+        requested: z.boolean(),
+        rolledBack: z.boolean(),
+    })
+export type MeshTrustStrictRollbackResult = z.infer<
+    typeof meshTrustStrictRollbackResultSchema
+>

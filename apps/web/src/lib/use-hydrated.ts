@@ -1,13 +1,13 @@
-"use client";
+'use client'
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore } from 'react'
 
 /**
  * The snapshot never changes, so there is nothing to subscribe to and nothing to
  * clean up. The unsubscribe is an expression-bodied arrow rather than an empty
  * block because `@typescript-eslint/no-empty-function` rejects the latter.
  */
-const subscribe = (): (() => void) => () => undefined;
+const subscribe = (): (() => void) => () => undefined
 
 /**
  * `false` during server rendering and the client's first hydration render, then
@@ -41,9 +41,9 @@ const subscribe = (): (() => void) => () => undefined;
  * <Item value={hydrated ? items.length : undefined} />
  */
 export function useHydrated(): boolean {
-	return useSyncExternalStore(
-		subscribe,
-		() => true,
-		() => false,
-	);
+    return useSyncExternalStore(
+        subscribe,
+        () => true,
+        () => false
+    )
 }

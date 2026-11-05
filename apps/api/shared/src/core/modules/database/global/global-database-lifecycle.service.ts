@@ -1,8 +1,8 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import type { ServiceLifecycleShape } from "@deployer/nest-effect";
+import type { ServiceLifecycleShape } from '@deployer/nest-effect'
 
-import type { Pool } from "pg";
+import type { Pool } from 'pg'
 
 /**
  * The pool lifecycle — owns the teardown of the SHARED global
@@ -22,7 +22,9 @@ import type { Pool } from "pg";
  * including the empty-URL placeholder pool created before the database URL is
  * known. All of them are released here.
  */
-export function makeGlobalDatabasePoolLifecycle(pool: Pool | undefined): ServiceLifecycleShape {
+export function makeGlobalDatabasePoolLifecycle(
+    pool: Pool | undefined
+): ServiceLifecycleShape {
     return {
         onStop: () =>
             pool === undefined
@@ -30,10 +32,14 @@ export function makeGlobalDatabasePoolLifecycle(pool: Pool | undefined): Service
                 : // `end()` drains in-flight queries and closes every idle client. Shutdown must never throw: a pool that
                   // refuses to close is reported and the process still exits (main.ts bounds the wait).
                   Effect.tryPromise(() => pool.end()).pipe(
-                      Effect.andThen(Effect.logInfo("🔌 Global Postgres pool closed")),
-                      Effect.catch((error: unknown) =>
-                          Effect.logWarning(`Global Postgres pool close failed: ${error instanceof Error ? error.message : String(error)}`),
+                      Effect.andThen(
+                          Effect.logInfo('🔌 Global Postgres pool closed')
                       ),
+                      Effect.catch((error: unknown) =>
+                          Effect.logWarning(
+                              `Global Postgres pool close failed: ${error instanceof Error ? error.message : String(error)}`
+                          )
+                      )
                   ),
-    };
+    }
 }

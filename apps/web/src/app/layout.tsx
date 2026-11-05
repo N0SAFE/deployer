@@ -22,15 +22,19 @@ import type { Metadata } from 'next'
 
 import { validateEnvSafe } from '#/env'
 
-
-
 // Font stack — the fleet console's typographic identity:
 //   - Geist (--font-sans): neutral UI body at high density.
 //   - Space Grotesk (--font-display): display/numerals — industrial, technical.
 //   - JetBrains Mono (--font-mono): all machine truth — ids, hashes, tasks, metrics.
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' })
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display' })
-const jetBrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
+const spaceGrotesk = Space_Grotesk({
+    subsets: ['latin'],
+    variable: '--font-display',
+})
+const jetBrainsMono = JetBrains_Mono({
+    subsets: ['latin'],
+    variable: '--font-mono',
+})
 
 export const metadata: Metadata = {
     // Template: every route's own title becomes "<Page> · Deployer", so the
@@ -45,15 +49,15 @@ export const metadata: Metadata = {
 
 /**
  * Root Layout
- * 
+ *
  * Provides global providers and configuration. Each route group handles its own
  * navigation and layout structure:
- * 
+ *
  * - (app)/ - Public pages with MainNavigation
  * - (dashboard)/ - Dashboard pages with DashboardSidebar
  * - (auth)/ - Auth pages (login, etc.) - minimal layout
  * - auth/ - Auth API routes
- * 
+ *
  * This separation ensures no layout flash when navigating between different sections.
  */
 export default function RootLayout({
@@ -75,12 +79,20 @@ export default function RootLayout({
             // hydration mismatch on every load ("A tree hydrated but some
             // attributes of the server rendered HTML didn't match...").
             suppressHydrationWarning
-            className={cn('font-sans', geist.variable, spaceGrotesk.variable, jetBrainsMono.variable)}
+            className={cn(
+                'font-sans',
+                geist.variable,
+                spaceGrotesk.variable,
+                jetBrainsMono.variable
+            )}
         >
             <head>
                 <link rel="manifest" href="/site.webmanifest" />
                 <meta name="theme-color" content="#000000" />
-                <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+                <link
+                    rel="apple-touch-icon"
+                    href="/icons/apple-touch-icon.png"
+                />
                 {process.env.NODE_ENV === 'development' && env?.REACT_SCAN && (
                     <Script
                         src="https://unpkg.com/react-scan/dist/auto.global.js"
@@ -130,7 +142,11 @@ export default function RootLayout({
                         <NuqsAdapter>
                             <ReactQueryProviders>
                                 {children}
-                                <Toaster richColors closeButton position="top-right" />
+                                <Toaster
+                                    richColors
+                                    closeButton
+                                    position="top-right"
+                                />
                                 <PostSetupHints />
                                 {/* DevTools — self-gated to development (returns null in
                                     production unless showInProduction is passed). */}

@@ -1,6 +1,6 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { pgTable, text } from "drizzle-orm/pg-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The codec registry is the ONE seam where the app supplies behaviour the
@@ -20,369 +20,430 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * instead of inheriting a sibling test's setup.
  */
 
-type CodecModule = typeof import("../codec-registry");
+type CodecModule = typeof import('../codec-registry')
 
-const KEY_A = Buffer.from("a".repeat(64), "hex");
-const KEY_B = Buffer.from("b".repeat(64), "hex");
+const KEY_A = Buffer.from('a'.repeat(64), 'hex')
+const KEY_B = Buffer.from('b'.repeat(64), 'hex')
 
 /** A fresh, unconfigured module instance — the state a cold boot sees. */
 async function freshModule(): Promise<CodecModule> {
-	vi.resetModules();
-	return await import("../codec-registry");
+    vi.resetModules()
+    return await import('../codec-registry')
 }
 
 /** A module with encryption configured. */
 async function moduleWithKey(key = KEY_A): Promise<CodecModule> {
-	const mod = await freshModule();
-	mod.configureEncryption({ resolveKey: () => key });
-	return mod;
+    const mod = await freshModule()
+    mod.configureEncryption({ resolveKey: () => key })
+    return mod
 }
 
 /** A minimal stand-in for the app's traefik builder. */
 type FakeBuilder = {
-	routes: { rule: string }[];
+    routes: { rule: string }[]
 }
 
 function fakeTraefikCodec() {
-	return {
-		load: (value: string | object): FakeBuilder =>
-			typeof value === "string" ? (JSON.parse(value) as FakeBuilder) : (value as FakeBuilder),
-		empty: (): FakeBuilder => ({ routes: [] }),
-		build: (builder: FakeBuilder): object => builder,
-	};
+    return {
+        load: (value: string | object): FakeBuilder =>
+            typeof value === 'string'
+                ? (JSON.parse(value) as FakeBuilder)
+                : (value as FakeBuilder),
+        empty: (): FakeBuilder => ({ routes: [] }),
+        build: (builder: FakeBuilder): object => builder,
+    }
 }
 
 beforeEach(() => {
-	vi.resetModules();
-});
+    vi.resetModules()
+})
 
-describe("encryptedText — round trip", () => {
-	it("round-trips a plaintext value through encrypt/decrypt", async () => {
-		const { encryptSecret, decryptSecret } = await moduleWithKey();
-		const plaintext = "super-secret-password";
+describe('encryptedText — round trip', () => {
+    it('round-trips a plaintext value through encrypt/decrypt', async () => {
+        const { encryptSecret, decryptSecret } = await moduleWithKey()
+        const plaintext = 'super-secret-password'
 
-		const stored = encryptSecret(plaintext);
-		expect(stored).not.toBe(plaintext);
-		expect(decryptSecret(stored)).toBe(plaintext);
-	});
+        const stored = encryptSecret(plaintext)
+        expect(stored).not.toBe(plaintext)
+        expect(decryptSecret(stored)).toBe(plaintext)
+    })
 
-	it("round-trips empty and unicode values", async () => {
-		const { encryptSecret, decryptSecret } = await moduleWithKey();
-		for (const value of ["", "héllo wörld — 日本語 🔐"]) {
-			expect(decryptSecret(encryptSecret(value))).toBe(value);
-		}
-	});
+    it('round-trips empty and unicode values', async () => {
+        const { encryptSecret, decryptSecret } = await moduleWithKey()
+        for (const value of ['', 'héllo wörld — 日本語 🔐']) {
+            expect(decryptSecret(encryptSecret(value))).toBe(value)
+        }
+    })
 
-	it("short-circuits empty values instead of encrypting them", async () => {
-		const { encryptSecret, decryptSecret } = await moduleWithKey();
-		expect(encryptSecret("")).toBe("");
-		expect(decryptSecret("")).toBe("");
-	});
+    it('short-circuits empty values instead of encrypting them', async () => {
+        const { encryptSecret, decryptSecret } = await moduleWithKey()
+        expect(encryptSecret('')).toBe('')
+        expect(decryptSecret('')).toBe('')
+    })
 
-	it("uses a per-value salt, so equal plaintexts produce different ciphertexts", async () => {
-		const { encryptSecret } = await moduleWithKey();
-		const a = encryptSecret("same-value");
-		const b = encryptSecret("same-value");
+    it('uses a per-value salt, so equal plaintexts produce different ciphertexts', async () => {
+        const { encryptSecret } = await moduleWithKey()
+        const a = encryptSecret('same-value')
+        const b = encryptSecret('same-value')
 
-		expect(a).not.toBe(b);
-		const partsA = a.split(":");
-		const partsB = b.split(":");
-		// salt:iv:authTag:ciphertext
-		expect(partsA).toHaveLength(4);
-		expect(partsA[0]).not.toBe(partsB[0]);
-	});
+        expect(a).not.toBe(b)
+        const partsA = a.split(':')
+        const partsB = b.split(':')
+        // salt:iv:authTag:ciphertext
+        expect(partsA).toHaveLength(4)
+        expect(partsA[0]).not.toBe(partsB[0])
+    })
 
-	it("rejects a tampered ciphertext (the GCM auth tag is verified)", async () => {
-		const { encryptSecret, decryptSecret } = await moduleWithKey();
-		const parts = encryptSecret("tamper-me").split(":");
+    it('rejects a tampered ciphertext (the GCM auth tag is verified)', async () => {
+        const { encryptSecret, decryptSecret } = await moduleWithKey()
+        const parts = encryptSecret('tamper-me').split(':')
 
-		// Flip the ciphertext, keep salt/iv/authTag — decryption must fail.
-		const tampered = [parts[0], parts[1], parts[2], `${parts[3]!.slice(0, -2)}ff`].join(":");
-		expect(() => decryptSecret(tampered)).toThrowError(/Failed to decrypt/);
-	});
+        // Flip the ciphertext, keep salt/iv/authTag — decryption must fail.
+        const tampered = [
+            parts[0],
+            parts[1],
+            parts[2],
+            `${parts[3]!.slice(0, -2)}ff`,
+        ].join(':')
+        expect(() => decryptSecret(tampered)).toThrowError(/Failed to decrypt/)
+    })
 
-	it("rejects a payload with the wrong number of segments", async () => {
-		const { decryptSecret } = await moduleWithKey();
-		expect(() => decryptSecret("not-a-valid-payload")).toThrowError(/Invalid encrypted data/);
-	});
+    it('rejects a payload with the wrong number of segments', async () => {
+        const { decryptSecret } = await moduleWithKey()
+        expect(() => decryptSecret('not-a-valid-payload')).toThrowError(
+            /Invalid encrypted data/
+        )
+    })
 
-	it("fails to decrypt when the key differs from the one used to encrypt", async () => {
-		const encryptor = await moduleWithKey(KEY_A);
-		const stored = encryptor.encryptSecret("cross-key-value");
+    it('fails to decrypt when the key differs from the one used to encrypt', async () => {
+        const encryptor = await moduleWithKey(KEY_A)
+        const stored = encryptor.encryptSecret('cross-key-value')
 
-		const decryptor = await moduleWithKey(KEY_B);
-		expect(() => decryptor.decryptSecret(stored)).toThrowError(/Failed to decrypt/);
-	});
-});
+        const decryptor = await moduleWithKey(KEY_B)
+        expect(() => decryptor.decryptSecret(stored)).toThrowError(
+            /Failed to decrypt/
+        )
+    })
+})
 
-describe("encryptedText — fail-fast when unconfigured", () => {
-	it("refuses to encrypt rather than storing plaintext", async () => {
-		const { encryptSecret } = await freshModule();
+describe('encryptedText — fail-fast when unconfigured', () => {
+    it('refuses to encrypt rather than storing plaintext', async () => {
+        const { encryptSecret } = await freshModule()
 
-		expect(() => encryptSecret("plaintext-must-not-land-on-disk")).toThrowError(
-			/configureSchemaCodecs/,
-		);
-	});
+        expect(() =>
+            encryptSecret('plaintext-must-not-land-on-disk')
+        ).toThrowError(/configureSchemaCodecs/)
+    })
 
-	it("preserves the SCHEMA_CODEC_NOT_CONFIGURED code through the error wrapper", async () => {
-		const { encryptSecret } = await freshModule();
+    it('preserves the SCHEMA_CODEC_NOT_CONFIGURED code through the error wrapper', async () => {
+        const { encryptSecret } = await freshModule()
 
-		// The boot-order error must survive the blanket catch: its message is the
-		// only thing telling an operator which call to add.
-		expect(() => encryptSecret("x")).toThrowError(
-			expect.objectContaining({ code: "SCHEMA_CODEC_NOT_CONFIGURED" }),
-		);
-	});
+        // The boot-order error must survive the blanket catch: its message is the
+        // only thing telling an operator which call to add.
+        expect(() => encryptSecret('x')).toThrowError(
+            expect.objectContaining({ code: 'SCHEMA_CODEC_NOT_CONFIGURED' })
+        )
+    })
 
-	it("propagates the fail-fast error on the decrypt path too", async () => {
-		const { decryptSecret } = await freshModule();
+    it('propagates the fail-fast error on the decrypt path too', async () => {
+        const { decryptSecret } = await freshModule()
 
-		expect(() => decryptSecret("aaaa:bbbb:cccc:dddd")).toThrowError(
-			expect.objectContaining({ code: "SCHEMA_CODEC_NOT_CONFIGURED" }),
-		);
-	});
-});
+        expect(() => decryptSecret('aaaa:bbbb:cccc:dddd')).toThrowError(
+            expect.objectContaining({ code: 'SCHEMA_CODEC_NOT_CONFIGURED' })
+        )
+    })
+})
 
-describe("the column delegates to the exported codec", () => {
-	it("encrypts at QUERY time, through the real drizzle write path", async () => {
-		const { encryptedText, decryptSecret } = await moduleWithKey();
-		const table = pgTable("codec_probe", {
-			id: text("id").primaryKey(),
-			secret: encryptedText("secret"),
-		});
+describe('the column delegates to the exported codec', () => {
+    it('encrypts at QUERY time, through the real drizzle write path', async () => {
+        const { encryptedText, decryptSecret } = await moduleWithKey()
+        const table = pgTable('codec_probe', {
+            id: text('id').primaryKey(),
+            secret: encryptedText('secret'),
+        })
 
-		// `drizzle.mock()` builds the real SQL + params without a connection, so
-		// this asserts the codec is invoked where it actually runs — at query
-		// time — rather than at column-definition time.
-		const { params } = drizzle.mock()
-			.insert(table)
-			.values({ id: "1", secret: "column-vs-function" })
-			.toSQL();
+        // `drizzle.mock()` builds the real SQL + params without a connection, so
+        // this asserts the codec is invoked where it actually runs — at query
+        // time — rather than at column-definition time.
+        const { params } = drizzle
+            .mock()
+            .insert(table)
+            .values({ id: '1', secret: 'column-vs-function' })
+            .toSQL()
 
-		const stored = params[1];
-		expect(typeof stored).toBe("string");
-		expect(stored).not.toBe("column-vs-function");
-		// The function can read what the column wrote — the property provisioning
-		// scripts rely on when they write through raw SQL.
-		expect(decryptSecret(stored as string)).toBe("column-vs-function");
-	});
+        const stored = params[1]
+        expect(typeof stored).toBe('string')
+        expect(stored).not.toBe('column-vs-function')
+        // The function can read what the column wrote — the property provisioning
+        // scripts rely on when they write through raw SQL.
+        expect(decryptSecret(stored as string)).toBe('column-vs-function')
+    })
 
-	it("degrades on an unconfigured codec at query time (never writes plaintext)", async () => {
-		const { encryptedText } = await freshModule();
-		const table = pgTable("codec_probe", {
-			id: text("id").primaryKey(),
-			secret: encryptedText("secret"),
-		});
+    it('degrades on an unconfigured codec at query time (never writes plaintext)', async () => {
+        const { encryptedText } = await freshModule()
+        const table = pgTable('codec_probe', {
+            id: text('id').primaryKey(),
+            secret: encryptedText('secret'),
+        })
 
-		expect(() =>
-			drizzle.mock().insert(table).values({ id: "1", secret: "must-not-be-plain" }).toSQL(),
-		).toThrowError(/configureSchemaCodecs/);
-	});
-});
+        expect(() =>
+            drizzle
+                .mock()
+                .insert(table)
+                .values({ id: '1', secret: 'must-not-be-plain' })
+                .toSQL()
+        ).toThrowError(/configureSchemaCodecs/)
+    })
+})
 
 describe("traefikConfigBuilder — delegates to the app's codec", () => {
-	const builder: FakeBuilder = { routes: [{ rule: "Host(`api.example`)" }] };
+    const builder: FakeBuilder = { routes: [{ rule: 'Host(`api.example`)' }] }
 
-	it("round-trips a builder through the registered codec", async () => {
-		const mod = await freshModule();
-		mod.configureTraefikConfigCodec(fakeTraefikCodec());
+    it('round-trips a builder through the registered codec', async () => {
+        const mod = await freshModule()
+        mod.configureTraefikConfigCodec(fakeTraefikCodec())
 
-		expect(mod.readTraefikConfig<FakeBuilder>(JSON.stringify(builder))).toEqual(builder);
-	});
+        expect(
+            mod.readTraefikConfig<FakeBuilder>(JSON.stringify(builder))
+        ).toEqual(builder)
+    })
 
-	it("returns the codec's empty value for a blank column", async () => {
-		const mod = await freshModule();
-		mod.configureTraefikConfigCodec(fakeTraefikCodec());
+    it("returns the codec's empty value for a blank column", async () => {
+        const mod = await freshModule()
+        mod.configureTraefikConfigCodec(fakeTraefikCodec())
 
-		expect(mod.readTraefikConfig<FakeBuilder>("")).toEqual({ routes: [] });
-	});
+        expect(mod.readTraefikConfig<FakeBuilder>('')).toEqual({ routes: [] })
+    })
 
-	it("degrades to the empty config on a corrupt row instead of failing the SELECT", async () => {
-		const mod = await freshModule();
-		mod.configureTraefikConfigCodec(fakeTraefikCodec());
+    it('degrades to the empty config on a corrupt row instead of failing the SELECT', async () => {
+        const mod = await freshModule()
+        mod.configureTraefikConfigCodec(fakeTraefikCodec())
 
-		expect(mod.readTraefikConfig<FakeBuilder>("{ this is not json")).toEqual({ routes: [] });
-	});
+        expect(
+            mod.readTraefikConfig<FakeBuilder>('{ this is not json')
+        ).toEqual({ routes: [] })
+    })
 
-	it("degrades to an empty JSON object when the codec rejects a value on write", async () => {
-		const mod = await freshModule();
-		mod.configureTraefikConfigCodec({
-			load: () => ({ routes: [] }),
-			empty: () => ({ routes: [] }),
-			build: () => {
-				throw new Error("builder rejected the value");
-			},
-		});
-		const table = pgTable("traefik_probe", {
-			id: text("id").primaryKey(),
-			config: mod.traefikConfigBuilder("config"),
-		});
+    it('degrades to an empty JSON object when the codec rejects a value on write', async () => {
+        const mod = await freshModule()
+        mod.configureTraefikConfigCodec({
+            load: () => ({ routes: [] }),
+            empty: () => ({ routes: [] }),
+            build: () => {
+                throw new Error('builder rejected the value')
+            },
+        })
+        const table = pgTable('traefik_probe', {
+            id: text('id').primaryKey(),
+            config: mod.traefikConfigBuilder('config'),
+        })
 
-		const { params } = drizzle.mock()
-			.insert(table)
-			.values({ id: "1", config: { routes: [] } })
-			.toSQL();
+        const { params } = drizzle
+            .mock()
+            .insert(table)
+            .values({ id: '1', config: { routes: [] } })
+            .toSQL()
 
-		expect(params[1]).toBe("{}");
-	});
+        expect(params[1]).toBe('{}')
+    })
 
-	it("throws for a read against an unconfigured traefik codec", async () => {
-		const mod = await freshModule();
-		expect(() => mod.readTraefikConfig<FakeBuilder>("{}")).toThrowError(/configureSchemaCodecs/);
-	});
-});
+    it('throws for a read against an unconfigured traefik codec', async () => {
+        const mod = await freshModule()
+        expect(() => mod.readTraefikConfig<FakeBuilder>('{}')).toThrowError(
+            /configureSchemaCodecs/
+        )
+    })
+})
 
-describe("configureSchemaCodecs", () => {
-	it("configures only the codecs that were supplied", async () => {
-		const mod = await freshModule();
-		mod.configureSchemaCodecs({ encryption: { resolveKey: () => KEY_A } });
+describe('configureSchemaCodecs', () => {
+    it('configures only the codecs that were supplied', async () => {
+        const mod = await freshModule()
+        mod.configureSchemaCodecs({ encryption: { resolveKey: () => KEY_A } })
 
-		// Encryption is live…
-		expect(mod.encryptSecret("x")).not.toBe("x");
-		// …while traefik was left untouched, so it still fails loudly.
-		expect(() => mod.readTraefikConfig<FakeBuilder>("{}")).toThrow();
-	});
+        // Encryption is live…
+        expect(mod.encryptSecret('x')).not.toBe('x')
+        // …while traefik was left untouched, so it still fails loudly.
+        expect(() => mod.readTraefikConfig<FakeBuilder>('{}')).toThrow()
+    })
 
-	it("configures both codecs in one call", async () => {
-		const mod = await freshModule();
-		mod.configureSchemaCodecs({
-			encryption: { resolveKey: () => KEY_A },
-			traefik: fakeTraefikCodec(),
-		});
+    it('configures both codecs in one call', async () => {
+        const mod = await freshModule()
+        mod.configureSchemaCodecs({
+            encryption: { resolveKey: () => KEY_A },
+            traefik: fakeTraefikCodec(),
+        })
 
-		expect(mod.encryptSecret("x")).not.toBe("x");
-		expect(mod.readTraefikConfig<FakeBuilder>('{"routes":[{"rule":"x"}]}')).toEqual({
-			routes: [{ rule: "x" }],
-		});
-	});
-});
+        expect(mod.encryptSecret('x')).not.toBe('x')
+        expect(
+            mod.readTraefikConfig<FakeBuilder>('{"routes":[{"rule":"x"}]}')
+        ).toEqual({
+            routes: [{ rule: 'x' }],
+        })
+    })
+})
 
 /** A deterministic stand-in for the app's sealer: the routing is under test here, the crypto is not. */
-function fakeSealer(overrides: Partial<{ seal: (p: string) => string; open: (s: string) => string }> = {}) {
-	return {
-		seal: overrides.seal ?? ((plaintext: string) => `enc:v1:${Buffer.from(plaintext).toString("base64")}`),
-		open: overrides.open ?? ((stored: string) => Buffer.from(stored.slice("enc:v1:".length), "base64").toString("utf8")),
-	};
+function fakeSealer(
+    overrides: Partial<{
+        seal: (p: string) => string
+        open: (s: string) => string
+    }> = {}
+) {
+    return {
+        seal:
+            overrides.seal ??
+            ((plaintext: string) =>
+                `enc:v1:${Buffer.from(plaintext).toString('base64')}`),
+        open:
+            overrides.open ??
+            ((stored: string) =>
+                Buffer.from(stored.slice('enc:v1:'.length), 'base64').toString(
+                    'utf8'
+                )),
+    }
 }
 
-describe("sealing codec — the current form, with the legacy form still readable", () => {
-	it("writes the sealed form and never touches the legacy key once a sealer is configured", async () => {
-		const mod = await freshModule();
-		const resolveKey = vi.fn(() => KEY_A);
-		mod.configureSchemaCodecs({ encryption: { resolveKey }, sealing: fakeSealer() });
+describe('sealing codec — the current form, with the legacy form still readable', () => {
+    it('writes the sealed form and never touches the legacy key once a sealer is configured', async () => {
+        const mod = await freshModule()
+        const resolveKey = vi.fn(() => KEY_A)
+        mod.configureSchemaCodecs({
+            encryption: { resolveKey },
+            sealing: fakeSealer(),
+        })
 
-		const stored = mod.encryptSecret("api-token");
+        const stored = mod.encryptSecret('api-token')
 
-		expect(stored.startsWith(mod.SEALED_VALUE_PREFIX)).toBe(true);
-		expect(stored).not.toContain("api-token");
-		expect(resolveKey).not.toHaveBeenCalled();
-		expect(mod.decryptSecret(stored)).toBe("api-token");
-		expect(resolveKey).not.toHaveBeenCalled();
-	});
+        expect(stored.startsWith(mod.SEALED_VALUE_PREFIX)).toBe(true)
+        expect(stored).not.toContain('api-token')
+        expect(resolveKey).not.toHaveBeenCalled()
+        expect(mod.decryptSecret(stored)).toBe('api-token')
+        expect(resolveKey).not.toHaveBeenCalled()
+    })
 
-	it("still reads legacy rows written before the sealer existed, and new writes are sealed", async () => {
-		const mod = await moduleWithKey(KEY_A);
-		const legacy = mod.encryptSecret("old-secret"); // no sealer yet: legacy form
-		expect(mod.isSealedValue(legacy)).toBe(false);
+    it('still reads legacy rows written before the sealer existed, and new writes are sealed', async () => {
+        const mod = await moduleWithKey(KEY_A)
+        const legacy = mod.encryptSecret('old-secret') // no sealer yet: legacy form
+        expect(mod.isSealedValue(legacy)).toBe(false)
 
-		mod.configureSealing(fakeSealer());
+        mod.configureSealing(fakeSealer())
 
-		expect(mod.decryptSecret(legacy)).toBe("old-secret");
-		expect(mod.isSealedValue(mod.encryptSecret("new-secret"))).toBe(true);
-	});
+        expect(mod.decryptSecret(legacy)).toBe('old-secret')
+        expect(mod.isSealedValue(mod.encryptSecret('new-secret'))).toBe(true)
+    })
 
-	it("fails loudly when a sealed value is read before the sealer is configured", async () => {
-		const mod = await moduleWithKey(KEY_A);
+    it('fails loudly when a sealed value is read before the sealer is configured', async () => {
+        const mod = await moduleWithKey(KEY_A)
 
-		expect(() => mod.decryptSecret("enc:v1:eyJ2IjoxfQ")).toThrowError(
-			expect.objectContaining({ code: "SCHEMA_CODEC_NOT_CONFIGURED", message: expect.stringContaining("sealing") }),
-		);
-	});
+        expect(() => mod.decryptSecret('enc:v1:eyJ2IjoxfQ')).toThrowError(
+            expect.objectContaining({
+                code: 'SCHEMA_CODEC_NOT_CONFIGURED',
+                message: expect.stringContaining('sealing'),
+            })
+        )
+    })
 
-	it("keeps legacy writes when no sealer is configured (the frozen monolith)", async () => {
-		const mod = await moduleWithKey(KEY_A);
+    it('keeps legacy writes when no sealer is configured (the frozen monolith)', async () => {
+        const mod = await moduleWithKey(KEY_A)
 
-		const stored = mod.encryptSecret("legacy-write");
+        const stored = mod.encryptSecret('legacy-write')
 
-		expect(mod.isSealedValue(stored)).toBe(false);
-		expect(stored.split(":")).toHaveLength(4);
-		expect(mod.decryptSecret(stored)).toBe("legacy-write");
-	});
+        expect(mod.isSealedValue(stored)).toBe(false)
+        expect(stored.split(':')).toHaveLength(4)
+        expect(mod.decryptSecret(stored)).toBe('legacy-write')
+    })
 
-	it("short-circuits empty values with a sealer too", async () => {
-		const mod = await freshModule();
-		mod.configureSealing(fakeSealer());
+    it('short-circuits empty values with a sealer too', async () => {
+        const mod = await freshModule()
+        mod.configureSealing(fakeSealer())
 
-		expect(mod.encryptSecret("")).toBe("");
-		expect(mod.decryptSecret("")).toBe("");
-	});
+        expect(mod.encryptSecret('')).toBe('')
+        expect(mod.decryptSecret('')).toBe('')
+    })
 
-	it("wraps a sealer failure as a generic crypto error without leaking details", async () => {
-		const mod = await freshModule();
-		mod.configureSealing(
-			fakeSealer({
-				seal: () => {
-					throw new Error("key material: hunter2");
-				},
-				open: () => {
-					throw new Error("key material: hunter2");
-				},
-			}),
-		);
+    it('wraps a sealer failure as a generic crypto error without leaking details', async () => {
+        const mod = await freshModule()
+        mod.configureSealing(
+            fakeSealer({
+                seal: () => {
+                    throw new Error('key material: hunter2')
+                },
+                open: () => {
+                    throw new Error('key material: hunter2')
+                },
+            })
+        )
 
-		expect(() => mod.encryptSecret("x")).toThrowError(expect.objectContaining({ code: "ENCRYPTION_ERROR", message: "Failed to encrypt data" }));
-		expect(() => mod.decryptSecret("enc:v1:abc")).toThrowError(expect.objectContaining({ code: "ENCRYPTION_ERROR", message: "Failed to decrypt data" }));
-	});
+        expect(() => mod.encryptSecret('x')).toThrowError(
+            expect.objectContaining({
+                code: 'ENCRYPTION_ERROR',
+                message: 'Failed to encrypt data',
+            })
+        )
+        expect(() => mod.decryptSecret('enc:v1:abc')).toThrowError(
+            expect.objectContaining({
+                code: 'ENCRYPTION_ERROR',
+                message: 'Failed to decrypt data',
+            })
+        )
+    })
 
-	it("configureSchemaCodecs accepts the sealer alongside the others", async () => {
-		const mod = await freshModule();
-		mod.configureSchemaCodecs({ sealing: fakeSealer(), traefik: fakeTraefikCodec() });
+    it('configureSchemaCodecs accepts the sealer alongside the others', async () => {
+        const mod = await freshModule()
+        mod.configureSchemaCodecs({
+            sealing: fakeSealer(),
+            traefik: fakeTraefikCodec(),
+        })
 
-		expect(mod.decryptSecret(mod.encryptSecret("via-bundle"))).toBe("via-bundle");
-	});
+        expect(mod.decryptSecret(mod.encryptSecret('via-bundle'))).toBe(
+            'via-bundle'
+        )
+    })
 
-	it("never mistakes a legacy value for a sealed one", async () => {
-		const mod = await moduleWithKey(KEY_A);
+    it('never mistakes a legacy value for a sealed one', async () => {
+        const mod = await moduleWithKey(KEY_A)
 
-		expect(mod.isSealedValue(mod.encryptSecret("x"))).toBe(false);
-		expect(mod.isSealedValue("")).toBe(false);
-		expect(mod.isSealedValue("enc:v1:{}")).toBe(true);
-	});
-});
+        expect(mod.isSealedValue(mod.encryptSecret('x'))).toBe(false)
+        expect(mod.isSealedValue('')).toBe(false)
+        expect(mod.isSealedValue('enc:v1:{}')).toBe(true)
+    })
+})
 
-describe("generateEncryptionKey", () => {
-	it("generates 32 bytes of hex key material", async () => {
-		const { generateEncryptionKey } = await freshModule();
-		expect(generateEncryptionKey()).toMatch(/^[0-9a-f]{64}$/);
-	});
+describe('generateEncryptionKey', () => {
+    it('generates 32 bytes of hex key material', async () => {
+        const { generateEncryptionKey } = await freshModule()
+        expect(generateEncryptionKey()).toMatch(/^[0-9a-f]{64}$/)
+    })
 
-	it("generates a different key each call", async () => {
-		const { generateEncryptionKey } = await freshModule();
-		expect(generateEncryptionKey()).not.toBe(generateEncryptionKey());
-	});
+    it('generates a different key each call', async () => {
+        const { generateEncryptionKey } = await freshModule()
+        expect(generateEncryptionKey()).not.toBe(generateEncryptionKey())
+    })
 
-	it("produces a key usable by the codec round trip", async () => {
-		const mod = await freshModule();
-		// The provider must return a STABLE key: encryption and decryption both
-		// call it, so a provider generating fresh material per call cannot
-		// round-trip. Deriving it once mirrors how the app supplies the key.
-		const generated = Buffer.from(mod.generateEncryptionKey(), "hex");
-		mod.configureEncryption({ resolveKey: () => generated });
+    it('produces a key usable by the codec round trip', async () => {
+        const mod = await freshModule()
+        // The provider must return a STABLE key: encryption and decryption both
+        // call it, so a provider generating fresh material per call cannot
+        // round-trip. Deriving it once mirrors how the app supplies the key.
+        const generated = Buffer.from(mod.generateEncryptionKey(), 'hex')
+        mod.configureEncryption({ resolveKey: () => generated })
 
-		expect(mod.decryptSecret(mod.encryptSecret("generated-key-value"))).toBe(
-			"generated-key-value",
-		);
-	});
+        expect(
+            mod.decryptSecret(mod.encryptSecret('generated-key-value'))
+        ).toBe('generated-key-value')
+    })
 
-	it("a per-call key provider cannot round-trip (documents the contract)", async () => {
-		const mod = await freshModule();
-		mod.configureEncryption({
-			resolveKey: () => Buffer.from(mod.generateEncryptionKey(), "hex"),
-		});
+    it('a per-call key provider cannot round-trip (documents the contract)', async () => {
+        const mod = await freshModule()
+        mod.configureEncryption({
+            resolveKey: () => Buffer.from(mod.generateEncryptionKey(), 'hex'),
+        })
 
-		// The key provider is called on BOTH directions, so a provider that mints
-		// new material each time produces undecryptable ciphertext. Asserting this
-		// keeps the contract explicit rather than leaving it as a silent trap.
-		expect(() => mod.decryptSecret(mod.encryptSecret("value"))).toThrowError(/Failed to decrypt/);
-	});
-});
+        // The key provider is called on BOTH directions, so a provider that mints
+        // new material each time produces undecryptable ciphertext. Asserting this
+        // keeps the contract explicit rather than leaving it as a silent trap.
+        expect(() =>
+            mod.decryptSecret(mod.encryptSecret('value'))
+        ).toThrowError(/Failed to decrypt/)
+    })
+})

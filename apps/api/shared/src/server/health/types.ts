@@ -4,22 +4,25 @@
  * The shape is the one Terminus popularised and every health client already understands, so the platform keeps the
  * wire shape and drops the Terminus runtime: `indicatorFor(name).up(detail)` builds it in `indicators/indicator-result.ts`.
  */
-export type IndicatorResult = Record<string, { status: "up" | "down"; [key: string]: unknown }>;
+export type IndicatorResult = Record<
+    string,
+    { status: 'up' | 'down'; [key: string]: unknown }
+>
 
 /** The verdict for a single indicator, flattened for the stream. */
 export type IndicatorSnapshot = {
-	/** Indicator name, e.g. `"database"`. Also its key in the Terminus payload. */
-	readonly name: string;
-	/** `up` when the check passed, `down` when it did not. */
-	readonly status: "up" | "down";
-	/** How long the check took. Populated for every indicator, up or down. */
-	readonly latencyMs: number;
-	/** Present when the check failed — the actionable reason. */
-	readonly message?: string;
-	/** Extra facts the check learned (version, counts, memory figures, …). */
-	readonly detail?: Record<string, unknown>;
-	/** When `up`, a successful result; when `down`, the reason. */
-	readonly reason?: string;
+    /** Indicator name, e.g. `"database"`. Also its key in the Terminus payload. */
+    readonly name: string
+    /** `up` when the check passed, `down` when it did not. */
+    readonly status: 'up' | 'down'
+    /** How long the check took. Populated for every indicator, up or down. */
+    readonly latencyMs: number
+    /** Present when the check failed — the actionable reason. */
+    readonly message?: string
+    /** Extra facts the check learned (version, counts, memory figures, …). */
+    readonly detail?: Record<string, unknown>
+    /** When `up`, a successful result; when `down`, the reason. */
+    readonly reason?: string
 }
 
 /**
@@ -30,16 +33,22 @@ export type IndicatorSnapshot = {
  * reports what it found. That keeps the registry free of per-service policy.
  */
 export type HealthSnapshot = {
-	/** `up` only when EVERY indicator is up. */
-	readonly status: "up" | "down";
-	/** Same shape Terminus returns, so `/health/detailed` can pass it straight through. */
-	readonly info: Record<string, { status: "up"; [key: string]: unknown }>;
-	readonly error: Record<string, { status: "down"; message?: string; [key: string]: unknown }>;
-	readonly details: Record<string, { status: "up" | "down"; [key: string]: unknown }>;
-	/** Per-indicator verdicts, in declaration order. */
-	readonly indicators: IndicatorSnapshot[];
-	/** When the snapshot was produced. */
-	readonly checkedAt: string;
-	/** Total wall time for the pass. */
-	readonly durationMs: number;
+    /** `up` only when EVERY indicator is up. */
+    readonly status: 'up' | 'down'
+    /** Same shape Terminus returns, so `/health/detailed` can pass it straight through. */
+    readonly info: Record<string, { status: 'up'; [key: string]: unknown }>
+    readonly error: Record<
+        string,
+        { status: 'down'; message?: string; [key: string]: unknown }
+    >
+    readonly details: Record<
+        string,
+        { status: 'up' | 'down'; [key: string]: unknown }
+    >
+    /** Per-indicator verdicts, in declaration order. */
+    readonly indicators: IndicatorSnapshot[]
+    /** When the snapshot was produced. */
+    readonly checkedAt: string
+    /** Total wall time for the pass. */
+    readonly durationMs: number
 }

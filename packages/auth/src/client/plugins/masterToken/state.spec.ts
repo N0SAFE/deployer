@@ -40,7 +40,9 @@ describe('master token state utilities', () => {
         // Only the toggle flag is stored as a cookie. The credential itself is a
         // scoped API key held in sessionStorage by the devtools hook, never a
         // cookie carrying the platform master secret.
-        const cookieHasMasterToken = document.cookie.includes(`${MASTER_TOKEN_COOKIE_NAME}=true`)
+        const cookieHasMasterToken = document.cookie.includes(
+            `${MASTER_TOKEN_COOKIE_NAME}=true`
+        )
         expect(cookieHasMasterToken).toBe(true)
 
         const stored = localStorage.getItem('master-token')

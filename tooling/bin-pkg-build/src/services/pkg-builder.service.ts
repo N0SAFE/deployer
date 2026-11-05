@@ -125,7 +125,8 @@ export class PkgBuilderService {
     buildTypes(): void {
         const { config, rootDir, typesDir, typesTsconfig, pkgRoot } = this.pkg
         if (!config.types) return
-        if (!fs.existsSync(rootDir)) die(`Source root not found: ${config.root}`)
+        if (!fs.existsSync(rootDir))
+            die(`Source root not found: ${config.root}`)
 
         const entries = this.pkg.listEntries()
         // Source `.d.ts` files are inputs, not outputs: they must be part of the
@@ -179,7 +180,10 @@ export class PkgBuilderService {
                 // into the published tree. Pin it beside the generated config,
                 // which is deleted when the compiler exits.
                 tsBuildInfoFile: rel(
-                    path.join(pkgRoot, `.pkg-build-types.${String(process.pid)}.tsbuildinfo`)
+                    path.join(
+                        pkgRoot,
+                        `.pkg-build-types.${String(process.pid)}.tsbuildinfo`
+                    )
                 ),
             },
             // `files` is the same entry set as the JS build plus authored `.d.ts`
@@ -197,7 +201,10 @@ export class PkgBuilderService {
         )
 
         const tsc = this.pkg.resolveTsc()
-        const tsBuildInfo = path.join(pkgRoot, `.pkg-build-types.${String(process.pid)}.tsbuildinfo`)
+        const tsBuildInfo = path.join(
+            pkgRoot,
+            `.pkg-build-types.${String(process.pid)}.tsbuildinfo`
+        )
         const removeTemp = (): void => {
             fs.rmSync(typesTsconfig, { force: true })
             fs.rmSync(tsBuildInfo, { force: true })

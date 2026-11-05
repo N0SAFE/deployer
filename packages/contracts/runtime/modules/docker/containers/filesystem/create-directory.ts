@@ -1,19 +1,20 @@
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 import {
-  dockerContainerCreateDirectoryBodySchema,
-  dockerContainerTerminalMutationAckSchema,
-} from "../shared";
+    dockerContainerCreateDirectoryBodySchema,
+    dockerContainerTerminalMutationAckSchema,
+} from '../shared'
 
 const dockerContainerCreateDirectoryOps = standard.zod(
-  dockerContainerTerminalMutationAckSchema,
-  "dockerContainerCreateDirectory",
-);
+    dockerContainerTerminalMutationAckSchema,
+    'dockerContainerCreateDirectory'
+)
 
-export const dockerContainerCreateDirectoryContract = dockerContainerCreateDirectoryOps
-  .create()
-  .path("/mkdir")
-  .input((b) => b.body(dockerContainerCreateDirectoryBodySchema))
-  .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+export const dockerContainerCreateDirectoryContract =
+    dockerContainerCreateDirectoryOps
+        .create()
+        .path('/mkdir')
+        .input((b) => b.body(dockerContainerCreateDirectoryBodySchema))
+        .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()

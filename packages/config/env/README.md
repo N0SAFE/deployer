@@ -48,6 +48,7 @@ const env = validateDocEnv(process.env)
 ## Available Schemas
 
 ### `apiEnvSchema` (NestJS API)
+
 - `SETUP_DATABASE_URL` (optional): PostgreSQL connection string for initial setup. Only read by Phase 0 setup sub-app.
 - `API_PORT` (default: 3001): API server port
 - `AUTH_SECRET` (optional in production — resolved via mesh secret sharing): Authentication secret key
@@ -56,6 +57,7 @@ const env = validateDocEnv(process.env)
 - `NEXT_PUBLIC_APP_URL` (required): Web app URL for CORS
 
 ### `webEnvSchema` (Next.js Web)
+
 - `NEXT_PUBLIC_APP_URL` (production-required): Web app URL
 - `API_URL` (production-required): API server URL
 - `NEXT_PUBLIC_SHOW_AUTH_LOGS` (default: false): Enable auth logging
@@ -66,6 +68,7 @@ const env = validateDocEnv(process.env)
 - React Scan variables: `REACT_SCAN_GIT_COMMIT_HASH`, `REACT_SCAN_GIT_BRANCH`, `REACT_SCAN_TOKEN`
 
 ### `docEnvSchema` (Fumadocs)
+
 - `NODE_ENV` (default: 'development'): Environment mode
 
 ## Validation Functions
@@ -76,7 +79,7 @@ Each schema has three validation functions:
 // Safe validation (returns Result type)
 const result = validateApiEnvSafe(process.env)
 if (result.success) {
-  console.log(result.data)
+    console.log(result.data)
 }
 
 // Throwing validation (throws ZodError on failure)
@@ -84,7 +87,7 @@ const env = validateApiEnv(process.env)
 
 // Boolean check
 if (apiEnvIsValid(process.env)) {
-  // Environment is valid
+    // Environment is valid
 }
 
 // Validate specific path
@@ -94,7 +97,9 @@ const apiUrl = validateWebEnvPath(process.env.API_URL, 'API_URL')
 ## Shared Helpers
 
 ### `guardedUrl(name: string, fallback: string)`
+
 Creates a URL validator that:
+
 - **Production**: Requires the URL to be set, throws error if missing
 - **Development/Test**: Falls back to provided value if not set
 
@@ -102,15 +107,18 @@ Creates a URL validator that:
 import { guardedUrl } from '@deployer/env'
 
 const schema = z.object({
-  API_URL: guardedUrl('API_URL', 'http://localhost:3001')
+    API_URL: guardedUrl('API_URL', 'http://localhost:3001'),
 })
 ```
 
 ### `trimTrailingSlash(url: string)`
+
 Removes trailing slashes from URLs for consistency.
 
 ### `parseDebugScopes(input: string)`
+
 Parses comma-separated debug scope patterns:
+
 - `"middleware/auth"` - exact match
 - `"middleware/*"` - direct children only
 - `"middleware/**"` - all nested children

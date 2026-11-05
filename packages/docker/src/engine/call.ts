@@ -1,9 +1,9 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import { fromAbortable } from "@deployer/effect-core";
+import { fromAbortable } from '@deployer/effect-core'
 
-import { engineMessage, isNotFound } from "../errors/classify";
-import { DockerNotFound, DockerUnavailable } from "../errors/errors";
+import { engineMessage, isNotFound } from '../errors/classify'
+import { DockerNotFound, DockerUnavailable } from '../errors/errors'
 
 /**
  * Runs one engine call. Interrupting the effect aborts the request in flight when the call passes
@@ -12,15 +12,21 @@ import { DockerNotFound, DockerUnavailable } from "../errors/errors";
  * it asked for); anything else is `DockerUnavailable` saying which `operation` failed and why.
  */
 export function engineCall<A>(
-	operation: string,
-	run: (signal: AbortSignal) => Promise<A>,
-	resource?: string,
+    operation: string,
+    run: (signal: AbortSignal) => Promise<A>,
+    resource?: string
 ): Effect.Effect<A, DockerNotFound | DockerUnavailable> {
-	return fromAbortable((signal) => run(signal), (cause) => cause).pipe(
-		Effect.mapError((cause) =>
-			resource !== undefined && isNotFound(cause)
-				? new DockerNotFound({ resource, cause })
-				: new DockerUnavailable({ reason: `Failed to ${operation}: ${engineMessage(cause)}`, cause }),
-		),
-	);
+    return fromAbortable(
+        (signal) => run(signal),
+        (cause) => cause
+    ).pipe(
+        Effect.mapError((cause) =>
+            resource !== undefined && isNotFound(cause)
+                ? new DockerNotFound({ resource, cause })
+                : new DockerUnavailable({
+                      reason: `Failed to ${operation}: ${engineMessage(cause)}`,
+                      cause,
+                  })
+        )
+    )
 }

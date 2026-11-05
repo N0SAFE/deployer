@@ -1,7 +1,7 @@
 import { and, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver } from "@deployer/effect-core"
+import { serviceOver } from '@deployer/effect-core'
 import {
     pushSubscription,
     user,
@@ -40,11 +40,19 @@ import type {
 export type PushRepositoryShape = {
     readonly findByEndpoint: (
         endpoint: string
-    ) => Effect.Effect<StoredSubscription | null, PushRepositoryFailure, DatabasePort>
+    ) => Effect.Effect<
+        StoredSubscription | null,
+        PushRepositoryFailure,
+        DatabasePort
+    >
     readonly listByUser: (
         userId: string,
         onlyActive: boolean
-    ) => Effect.Effect<StoredSubscription[], PushRepositoryFailure, DatabasePort>
+    ) => Effect.Effect<
+        StoredSubscription[],
+        PushRepositoryFailure,
+        DatabasePort
+    >
     readonly countByUser: (
         userId: string,
         onlyActive: boolean
@@ -81,14 +89,13 @@ export class PushRepository extends Context.Service<
     PushRepositoryShape
 >()('identity/PushRepository') {
     /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(DatabasePort, ({ db }) => makePushRepository(db));
-
+    static readonly live = serviceOver(DatabasePort, ({ db }) =>
+        makePushRepository(db)
+    )
 }
 
 /** Drizzle implementation over one database handle. */
-function makePushRepository(
-    db: DatabaseShape['db']
-): PushRepositoryShape {
+function makePushRepository(db: DatabaseShape['db']): PushRepositoryShape {
     return {
         findByEndpoint: (endpoint: string) =>
             attempt(async () => {

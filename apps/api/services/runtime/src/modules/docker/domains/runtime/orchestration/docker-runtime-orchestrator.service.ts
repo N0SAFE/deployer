@@ -1,60 +1,66 @@
-import { AppLogger } from "@deployer/logger";
-import type {
-  DockerContainerInspectStreamQueryInput,
-} from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
-import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
-import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+import { AppLogger } from '@deployer/logger'
+import type { DockerContainerInspectStreamQueryInput } from '@deployer/runtime-contracts/modules/docker/containers/shared'
+import type { DockerImageInspectStreamQueryInput } from '@deployer/runtime-contracts/modules/docker/images/stream-inspect'
+import type { DockerRuntimeActivityStreamInput } from '@deployer/runtime-contracts/modules/docker/runtime/activity-stream'
+import type { DockerRuntimeEventsStreamQueryInput } from '@deployer/runtime-contracts/modules/docker/runtime/shared'
 
-import type { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
-
-import type { DockerRuntimeActivityDomainService } from "./docker-runtime-activity-domain.service";
+import type { DockerRuntimeActivityDomainService } from './docker-runtime-activity-domain.service'
+import type { DockerRuntimeStreamOrchestratorService } from '../../../common/runtime/docker-runtime-stream-orchestrator.service'
 
 /** Built by a factory in `DockerRuntimeModule`. */
 export class DockerRuntimeOrchestratorService {
-  private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeOrchestratorService.name);
-  private readonly scopedLogger = this.apiLogger.log;
+    private readonly apiLogger = new AppLogger('api').scope(
+        DockerRuntimeOrchestratorService.name
+    )
+    private readonly scopedLogger = this.apiLogger.log
 
-  private readonly debugLogger = this.apiLogger.createContextFilterLogger({
-    defaultClassName: DockerRuntimeOrchestratorService.name,
-    filterEnvVar: "APP_DEBUG_CONTEXT_FILTER",
-    channel: "docker-runtime-orchestrator",
-  });
+    private readonly debugLogger = this.apiLogger.createContextFilterLogger({
+        defaultClassName: DockerRuntimeOrchestratorService.name,
+        filterEnvVar: 'APP_DEBUG_CONTEXT_FILTER',
+        channel: 'docker-runtime-orchestrator',
+    })
 
-  constructor(
-    private readonly dockerRuntimeActivityDomainService: DockerRuntimeActivityDomainService,
-    private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
-  ) {}
+    constructor(
+        private readonly dockerRuntimeActivityDomainService: DockerRuntimeActivityDomainService,
+        private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService
+    ) {}
 
-  stream(input: DockerRuntimeEventsStreamQueryInput) {
-    this.debug("DockerRuntimeOrchestratorService.stream", {
-      since: input.since,
-      until: input.until,
-      hasFilter: Boolean(input.filter),
-    });
+    stream(input: DockerRuntimeEventsStreamQueryInput) {
+        this.debug('DockerRuntimeOrchestratorService.stream', {
+            since: input.since,
+            until: input.until,
+            hasFilter: Boolean(input.filter),
+        })
 
-    return this.dockerRuntimeActivityDomainService.stream(input);
-  }
+        return this.dockerRuntimeActivityDomainService.stream(input)
+    }
 
-  streamRuntimeActivities(input: DockerRuntimeActivityStreamInput = {}) {
-    this.debug("DockerRuntimeOrchestratorService.streamRuntimeActivities", {
-      source: input?.source,
-      action: input?.action,
-    });
+    streamRuntimeActivities(input: DockerRuntimeActivityStreamInput = {}) {
+        this.debug('DockerRuntimeOrchestratorService.streamRuntimeActivities', {
+            source: input?.source,
+            action: input?.action,
+        })
 
-    return this.dockerRuntimeActivityDomainService.streamActivities(input);
-  }
+        return this.dockerRuntimeActivityDomainService.streamActivities(input)
+    }
 
-  streamContainerInspect(input: DockerContainerInspectStreamQueryInput) {
-    return this.dockerRuntimeStreamOrchestratorService.streamContainerInspect(input);
-  }
+    streamContainerInspect(input: DockerContainerInspectStreamQueryInput) {
+        return this.dockerRuntimeStreamOrchestratorService.streamContainerInspect(
+            input
+        )
+    }
 
-  streamImageInspect(input: DockerImageInspectStreamQueryInput) {
-    return this.dockerRuntimeStreamOrchestratorService.streamImageInspect(input);
-  }
+    streamImageInspect(input: DockerImageInspectStreamQueryInput) {
+        return this.dockerRuntimeStreamOrchestratorService.streamImageInspect(
+            input
+        )
+    }
 
-  private debug(source: string, context?: Record<string, unknown>): void {
-    this.scopedLogger.info(`[docker-runtime-orchestrator] ${source}`, context ?? {});
-    this.debugLogger.debug(source, context);
-  }
+    private debug(source: string, context?: Record<string, unknown>): void {
+        this.scopedLogger.info(
+            `[docker-runtime-orchestrator] ${source}`,
+            context ?? {}
+        )
+        this.debugLogger.debug(source, context)
+    }
 }

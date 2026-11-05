@@ -22,9 +22,8 @@
  * executor is the only thing touching the `DockerEngine`.
  */
 
-import { Context, Effect } from "effect";
-import { parse } from "yaml";
-
+import { Context, Effect } from 'effect'
+import { parse } from 'yaml'
 
 import type {
     ComposeCompatibilityIssue,
@@ -37,260 +36,326 @@ import type {
     ComposeServiceModel,
     ComposeCompatibilitySeverity,
     SwarmServiceSpecInput,
-} from "@deployer/contracts-entities";
-import { composeModelSchema, composeServiceModelSchema } from "@deployer/contracts-entities";
-import { DockerEngine, toDockerServiceSpec, type DockerError } from "@deployer/docker";
-import { AppError } from "@deployer/errors";
+} from '@deployer/contracts-entities'
+import {
+    composeModelSchema,
+    composeServiceModelSchema,
+} from '@deployer/contracts-entities'
+import {
+    DockerEngine,
+    toDockerServiceSpec,
+    type DockerError,
+} from '@deployer/docker'
+import { AppError } from '@deployer/errors'
 
-import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { RuntimeInvalid } from '../../../core/runtime.errors'
 
 // ─── Compose value normalizers (string forms → typed values) ────────────────
 
-const DURATION_MS: Record<string, number> = { s: 1_000, m: 60_000, h: 3_600_000 };
+const DURATION_MS: Record<string, number> = {
+    s: 1_000,
+    m: 60_000,
+    h: 3_600_000,
+}
 
 function toMs(value: unknown): number | undefined {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value
     }
-    if (typeof value !== "string") {
-        return undefined;
+    if (typeof value !== 'string') {
+        return undefined
     }
-    const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(value.trim());
+    const match = /^(\d+(?:\.\d+)?)(ms|s|m|h)$/.exec(value.trim())
     if (!match) {
-        const plain = Number(value);
-        return Number.isFinite(plain) ? plain : undefined;
+        const plain = Number(value)
+        return Number.isFinite(plain) ? plain : undefined
     }
-    return Number(match[1]) * (DURATION_MS[match[2] ?? "s"] ?? 1);
+    return Number(match[1]) * (DURATION_MS[match[2] ?? 's'] ?? 1)
 }
 
 function parseMemoryBytes(value: unknown): number | undefined {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value
     }
-    if (typeof value !== "string") {
-        return undefined;
+    if (typeof value !== 'string') {
+        return undefined
     }
-    const match = /^(\d+(?:\.\d+)?)([bkmg])$/i.exec(value.trim());
+    const match = /^(\d+(?:\.\d+)?)([bkmg])$/i.exec(value.trim())
     if (!match) {
-        const plain = Number(value);
-        return Number.isFinite(plain) ? plain : undefined;
+        const plain = Number(value)
+        return Number.isFinite(plain) ? plain : undefined
     }
-    const unit = (match[2] ?? "b").toLowerCase();
-    const factor = unit === "b" ? 1 : unit === "k" ? 1024 : unit === "m" ? 1024 ** 2 : 1024 ** 3;
-    return Math.trunc(Number(match[1]) * factor);
+    const unit = (match[2] ?? 'b').toLowerCase()
+    const factor =
+        unit === 'b'
+            ? 1
+            : unit === 'k'
+              ? 1024
+              : unit === 'm'
+                ? 1024 ** 2
+                : 1024 ** 3
+    return Math.trunc(Number(match[1]) * factor)
 }
 
 function parseNanoCpus(value: unknown): number | undefined {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return Math.trunc(value * 1_000_000_000);
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.trunc(value * 1_000_000_000)
     }
-    if (typeof value !== "string") {
-        return undefined;
+    if (typeof value !== 'string') {
+        return undefined
     }
-    const plain = Number(value);
-    return Number.isFinite(plain) ? Math.trunc(plain * 1_000_000_000) : undefined;
+    const plain = Number(value)
+    return Number.isFinite(plain)
+        ? Math.trunc(plain * 1_000_000_000)
+        : undefined
 }
 
 function normalizePorts(raw: unknown): ComposePort[] {
     if (!Array.isArray(raw)) {
-        return [];
+        return []
     }
-    const out: ComposePort[] = [];
+    const out: ComposePort[] = []
     for (const entry of raw) {
-        if (typeof entry === "string") {
+        if (typeof entry === 'string') {
             // "8080:3000/tcp" | "3000" | "3000/tcp" | "127.0.0.1:8080:3000"
-            const full = /^(?:[^:]+:)?(\d+):(\d+)(?:\/(tcp|udp))?$/.exec(entry.trim());
+            const full = /^(?:[^:]+:)?(\d+):(\d+)(?:\/(tcp|udp))?$/.exec(
+                entry.trim()
+            )
             if (full) {
                 out.push({
                     targetPort: Number(full[2]),
                     publishedPort: Number(full[1]),
-                    protocol: (full[3] ?? "tcp") as ComposePort["protocol"],
-                });
-                continue;
+                    protocol: (full[3] ?? 'tcp') as ComposePort['protocol'],
+                })
+                continue
             }
-            const short = /^(\d+)(?:\/(tcp|udp))?$/.exec(entry.trim());
+            const short = /^(\d+)(?:\/(tcp|udp))?$/.exec(entry.trim())
             if (short) {
                 out.push({
                     targetPort: Number(short[1]),
-                    protocol: (short[2] ?? "tcp") as ComposePort["protocol"],
-                });
-                continue;
+                    protocol: (short[2] ?? 'tcp') as ComposePort['protocol'],
+                })
+                continue
             }
-            continue;
+            continue
         }
-        if (typeof entry === "object" && entry !== null) {
-            const record = entry as Record<string, unknown>;
-            const target = Number(record.target ?? record.target_port);
+        if (typeof entry === 'object' && entry !== null) {
+            const record = entry as Record<string, unknown>
+            const target = Number(record.target ?? record.target_port)
             if (Number.isInteger(target) && target > 0 && target <= 65535) {
                 out.push({
                     targetPort: target,
                     publishedPort:
-                        record.published !== undefined ? Number(record.published) : undefined,
-                    protocol: (record.protocol === "udp" ? "udp" : "tcp"),
-                });
+                        record.published !== undefined
+                            ? Number(record.published)
+                            : undefined,
+                    protocol: record.protocol === 'udp' ? 'udp' : 'tcp',
+                })
             }
         }
     }
-    return out;
+    return out
 }
 
 function normalizeEnvironment(raw: unknown): string[] {
     if (Array.isArray(raw)) {
-        return raw.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+        return raw.filter(
+            (entry): entry is string =>
+                typeof entry === 'string' && entry.length > 0
+        )
     }
-    if (typeof raw === "object" && raw !== null) {
+    if (typeof raw === 'object' && raw !== null) {
         return Object.entries(raw as Record<string, unknown>)
             .filter(([, value]) => value !== null && value !== undefined)
-            .map(([key, value]) => `${key}=${String(value)}`);
+            .map(([key, value]) => `${key}=${String(value)}`)
     }
-    return [];
+    return []
 }
 
-function normalizeMounts(raw: unknown): ComposeServiceModel["mounts"] {
+function normalizeMounts(raw: unknown): ComposeServiceModel['mounts'] {
     if (!Array.isArray(raw)) {
-        return [];
+        return []
     }
-    const out: ComposeServiceModel["mounts"] = [];
+    const out: ComposeServiceModel['mounts'] = []
     for (const entry of raw) {
-        if (typeof entry === "string") {
-            const parts = entry.split(":");
+        if (typeof entry === 'string') {
+            const parts = entry.split(':')
             if (parts.length < 2) {
-                continue;
+                continue
             }
-            const readOnly = parts[2] === "ro";
-            const source = parts[0] ?? "";
-            const target = parts[1] ?? "";
-            const type = source.startsWith("/") || source.startsWith("~")
-                ? ("bind" as const)
-                : source.length === 0
-                  ? ("tmpfs" as const)
-                  : ("volume" as const);
+            const readOnly = parts[2] === 'ro'
+            const source = parts[0] ?? ''
+            const target = parts[1] ?? ''
+            const type =
+                source.startsWith('/') || source.startsWith('~')
+                    ? ('bind' as const)
+                    : source.length === 0
+                      ? ('tmpfs' as const)
+                      : ('volume' as const)
             if (target.length > 0) {
-                out.push({ type, source, target, readOnly });
+                out.push({ type, source, target, readOnly })
             }
-            continue;
+            continue
         }
-        if (typeof entry === "object" && entry !== null) {
-            const record = entry as Record<string, unknown>;
-            const type = record.type === "bind" || record.type === "tmpfs" || record.type === "volume"
-                ? record.type
-                : record.source === undefined
-                  ? ("volume" as const)
-                  : ("bind" as const);
-            const source = typeof record.source === "string" ? record.source : "";
+        if (typeof entry === 'object' && entry !== null) {
+            const record = entry as Record<string, unknown>
+            const type =
+                record.type === 'bind' ||
+                record.type === 'tmpfs' ||
+                record.type === 'volume'
+                    ? record.type
+                    : record.source === undefined
+                      ? ('volume' as const)
+                      : ('bind' as const)
+            const source =
+                typeof record.source === 'string' ? record.source : ''
             out.push({
                 type: type,
                 source,
-                target: typeof record.target === "string" ? record.target : "",
+                target: typeof record.target === 'string' ? record.target : '',
                 readOnly: record.read_only === true || record.readOnly === true,
-            });
+            })
         }
     }
-    return out;
+    return out
 }
 
 function normalizeHealthcheck(raw: unknown): ComposeHealthcheck {
-    if (typeof raw !== "object" || raw === null) {
-        return null;
+    if (typeof raw !== 'object' || raw === null) {
+        return null
     }
-    const record = raw as Record<string, unknown>;
-    const testRaw = record.test;
+    const record = raw as Record<string, unknown>
+    const testRaw = record.test
     const test = Array.isArray(testRaw)
-        ? testRaw.filter((entry): entry is string => typeof entry === "string")
-        : typeof testRaw === "string"
-          ? ["CMD-SHELL", testRaw]
-          : undefined;
+        ? testRaw.filter((entry): entry is string => typeof entry === 'string')
+        : typeof testRaw === 'string'
+          ? ['CMD-SHELL', testRaw]
+          : undefined
     return {
         ...(test && test.length > 0 ? { test } : {}),
-        ...(toMs(record.interval) !== undefined ? { intervalMs: toMs(record.interval) } : {}),
-        ...(toMs(record.timeout) !== undefined ? { timeoutMs: toMs(record.timeout) } : {}),
+        ...(toMs(record.interval) !== undefined
+            ? { intervalMs: toMs(record.interval) }
+            : {}),
+        ...(toMs(record.timeout) !== undefined
+            ? { timeoutMs: toMs(record.timeout) }
+            : {}),
         ...(Number.isInteger(record.retries) && Number(record.retries) > 0
             ? { retries: Number(record.retries) }
             : {}),
-        ...(toMs(record.start_period) !== undefined ? { startPeriodMs: toMs(record.start_period) } : {}),
-    };
+        ...(toMs(record.start_period) !== undefined
+            ? { startPeriodMs: toMs(record.start_period) }
+            : {}),
+    }
 }
 
 function normalizeDeploy(raw: unknown, rawRestart?: unknown): ComposeDeploy {
-    if (typeof raw !== "object" || raw === null) {
+    if (typeof raw !== 'object' || raw === null) {
         return {
             replicas: 1,
-            updateOrder: "start-first",
-            failureAction: "rollback",
+            updateOrder: 'start-first',
+            failureAction: 'rollback',
             constraints: [],
             preferences: [],
-            restartCondition: "any",
-        };
+            restartCondition: 'any',
+        }
     }
-    const record = raw as Record<string, unknown>;
-    const placement = (record.placement ?? {}) as Record<string, unknown>;
-    const resources = (record.resources ?? {}) as Record<string, unknown>;
-    const limits = (resources.limits ?? {}) as Record<string, unknown>;
-    const update = (record.update_config ?? {}) as Record<string, unknown>;
-    const restart = (record.restart_policy ?? {}) as Record<string, unknown>;
+    const record = raw as Record<string, unknown>
+    const placement = (record.placement ?? {}) as Record<string, unknown>
+    const resources = (record.resources ?? {}) as Record<string, unknown>
+    const limits = (resources.limits ?? {}) as Record<string, unknown>
+    const update = (record.update_config ?? {}) as Record<string, unknown>
+    const restart = (record.restart_policy ?? {}) as Record<string, unknown>
     const deployRestart =
-        restart.condition === "none" || restart.condition === "on-failure"
+        restart.condition === 'none' || restart.condition === 'on-failure'
             ? restart.condition
-            : "any";
+            : 'any'
     // Service-level `restart: <policy>` (compose legacy) when no deploy block.
     const topLevelRestart =
-        rawRestart === "no" ? ("none" as const)
-        : rawRestart === "on-failure" ? ("on-failure" as const)
-        : typeof rawRestart === "string" ? ("any" as const)
-        : undefined;
+        rawRestart === 'no'
+            ? ('none' as const)
+            : rawRestart === 'on-failure'
+              ? ('on-failure' as const)
+              : typeof rawRestart === 'string'
+                ? ('any' as const)
+                : undefined
     return {
-        replicas: Number.isInteger(record.replicas) && Number(record.replicas) > 0
-            ? Number(record.replicas)
-            : 1,
-        updateOrder: update.order === "stop-first" ? "stop-first" : "start-first",
+        replicas:
+            Number.isInteger(record.replicas) && Number(record.replicas) > 0
+                ? Number(record.replicas)
+                : 1,
+        updateOrder:
+            update.order === 'stop-first' ? 'stop-first' : 'start-first',
         failureAction:
-            update.failure_action === "pause" || update.failure_action === "continue"
+            update.failure_action === 'pause' ||
+            update.failure_action === 'continue'
                 ? update.failure_action
-                : "rollback",
+                : 'rollback',
         constraints: Array.isArray(placement.constraints)
-            ? placement.constraints.filter((entry): entry is string => typeof entry === "string")
+            ? placement.constraints.filter(
+                  (entry): entry is string => typeof entry === 'string'
+              )
             : [],
         preferences: Array.isArray(placement.preferences)
-            ? placement.preferences.filter((entry): entry is string => typeof entry === "string")
+            ? placement.preferences.filter(
+                  (entry): entry is string => typeof entry === 'string'
+              )
             : [],
-        cpuLimit: parseNanoCpus(limits.cpus) !== undefined
-            ? (parseNanoCpus(limits.cpus) ?? 0) / 1_000_000_000
-            : undefined,
+        cpuLimit:
+            parseNanoCpus(limits.cpus) !== undefined
+                ? (parseNanoCpus(limits.cpus) ?? 0) / 1_000_000_000
+                : undefined,
         memoryLimitBytes: parseMemoryBytes(limits.memory),
         restartCondition: topLevelRestart ?? deployRestart,
-    };
+    }
 }
 
 function normalizeRefs(raw: unknown): string[] {
     if (Array.isArray(raw)) {
         return raw
-            .map((entry) => (typeof entry === "string" ? entry : (entry as Record<string, unknown>).source))
-            .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+            .map((entry) =>
+                typeof entry === 'string'
+                    ? entry
+                    : (entry as Record<string, unknown>).source
+            )
+            .filter(
+                (entry): entry is string =>
+                    typeof entry === 'string' && entry.length > 0
+            )
     }
-    if (typeof raw === "object" && raw !== null) {
-        return Object.keys(raw);
+    if (typeof raw === 'object' && raw !== null) {
+        return Object.keys(raw)
     }
-    return [];
+    return []
 }
 
 // ─── Service builder from one compose service map entry ─────────────────────
 
-function buildServiceModel(name: string, raw: Record<string, unknown>): ComposeServiceModel {
+function buildServiceModel(
+    name: string,
+    raw: Record<string, unknown>
+): ComposeServiceModel {
     const entrypoint = Array.isArray(raw.entrypoint)
-        ? raw.entrypoint.filter((entry): entry is string => typeof entry === "string")
-        : typeof raw.entrypoint === "string" && raw.entrypoint.length > 0
+        ? raw.entrypoint.filter(
+              (entry): entry is string => typeof entry === 'string'
+          )
+        : typeof raw.entrypoint === 'string' && raw.entrypoint.length > 0
           ? [raw.entrypoint]
-          : [];
-    const commandRaw = raw.command;
+          : []
+    const commandRaw = raw.command
     const command = Array.isArray(commandRaw)
-        ? commandRaw.filter((entry): entry is string => typeof entry === "string")
-        : typeof commandRaw === "string" && commandRaw.length > 0
-          ? ["sh", "-lc", commandRaw]
-          : [];
+        ? commandRaw.filter(
+              (entry): entry is string => typeof entry === 'string'
+          )
+        : typeof commandRaw === 'string' && commandRaw.length > 0
+          ? ['sh', '-lc', commandRaw]
+          : []
 
     return composeServiceModelSchema.parse({
         name,
-        image: typeof raw.image === "string" && raw.image.length > 0 ? raw.image : null,
+        image:
+            typeof raw.image === 'string' && raw.image.length > 0
+                ? raw.image
+                : null,
         env: normalizeEnvironment(raw.environment),
         // Compose `entrypoint` → ContainerSpec.Command; compose `command` → Args.
         command: entrypoint,
@@ -298,7 +363,7 @@ function buildServiceModel(name: string, raw: Record<string, unknown>): ComposeS
         labels: normalizeLabels(raw.labels),
         dependsOn: Array.isArray(raw.depends_on)
             ? raw.depends_on.map(String)
-            : typeof raw.depends_on === "object" && raw.depends_on !== null
+            : typeof raw.depends_on === 'object' && raw.depends_on !== null
               ? Object.keys(raw.depends_on)
               : [],
         networks: normalizeStringList(raw.networks),
@@ -308,153 +373,193 @@ function buildServiceModel(name: string, raw: Record<string, unknown>): ComposeS
         deploy: normalizeDeploy(raw.deploy, raw.restart),
         secretRefs: normalizeRefs(raw.secrets),
         configRefs: normalizeRefs(raw.configs),
-    });
+    })
 }
 
 function normalizeLabels(raw: unknown): Record<string, string> {
-    if (typeof raw !== "object" || raw === null) {
-        return {};
+    if (typeof raw !== 'object' || raw === null) {
+        return {}
     }
     return Object.fromEntries(
         Object.entries(raw as Record<string, string>)
-            .filter(([, value]) => typeof value === "string")
-            .map(([key, value]) => [key, value]),
-    );
+            .filter(([, value]) => typeof value === 'string')
+            .map(([key, value]) => [key, value])
+    )
 }
 
 function normalizeStringList(raw: unknown): string[] {
     if (Array.isArray(raw)) {
-        return raw.filter((entry): entry is string => typeof entry === "string");
+        return raw.filter((entry): entry is string => typeof entry === 'string')
     }
-    if (typeof raw === "object" && raw !== null) {
-        return Object.keys(raw);
+    if (typeof raw === 'object' && raw !== null) {
+        return Object.keys(raw)
     }
-    return [];
+    return []
 }
 
 function topoOrder(services: ComposeServiceModel[]): ComposeServiceModel[] {
-    const byName = new Map(services.map((service) => [service.name, service]));
-    const indegree = new Map<string, number>();
-    const dependents = new Map<string, string[]>();
+    const byName = new Map(services.map((service) => [service.name, service]))
+    const indegree = new Map<string, number>()
+    const dependents = new Map<string, string[]>()
     for (const service of services) {
-        indegree.set(service.name, service.dependsOn.filter((dep) => byName.has(dep)).length);
+        indegree.set(
+            service.name,
+            service.dependsOn.filter((dep) => byName.has(dep)).length
+        )
         for (const dep of service.dependsOn) {
             if (!byName.has(dep)) {
-                continue;
+                continue
             }
-            const list = dependents.get(dep) ?? [];
-            list.push(service.name);
-            dependents.set(dep, list);
+            const list = dependents.get(dep) ?? []
+            list.push(service.name)
+            dependents.set(dep, list)
         }
     }
-    const ready: string[] = [];
+    const ready: string[] = []
     for (const [name, degree] of indegree) {
         if (degree === 0) {
-            ready.push(name);
+            ready.push(name)
         }
     }
-    const ordered: ComposeServiceModel[] = [];
+    const ordered: ComposeServiceModel[] = []
     while (ready.length > 0) {
-        const current = ready.shift();
-        if (current === undefined) break;
-        const service = byName.get(current);
+        const current = ready.shift()
+        if (current === undefined) break
+        const service = byName.get(current)
         if (service) {
-            ordered.push(service);
+            ordered.push(service)
         }
         for (const dependent of dependents.get(current) ?? []) {
-            const next = (indegree.get(dependent) ?? 1) - 1;
-            indegree.set(dependent, next);
+            const next = (indegree.get(dependent) ?? 1) - 1
+            indegree.set(dependent, next)
             if (next === 0) {
-                ready.push(dependent);
+                ready.push(dependent)
             }
         }
     }
     // Deterministic: remaining (cyclic) services in name order
-    const orderedNames = new Set(ordered.map((service) => service.name));
+    const orderedNames = new Set(ordered.map((service) => service.name))
     return [
         ...ordered,
         ...services
             .filter((service) => !orderedNames.has(service.name))
             .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
-    ];
+    ]
 }
 
 export type ComposeApplySummary = {
-    networks: string[];
-    secrets: string[];
-    configs: string[];
-    createdServices: string[];
-    updatedServices: string[];
-};
+    networks: string[]
+    secrets: string[]
+    configs: string[]
+    createdServices: string[]
+    updatedServices: string[]
+}
 
 export type SwarmComposeRealizerShape = {
     /** Parse compose YAML into the canonical typed model; fails with `RuntimeInvalid` when it is not a compose file. */
-    readonly parseComposeYaml: (yamlText: string) => Effect.Effect<ComposeModel, RuntimeInvalid>;
+    readonly parseComposeYaml: (
+        yamlText: string
+    ) => Effect.Effect<ComposeModel, RuntimeInvalid>
     /** Scan the model for swarm-incompatible constructs. Errors block realization; warns are non-blocking. */
-    readonly validateCompatibility: (model: ComposeModel) => Effect.Effect<ComposeCompatibilityReport>;
+    readonly validateCompatibility: (
+        model: ComposeModel
+    ) => Effect.Effect<ComposeCompatibilityReport>
     /** Pure transform: model -> dependency-ordered realization plan. */
     readonly realizeCompose: (
         model: ComposeModel,
-        context: { projectId: string; deploymentId: string },
-    ) => Effect.Effect<ComposeRealizationPlan>;
+        context: { projectId: string; deploymentId: string }
+    ) => Effect.Effect<ComposeRealizationPlan>
     /** Apply the plan idempotently through the engine: ensure networks, create secrets/configs once, create-or-update services. */
     readonly executeComposePlan: (
-        plan: ComposeRealizationPlan,
-    ) => Effect.Effect<ComposeApplySummary, DockerError | AppError, DockerEngine>;
-};
+        plan: ComposeRealizationPlan
+    ) => Effect.Effect<
+        ComposeApplySummary,
+        DockerError | AppError,
+        DockerEngine
+    >
+}
 
-export class SwarmComposeRealizer extends Context.Service<SwarmComposeRealizer, SwarmComposeRealizerShape>()(
-    "runtime/SwarmComposeRealizer",
-) {
+export class SwarmComposeRealizer extends Context.Service<
+    SwarmComposeRealizer,
+    SwarmComposeRealizerShape
+>()('runtime/SwarmComposeRealizer') {
     /** Only `executeComposePlan` needs the engine, and it yields it when it runs, so this is a constant a module provides with `useValue`. */
     static readonly live = class SwarmComposeRealizerImpl implements SwarmComposeRealizerShape {
-        parseComposeYaml = parseComposeYaml;
-        validateCompatibility = (model: ComposeModel) => Effect.sync(() => validateCompatibility(model));
-        realizeCompose = (model: ComposeModel, context: { projectId: string; deploymentId: string }) =>
-            Effect.sync(() => realizeCompose(model, context));
-        executeComposePlan = executeComposePlan;
-    };
+        parseComposeYaml = parseComposeYaml
+        validateCompatibility = (model: ComposeModel) =>
+            Effect.sync(() => validateCompatibility(model))
+        realizeCompose = (
+            model: ComposeModel,
+            context: { projectId: string; deploymentId: string }
+        ) => Effect.sync(() => realizeCompose(model, context))
+        executeComposePlan = executeComposePlan
+    }
 }
 
 /** The thrown `RuntimeInvalid` (our own) or a zod/yaml failure, as the one typed error. */
 function toInvalid(error: unknown): RuntimeInvalid {
-    if (error instanceof RuntimeInvalid) return error;
-    return new RuntimeInvalid({ reason: `Invalid compose file: ${error instanceof Error ? error.message : String(error)}` });
+    if (error instanceof RuntimeInvalid) return error
+    return new RuntimeInvalid({
+        reason: `Invalid compose file: ${error instanceof Error ? error.message : String(error)}`,
+    })
 }
 
-function parseComposeYaml(yamlText: string): Effect.Effect<ComposeModel, RuntimeInvalid> {
-    return Effect.try({ try: () => parseComposeModel(yamlText), catch: toInvalid });
+function parseComposeYaml(
+    yamlText: string
+): Effect.Effect<ComposeModel, RuntimeInvalid> {
+    return Effect.try({
+        try: () => parseComposeModel(yamlText),
+        catch: toInvalid,
+    })
 }
 
 function parseComposeModel(yamlText: string): ComposeModel {
-    let raw: unknown;
+    let raw: unknown
     try {
-        raw = parse(yamlText);
+        raw = parse(yamlText)
     } catch (error: unknown) {
-        throw new RuntimeInvalid({ reason: `Invalid compose YAML: ${error instanceof Error ? error.message : String(error)}` });
+        throw new RuntimeInvalid({
+            reason: `Invalid compose YAML: ${error instanceof Error ? error.message : String(error)}`,
+        })
     }
-    if (typeof raw !== "object" || raw === null) {
-        throw new RuntimeInvalid({ reason: "Compose file must contain a top-level object" });
+    if (typeof raw !== 'object' || raw === null) {
+        throw new RuntimeInvalid({
+            reason: 'Compose file must contain a top-level object',
+        })
     }
-    const record = raw as Record<string, unknown>;
-    const servicesRaw = record.services;
-    if (typeof servicesRaw !== "object" || servicesRaw === null) {
-        throw new RuntimeInvalid({ reason: "Compose file has no `services` section" });
+    const record = raw as Record<string, unknown>
+    const servicesRaw = record.services
+    if (typeof servicesRaw !== 'object' || servicesRaw === null) {
+        throw new RuntimeInvalid({
+            reason: 'Compose file has no `services` section',
+        })
     }
     const services = Object.entries(servicesRaw as Record<string, unknown>)
-        .filter(([, value]) => typeof value === "object" && value !== null)
-        .map(([name, value]) => buildServiceModel(name, value as Record<string, unknown>));
+        .filter(([, value]) => typeof value === 'object' && value !== null)
+        .map(([name, value]) =>
+            buildServiceModel(name, value as Record<string, unknown>)
+        )
 
-    const networksRaw = record.networks;
-    const networks: Record<string, { driver: string; attachable: boolean; labels: Record<string, string> }> = {};
-    if (typeof networksRaw === "object" && networksRaw !== null) {
-        for (const [name, value] of Object.entries(networksRaw as Record<string, unknown>)) {
-            const config = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
+    const networksRaw = record.networks
+    const networks: Record<
+        string,
+        { driver: string; attachable: boolean; labels: Record<string, string> }
+    > = {}
+    if (typeof networksRaw === 'object' && networksRaw !== null) {
+        for (const [name, value] of Object.entries(
+            networksRaw as Record<string, unknown>
+        )) {
+            const config = (
+                typeof value === 'object' && value !== null ? value : {}
+            ) as Record<string, unknown>
             networks[name] = {
-                driver: typeof config.driver === "string" ? config.driver : "overlay",
+                driver:
+                    typeof config.driver === 'string'
+                        ? config.driver
+                        : 'overlay',
                 attachable: config.attachable === false ? false : true,
                 labels: normalizeLabels(config.labels),
-            };
+            }
         }
     }
 
@@ -463,121 +568,148 @@ function parseComposeModel(yamlText: string): ComposeModel {
         networks,
         secrets: normalizeStringMap(record.secrets),
         configs: normalizeStringMap(record.configs),
-        volumes: typeof record.volumes === "object" && record.volumes !== null
-            ? Object.fromEntries(Object.keys(record.volumes as Record<string, unknown>).map((name) => [name, {}]))
-            : {},
-    });
+        volumes:
+            typeof record.volumes === 'object' && record.volumes !== null
+                ? Object.fromEntries(
+                      Object.keys(
+                          record.volumes as Record<string, unknown>
+                      ).map((name) => [name, {}])
+                  )
+                : {},
+    })
 }
 
-function validateCompatibility(model: ComposeModel): ComposeCompatibilityReport {
-    const issues: ComposeCompatibilityIssue[] = [];
-    const push = (path: string, severity: ComposeCompatibilitySeverity, message: string) => {
-        issues.push({ path, severity, message });
-    };
+function validateCompatibility(
+    model: ComposeModel
+): ComposeCompatibilityReport {
+    const issues: ComposeCompatibilityIssue[] = []
+    const push = (
+        path: string,
+        severity: ComposeCompatibilitySeverity,
+        message: string
+    ) => {
+        issues.push({ path, severity, message })
+    }
 
     for (const service of model.services) {
-        const base = `services.${service.name}`;
+        const base = `services.${service.name}`
         if (!service.image) {
             push(
                 `${base}.image`,
-                "error",
-                "Image-less (build-only) service is not supported on Swarm — build the image first and reference it by image name.",
-            );
+                'error',
+                'Image-less (build-only) service is not supported on Swarm — build the image first and reference it by image name.'
+            )
         }
-        const bindMounts = service.mounts.filter((mount) => mount.type === "bind");
+        const bindMounts = service.mounts.filter(
+            (mount) => mount.type === 'bind'
+        )
         if (bindMounts.length > 0) {
             push(
                 `${base}.volumes`,
-                "error",
-                "Bind mounts are not supported on Swarm (they pin tasks to a single host). Use named volumes instead.",
-            );
+                'error',
+                'Bind mounts are not supported on Swarm (they pin tasks to a single host). Use named volumes instead.'
+            )
         }
         if (service.ports.some((port) => port.publishedPort !== undefined)) {
             push(
                 `${base}.ports`,
-                "warn",
-                "Host ports are not published: a swarm publish opens the port on every interface of every node. The service is reached on the overlay at its container port, and from outside through the ingress lanes.",
-            );
+                'warn',
+                'Host ports are not published: a swarm publish opens the port on every interface of every node. The service is reached on the overlay at its container port, and from outside through the ingress lanes.'
+            )
         }
         if (service.secretRefs.length > 0 || service.configRefs.length > 0) {
             push(
                 `${base}.secrets/configs`,
-                "warn",
-                "Secret/config objects are created at stack level; per-service mount references are a follow-up.",
-            );
+                'warn',
+                'Secret/config objects are created at stack level; per-service mount references are a follow-up.'
+            )
         }
         const missingNetworks = service.networks.filter(
-            (name) => !model.networks[name] && name !== "default",
-        );
+            (name) => !model.networks[name] && name !== 'default'
+        )
         if (missingNetworks.length > 0) {
             push(
                 `${base}.networks`,
-                "warn",
-                `Network(s) ${missingNetworks.join(", ")} not declared at the top level — will be auto-created as overlay.`,
-            );
+                'warn',
+                `Network(s) ${missingNetworks.join(', ')} not declared at the top level — will be auto-created as overlay.`
+            )
         }
     }
 
-    issues.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-    return { issues };
+    issues.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+    return { issues }
 }
 
 function realizeCompose(
     model: ComposeModel,
-    context: { projectId: string; deploymentId: string },
+    context: { projectId: string; deploymentId: string }
 ): ComposeRealizationPlan {
     const managedLabels: Record<string, string> = {
-        "deployer.managed": "true",
-        "deployer.managed_by": "compose_realizer",
-        "deployer.managed_reason": "compose_stack",
-        "deployer.project_id": context.projectId,
-        "deployer.deployment_id": context.deploymentId,
-    };
+        'deployer.managed': 'true',
+        'deployer.managed_by': 'compose_realizer',
+        'deployer.managed_reason': 'compose_stack',
+        'deployer.project_id': context.projectId,
+        'deployer.deployment_id': context.deploymentId,
+    }
 
-    const planNetworks = Object.entries(model.networks).map(([name, config]) => ({
-        name: `deployer-${context.projectId}-${name}`,
-        driver: config.driver,
-        attachable: config.attachable,
-        labels: { ...managedLabels, "deployer.compose_network": name },
-    }));
+    const planNetworks = Object.entries(model.networks).map(
+        ([name, config]) => ({
+            name: `deployer-${context.projectId}-${name}`,
+            driver: config.driver,
+            attachable: config.attachable,
+            labels: { ...managedLabels, 'deployer.compose_network': name },
+        })
+    )
 
     const secrets = Object.entries(model.secrets).map(([name, data]) => ({
         name: `deployer-${context.projectId}-secret-${name}`,
         data,
-    }));
+    }))
     const configs = Object.entries(model.configs).map(([name, data]) => ({
         name: `deployer-${context.projectId}-config-${name}`,
         data,
-    }));
+    }))
 
-    const baseNetworks = model.services.some((service) => service.networks.includes("default"))
-        ? ["default"]
-        : [];
+    const baseNetworks = model.services.some((service) =>
+        service.networks.includes('default')
+    )
+        ? ['default']
+        : []
 
     const services = topoOrder(model.services).map((service) => {
         const spec: SwarmServiceSpecInput = {
             name: `deployer-${context.projectId}-${service.name}`,
-            image: service.image ?? "busybox:latest",
-            mode: "replicated",
+            image: service.image ?? 'busybox:latest',
+            mode: 'replicated',
             replicas: service.deploy.replicas,
             env: service.env,
             command: service.command,
             args: service.args,
-            labels: { ...managedLabels, "deployer.compose_service": service.name, ...service.labels },
+            labels: {
+                ...managedLabels,
+                'deployer.compose_service': service.name,
+                ...service.labels,
+            },
             containerLabels: {},
             mounts: service.mounts
-                .filter((mount) => mount.type === "volume")
+                .filter((mount) => mount.type === 'volume')
                 .map((mount) => ({
-                    type: "volume" as const,
+                    type: 'volume' as const,
                     source: `deployer-${context.projectId}-${mount.source}`,
                     target: mount.target,
                     readOnly: mount.readOnly,
                 })),
-            placementPreferences: service.deploy.preferences.map((descriptor) => ({ spreadDescriptor: descriptor })),
+            placementPreferences: service.deploy.preferences.map(
+                (descriptor) => ({ spreadDescriptor: descriptor })
+            ),
             placementConstraints: service.deploy.constraints,
             resourcesLimits: {
                 ...(service.deploy.cpuLimit !== undefined
-                    ? { nanoCpus: Math.trunc(service.deploy.cpuLimit * 1_000_000_000) }
+                    ? {
+                          nanoCpus: Math.trunc(
+                              service.deploy.cpuLimit * 1_000_000_000
+                          ),
+                      }
                     : {}),
                 ...(service.deploy.memoryLimitBytes !== undefined
                     ? { memoryBytes: service.deploy.memoryLimitBytes }
@@ -589,7 +721,9 @@ function realizeCompose(
             networks: [
                 ...baseNetworks,
                 ...service.networks
-                    .filter((name) => name !== "default" && model.networks[name])
+                    .filter(
+                        (name) => name !== 'default' && model.networks[name]
+                    )
                     .map((name) => `deployer-${context.projectId}-${name}`),
             ].map((name) => ({ target: name, aliases: [] })),
             healthcheck: service.healthcheck,
@@ -608,28 +742,35 @@ function realizeCompose(
             endpointPorts: [],
             // USER WORKLOADS keep the default VIP endpoint: they may be scaled
             // to many replicas, so the load-balanced name is what consumers want.
-            endpointMode: "vip",
+            endpointMode: 'vip',
             stopGracePeriodSeconds: 30,
-        };
-        return { serviceName: service.name, spec };
-    });
+        }
+        return { serviceName: service.name, spec }
+    })
 
     return {
         networks: planNetworks,
         secrets,
         configs,
         services,
-    };
+    }
 }
 
-function executeComposePlan(plan: ComposeRealizationPlan): ReturnType<SwarmComposeRealizerShape["executeComposePlan"]> {
+function executeComposePlan(
+    plan: ComposeRealizationPlan
+): ReturnType<SwarmComposeRealizerShape['executeComposePlan']> {
     return Effect.gen(function* () {
-        const { networks: networkOps, swarmSecrets, swarmConfigs, swarmServices } = yield* DockerEngine;
-        const createdServices: string[] = [];
-        const updatedServices: string[] = [];
-        const networks: string[] = [];
-        const secrets: string[] = [];
-        const configs: string[] = [];
+        const {
+            networks: networkOps,
+            swarmSecrets,
+            swarmConfigs,
+            swarmServices,
+        } = yield* DockerEngine
+        const createdServices: string[] = []
+        const updatedServices: string[] = []
+        const networks: string[] = []
+        const secrets: string[] = []
+        const configs: string[] = []
 
         for (const network of plan.networks) {
             yield* networkOps.ensureOverlay({
@@ -639,73 +780,98 @@ function executeComposePlan(plan: ComposeRealizationPlan): ReturnType<SwarmCompo
                 ingress: false,
                 enableIpv6: false,
                 labels: network.labels,
-            });
-            networks.push(network.name);
+            })
+            networks.push(network.name)
         }
 
-        const existingSecrets = new Set((yield* swarmSecrets.list()).map((secret) => secret.Spec.Name));
+        const existingSecrets = new Set(
+            (yield* swarmSecrets.list()).map((secret) => secret.Spec.Name)
+        )
         for (const secret of plan.secrets) {
             if (!existingSecrets.has(secret.name)) {
-                yield* swarmSecrets.create({ name: secret.name, data: secret.data, labels: { "deployer.managed": "true" } });
+                yield* swarmSecrets.create({
+                    name: secret.name,
+                    data: secret.data,
+                    labels: { 'deployer.managed': 'true' },
+                })
             }
-            secrets.push(secret.name);
+            secrets.push(secret.name)
         }
 
-        const existingConfigs = new Set((yield* swarmConfigs.list()).map((config) => config.Spec.Name));
+        const existingConfigs = new Set(
+            (yield* swarmConfigs.list()).map((config) => config.Spec.Name)
+        )
         for (const config of plan.configs) {
             if (!existingConfigs.has(config.name)) {
-                yield* swarmConfigs.create({ name: config.name, data: config.data, labels: { "deployer.managed": "true" } });
+                yield* swarmConfigs.create({
+                    name: config.name,
+                    data: config.data,
+                    labels: { 'deployer.managed': 'true' },
+                })
             }
-            configs.push(config.name);
+            configs.push(config.name)
         }
 
         for (const entry of plan.services) {
-            const serviceName = entry.spec.name;
-            const spec = toDockerServiceSpec(entry.spec);
+            const serviceName = entry.spec.name
+            const spec = toDockerServiceSpec(entry.spec)
             // Updated in place when it exists, created when the engine says it does not.
-            const existing = yield* swarmServices.inspect(serviceName).pipe(
-                Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
-            );
+            const existing = yield* swarmServices
+                .inspect(serviceName)
+                .pipe(
+                    Effect.catchTag('DockerNotFound', () =>
+                        Effect.succeed(null)
+                    )
+                )
             if (existing !== null) {
-                yield* swarmServices.update(serviceName, existing.Version.Index, spec, false);
-                updatedServices.push(serviceName);
-                continue;
+                yield* swarmServices.update(
+                    serviceName,
+                    existing.Version.Index,
+                    spec,
+                    false
+                )
+                updatedServices.push(serviceName)
+                continue
             }
-            const created = yield* swarmServices.create(spec);
+            const created = yield* swarmServices.create(spec)
             if (created.ID === undefined) {
                 return yield* Effect.fail(
-                    new AppError(`Swarm service ${serviceName} was created without an ID`, "SWARM_SERVICE_MISSING_ID", { serviceName }),
-                );
+                    new AppError(
+                        `Swarm service ${serviceName} was created without an ID`,
+                        'SWARM_SERVICE_MISSING_ID',
+                        { serviceName }
+                    )
+                )
             }
-            createdServices.push(created.ID);
+            createdServices.push(created.ID)
         }
 
         yield* Effect.logInfo(
             `Compose realization applied: ${String(createdServices.length)} created / ${String(updatedServices.length)} updated services, ` +
-                `${String(networks.length)} networks, ${String(secrets.length)} secrets, ${String(configs.length)} configs`,
-        );
-        return { networks, secrets, configs, createdServices, updatedServices };
-    });
+                `${String(networks.length)} networks, ${String(secrets.length)} secrets, ${String(configs.length)} configs`
+        )
+        return { networks, secrets, configs, createdServices, updatedServices }
+    })
 }
 
 function normalizeStringMap(raw: unknown): Record<string, string> {
-    if (typeof raw !== "object" || raw === null) {
-        return {};
+    if (typeof raw !== 'object' || raw === null) {
+        return {}
     }
-    const out: Record<string, string> = {};
+    const out: Record<string, string> = {}
     for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (typeof value === "string") {
-            out[key] = value;
-        } else if (typeof value === "object" && value !== null) {
-            const record = value as Record<string, unknown>;
-            if (typeof record.file === "string") {
-                out[key] = record.file;
-            } else if (typeof record.content === "string") {
-                out[key] = record.content;
+        if (typeof value === 'string') {
+            out[key] = value
+        } else if (typeof value === 'object' && value !== null) {
+            const record = value as Record<string, unknown>
+            if (typeof record.file === 'string') {
+                out[key] = record.file
+            } else if (typeof record.content === 'string') {
+                out[key] = record.content
             } else {
-                out[key] = "";
+                out[key] = ''
             }
         }
     }
-    return out;
+    return out
 }

@@ -1,7 +1,7 @@
-import { OpenAPIGenerator } from "@orpc/openapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod";
+import { OpenAPIGenerator } from '@orpc/openapi'
+import { ZodToJsonSchemaConverter } from '@orpc/zod'
 
-import { appContract } from "./app-contract";
+import { appContract } from './app-contract'
 
 /**
  * The OpenAPI document of the composed API.
@@ -12,12 +12,12 @@ import { appContract } from "./app-contract";
  * what this process mounts.
  */
 export function generateOpenApiSpec(): Promise<unknown> {
-	return new OpenAPIGenerator({
-		converters: [new ZodToJsonSchemaConverter()],
-	}).generate(appContract, {
-		base: {
-			info: { title: "Deployer API", version: "1.0.0" },
-			servers: [{ url: "/" }],
-		},
-	});
+    return new OpenAPIGenerator({
+        converters: [new ZodToJsonSchemaConverter()],
+    }).generate(appContract, {
+        base: {
+            info: { title: 'Deployer API', version: '1.0.0' },
+            servers: [{ url: '/' }],
+        },
+    })
 }

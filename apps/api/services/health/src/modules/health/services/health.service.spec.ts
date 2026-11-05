@@ -1,72 +1,85 @@
-import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { Effect } from 'effect'
+import { describe, expect, it, vi } from 'vitest'
 
-import { HealthRegistryRepository, UptimeSource } from "../services/health.service";
-import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
+import {
+    HealthRegistryRepository,
+    UptimeSource,
+} from '../services/health.service'
+import { healthRegistryFake, healthSnapshot } from '../testing/health.fixtures'
 
-import { HealthService, SERVICE_NAME } from "./health.service";
+import { HealthService, SERVICE_NAME } from './health.service'
 
-const service = new HealthService.live();
+const service = new HealthService.live()
 
 function report(
-  runOnce: () => Effect.Effect<ReturnType<typeof healthSnapshot>>,
-  uptime = 0,
+    runOnce: () => Effect.Effect<ReturnType<typeof healthSnapshot>>,
+    uptime = 0
 ) {
-  return Effect.runPromise(
-    service.report().pipe(
-      Effect.provideService(HealthRegistryRepository, healthRegistryFake(runOnce)),
-      Effect.provideService(UptimeSource, () => uptime),
-    ),
-  );
+    return Effect.runPromise(
+        service.report().pipe(
+            Effect.provideService(
+                HealthRegistryRepository,
+                healthRegistryFake(runOnce)
+            ),
+            Effect.provideService(UptimeSource, () => uptime)
+        )
+    )
 }
 
-describe("HealthService", () => {
-  it("returns the registry snapshot", async () => {
-    const snapshot = healthSnapshot();
+describe('HealthService', () => {
+    it('returns the registry snapshot', async () => {
+        const snapshot = healthSnapshot()
 
-    await expect(report(() => Effect.succeed(snapshot))).resolves.toMatchObject({
-      info: snapshot.info,
-      error: snapshot.error,
-      details: snapshot.details,
-      indicators: snapshot.indicators,
-    });
-  });
+        await expect(
+            report(() => Effect.succeed(snapshot))
+        ).resolves.toMatchObject({
+            info: snapshot.info,
+            error: snapshot.error,
+            details: snapshot.details,
+            indicators: snapshot.indicators,
+        })
+    })
 
-  it("maps `up` to `ok` and carries the snapshot's timestamp", async () => {
-    const result = await report(() => Effect.succeed(healthSnapshot()));
+    it("maps `up` to `ok` and carries the snapshot's timestamp", async () => {
+        const result = await report(() => Effect.succeed(healthSnapshot()))
 
-    expect(result.status).toBe("ok");
-    expect(result.timestamp).toEqual(new Date("2026-10-09T00:00:00.000Z"));
-    expect(result.service).toBe(SERVICE_NAME);
-  });
+        expect(result.status).toBe('ok')
+        expect(result.timestamp).toEqual(new Date('2026-10-09T00:00:00.000Z'))
+        expect(result.service).toBe(SERVICE_NAME)
+    })
 
-  it("maps `down` to `degraded`", async () => {
-    const result = await report(() =>
-      Effect.succeed(healthSnapshot({ status: "down", info: {} })),
-    );
+    it('maps `down` to `degraded`', async () => {
+        const result = await report(() =>
+            Effect.succeed(healthSnapshot({ status: 'down', info: {} }))
+        )
 
-    expect(result.status).toBe("degraded");
-  });
+        expect(result.status).toBe('degraded')
+    })
 
-  it("reports the clock's uptime verbatim: seconds, no milliseconds conversion", async () => {
-    // `process.uptime()` is already seconds. The bug this catches divided by 1000,
-    // so a stub of 42 would arrive as 0.042.
-    const result = await report(() => Effect.succeed(healthSnapshot()), 42);
+    it("reports the clock's uptime verbatim: seconds, no milliseconds conversion", async () => {
+        // `process.uptime()` is already seconds. The bug this catches divided by 1000,
+        // so a stub of 42 would arrive as 0.042.
+        const result = await report(() => Effect.succeed(healthSnapshot()), 42)
 
-    expect(result.uptime).toBe(42);
-  });
+        expect(result.uptime).toBe(42)
+    })
 
-  it("maps a registry failure to the domain error", async () => {
-    const runOnce = vi.fn(() => Effect.die(new Error("registry exploded")));
+    it('maps a registry failure to the domain error', async () => {
+        const runOnce = vi.fn(() => Effect.die(new Error('registry exploded')))
 
-    const message = await Effect.runPromise(
-      service.report().pipe(
-        Effect.provideService(HealthRegistryRepository, healthRegistryFake(runOnce)),
-        Effect.provideService(UptimeSource, () => 0),
-        Effect.catchTag("HealthCheckFailed", (error) => Effect.succeed(error.message)),
-      ),
-    );
+        const message = await Effect.runPromise(
+            service.report().pipe(
+                Effect.provideService(
+                    HealthRegistryRepository,
+                    healthRegistryFake(runOnce)
+                ),
+                Effect.provideService(UptimeSource, () => 0),
+                Effect.catchTag('HealthCheckFailed', (error) =>
+                    Effect.succeed(error.message)
+                )
+            )
+        )
 
-    expect(message).toBe("Health registry failed to produce a snapshot");
-  });
-});
+        expect(message).toBe('Health registry failed to produce a snapshot')
+    })
+})

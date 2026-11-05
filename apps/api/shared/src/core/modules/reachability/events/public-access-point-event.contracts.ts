@@ -3,9 +3,9 @@
  * system). Every change to the node's public access point is emitted as a
  * discriminated-union event, so any feature can watch the exact same state.
  */
-import * as z from "zod/v4";
+import * as z from 'zod/v4'
 
-import { contractBuilder } from "@deployer/events";
+import { contractBuilder } from '@deployer/events'
 
 /** Base fields shared by every access-point state (kind is the discriminator). */
 const accessPointBaseSchema = z.object({
@@ -19,7 +19,7 @@ const accessPointBaseSchema = z.object({
     latencyMs: z.number().nullable(),
     statusCode: z.number().nullable(),
     error: z.string().nullable(),
-});
+})
 
 /**
  * Discriminated union of access-point states. `kind` discriminates:
@@ -28,18 +28,18 @@ const accessPointBaseSchema = z.object({
  *   - tunnel   → the access point is a DNS-provider-backed tunnel
  *   - null     → nothing is configured
  */
-export const publicAccessPointEventSchema = z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("ip"), ...accessPointBaseSchema.shape }),
-    z.object({ kind: z.literal("hostname"), ...accessPointBaseSchema.shape }),
-    z.object({ kind: z.literal("tunnel"), ...accessPointBaseSchema.shape }),
+export const publicAccessPointEventSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('ip'), ...accessPointBaseSchema.shape }),
+    z.object({ kind: z.literal('hostname'), ...accessPointBaseSchema.shape }),
+    z.object({ kind: z.literal('tunnel'), ...accessPointBaseSchema.shape }),
     z.object({ kind: z.null(), ...accessPointBaseSchema.shape }),
-]);
+])
 
 /** The discriminated-union input (event parameters) for the access-point stream. */
 const accessPointEventInputSchema = z.object({
     // Namespacing key — every event with the same key shares one stream.
-    scope: z.string().default("node"),
-});
+    scope: z.string().default('node'),
+})
 
 export const publicAccessPointEventContracts = {
     /**
@@ -51,7 +51,10 @@ export const publicAccessPointEventContracts = {
         .input(accessPointEventInputSchema)
         .output(publicAccessPointEventSchema)
         .build(),
-} as const;
+} as const
 
-export type PublicAccessPointEventContracts = typeof publicAccessPointEventContracts;
-export type PublicAccessPointEvent = z.infer<typeof publicAccessPointEventSchema>;
+export type PublicAccessPointEventContracts =
+    typeof publicAccessPointEventContracts
+export type PublicAccessPointEvent = z.infer<
+    typeof publicAccessPointEventSchema
+>

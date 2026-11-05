@@ -3,18 +3,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
-import { 
-    DEFAULT_SESSION_QUERY_KEY, 
-    type SessionResult, 
+import {
+    DEFAULT_SESSION_QUERY_KEY,
+    type SessionResult,
     type CreateUseSessionOptions,
     type CreateSessionAwareAuthClientOptions,
     type MinimalAuthClient,
 } from './shared'
 
 // Re-export all shared types and constants (same as server.ts)
-export { 
-    DEFAULT_SESSION_QUERY_KEY, 
-    type SessionResult, 
+export {
+    DEFAULT_SESSION_QUERY_KEY,
+    type SessionResult,
     type BetterAuthSessionResult,
     type CreateUseSessionOptions,
     type CreateSessionAwareAuthClientOptions,
@@ -32,9 +32,9 @@ export {
  * Client stub - server-side session fetching doesn't work on client.
  * This is a no-op that returns the provided fetchSession function.
  */
-export function createGetSession<TData>(
-    options: { fetchSession: () => Promise<TData | null> }
-): () => Promise<TData | null> {
+export function createGetSession<TData>(options: {
+    fetchSession: () => Promise<TData | null>
+}): () => Promise<TData | null> {
     // On client, just return the fetchSession directly
     // This won't have access to server headers, but allows code to compile
     return options.fetchSession
@@ -44,13 +44,11 @@ export function createGetSession<TData>(
  * Client stub - returns query options that can be used with React Query.
  * Note: fetchSession won't work properly on client (no headers access).
  */
-export function createSessionQueryOptions<TData>(
-    options: {
-        fetchSession: () => Promise<TData | null>
-        sessionQueryKey?: readonly unknown[]
-        staleTime?: number
-    }
-): {
+export function createSessionQueryOptions<TData>(options: {
+    fetchSession: () => Promise<TData | null>
+    sessionQueryKey?: readonly unknown[]
+    staleTime?: number
+}): {
     queryKey: readonly unknown[]
     queryFn: () => Promise<TData | null>
     staleTime: number
@@ -66,13 +64,17 @@ export function createSessionQueryOptions<TData>(
  * Client stub - returns a prefetch function.
  * Note: This is primarily meant for server-side prefetching.
  */
-export function createPrefetchSession<TData>(
-    options: {
-        fetchSession: () => Promise<TData | null>
-        sessionQueryKey?: readonly unknown[]
-        staleTime?: number
-    }
-): (queryClient: { prefetchQuery: (opts: { queryKey: readonly unknown[]; queryFn: () => Promise<TData | null>; staleTime: number }) => Promise<void> }) => Promise<void> {
+export function createPrefetchSession<TData>(options: {
+    fetchSession: () => Promise<TData | null>
+    sessionQueryKey?: readonly unknown[]
+    staleTime?: number
+}): (queryClient: {
+    prefetchQuery: (opts: {
+        queryKey: readonly unknown[]
+        queryFn: () => Promise<TData | null>
+        staleTime: number
+    }) => Promise<void>
+}) => Promise<void> {
     const queryOptions = createSessionQueryOptions(options)
     return async (queryClient) => {
         await queryClient.prefetchQuery(queryOptions)
@@ -82,7 +84,7 @@ export function createPrefetchSession<TData>(
 /**
  * Interface for the useSessionQuery result.
  */
-interface SessionQueryResult<TData> { 
+interface SessionQueryResult<TData> {
     data: TData | undefined
     hasData: boolean
     isLoading: boolean
@@ -92,20 +94,20 @@ interface SessionQueryResult<TData> {
 
 /**
  * Hook that reads session data from React Query cache.
- * 
+ *
  * This is designed to work with SessionHydration - when SessionHydration
  * pre-populates the cache on the server, this hook will read from
  * the hydrated data immediately (no loading state, no flash).
- * 
+ *
  * Architecture:
  * 1. SessionHydration (server component) fetches session and hydrates RQ cache
  * 2. HydrationBoundary passes dehydrated state to client
  * 3. This hook uses useQuery to read from the hydrated cache
  * 4. Since data is already in cache, useQuery returns it immediately
- * 
+ *
  * The queryFn is a fallback for when there's no hydrated data (e.g., direct client navigation).
  * In that case, it returns null (no session) since we can't fetch server-side session on client.
- * 
+ *
  * @param queryKey - The query key to read session from (should match SessionHydration's key)
  * @param enabled - Whether the query is enabled
  */
@@ -135,7 +137,7 @@ export function useSessionQuery<TData>(
         // IMPORTANT: null is a valid value meaning "user not logged in"
         // Only undefined means "not yet fetched"
         const hasData = result.data !== undefined
-        
+
         return {
             data: result.data as TData | undefined,
             hasData,
@@ -150,16 +152,16 @@ export function useSessionQuery<TData>(
 
 /**
  * Factory function that creates an enhanced useSession hook.
- * 
+ *
  * The created hook integrates with:
  * 1. React Query cache (for HydrationBoundary/SessionPage hydration) - SUBSCRIBES to updates
  * 2. Better Auth's useSession (as fallback)
- * 
+ *
  * How it works:
  * 1. Subscribes to React Query cache changes via useSyncExternalStore
  *    - When a page hydrates the session (via HydrationBoundary), this hook re-renders
  * 2. If no hydrated data, falls back to Better Auth's useSession
- * 
+ *
  * This enables the key behavior:
  * - SessionPage: Server fetches + hydrates RQ cache → useSession picks it up instantly
  * - Regular pages: useSession fetches client-side on first call (lazy loading)
@@ -170,7 +172,7 @@ export function useSessionQuery<TData>(
  * // In your app's auth setup
  * import { createUseSession } from './client'
  * import { authClient } from '@/react/session/options'
- * 
+ *
  * export const useSession = createUseSession({
  *   authClient,
  *   sessionQueryKey: ['session'],
@@ -180,22 +182,17 @@ export function useSessionQuery<TData>(
 export function createUseSession<TData>(
     options: CreateUseSessionOptions<TData>
 ): () => SessionResult<TData> {
-    const { 
-        authClient, 
-        sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
-    } = options
+    const { authClient, sessionQueryKey = DEFAULT_SESSION_QUERY_KEY } = options
 
     return function useSession(): SessionResult<TData> {
         // Use our simplified useQuery-based hook for session data
         // This reads from the hydrated cache (from SessionHydration)
-        const { 
-            data: cachedSession, 
-            hasData: hasHydratedData,
-        } = useSessionQuery<TData>(sessionQueryKey)
-        
+        const { data: cachedSession, hasData: hasHydratedData } =
+            useSessionQuery<TData>(sessionQueryKey)
+
         // Use Better Auth's useSession as a fallback
         const betterAuthSession = authClient.useSession()
-        
+
         // Determine which session data to use
         const result = useMemo((): SessionResult<TData> => {
             // Priority 1: React Query cache (from SessionHydration hydration)
@@ -223,7 +220,7 @@ export function createUseSession<TData>(
                     refetch: betterAuthSession.refetch,
                 }
             }
-            
+
             // Priority 2: Better Auth's useSession (client-side fetch)
             // Normalize isPending to isLoading (and keep isPending for compat)
             return {
@@ -234,51 +231,49 @@ export function createUseSession<TData>(
                 refetch: betterAuthSession.refetch,
             }
         }, [hasHydratedData, cachedSession, betterAuthSession])
-        
+
         return result
     }
 }
 
 /**
  * Factory function that wraps an auth client to make it session-aware.
- * 
+ *
  * This function takes any Better Auth client and returns the same client with
  * an enhanced `useSession` hook that integrates with React Query cache.
- * 
+ *
  * The enhanced useSession:
  * - On client: Uses `useSyncExternalStore` to subscribe to React Query cache changes
  * - Falls back to the original Better Auth's useSession
- * 
+ *
  * All other auth client methods are passed through unchanged.
- * 
+ *
  * @example
  * ```ts
  * // In your app's auth setup (client.ts)
  * import { createSessionAwareAuthClient } from './client'
  * import { authClient as originalAuthClient } from '@/react/session/options'
- * 
+ *
  * export const authClient = createSessionAwareAuthClient(originalAuthClient, {
  *   sessionQueryKey: ['session'],
  * })
- * 
+ *
  * // Now authClient.useSession() will automatically use RQ cache subscription
  * export const { useSession, signIn, signUp, signOut } = authClient
  * ```
- * 
+ *
  * @param originalClient - The original Better Auth client to wrap
  * @param options - Configuration options for session awareness
  * @returns The same client with an enhanced useSession hook
  */
 export function createSessionAwareAuthClient<
     TClient extends MinimalAuthClient<TSession>,
-    TSession = TClient extends MinimalAuthClient<infer S> ? S : unknown
+    TSession = TClient extends MinimalAuthClient<infer S> ? S : unknown,
 >(
     originalClient: TClient,
     options: CreateSessionAwareAuthClientOptions<TSession> = {}
 ): TClient {
-    const { 
-        sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
-    } = options
+    const { sessionQueryKey = DEFAULT_SESSION_QUERY_KEY } = options
 
     // Create the enhanced useSession hook
     const enhancedUseSession = createUseSession({

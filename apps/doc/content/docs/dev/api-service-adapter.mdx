@@ -4,7 +4,10 @@ description: Mandatory backend layering rules for controllers, services, reposit
 order: 8
 ---
 
-<DocMeta source=".docs/core-concepts/02-SERVICE-ADAPTER-PATTERN.md" scope="canonical" />
+<DocMeta
+    source=".docs/core-concepts/02-SERVICE-ADAPTER-PATTERN.md"
+    scope="canonical"
+/>
 
 ## Why this pattern exists
 
@@ -53,14 +56,14 @@ This avoids bypassing business invariants in domain B.
 Every controller and service now satisfies the rule — zero production
 controllers/services hold a `DatabaseService` handle. Canonical repositories:
 
-| Domain | Repository |
-|--------|------------|
-| GitHub apps + webhook config | `modules/providers/code/github/repositories/github-apps.repository.ts` |
-| GitLab accounts | `modules/providers/code/gitlab/repositories/gitlab-apps.repository.ts` |
-| DNS provider apps | `modules/providers/dns/shared/repositories/dns-providers.repository.ts` |
-| Node network config (core) | `core/modules/reachability/repositories/node-network-config.repository.ts` |
-| Project access checks (core) | `core/modules/project/repositories/project-access.repository.ts` |
-| Transactional outbox (core) | `core/modules/events/outbox/local-event-outbox.repository.ts` |
+| Domain                       | Repository                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| GitHub apps + webhook config | `modules/providers/code/github/repositories/github-apps.repository.ts`     |
+| GitLab accounts              | `modules/providers/code/gitlab/repositories/gitlab-apps.repository.ts`     |
+| DNS provider apps            | `modules/providers/dns/shared/repositories/dns-providers.repository.ts`    |
+| Node network config (core)   | `core/modules/reachability/repositories/node-network-config.repository.ts` |
+| Project access checks (core) | `core/modules/project/repositories/project-access.repository.ts`           |
+| Transactional outbox (core)  | `core/modules/events/outbox/local-event-outbox.repository.ts`              |
 
 Core repositories read the global Drizzle schema directly (never import product
 modules) to keep the core → product dependency direction intact.
@@ -82,7 +85,8 @@ Refactor immediately if a controller:
 - repeats response transform logic across handlers.
 
 <DocCallout title="Code review gate" tone="warning">
-Any new controller using direct database access should be considered architecture regression and blocked in review.
+    Any new controller using direct database access should be considered
+    architecture regression and blocked in review.
 </DocCallout>
 
 ## Related docs

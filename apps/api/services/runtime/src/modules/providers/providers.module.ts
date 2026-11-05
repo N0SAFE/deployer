@@ -1,22 +1,38 @@
-import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
-import { GitModule, GitService } from "@deployer/shared/core/modules/git/index";
-import type { GitServiceShape } from "@deployer/shared/core/modules/git/git/services/git.service";
+import {
+    createModuleContext,
+    effectHostProvider,
+    serviceLifecycle,
+} from '@deployer/nest-effect'
+import type { GitServiceShape } from '@deployer/shared/core/modules/git/git/services/git.service'
+import { GitModule, GitService } from '@deployer/shared/core/modules/git/index'
 
-import { CustomSourceProvider } from "./code/custom/services/custom-source-provider.service";
-import { GithubSourceProvider, makeGithubSourceProvider } from "./code/github/services/github-source-provider.service";
-import { GitlabSourceProvider, makeGitlabSourceProvider } from "./code/gitlab/services/gitlab-source-provider.service";
+import { CustomSourceProvider } from './code/custom/services/custom-source-provider.service'
 import {
-	CodeProviderRegistry,
-	makeCodeProviderRegistry,
-} from "./code/shared/code-provider-registry.service";
-import { CODE_PROVIDERS, type CodeProviderShape } from "./code/shared/code-provider.interface";
+    GithubSourceProvider,
+    makeGithubSourceProvider,
+} from './code/github/services/github-source-provider.service'
 import {
-	makeUploadBundleRegistry,
-	UploadBundleRegistry,
-	type UploadBundleRegistryShape,
-} from "./code/upload/services/upload-bundle-registry.service";
-import { makeUploadSourceProvider, UploadSourceProvider } from "./code/upload/services/upload-source-provider.service";
-import { SourceGitPort } from "./providers.ports";
+    GitlabSourceProvider,
+    makeGitlabSourceProvider,
+} from './code/gitlab/services/gitlab-source-provider.service'
+import {
+    CodeProviderRegistry,
+    makeCodeProviderRegistry,
+} from './code/shared/code-provider-registry.service'
+import {
+    CODE_PROVIDERS,
+    type CodeProviderShape,
+} from './code/shared/code-provider.interface'
+import {
+    makeUploadBundleRegistry,
+    UploadBundleRegistry,
+    type UploadBundleRegistryShape,
+} from './code/upload/services/upload-bundle-registry.service'
+import {
+    makeUploadSourceProvider,
+    UploadSourceProvider,
+} from './code/upload/services/upload-source-provider.service'
+import { SourceGitPort } from './providers.ports'
 
 /**
  * The runtime's SOURCE providers.
@@ -39,44 +55,56 @@ import { SourceGitPort } from "./providers.ports";
  * provider be added by listing it here, with no change to the registry or its callers.
  */
 export class ProviderDomainsModule extends createModuleContext({
-	imports: [GitModule],
-	providers: [
-		effectHostProvider(),
-		{ provide: SourceGitPort, useExisting: GitService },
-		{
-			provide: GithubSourceProvider,
-			useFactory: (git: GitServiceShape) => makeGithubSourceProvider({ git }),
-			inject: [SourceGitPort],
-		},
-		{
-			provide: GitlabSourceProvider,
-			useFactory: (git: GitServiceShape) => makeGitlabSourceProvider({ git }),
-			inject: [SourceGitPort],
-		},
-		{ provide: UploadBundleRegistry, useFactory: () => makeUploadBundleRegistry() },
-		{
-			provide: UploadSourceProvider,
-			useFactory: (bundles: UploadBundleRegistryShape) => makeUploadSourceProvider({ bundles }),
-			inject: [UploadBundleRegistry],
-		},
-		{ provide: CustomSourceProvider, useValue: CustomSourceProvider.live },
-		{
-			provide: CODE_PROVIDERS,
-			useFactory: (
-				github: CodeProviderShape,
-				gitlab: CodeProviderShape,
-				upload: CodeProviderShape,
-				custom: CodeProviderShape,
-			): readonly CodeProviderShape[] => [github, gitlab, upload, custom],
-			inject: [GithubSourceProvider, GitlabSourceProvider, UploadSourceProvider, CustomSourceProvider],
-		},
-		{
-			provide: CodeProviderRegistry,
-			useFactory: (providers: readonly CodeProviderShape[]) => makeCodeProviderRegistry(providers),
-			inject: [CODE_PROVIDERS],
-		},
-		// The registry declares its start (it logs what it registered); one generic runner binds it.
-		serviceLifecycle(CodeProviderRegistry),
-	],
-	exports: [CodeProviderRegistry, UploadBundleRegistry],
+    imports: [GitModule],
+    providers: [
+        effectHostProvider(),
+        { provide: SourceGitPort, useExisting: GitService },
+        {
+            provide: GithubSourceProvider,
+            useFactory: (git: GitServiceShape) =>
+                makeGithubSourceProvider({ git }),
+            inject: [SourceGitPort],
+        },
+        {
+            provide: GitlabSourceProvider,
+            useFactory: (git: GitServiceShape) =>
+                makeGitlabSourceProvider({ git }),
+            inject: [SourceGitPort],
+        },
+        {
+            provide: UploadBundleRegistry,
+            useFactory: () => makeUploadBundleRegistry(),
+        },
+        {
+            provide: UploadSourceProvider,
+            useFactory: (bundles: UploadBundleRegistryShape) =>
+                makeUploadSourceProvider({ bundles }),
+            inject: [UploadBundleRegistry],
+        },
+        { provide: CustomSourceProvider, useValue: CustomSourceProvider.live },
+        {
+            provide: CODE_PROVIDERS,
+            useFactory: (
+                github: CodeProviderShape,
+                gitlab: CodeProviderShape,
+                upload: CodeProviderShape,
+                custom: CodeProviderShape
+            ): readonly CodeProviderShape[] => [github, gitlab, upload, custom],
+            inject: [
+                GithubSourceProvider,
+                GitlabSourceProvider,
+                UploadSourceProvider,
+                CustomSourceProvider,
+            ],
+        },
+        {
+            provide: CodeProviderRegistry,
+            useFactory: (providers: readonly CodeProviderShape[]) =>
+                makeCodeProviderRegistry(providers),
+            inject: [CODE_PROVIDERS],
+        },
+        // The registry declares its start (it logs what it registered); one generic runner binds it.
+        serviceLifecycle(CodeProviderRegistry),
+    ],
+    exports: [CodeProviderRegistry, UploadBundleRegistry],
 }) {}

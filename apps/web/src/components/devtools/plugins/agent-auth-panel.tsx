@@ -1,24 +1,33 @@
-"use client";
+'use client'
 
-import { useState } from "react";
+import { useState } from 'react'
 
-import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
-import { Badge } from "@deployer/ui/components/shadcn/badge";
-import { Button } from "@deployer/ui/components/shadcn/button";
-import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@deployer/ui/components/shadcn/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@deployer/ui/components/shadcn/tabs";
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@deployer/ui/components/shadcn/table'
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@deployer/ui/components/shadcn/tabs'
 
-import { authClient } from "@/lib/auth";
+import { authClient } from '@/lib/auth'
 
-import { useDevtoolsResource } from "../use-devtools-resource";
+import { useDevtoolsResource } from '../use-devtools-resource'
 
 /**
  * DevTools panel: Agent Auth.
@@ -52,119 +61,126 @@ import { useDevtoolsResource } from "../use-devtools-resource";
  * over by a user. It still exists, but it is no longer acting on its own.
  */
 
-type AgentStatus = "active" | "pending" | "expired" | "revoked" | "rejected" | "claimed";
-type HostStatus = "active" | "pending" | "pending_enrollment" | "revoked" | "rejected";
+type AgentStatus =
+    'active' | 'pending' | 'expired' | 'revoked' | 'rejected' | 'claimed'
+type HostStatus =
+    'active' | 'pending' | 'pending_enrollment' | 'revoked' | 'rejected'
 
 interface AgentRow {
-  id: string;
-  name: string;
-  hostId: string;
-  userId: string | null;
-  status: AgentStatus;
-  mode: "delegated" | "autonomous";
-  lastUsedAt: Date | null;
-  createdAt: Date;
-  expiresAt: Date | null;
+    id: string
+    name: string
+    hostId: string
+    userId: string | null
+    status: AgentStatus
+    mode: 'delegated' | 'autonomous'
+    lastUsedAt: Date | null
+    createdAt: Date
+    expiresAt: Date | null
 }
 
 interface HostRow {
-  id: string;
-  name: string | null;
-  userId: string | null;
-  defaultCapabilities: string[];
-  status: HostStatus;
-  lastUsedAt: Date | null;
-  createdAt: Date;
+    id: string
+    name: string | null
+    userId: string | null
+    defaultCapabilities: string[]
+    status: HostStatus
+    lastUsedAt: Date | null
+    createdAt: Date
 }
 
 const AGENT_STATUS_VARIANT: Record<
-  AgentStatus,
-  "default" | "secondary" | "destructive" | "outline"
+    AgentStatus,
+    'default' | 'secondary' | 'destructive' | 'outline'
 > = {
-  active: "default",
-  pending: "outline",
-  expired: "secondary",
-  revoked: "destructive",
-  rejected: "destructive",
-  claimed: "secondary",
-};
+    active: 'default',
+    pending: 'outline',
+    expired: 'secondary',
+    revoked: 'destructive',
+    rejected: 'destructive',
+    claimed: 'secondary',
+}
 
 const HOST_STATUS_VARIANT: Record<
-  HostStatus,
-  "default" | "secondary" | "destructive" | "outline"
+    HostStatus,
+    'default' | 'secondary' | 'destructive' | 'outline'
 > = {
-  active: "default",
-  pending: "outline",
-  pending_enrollment: "outline",
-  revoked: "destructive",
-  rejected: "destructive",
-};
+    active: 'default',
+    pending: 'outline',
+    pending_enrollment: 'outline',
+    revoked: 'destructive',
+    rejected: 'destructive',
+}
 
 function relativeTime(value: Date | null | undefined): string {
-  if (!value) return "never";
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) return "never";
+    if (!value) return 'never'
+    const date = value instanceof Date ? value : new Date(String(value))
+    if (Number.isNaN(date.getTime())) return 'never'
 
-  const diffMs = date.getTime() - Date.now();
-  const abs = Math.abs(diffMs);
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
+    const diffMs = date.getTime() - Date.now()
+    const abs = Math.abs(diffMs)
+    const minute = 60_000
+    const hour = 60 * minute
+    const day = 24 * hour
 
-  const fmt = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (abs < minute) return fmt.format(Math.round(diffMs / 1000), "second");
-  if (abs < hour) return fmt.format(Math.round(diffMs / minute), "minute");
-  if (abs < day) return fmt.format(Math.round(diffMs / hour), "hour");
-  return fmt.format(Math.round(diffMs / day), "day");
+    const fmt = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+    if (abs < minute) return fmt.format(Math.round(diffMs / 1000), 'second')
+    if (abs < hour) return fmt.format(Math.round(diffMs / minute), 'minute')
+    if (abs < day) return fmt.format(Math.round(diffMs / hour), 'hour')
+    return fmt.format(Math.round(diffMs / day), 'day')
 }
 
 /** Shared empty/error chrome so the three tabs read consistently. */
 function PanelState({
-  loading,
-  error,
-  empty,
-  onRetry,
+    loading,
+    error,
+    empty,
+    onRetry,
 }: {
-  loading: boolean;
-  error: string | null;
-  empty?: string;
-  onRetry: () => void;
+    loading: boolean
+    error: string | null
+    empty?: string
+    onRetry: () => void
 }) {
-  if (loading) {
-    return (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
-      </div>
-    );
-  }
+    if (loading) {
+        return (
+            <div className="space-y-2 p-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                ))}
+            </div>
+        )
+    }
 
-  if (error) {
-    return (
-      <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTitle>Request failed</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>{error}</span>
-            <Button size="sm" variant="outline" className="self-start" onClick={onRetry}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+    if (error) {
+        return (
+            <div className="p-4">
+                <Alert variant="destructive">
+                    <AlertTitle>Request failed</AlertTitle>
+                    <AlertDescription className="flex flex-col gap-2">
+                        <span>{error}</span>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="self-start"
+                            onClick={onRetry}
+                        >
+                            Retry
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            </div>
+        )
+    }
 
-  if (empty) {
-    return (
-      <div className="text-muted-foreground rounded-lg border m-4 p-6 text-center text-sm">
-        {empty}
-      </div>
-    );
-  }
+    if (empty) {
+        return (
+            <div className="text-muted-foreground m-4 rounded-lg border p-6 text-center text-sm">
+                {empty}
+            </div>
+        )
+    }
 
-  return null;
+    return null
 }
 
 // ---------------------------------------------------------------------------
@@ -172,114 +188,144 @@ function PanelState({
 // ---------------------------------------------------------------------------
 
 async function fetchAgents(): Promise<AgentRow[]> {
-  const result = await authClient.$fetch<{ agents?: AgentRow[] } | AgentRow[]>(
-    "/agent/list",
-    { method: "GET" },
-  );
-  if (result.error) {
-    throw new Error(result.error.message ?? "Failed to list agents");
-  }
-  const data = result.data;
-  return Array.isArray(data) ? data : (data.agents ?? []);
+    const result = await authClient.$fetch<
+        { agents?: AgentRow[] } | AgentRow[]
+    >('/agent/list', { method: 'GET' })
+    if (result.error) {
+        throw new Error(result.error.message ?? 'Failed to list agents')
+    }
+    const data = result.data
+    return Array.isArray(data) ? data : (data.agents ?? [])
 }
 
 function AgentsTab() {
-  const { data: rows, error, loading, reload: load } = useDevtoolsResource(fetchAgents);
-  const [revoking, setRevoking] = useState<string | null>(null);
+    const {
+        data: rows,
+        error,
+        loading,
+        reload: load,
+    } = useDevtoolsResource(fetchAgents)
+    const [revoking, setRevoking] = useState<string | null>(null)
 
-  const handleRevoke = async (agentId: string) => {
-    setRevoking(agentId);
-    try {
-      await authClient.$fetch("/agent/revoke", {
-        method: "POST",
-        body: { agentId },
-      });
-      load();
-    } finally {
-      setRevoking(null);
+    const handleRevoke = async (agentId: string) => {
+        setRevoking(agentId)
+        try {
+            await authClient.$fetch('/agent/revoke', {
+                method: 'POST',
+                body: { agentId },
+            })
+            load()
+        } finally {
+            setRevoking(null)
+        }
     }
-  };
 
-  if (loading || error || (rows?.length ?? 0) === 0) {
+    if (loading || error || (rows?.length ?? 0) === 0) {
+        return (
+            <PanelState
+                loading={loading}
+                error={error}
+                empty={
+                    !loading && !error
+                        ? 'No agents have registered with this platform.'
+                        : undefined
+                }
+                onRetry={load}
+            />
+        )
+    }
+
+    const agents = rows ?? []
+
     return (
-      <PanelState
-        loading={loading}
-        error={error}
-        empty={!loading && !error ? "No agents have registered with this platform." : undefined}
-        onRetry={load}
-      />
-    );
-  }
+        <div className="flex h-full flex-col gap-3 p-4">
+            <div className="flex items-center justify-between">
+                <div className="text-sm">
+                    <span className="font-medium">{agents.length}</span>
+                    <span className="text-muted-foreground"> agent(s)</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={load}>
+                    Refresh
+                </Button>
+            </div>
 
-  const agents = rows ?? [];
-
-  return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm">
-          <span className="font-medium">{agents.length}</span>
-          <span className="text-muted-foreground"> agent(s)</span>
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Mode</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Last used</TableHead>
+                            <TableHead>Expires</TableHead>
+                            <TableHead>Created</TableHead>
+                            <TableHead />
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {agents.map((agent) => (
+                            <TableRow key={agent.id}>
+                                <TableCell className="font-medium">
+                                    {agent.name}
+                                    <div className="text-muted-foreground font-mono text-[10px]">
+                                        {agent.id}
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="outline">
+                                        {agent.mode}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge
+                                        variant={
+                                            AGENT_STATUS_VARIANT[agent.status]
+                                        }
+                                    >
+                                        {agent.status}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                    {relativeTime(agent.lastUsedAt)}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                    {relativeTime(agent.expiresAt)}
+                                </TableCell>
+                                <TableCell
+                                    className="text-xs"
+                                    title={String(agent.createdAt)}
+                                >
+                                    {relativeTime(agent.createdAt)}
+                                </TableCell>
+                                <TableCell>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        disabled={
+                                            agent.status !== 'active' ||
+                                            revoking === agent.id
+                                        }
+                                        onClick={() =>
+                                            void handleRevoke(agent.id)
+                                        }
+                                        title={
+                                            agent.status !== 'active'
+                                                ? `Cannot revoke an agent whose status is "${agent.status}"`
+                                                : 'Revoke this agent'
+                                        }
+                                    >
+                                        {revoking === agent.id
+                                            ? 'Revoking…'
+                                            : 'Revoke'}
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
         </div>
-        <Button size="sm" variant="outline" onClick={load}>
-          Refresh
-        </Button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Mode</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last used</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {agents.map((agent) => (
-              <TableRow key={agent.id}>
-                <TableCell className="font-medium">
-                  {agent.name}
-                  <div className="text-muted-foreground font-mono text-[10px]">{agent.id}</div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{agent.mode}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={AGENT_STATUS_VARIANT[agent.status]}>
-                    {agent.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-xs">{relativeTime(agent.lastUsedAt)}</TableCell>
-                <TableCell className="text-xs">{relativeTime(agent.expiresAt)}</TableCell>
-                <TableCell className="text-xs" title={String(agent.createdAt)}>
-                  {relativeTime(agent.createdAt)}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={agent.status !== "active" || revoking === agent.id}
-                    onClick={() => void handleRevoke(agent.id)}
-                    title={
-                      agent.status !== "active"
-                        ? `Cannot revoke an agent whose status is "${agent.status}"`
-                        : "Revoke this agent"
-                    }
-                  >
-                    {revoking === agent.id ? "Revoking…" : "Revoke"}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -287,104 +333,134 @@ function AgentsTab() {
 // ---------------------------------------------------------------------------
 
 async function fetchHosts(): Promise<HostRow[]> {
-  const result = await authClient.$fetch<{ hosts?: HostRow[] } | HostRow[]>(
-    "/host/list",
-    { method: "GET" },
-  );
-  if (result.error) {
-    throw new Error(result.error.message ?? "Failed to list hosts");
-  }
-  const data = result.data;
-  return Array.isArray(data) ? data : (data.hosts ?? []);
+    const result = await authClient.$fetch<{ hosts?: HostRow[] } | HostRow[]>(
+        '/host/list',
+        { method: 'GET' }
+    )
+    if (result.error) {
+        throw new Error(result.error.message ?? 'Failed to list hosts')
+    }
+    const data = result.data
+    return Array.isArray(data) ? data : (data.hosts ?? [])
 }
 
 function HostsTab() {
-  const { data: rows, error, loading, reload: load } = useDevtoolsResource(fetchHosts);
+    const {
+        data: rows,
+        error,
+        loading,
+        reload: load,
+    } = useDevtoolsResource(fetchHosts)
 
-  if (loading || error || (rows?.length ?? 0) === 0) {
+    if (loading || error || (rows?.length ?? 0) === 0) {
+        return (
+            <PanelState
+                loading={loading}
+                error={error}
+                empty={
+                    !loading && !error
+                        ? 'No hosts are enrolled. A host is a machine that can run agents.'
+                        : undefined
+                }
+                onRetry={load}
+            />
+        )
+    }
+
+    const hosts = rows ?? []
+
     return (
-      <PanelState
-        loading={loading}
-        error={error}
-        empty={
-          !loading && !error
-            ? "No hosts are enrolled. A host is a machine that can run agents."
-            : undefined
-        }
-        onRetry={load}
-      />
-    );
-  }
+        <div className="flex h-full flex-col gap-3 p-4">
+            <div className="flex items-center justify-between">
+                <div className="text-sm">
+                    <span className="font-medium">{hosts.length}</span>
+                    <span className="text-muted-foreground"> host(s)</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={load}>
+                    Refresh
+                </Button>
+            </div>
 
-  const hosts = rows ?? [];
-
-  return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm">
-          <span className="font-medium">{hosts.length}</span>
-          <span className="text-muted-foreground"> host(s)</span>
-        </div>
-        <Button size="sm" variant="outline" onClick={load}>
-          Refresh
-        </Button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Default capabilities</TableHead>
-              <TableHead>Last used</TableHead>
-              <TableHead>Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {hosts.map((host) => (
-              <TableRow key={host.id}>
-                <TableCell className="font-medium">
-                  {host.name ?? "—"}
-                  <div className="text-muted-foreground font-mono text-[10px]">{host.id}</div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={HOST_STATUS_VARIANT[host.status]}>
-                    {host.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {/* These are the capabilities a newly registered agent on this
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Default capabilities</TableHead>
+                            <TableHead>Last used</TableHead>
+                            <TableHead>Created</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {hosts.map((host) => (
+                            <TableRow key={host.id}>
+                                <TableCell className="font-medium">
+                                    {host.name ?? '—'}
+                                    <div className="text-muted-foreground font-mono text-[10px]">
+                                        {host.id}
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge
+                                        variant={
+                                            HOST_STATUS_VARIANT[host.status]
+                                        }
+                                    >
+                                        {host.status}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    {/* These are the capabilities a newly registered agent on this
                       host inherits without a separate approval. Showing them is
                       the point: they are the standing grant. */}
-                  {host.defaultCapabilities.length === 0 ? (
-                    <span className="text-muted-foreground text-xs">none</span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1">
-                      {host.defaultCapabilities.slice(0, 6).map((cap) => (
-                        <Badge key={cap} variant="outline" className="font-mono text-[10px]">
-                          {cap}
-                        </Badge>
-                      ))}
-                      {host.defaultCapabilities.length > 6 && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          +{host.defaultCapabilities.length - 6}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="text-xs">{relativeTime(host.lastUsedAt)}</TableCell>
-                <TableCell className="text-xs" title={String(host.createdAt)}>
-                  {relativeTime(host.createdAt)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
+                                    {host.defaultCapabilities.length === 0 ? (
+                                        <span className="text-muted-foreground text-xs">
+                                            none
+                                        </span>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-1">
+                                            {host.defaultCapabilities
+                                                .slice(0, 6)
+                                                .map((cap) => (
+                                                    <Badge
+                                                        key={cap}
+                                                        variant="outline"
+                                                        className="font-mono text-[10px]"
+                                                    >
+                                                        {cap}
+                                                    </Badge>
+                                                ))}
+                                            {host.defaultCapabilities.length >
+                                                6 && (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-[10px]"
+                                                >
+                                                    +
+                                                    {host.defaultCapabilities
+                                                        .length - 6}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    )}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                    {relativeTime(host.lastUsedAt)}
+                                </TableCell>
+                                <TableCell
+                                    className="text-xs"
+                                    title={String(host.createdAt)}
+                                >
+                                    {relativeTime(host.createdAt)}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -392,128 +468,144 @@ function HostsTab() {
 // ---------------------------------------------------------------------------
 
 interface AgentSessionInfo {
-  user?: { id: string; name?: string; email?: string };
-  agent?: {
-    id: string;
-    name: string;
-    mode: "delegated" | "autonomous";
-    hostId?: string;
-    capabilityGrants?: { capability: string; status: string }[];
-  };
-  host?: { id: string; name?: string | null };
+    user?: { id: string; name?: string; email?: string }
+    agent?: {
+        id: string
+        name: string
+        mode: 'delegated' | 'autonomous'
+        hostId?: string
+        capabilityGrants?: { capability: string; status: string }[]
+    }
+    host?: { id: string; name?: string | null }
 }
 
 async function fetchAgentSession(): Promise<AgentSessionInfo | null> {
-  try {
-    const result = await authClient.$fetch<AgentSessionInfo>("/agent/session", {
-      method: "GET",
-    });
-    // A 401 here is the NORMAL case for a human browsing the dashboard:
-    // there is no agent JWT on the request. Report it as "no session"
-    // rather than an error, or the panel looks broken by default.
-    return result.error ? null : result.data;
-  } catch {
-    return null;
-  }
+    try {
+        const result = await authClient.$fetch<AgentSessionInfo>(
+            '/agent/session',
+            {
+                method: 'GET',
+            }
+        )
+        // A 401 here is the NORMAL case for a human browsing the dashboard:
+        // there is no agent JWT on the request. Report it as "no session"
+        // rather than an error, or the panel looks broken by default.
+        return result.error ? null : result.data
+    } catch {
+        return null
+    }
 }
 
 function SessionTab() {
-  const { data: session, error, loading, reload: load } = useDevtoolsResource(fetchAgentSession);
+    const {
+        data: session,
+        error,
+        loading,
+        reload: load,
+    } = useDevtoolsResource(fetchAgentSession)
 
-  if (loading) {
+    if (loading) {
+        return (
+            <div className="space-y-2 p-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                ))}
+            </div>
+        )
+    }
+
+    if (error) {
+        return <PanelState loading={false} error={error} onRetry={load} />
+    }
+
+    if (!session?.agent) {
+        return (
+            <div className="p-4">
+                <Alert>
+                    <AlertTitle>No active agent session</AlertTitle>
+                    <AlertDescription className="text-xs">
+                        This request carries no agent JWT, so it resolves to you
+                        ($ <span className="font-mono">getSession()</span>), not
+                        an agent. That is the normal case when a human uses the
+                        dashboard.
+                    </AlertDescription>
+                </Alert>
+                <div className="mt-3">
+                    <Button size="sm" variant="outline" onClick={load}>
+                        Recheck
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
+    const grants = session.agent.capabilityGrants ?? []
+    const activeGrants = grants.filter((g) => g.status === 'active')
+
     return (
-      <div className="space-y-2 p-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
-      </div>
-    );
-  }
+        <div className="space-y-4 p-4">
+            <div className="rounded-lg border p-4">
+                <h4 className="mb-2 text-sm font-semibold">Agent</h4>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+                    <dt className="text-muted-foreground">Name</dt>
+                    <dd className="font-medium">{session.agent.name}</dd>
+                    <dt className="text-muted-foreground">ID</dt>
+                    <dd className="font-mono">{session.agent.id}</dd>
+                    <dt className="text-muted-foreground">Mode</dt>
+                    <dd>
+                        <Badge variant="outline">{session.agent.mode}</Badge>
+                    </dd>
+                    {session.host && (
+                        <>
+                            <dt className="text-muted-foreground">Host</dt>
+                            <dd>
+                                {session.host.name ?? '—'}{' '}
+                                <span className="text-muted-foreground font-mono">
+                                    {session.host.id}
+                                </span>
+                            </dd>
+                        </>
+                    )}
+                </dl>
+            </div>
 
-  if (error) {
-    return <PanelState loading={false} error={error} onRetry={load} />;
-  }
+            <div className="rounded-lg border p-4">
+                <h4 className="mb-2 text-sm font-semibold">
+                    Capability grants{' '}
+                    <span className="text-muted-foreground font-normal">
+                        ({activeGrants.length} active of {grants.length})
+                    </span>
+                </h4>
+                {grants.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">
+                        This agent holds no capability grants — it can
+                        authenticate but not act.
+                    </p>
+                ) : (
+                    <div className="flex flex-wrap gap-1">
+                        {grants.map((grant) => (
+                            <Badge
+                                key={grant.capability}
+                                variant={
+                                    grant.status === 'active'
+                                        ? 'default'
+                                        : 'secondary'
+                                }
+                                className="font-mono text-[10px]"
+                                title={`status: ${grant.status}`}
+                            >
+                                {grant.capability}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
+            </div>
 
-  if (!session?.agent) {
-    return (
-      <div className="p-4">
-        <Alert>
-          <AlertTitle>No active agent session</AlertTitle>
-          <AlertDescription className="text-xs">
-            This request carries no agent JWT, so it resolves to you (${" "}
-            <span className="font-mono">getSession()</span>), not an agent. That is the
-            normal case when a human uses the dashboard.
-          </AlertDescription>
-        </Alert>
-        <div className="mt-3">
-          <Button size="sm" variant="outline" onClick={load}>
-            Recheck
-          </Button>
+            <Button size="sm" variant="outline" onClick={load}>
+                Refresh session
+            </Button>
         </div>
-      </div>
-    );
-  }
-
-  const grants = session.agent.capabilityGrants ?? [];
-  const activeGrants = grants.filter((g) => g.status === "active");
-
-  return (
-    <div className="space-y-4 p-4">
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-2 text-sm font-semibold">Agent</h4>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-          <dt className="text-muted-foreground">Name</dt>
-          <dd className="font-medium">{session.agent.name}</dd>
-          <dt className="text-muted-foreground">ID</dt>
-          <dd className="font-mono">{session.agent.id}</dd>
-          <dt className="text-muted-foreground">Mode</dt>
-          <dd>
-            <Badge variant="outline">{session.agent.mode}</Badge>
-          </dd>
-          {session.host && (
-            <>
-              <dt className="text-muted-foreground">Host</dt>
-              <dd>
-                {session.host.name ?? "—"}{" "}
-                <span className="text-muted-foreground font-mono">{session.host.id}</span>
-              </dd>
-            </>
-          )}
-        </dl>
-      </div>
-
-      <div className="rounded-lg border p-4">
-        <h4 className="mb-2 text-sm font-semibold">
-          Capability grants{" "}
-          <span className="text-muted-foreground font-normal">
-            ({activeGrants.length} active of {grants.length})
-          </span>
-        </h4>
-        {grants.length === 0 ? (
-          <p className="text-muted-foreground text-xs">
-            This agent holds no capability grants — it can authenticate but not act.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {grants.map((grant) => (
-              <Badge
-                key={grant.capability}
-                variant={grant.status === "active" ? "default" : "secondary"}
-                className="font-mono text-[10px]"
-                title={`status: ${grant.status}`}
-              >
-                {grant.capability}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <Button size="sm" variant="outline" onClick={load}>
-        Refresh session
-      </Button>
-    </div>
-  );
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -521,26 +613,26 @@ function SessionTab() {
 // ---------------------------------------------------------------------------
 
 export function AgentAuthPanel() {
-  return (
-    <div className="flex h-full flex-col">
-      <Tabs defaultValue="agents" className="flex h-full flex-col">
-        <TabsList className="mx-4 mt-4 self-start">
-          <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="hosts">Hosts</TabsTrigger>
-          <TabsTrigger value="session">Session</TabsTrigger>
-        </TabsList>
-        <TabsContent value="agents" className="min-h-0 flex-1">
-          <AgentsTab />
-        </TabsContent>
-        <TabsContent value="hosts" className="min-h-0 flex-1">
-          <HostsTab />
-        </TabsContent>
-        <TabsContent value="session" className="min-h-0 flex-1">
-          <SessionTab />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+    return (
+        <div className="flex h-full flex-col">
+            <Tabs defaultValue="agents" className="flex h-full flex-col">
+                <TabsList className="mx-4 mt-4 self-start">
+                    <TabsTrigger value="agents">Agents</TabsTrigger>
+                    <TabsTrigger value="hosts">Hosts</TabsTrigger>
+                    <TabsTrigger value="session">Session</TabsTrigger>
+                </TabsList>
+                <TabsContent value="agents" className="min-h-0 flex-1">
+                    <AgentsTab />
+                </TabsContent>
+                <TabsContent value="hosts" className="min-h-0 flex-1">
+                    <HostsTab />
+                </TabsContent>
+                <TabsContent value="session" className="min-h-0 flex-1">
+                    <SessionTab />
+                </TabsContent>
+            </Tabs>
+        </div>
+    )
 }
 
-export default AgentAuthPanel;
+export default AgentAuthPanel

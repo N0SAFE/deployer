@@ -10,7 +10,7 @@ Two ways to render a diagram — pick whichever reads better in context:
 
 ### Fenced block (auto-detected)
 
-Any ```` ```mermaid ```` code block is intercepted by the `pre` renderer and becomes an interactive diagram:
+Any ` ```mermaid ` code block is intercepted by the `pre` renderer and becomes an interactive diagram:
 
 ````mdx
 ```mermaid
@@ -34,14 +34,14 @@ Use `<Mermaid>` when you need a titled/framed figure:
 
 ```mdx
 <Mermaid
-  chart={`sequenceDiagram
+    chart={`sequenceDiagram
     Web->>API: register app instance
     API-->>Web: app token`}
 />
 ```
 
 <Mermaid
-  chart={`sequenceDiagram
+    chart={`sequenceDiagram
     participant W as Web instance
     participant A as Deployer API
     W->>A: register-app-instance
@@ -60,47 +60,47 @@ Guidelines:
 
 ```mdx
 <DocChart
-  kind="bar"
-  title="Deploys per weekday"
-  data='[{"label":"Mon","value":12},{"label":"Tue","value":18},{"label":"Wed","value":9},{"label":"Thu","value":22}]'
-  xLabel="Day"
-  yLabel="Deploys"
+    kind="bar"
+    title="Deploys per weekday"
+    data='[{"label":"Mon","value":12},{"label":"Tue","value":18},{"label":"Wed","value":9},{"label":"Thu","value":22}]'
+    xLabel="Day"
+    yLabel="Deploys"
 />
 ```
 
 <DocChart
-  kind="bar"
-  title="Deploys per weekday"
-  data='[{"label":"Mon","value":12},{"label":"Tue","value":18},{"label":"Wed","value":9},{"label":"Thu","value":22}]'
-  xLabel="Day"
-  yLabel="Deploys"
+    kind="bar"
+    title="Deploys per weekday"
+    data='[{"label":"Mon","value":12},{"label":"Tue","value":18},{"label":"Wed","value":9},{"label":"Thu","value":22}]'
+    xLabel="Day"
+    yLabel="Deploys"
 />
 
 Line charts connect the points in order:
 
 ```mdx
 <DocChart
-  kind="line"
-  title="Reconciliation latency (ms)"
-  data='[{"label":"p50","value":42},{"label":"p90","value":120},{"label":"p99","value":310}]'
+    kind="line"
+    title="Reconciliation latency (ms)"
+    data='[{"label":"p50","value":42},{"label":"p90","value":120},{"label":"p99","value":310}]'
 />
 ```
 
 <DocChart
-  kind="line"
-  title="Reconciliation latency (ms)"
-  data='[{"label":"p50","value":42},{"label":"p90","value":120},{"label":"p99","value":310}]'
+    kind="line"
+    title="Reconciliation latency (ms)"
+    data='[{"label":"p50","value":42},{"label":"p90","value":120},{"label":"p99","value":310}]'
 />
 
 Props:
 
-| Prop | Type | Default | Purpose |
-|---|---|---|---|
-| `data` | JSON string | required | Array of `{ "label": string, "value": number }`. |
-| `kind` | `"line" \| "bar"` | `"line"` | Mark family. |
-| `title` / `caption` | string | – | Figure header. |
-| `xLabel` / `yLabel` | string | – | Axis labels. |
-| `height` | string (px) | `"320"` | Chart height. |
+| Prop                | Type              | Default  | Purpose                                          |
+| ------------------- | ----------------- | -------- | ------------------------------------------------ |
+| `data`              | JSON string       | required | Array of `{ "label": string, "value": number }`. |
+| `kind`              | `"line" \| "bar"` | `"line"` | Mark family.                                     |
+| `title` / `caption` | string            | –        | Figure header.                                   |
+| `xLabel` / `yLabel` | string            | –        | Axis labels.                                     |
+| `height`            | string (px)       | `"320"`  | Chart height.                                    |
 
 Invalid JSON renders an inline error panel with the offending payload instead of breaking the page build.
 

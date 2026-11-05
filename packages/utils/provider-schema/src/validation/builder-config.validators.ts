@@ -1,6 +1,9 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-export const builderConfigValidators: Record<string, z.ZodType<Record<string, unknown>>> = {
+export const builderConfigValidators: Record<
+    string,
+    z.ZodType<Record<string, unknown>>
+> = {
     dockerfile: z.object({
         dockerfilePath: z.string().optional(),
         buildArgs: z.record(z.string(), z.unknown()).optional(),
@@ -27,4 +30,4 @@ export const builderConfigValidators: Record<string, z.ZodType<Record<string, un
     external: z.object({
         image: z.string().min(1),
     }),
-};
+}

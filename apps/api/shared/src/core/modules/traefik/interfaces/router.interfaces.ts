@@ -6,7 +6,12 @@
  * @module traefik/interfaces/router
  */
 
-import type { VariableString, VariableBoolean, VariableNumber, TLSOptions } from './common.interfaces';
+import type {
+    VariableString,
+    VariableBoolean,
+    VariableNumber,
+    TLSOptions,
+} from './common.interfaces'
 
 // ============================================================================
 // RULE TYPES
@@ -16,24 +21,24 @@ import type { VariableString, VariableBoolean, VariableNumber, TLSOptions } from
  * Rule matcher types for router rules
  */
 export type RuleMatcher =
-  | 'Host'
-  | 'HostRegexp'
-  | 'HostSNI'
-  | 'HostSNIRegexp'
-  | 'Path'
-  | 'PathPrefix'
-  | 'PathRegexp'
-  | 'Query'
-  | 'QueryRegexp'
-  | 'Header'
-  | 'HeaderRegexp'
-  | 'Method'
-  | 'ClientIP';
+    | 'Host'
+    | 'HostRegexp'
+    | 'HostSNI'
+    | 'HostSNIRegexp'
+    | 'Path'
+    | 'PathPrefix'
+    | 'PathRegexp'
+    | 'Query'
+    | 'QueryRegexp'
+    | 'Header'
+    | 'HeaderRegexp'
+    | 'Method'
+    | 'ClientIP'
 
 /**
  * Rule operators for combining matchers
  */
-export type RuleOperator = '&&' | '||';
+export type RuleOperator = '&&' | '||'
 
 // ============================================================================
 // HTTP ROUTER
@@ -43,12 +48,12 @@ export type RuleOperator = '&&' | '||';
  * HTTP Router configuration
  */
 export type HttpRouterConfig = {
-  rule: VariableString;
-  service: VariableString;
-  entryPoints?: VariableString[];
-  middlewares?: VariableString[];
-  priority?: VariableNumber;
-  tls?: TLSOptions | boolean;
+    rule: VariableString
+    service: VariableString
+    entryPoints?: VariableString[]
+    middlewares?: VariableString[]
+    priority?: VariableNumber
+    tls?: TLSOptions | boolean
 }
 
 // ============================================================================
@@ -59,19 +64,19 @@ export type HttpRouterConfig = {
  * TCP Router configuration
  */
 export type TcpRouterConfig = {
-  rule: VariableString;
-  service: VariableString;
-  entryPoints?: VariableString[];
-  middlewares?: VariableString[];
-  priority?: VariableNumber;
-  tls?: {
-    passthrough?: VariableBoolean;
-    certResolver?: VariableString;
-    domains?: {
-      main: VariableString;
-      sans?: VariableString[];
-    }[];
-  };
+    rule: VariableString
+    service: VariableString
+    entryPoints?: VariableString[]
+    middlewares?: VariableString[]
+    priority?: VariableNumber
+    tls?: {
+        passthrough?: VariableBoolean
+        certResolver?: VariableString
+        domains?: {
+            main: VariableString
+            sans?: VariableString[]
+        }[]
+    }
 }
 
 // ============================================================================
@@ -82,8 +87,8 @@ export type TcpRouterConfig = {
  * UDP Router configuration
  */
 export type UdpRouterConfig = {
-  entryPoints?: VariableString[];
-  service: VariableString;
+    entryPoints?: VariableString[]
+    service: VariableString
 }
 
 // ============================================================================
@@ -93,13 +98,13 @@ export type UdpRouterConfig = {
 /**
  * All router types union
  */
-export type RouterConfig = HttpRouterConfig | TcpRouterConfig | UdpRouterConfig;
+export type RouterConfig = HttpRouterConfig | TcpRouterConfig | UdpRouterConfig
 
 /**
  * Router collection by protocol type
  */
 export type RoutersConfig = {
-  http?: Record<string, HttpRouterConfig>;
-  tcp?: Record<string, TcpRouterConfig>;
-  udp?: Record<string, UdpRouterConfig>;
+    http?: Record<string, HttpRouterConfig>
+    tcp?: Record<string, TcpRouterConfig>
+    udp?: Record<string, UdpRouterConfig>
 }

@@ -39,7 +39,10 @@ function FeatureCard({
             <CardHeader>
                 <div className="flex items-center space-x-3">
                     <div className="bg-primary/10 rounded-lg p-2">
-                        <Icon className={`h-5 w-5 ${iconClassName}`} aria-hidden />
+                        <Icon
+                            className={`h-5 w-5 ${iconClassName}`}
+                            aria-hidden
+                        />
                     </div>
                     <CardTitle className="text-lg">{title}</CardTitle>
                 </div>
@@ -62,9 +65,10 @@ export default function Page(): JSX.Element {
                         Deploy to your own servers
                     </h1>
                     <p className="text-muted-foreground mx-auto max-w-2xl text-lg md:text-xl">
-                        Deployer is a self-hosted platform: connect a Git repository or upload a
-                        build, and it runs your services in containers on machines you control,
-                        with automatic HTTPS, preview URLs per branch, and one dashboard for
+                        Deployer is a self-hosted platform: connect a Git
+                        repository or upload a build, and it runs your services
+                        in containers on machines you control, with automatic
+                        HTTPS, preview URLs per branch, and one dashboard for
                         your team.
                     </p>
                 </div>
@@ -88,7 +92,9 @@ export default function Page(): JSX.Element {
             <section className="space-y-8">
                 <div className="space-y-2 text-center">
                     <h2 className="text-3xl font-bold">What you get</h2>
-                    <p className="text-muted-foreground">From a commit to a running, monitored service</p>
+                    <p className="text-muted-foreground">
+                        From a commit to a running, monitored service
+                    </p>
                 </div>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     <FeatureCard
@@ -133,6 +139,7 @@ export default function Page(): JSX.Element {
 export const metadata: Metadata = {
     // `absolute` opts out of the root template (`%s · Deployer`). Without it
     // the landing page renders the product name twice — "Deployer · Deployer".
-    title: { absolute: "Deployer" },
-    description: "Self-hosted deployment platform for containers, services and providers",
+    title: { absolute: 'Deployer' },
+    description:
+        'Self-hosted deployment platform for containers, services and providers',
 }

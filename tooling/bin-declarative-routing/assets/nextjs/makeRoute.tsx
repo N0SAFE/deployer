@@ -16,14 +16,12 @@ export { emptySchema }
 type LinkProps = Parameters<typeof Link>[0]
 
 // Helper type to check if params input is empty
-type ParamsInput<T extends z.ZodType> = z.input<T> extends Record<string, never>
-    ? Record<string, never>
-    : z.input<T>
+type ParamsInput<T extends z.ZodType> =
+    z.input<T> extends Record<string, never>
+        ? Record<string, never>
+        : z.input<T>
 
-export interface RouteInfo<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
-> {
+export interface RouteInfo<Params extends z.ZodType, Search extends z.ZodType> {
     name: string
     params: Params
     search: Search
@@ -114,7 +112,8 @@ type GetRouteBuilder<
 type DeleteRouteBuilder<Params extends z.ZodType> = CoreRouteElements<
     Params,
     z.ZodType
-> & ((p?: z.input<Params>, options?: FetchOptions) => Promise<void>)
+> &
+    ((p?: z.input<Params>, options?: FetchOptions) => Promise<void>)
 
 export type RouteBuilder<
     Params extends z.ZodType,
@@ -134,7 +133,10 @@ export type RouteBuilder<
         Omit<LinkProps, 'href'> &
             (ParamsInput<Params> extends Record<string, never>
                 ? { search?: z.input<Search>; children?: React.ReactNode }
-                : ParamsInput<Params> & { search?: z.input<Search>; children?: React.ReactNode })
+                : ParamsInput<Params> & {
+                      search?: z.input<Search>
+                      children?: React.ReactNode
+                  })
     >
     ParamsLink: React.FC<
         Omit<LinkProps, 'href'> & {
@@ -192,10 +194,10 @@ function createPathBuilder<T extends Record<string, string | string[]>>(
     }
 }
 
-function createRouteBuilder<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
->(route: string, info: RouteInfo<Params, Search>) {
+function createRouteBuilder<Params extends z.ZodType, Search extends z.ZodType>(
+    route: string,
+    info: RouteInfo<Params, Search>
+) {
     const fn = createPathBuilder<Record<string, any>>(route)
 
     return (params?: z.input<Params>, search?: z.input<Search>) => {
@@ -255,12 +257,14 @@ export function makePostRoute<
             method: 'POST',
             body: JSON.stringify(safeBody.data),
             headers: {
-                ...Array.isArray(options?.headers) ? options.headers.reduce((acc, [key, data]) => {
-                    return {
-                        ...acc,
-                        [key]: data
-                    }
-                }, {}) : options?.headers ?? {},
+                ...(Array.isArray(options?.headers)
+                    ? options.headers.reduce((acc, [key, data]) => {
+                          return {
+                              ...acc,
+                              [key]: data,
+                          }
+                      }, {})
+                    : (options?.headers ?? {})),
                 'Content-Type': 'application/json',
             },
         })
@@ -325,12 +329,14 @@ export function makePutRoute<
             method: 'PUT',
             body: JSON.stringify(safeBody.data),
             headers: {
-                ...Array.isArray(options?.headers) ? options.headers.reduce((acc, [key, data]) => {
-                    return {
-                        ...acc,
-                        [key]: data
-                    }
-                }, {}) : options?.headers ?? {},
+                ...(Array.isArray(options?.headers)
+                    ? options.headers.reduce((acc, [key, data]) => {
+                          return {
+                              ...acc,
+                              [key]: data,
+                          }
+                      }, {})
+                    : (options?.headers ?? {})),
                 'Content-Type': 'application/json',
             },
         })
@@ -485,7 +491,10 @@ export function makeRoute<
     }: Omit<LinkProps, 'href'> &
         (ParamsInput<Params> extends Record<string, never>
             ? { search?: z.input<Search>; children?: React.ReactNode }
-            : ParamsInput<Params> & { search?: z.input<Search>; children?: React.ReactNode })) {
+            : ParamsInput<Params> & {
+                  search?: z.input<Search>
+                  children?: React.ReactNode
+              })) {
         const parsedParams = info.params.parse(props) as z.core.input<Params>
         const params = parsedParams as Record<string, any>
         const extraProps = { ...props }
@@ -494,10 +503,7 @@ export function makeRoute<
             delete extraProps[key as keyof typeof props]
         }
         return (
-            <Link
-                {...extraProps}
-                href={urlBuilder(parsedParams, linkSearch)}
-            >
+            <Link {...extraProps} href={urlBuilder(parsedParams, linkSearch)}>
                 {children}
             </Link>
         )

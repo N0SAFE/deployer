@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging -- the interface/class merge below is how the flattened procedures get their types */
 
-import { analyticsContract } from "@deployer/identity-contracts";
-import { BaseClient, type FlatLeaves } from "@deployer/service-client";
+import { analyticsContract } from '@deployer/identity-contracts'
+import { BaseClient, type FlatLeaves } from '@deployer/service-client'
 
-import { ServiceClientRegistry } from "../service-registry";
+import { ServiceClientRegistry } from '../service-registry'
 
-import type { ContractRouterClient } from "@orpc/contract";
+import type { ContractRouterClient } from '@orpc/contract'
 
 /**
  * The identity service's ANALYTICS surface, as its own client.
@@ -29,15 +29,16 @@ import type { ContractRouterClient } from "@orpc/contract";
  * runtime copy creates. No cast, and a typo'd procedure is still a compile error.
  */
 
-
 // An interface, not a type alias, ON PURPOSE: only an interface merges with the class below, which is how
 // the flattened procedures reach the class's type. Do not turn it into a `type` alias: the merge
 // breaks with `Duplicate identifier`.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface AnalyticsClient extends FlatLeaves<ContractRouterClient<typeof analyticsContract>> {}
+export interface AnalyticsClient extends FlatLeaves<
+    ContractRouterClient<typeof analyticsContract>
+> {}
 
 export class AnalyticsClient extends BaseClient<typeof analyticsContract> {
-	constructor(binder: ServiceClientRegistry) {
-		super(binder, { service: "identity", contract: analyticsContract });
-	}
+    constructor(binder: ServiceClientRegistry) {
+        super(binder, { service: 'identity', contract: analyticsContract })
+    }
 }

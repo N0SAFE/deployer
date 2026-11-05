@@ -2,16 +2,16 @@
 // e2e harness loads the root module directly and never runs `main.ts`, so without this import every
 // Effect-based controller fails with `.effect is not a function` (a 500 on each request) and no
 // spec could ever make an authorised call to one.
-import "@orpc/effect/extensions/effect";
+import '@orpc/effect/extensions/effect'
 import {
-	getSharedApiRuntimeContext as getShared,
-	useDescribeSharedApiRuntime as useDescribeShared,
-	type SharedApiRuntimeContext,
-	type SharedApiRuntimeOptions,
-	type DescribeSharedRuntimeScope,
-	type SharedRuntimeOrpcClientOptions,
-} from "@deployer/shared/e2e-harness/shared-api-runtime";
-import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@deployer/shared/e2e-harness/shared-api-runtime";
+    getSharedApiRuntimeContext as getShared,
+    useDescribeSharedApiRuntime as useDescribeShared,
+    type SharedApiRuntimeContext,
+    type SharedApiRuntimeOptions,
+    type DescribeSharedRuntimeScope,
+    type SharedRuntimeOrpcClientOptions,
+} from '@deployer/shared/e2e-harness/shared-api-runtime'
+import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from '@deployer/shared/e2e-harness/shared-api-runtime'
 
 /**
  * The shared e2e harness, bound to THIS service's root module.
@@ -23,28 +23,35 @@ import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@
  * day one drifts. Binding it once here means a spec gets the right graph, and exactly one
  * place names which app these e2e tests exercise.
  */
-const rootModuleLoader = async () => (await import("@/app.module")).HealthServiceModule;
+const rootModuleLoader = async () =>
+    (await import('@/app.module')).HealthServiceModule
 
-function withRootModule(options: SharedApiRuntimeOptions = {}): SharedApiRuntimeOptions {
-	return {
-		...options,
-		nest: { ...options.nest, rootModuleLoader },
-	};
+function withRootModule(
+    options: SharedApiRuntimeOptions = {}
+): SharedApiRuntimeOptions {
+    return {
+        ...options,
+        nest: { ...options.nest, rootModuleLoader },
+    }
 }
 
 export async function getSharedApiRuntimeContext(
-	options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<SharedApiRuntimeContext> {
-	return getShared(withRootModule(options));
+    return getShared(withRootModule(options))
 }
 
 export function useDescribeSharedApiRuntime(
-	options: SharedApiRuntimeOptions = {},
+    options: SharedApiRuntimeOptions = {}
 ): DescribeSharedRuntimeScope {
-	return useDescribeShared(withRootModule(options));
+    return useDescribeShared(withRootModule(options))
 }
 
-export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRuntimeScope };
+export type {
+    SharedApiRuntimeContext,
+    SharedApiRuntimeOptions,
+    DescribeSharedRuntimeScope,
+}
 
 /**
  * The setup-surface client, bound to this app's root module.
@@ -53,10 +60,13 @@ export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRu
  * context does — an unbound call would boot a runtime with no root module and now fail.
  */
 export async function createSharedSetupOrpcClient(
-	options?: SharedRuntimeOrpcClientOptions,
-	runtimeOptions?: SharedApiRuntimeOptions,
+    options?: SharedRuntimeOrpcClientOptions,
+    runtimeOptions?: SharedApiRuntimeOptions
 ) {
-	return createSharedSetupOrpcClientRaw(options, withRootModule(runtimeOptions));
+    return createSharedSetupOrpcClientRaw(
+        options,
+        withRootModule(runtimeOptions)
+    )
 }
 
-export { stopSharedApiRuntime } from "@deployer/shared/e2e-harness/shared-api-runtime";
+export { stopSharedApiRuntime } from '@deployer/shared/e2e-harness/shared-api-runtime'

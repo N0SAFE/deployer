@@ -22,35 +22,35 @@
  */
 /** The ways a platform supervisor realizes its process. */
 export type DockerSupervisorRuntime =
-  /** One swarm task on EVERY node — node-local infra. */
-  | "swarm-global"
-  /** One swarm service with N replicas — shared/mesh-wide infra. */
-  | "swarm-replicated"
-  /** Deployment-owned (compose/operator): skip spawn, wire networks only. */
-  | "managed"
-  /** Engine is not an active swarm member — nothing can be scheduled. */
-  | "unavailable";
+    /** One swarm task on EVERY node — node-local infra. */
+    | 'swarm-global'
+    /** One swarm service with N replicas — shared/mesh-wide infra. */
+    | 'swarm-replicated'
+    /** Deployment-owned (compose/operator): skip spawn, wire networks only. */
+    | 'managed'
+    /** Engine is not an active swarm member — nothing can be scheduled. */
+    | 'unavailable'
 
 /** Where a supervisor's process must live in the fleet. */
-export type SupervisorScope = "node-local" | "mesh-wide";
+export type SupervisorScope = 'node-local' | 'mesh-wide'
 
 /** Why a supervisor is node-local vs mesh-wide (documented rationale). */
 export type SupervisorTopology = {
-  /** Stable supervisor identifier (matches the service's static identifier). */
-  readonly supervisorId: string;
-  /** What the process actually does (drives the scope decision). */
-  readonly role: string;
-  /**
-   * node-local → swarm-global service (one per node).
-   * mesh-wide  → swarm-replicated service (shared across the cluster).
-   */
-  readonly scope: SupervisorScope;
-  /** Human-readable rationale for the classification. */
-  readonly rationale: string;
-  /** Replicas used when scope is mesh-wide (ignored for node-local/global). */
-  readonly replicas: number;
-  /** Constraint applied to the swarm service (e.g. ingress-labelled nodes). */
-  readonly constraint?: string;
+    /** Stable supervisor identifier (matches the service's static identifier). */
+    readonly supervisorId: string
+    /** What the process actually does (drives the scope decision). */
+    readonly role: string
+    /**
+     * node-local → swarm-global service (one per node).
+     * mesh-wide  → swarm-replicated service (shared across the cluster).
+     */
+    readonly scope: SupervisorScope
+    /** Human-readable rationale for the classification. */
+    readonly rationale: string
+    /** Replicas used when scope is mesh-wide (ignored for node-local/global). */
+    readonly replicas: number
+    /** Constraint applied to the swarm service (e.g. ingress-labelled nodes). */
+    readonly constraint?: string
 }
 
 /**
@@ -67,13 +67,15 @@ export type SupervisorTopology = {
  */
 
 /** Runtime a supervisor uses when it is NOT deployment-managed. */
-export function swarmRuntimeForScope(scope: SupervisorScope): DockerSupervisorRuntime {
-  return scope === "node-local" ? "swarm-global" : "swarm-replicated";
+export function swarmRuntimeForScope(
+    scope: SupervisorScope
+): DockerSupervisorRuntime {
+    return scope === 'node-local' ? 'swarm-global' : 'swarm-replicated'
 }
 
 /** Raw `SUPERVISOR_RUNTIME` env accepted values. */
-export const SUPERVISOR_RUNTIME_RAW = ["auto", "swarm", "managed"] as const;
-export type SupervisorRuntimeRaw = (typeof SUPERVISOR_RUNTIME_RAW)[number];
+export const SUPERVISOR_RUNTIME_RAW = ['auto', 'swarm', 'managed'] as const
+export type SupervisorRuntimeRaw = (typeof SUPERVISOR_RUNTIME_RAW)[number]
 
 /**
  * Resolve the supervisor runtime.
@@ -93,57 +95,60 @@ export type SupervisorRuntimeRaw = (typeof SUPERVISOR_RUNTIME_RAW)[number];
  *      engine before the supervisors.
  */
 export type ResolvedSupervisorRuntime = {
-  readonly runtime: DockerSupervisorRuntime;
-  /** Why this decision was made (drives logs + operator messages). */
-  readonly reason: string;
+    readonly runtime: DockerSupervisorRuntime
+    /** Why this decision was made (drives logs + operator messages). */
+    readonly reason: string
 }
 
 export function resolveSupervisorRuntime(input: {
-  /** MANAGED_<SERVICE>_ENABLED (deployment owns the process). */
-  managed: boolean;
-  /** Raw SUPERVISOR_RUNTIME (optional; defaults to auto). */
-  rawRuntime?: string | undefined;
-  /** Engine is an active swarm member. */
-  swarmActive: boolean;
-  /** Declared scope of the supervisor (unknown → mesh-wide safest). */
-  scope?: SupervisorScope | null | undefined;
+    /** MANAGED_<SERVICE>_ENABLED (deployment owns the process). */
+    managed: boolean
+    /** Raw SUPERVISOR_RUNTIME (optional; defaults to auto). */
+    rawRuntime?: string | undefined
+    /** Engine is an active swarm member. */
+    swarmActive: boolean
+    /** Declared scope of the supervisor (unknown → mesh-wide safest). */
+    scope?: SupervisorScope | null | undefined
 }): ResolvedSupervisorRuntime {
-  const scope: SupervisorScope = input.scope ?? "mesh-wide";
-  const runtimeRaw: string = input.rawRuntime ?? "auto";
+    const scope: SupervisorScope = input.scope ?? 'mesh-wide'
+    const runtimeRaw: string = input.rawRuntime ?? 'auto'
 
-  if (input.managed || runtimeRaw === "managed") {
-    return {
-      runtime: "managed",
-      reason: input.managed
-        ? "Deployment owns this service (MANAGED_*_ENABLED=true) — link-only wiring, never spawned."
-        : "SUPERVISOR_RUNTIME=managed forced — link-only wiring, never spawned.",
-    };
-  }
+    if (input.managed || runtimeRaw === 'managed') {
+        return {
+            runtime: 'managed',
+            reason: input.managed
+                ? 'Deployment owns this service (MANAGED_*_ENABLED=true) — link-only wiring, never spawned.'
+                : 'SUPERVISOR_RUNTIME=managed forced — link-only wiring, never spawned.',
+        }
+    }
 
-  const desired = swarmRuntimeForScope(scope);
-  if (!input.swarmActive) {
+    const desired = swarmRuntimeForScope(scope)
+    if (!input.swarmActive) {
+        return {
+            runtime: 'unavailable',
+            reason:
+                `Engine is not an active swarm member — cannot schedule this supervised process as ${desired}. ` +
+                `SwarmBootstrapService converges the cluster at boot; check its log for the convergence failure ` +
+                `(no docker engine, or the node was excluded from swarm participation).`,
+        }
+    }
+    if (runtimeRaw === 'swarm' || runtimeRaw === 'auto') {
+        return {
+            runtime: desired,
+            reason: `scope=${scope} → ${desired} on the active swarm engine.`,
+        }
+    }
     return {
-      runtime: "unavailable",
-      reason:
-        `Engine is not an active swarm member — cannot schedule this supervised process as ${desired}. ` +
-        `SwarmBootstrapService converges the cluster at boot; check its log for the convergence failure ` +
-        `(no docker engine, or the node was excluded from swarm participation).`,
-    };
-  }
-  if (runtimeRaw === "swarm" || runtimeRaw === "auto") {
-    return {
-      runtime: desired,
-      reason: `scope=${scope} → ${desired} on the active swarm engine.`,
-    };
-  }
-  return { runtime: desired, reason: `Unknown SUPERVISOR_RUNTIME "${runtimeRaw}" treated as auto → ${desired}.` };
+        runtime: desired,
+        reason: `Unknown SUPERVISOR_RUNTIME "${runtimeRaw}" treated as auto → ${desired}.`,
+    }
 }
 
 /** Suffix appended to a compose bridge network name to derive the swarm overlay. */
-export const PLATFORM_OVERLAY_SUFFIX = "-overlay";
+export const PLATFORM_OVERLAY_SUFFIX = '-overlay'
 
 /** Base name of the platform network (per-`DEPLOYER_PREFIX` instances append it). */
-export const PLATFORM_NETWORK_BASE_NAME = "deployer-platform";
+export const PLATFORM_NETWORK_BASE_NAME = 'deployer-platform'
 
 /**
  * Canonical name of the platform network every platform process shares.
@@ -151,9 +156,9 @@ export const PLATFORM_NETWORK_BASE_NAME = "deployer-platform";
  * managed-database containers and the swarm wiring all need it).
  */
 export function platformNetworkName(prefix?: string | null): string {
-  return prefix === undefined || prefix === null || prefix === ""
-    ? PLATFORM_NETWORK_BASE_NAME
-    : `${PLATFORM_NETWORK_BASE_NAME}-${prefix}`;
+    return prefix === undefined || prefix === null || prefix === ''
+        ? PLATFORM_NETWORK_BASE_NAME
+        : `${PLATFORM_NETWORK_BASE_NAME}-${prefix}`
 }
 
 /**
@@ -166,13 +171,12 @@ export function platformNetworkName(prefix?: string | null): string {
  * share one DNS namespace.
  */
 export function platformOverlayNetworkName(baseNetworkName: string): string {
-  return baseNetworkName.endsWith(PLATFORM_OVERLAY_SUFFIX)
-    ? baseNetworkName
-    : `${baseNetworkName}${PLATFORM_OVERLAY_SUFFIX}`;
+    return baseNetworkName.endsWith(PLATFORM_OVERLAY_SUFFIX)
+        ? baseNetworkName
+        : `${baseNetworkName}${PLATFORM_OVERLAY_SUFFIX}`
 }
 
 /** The attachable overlay for the platform network at `DEPLOYER_PREFIX`. */
 export function platformOverlayForPrefix(prefix?: string | null): string {
-  return platformOverlayNetworkName(platformNetworkName(prefix));
+    return platformOverlayNetworkName(platformNetworkName(prefix))
 }
-

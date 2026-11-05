@@ -14,7 +14,8 @@
  * result (rather than a boolean plus an optional reason) means the reason is
  * always available on the failure branch instead of being a second lookup.
  */
-export type ApiProbeResult = { ready: true; reason: string } | { ready: false; reason: string };
+export type ApiProbeResult =
+    { ready: true; reason: string } | { ready: false; reason: string }
 
 /**
  * How the handover finished.
@@ -25,7 +26,8 @@ export type ApiProbeResult = { ready: true; reason: string } | { ready: false; r
  * needs is the reason to show. Anything already accomplished — the cluster, the
  * provisioned database — is idempotent and is re-converged by the next attempt.
  */
-export type HandoverResult = { ok: true; apiBackend: string } | { ok: false; reason: string };
+export type HandoverResult =
+    { ok: true; apiBackend: string } | { ok: false; reason: string }
 
 /**
  * Where the API answers once the handover is complete.
@@ -41,8 +43,8 @@ export type HandoverResult = { ok: true; apiBackend: string } | { ok: false; rea
  *                 be scheduled before it resolves.
  */
 export type ApiBackend =
-  | { kind: "container"; url: string; detail: string }
-  | { kind: "swarm"; url: string; serviceName: string; detail: string };
+    | { kind: 'container'; url: string; detail: string }
+    | { kind: 'swarm'; url: string; serviceName: string; detail: string }
 
 /**
  * Default port for the API's backend URL, read from `SETUP_API_PORT`.
@@ -53,4 +55,4 @@ export type ApiBackend =
  * backend URL that Traefik cannot reach. `3005` is only the dev default, which
  * matches the API's own `app.config.ts` fallback.
  */
-export const DEFAULT_API_INTERNAL_PORT = 3005;
+export const DEFAULT_API_INTERNAL_PORT = 3005

@@ -7,6 +7,7 @@ The `custom()` helper in `helpers.ts` creates endpoints that use ORPC's native `
 ### ✅ Key Achievement
 
 **Now using ORPC's native implementation!**
+
 - Uses `createProcedureUtils` from `@orpc/tanstack-query`
 - Creates real ORPC `Client` functions with Zod validation
 - Returns exact same type as native ORPC procedures (`ProcedureUtils`)
@@ -29,21 +30,23 @@ import { custom } from '@/domains/shared/helpers'
 import { z } from 'zod'
 
 const login = custom({
-  input: z.object({
-    email: z.string().email(),
-    password: z.string().min(8)
-  }),
-  keys: ['auth', 'login'],
-  handler: async (input) => {
-    // input is fully typed from Zod schema!
-    return await authClient.signIn.email(input)
-  }
+    input: z.object({
+        email: z.string().email(),
+        password: z.string().min(8),
+    }),
+    keys: ['auth', 'login'],
+    handler: async (input) => {
+        // input is fully typed from Zod schema!
+        return await authClient.signIn.email(input)
+    },
 })
 
 // Usage in components (same as ORPC!)
-const { data } = useQuery(login.queryOptions({
-  input: { email: 'test@example.com', password: 'password123' }
-}))
+const { data } = useQuery(
+    login.queryOptions({
+        input: { email: 'test@example.com', password: 'password123' },
+    })
+)
 
 // Direct call
 const result = await login.call({ email: '...', password: '...' })
@@ -53,8 +56,8 @@ const result = await login.call({ email: '...', password: '...' })
 
 ```typescript
 const session = custom<void, Session>({
-  keys: ['auth', 'session'],
-  handler: async () => authClient.getSession()
+    keys: ['auth', 'session'],
+    handler: async () => authClient.getSession(),
 })
 
 // Usage
@@ -66,7 +69,7 @@ const { data } = useQuery(session.queryOptions({ input: undefined }))
 All custom endpoints expose the exact same API as native ORPC procedures:
 
 - **`call(input)`** - Direct execution
-- **`queryKey({ input })`** - Query cache key  
+- **`queryKey({ input })`** - Query cache key
 - **`queryOptions({ input, ...options })`** - TanStack Query options
 - **`mutationKey()`** - Mutation cache key
 - **`mutationOptions(...options)`** - TanStack Mutation options
@@ -81,18 +84,18 @@ All custom endpoints expose the exact same API as native ORPC procedures:
 
 ```typescript
 custom({
-  input: zodSchema,              // Zod schema for validation & types
-  keys: ['domain', 'endpoint'],   // Cache key path
-  handler: async (input) => {},  // Handler function
-  
-  // Optional TanStack Query defaults
-  staleTime: 1000 * 60,          // 1 minute
-  gcTime: 1000 * 60 * 5,         // 5 minutes  
-  retry: 3,
-  enabled: true,
-  refetchOnWindowFocus: true,
-  refetchOnMount: true,
-  refetchOnReconnect: true,
+    input: zodSchema, // Zod schema for validation & types
+    keys: ['domain', 'endpoint'], // Cache key path
+    handler: async (input) => {}, // Handler function
+
+    // Optional TanStack Query defaults
+    staleTime: 1000 * 60, // 1 minute
+    gcTime: 1000 * 60 * 5, // 5 minutes
+    retry: 3,
+    enabled: true,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
 })
 ```
 
@@ -122,6 +125,7 @@ return createProcedureUtils(client, {
 ### Migration from Old Implementation
 
 **Before** (~400 lines, manually implemented):
+
 ```typescript
 // Manually created all methods
 return {
@@ -136,6 +140,7 @@ return {
 ```
 
 **After** (~150 lines, ORPC native):
+
 ```typescript
 // Use ORPC's native functions
 const client = (...args) => handler(args[0])

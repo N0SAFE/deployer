@@ -1,5 +1,6 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
+import { RuntimeConfigurationInvalid } from '../configuration.errors'
 import {
     resolvedRuntimeConfigurationSchema,
     runtimeConfigurationResolverInputSchema,
@@ -10,89 +11,95 @@ import {
     type RuntimeConfigurationResolverInputByScope,
     type RuntimeConfigurationResolverScopedInput,
     type ResolvedRuntimeConfiguration,
-} from "../schemas/runtime-configuration.schema";
+} from '../schemas/runtime-configuration.schema'
 
-import { RuntimeConfigurationInvalid } from "../configuration.errors";
+import type { ConfigurationDefinitionServiceShape } from './configuration-definition.service'
+import type z from 'zod/v4'
 
-import type { ConfigurationDefinitionServiceShape } from "./configuration-definition.service";
-
-import type z from "zod/v4";
-
-const ALL_PROVIDER_TYPES = ["github", "gitlab", "git", "upload", "custom"] as const;
-const ALL_RUNNER_TYPES = ["docker", "buildpack", "static", "custom"] as const;
-type LifecycleState = "draft" | "active" | "locked" | "deprecated";
+const ALL_PROVIDER_TYPES = [
+    'github',
+    'gitlab',
+    'git',
+    'upload',
+    'custom',
+] as const
+const ALL_RUNNER_TYPES = ['docker', 'buildpack', 'static', 'custom'] as const
+type LifecycleState = 'draft' | 'active' | 'locked' | 'deprecated'
 type EnvironmentDomain =
-    | "build"
-    | "runtime"
-    | "deployment"
-    | "network"
-    | "traefik"
-    | "provider"
-    | "runner"
-    | "security";
+    | 'build'
+    | 'runtime'
+    | 'deployment'
+    | 'network'
+    | 'traefik'
+    | 'provider'
+    | 'runner'
+    | 'security'
 
 const LIFECYCLE_TRANSITIONS: Record<LifecycleState, LifecycleState[]> = {
-    draft: ["active", "deprecated"],
-    active: ["locked", "deprecated"],
-    locked: ["active", "deprecated"],
+    draft: ['active', 'deprecated'],
+    active: ['locked', 'deprecated'],
+    locked: ['active', 'deprecated'],
     deprecated: [],
-};
+}
 
 const ENVIRONMENT_DOMAINS: EnvironmentDomain[] = [
-    "build",
-    "runtime",
-    "deployment",
-    "network",
-    "traefik",
-    "provider",
-    "runner",
-    "security",
-];
+    'build',
+    'runtime',
+    'deployment',
+    'network',
+    'traefik',
+    'provider',
+    'runner',
+    'security',
+]
 
-function listConditionIncludes<T>(allowed: T[] | undefined, value: T | undefined): boolean {
+function listConditionIncludes<T>(
+    allowed: T[] | undefined,
+    value: T | undefined
+): boolean {
     if (!allowed) {
-        return true;
+        return true
     }
 
-    if (typeof value === "undefined") {
-        return false;
+    if (typeof value === 'undefined') {
+        return false
     }
 
-    return allowed.includes(value);
+    return allowed.includes(value)
 }
 
 function withoutRecordKeys<TValue extends string | boolean>(
     record: Record<string, TValue>,
-    keysToRemove: string[] | undefined,
+    keysToRemove: string[] | undefined
 ): Record<string, TValue> {
     if (!keysToRemove || keysToRemove.length === 0) {
-        return record;
+        return record
     }
 
-    const filtered: Record<string, TValue> = {};
+    const filtered: Record<string, TValue> = {}
     for (const [key, value] of Object.entries(record)) {
         if (!keysToRemove.includes(key)) {
-            filtered[key] = value;
+            filtered[key] = value
         }
     }
 
-    return filtered;
+    return filtered
 }
 
 function normalizeEnvironmentDomains(
     domains:
         | {
-              build?: Record<string, string>;
-              runtime?: Record<string, string>;
-              deployment?: Record<string, string>;
-              network?: Record<string, string>;
-              traefik?: Record<string, string>;
-              provider?: Record<string, string>;
-              runner?: Record<string, string>;
-              security?: Record<string, string>;
+              build?: Record<string, string>
+              runtime?: Record<string, string>
+              deployment?: Record<string, string>
+              network?: Record<string, string>
+              traefik?: Record<string, string>
+              provider?: Record<string, string>
+              runner?: Record<string, string>
+              security?: Record<string, string>
           }
-        | undefined,
-): ResolvedRuntimeConfiguration["effective"]["environmentDomains"] {
+        | undefined
+): ResolvedRuntimeConfiguration['effective']['environmentDomains'] {
     return {
         build: domains?.build ?? {},
         runtime: domains?.runtime ?? {},
@@ -102,190 +109,216 @@ function normalizeEnvironmentDomains(
         provider: domains?.provider ?? {},
         runner: domains?.runner ?? {},
         security: domains?.security ?? {},
-    };
+    }
 }
 
 function mergeEnvironmentDomains(
     ...layers: (
         | {
-              build?: Record<string, string>;
-              runtime?: Record<string, string>;
-              deployment?: Record<string, string>;
-              network?: Record<string, string>;
-              traefik?: Record<string, string>;
-              provider?: Record<string, string>;
-              runner?: Record<string, string>;
-              security?: Record<string, string>;
+              build?: Record<string, string>
+              runtime?: Record<string, string>
+              deployment?: Record<string, string>
+              network?: Record<string, string>
+              traefik?: Record<string, string>
+              provider?: Record<string, string>
+              runner?: Record<string, string>
+              security?: Record<string, string>
           }
         | undefined
     )[]
-): ResolvedRuntimeConfiguration["effective"]["environmentDomains"] {
-    const merged = normalizeEnvironmentDomains(undefined);
+): ResolvedRuntimeConfiguration['effective']['environmentDomains'] {
+    const merged = normalizeEnvironmentDomains(undefined)
 
     for (const layer of layers) {
         if (!layer) {
-            continue;
+            continue
         }
 
         for (const domain of ENVIRONMENT_DOMAINS) {
             merged[domain] = {
                 ...merged[domain],
                 ...(layer[domain] ?? {}),
-            };
+            }
         }
     }
 
-    return merged;
+    return merged
 }
 
 function flattenEnvironmentDomains(
-    domains: ResolvedRuntimeConfiguration["effective"]["environmentDomains"],
+    domains: ResolvedRuntimeConfiguration['effective']['environmentDomains']
 ): Record<string, string> {
     return ENVIRONMENT_DOMAINS.reduce<Record<string, string>>((acc, domain) => {
         return {
             ...acc,
             ...domains[domain],
-        };
-    }, {});
+        }
+    }, {})
 }
 
 function applyEnvironmentDomainPatch(
-    current: ResolvedRuntimeConfiguration["effective"]["environmentDomains"],
+    current: ResolvedRuntimeConfiguration['effective']['environmentDomains'],
     upserts:
         | {
-              build?: Record<string, string>;
-              runtime?: Record<string, string>;
-              deployment?: Record<string, string>;
-              network?: Record<string, string>;
-              traefik?: Record<string, string>;
-              provider?: Record<string, string>;
-              runner?: Record<string, string>;
-              security?: Record<string, string>;
+              build?: Record<string, string>
+              runtime?: Record<string, string>
+              deployment?: Record<string, string>
+              network?: Record<string, string>
+              traefik?: Record<string, string>
+              provider?: Record<string, string>
+              runner?: Record<string, string>
+              security?: Record<string, string>
           }
         | undefined,
     deletes:
         | {
-              build?: string[];
-              runtime?: string[];
-              deployment?: string[];
-              network?: string[];
-              traefik?: string[];
-              provider?: string[];
-              runner?: string[];
-              security?: string[];
+              build?: string[]
+              runtime?: string[]
+              deployment?: string[]
+              network?: string[]
+              traefik?: string[]
+              provider?: string[]
+              runner?: string[]
+              security?: string[]
           }
-        | undefined,
-): ResolvedRuntimeConfiguration["effective"]["environmentDomains"] {
-    const merged = mergeEnvironmentDomains(current, upserts);
+        | undefined
+): ResolvedRuntimeConfiguration['effective']['environmentDomains'] {
+    const merged = mergeEnvironmentDomains(current, upserts)
 
     for (const domain of ENVIRONMENT_DOMAINS) {
-        merged[domain] = withoutRecordKeys(merged[domain], deletes?.[domain]);
+        merged[domain] = withoutRecordKeys(merged[domain], deletes?.[domain])
     }
 
-    return merged;
+    return merged
 }
 
 function resolveProviderFromSource(
-    sourceProvider: RuntimeConfigurationContext["sourceProvider"],
+    sourceProvider: RuntimeConfigurationContext['sourceProvider']
 ): (typeof ALL_PROVIDER_TYPES)[number] {
-    if (sourceProvider === "github") {
-        return "github";
+    if (sourceProvider === 'github') {
+        return 'github'
     }
 
-    if (sourceProvider === "gitlab") {
-        return "gitlab";
+    if (sourceProvider === 'gitlab') {
+        return 'gitlab'
     }
 
-    if (sourceProvider === "upload") {
-        return "upload";
+    if (sourceProvider === 'upload') {
+        return 'upload'
     }
 
-    return "git";
+    return 'git'
 }
 
 function computeConstraints(
     context: RuntimeConfigurationContext,
-    mesh: ResolvedRuntimeConfiguration["mesh"],
-    project: ResolvedRuntimeConfiguration["project"],
-    service: ResolvedRuntimeConfiguration["service"],
-    effective: ResolvedRuntimeConfiguration["effective"],
-): ResolvedRuntimeConfiguration["effective"]["constraints"] {
-    const reasons: string[] = [];
+    mesh: ResolvedRuntimeConfiguration['mesh'],
+    project: ResolvedRuntimeConfiguration['project'],
+    service: ResolvedRuntimeConfiguration['service'],
+    effective: ResolvedRuntimeConfiguration['effective']
+): ResolvedRuntimeConfiguration['effective']['constraints'] {
+    const reasons: string[] = []
 
     const canDeployToRequestedEnvironment =
-        context.requestedEnvironment !== "preview" || effective.deployment.previewEnabled;
+        context.requestedEnvironment !== 'preview' ||
+        effective.deployment.previewEnabled
 
     if (!canDeployToRequestedEnvironment) {
-        reasons.push("Preview deployments are disabled by resolved configuration");
+        reasons.push(
+            'Preview deployments are disabled by resolved configuration'
+        )
     }
 
-    const allowedProviders =
-        project.allowedProviders ?? mesh.allowedProviders ?? [...ALL_PROVIDER_TYPES];
-    const providerAllowed = allowedProviders.includes(effective.execution.providerType);
+    const allowedProviders = project.allowedProviders ??
+        mesh.allowedProviders ?? [...ALL_PROVIDER_TYPES]
+    const providerAllowed = allowedProviders.includes(
+        effective.execution.providerType
+    )
     if (!providerAllowed) {
-        reasons.push(`Provider '${effective.execution.providerType}' is not allowed`);
+        reasons.push(
+            `Provider '${effective.execution.providerType}' is not allowed`
+        )
     }
 
-    const allowedRunners =
-        project.allowedRunners ?? mesh.allowedRunners ?? [...ALL_RUNNER_TYPES];
-    const runnerAllowed = allowedRunners.includes(effective.execution.runnerType);
+    const allowedRunners = project.allowedRunners ??
+        mesh.allowedRunners ?? [...ALL_RUNNER_TYPES]
+    const runnerAllowed = allowedRunners.includes(
+        effective.execution.runnerType
+    )
     if (!runnerAllowed) {
-        reasons.push(`Runner '${effective.execution.runnerType}' is not allowed`);
+        reasons.push(
+            `Runner '${effective.execution.runnerType}' is not allowed`
+        )
     }
 
     const projectReplicaLimit =
-        project.maxReplicas ?? mesh.maxProjectReplicas ?? effective.replicas.max;
+        project.maxReplicas ?? mesh.maxProjectReplicas ?? effective.replicas.max
 
     const replicasWithinLimits =
         effective.replicas.min <= effective.replicas.desired &&
         effective.replicas.desired <= effective.replicas.max &&
-        effective.replicas.desired <= projectReplicaLimit;
+        effective.replicas.desired <= projectReplicaLimit
 
     if (!replicasWithinLimits) {
-        reasons.push("Replica configuration exceeds allowed limits");
+        reasons.push('Replica configuration exceeds allowed limits')
     }
 
     const cpuLimit =
-        project.limits?.cpuMillicores ?? mesh.projectLimits?.cpuMillicores ?? null;
-    const memoryLimit = project.limits?.memoryMb ?? mesh.projectLimits?.memoryMb ?? null;
+        project.limits?.cpuMillicores ??
+        mesh.projectLimits?.cpuMillicores ??
+        null
+    const memoryLimit =
+        project.limits?.memoryMb ?? mesh.projectLimits?.memoryMb ?? null
 
     const resourcesWithinProjectLimits =
         (cpuLimit === null || effective.resources.cpuMillicores <= cpuLimit) &&
-        (memoryLimit === null || effective.resources.memoryMb <= memoryLimit);
+        (memoryLimit === null || effective.resources.memoryMb <= memoryLimit)
 
     if (!resourcesWithinProjectLimits) {
-        reasons.push("Resource configuration exceeds project or global limits");
+        reasons.push('Resource configuration exceeds project or global limits')
     }
 
-    const requiredVariables = effective.envPolicy.required;
-    const hasRequiredVariables = requiredVariables.every((name) => name in effective.environment);
+    const requiredVariables = effective.envPolicy.required
+    const hasRequiredVariables = requiredVariables.every(
+        (name) => name in effective.environment
+    )
 
-    const denyList = effective.envPolicy.denyList;
-    const hasDeniedVariables = denyList.some((name) => name in effective.environment);
+    const denyList = effective.envPolicy.denyList
+    const hasDeniedVariables = denyList.some(
+        (name) => name in effective.environment
+    )
 
-    const allowList = effective.envPolicy.allowList;
+    const allowList = effective.envPolicy.allowList
     const allowListValid =
         allowList.length === 0 ||
-        Object.keys(effective.environment).every((name) => allowList.includes(name));
+        Object.keys(effective.environment).every((name) =>
+            allowList.includes(name)
+        )
 
-    const envPolicyValid = hasRequiredVariables && !hasDeniedVariables && allowListValid;
+    const envPolicyValid =
+        hasRequiredVariables && !hasDeniedVariables && allowListValid
 
     if (!envPolicyValid) {
-        reasons.push("Environment variables violate service env policy");
+        reasons.push('Environment variables violate service env policy')
     }
 
     const currentLifecycle =
-        service.lifecycleState ?? project.lifecycleState ?? mesh.lifecycleState ?? "active";
+        service.lifecycleState ??
+        project.lifecycleState ??
+        mesh.lifecycleState ??
+        'active'
 
     const lifecycleTransitionAllowed =
-        typeof context.requestedLifecycleState === "undefined" ||
-        LIFECYCLE_TRANSITIONS[currentLifecycle].includes(context.requestedLifecycleState);
+        typeof context.requestedLifecycleState === 'undefined' ||
+        LIFECYCLE_TRANSITIONS[currentLifecycle].includes(
+            context.requestedLifecycleState
+        )
 
     if (!lifecycleTransitionAllowed) {
-        reasons.push("Requested lifecycle transition is not allowed");
+        reasons.push('Requested lifecycle transition is not allowed')
     }
 
-    const reason = reasons[0] ?? null;
+    const reason = reasons[0] ?? null
 
     return {
         canDeployToRequestedEnvironment,
@@ -297,275 +330,311 @@ function computeConstraints(
         lifecycleTransitionAllowed,
         reason,
         reasons,
-    };
+    }
 }
 
 function matchesRule(
     rule: RuntimeConfigurationDispatchRule,
     scope: ConfigurationScope,
     context: RuntimeConfigurationContext,
-    effective: ResolvedRuntimeConfiguration["effective"],
+    effective: ResolvedRuntimeConfiguration['effective']
 ): boolean {
-    const condition = rule.when;
+    const condition = rule.when
 
     if (!listConditionIncludes(condition.scopeIn, scope)) {
-        return false;
+        return false
     }
 
     if (
         !listConditionIncludes(
             condition.requestedEnvironmentIn,
-            context.requestedEnvironment,
+            context.requestedEnvironment
         )
     ) {
-        return false;
+        return false
     }
 
     if (!listConditionIncludes(condition.triggerIn, context.trigger)) {
-        return false;
-    }
-
-    if (!listConditionIncludes(condition.sourceProviderIn, context.sourceProvider)) {
-        return false;
+        return false
     }
 
     if (
-        !listConditionIncludes(condition.requestedProviderTypeIn, context.requestedProviderType)
+        !listConditionIncludes(
+            condition.sourceProviderIn,
+            context.sourceProvider
+        )
     ) {
-        return false;
+        return false
     }
 
-    if (!listConditionIncludes(condition.requestedRunnerTypeIn, context.requestedRunnerType)) {
-        return false;
+    if (
+        !listConditionIncludes(
+            condition.requestedProviderTypeIn,
+            context.requestedProviderType
+        )
+    ) {
+        return false
+    }
+
+    if (
+        !listConditionIncludes(
+            condition.requestedRunnerTypeIn,
+            context.requestedRunnerType
+        )
+    ) {
+        return false
     }
 
     if (!listConditionIncludes(condition.actorRoleIn, context.actorRole)) {
-        return false;
+        return false
     }
 
     if (!listConditionIncludes(condition.projectIdIn, context.projectId)) {
-        return false;
+        return false
     }
 
     if (!listConditionIncludes(condition.serviceIdIn, context.serviceId)) {
-        return false;
+        return false
     }
 
     if (!listConditionIncludes(condition.userIdIn, context.userId)) {
-        return false;
+        return false
     }
 
     if (!listConditionIncludes(condition.branchNameIn, context.branchName)) {
-        return false;
+        return false
     }
 
     if (
         !listConditionIncludes(
             condition.requestedEnvironmentDomainIn,
-            context.requestedEnvironmentDomain,
+            context.requestedEnvironmentDomain
         )
     ) {
-        return false;
+        return false
     }
 
     if (condition.tagsAll) {
-        const tags = context.tags ?? [];
-        const hasAllTags = condition.tagsAll.every((tag) => tags.includes(tag));
+        const tags = context.tags ?? []
+        const hasAllTags = condition.tagsAll.every((tag) => tags.includes(tag))
         if (!hasAllTags) {
-            return false;
+            return false
         }
     }
 
     if (condition.attributesEquals) {
-        const attributes = context.attributes ?? {};
-        const hasAllAttributes = Object.entries(condition.attributesEquals).every(
-            ([key, expectedValue]) => attributes[key] === expectedValue,
-        );
+        const attributes = context.attributes ?? {}
+        const hasAllAttributes = Object.entries(
+            condition.attributesEquals
+        ).every(([key, expectedValue]) => attributes[key] === expectedValue)
         if (!hasAllAttributes) {
-            return false;
+            return false
         }
     }
 
     if (
         !listConditionIncludes(
             condition.effectiveDeploymentStrategyIn,
-            effective.deployment.strategy,
+            effective.deployment.strategy
         )
     ) {
-        return false;
-    }
-
-    if (!listConditionIncludes(condition.effectiveProviderTypeIn, effective.execution.providerType)) {
-        return false;
-    }
-
-    if (!listConditionIncludes(condition.effectiveRunnerTypeIn, effective.execution.runnerType)) {
-        return false;
-    }
-
-    if (!listConditionIncludes(condition.effectiveLifecycleStateIn, effective.lifecycle.current)) {
-        return false;
+        return false
     }
 
     if (
-        typeof condition.effectivePreviewEnabled !== "undefined" &&
-        condition.effectivePreviewEnabled !== effective.deployment.previewEnabled
+        !listConditionIncludes(
+            condition.effectiveProviderTypeIn,
+            effective.execution.providerType
+        )
     ) {
-        return false;
+        return false
     }
 
     if (
-        typeof condition.effectiveAutoDeployEnabled !== "undefined" &&
-        condition.effectiveAutoDeployEnabled !== effective.deployment.autoDeployEnabled
+        !listConditionIncludes(
+            condition.effectiveRunnerTypeIn,
+            effective.execution.runnerType
+        )
     ) {
-        return false;
+        return false
     }
 
-    return true;
+    if (
+        !listConditionIncludes(
+            condition.effectiveLifecycleStateIn,
+            effective.lifecycle.current
+        )
+    ) {
+        return false
+    }
+
+    if (
+        typeof condition.effectivePreviewEnabled !== 'undefined' &&
+        condition.effectivePreviewEnabled !==
+            effective.deployment.previewEnabled
+    ) {
+        return false
+    }
+
+    if (
+        typeof condition.effectiveAutoDeployEnabled !== 'undefined' &&
+        condition.effectiveAutoDeployEnabled !==
+            effective.deployment.autoDeployEnabled
+    ) {
+        return false
+    }
+
+    return true
 }
 
 function domainEnvironmentUpsertsFromMutation(
     domain: EnvironmentDomain,
-    upserts: Record<string, string> | undefined,
+    upserts: Record<string, string> | undefined
 ):
     | {
-          build?: Record<string, string>;
-          runtime?: Record<string, string>;
-          deployment?: Record<string, string>;
-          network?: Record<string, string>;
-          traefik?: Record<string, string>;
-          provider?: Record<string, string>;
-          runner?: Record<string, string>;
-          security?: Record<string, string>;
+          build?: Record<string, string>
+          runtime?: Record<string, string>
+          deployment?: Record<string, string>
+          network?: Record<string, string>
+          traefik?: Record<string, string>
+          provider?: Record<string, string>
+          runner?: Record<string, string>
+          security?: Record<string, string>
       }
     | undefined {
     if (!upserts) {
-        return undefined;
+        return undefined
     }
 
     switch (domain) {
-        case "build":
-            return { build: upserts };
-        case "runtime":
-            return { runtime: upserts };
-        case "deployment":
-            return { deployment: upserts };
-        case "network":
-            return { network: upserts };
-        case "traefik":
-            return { traefik: upserts };
-        case "provider":
-            return { provider: upserts };
-        case "runner":
-            return { runner: upserts };
-        case "security":
-            return { security: upserts };
+        case 'build':
+            return { build: upserts }
+        case 'runtime':
+            return { runtime: upserts }
+        case 'deployment':
+            return { deployment: upserts }
+        case 'network':
+            return { network: upserts }
+        case 'traefik':
+            return { traefik: upserts }
+        case 'provider':
+            return { provider: upserts }
+        case 'runner':
+            return { runner: upserts }
+        case 'security':
+            return { security: upserts }
     }
 }
 
 function domainEnvironmentDeletesFromMutation(
     domain: EnvironmentDomain,
-    deletes: string[] | undefined,
+    deletes: string[] | undefined
 ):
     | {
-          build?: string[];
-          runtime?: string[];
-          deployment?: string[];
-          network?: string[];
-          traefik?: string[];
-          provider?: string[];
-          runner?: string[];
-          security?: string[];
+          build?: string[]
+          runtime?: string[]
+          deployment?: string[]
+          network?: string[]
+          traefik?: string[]
+          provider?: string[]
+          runner?: string[]
+          security?: string[]
       }
     | undefined {
     if (!deletes || deletes.length === 0) {
-        return undefined;
+        return undefined
     }
 
     switch (domain) {
-        case "build":
-            return { build: deletes };
-        case "runtime":
-            return { runtime: deletes };
-        case "deployment":
-            return { deployment: deletes };
-        case "network":
-            return { network: deletes };
-        case "traefik":
-            return { traefik: deletes };
-        case "provider":
-            return { provider: deletes };
-        case "runner":
-            return { runner: deletes };
-        case "security":
-            return { security: deletes };
+        case 'build':
+            return { build: deletes }
+        case 'runtime':
+            return { runtime: deletes }
+        case 'deployment':
+            return { deployment: deletes }
+        case 'network':
+            return { network: deletes }
+        case 'traefik':
+            return { traefik: deletes }
+        case 'provider':
+            return { provider: deletes }
+        case 'runner':
+            return { runner: deletes }
+        case 'security':
+            return { security: deletes }
     }
 }
 
 function applyRulePatch(
-    effective: ResolvedRuntimeConfiguration["effective"],
-    rule: RuntimeConfigurationDispatchRule,
+    effective: ResolvedRuntimeConfiguration['effective'],
+    rule: RuntimeConfigurationDispatchRule
 ): {
-    effective: ResolvedRuntimeConfiguration["effective"];
-    touchedConstraints: boolean;
+    effective: ResolvedRuntimeConfiguration['effective']
+    touchedConstraints: boolean
 } {
-    const patch = rule.apply;
+    const patch = rule.apply
 
     const nextEnvironment = {
         ...effective.environment,
         ...(patch.environmentUpserts ?? {}),
-    };
+    }
 
     const filteredEnvironment = withoutRecordKeys(
         nextEnvironment,
-        patch.environmentDeletes,
-    );
+        patch.environmentDeletes
+    )
 
     const nextFeatureFlags = {
         ...effective.featureFlags,
         ...(patch.featureFlagUpserts ?? {}),
-    };
+    }
 
     const filteredFeatureFlags = withoutRecordKeys(
         nextFeatureFlags,
-        patch.featureFlagDeletes,
-    );
+        patch.featureFlagDeletes
+    )
 
     const nextEnvironmentDomains = applyEnvironmentDomainPatch(
         effective.environmentDomains,
         patch.environmentDomainUpserts,
-        patch.environmentDomainDeletes,
-    );
+        patch.environmentDomainDeletes
+    )
 
-    let mutatedEnvironmentDomains = nextEnvironmentDomains;
-    let mutatedEnvironment = filteredEnvironment;
+    let mutatedEnvironmentDomains = nextEnvironmentDomains
+    let mutatedEnvironment = filteredEnvironment
 
     for (const mutation of patch.environmentMutations ?? []) {
-        if (mutation.mode === "flat") {
+        if (mutation.mode === 'flat') {
             mutatedEnvironment = withoutRecordKeys(
                 {
                     ...mutatedEnvironment,
                     ...(mutation.upserts ?? {}),
                 },
-                mutation.deletes,
-            );
-            continue;
+                mutation.deletes
+            )
+            continue
         }
 
         mutatedEnvironmentDomains = applyEnvironmentDomainPatch(
             mutatedEnvironmentDomains,
-            domainEnvironmentUpsertsFromMutation(mutation.domain, mutation.upserts),
-            domainEnvironmentDeletesFromMutation(mutation.domain, mutation.deletes),
-        );
+            domainEnvironmentUpsertsFromMutation(
+                mutation.domain,
+                mutation.upserts
+            ),
+            domainEnvironmentDeletesFromMutation(
+                mutation.domain,
+                mutation.deletes
+            )
+        )
     }
 
     const flattenedEnvironment = {
         ...flattenEnvironmentDomains(mutatedEnvironmentDomains),
         ...mutatedEnvironment,
-    };
+    }
 
     return {
-        touchedConstraints: typeof patch.constraints !== "undefined",
+        touchedConstraints: typeof patch.constraints !== 'undefined',
         effective: {
             deployment: {
                 ...effective.deployment,
@@ -611,18 +680,18 @@ function applyRulePatch(
                 ...(patch.constraints ?? {}),
             },
         },
-    };
+    }
 }
 
-
 function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
-
     const mesh = {
         deployment: {
-            defaultStrategy: parsedInput.mesh?.deployment?.defaultStrategy ?? "rolling",
+            defaultStrategy:
+                parsedInput.mesh?.deployment?.defaultStrategy ?? 'rolling',
             enforceHttpsRedirect:
                 parsedInput.mesh?.deployment?.enforceHttpsRedirect ?? true,
-            previewEnabled: parsedInput.mesh?.deployment?.previewEnabled ?? true,
+            previewEnabled:
+                parsedInput.mesh?.deployment?.previewEnabled ?? true,
         },
         allowedProviders: parsedInput.mesh?.allowedProviders,
         allowedRunners: parsedInput.mesh?.allowedRunners,
@@ -634,17 +703,19 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
         environment: parsedInput.mesh?.environment ?? {},
         featureFlags: parsedInput.mesh?.featureFlags ?? {},
         metadata: parsedInput.mesh?.metadata ?? {},
-    };
+    }
 
     const project = {
         settings: {
             autoDeployEnabled: parsedInput.project?.settings?.autoDeployEnabled,
             enablePreviewEnvironments:
                 parsedInput.project?.settings?.enablePreviewEnvironments,
-            deploymentStrategy: parsedInput.project?.settings?.deploymentStrategy,
+            deploymentStrategy:
+                parsedInput.project?.settings?.deploymentStrategy,
             requireApprovalForProduction:
                 parsedInput.project?.settings?.requireApprovalForProduction,
-            enableHttpsRedirect: parsedInput.project?.settings?.enableHttpsRedirect,
+            enableHttpsRedirect:
+                parsedInput.project?.settings?.enableHttpsRedirect,
             defaultEnvironmentVariables:
                 parsedInput.project?.settings?.defaultEnvironmentVariables,
         },
@@ -658,12 +729,13 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
         environment: parsedInput.project?.environment ?? {},
         featureFlags: parsedInput.project?.featureFlags ?? {},
         metadata: parsedInput.project?.metadata ?? {},
-    };
+    }
 
     const service = {
         deployment: {
             strategy: parsedInput.service?.deployment?.strategy,
-            autoDeployEnabled: parsedInput.service?.deployment?.autoDeployEnabled,
+            autoDeployEnabled:
+                parsedInput.service?.deployment?.autoDeployEnabled,
         },
         execution: {
             providerType: parsedInput.service?.execution?.providerType,
@@ -693,7 +765,7 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
         environment: parsedInput.service?.environment ?? {},
         featureFlags: parsedInput.service?.featureFlags ?? {},
         metadata: parsedInput.service?.metadata ?? {},
-    };
+    }
 
     const user = {
         environmentOverrides: parsedInput.user?.environmentOverrides ?? {},
@@ -704,39 +776,41 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
         },
         preferredExecution: parsedInput.user?.preferredExecution,
         preferredTraefik: parsedInput.user?.preferredTraefik,
-        environmentByDomainOverrides: parsedInput.user?.environmentByDomainOverrides,
+        environmentByDomainOverrides:
+            parsedInput.user?.environmentByDomainOverrides,
         metadata: parsedInput.user?.metadata ?? {},
-    };
+    }
 
     const strategy =
         service.deployment.strategy ??
         project.settings.deploymentStrategy ??
-        mesh.deployment.defaultStrategy;
+        mesh.deployment.defaultStrategy
 
     const autoDeployEnabled =
         user.deployment.autoDeployEnabled ??
         service.deployment.autoDeployEnabled ??
         project.settings.autoDeployEnabled ??
-        true;
+        true
 
     const previewEnabled =
         user.deployment.previewEnabled ??
         project.settings.enablePreviewEnvironments ??
-        mesh.deployment.previewEnabled;
+        mesh.deployment.previewEnabled
 
-    const requireApprovalForProduction = project.settings.requireApprovalForProduction ?? false;
+    const requireApprovalForProduction =
+        project.settings.requireApprovalForProduction ?? false
 
     const forceHttps =
         service.routing.forceHttps ??
         project.settings.enableHttpsRedirect ??
-        mesh.deployment.enforceHttpsRedirect;
+        mesh.deployment.enforceHttpsRedirect
 
     const environmentDomains = mergeEnvironmentDomains(
         mesh.environmentByDomain,
         project.environmentByDomain,
         service.environmentByDomain,
-        user.environmentByDomainOverrides,
-    );
+        user.environmentByDomainOverrides
+    )
 
     const environment = {
         ...flattenEnvironmentDomains(environmentDomains),
@@ -745,62 +819,67 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
         ...project.environment,
         ...service.environment,
         ...user.environmentOverrides,
-    };
+    }
 
     const featureFlags = {
         ...mesh.featureFlags,
         ...project.featureFlags,
         ...service.featureFlags,
         ...user.featureFlagOverrides,
-    };
+    }
 
     const providerType =
         parsedInput.context.requestedProviderType ??
         user.preferredExecution?.providerType ??
         service.execution.providerType ??
-        resolveProviderFromSource(parsedInput.context.sourceProvider);
+        resolveProviderFromSource(parsedInput.context.sourceProvider)
 
     const runnerType =
         parsedInput.context.requestedRunnerType ??
         user.preferredExecution?.runnerType ??
         service.execution.runnerType ??
-        "docker";
+        'docker'
 
-    const minReplicas = service.replicas.min ?? 1;
+    const minReplicas = service.replicas.min ?? 1
     const maxReplicas =
-        service.replicas.max ?? project.maxReplicas ?? mesh.maxProjectReplicas ?? 10;
+        service.replicas.max ??
+        project.maxReplicas ??
+        mesh.maxProjectReplicas ??
+        10
     const desiredReplicas =
-        parsedInput.context.requestedReplicas ?? service.replicas.desired ?? minReplicas;
+        parsedInput.context.requestedReplicas ??
+        service.replicas.desired ??
+        minReplicas
 
     const cpuMillicores =
         parsedInput.context.requestedResources?.cpuMillicores ??
         service.resources.cpuMillicores ??
         project.limits?.cpuMillicores ??
         mesh.projectLimits?.cpuMillicores ??
-        500;
+        500
 
     const memoryMb =
         parsedInput.context.requestedResources?.memoryMb ??
         service.resources.memoryMb ??
         project.limits?.memoryMb ??
         mesh.projectLimits?.memoryMb ??
-        512;
+        512
 
     const mergedTraefik = {
         ...(mesh.traefik ?? {}),
         ...(project.traefik ?? {}),
         ...(service.traefik ?? {}),
         ...(user.preferredTraefik ?? {}),
-    };
+    }
 
     const lifecycleCurrent =
         parsedInput.context.requestedLifecycleState ??
         service.lifecycleState ??
         project.lifecycleState ??
         mesh.lifecycleState ??
-        "active";
+        'active'
 
-    let effective: ResolvedRuntimeConfiguration["effective"] = {
+    let effective: ResolvedRuntimeConfiguration['effective'] = {
         deployment: {
             strategy,
             autoDeployEnabled,
@@ -832,7 +911,7 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
         environmentDomains,
         traefik: {
             enabled: mergedTraefik.enabled ?? true,
-            entryPoints: mergedTraefik.entryPoints ?? ["web", "websecure"],
+            entryPoints: mergedTraefik.entryPoints ?? ['web', 'websecure'],
             middlewares: mergedTraefik.middlewares ?? [],
             stripPrefix: mergedTraefik.stripPrefix ?? null,
             domains: mergedTraefik.domains ?? service.routing.domains,
@@ -858,36 +937,55 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
             reason: null,
             reasons: [],
         },
-    };
+    }
 
     effective = {
         ...effective,
-        constraints: computeConstraints(parsedInput.context, mesh, project, service, effective),
-    };
+        constraints: computeConstraints(
+            parsedInput.context,
+            mesh,
+            project,
+            service,
+            effective
+        ),
+    }
 
     const dispatchRules = [...(parsedInput.dispatch?.rules ?? [])]
         .filter((rule) => rule.enabled)
-        .sort((a, b) => a.priority - b.priority);
+        .sort((a, b) => a.priority - b.priority)
 
-    const appliedRuleIds: string[] = [];
-    let touchedConstraints = false;
+    const appliedRuleIds: string[] = []
+    let touchedConstraints = false
 
     for (const rule of dispatchRules) {
-        if (!matchesRule(rule, parsedInput.scope, parsedInput.context, effective)) {
-            continue;
+        if (
+            !matchesRule(
+                rule,
+                parsedInput.scope,
+                parsedInput.context,
+                effective
+            )
+        ) {
+            continue
         }
 
-        const patched = applyRulePatch(effective, rule);
-        effective = patched.effective;
-        touchedConstraints = touchedConstraints || patched.touchedConstraints;
-        appliedRuleIds.push(rule.id);
+        const patched = applyRulePatch(effective, rule)
+        effective = patched.effective
+        touchedConstraints = touchedConstraints || patched.touchedConstraints
+        appliedRuleIds.push(rule.id)
     }
 
     if (!touchedConstraints) {
         effective = {
             ...effective,
-            constraints: computeConstraints(parsedInput.context, mesh, project, service, effective),
-        };
+            constraints: computeConstraints(
+                parsedInput.context,
+                mesh,
+                project,
+                service,
+                effective
+            ),
+        }
     }
 
     return {
@@ -902,54 +1000,98 @@ function computeResolution(parsedInput: ParsedResolverInput): ResolutionDraft {
             evaluatedRules: dispatchRules.length,
             appliedRuleIds,
         },
-    };
+    }
 }
 
-type ParsedResolverInput = z.output<typeof runtimeConfigurationResolverInputSchema>;
+type ParsedResolverInput = z.output<
+    typeof runtimeConfigurationResolverInputSchema
+>
 /** What the resolution computes, before the output contract (`resolvedRuntimeConfigurationSchema`) validates it. */
-type ResolutionDraft = z.input<typeof resolvedRuntimeConfigurationSchema>;
+type ResolutionDraft = z.input<typeof resolvedRuntimeConfigurationSchema>
 
-const issuesOf = (error: z.ZodError): string => error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
+const issuesOf = (error: z.ZodError): string =>
+    error.issues
+        .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+        .join('; ')
 
 export type ConfigurationResolverServiceShape = {
-    readonly listDefinitions: ConfigurationDefinitionServiceShape["listDefinitions"];
-    readonly getDefinition: ConfigurationDefinitionServiceShape["getDefinition"];
+    readonly listDefinitions: ConfigurationDefinitionServiceShape['listDefinitions']
+    readonly getDefinition: ConfigurationDefinitionServiceShape['getDefinition']
     /** Folds the scopes (mesh → project → service → user) and the dispatch rules into the effective configuration. */
-    readonly resolve: (input: RuntimeConfigurationResolverInput) => Effect.Effect<ResolvedRuntimeConfiguration, RuntimeConfigurationInvalid>;
-    readonly resolveStrict: (input: RuntimeConfigurationResolverScopedInput) => Effect.Effect<ResolvedRuntimeConfiguration, RuntimeConfigurationInvalid>;
+    readonly resolve: (
+        input: RuntimeConfigurationResolverInput
+    ) => Effect.Effect<
+        ResolvedRuntimeConfiguration,
+        RuntimeConfigurationInvalid
+    >
+    readonly resolveStrict: (
+        input: RuntimeConfigurationResolverScopedInput
+    ) => Effect.Effect<
+        ResolvedRuntimeConfiguration,
+        RuntimeConfigurationInvalid
+    >
     readonly resolveForProject: (
-        input: Omit<RuntimeConfigurationResolverInputByScope<"project">, "scope">,
-    ) => Effect.Effect<ResolvedRuntimeConfiguration, RuntimeConfigurationInvalid>;
+        input: Omit<
+            RuntimeConfigurationResolverInputByScope<'project'>,
+            'scope'
+        >
+    ) => Effect.Effect<
+        ResolvedRuntimeConfiguration,
+        RuntimeConfigurationInvalid
+    >
     readonly resolveForService: (
-        input: Omit<RuntimeConfigurationResolverInputByScope<"service">, "scope">,
-    ) => Effect.Effect<ResolvedRuntimeConfiguration, RuntimeConfigurationInvalid>;
+        input: Omit<
+            RuntimeConfigurationResolverInputByScope<'service'>,
+            'scope'
+        >
+    ) => Effect.Effect<
+        ResolvedRuntimeConfiguration,
+        RuntimeConfigurationInvalid
+    >
     readonly resolveForUser: (
-        input: Omit<RuntimeConfigurationResolverInputByScope<"user">, "scope">,
-    ) => Effect.Effect<ResolvedRuntimeConfiguration, RuntimeConfigurationInvalid>;
-};
+        input: Omit<RuntimeConfigurationResolverInputByScope<'user'>, 'scope'>
+    ) => Effect.Effect<
+        ResolvedRuntimeConfiguration,
+        RuntimeConfigurationInvalid
+    >
+}
 
-export function makeConfigurationResolverService(definitions: ConfigurationDefinitionServiceShape): ConfigurationResolverServiceShape {
-    const resolve: ConfigurationResolverServiceShape["resolve"] = (input) =>
+export function makeConfigurationResolverService(
+    definitions: ConfigurationDefinitionServiceShape
+): ConfigurationResolverServiceShape {
+    const resolve: ConfigurationResolverServiceShape['resolve'] = (input) =>
         Effect.gen(function* () {
-            const parsedInput = runtimeConfigurationResolverInputSchema.safeParse(input);
-            if (!parsedInput.success) return yield* new RuntimeConfigurationInvalid({ stage: "input", issues: issuesOf(parsedInput.error) });
+            const parsedInput =
+                runtimeConfigurationResolverInputSchema.safeParse(input)
+            if (!parsedInput.success)
+                return yield* new RuntimeConfigurationInvalid({
+                    stage: 'input',
+                    issues: issuesOf(parsedInput.error),
+                })
 
-            const resolved = resolvedRuntimeConfigurationSchema.safeParse(computeResolution(parsedInput.data));
-            if (!resolved.success) return yield* new RuntimeConfigurationInvalid({ stage: "output", issues: issuesOf(resolved.error) });
-            return resolved.data;
-        });
+            const resolved = resolvedRuntimeConfigurationSchema.safeParse(
+                computeResolution(parsedInput.data)
+            )
+            if (!resolved.success)
+                return yield* new RuntimeConfigurationInvalid({
+                    stage: 'output',
+                    issues: issuesOf(resolved.error),
+                })
+            return resolved.data
+        })
 
     return {
         listDefinitions: () => definitions.listDefinitions(),
         getDefinition: (scope) => definitions.getDefinition(scope),
         resolve,
         resolveStrict: resolve,
-        resolveForProject: (input) => resolve({ ...input, scope: "project" }),
-        resolveForService: (input) => resolve({ ...input, scope: "service" }),
-        resolveForUser: (input) => resolve({ ...input, scope: "user" }),
-    };
+        resolveForProject: (input) => resolve({ ...input, scope: 'project' }),
+        resolveForService: (input) => resolve({ ...input, scope: 'service' }),
+        resolveForUser: (input) => resolve({ ...input, scope: 'user' }),
+    }
 }
 
-export class ConfigurationResolverService extends Context.Service<ConfigurationResolverService, ConfigurationResolverServiceShape>()(
-    "shared/ConfigurationResolverService",
-) {}
+export class ConfigurationResolverService extends Context.Service<
+    ConfigurationResolverService,
+    ConfigurationResolverServiceShape
+>()('shared/ConfigurationResolverService') {}

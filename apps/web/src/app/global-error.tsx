@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import { logger } from '@deployer/logger'
 
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { getErrorMessage } from '@/lib/orpc/typed-errors'
 
 /**
  * Global error boundary — the last line of defence.
@@ -20,26 +20,26 @@ import { getErrorMessage } from "@/lib/orpc/typed-errors";
  * browser's raw error page and every part of the design system is lost.
  */
 export default function GlobalError({
-  error,
-  reset,
+    error,
+    reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+    error: Error & { digest?: string }
+    reset: () => void
 }) {
-  React.useEffect(() => {
-    // Log the error to an error reporting service
-    logger.error(error)
-  }, [error])
+    React.useEffect(() => {
+        // Log the error to an error reporting service
+        logger.error(error)
+    }, [error])
 
-  return (
-    <html lang="en">
-      <head>
-        <title>Deployer — application error</title>
-        <style
-          // Values mirror the design tokens in the shared UI stylesheet
-          // (packages/ui/base/src/styles/globals.css).
-          dangerouslySetInnerHTML={{
-            __html: `
+    return (
+        <html lang="en">
+            <head>
+                <title>Deployer — application error</title>
+                <style
+                    // Values mirror the design tokens in the shared UI stylesheet
+                    // (packages/ui/base/src/styles/globals.css).
+                    dangerouslySetInnerHTML={{
+                        __html: `
               :root {
                 --ge-bg: oklch(0.9400 0.0220 295.00);
                 --ge-fg: oklch(0.1950 0.0520 292.00);
@@ -90,56 +90,63 @@ export default function GlobalError({
               .ge-ref { margin-top: 1.25rem; font-size: 0.8125rem; color: var(--ge-muted); }
               .ge-ref code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
             `,
-          }}
-        />
-      </head>
-      <body className="ge">
-        <div className="ge-panel">
-          <div className="ge-disc" aria-hidden="true">
-            <svg
-              width="28"
-              height="28"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          </div>
-          <h1 className="ge-title">Deployer couldn’t start</h1>
-          <p className="ge-body">
-            {process.env.NODE_ENV === 'development'
-              ? getErrorMessage(error, 'The application shell failed to render.')
-              : 'The application shell failed to render.'}{' '}
-            Reloading usually clears it — if it keeps happening, check the API
-            health endpoint and the server logs.
-          </p>
-          <div className="ge-actions">
-            <button type="button" className="ge-btn ge-btn--primary" onClick={reset}>
-              Try again
-            </button>
-            <button
-              type="button"
-              className="ge-btn"
-              onClick={() => {
-                window.location.reload()
-              }}
-            >
-              Hard reload
-            </button>
-          </div>
-          {error.digest ? (
-            <p className="ge-ref">
-              Error id: <code>{error.digest}</code>
-            </p>
-          ) : null}
-        </div>
-      </body>
-    </html>
-  )
+                    }}
+                />
+            </head>
+            <body className="ge">
+                <div className="ge-panel">
+                    <div className="ge-disc" aria-hidden="true">
+                        <svg
+                            width="28"
+                            height="28"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                    </div>
+                    <h1 className="ge-title">Deployer couldn’t start</h1>
+                    <p className="ge-body">
+                        {process.env.NODE_ENV === 'development'
+                            ? getErrorMessage(
+                                  error,
+                                  'The application shell failed to render.'
+                              )
+                            : 'The application shell failed to render.'}{' '}
+                        Reloading usually clears it — if it keeps happening,
+                        check the API health endpoint and the server logs.
+                    </p>
+                    <div className="ge-actions">
+                        <button
+                            type="button"
+                            className="ge-btn ge-btn--primary"
+                            onClick={reset}
+                        >
+                            Try again
+                        </button>
+                        <button
+                            type="button"
+                            className="ge-btn"
+                            onClick={() => {
+                                window.location.reload()
+                            }}
+                        >
+                            Hard reload
+                        </button>
+                    </div>
+                    {error.digest ? (
+                        <p className="ge-ref">
+                            Error id: <code>{error.digest}</code>
+                        </p>
+                    ) : null}
+                </div>
+            </body>
+        </html>
+    )
 }

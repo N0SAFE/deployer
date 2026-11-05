@@ -6,4 +6,4 @@ export default build({
     // The default `bun` target emits an IIFE wrapper that Node evaluates without
     // exporting anything, so every symbol arrives `undefined` instead of failing.
     target: 'node',
-});
+})

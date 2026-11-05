@@ -1,17 +1,23 @@
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { Context, Effect } from "effect";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { Context, Effect } from 'effect'
 
-import type { RequestContextInput } from "@deployer/effect-orpc";
-import { analyticsContract } from "@deployer/identity-contracts";
-import { inBoundary, procedure } from "@deployer/nest-effect";
-import { roleNamesWithPermission } from "@deployer/shared/core/authz/role-catalog";
-import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
-import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
+import type { RequestContextInput } from '@deployer/effect-orpc'
+import { analyticsContract } from '@deployer/identity-contracts'
+import { inBoundary, procedure } from '@deployer/nest-effect'
+import { roleNamesWithPermission } from '@deployer/shared/core/authz/role-catalog'
+import {
+    requireAuth,
+    requirePlatformRole,
+} from '@deployer/shared/core/modules/auth/orpc/middlewares'
+import { liveSnapshot } from '@deployer/shared/core/utils/live-snapshot.utils'
 
-
-import { AnalyticsFieldRequired } from "../domain/analytics.errors";
-import { AnalyticsService, type AnalyticsServicePorts, type MetricsQuery } from "../services/analytics.service";
+import { AnalyticsFieldRequired } from '../domain/analytics.errors'
+import {
+    AnalyticsService,
+    type AnalyticsServicePorts,
+    type MetricsQuery,
+} from '../services/analytics.service'
 
 /**
  * Builds the "run one snapshot" callback for a streaming procedure.
@@ -33,9 +39,17 @@ import { AnalyticsService, type AnalyticsServicePorts, type MetricsQuery } from 
  * re-provides it. Same shape as `streamSwarmConfig` in the fleet service.
  */
 const snapshotOf =
-	(ports: Context.Context<AnalyticsServicePorts>, context: RequestContextInput) =>
-	<A, E>(effect: Effect.Effect<A, E, AnalyticsServicePorts>): Promise<A> =>
-		Effect.runPromise(inBoundary(context, effect.pipe(Effect.provideContext(ports))) as Effect.Effect<A, E>);
+    (
+        ports: Context.Context<AnalyticsServicePorts>,
+        context: RequestContextInput
+    ) =>
+    <A, E>(effect: Effect.Effect<A, E, AnalyticsServicePorts>): Promise<A> =>
+        Effect.runPromise(
+            inBoundary(
+                context,
+                effect.pipe(Effect.provideContext(ports))
+            ) as Effect.Effect<A, E>
+        )
 
 /**
  * Re-evaluation cadence for the streaming (`…/stream`) siblings.
@@ -46,14 +60,13 @@ const snapshotOf =
  * sample interval is the honest mechanism — see `liveSnapshot()`.
  */
 const STREAM_INTERVAL = {
-	realTime: 10_000,
-	serviceHealth: 15_000,
-	resourceMetrics: 30_000,
-	resourceUsage: 30_000,
-	deploymentMetrics: 60_000,
-	deploymentUsage: 60_000,
-} as const;
-
+    realTime: 10_000,
+    serviceHealth: 15_000,
+    resourceMetrics: 30_000,
+    resourceUsage: 30_000,
+    deploymentMetrics: 60_000,
+    deploymentUsage: 60_000,
+} as const
 
 /**
  * The analytics domain's oRPC surface.
@@ -77,469 +90,573 @@ const STREAM_INTERVAL = {
  * granted `analytics:read` would be refused, and a role that lost the permission would still pass. The declaration on the
  * contract (`analytics:read`) is the same permission this asks for, so the interim role gate and the gate agree.
  */
-const analyticsRoles = () => roleNamesWithPermission("analytics:read");
+const analyticsRoles = () => roleNamesWithPermission('analytics:read')
 
 @Controller()
 export class AnalyticsController {
-	// ─── Metrics ────────────────────────────────────────────────────────────
+    // ─── Metrics ────────────────────────────────────────────────────────────
 
-	@Implement(analyticsContract.getResourceMetrics)
-	getResourceMetrics() {
-		return procedure(analyticsContract.getResourceMetrics)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.resourceMetrics(readMetricsQuery(input));
-			});
-	}
+    @Implement(analyticsContract.getResourceMetrics)
+    getResourceMetrics() {
+        return procedure(analyticsContract.getResourceMetrics)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.resourceMetrics(readMetricsQuery(input))
+            })
+    }
 
-	@Implement(analyticsContract.getResourceMetricsStream)
-	getResourceMetricsStream() {
-		return procedure(analyticsContract.getResourceMetricsStream)
-			.use(requireAuth())
-			.effect(function* ({ input, context }) {
-				const analytics = yield* AnalyticsService;
-				// The module's context is captured HERE, while the request fiber is alive; the
-				// timer cannot reach it afterwards. See `snapshotOf`.
-				const ports = yield* Effect.context<AnalyticsServicePorts>();
-				return liveSnapshot(() => snapshotOf(ports, context)(analytics.resourceMetrics(readMetricsQuery(input))), {
-					intervalMs: STREAM_INTERVAL.resourceMetrics,
-				});
-			});
-	}
+    @Implement(analyticsContract.getResourceMetricsStream)
+    getResourceMetricsStream() {
+        return procedure(analyticsContract.getResourceMetricsStream)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const analytics = yield* AnalyticsService
+                // The module's context is captured HERE, while the request fiber is alive; the
+                // timer cannot reach it afterwards. See `snapshotOf`.
+                const ports = yield* Effect.context<AnalyticsServicePorts>()
+                return liveSnapshot(
+                    () =>
+                        snapshotOf(
+                            ports,
+                            context
+                        )(analytics.resourceMetrics(readMetricsQuery(input))),
+                    {
+                        intervalMs: STREAM_INTERVAL.resourceMetrics,
+                    }
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getApplicationMetrics)
-	getApplicationMetrics() {
-		return procedure(analyticsContract.getApplicationMetrics)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.applicationMetrics(readMetricsQuery(input));
-			});
-	}
+    @Implement(analyticsContract.getApplicationMetrics)
+    getApplicationMetrics() {
+        return procedure(analyticsContract.getApplicationMetrics)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.applicationMetrics(
+                    readMetricsQuery(input)
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getDatabaseMetrics)
-	getDatabaseMetrics() {
-		return procedure(analyticsContract.getDatabaseMetrics)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.databaseMetrics(readMetricsQuery(input));
-			});
-	}
+    @Implement(analyticsContract.getDatabaseMetrics)
+    getDatabaseMetrics() {
+        return procedure(analyticsContract.getDatabaseMetrics)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.databaseMetrics(readMetricsQuery(input))
+            })
+    }
 
-	@Implement(analyticsContract.getDeploymentMetrics)
-	getDeploymentMetrics() {
-		return procedure(analyticsContract.getDeploymentMetrics)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.deploymentMetrics(readMetricsQuery(input));
-			});
-	}
+    @Implement(analyticsContract.getDeploymentMetrics)
+    getDeploymentMetrics() {
+        return procedure(analyticsContract.getDeploymentMetrics)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.deploymentMetrics(
+                    readMetricsQuery(input)
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getDeploymentMetricsStream)
-	getDeploymentMetricsStream() {
-		return procedure(analyticsContract.getDeploymentMetricsStream)
-			.use(requireAuth())
-			.effect(function* ({ input, context }) {
-				const analytics = yield* AnalyticsService;
-				const ports = yield* Effect.context<AnalyticsServicePorts>();
-				return liveSnapshot(() => snapshotOf(ports, context)(analytics.deploymentMetrics(readMetricsQuery(input))), {
-					intervalMs: STREAM_INTERVAL.deploymentMetrics,
-				});
-			});
-	}
+    @Implement(analyticsContract.getDeploymentMetricsStream)
+    getDeploymentMetricsStream() {
+        return procedure(analyticsContract.getDeploymentMetricsStream)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const analytics = yield* AnalyticsService
+                const ports = yield* Effect.context<AnalyticsServicePorts>()
+                return liveSnapshot(
+                    () =>
+                        snapshotOf(
+                            ports,
+                            context
+                        )(analytics.deploymentMetrics(readMetricsQuery(input))),
+                    {
+                        intervalMs: STREAM_INTERVAL.deploymentMetrics,
+                    }
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getServiceHealth)
-	getServiceHealth() {
-		return procedure(analyticsContract.getServiceHealth)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.serviceHealth(readServices(input));
-			});
-	}
+    @Implement(analyticsContract.getServiceHealth)
+    getServiceHealth() {
+        return procedure(analyticsContract.getServiceHealth)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.serviceHealth(readServices(input))
+            })
+    }
 
-	@Implement(analyticsContract.getServiceHealthStream)
-	getServiceHealthStream() {
-		return procedure(analyticsContract.getServiceHealthStream)
-			.use(requireAuth())
-			.effect(function* ({ input, context }) {
-				const analytics = yield* AnalyticsService;
-				const ports = yield* Effect.context<AnalyticsServicePorts>();
-				return liveSnapshot(() => snapshotOf(ports, context)(analytics.serviceHealth(readServices(input))), {
-					intervalMs: STREAM_INTERVAL.serviceHealth,
-				});
-			});
-	}
+    @Implement(analyticsContract.getServiceHealthStream)
+    getServiceHealthStream() {
+        return procedure(analyticsContract.getServiceHealthStream)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const analytics = yield* AnalyticsService
+                const ports = yield* Effect.context<AnalyticsServicePorts>()
+                return liveSnapshot(
+                    () =>
+                        snapshotOf(
+                            ports,
+                            context
+                        )(analytics.serviceHealth(readServices(input))),
+                    {
+                        intervalMs: STREAM_INTERVAL.serviceHealth,
+                    }
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getRealTimeMetrics)
-	getRealTimeMetrics() {
-		return procedure(analyticsContract.getRealTimeMetrics)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.realtimeMetrics(readServices(input));
-			});
-	}
+    @Implement(analyticsContract.getRealTimeMetrics)
+    getRealTimeMetrics() {
+        return procedure(analyticsContract.getRealTimeMetrics)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.realtimeMetrics(readServices(input))
+            })
+    }
 
-	@Implement(analyticsContract.getRealTimeMetricsStream)
-	getRealTimeMetricsStream() {
-		return procedure(analyticsContract.getRealTimeMetricsStream)
-			.use(requireAuth())
-			.effect(function* ({ input, context }) {
-				const analytics = yield* AnalyticsService;
-				const ports = yield* Effect.context<AnalyticsServicePorts>();
-				return liveSnapshot(() => snapshotOf(ports, context)(analytics.realtimeMetrics(readServices(input))), {
-					intervalMs: STREAM_INTERVAL.realTime,
-				});
-			});
-	}
+    @Implement(analyticsContract.getRealTimeMetricsStream)
+    getRealTimeMetricsStream() {
+        return procedure(analyticsContract.getRealTimeMetricsStream)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const analytics = yield* AnalyticsService
+                const ports = yield* Effect.context<AnalyticsServicePorts>()
+                return liveSnapshot(
+                    () =>
+                        snapshotOf(
+                            ports,
+                            context
+                        )(analytics.realtimeMetrics(readServices(input))),
+                    {
+                        intervalMs: STREAM_INTERVAL.realTime,
+                    }
+                )
+            })
+    }
 
-	// ─── Usage ──────────────────────────────────────────────────────────────
+    // ─── Usage ──────────────────────────────────────────────────────────────
 
-	@Implement(analyticsContract.getResourceUsage)
-	getResourceUsage() {
-		return procedure(analyticsContract.getResourceUsage)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.resourceUsage({
-					timeRange: readString(input, "timeRange", "1d"),
-					resource: readString(input, "resource", "all"),
-					aggregation: readString(input, "aggregation", "average"),
-				});
-			});
-	}
+    @Implement(analyticsContract.getResourceUsage)
+    getResourceUsage() {
+        return procedure(analyticsContract.getResourceUsage)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.resourceUsage({
+                    timeRange: readString(input, 'timeRange', '1d'),
+                    resource: readString(input, 'resource', 'all'),
+                    aggregation: readString(input, 'aggregation', 'average'),
+                })
+            })
+    }
 
-	@Implement(analyticsContract.getResourceUsageStream)
-	getResourceUsageStream() {
-		return procedure(analyticsContract.getResourceUsageStream)
-			.use(requireAuth())
-			.effect(function* ({ input, context }) {
-				const analytics = yield* AnalyticsService;
-				const ports = yield* Effect.context<AnalyticsServicePorts>();
-				return liveSnapshot(() => snapshotOf(ports, context)(analytics.resourceUsage({
-					timeRange: readString(input, "timeRange", "1d"),
-					resource: readString(input, "resource", "all"),
-					aggregation: readString(input, "aggregation", "average"),
-				})), {
-					intervalMs: STREAM_INTERVAL.resourceUsage,
-				});
-			});
-	}
+    @Implement(analyticsContract.getResourceUsageStream)
+    getResourceUsageStream() {
+        return procedure(analyticsContract.getResourceUsageStream)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const analytics = yield* AnalyticsService
+                const ports = yield* Effect.context<AnalyticsServicePorts>()
+                return liveSnapshot(
+                    () =>
+                        snapshotOf(
+                            ports,
+                            context
+                        )(
+                            analytics.resourceUsage({
+                                timeRange: readString(input, 'timeRange', '1d'),
+                                resource: readString(input, 'resource', 'all'),
+                                aggregation: readString(
+                                    input,
+                                    'aggregation',
+                                    'average'
+                                ),
+                            })
+                        ),
+                    {
+                        intervalMs: STREAM_INTERVAL.resourceUsage,
+                    }
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getUserActivity)
-	getUserActivity() {
-		return procedure(analyticsContract.getUserActivity)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.userActivity({
-					timeRange: readString(input, "timeRange", "1d"),
-					...readOptionalString(input, "userId"),
-					...readOptionalString(input, "action"),
-					...readOptionalString(input, "resource"),
-					limit: readNumber(input, "limit", 100),
-					offset: readNumber(input, "offset", 0),
-				});
-			});
-	}
+    @Implement(analyticsContract.getUserActivity)
+    getUserActivity() {
+        return procedure(analyticsContract.getUserActivity)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.userActivity({
+                    timeRange: readString(input, 'timeRange', '1d'),
+                    ...readOptionalString(input, 'userId'),
+                    ...readOptionalString(input, 'action'),
+                    ...readOptionalString(input, 'resource'),
+                    limit: readNumber(input, 'limit', 100),
+                    offset: readNumber(input, 'offset', 0),
+                })
+            })
+    }
 
-	@Implement(analyticsContract.getActivitySummary)
-	getActivitySummary() {
-		return procedure(analyticsContract.getActivitySummary)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				const query = readQuery(input);
-				return yield* analytics.activitySummary({
-						...(typeof query.period === "string" ? { period: query.period } : {}),
-						...(typeof query.granularity === "string" ? { granularity: query.granularity } : {}),
-						...(typeof query.limit === "number" ? { limit: query.limit } : {}),
-					})
-				;
-			});
-	}
+    @Implement(analyticsContract.getActivitySummary)
+    getActivitySummary() {
+        return procedure(analyticsContract.getActivitySummary)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                const query = readQuery(input)
+                return yield* analytics.activitySummary({
+                    ...(typeof query.period === 'string'
+                        ? { period: query.period }
+                        : {}),
+                    ...(typeof query.granularity === 'string'
+                        ? { granularity: query.granularity }
+                        : {}),
+                    ...(typeof query.limit === 'number'
+                        ? { limit: query.limit }
+                        : {}),
+                })
+            })
+    }
 
-	@Implement(analyticsContract.getApiUsage)
-	getApiUsage() {
-		return procedure(analyticsContract.getApiUsage)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.apiUsage({
-					timeRange: readString(input, "timeRange", "1d"),
-					groupBy: readString(input, "groupBy", "endpoint"),
-					limit: readNumber(input, "limit", 20),
-				});
-			});
-	}
+    @Implement(analyticsContract.getApiUsage)
+    getApiUsage() {
+        return procedure(analyticsContract.getApiUsage)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.apiUsage({
+                    timeRange: readString(input, 'timeRange', '1d'),
+                    groupBy: readString(input, 'groupBy', 'endpoint'),
+                    limit: readNumber(input, 'limit', 20),
+                })
+            })
+    }
 
-	@Implement(analyticsContract.getDeploymentUsage)
-	getDeploymentUsage() {
-		return procedure(analyticsContract.getDeploymentUsage)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.deploymentUsage({
-					timeRange: readString(input, "timeRange", "1d"),
-					...readOptionalString(input, "projectId"),
-					...readOptionalString(input, "userId"),
-				});
-			});
-	}
+    @Implement(analyticsContract.getDeploymentUsage)
+    getDeploymentUsage() {
+        return procedure(analyticsContract.getDeploymentUsage)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.deploymentUsage({
+                    timeRange: readString(input, 'timeRange', '1d'),
+                    ...readOptionalString(input, 'projectId'),
+                    ...readOptionalString(input, 'userId'),
+                })
+            })
+    }
 
-	@Implement(analyticsContract.getDeploymentUsageStream)
-	getDeploymentUsageStream() {
-		return procedure(analyticsContract.getDeploymentUsageStream)
-			.use(requireAuth())
-			.effect(function* ({ input, context }) {
-				const analytics = yield* AnalyticsService;
-				const ports = yield* Effect.context<AnalyticsServicePorts>();
-				return liveSnapshot(() => snapshotOf(ports, context)(analytics.deploymentUsage({
-					timeRange: readString(input, "timeRange", "1d"),
-					...readOptionalString(input, "projectId"),
-					...readOptionalString(input, "userId"),
-				})), {
-					intervalMs: STREAM_INTERVAL.deploymentUsage,
-				});
-			});
-	}
+    @Implement(analyticsContract.getDeploymentUsageStream)
+    getDeploymentUsageStream() {
+        return procedure(analyticsContract.getDeploymentUsageStream)
+            .use(requireAuth())
+            .effect(function* ({ input, context }) {
+                const analytics = yield* AnalyticsService
+                const ports = yield* Effect.context<AnalyticsServicePorts>()
+                return liveSnapshot(
+                    () =>
+                        snapshotOf(
+                            ports,
+                            context
+                        )(
+                            analytics.deploymentUsage({
+                                timeRange: readString(input, 'timeRange', '1d'),
+                                ...readOptionalString(input, 'projectId'),
+                                ...readOptionalString(input, 'userId'),
+                            })
+                        ),
+                    {
+                        intervalMs: STREAM_INTERVAL.deploymentUsage,
+                    }
+                )
+            })
+    }
 
-	@Implement(analyticsContract.getStorageUsage)
-	getStorageUsage() {
-		return procedure(analyticsContract.getStorageUsage)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				return yield* analytics.storageUsage({
-					timeRange: readString(input, "timeRange", "1d"),
-					breakdown: readString(input, "breakdown", "total"),
-				});
-			});
-	}
+    @Implement(analyticsContract.getStorageUsage)
+    getStorageUsage() {
+        return procedure(analyticsContract.getStorageUsage)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                return yield* analytics.storageUsage({
+                    timeRange: readString(input, 'timeRange', '1d'),
+                    breakdown: readString(input, 'breakdown', 'total'),
+                })
+            })
+    }
 
-	// ─── Reports ────────────────────────────────────────────────────────────
+    // ─── Reports ────────────────────────────────────────────────────────────
 
-	@Implement(analyticsContract.generateReport)
-	generateReport() {
-		return procedure(analyticsContract.generateReport)
-			.use(requireAuth())
-			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				// The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
-				// shape is a handle so a caller polls `getReport` and a later move to background generation does
-				// not change the contract.
-				const report = yield* analytics.generateReport({
-						period: input.period,
-						includeResourceUsage: input.includeResourceUsage,
-						includeApplicationMetrics: input.includeApplicationMetrics,
-						includeDatabaseMetrics: input.includeDatabaseMetrics,
-						includeDeploymentAnalytics: input.includeDeploymentAnalytics,
-						includeServiceHealth: input.includeServiceHealth,
-						includeUserActivity: input.includeUserActivity,
-						format: input.format,
-					})
-				;
+    @Implement(analyticsContract.generateReport)
+    generateReport() {
+        return procedure(analyticsContract.generateReport)
+            .use(requireAuth())
+            .use(requirePlatformRole(analyticsRoles()))
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                // The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
+                // shape is a handle so a caller polls `getReport` and a later move to background generation does
+                // not change the contract.
+                const report = yield* analytics.generateReport({
+                    period: input.period,
+                    includeResourceUsage: input.includeResourceUsage,
+                    includeApplicationMetrics: input.includeApplicationMetrics,
+                    includeDatabaseMetrics: input.includeDatabaseMetrics,
+                    includeDeploymentAnalytics:
+                        input.includeDeploymentAnalytics,
+                    includeServiceHealth: input.includeServiceHealth,
+                    includeUserActivity: input.includeUserActivity,
+                    format: input.format,
+                })
 
-				return {
-					reportId: report.id,
-					status: report.status as "pending" | "generating" | "completed" | "failed",
-					message:
-						report.status === "completed"
-							? `report generated with ${String(report.sections.length)} section(s)`
-							: (report.errorMessage ?? "report generation failed"),
-				};
-			});
-	}
+                return {
+                    reportId: report.id,
+                    status: report.status as
+                        'pending' | 'generating' | 'completed' | 'failed',
+                    message:
+                        report.status === 'completed'
+                            ? `report generated with ${String(report.sections.length)} section(s)`
+                            : (report.errorMessage ??
+                              'report generation failed'),
+                }
+            })
+    }
 
-	@Implement(analyticsContract.getReport)
-	getReport() {
-		return procedure(analyticsContract.getReport)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				const report = yield* analytics.findReport(input.params.reportId);
+    @Implement(analyticsContract.getReport)
+    getReport() {
+        return procedure(analyticsContract.getReport)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                const report = yield* analytics.findReport(
+                    input.params.reportId
+                )
 
-				// A `failed` report returns the status stub, which carries the error, so a caller learns why it
-				// failed instead of receiving a half-empty report object.
-				if (report.status !== "completed") {
-					return {
-						id: report.id,
-						status: report.status as "pending" | "generating" | "failed",
-						...(report.errorMessage === null ? {} : { error: report.errorMessage }),
-					};
-				}
+                // A `failed` report returns the status stub, which carries the error, so a caller learns why it
+                // failed instead of receiving a half-empty report object.
+                if (report.status !== 'completed') {
+                    return {
+                        id: report.id,
+                        status: report.status as
+                            'pending' | 'generating' | 'failed',
+                        ...(report.errorMessage === null
+                            ? {}
+                            : { error: report.errorMessage }),
+                    }
+                }
 
-				return {
-					id: report.id,
-					name: report.name,
-					generatedAt: report.generatedAt ?? new Date(),
-					period: { start: report.periodStart, end: report.periodEnd },
-					summary: summaryOf(report.content),
-					resourceUsage: [],
-					applicationMetrics: [],
-					databaseMetrics: [],
-					deploymentAnalytics: [],
-					serviceHealth: [],
-				};
-			});
-	}
+                return {
+                    id: report.id,
+                    name: report.name,
+                    generatedAt: report.generatedAt ?? new Date(),
+                    period: {
+                        start: report.periodStart,
+                        end: report.periodEnd,
+                    },
+                    summary: summaryOf(report.content),
+                    resourceUsage: [],
+                    applicationMetrics: [],
+                    databaseMetrics: [],
+                    deploymentAnalytics: [],
+                    serviceHealth: [],
+                }
+            })
+    }
 
-	@Implement(analyticsContract.listReports)
-	listReports() {
-		return procedure(analyticsContract.listReports)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				const limit = input.query?.limit ?? 20;
-				const offset = input.query?.offset ?? 0;
-				const page = yield* analytics.listReports(limit, offset, input.query?.status);
+    @Implement(analyticsContract.listReports)
+    listReports() {
+        return procedure(analyticsContract.listReports)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                const limit = input.query?.limit ?? 20
+                const offset = input.query?.offset ?? 0
+                const page = yield* analytics.listReports(
+                    limit,
+                    offset,
+                    input.query?.status
+                )
 
-				return {
-					data: page.data.map((report) => ({
-						id: report.id,
-						name: report.name,
-						status: report.status as "pending" | "generating" | "completed" | "failed",
-						...(report.generatedAt === null ? {} : { generatedAt: report.generatedAt }),
-						period: { start: report.periodStart, end: report.periodEnd },
-						format: report.format as "json" | "pdf" | "csv",
-						size: report.sizeBytes,
-					})),
-					total: page.total,
-					limit,
-					offset,
-				};
-			});
-	}
+                return {
+                    data: page.data.map((report) => ({
+                        id: report.id,
+                        name: report.name,
+                        status: report.status as
+                            'pending' | 'generating' | 'completed' | 'failed',
+                        ...(report.generatedAt === null
+                            ? {}
+                            : { generatedAt: report.generatedAt }),
+                        period: {
+                            start: report.periodStart,
+                            end: report.periodEnd,
+                        },
+                        format: report.format as 'json' | 'pdf' | 'csv',
+                        size: report.sizeBytes,
+                    })),
+                    total: page.total,
+                    limit,
+                    offset,
+                }
+            })
+    }
 
-	@Implement(analyticsContract.deleteReport)
-	deleteReport() {
-		return procedure(analyticsContract.deleteReport)
-			.use(requireAuth())
-			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				yield* analytics.deleteReport(input.params.reportId);
-				return { success: true, message: "report deleted" };
-			});
-	}
+    @Implement(analyticsContract.deleteReport)
+    deleteReport() {
+        return procedure(analyticsContract.deleteReport)
+            .use(requireAuth())
+            .use(requirePlatformRole(analyticsRoles()))
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                yield* analytics.deleteReport(input.params.reportId)
+                return { success: true, message: 'report deleted' }
+            })
+    }
 
-	@Implement(analyticsContract.downloadReport)
-	downloadReport() {
-		return procedure(analyticsContract.downloadReport)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				const report = yield* analytics.downloadReport(input.params.reportId);
-				return {
-					downloadUrl: `/analytics/reports/${input.params.reportId}/content`,
-					// A SHORT expiry on purpose: the URL is not signed, so it is only safe because the content route
-					// is itself authenticated. The handle is meant to be used immediately, not stored.
-					expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-					format: report.format as "json" | "pdf" | "csv",
-					size: report.sizeBytes,
-				};
-			});
-	}
+    @Implement(analyticsContract.downloadReport)
+    downloadReport() {
+        return procedure(analyticsContract.downloadReport)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                const report = yield* analytics.downloadReport(
+                    input.params.reportId
+                )
+                return {
+                    downloadUrl: `/analytics/reports/${input.params.reportId}/content`,
+                    // A SHORT expiry on purpose: the URL is not signed, so it is only safe because the content route
+                    // is itself authenticated. The handle is meant to be used immediately, not stored.
+                    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+                    format: report.format as 'json' | 'pdf' | 'csv',
+                    size: report.sizeBytes,
+                }
+            })
+    }
 
-	@Implement(analyticsContract.getReportContent)
-	getReportContent() {
-		return procedure(analyticsContract.getReportContent)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				// The service refuses a report that did not complete, so the file a caller saves is never an empty
-				// shell of a failed run.
-				const report = yield* analytics.downloadReport(input.params.reportId);
-				const text = JSON.stringify(report.content ?? {}, null, 2);
-				return new File([text], `report-${input.params.reportId}.json`, {
-					type: "application/json; charset=utf-8",
-				});
-			});
-	}
+    @Implement(analyticsContract.getReportContent)
+    getReportContent() {
+        return procedure(analyticsContract.getReportContent)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                // The service refuses a report that did not complete, so the file a caller saves is never an empty
+                // shell of a failed run.
+                const report = yield* analytics.downloadReport(
+                    input.params.reportId
+                )
+                const text = JSON.stringify(report.content ?? {}, null, 2)
+                return new File(
+                    [text],
+                    `report-${input.params.reportId}.json`,
+                    {
+                        type: 'application/json; charset=utf-8',
+                    }
+                )
+            })
+    }
 
-	// ─── Report configurations ──────────────────────────────────────────────
+    // ─── Report configurations ──────────────────────────────────────────────
 
-	@Implement(analyticsContract.createReportConfig)
-	createReportConfig() {
-		return procedure(analyticsContract.createReportConfig)
-			.use(requireAuth())
-			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				// The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
-				// Every field is optional in the schema, but a stored configuration needs a name and a metric selection:
-				// the check names the missing field instead of surfacing a NOT NULL violation.
-				const config = yield* Effect.gen(function* () {
-						const name = yield* requireField(input.name, "name");
-						const metrics = yield* requireField(input.metrics, "metrics");
-						return yield* analytics.createReportConfig({
-							name,
-							...(input.description === undefined ? {} : { description: input.description }),
-							metrics,
-							schedule: input.schedule,
-							recipients: input.recipients,
-						});
-					})
-				;
-				return toConfigOutput(config);
-			});
-	}
+    @Implement(analyticsContract.createReportConfig)
+    createReportConfig() {
+        return procedure(analyticsContract.createReportConfig)
+            .use(requireAuth())
+            .use(requirePlatformRole(analyticsRoles()))
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                // The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
+                // Every field is optional in the schema, but a stored configuration needs a name and a metric selection:
+                // the check names the missing field instead of surfacing a NOT NULL violation.
+                const config = yield* Effect.gen(function* () {
+                    const name = yield* requireField(input.name, 'name')
+                    const metrics = yield* requireField(
+                        input.metrics,
+                        'metrics'
+                    )
+                    return yield* analytics.createReportConfig({
+                        name,
+                        ...(input.description === undefined
+                            ? {}
+                            : { description: input.description }),
+                        metrics,
+                        schedule: input.schedule,
+                        recipients: input.recipients,
+                    })
+                })
+                return toConfigOutput(config)
+            })
+    }
 
-	@Implement(analyticsContract.listReportConfigs)
-	listReportConfigs() {
-		return procedure(analyticsContract.listReportConfigs)
-			.use(requireAuth())
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				const limit = input.query?.limit ?? 20;
-				const offset = input.query?.offset ?? 0;
-				const page = yield* analytics.listReportConfigs(limit, offset);
-				return {
-					data: page.data.map(toConfigOutput),
-					total: page.total,
-					limit,
-					offset,
-				};
-			});
-	}
+    @Implement(analyticsContract.listReportConfigs)
+    listReportConfigs() {
+        return procedure(analyticsContract.listReportConfigs)
+            .use(requireAuth())
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                const limit = input.query?.limit ?? 20
+                const offset = input.query?.offset ?? 0
+                const page = yield* analytics.listReportConfigs(limit, offset)
+                return {
+                    data: page.data.map(toConfigOutput),
+                    total: page.total,
+                    limit,
+                    offset,
+                }
+            })
+    }
 
-	@Implement(analyticsContract.updateReportConfig)
-	updateReportConfig() {
-		return procedure(analyticsContract.updateReportConfig)
-			.use(requireAuth())
-			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				// The update contract declares its patch under `body`, alongside the path parameter.
-				const body = input.body ?? {};
-				const updated = yield* analytics.updateReportConfig(input.params.configId, {
-						...(body.name === undefined ? {} : { name: body.name }),
-						...(body.description === undefined ? {} : { description: body.description }),
-						...(body.metrics === undefined ? {} : { metrics: body.metrics }),
-						...(body.schedule === undefined ? {} : { schedule: body.schedule }),
-						...(body.recipients === undefined ? {} : { recipients: body.recipients }),
-					})
-				;
-				return toConfigOutput(updated);
-			});
-	}
+    @Implement(analyticsContract.updateReportConfig)
+    updateReportConfig() {
+        return procedure(analyticsContract.updateReportConfig)
+            .use(requireAuth())
+            .use(requirePlatformRole(analyticsRoles()))
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                // The update contract declares its patch under `body`, alongside the path parameter.
+                const body = input.body ?? {}
+                const updated = yield* analytics.updateReportConfig(
+                    input.params.configId,
+                    {
+                        ...(body.name === undefined ? {} : { name: body.name }),
+                        ...(body.description === undefined
+                            ? {}
+                            : { description: body.description }),
+                        ...(body.metrics === undefined
+                            ? {}
+                            : { metrics: body.metrics }),
+                        ...(body.schedule === undefined
+                            ? {}
+                            : { schedule: body.schedule }),
+                        ...(body.recipients === undefined
+                            ? {}
+                            : { recipients: body.recipients }),
+                    }
+                )
+                return toConfigOutput(updated)
+            })
+    }
 
-	@Implement(analyticsContract.deleteReportConfig)
-	deleteReportConfig() {
-		return procedure(analyticsContract.deleteReportConfig)
-			.use(requireAuth())
-			.use(requirePlatformRole(analyticsRoles()))
-			.effect(function* ({ input }) {
-				const analytics = yield* AnalyticsService;
-				yield* analytics.deleteReportConfig(input.params.configId);
-				return { success: true, message: "report configuration deleted" };
-			});
-	}
+    @Implement(analyticsContract.deleteReportConfig)
+    deleteReportConfig() {
+        return procedure(analyticsContract.deleteReportConfig)
+            .use(requireAuth())
+            .use(requirePlatformRole(analyticsRoles()))
+            .effect(function* ({ input }) {
+                const analytics = yield* AnalyticsService
+                yield* analytics.deleteReportConfig(input.params.configId)
+                return {
+                    success: true,
+                    message: 'report configuration deleted',
+                }
+            })
+    }
 }
 
 /**
@@ -558,41 +675,59 @@ export class AnalyticsController {
  * validated values rather than re-validating untrusted ones.
  */
 function readQuery(source: unknown): Record<string, unknown> {
-	if (source === null || typeof source !== "object") return {};
-	const record = source as Record<string, unknown>;
-	const query = record.query;
-	return query !== null && typeof query === "object" ? (query as Record<string, unknown>) : {};
+    if (source === null || typeof source !== 'object') return {}
+    const record = source as Record<string, unknown>
+    const query = record.query
+    return query !== null && typeof query === 'object'
+        ? (query as Record<string, unknown>)
+        : {}
 }
 
 /** The metrics query, with defaults for every optional field. */
 function readMetricsQuery(source: unknown): MetricsQuery {
-	const query = readQuery(source);
-	return {
-		timeRange: (typeof query.timeRange === "string" ? query.timeRange : "1d") as MetricsQuery["timeRange"],
-		granularity: (typeof query.granularity === "string"
-			? query.granularity
-			: "hour") as MetricsQuery["granularity"],
-		...(Array.isArray(query.metrics) ? { metrics: query.metrics as string[] } : {}),
-		...(Array.isArray(query.services) ? { services: query.services as string[] } : {}),
-	};
+    const query = readQuery(source)
+    return {
+        timeRange: (typeof query.timeRange === 'string'
+            ? query.timeRange
+            : '1d') as MetricsQuery['timeRange'],
+        granularity: (typeof query.granularity === 'string'
+            ? query.granularity
+            : 'hour') as MetricsQuery['granularity'],
+        ...(Array.isArray(query.metrics)
+            ? { metrics: query.metrics as string[] }
+            : {}),
+        ...(Array.isArray(query.services)
+            ? { services: query.services as string[] }
+            : {}),
+    }
 }
 
 /** `services` from a query that may or may not be present. */
 function readServices(source: unknown): readonly string[] | undefined {
-	const query = readQuery(source);
-	return Array.isArray(query.services) ? (query.services as string[]) : undefined;
+    const query = readQuery(source)
+    return Array.isArray(query.services)
+        ? (query.services as string[])
+        : undefined
 }
 
 /** A string field, or its default when absent or of the wrong type. */
-function readString<T extends string>(source: unknown, field: string, fallback: T): T {
-	const value = readQuery(source)[field];
-	return (typeof value === "string" && value.length > 0 ? value : fallback) as T;
+function readString<T extends string>(
+    source: unknown,
+    field: string,
+    fallback: T
+): T {
+    const value = readQuery(source)[field]
+    return (
+        typeof value === 'string' && value.length > 0 ? value : fallback
+    ) as T
 }
 
 /** A number field, or its default when absent or of the wrong type. */
 function readNumber(source: unknown, field: string, fallback: number): number {
-	const value = readQuery(source)[field];
-	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    const value = readQuery(source)[field]
+    return typeof value === 'number' && Number.isFinite(value)
+        ? value
+        : fallback
 }
 
 /**
@@ -605,9 +740,14 @@ function readNumber(source: unknown, field: string, fallback: number): number {
  * "not supplied" distinct from "supplied as undefined", which is how an optional
  * filter avoids becoming an active `= NULL` comparison.
  */
-function readOptionalString(source: unknown, field: string): Record<string, string> {
-	const value = readQuery(source)[field];
-	return typeof value === "string" && value.length > 0 ? { [field]: value } : {};
+function readOptionalString(
+    source: unknown,
+    field: string
+): Record<string, string> {
+    const value = readQuery(source)[field]
+    return typeof value === 'string' && value.length > 0
+        ? { [field]: value }
+        : {}
 }
 
 /**
@@ -619,31 +759,36 @@ function readOptionalString(source: unknown, field: string): Record<string, stri
  * the omission surfaces as a database constraint violation; with it, the caller is told
  * which field is missing.
  */
-function requireField<T>(value: T | undefined, field: string): Effect.Effect<T, AnalyticsFieldRequired> {
-	return value === undefined ? Effect.fail(new AnalyticsFieldRequired({ field })) : Effect.succeed(value);
+function requireField<T>(
+    value: T | undefined,
+    field: string
+): Effect.Effect<T, AnalyticsFieldRequired> {
+    return value === undefined
+        ? Effect.fail(new AnalyticsFieldRequired({ field }))
+        : Effect.succeed(value)
 }
 
 /** Map a config row to the contract's output shape. */
 function toConfigOutput(row: {
-	id: string;
-	name: string;
-	description: string | null;
-	metrics: string[];
-	schedule: string;
-	recipients: string[];
-	createdAt: Date;
-	updatedAt: Date;
+    id: string
+    name: string
+    description: string | null
+    metrics: string[]
+    schedule: string
+    recipients: string[]
+    createdAt: Date
+    updatedAt: Date
 }) {
-	return {
-		id: row.id,
-		name: row.name,
-		...(row.description === null ? {} : { description: row.description }),
-		metrics: row.metrics,
-		schedule: row.schedule as "none" | "daily" | "weekly" | "monthly",
-		recipients: row.recipients,
-		createdAt: row.createdAt,
-		updatedAt: row.updatedAt,
-	};
+    return {
+        id: row.id,
+        name: row.name,
+        ...(row.description === null ? {} : { description: row.description }),
+        metrics: row.metrics,
+        schedule: row.schedule as 'none' | 'daily' | 'weekly' | 'monthly',
+        recipients: row.recipients,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+    }
 }
 
 /**
@@ -656,19 +801,29 @@ function toConfigOutput(row: {
  * arithmetic, applied to one series.
  */
 function summaryOf(content: unknown): {
-	totalDeployments: number;
-	totalUsers: number;
-	totalRequests: number;
-	averageResponseTime: number;
-	errorRate: number;
+    totalDeployments: number
+    totalUsers: number
+    totalRequests: number
+    averageResponseTime: number
+    errorRate: number
 } {
-	const data = content as { deploymentAnalytics?: { deploymentsCount?: number }[] } | null;
-	const buckets = data?.deploymentAnalytics ?? [];
-	const totalDeployments = buckets.reduce((sum, bucket) => sum + (bucket.deploymentsCount ?? 0), 0);
+    const data = content as {
+        deploymentAnalytics?: { deploymentsCount?: number }[]
+    } | null
+    const buckets = data?.deploymentAnalytics ?? []
+    const totalDeployments = buckets.reduce(
+        (sum, bucket) => sum + (bucket.deploymentsCount ?? 0),
+        0
+    )
 
-	// The three that have no source are reported as 0 IN THE SUMMARY because the shape
-	// requires numbers, and the report records `*DataSource` alongside each section so a
-	// reader can tell "zero" from "not measured".
-	return { totalDeployments, totalUsers: 0, totalRequests: 0, averageResponseTime: 0, errorRate: 0 };
+    // The three that have no source are reported as 0 IN THE SUMMARY because the shape
+    // requires numbers, and the report records `*DataSource` alongside each section so a
+    // reader can tell "zero" from "not measured".
+    return {
+        totalDeployments,
+        totalUsers: 0,
+        totalRequests: 0,
+        averageResponseTime: 0,
+        errorRate: 0,
+    }
 }
-

@@ -2,14 +2,14 @@
  * CORS utility functions for handling origin validation and normalization
  */
 
-import { buildTrustedOrigins } from '@deployer/auth/server/origins';
+import { buildTrustedOrigins } from '@deployer/auth/server/origins'
 
 /**
  * Normalize URL by removing trailing slash
  * @param url - The URL to normalize
  * @returns The normalized URL without trailing slash
  */
-export const normalizeUrl = (url: string): string => url.replace(/\/$/, '');
+export const normalizeUrl = (url: string): string => url.replace(/\/$/, '')
 
 /**
  * Build list of allowed origins from environment variables.
@@ -26,16 +26,16 @@ export const normalizeUrl = (url: string): string => url.replace(/\/$/, '');
  * @returns Array of normalized allowed origins (defaults to localhost:3000)
  */
 export const buildAllowedOrigins = (env: {
-  NEXT_PUBLIC_APP_URL?: string;
-  APP_URL?: string;
-  TRUSTED_ORIGINS?: string;
-  AUTH_BASE_DOMAIN?: string;
-  BASE_URL?: string;
+    NEXT_PUBLIC_APP_URL?: string
+    APP_URL?: string
+    TRUSTED_ORIGINS?: string
+    AUTH_BASE_DOMAIN?: string
+    BASE_URL?: string
 }): string[] => {
-  const origins = buildTrustedOrigins(env);
-  // Fallback to localhost:3000 if no origins configured
-  return origins.length > 0 ? origins : ['http://localhost:3000'];
-};
+    const origins = buildTrustedOrigins(env)
+    // Fallback to localhost:3000 if no origins configured
+    return origins.length > 0 ? origins : ['http://localhost:3000']
+}
 
 /**
  * Check if origin matches localhost patterns
@@ -44,10 +44,10 @@ export const buildAllowedOrigins = (env: {
  * @returns True if origin is a localhost variant
  */
 export const isLocalhostOrigin = (origin: string): boolean => {
-  const localhostPattern = /^https?:\/\/localhost(:\d+)?$/;
-  const ipPattern = /^https?:\/\/127\.0\.0\.1(:\d+)?$/;
-  return localhostPattern.test(origin) || ipPattern.test(origin);
-};
+    const localhostPattern = /^https?:\/\/localhost(:\d+)?$/
+    const ipPattern = /^https?:\/\/127\.0\.0\.1(:\d+)?$/
+    return localhostPattern.test(origin) || ipPattern.test(origin)
+}
 
 // ─── API-centric CORS policy ────────────────────────────────────────────────
 // Cross-origin trust moved from static origin lists to possession of an
@@ -58,21 +58,21 @@ export const isLocalhostOrigin = (origin: string): boolean => {
 // reflections anyway.
 
 /** The app-instance identity header — statically allowed on every preflight. */
-const APP_INSTANCE_TOKEN_HEADER = 'x-app-instance-token';
+const APP_INSTANCE_TOKEN_HEADER = 'x-app-instance-token'
 
 /** Headers allowed on cross-origin API requests. */
 export const CORS_ALLOWED_HEADERS = [
-  'Content-Type',
-  'Authorization',
-  'Cookie',
-  APP_INSTANCE_TOKEN_HEADER,
-];
+    'Content-Type',
+    'Authorization',
+    'Cookie',
+    APP_INSTANCE_TOKEN_HEADER,
+]
 
 export type CorsDecision = {
-  /** Reflect the requesting origin in Access-Control-Allow-Origin. */
-  allowOrigin: boolean;
-  /** Emit Access-Control-Allow-Credentials (cookie-capable flows). */
-  allowCredentials: boolean;
+    /** Reflect the requesting origin in Access-Control-Allow-Origin. */
+    allowOrigin: boolean
+    /** Emit Access-Control-Allow-Credentials (cookie-capable flows). */
+    allowCredentials: boolean
 }
 
 /**
@@ -91,33 +91,33 @@ export type CorsDecision = {
  * origins work without any server-side configuration.
  */
 export const resolveCorsDecision = (input: {
-  origin: string | undefined;
-  hasCookieHeader: boolean;
-  allowedOrigins: string[];
-  isDevelopment: boolean;
+    origin: string | undefined
+    hasCookieHeader: boolean
+    allowedOrigins: string[]
+    isDevelopment: boolean
 }): CorsDecision => {
-  const { origin, hasCookieHeader, allowedOrigins, isDevelopment } = input;
+    const { origin, hasCookieHeader, allowedOrigins, isDevelopment } = input
 
-  // 1. Same-origin / curl / server-to-server — CORS is irrelevant.
-  if (!origin) {
-    return { allowOrigin: false, allowCredentials: false };
-  }
+    // 1. Same-origin / curl / server-to-server — CORS is irrelevant.
+    if (!origin) {
+        return { allowOrigin: false, allowCredentials: false }
+    }
 
-  const normalized = normalizeUrl(origin);
-  const isAllowlisted =
-    allowedOrigins.includes(normalized) ||
-    (isDevelopment && isLocalhostOrigin(normalized));
+    const normalized = normalizeUrl(origin)
+    const isAllowlisted =
+        allowedOrigins.includes(normalized) ||
+        (isDevelopment && isLocalhostOrigin(normalized))
 
-  // 2./3. Trusted surfaces keep their credentialed cookie flows.
-  if (isAllowlisted) {
-    return { allowOrigin: true, allowCredentials: true };
-  }
+    // 2./3. Trusted surfaces keep their credentialed cookie flows.
+    if (isAllowlisted) {
+        return { allowOrigin: true, allowCredentials: true }
+    }
 
-  // 4. Untrusted origin trying to ride ambient credentials — hard block.
-  if (hasCookieHeader) {
-    return { allowOrigin: false, allowCredentials: false };
-  }
+    // 4. Untrusted origin trying to ride ambient credentials — hard block.
+    if (hasCookieHeader) {
+        return { allowOrigin: false, allowCredentials: false }
+    }
 
-  // 5. Credential-free token path (BYO web apps, any origin).
-  return { allowOrigin: true, allowCredentials: false };
-};
+    // 5. Credential-free token path (BYO web apps, any origin).
+    return { allowOrigin: true, allowCredentials: false }
+}

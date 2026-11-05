@@ -1,6 +1,6 @@
-import { analyticsContract } from "@deployer/identity-contracts";
+import { analyticsContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 /**
  * Reads a service's own contract, so the BFF never re-implements a query it can call.
@@ -11,33 +11,50 @@ import { ServiceClientRegistry } from "../../../clients/service-registry";
  * and with it the chance of naming the wrong contract for a service.
  */
 export class AnalyticsReadService {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/**
-	 * The eight metric families the analytics page charts, read in parallel.
-	 *
-	 * ── WHY THE WINDOW IS NOT APPLIED TO EVERY READ ────────────────────────
-	 * `getActivitySummary` buckets by period (hour/day/week/month), not by a
-	 * `timeRange` string, and `getRealTimeMetrics` is a snapshot with no window at
-	 * all. Passing `timeRange` to them would be a parameter their schema does not
-	 * declare, so each call carries the window its own contract accepts.
-	 */
-	async overview(timeRange: string) {
-		const analytics = this.clients.for("identity", analyticsContract);
-		const window = { timeRange: timeRange as never };
+    /**
+     * The eight metric families the analytics page charts, read in parallel.
+     *
+     * ── WHY THE WINDOW IS NOT APPLIED TO EVERY READ ────────────────────────
+     * `getActivitySummary` buckets by period (hour/day/week/month), not by a
+     * `timeRange` string, and `getRealTimeMetrics` is a snapshot with no window at
+     * all. Passing `timeRange` to them would be a parameter their schema does not
+     * declare, so each call carries the window its own contract accepts.
+     */
+    async overview(timeRange: string) {
+        const analytics = this.clients.for('identity', analyticsContract)
+        const window = { timeRange: timeRange as never }
 
-		const [activity, apiUsage, application, database, deployments, deploymentUsage, realtime, resources] =
-			await Promise.all([
-				analytics.getActivitySummary({ query: {} }),
-				analytics.getApiUsage({ query: window }),
-				analytics.getApplicationMetrics({ query: window }),
-				analytics.getDatabaseMetrics({ query: window }),
-				analytics.getDeploymentMetrics({ query: window }),
-				analytics.getDeploymentUsage({ query: window }),
-				analytics.getRealTimeMetrics({ query: {} }),
-				analytics.getResourceMetrics({ query: window }),
-			]);
+        const [
+            activity,
+            apiUsage,
+            application,
+            database,
+            deployments,
+            deploymentUsage,
+            realtime,
+            resources,
+        ] = await Promise.all([
+            analytics.getActivitySummary({ query: {} }),
+            analytics.getApiUsage({ query: window }),
+            analytics.getApplicationMetrics({ query: window }),
+            analytics.getDatabaseMetrics({ query: window }),
+            analytics.getDeploymentMetrics({ query: window }),
+            analytics.getDeploymentUsage({ query: window }),
+            analytics.getRealTimeMetrics({ query: {} }),
+            analytics.getResourceMetrics({ query: window }),
+        ])
 
-		return { activity, apiUsage, application, database, deployments, deploymentUsage, realtime, resources };
-	}
+        return {
+            activity,
+            apiUsage,
+            application,
+            database,
+            deployments,
+            deploymentUsage,
+            realtime,
+            resources,
+        }
+    }
 }

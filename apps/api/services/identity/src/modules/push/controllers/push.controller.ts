@@ -5,7 +5,6 @@ import { pushContract } from '@deployer/identity-contracts'
 import { procedure } from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-
 import { pushRules } from '../domain/push.rules'
 import { PushService } from '../services/push.service'
 
@@ -114,7 +113,6 @@ export class PushController {
 
                 const devices = yield* push.list()
                 const deliverable = yield* push.deliverableCount()
-                
 
                 return pushRules.deliveryReport(devices.length, deliverable)
             })

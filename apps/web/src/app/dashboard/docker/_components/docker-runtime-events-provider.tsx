@@ -5,15 +5,11 @@ import { DockerRuntimeEventsProvider } from '@/domains/docker/hooks'
 import type { ReactNode } from 'react'
 
 interface DockerRuntimeEventsProviderClientProps {
-  children: ReactNode
+    children: ReactNode
 }
 
 export function DockerRuntimeEventsProviderClient({
-  children,
+    children,
 }: DockerRuntimeEventsProviderClientProps) {
-  return (
-    <DockerRuntimeEventsProvider>
-      {children}
-    </DockerRuntimeEventsProvider>
-  )
+    return <DockerRuntimeEventsProvider>{children}</DockerRuntimeEventsProvider>
 }

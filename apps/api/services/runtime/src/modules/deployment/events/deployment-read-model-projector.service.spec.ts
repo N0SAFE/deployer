@@ -1,156 +1,166 @@
-import { Effect } from "effect";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { Effect } from 'effect'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-import type { LocalEventOutboxRepositoryShape } from "@deployer/shared/core/modules/events/outbox/local-event-outbox.repository";
+import type { LocalEventOutboxRepositoryShape } from '@deployer/shared/core/modules/events/outbox/local-event-outbox.repository'
 
 import {
     makeDeploymentReadModelProjector,
     type DeploymentReadModelProjectorServiceShape,
-} from "./deployment-read-model-projector.service";
+} from './deployment-read-model-projector.service'
 
-import type { DeploymentRepository } from "../repositories/deployment.repository";
+import type { DeploymentRepository } from '../repositories/deployment.repository'
 
 function createEventRow(input: {
-    id: string;
-    createdAt: string;
-    deploymentId: string;
-    logId: string;
-    eventType?: string;
+    id: string
+    createdAt: string
+    deploymentId: string
+    logId: string
+    eventType?: string
 }) {
     return {
         id: input.id,
-        topic: "deployment.lifecycle",
-        state: "sent",
+        topic: 'deployment.lifecycle',
+        state: 'sent',
         payload: {
             eventId: `${input.id}0000-0000-4000-8000-000000000000`.slice(0, 36),
-            aggregateType: "deployment",
+            aggregateType: 'deployment',
             aggregateId: input.deploymentId,
-            eventType: input.eventType ?? "deployment.lifecycle.build.build_completed",
-            version: "1",
+            eventType:
+                input.eventType ?? 'deployment.lifecycle.build.build_completed',
+            version: '1',
             occurredAt: input.createdAt,
             payload: {
                 deploymentId: input.deploymentId,
                 logId: input.logId,
-                level: "info",
-                phase: "building",
-                step: "build_completed",
+                level: 'info',
+                phase: 'building',
+                step: 'build_completed',
                 timestamp: input.createdAt,
             },
-            metadata: { source: "test" },
+            metadata: { source: 'test' },
         },
         createdAt: new Date(input.createdAt),
-    };
+    }
 }
 
-describe("DeploymentReadModelProjectorService", () => {
-    let outboxQueue: unknown[][];
-    let mockOutboxRepository: LocalEventOutboxRepositoryShape;
-    let mockRepository: DeploymentRepository;
-    let service: DeploymentReadModelProjectorServiceShape;
+describe('DeploymentReadModelProjectorService', () => {
+    let outboxQueue: unknown[][]
+    let mockOutboxRepository: LocalEventOutboxRepositoryShape
+    let mockRepository: DeploymentRepository
+    let service: DeploymentReadModelProjectorServiceShape
 
     beforeEach(() => {
-        outboxQueue = [];
+        outboxQueue = []
 
         mockOutboxRepository = {
             findByTopic: vi.fn(() => Effect.succeed(outboxQueue.shift() ?? [])),
-        } as unknown as LocalEventOutboxRepositoryShape;
+        } as unknown as LocalEventOutboxRepositoryShape
 
         mockRepository = {
             findLogs: vi.fn(async () => []),
-        } as unknown as DeploymentRepository;
+        } as unknown as DeploymentRepository
 
-        service = makeDeploymentReadModelProjector({ outbox: mockOutboxRepository, logs: mockRepository });
-    });
+        service = makeDeploymentReadModelProjector({
+            outbox: mockOutboxRepository,
+            logs: mockRepository,
+        })
+    })
 
-    it("processes canonical outbox envelopes into deployment projections", async () => {
+    it('processes canonical outbox envelopes into deployment projections', async () => {
         outboxQueue.push([
             createEventRow({
-                id: "11111111-1111-4111-8111-111111111111",
-                createdAt: "2026-03-21T20:00:00.000Z",
-                deploymentId: "deploy-1",
-                logId: "log-1",
+                id: '11111111-1111-4111-8111-111111111111',
+                createdAt: '2026-03-21T20:00:00.000Z',
+                deploymentId: 'deploy-1',
+                logId: 'log-1',
             }),
-        ]);
+        ])
 
-        const processed = await Effect.runPromise(service.processOutboxBatch(10));
+        const processed = await Effect.runPromise(
+            service.processOutboxBatch(10)
+        )
 
-        expect(processed).toBe(1);
-        expect(Effect.runSync(service.getProjection("deploy-1"))).toMatchObject({
-            deploymentId: "deploy-1",
-            lastLogId: "log-1",
-            lastEventType: "deployment.lifecycle.build.build_completed",
-        });
-    });
+        expect(processed).toBe(1)
+        expect(Effect.runSync(service.getProjection('deploy-1'))).toMatchObject(
+            {
+                deploymentId: 'deploy-1',
+                lastLogId: 'log-1',
+                lastEventType: 'deployment.lifecycle.build.build_completed',
+            }
+        )
+    })
 
-    it("rebuildAll replays all batches and refreshes latest projection snapshot", async () => {
+    it('rebuildAll replays all batches and refreshes latest projection snapshot', async () => {
         outboxQueue.push(
             [
                 createEventRow({
-                    id: "11111111-1111-4111-8111-111111111111",
-                    createdAt: "2026-03-21T20:00:00.000Z",
-                    deploymentId: "deploy-1",
-                    logId: "log-1",
+                    id: '11111111-1111-4111-8111-111111111111',
+                    createdAt: '2026-03-21T20:00:00.000Z',
+                    deploymentId: 'deploy-1',
+                    logId: 'log-1',
                 }),
             ],
             [
                 createEventRow({
-                    id: "22222222-2222-4222-8222-222222222222",
-                    createdAt: "2026-03-21T20:01:00.000Z",
-                    deploymentId: "deploy-1",
-                    logId: "log-2",
-                    eventType: "deployment.lifecycle.runtime.runtime_completed",
+                    id: '22222222-2222-4222-8222-222222222222',
+                    createdAt: '2026-03-21T20:01:00.000Z',
+                    deploymentId: 'deploy-1',
+                    logId: 'log-2',
+                    eventType: 'deployment.lifecycle.runtime.runtime_completed',
                 }),
             ],
-            [],
-        );
+            []
+        )
 
-        const replayed = await Effect.runPromise(service.rebuildAll());
+        const replayed = await Effect.runPromise(service.rebuildAll())
 
-        expect(replayed).toBe(2);
-        expect(Effect.runSync(service.getProjection("deploy-1"))).toMatchObject({
-            lastLogId: "log-2",
-            lastEventType: "deployment.lifecycle.runtime.runtime_completed",
-        });
-    });
+        expect(replayed).toBe(2)
+        expect(Effect.runSync(service.getProjection('deploy-1'))).toMatchObject(
+            {
+                lastLogId: 'log-2',
+                lastEventType: 'deployment.lifecycle.runtime.runtime_completed',
+            }
+        )
+    })
 
-    it("detects drift when projection and latest source log diverge", async () => {
+    it('detects drift when projection and latest source log diverge', async () => {
         outboxQueue.push([
             createEventRow({
-                id: "11111111-1111-4111-8111-111111111111",
-                createdAt: "2026-03-21T20:00:00.000Z",
-                deploymentId: "deploy-1",
-                logId: "log-1",
+                id: '11111111-1111-4111-8111-111111111111',
+                createdAt: '2026-03-21T20:00:00.000Z',
+                deploymentId: 'deploy-1',
+                logId: 'log-1',
             }),
-        ]);
+        ])
 
-        await Effect.runPromise(service.processOutboxBatch(10));
+        await Effect.runPromise(service.processOutboxBatch(10))
 
         vi.mocked(mockRepository.findLogs).mockResolvedValue([
             {
-                id: "log-2",
-                deploymentId: "deploy-1",
-                level: "info",
-                message: "newer",
-                phase: "deploying",
-                step: "runtime_execute",
+                id: 'log-2',
+                deploymentId: 'deploy-1',
+                level: 'info',
+                message: 'newer',
+                phase: 'deploying',
+                step: 'runtime_execute',
                 service: null,
-                stage: "runtime",
+                stage: 'runtime',
                 correlationId: null,
                 traceId: null,
                 spanId: null,
                 metadata: null,
-                timestamp: "2026-03-21T20:03:00.000Z",
+                timestamp: '2026-03-21T20:03:00.000Z',
             },
-        ]);
+        ])
 
-        const report = await Effect.runPromise(service.detectDrift("deploy-1"));
+        const report = await Effect.runPromise(service.detectDrift('deploy-1'))
 
         expect(report).toEqual({
-            deploymentId: "deploy-1",
+            deploymentId: 'deploy-1',
             driftDetected: true,
-            reason: "last_log_mismatch",
-            projectionLogId: "log-1",
-            sourceLogId: "log-2",
-        });
-    });
-});
+            reason: 'last_log_mismatch',
+            projectionLogId: 'log-1',
+            sourceLogId: 'log-2',
+        })
+    })
+})

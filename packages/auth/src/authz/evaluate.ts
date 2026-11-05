@@ -1,5 +1,5 @@
-import type { Permission } from "./definition";
-import type { CapabilitySet, Condition, Decision, Facts, Scope } from "./types";
+import type { Permission } from './definition'
+import type { CapabilitySet, Condition, Decision, Facts, Scope } from './types'
 
 /**
  * The decision, and it is PURE.
@@ -11,58 +11,72 @@ import type { CapabilitySet, Condition, Decision, Facts, Scope } from "./types";
  * trivially testable.
  */
 export function decide(input: {
-	readonly permission: Permission;
-	readonly scope: Scope;
-	readonly capabilities: CapabilitySet;
-	readonly facts: Facts;
-	readonly condition?: Condition;
+    readonly permission: Permission
+    readonly scope: Scope
+    readonly capabilities: CapabilitySet
+    readonly facts: Facts
+    readonly condition?: Condition
 }): Decision {
-	const { permission, scope, capabilities, facts, condition } = input;
+    const { permission, scope, capabilities, facts, condition } = input
 
-	if (!capabilities.permissions.includes(permission)) {
-		return {
-			allowed: false,
-			reason: capabilities.sources.length === 0 ? "no grant in this scope" : "not granted in this scope",
-			permission,
-			scope,
-		};
-	}
+    if (!capabilities.permissions.includes(permission)) {
+        return {
+            allowed: false,
+            reason:
+                capabilities.sources.length === 0
+                    ? 'no grant in this scope'
+                    : 'not granted in this scope',
+            permission,
+            scope,
+        }
+    }
 
-	const failed = conditionFailure(condition, facts);
-	if (failed !== null) {
-		return { allowed: false, reason: failed, permission, scope };
-	}
+    const failed = conditionFailure(condition, facts)
+    if (failed !== null) {
+        return { allowed: false, reason: failed, permission, scope }
+    }
 
-	return {
-		allowed: true,
-		reason: `granted by ${capabilities.sources.join(", ") || "a direct permission"}`,
-		permission,
-		scope,
-	};
+    return {
+        allowed: true,
+        reason: `granted by ${capabilities.sources.join(', ') || 'a direct permission'}`,
+        permission,
+        scope,
+    }
 }
 
 /** Whether a capability set allows a permission, with no I/O — the function the web calls on its own session. */
-export function can(capabilities: CapabilitySet | readonly Permission[], permission: Permission): boolean {
-	const permissions = Array.isArray(capabilities) ? capabilities : (capabilities as CapabilitySet).permissions;
-	return (permissions as readonly Permission[]).includes(permission);
+export function can(
+    capabilities: CapabilitySet | readonly Permission[],
+    permission: Permission
+): boolean {
+    const permissions = Array.isArray(capabilities)
+        ? capabilities
+        : (capabilities as CapabilitySet).permissions
+    return (permissions as readonly Permission[]).includes(permission)
 }
 
 /** The reason a condition refuses the call, or null when it holds. Exported for the explain output. */
-export function conditionFailure(condition: Condition | undefined, facts: Facts): string | null {
-	if (condition === undefined) return null;
+export function conditionFailure(
+    condition: Condition | undefined,
+    facts: Facts
+): string | null {
+    if (condition === undefined) return null
 
-	// The member only exists with `ownerOnly: true`, so the `in` check is the whole test — and an absent owner is
-	// not the actor, so one comparison covers both refusals.
-	if ("ownerOnly" in condition && facts.ownerId !== facts.actorId) {
-		return "owner only";
-	}
+    // The member only exists with `ownerOnly: true`, so the `in` check is the whole test — and an absent owner is
+    // not the actor, so one comparison covers both refusals.
+    if ('ownerOnly' in condition && facts.ownerId !== facts.actorId) {
+        return 'owner only'
+    }
 
-	if ("notEnvironment" in condition && condition.notEnvironment !== undefined) {
-		const kind = facts.environmentKind ?? null;
-		if (kind !== null && condition.notEnvironment.includes(kind)) {
-			return `not allowed in ${kind}`;
-		}
-	}
+    if (
+        'notEnvironment' in condition &&
+        condition.notEnvironment !== undefined
+    ) {
+        const kind = facts.environmentKind ?? null
+        if (kind !== null && condition.notEnvironment.includes(kind)) {
+            return `not allowed in ${kind}`
+        }
+    }
 
-	return null;
+    return null
 }

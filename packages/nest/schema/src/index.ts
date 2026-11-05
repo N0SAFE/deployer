@@ -19,16 +19,16 @@
 // the CODECS only; consumers import a specific database's tables through its own
 // subpath (`@deployer/nest-schema/local/...` or `.../global/...`), which is also what
 // makes the target database obvious at every call site.
-export * from "./codecs/codec-registry";
-export * from "./codecs/reseal";
-export { GLOBAL_MIGRATIONS_DIR, LOCAL_MIGRATIONS_DIR } from "./migrations";
+export * from './codecs/codec-registry'
+export * from './codecs/reseal'
+export { GLOBAL_MIGRATIONS_DIR, LOCAL_MIGRATIONS_DIR } from './migrations'
 
 export {
-  TABLE_OWNERSHIP,
-  SHARED_TABLES,
-  mayRead,
-  mayWrite,
-  ownerOf,
-  type TableOwner,
-  type SharedTable,
-} from "./ownership/table-ownership";
+    TABLE_OWNERSHIP,
+    SHARED_TABLES,
+    mayRead,
+    mayWrite,
+    ownerOf,
+    type TableOwner,
+    type SharedTable,
+} from './ownership/table-ownership'

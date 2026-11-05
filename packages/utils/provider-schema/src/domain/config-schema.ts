@@ -1,5 +1,8 @@
-import z from "zod/v4";
-import { conditionalOperatorSchema, configFieldTypeSchema } from "@deployer/provider-schema/domain/enums";
+import z from 'zod/v4'
+import {
+    conditionalOperatorSchema,
+    configFieldTypeSchema,
+} from '@deployer/provider-schema/domain/enums'
 
 export const configSchemaFieldSchema = z.object({
     key: z.string(),
@@ -14,7 +17,7 @@ export const configSchemaFieldSchema = z.object({
             z.object({
                 label: z.string(),
                 value: z.union([z.string(), z.number(), z.boolean()]),
-            }),
+            })
         )
         .optional(),
     placeholder: z.string().optional(),
@@ -34,7 +37,7 @@ export const configSchemaFieldSchema = z.object({
             icon: z.string().optional(),
         })
         .optional(),
-});
+})
 
 export const configSchemaSchema = z.object({
     id: z.string(),
@@ -42,6 +45,6 @@ export const configSchemaSchema = z.object({
     title: z.string(),
     description: z.string(),
     fields: z.array(configSchemaFieldSchema),
-});
+})
 
-export const unknownConfigSchema = z.record(z.string(), z.unknown());
+export const unknownConfigSchema = z.record(z.string(), z.unknown())

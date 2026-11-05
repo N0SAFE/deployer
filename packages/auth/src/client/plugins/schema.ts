@@ -1,4 +1,4 @@
-import type { deployerUserSchemaPlugin } from "../../server/plugins/schema";
+import type { deployerUserSchemaPlugin } from '../../server/plugins/schema'
 
 /**
  * Links the client to the server's `deployerUserSchemaPlugin`.
@@ -7,6 +7,6 @@ import type { deployerUserSchemaPlugin } from "../../server/plugins/schema";
  * client plugin does the same). Without it the fields exist on the server and are invisible to `authClient`'s session.
  */
 export const deployerUserSchemaClient = () => ({
-	id: "deployer-user-schema" as const,
-	$InferServerPlugin: {} as ReturnType<typeof deployerUserSchemaPlugin>,
-});
+    id: 'deployer-user-schema' as const,
+    $InferServerPlugin: {} as ReturnType<typeof deployerUserSchemaPlugin>,
+})

@@ -1,16 +1,16 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
-import type { SetupStepId } from "@deployer/contracts-entities";
+import type { SetupStepId } from '@deployer/contracts-entities'
 
-import { SetupStepTracker } from "../services/setup-step-tracker";
+import { SetupStepTracker } from '../services/setup-step-tracker'
 
 /**
  * Re-export of the step tracker so callers can import the full
  * "run a step" surface from one place. Avoids needing to know the
  * service-internal file layout.
  */
-export { SetupStepTracker };
+export { SetupStepTracker }
 
 /**
  * A closure that the local/remote services receive from the
@@ -22,7 +22,9 @@ export { SetupStepTracker };
  * stay pure: they only call `emit(snapshotEvent)` or
  * `emit(logEvent)` after updating the tracker.
  */
-export type EmitEvent = (event: import("@deployer/contracts-entities").SetupStreamEvent) => void;
+export type EmitEvent = (
+    event: import('@deployer/contracts-entities').SetupStreamEvent
+) => void
 
 /**
  * Run a single step with automatic `step_detail` / `start` / `complete` / `fail`
@@ -48,31 +50,31 @@ export async function runStep<T>(
     stepId: SetupStepId,
     title: string,
     body: (log: (line: string) => void) => T | Promise<T>,
-    description?: string,
+    description?: string
 ): Promise<T> {
     // Tell the UI about this step before it starts running, so it
     // can create a placeholder task immediately.
-    emit(tracker.stepDetailEvent(stepId, title, description || title));
-    tracker.start(stepId, title, description);
-    emit(tracker.snapshot());
+    emit(tracker.stepDetailEvent(stepId, title, description || title))
+    tracker.start(stepId, title, description)
+    emit(tracker.snapshot())
 
     const stepLog = (line: string): void => {
-        tracker.log(stepId, line);
-        const event = tracker.logEvent(stepId, line);
-        if (event) emit(event);
-    };
+        tracker.log(stepId, line)
+        const event = tracker.logEvent(stepId, line)
+        if (event) emit(event)
+    }
 
     try {
-        const result = await body(stepLog);
-        tracker.complete(stepId);
-        emit(tracker.snapshot());
-        return result;
+        const result = await body(stepLog)
+        tracker.complete(stepId)
+        emit(tracker.snapshot())
+        return result
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        stepLog(`❌ ${message}`);
-        tracker.fail(stepId, message);
-        emit(tracker.snapshot());
-        throw err;
+        const message = err instanceof Error ? err.message : String(err)
+        stepLog(`❌ ${message}`)
+        tracker.fail(stepId, message)
+        emit(tracker.snapshot())
+        throw err
     }
 }
 
@@ -81,15 +83,15 @@ export async function runStep<T>(
  * the local service so a typo at any call site is a compile error.
  */
 export const LOCAL_STEP_IDS = [
-    "provision_database",
-    "ensure_empty",
-    "run_migrations",
-    "seed_initial_data",
-    "register_node",
-    "finalize",
-] as const satisfies readonly SetupStepId[];
+    'provision_database',
+    'ensure_empty',
+    'run_migrations',
+    'seed_initial_data',
+    'register_node',
+    'finalize',
+] as const satisfies readonly SetupStepId[]
 
-export type LocalStepId = (typeof LOCAL_STEP_IDS)[number];
+export type LocalStepId = (typeof LOCAL_STEP_IDS)[number]
 
 /**
  * Set of step IDs the remote bootstrap flow owns. The remote flow
@@ -97,17 +99,17 @@ export type LocalStepId = (typeof LOCAL_STEP_IDS)[number];
  * — see `remote-initialization.service.ts`.
  */
 export const REMOTE_STEP_IDS = [
-    "agent_join",
-    "provision_database",
-    "ensure_empty",
-    "run_migrations",
-    "seed_initial_data",
-    "mesh_handshake",
-    "register_node",
-    "finalize",
-] as const satisfies readonly SetupStepId[];
+    'agent_join',
+    'provision_database',
+    'ensure_empty',
+    'run_migrations',
+    'seed_initial_data',
+    'mesh_handshake',
+    'register_node',
+    'finalize',
+] as const satisfies readonly SetupStepId[]
 
-export type RemoteStepId = (typeof REMOTE_STEP_IDS)[number];
+export type RemoteStepId = (typeof REMOTE_STEP_IDS)[number]
 
 /**
  * Replace the password in a postgres:// URL with `***` so it can be
@@ -116,11 +118,11 @@ export type RemoteStepId = (typeof REMOTE_STEP_IDS)[number];
  */
 export function redactUrl(url: string): string {
     try {
-        const parsed = new URL(url);
-        if (parsed.password) parsed.password = "***";
-        return parsed.toString();
+        const parsed = new URL(url)
+        if (parsed.password) parsed.password = '***'
+        return parsed.toString()
     } catch {
-        return url.replace(/\/\/[^@]+@/, "//***:***@");
+        return url.replace(/\/\/[^@]+@/, '//***:***@')
     }
 }
 
@@ -132,24 +134,24 @@ export function redactUrl(url: string): string {
  */
 export function listMigrationNames(migrationsFolder: string): string[] {
     try {
-        const journalPath = join(migrationsFolder, "meta", "_journal.json");
-        const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
-            entries?: { tag?: string }[];
-        };
+        const journalPath = join(migrationsFolder, 'meta', '_journal.json')
+        const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+            entries?: { tag?: string }[]
+        }
         if (Array.isArray(journal.entries)) {
             return journal.entries
                 .map((e) => e.tag)
-                .filter((tag): tag is string => typeof tag === "string");
+                .filter((tag): tag is string => typeof tag === 'string')
         }
     } catch {
         // fall through to filesystem scan
     }
     try {
         return readdirSync(migrationsFolder)
-            .filter((f) => f.endsWith(".sql"))
-            .sort();
+            .filter((f) => f.endsWith('.sql'))
+            .sort()
     } catch {
-        return [];
+        return []
     }
 }
 
@@ -159,6 +161,9 @@ export function listMigrationNames(migrationsFolder: string): string[] {
  */
 export function slugify(value: string): string {
     return (
-        value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "resource"
-    );
+        value
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'resource'
+    )
 }

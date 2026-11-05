@@ -7,22 +7,22 @@ import { orpc } from '@/lib/orpc'
  * the API HTML console. Both visuals share one backend service.
  */
 export const managedWebEndpoints = {
-  getState: orpc.platform.getManagedWebState,
-  toggle: orpc.platform.toggleManagedWeb,
-  restart: orpc.platform.restartManagedWeb,
-  setOrigin: orpc.platform.setManagedWebOrigin,
-  enableTunnel: orpc.platform.enableManagedWebTunnel,
-  disableTunnel: orpc.platform.disableManagedWebTunnel,
+    getState: orpc.platform.getManagedWebState,
+    toggle: orpc.platform.toggleManagedWeb,
+    restart: orpc.platform.restartManagedWeb,
+    setOrigin: orpc.platform.setManagedWebOrigin,
+    enableTunnel: orpc.platform.enableManagedWebTunnel,
+    disableTunnel: orpc.platform.disableManagedWebTunnel,
 } as const
 
 export const managedWebEndpointOperations = {
-  // Queries included so their keys are available to invalidation configs.
-  getState: managedWebEndpoints.getState,
-  toggle: managedWebEndpoints.toggle,
-  restart: managedWebEndpoints.restart,
-  setOrigin: managedWebEndpoints.setOrigin,
-  enableTunnel: managedWebEndpoints.enableTunnel,
-  disableTunnel: managedWebEndpoints.disableTunnel,
+    // Queries included so their keys are available to invalidation configs.
+    getState: managedWebEndpoints.getState,
+    toggle: managedWebEndpoints.toggle,
+    restart: managedWebEndpoints.restart,
+    setOrigin: managedWebEndpoints.setOrigin,
+    enableTunnel: managedWebEndpoints.enableTunnel,
+    disableTunnel: managedWebEndpoints.disableTunnel,
 }
 
 export type ManagedWebEndpoints = typeof managedWebEndpoints

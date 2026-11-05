@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 import {
     deploymentConnectivityStatusSchema,
@@ -10,8 +10,13 @@ import {
     deploymentLogSchema,
     deploymentStreamSchema,
     deploymentStreamEventTypeSchema,
-} from "@deployer/contracts-entities";
-import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import {
+    createFilterConfig,
+    standard,
+    type ComputeInputSchema,
+    standardDomainErrorContracts,
+} from '@deployer/orpc-utils'
 
 const streamEventMetaShape = {
     sequence: z.number().int().nonnegative().optional(),
@@ -22,117 +27,121 @@ const streamEventMetaShape = {
     traceId: z.string().optional(),
     spanId: z.string().optional(),
     connectionId: z.string().optional(),
-} as const;
+} as const
 
 // ─── Per-deployment event schema ──────────────────────────────────────────────
 // Discriminated union of all events emitted for a single deployment.
 
-export const deploymentProgressEventSchema = z.discriminatedUnion("type", [
+export const deploymentProgressEventSchema = z.discriminatedUnion('type', [
     z.object({
-        type: z.literal("statusChanged"),
+        type: z.literal('statusChanged'),
         status: deploymentStatusSchema,
         phase: deploymentPhaseSchema.optional(),
         phaseProgress: z.number().int().min(0).max(100).optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("phaseUpdated"),
+        type: z.literal('phaseUpdated'),
         phase: deploymentPhaseSchema,
         phaseProgress: z.number().int().min(0).max(100),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("logAppended"),
+        type: z.literal('logAppended'),
         log: deploymentLogSchema,
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("cancelled"),
+        type: z.literal('cancelled'),
         reason: z.string().optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("rollbackStarted"),
+        type: z.literal('rollbackStarted'),
         rollbackDeploymentId: z.uuid(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("rollbackCompleted"),
+        type: z.literal('rollbackCompleted'),
         rollbackDeploymentId: z.uuid(),
         ...streamEventMetaShape,
     }),
-    z.object({ type: z.literal("completed"), ...streamEventMetaShape }),
+    z.object({ type: z.literal('completed'), ...streamEventMetaShape }),
     z.object({
-        type: z.literal("progressSnapshot"),
+        type: z.literal('progressSnapshot'),
         progress: deploymentExecutionProgressSchema,
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("connectivityChanged"),
+        type: z.literal('connectivityChanged'),
         connectivityStatus: deploymentConnectivityStatusSchema,
         reason: z.string().optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("failed"),
+        type: z.literal('failed'),
         errorMessage: z.string().optional(),
         ...streamEventMetaShape,
     }),
-]);
-export type DeploymentProgressEvent = z.infer<typeof deploymentProgressEventSchema>;
+])
+export type DeploymentProgressEvent = z.infer<
+    typeof deploymentProgressEventSchema
+>
 
 // ─── Per-service event schema ─────────────────────────────────────────────────
 // Discriminated union of all deployment lifecycle events for a service.
 
-export const serviceDeploymentEventSchema = z.discriminatedUnion("type", [
+export const serviceDeploymentEventSchema = z.discriminatedUnion('type', [
     z.object({
-        type: z.literal("deploymentTriggered"),
+        type: z.literal('deploymentTriggered'),
         deployment: deploymentSchema,
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("statusChanged"),
+        type: z.literal('statusChanged'),
         deploymentId: z.uuid(),
         status: deploymentStatusSchema,
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("deploymentCompleted"),
+        type: z.literal('deploymentCompleted'),
         deploymentId: z.uuid(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("deploymentFailed"),
+        type: z.literal('deploymentFailed'),
         deploymentId: z.uuid(),
         errorMessage: z.string().optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("deploymentCancelled"),
+        type: z.literal('deploymentCancelled'),
         deploymentId: z.uuid(),
         reason: z.string().optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("connectivityChanged"),
+        type: z.literal('connectivityChanged'),
         deploymentId: z.uuid().optional(),
         serviceId: z.uuid().optional(),
         connectivityStatus: deploymentConnectivityStatusSchema,
         ...streamEventMetaShape,
     }),
-]);
-export type ServiceDeploymentEvent = z.infer<typeof serviceDeploymentEventSchema>;
+])
+export type ServiceDeploymentEvent = z.infer<
+    typeof serviceDeploymentEventSchema
+>
 
 // ─── Filtered query event schema ──────────────────────────────────────────────
 
-export const deploymentQueryEventSchema = z.discriminatedUnion("type", [
+export const deploymentQueryEventSchema = z.discriminatedUnion('type', [
     z.object({
-        type: z.literal("deploymentTriggered"),
+        type: z.literal('deploymentTriggered'),
         deployment: deploymentSchema,
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("statusChanged"),
+        type: z.literal('statusChanged'),
         deploymentId: z.uuid(),
         serviceId: z.uuid().optional(),
         projectId: z.uuid().optional(),
@@ -141,54 +150,54 @@ export const deploymentQueryEventSchema = z.discriminatedUnion("type", [
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("phaseUpdated"),
+        type: z.literal('phaseUpdated'),
         deploymentId: z.uuid(),
         phase: deploymentPhaseSchema,
         phaseProgress: z.number().int().min(0).max(100),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("logAppended"),
+        type: z.literal('logAppended'),
         log: deploymentLogSchema,
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("deploymentCancelled"),
+        type: z.literal('deploymentCancelled'),
         deploymentId: z.uuid(),
         reason: z.string().optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("rollbackStarted"),
+        type: z.literal('rollbackStarted'),
         fromDeploymentId: z.uuid(),
         rollbackDeploymentId: z.uuid(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("rollbackCompleted"),
+        type: z.literal('rollbackCompleted'),
         fromDeploymentId: z.uuid(),
         rollbackDeploymentId: z.uuid(),
         success: z.boolean(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("healthCheckUpdated"),
+        type: z.literal('healthCheckUpdated'),
         serviceId: z.uuid(),
         deploymentId: z.uuid().optional(),
-        status: z.enum(["healthy", "degraded", "unhealthy"]),
+        status: z.enum(['healthy', 'degraded', 'unhealthy']),
         message: z.string().optional(),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("domainRouteUpdated"),
+        type: z.literal('domainRouteUpdated'),
         serviceId: z.uuid(),
         projectId: z.uuid().optional(),
         domain: z.string(),
-        action: z.enum(["created", "updated", "deleted", "synced"]),
+        action: z.enum(['created', 'updated', 'deleted', 'synced']),
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("metricsSnapshot"),
+        type: z.literal('metricsSnapshot'),
         deploymentId: z.uuid(),
         cpuPercent: z.number().min(0).max(100).optional(),
         memoryMb: z.number().nonnegative().optional(),
@@ -197,7 +206,7 @@ export const deploymentQueryEventSchema = z.discriminatedUnion("type", [
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("progressSnapshot"),
+        type: z.literal('progressSnapshot'),
         deploymentId: z.uuid(),
         serviceId: z.uuid().optional(),
         projectId: z.uuid().optional(),
@@ -205,7 +214,7 @@ export const deploymentQueryEventSchema = z.discriminatedUnion("type", [
         ...streamEventMetaShape,
     }),
     z.object({
-        type: z.literal("connectivityChanged"),
+        type: z.literal('connectivityChanged'),
         deploymentId: z.uuid().optional(),
         serviceId: z.uuid().optional(),
         projectId: z.uuid().optional(),
@@ -213,13 +222,13 @@ export const deploymentQueryEventSchema = z.discriminatedUnion("type", [
         reason: z.string().optional(),
         ...streamEventMetaShape,
     }),
-]);
-export type DeploymentQueryEvent = z.infer<typeof deploymentQueryEventSchema>;
+])
+export type DeploymentQueryEvent = z.infer<typeof deploymentQueryEventSchema>
 
 const streamReplayQuerySchema = z.object({
     replay: z.coerce.boolean().default(false),
     replayLimit: z.coerce.number().int().min(1).max(500).default(100),
-});
+})
 
 const deploymentQueryFiltersSchema = z
     .object({
@@ -234,11 +243,15 @@ const deploymentQueryFiltersSchema = z
         replayLimit: z.coerce.number().int().min(1).max(500).default(100),
     })
     .refine(
-        (value) => Boolean(value.deploymentId ?? value.serviceId ?? value.projectId),
-        "At least one stream filter is required (deploymentId, serviceId, or projectId)",
-    );
+        (value) =>
+            Boolean(value.deploymentId ?? value.serviceId ?? value.projectId),
+        'At least one stream filter is required (deploymentId, serviceId, or projectId)'
+    )
 
-const deploymentStreamOps = standard.zod(deploymentStreamSchema, "deploymentStream");
+const deploymentStreamOps = standard.zod(
+    deploymentStreamSchema,
+    'deploymentStream'
+)
 
 const deploymentStreamListConfig = createFilterConfig(deploymentStreamOps)
     .withPagination({
@@ -246,132 +259,133 @@ const deploymentStreamListConfig = createFilterConfig(deploymentStreamOps)
         maxLimit: 100,
         includeOffset: true,
     } as const)
-    .withSorting(["createdAt", "updatedAt", "name"] as const, {
-        defaultField: "createdAt",
-        defaultDirection: "desc",
+    .withSorting(['createdAt', 'updatedAt', 'name'] as const, {
+        defaultField: 'createdAt',
+        defaultDirection: 'desc',
     })
     .withFiltering({
         name: {
             schema: deploymentStreamSchema.shape.name,
-            operators: ["eq", "like", "ilike"] as const,
+            operators: ['eq', 'like', 'ilike'] as const,
         },
         isActive: {
             schema: deploymentStreamSchema.shape.isActive,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         deploymentId: {
             schema: deploymentStreamSchema.shape.deploymentId,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         serviceId: {
             schema: deploymentStreamSchema.shape.serviceId,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         projectId: {
             schema: deploymentStreamSchema.shape.projectId,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         statusFilter: {
             schema: deploymentStreamSchema.shape.statusFilter,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         environmentFilter: {
             schema: deploymentStreamSchema.shape.environmentFilter,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
         createdBy: {
             schema: deploymentStreamSchema.shape.createdBy,
-            operators: ["eq"] as const,
+            operators: ['eq'] as const,
         },
     })
-    .buildConfig();
+    .buildConfig()
 
-export const deploymentStreamListConfigSchemas = deploymentStreamListConfig;
+export const deploymentStreamListConfigSchemas = deploymentStreamListConfig
 export const deploymentStreamsListContract = deploymentStreamOps
     .list(deploymentStreamListConfig)
-    .path("/streams")
+    .path('/streams')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
-export type DeploymentStreamListInput = ComputeInputSchema<typeof deploymentStreamListConfigSchemas>;
+    .build()
+export type DeploymentStreamListInput = ComputeInputSchema<
+    typeof deploymentStreamListConfigSchemas
+>
 
 export const deploymentStreamFindByIdContract = deploymentStreamOps
     .read()
-    .path("/streams/{id}")
+    .path('/streams/{id}')
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 const deploymentProgressEventContractEntitySchema = z.object({
     type: z.string(),
     emittedAt: z.date().optional(),
-});
+})
 
 const serviceDeploymentEventContractEntitySchema = z.object({
     type: z.string(),
     emittedAt: z.date().optional(),
-});
+})
 
 const deploymentQueryEventContractEntitySchema = z.object({
     type: z.string(),
     emittedAt: z.date().optional(),
-});
+})
 
 const deploymentProgressEventOps = standard.zod(
     deploymentProgressEventContractEntitySchema,
-    "deploymentProgressEvent",
-);
+    'deploymentProgressEvent'
+)
 const serviceDeploymentEventOps = standard.zod(
     serviceDeploymentEventContractEntitySchema,
-    "serviceDeploymentEvent",
-);
+    'serviceDeploymentEvent'
+)
 const deploymentQueryEventOps = standard.zod(
     deploymentQueryEventContractEntitySchema,
-    "deploymentQueryEvent",
-);
+    'deploymentQueryEvent'
+)
 
 // ─── Stream contracts ─────────────────────────────────────────────────────────
 
 /** GET /deployments/{id}/stream — subscribe to a single deployment's lifecycle events */
 export const deploymentStreamContract = deploymentProgressEventOps
-    .read({ idFieldName: "id", idSchema: z.uuid() })
+    .read({ idFieldName: 'id', idSchema: z.uuid() })
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/stream`)
-            .query(streamReplayQuerySchema),
+            .params((p) => p`/${p('id', z.uuid())}/stream`)
+            .query(streamReplayQuerySchema)
     )
     .output((b) => b.observable(deploymentProgressEventSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 /** GET /deployments/internal/{id}/stream — internal mesh stream access */
 export const deploymentInternalStreamContract = deploymentProgressEventOps
     .list()
     .input((b) =>
         b
-            .params((p) => p`/internal/${p("id", z.uuid())}/stream`)
-            .query(streamReplayQuerySchema),
+            .params((p) => p`/internal/${p('id', z.uuid())}/stream`)
+            .query(streamReplayQuerySchema)
     )
     .output((b) => b.observable(deploymentProgressEventSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 /** GET /deployments/services/{serviceId}/stream — subscribe to all deployments for a service */
 export const serviceDeploymentsStreamContract = serviceDeploymentEventOps
     .list()
     .input((b) =>
         b
-            .params((p) => p`/services/${p("serviceId", z.uuid())}/stream`)
-            .query(streamReplayQuerySchema),
+            .params((p) => p`/services/${p('serviceId', z.uuid())}/stream`)
+            .query(streamReplayQuerySchema)
     )
     .output((b) => b.observable(serviceDeploymentEventSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 /** GET /deployments/stream/query — subscribe to filtered deployment events */
 export const deploymentQueryStreamContract = deploymentQueryEventOps
     .list()
-    .path("/stream/query")
+    .path('/stream/query')
     .input((b) => b.query(deploymentQueryFiltersSchema))
     .output((b) => b.observable(deploymentQueryEventSchema))
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
-
+    .build()

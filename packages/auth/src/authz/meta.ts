@@ -1,6 +1,6 @@
-import { defineMeta } from "@orpc/contract";
+import { defineMeta } from '@orpc/contract'
 
-import type { AccessDeclaration } from "./types";
+import type { AccessDeclaration } from './types'
 
 /**
  * The authorization declaration a procedure carries, as oRPC metadata (`DEC-AUTH-26`).
@@ -13,17 +13,22 @@ import type { AccessDeclaration } from "./types";
  * it. Imported as `@deployer/auth/authz/meta`: this pulls `@orpc/contract`, which the client-side permission table must
  * not.
  */
-const [accessMeta] = defineMeta("authz", (value: AccessDeclaration) => value);
+const [accessMeta] = defineMeta('authz', (value: AccessDeclaration) => value)
 
 /** Attach a declaration to a procedure contract. */
-export const access = (declaration: AccessDeclaration) => accessMeta(declaration);
+export const access = (declaration: AccessDeclaration) =>
+    accessMeta(declaration)
 
 /** The declaration on a procedure (or a lazy one), or `undefined` when it declares nothing. */
 export function accessOf(procedure: unknown): AccessDeclaration | undefined {
-	if (procedure === null || typeof procedure !== "object") return undefined;
-	const meta = (procedure as { readonly "~orpc"?: { readonly meta?: Record<PropertyKey, unknown> } })["~orpc"]?.meta;
-	const declaration = meta?.authz;
-	return declaration === null || typeof declaration !== "object"
-		? undefined
-		: (declaration as AccessDeclaration);
+    if (procedure === null || typeof procedure !== 'object') return undefined
+    const meta = (
+        procedure as {
+            readonly '~orpc'?: { readonly meta?: Record<PropertyKey, unknown> }
+        }
+    )['~orpc']?.meta
+    const declaration = meta?.authz
+    return declaration === null || typeof declaration !== 'object'
+        ? undefined
+        : (declaration as AccessDeclaration)
 }

@@ -1,28 +1,28 @@
 import {
-	createModuleContext,
-	EffectRuntimeModule,
-	EffectHostModule,
-	EffectHost,
-} from "@deployer/nest-effect";
-import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
-import { EnvModule } from "@deployer/shared/config/env/env.module";
-import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
-import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
-import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
+    createModuleContext,
+    EffectRuntimeModule,
+    EffectHostModule,
+    EffectHost,
+} from '@deployer/nest-effect'
+import { registerSchemaCodecs } from '@deployer/shared/config/drizzle/schema-codecs'
+import { EnvModule } from '@deployer/shared/config/env/env.module'
+import { RoleCatalogueModule } from '@deployer/shared/core/authz/role-catalogue.module'
+import { AuthModule } from '@deployer/shared/core/modules/auth/auth.module'
+import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
+import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module'
 import {
-	DEPENDENCIES,
-	HealthModule,
-	PreflightModule,
-	ServiceHealthModule,
-	createOrpcModule,
-} from "@deployer/shared/server";
+    DEPENDENCIES,
+    HealthModule,
+    PreflightModule,
+    ServiceHealthModule,
+    createOrpcModule,
+} from '@deployer/shared/server'
 
-import { HealthDomainModule } from "./modules/health/health.module";
+import { HealthDomainModule } from './modules/health/health.module'
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.
-registerSchemaCodecs();
+registerSchemaCodecs()
 
 /**
  * The health service.
@@ -51,50 +51,52 @@ registerSchemaCodecs();
  * so the two cannot conflict over the token.
  */
 export class HealthServiceModule extends createModuleContext({
-	imports: [
-		EnvModule,
-		AppLifecycleModule.forRoot(),
-		DatabaseModule,
-		// The authz gate decides from the `roles` table; without this it falls back to the code table
-		// and would refuse every custom role (`SEC-062`, `SEC-055`).
-		RoleCatalogueModule,
-		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
-		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
-		// populates `context.auth`, so the service it injects has to be in this app's
-		// graph. Without it the boot fails with `Nest can't resolve dependencies of
-		// the Symbol(ORPC_NEST_MODULE_CONFIG) … AuthCoreService at index [1]`, which
-		// names neither this module nor the missing import.
-		//
-		// A service is NOT the session authority — the BFF is — but it must still be
-		// able to RESOLVE a session from the request the BFF forwards, which is what
-		// binding the same plugin everywhere buys. This is the identical wiring the
-		// BFF uses, deliberately: the two sides must agree on what a session is.
-		AuthModule,
-		PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
-		ServiceHealthModule,
-		// The real probes: Terminus indicators with a streaming registry. Declared
-		// `platform` (not `database`) because this service's entire job is to report
-		// the platform's health, so it must check everything it can.
-		HealthModule.forRoot({ indicators: "platform" }),
-		// `.effect()` handlers resolve services from `effect/context`; the runtime
-		// contributes that context per request without changing the shared policy.
-		EffectHostModule,
-		createOrpcModule({
-			boundary: { service: 'svc-health' },
-			extraContext: {
-				inject: [EffectHost],
-				// The request context is the context of the module that owns the controller being called: this app's
-				// handlers can only reach what `HealthDomainModule` provides, exactly what the type audit checks.
-				resolve: (executionContext, host) => ({
-					"effect/context": host.contextFor(executionContext.getClass()),
-				}),
-			},
-		}),
+    imports: [
+        EnvModule,
+        AppLifecycleModule.forRoot(),
+        DatabaseModule,
+        // The authz gate decides from the `roles` table; without this it falls back to the code table
+        // and would refuse every custom role (`SEC-062`, `SEC-055`).
+        RoleCatalogueModule,
+        // ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
+        // `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
+        // populates `context.auth`, so the service it injects has to be in this app's
+        // graph. Without it the boot fails with `Nest can't resolve dependencies of
+        // the Symbol(ORPC_NEST_MODULE_CONFIG) … AuthCoreService at index [1]`, which
+        // names neither this module nor the missing import.
+        //
+        // A service is NOT the session authority — the BFF is — but it must still be
+        // able to RESOLVE a session from the request the BFF forwards, which is what
+        // binding the same plugin everywhere buys. This is the identical wiring the
+        // BFF uses, deliberately: the two sides must agree on what a session is.
+        AuthModule,
+        PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
+        ServiceHealthModule,
+        // The real probes: Terminus indicators with a streaming registry. Declared
+        // `platform` (not `database`) because this service's entire job is to report
+        // the platform's health, so it must check everything it can.
+        HealthModule.forRoot({ indicators: 'platform' }),
+        // `.effect()` handlers resolve services from `effect/context`; the runtime
+        // contributes that context per request without changing the shared policy.
+        EffectHostModule,
+        createOrpcModule({
+            boundary: { service: 'svc-health' },
+            extraContext: {
+                inject: [EffectHost],
+                // The request context is the context of the module that owns the controller being called: this app's
+                // handlers can only reach what `HealthDomainModule` provides, exactly what the type audit checks.
+                resolve: (executionContext, host) => ({
+                    'effect/context': host.contextFor(
+                        executionContext.getClass()
+                    ),
+                }),
+            },
+        }),
 
-		// Effect runtime: discovers providers registered under a Context.Service
-		// token (HealthService is the first one).
-		EffectRuntimeModule,
+        // Effect runtime: discovers providers registered under a Context.Service
+        // token (HealthService is the first one).
+        EffectRuntimeModule,
 
-		HealthDomainModule,
-	],
+        HealthDomainModule,
+    ],
 }) {}

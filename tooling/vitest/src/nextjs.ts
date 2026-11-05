@@ -7,17 +7,17 @@ import { createBaseConfig } from './base.js'
  * Next.js-specific Vitest configuration
  */
 export const createNextJsConfig = (overrides: any = {}) => {
-  const baseConfig = createBaseConfig({
-    plugins: [react()],
-    test: {
-      environment: 'jsdom',
-      setupFiles: ['./vitest.setup.nextjs.js'],
-      globals: true,
-    },
-    ...overrides,
-  })
+    const baseConfig = createBaseConfig({
+        plugins: [react()],
+        test: {
+            environment: 'jsdom',
+            setupFiles: ['./vitest.setup.nextjs.js'],
+            globals: true,
+        },
+        ...overrides,
+    })
 
-  return baseConfig
+    return baseConfig
 }
 
 export const defaultConfig = createNextJsConfig()

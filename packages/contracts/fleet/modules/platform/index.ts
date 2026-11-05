@@ -1,35 +1,35 @@
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
 import {
-	registerAppInstanceContract,
-	heartbeatAppInstanceContract,
-	listAppInstancesContract,
-	revokeAppInstanceContract,
-	getManagedWebStateContract,
-	toggleManagedWebContract,
-	restartManagedWebContract,
-	setManagedWebOriginContract,
-	enableManagedWebTunnelContract,
-	disableManagedWebTunnelContract,
-} from "./platform.contract";
+    registerAppInstanceContract,
+    heartbeatAppInstanceContract,
+    listAppInstancesContract,
+    revokeAppInstanceContract,
+    getManagedWebStateContract,
+    toggleManagedWebContract,
+    restartManagedWebContract,
+    setManagedWebOriginContract,
+    enableManagedWebTunnelContract,
+    disableManagedWebTunnelContract,
+} from './platform.contract'
 
-export * from "./platform.contract";
+export * from './platform.contract'
 
 /**
  * Platform contract group — api-centric deployment surface.
  * Ops carry their full paths (no prefix here to avoid duplication).
  */
 export const platformContract = oc.router({
-	registerAppInstance: registerAppInstanceContract,
-	heartbeatAppInstance: heartbeatAppInstanceContract,
-	listAppInstances: listAppInstancesContract,
-	revokeAppInstance: revokeAppInstanceContract,
-	getManagedWebState: getManagedWebStateContract,
-	toggleManagedWeb: toggleManagedWebContract,
-	restartManagedWeb: restartManagedWebContract,
-	setManagedWebOrigin: setManagedWebOriginContract,
-	enableManagedWebTunnel: enableManagedWebTunnelContract,
-	disableManagedWebTunnel: disableManagedWebTunnelContract,
-});
+    registerAppInstance: registerAppInstanceContract,
+    heartbeatAppInstance: heartbeatAppInstanceContract,
+    listAppInstances: listAppInstancesContract,
+    revokeAppInstance: revokeAppInstanceContract,
+    getManagedWebState: getManagedWebStateContract,
+    toggleManagedWeb: toggleManagedWebContract,
+    restartManagedWeb: restartManagedWebContract,
+    setManagedWebOrigin: setManagedWebOriginContract,
+    enableManagedWebTunnel: enableManagedWebTunnelContract,
+    disableManagedWebTunnel: disableManagedWebTunnelContract,
+})
 
-export type PlatformContract = typeof platformContract;
+export type PlatformContract = typeof platformContract

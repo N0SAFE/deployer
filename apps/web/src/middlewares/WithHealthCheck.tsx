@@ -15,9 +15,14 @@ import { Matcher, MiddlewareFactory } from './utils/types'
 
 import { validateEnvPath } from '#/env'
 
-
-const debugHealthCheck = createContextFilterDebugLogger('WithHealthCheck', 'middleware:[WithHealthCheck]')
-const debugHealthCheckError = createContextFilterDebugLogger('WithHealthCheck', 'middleware:[WithHealthCheck]:error')
+const debugHealthCheck = createContextFilterDebugLogger(
+    'WithHealthCheck',
+    'middleware:[WithHealthCheck]'
+)
+const debugHealthCheckError = createContextFilterDebugLogger(
+    'WithHealthCheck',
+    'middleware:[WithHealthCheck]:error'
+)
 
 const NODE_ENV = validateEnvPath(process.env.NODE_ENV, 'NODE_ENV')
 const errorPageRenderingPath = '/middleware/error/healthCheck'
@@ -28,7 +33,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
         promise,
         new Promise<T>((_, reject) => {
             globalThis.setTimeout(() => {
-                reject(new Error(`Health check timed out after ${String(timeoutMs)}ms`))
+                reject(
+                    new Error(
+                        `Health check timed out after ${String(timeoutMs)}ms`
+                    )
+                )
             }, timeoutMs)
         }),
     ])
@@ -67,13 +76,14 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
                             )
                             return NextResponse.next()
                         } else {
-                            const errorPath = InternalMiddlewareErrorHealthCheck(
-                                {},
-                                {
-                                    json: JSON.stringify(data),
-                                    from: request.url,
-                                }
-                            )
+                            const errorPath =
+                                InternalMiddlewareErrorHealthCheck(
+                                    {},
+                                    {
+                                        json: JSON.stringify(data),
+                                        from: request.url,
+                                    }
+                                )
                             debugHealthCheckError(
                                 'API health check failed, redirecting to error page',
                                 {
@@ -157,7 +167,8 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
             // destination) — honour it as-is; otherwise come home to THIS
             // origin, derived from the request rather than from config.
             const fromParam = request.nextUrl.searchParams.get('from')
-            const redirectUrl = fromParam ?? new URL('/', request.url).toString()
+            const redirectUrl =
+                fromParam ?? new URL('/', request.url).toString()
             debugHealthCheck(
                 'Redirecting from health check error page to origin',
                 {

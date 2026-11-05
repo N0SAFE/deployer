@@ -20,69 +20,116 @@
  * dependency: platform helps → supervisors use).
  */
 
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { createGlobalModule } from "@deployer/nest-effect";
+import { DockerEngine, type DockerEngineShape } from '@deployer/docker'
+import { createGlobalModule } from '@deployer/nest-effect'
 
-import { EnvModule, EnvService } from "../../../../config/env/env.module";
-import { CoreDockerModule } from "../../docker/docker.module";
-import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
-import { CoreEdgeModule } from "../../edge/edge.module";
-import { ClusterSettings, type ClusterSettingsShape } from "../../mesh-node/cluster-settings";
-import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingress.module";
-import { AppInstanceService, type AppInstanceServiceShape } from "../../platform-ingress/services/app-instance.service";
-import { HostnameService } from "../../platform-ingress/services/hostname.service";
-import { IngressLanesService, type IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
-import { PlatformConfigService, type PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
-import { PlatformWebTargetService, type PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
-import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
-import { PublicEdgeService, type PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
-import { supervisorProviders, SupervisorEventBus, type SupervisorEventBusFacade } from "../../supervision/index";
-import { makeNodeAgentSwarmRegistration } from "../node-agent/node-agent.supervisor";
+import { EnvModule, EnvService } from '../../../../config/env/env.module'
+import { CoreDockerModule } from '../../docker/docker.module'
+import {
+    EdgeProviderRegistry,
+    type EdgeProviderRegistryShape,
+} from '../../edge/edge-provider.registry'
+import { CoreEdgeModule } from '../../edge/edge.module'
+import {
+    ClusterSettings,
+    type ClusterSettingsShape,
+} from '../../mesh-node/cluster-settings'
+import { CorePlatformIngressModule } from '../../platform-ingress/platform-ingress.module'
+import {
+    AppInstanceService,
+    type AppInstanceServiceShape,
+} from '../../platform-ingress/services/app-instance.service'
+import { HostnameService } from '../../platform-ingress/services/hostname.service'
+import {
+    IngressLanesService,
+    type IngressLanesServiceShape,
+} from '../../platform-ingress/services/ingress-lanes.service'
+import {
+    PlatformConfigService,
+    type PlatformConfigServiceShape,
+} from '../../platform-ingress/services/platform-config.service'
+import {
+    PlatformWebTargetService,
+    type PlatformWebTargetServiceShape,
+} from '../../platform-ingress/services/platform-web-target.service'
+import { CoreReachabilityModule } from '../../reachability/core-reachability.module'
+import {
+    PublicEdgeService,
+    type PublicEdgeServiceShape,
+} from '../../reachability/services/public-edge.service'
+import {
+    supervisorProviders,
+    SupervisorEventBus,
+    type SupervisorEventBusFacade,
+} from '../../supervision/index'
+import { makeNodeAgentSwarmRegistration } from '../node-agent/node-agent.supervisor'
 
-import { makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
-import { makeManagedWebRegistration } from "./managed-web.supervisor";
-import { makeRedisRegistration } from "./redis.supervisor";
-import { makeSwarmAppWiringRegistration } from "./swarm-app-wiring.supervisor";
-import { makeTraefikRegistration } from "./traefik.supervisor";
+import { makeEdgeConnectorRegistration } from './edge-connector.supervisor'
+import { makeManagedWebRegistration } from './managed-web.supervisor'
+import { makeRedisRegistration } from './redis.supervisor'
+import { makeSwarmAppWiringRegistration } from './swarm-app-wiring.supervisor'
+import { makeTraefikRegistration } from './traefik.supervisor'
 
-const PLATFORM_SUPERVISORS = Symbol("PLATFORM_SUPERVISORS");
+const PLATFORM_SUPERVISORS = Symbol('PLATFORM_SUPERVISORS')
 
 export const SupervisorsPlatformModule = createGlobalModule({
-	imports: [CoreDockerModule, CorePlatformIngressModule, CoreEdgeModule, CoreReachabilityModule, EnvModule],
-	providers: supervisorProviders({
-		token: PLATFORM_SUPERVISORS,
-		inject: [
-			DockerEngine,
-			EnvService,
-			SupervisorEventBus,
-			HostnameService,
-			IngressLanesService,
-			ClusterSettings,
-			PlatformWebTargetService,
-			EdgeProviderRegistry,
-			PlatformConfigService,
-			AppInstanceService,
-			PublicEdgeService,
-		],
-		build: (
-			engine: DockerEngineShape,
-			env: EnvService,
-			bus: SupervisorEventBusFacade,
-			hostnameService: HostnameService,
-			lanes: IngressLanesServiceShape,
-			settings: ClusterSettingsShape,
-			webTarget: PlatformWebTargetServiceShape,
-			edges: EdgeProviderRegistryShape,
-			platformConfig: PlatformConfigServiceShape,
-			appInstances: AppInstanceServiceShape,
-			edge: PublicEdgeServiceShape,
-		) => [
-			makeTraefikRegistration({ engine, hostnameService, env, lanes, settings, webTarget, edges, bus }).registration,
-			makeManagedWebRegistration({ engine, env, hostnameService, platformConfig, appInstances, bus }),
-			makeRedisRegistration({ engine, env, bus }).registration,
-			makeSwarmAppWiringRegistration({ engine, env, bus }),
-			makeEdgeConnectorRegistration({ engine, env, lanes, edge, bus }),
-			makeNodeAgentSwarmRegistration({ engine, env, bus }).registration,
-		],
-	}),
-});
+    imports: [
+        CoreDockerModule,
+        CorePlatformIngressModule,
+        CoreEdgeModule,
+        CoreReachabilityModule,
+        EnvModule,
+    ],
+    providers: supervisorProviders({
+        token: PLATFORM_SUPERVISORS,
+        inject: [
+            DockerEngine,
+            EnvService,
+            SupervisorEventBus,
+            HostnameService,
+            IngressLanesService,
+            ClusterSettings,
+            PlatformWebTargetService,
+            EdgeProviderRegistry,
+            PlatformConfigService,
+            AppInstanceService,
+            PublicEdgeService,
+        ],
+        build: (
+            engine: DockerEngineShape,
+            env: EnvService,
+            bus: SupervisorEventBusFacade,
+            hostnameService: HostnameService,
+            lanes: IngressLanesServiceShape,
+            settings: ClusterSettingsShape,
+            webTarget: PlatformWebTargetServiceShape,
+            edges: EdgeProviderRegistryShape,
+            platformConfig: PlatformConfigServiceShape,
+            appInstances: AppInstanceServiceShape,
+            edge: PublicEdgeServiceShape
+        ) => [
+            makeTraefikRegistration({
+                engine,
+                hostnameService,
+                env,
+                lanes,
+                settings,
+                webTarget,
+                edges,
+                bus,
+            }).registration,
+            makeManagedWebRegistration({
+                engine,
+                env,
+                hostnameService,
+                platformConfig,
+                appInstances,
+                bus,
+            }),
+            makeRedisRegistration({ engine, env, bus }).registration,
+            makeSwarmAppWiringRegistration({ engine, env, bus }),
+            makeEdgeConnectorRegistration({ engine, env, lanes, edge, bus }),
+            makeNodeAgentSwarmRegistration({ engine, env, bus }).registration,
+        ],
+    }),
+})

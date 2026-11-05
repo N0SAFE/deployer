@@ -5,12 +5,12 @@ order: 27
 ---
 
 <DocCallout title="Model shift" tone="info">
-Environments are NO LONGER built-in names on projects/services. They are
-**first-class entities** (`environments` table) linked to a project, with a
-**KIND** (stable | preview | ephemeral), **per-env rules**, and an optional
-**TRIGGER** (how preview/ephemeral envs are brought to life). A deployment is
-created FROM an environment, which belongs to a service, which belongs to a
-project, which belongs to an organization.
+    Environments are NO LONGER built-in names on projects/services. They are
+    **first-class entities** (`environments` table) linked to a project, with a
+    **KIND** (stable | preview | ephemeral), **per-env rules**, and an optional
+    **TRIGGER** (how preview/ephemeral envs are brought to life). A deployment
+    is created FROM an environment, which belongs to a service, which belongs to
+    a project, which belongs to an organization.
 </DocCallout>
 
 ## Complete UML class diagram
@@ -105,11 +105,11 @@ legacy `Deployment.environment` string stays as a display snapshot.
 
 ## Environment kinds & triggers
 
-| Kind | Behavior | Trigger |
-|------|----------|---------|
-| `stable` | Persistent, shared, long-lived (production, staging, dev, qa) | none (always exists) |
-| `preview` | Ephemeral per-PR/branch; auto-created + auto-destroyed | `pull-request` / `branch` / `webhook` |
-| `ephemeral` | Short-lived test env (manual or scheduled) | `manual` / `schedule` / `webhook` |
+| Kind        | Behavior                                                      | Trigger                               |
+| ----------- | ------------------------------------------------------------- | ------------------------------------- |
+| `stable`    | Persistent, shared, long-lived (production, staging, dev, qa) | none (always exists)                  |
+| `preview`   | Ephemeral per-PR/branch; auto-created + auto-destroyed        | `pull-request` / `branch` / `webhook` |
+| `ephemeral` | Short-lived test env (manual or scheduled)                    | `manual` / `schedule` / `webhook`     |
 
 ```mermaid
 stateDiagram-v2

@@ -1,8 +1,8 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
-import { makeLenientEnvironment } from "@deployer/environment";
+import { runSyncUnwrapped } from '@deployer/effect-core'
+import { makeLenientEnvironment } from '@deployer/environment'
 
-import type { EnvService } from "@/config/env/env.module";
-import { setupEnvSchema } from "@/config/env/env.schema";
+import type { EnvService } from '@/config/env/env.module'
+import { setupEnvSchema } from '@/config/env/env.schema'
 
 /**
  * Build a real `EnvService` for a spec, with the given variables in `process.env`.
@@ -19,23 +19,27 @@ import { setupEnvSchema } from "@/config/env/env.schema";
  * parse, cached). Tests run in the same process, so a variable left behind would
  * leak into every later spec and make failures depend on file order.
  */
-export function makeEnvService(overrides: Record<string, string> = {}): EnvService {
-  const saved = new Map<string, string | undefined>();
+export function makeEnvService(
+    overrides: Record<string, string> = {}
+): EnvService {
+    const saved = new Map<string, string | undefined>()
 
-  for (const [key, value] of Object.entries(overrides)) {
-    saved.set(key, process.env[key]);
-    process.env[key] = value;
-  }
+    for (const [key, value] of Object.entries(overrides)) {
+        saved.set(key, process.env[key])
+        process.env[key] = value
+    }
 
-  const service: EnvService = runSyncUnwrapped(makeLenientEnvironment(setupEnvSchema));
+    const service: EnvService = runSyncUnwrapped(
+        makeLenientEnvironment(setupEnvSchema)
+    )
 
-  // Restore immediately: the service has already parsed and cached its values,
-  // so holding the process env mutated for the test's duration would only create
-  // cross-spec leakage without changing what the service returns.
-  for (const [key, value] of saved) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
+    // Restore immediately: the service has already parsed and cached its values,
+    // so holding the process env mutated for the test's duration would only create
+    // cross-spec leakage without changing what the service returns.
+    for (const [key, value] of saved) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+    }
 
-  return service;
+    return service
 }

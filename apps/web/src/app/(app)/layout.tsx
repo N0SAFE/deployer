@@ -7,13 +7,13 @@ import { SessionHydrationProvider } from '@/utils/providers/SessionHydrationProv
 
 /**
  * App Route Group Layout
- * 
+ *
  * This layout is for public/general pages that use the main navigation bar:
  * - Home page (/)
  * - Any other pages that should have the top navbar
- * 
+ *
  * The dashboard has its own separate route group with sidebar navigation.
- * 
+ *
  * SessionHydrationProvider reads cookies() (request-time data). Wrapping it
  * in a Suspense boundary keeps the page content in the static shell — the
  * session (and nav) streams in after the cookie read resolves. The fallback
@@ -61,19 +61,19 @@ export default function AppLayout({
  */
 function NavSkeleton() {
     return (
-        <nav className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur flex justify-center">
+        <nav className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-50 flex w-full justify-center border-b backdrop-blur">
             <div className="container flex h-14 items-center justify-between">
                 <div className="flex items-center space-x-4">
                     <div className="bg-primary/80 flex h-8 w-8 items-center justify-center rounded-md">
-                        <div className="h-4 w-4 animate-pulse rounded-sm bg-primary-foreground/60" />
+                        <div className="bg-primary-foreground/60 h-4 w-4 animate-pulse rounded-sm" />
                     </div>
-                    <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                    <div className="bg-muted h-4 w-20 animate-pulse rounded" />
                 </div>
                 <div className="flex items-center space-x-4">
-                    <div className="h-8 w-16 animate-pulse rounded-md bg-muted" />
-                    <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
+                    <div className="bg-muted h-8 w-16 animate-pulse rounded-md" />
+                    <div className="bg-muted h-8 w-20 animate-pulse rounded-md" />
                 </div>
-                <div className="h-8 w-8 animate-pulse rounded-md bg-muted" />
+                <div className="bg-muted h-8 w-8 animate-pulse rounded-md" />
             </div>
         </nav>
     )

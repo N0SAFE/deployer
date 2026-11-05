@@ -5,21 +5,21 @@
  * A GitLab account is an instance URL + a personal/project access token
  * (no OAuth app manifest — unlike GitHub). Managed through the web UI.
  */
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { Effect } from "effect";
-import z from "zod/v4";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { Effect } from 'effect'
+import z from 'zod/v4'
 
-import { providersContract } from "@deployer/fleet-contracts";
-import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { providersContract } from '@deployer/fleet-contracts'
+import { procedure } from '@deployer/nest-effect'
+import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-import { FleetConflict, FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
+import { FleetConflict, FleetInvalid, FleetNotFound } from '@/core/fleet.errors'
 
-import { GitlabAppsStore } from "../repositories/gitlab-apps.repository";
+import { GitlabAppsStore } from '../repositories/gitlab-apps.repository'
 
 /** GitLab instance URL must be an http(s) URL. */
-const URL_SCHEMA = z.string().url();
+const URL_SCHEMA = z.string().url()
 
 @Controller()
 export class GitlabAppsController {
@@ -28,8 +28,8 @@ export class GitlabAppsController {
         return procedure(providersContract.code.gitlab.list)
             .use(requireAuth())
             .effect(function* () {
-                const apps = yield* GitlabAppsStore;
-                const rows = yield* apps.list();
+                const apps = yield* GitlabAppsStore
+                const rows = yield* apps.list()
 
                 return {
                     apps: rows.map((r) => ({
@@ -41,8 +41,8 @@ export class GitlabAppsController {
                         updatedAt: r.updatedAt.toISOString(),
                     })),
                     total: rows.length,
-                };
-            });
+                }
+            })
     }
 
     @Implement(providersContract.code.gitlab.create)
@@ -50,30 +50,35 @@ export class GitlabAppsController {
         return procedure(providersContract.code.gitlab.create)
             .use(requireAuth())
             .effect(function* ({ input }) {
-                const apps = yield* GitlabAppsStore;
+                const apps = yield* GitlabAppsStore
                 const row = yield* Effect.gen(function* () {
-                        const urlCheck = URL_SCHEMA.safeParse(input.url);
-                        if (!urlCheck.success) {
-                            return yield* new FleetInvalid({ reason: `Invalid GitLab URL: ${input.url}` });
-                        }
+                    const urlCheck = URL_SCHEMA.safeParse(input.url)
+                    if (!urlCheck.success) {
+                        return yield* new FleetInvalid({
+                            reason: `Invalid GitLab URL: ${input.url}`,
+                        })
+                    }
 
-                        // Name uniqueness (409).
-                        const dup = yield* apps.findByName(input.name);
-                        if (dup) {
-                            return yield* new FleetConflict({ reason: `A GitLab account named '${input.name}' already exists` });
-                        }
+                    // Name uniqueness (409).
+                    const dup = yield* apps.findByName(input.name)
+                    if (dup) {
+                        return yield* new FleetConflict({
+                            reason: `A GitLab account named '${input.name}' already exists`,
+                        })
+                    }
 
-                        const created = yield* apps.create({
-                            name: input.name,
-                            url: input.url,
-                            accessToken: input.accessToken,
-                        });
-                        if (!created) {
-                            return yield* new FleetInvalid({ reason: "Failed to create GitLab account" });
-                        }
-                        return created;
+                    const created = yield* apps.create({
+                        name: input.name,
+                        url: input.url,
+                        accessToken: input.accessToken,
                     })
-                ;
+                    if (!created) {
+                        return yield* new FleetInvalid({
+                            reason: 'Failed to create GitLab account',
+                        })
+                    }
+                    return created
+                })
 
                 return {
                     id: row.id,
@@ -82,8 +87,8 @@ export class GitlabAppsController {
                     isActive: row.isActive,
                     createdAt: row.createdAt.toISOString(),
                     updatedAt: row.updatedAt.toISOString(),
-                };
-            });
+                }
+            })
     }
 
     @Implement(providersContract.code.gitlab.delete)
@@ -91,16 +96,17 @@ export class GitlabAppsController {
         return procedure(providersContract.code.gitlab.delete)
             .use(requireAuth())
             .effect(function* ({ input }) {
-                const apps = yield* GitlabAppsStore;
-                const id = input.params.id;
+                const apps = yield* GitlabAppsStore
+                const id = input.params.id
                 return yield* Effect.gen(function* () {
-                        const removed = yield* apps.deleteById(id);
-                        if (!removed) {
-                            return yield* new FleetNotFound({ reason: `GitLab account '${id}' not found` });
-                        }
-                        return { success: true };
-                    })
-                ;
-            });
+                    const removed = yield* apps.deleteById(id)
+                    if (!removed) {
+                        return yield* new FleetNotFound({
+                            reason: `GitLab account '${id}' not found`,
+                        })
+                    }
+                    return { success: true }
+                })
+            })
     }
 }

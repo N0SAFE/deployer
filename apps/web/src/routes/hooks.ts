@@ -5,7 +5,10 @@ import {
 } from 'next/navigation'
 import { z } from 'zod'
 
-import { UseSafeQueryParamStatesOptions, useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
+import {
+    UseSafeQueryParamStatesOptions,
+    useSafeQueryParamStatesFromZod,
+} from '@deployer/use-safe-query-param-states-from-zod'
 
 import { emptySchema, RouteBuilder } from './makeRoute'
 
@@ -75,7 +78,7 @@ function convertURLSearchParamsToObject(
 /**
  * Hook that provides state management for search parameters based on a RouteBuilder
  * Returns a tuple similar to useState: [searchParamObject, setSearchParamObject]
- * 
+ *
  * @example
  * ```tsx
  * const searchRoute = makeRoute('/search', {
@@ -87,17 +90,17 @@ function convertURLSearchParamsToObject(
  *     category: z.enum(['all', 'products']).default('all')
  *   })
  * })
- * 
+ *
  * function SearchPage() {
  *   const [searchParams, setSearchParams] = useSearchParamState(searchRoute)
- *   
+ *
  *   const handleSearch = (query: string) => {
  *     setSearchParams({ query, page: 1 })
  *   }
- *   
+ *
  *   return (
  *     <div>
- *       <input 
+ *       <input
  *         value={searchParams.query}
  *         onChange={(e) => setSearchParams({ query: e.target.value })}
  *       />
@@ -110,9 +113,9 @@ function convertURLSearchParamsToObject(
 export function useSearchParamState<
     Params extends z.ZodType,
     Search extends z.ZodObject<z.ZodRawShape>,
->(routeBuilder: RouteBuilder<Params, Search>, options?: UseSafeQueryParamStatesOptions): [
-    z.infer<Search>,
-    (value: Partial<z.infer<Search>> | null) => void
-] {
+>(
+    routeBuilder: RouteBuilder<Params, Search>,
+    options?: UseSafeQueryParamStatesOptions
+): [z.infer<Search>, (value: Partial<z.infer<Search>> | null) => void] {
     return useSafeQueryParamStatesFromZod(routeBuilder.searchSchema, options)
 }

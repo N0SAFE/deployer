@@ -4,7 +4,11 @@ import { ChevronRight, Siren, Home } from 'lucide-react'
 import { useParams, useSelectedLayoutSegment } from 'next/navigation'
 import { toast } from 'sonner'
 
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
@@ -12,21 +16,31 @@ import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { PageHeader } from '@/components/dashboard'
 import { useProject } from '@/domains/project/hooks'
 import { useService, useToggleServiceActive } from '@/domains/service/hooks'
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { AuthDashboardProjects, AuthDashboardProjectsProjectId, AuthDashboardProjectsProjectIdServicesServiceId } from '@/routes'
+import {
+    isDefinedORPCError,
+    UNKNOWN_ORPC_ERROR_MESSAGE,
+    getErrorMessage,
+} from '@/lib/orpc/typed-errors'
+import {
+    AuthDashboardProjects,
+    AuthDashboardProjectsProjectId,
+    AuthDashboardProjectsProjectIdServicesServiceId,
+} from '@/routes'
 
 import { statusBadgeVariant } from '../../../_utils/helpers'
 
 import { ServiceDetailSkeleton } from './service-detail-skeleton'
 import { ServiceSectionNav } from './service-section-nav'
 
-
-
-
-
 import type { ReactNode } from 'react'
 
-type ServiceSection = 'overview' | 'configuration' | 'deployments' | 'logs' | 'previews' | 'monitoring'
+type ServiceSection =
+    | 'overview'
+    | 'configuration'
+    | 'deployments'
+    | 'logs'
+    | 'previews'
+    | 'monitoring'
 
 /**
  * ServiceDetailLayoutInner — client shell for the service "namespace".
@@ -35,181 +49,267 @@ type ServiceSection = 'overview' | 'configuration' | 'deployments' | 'logs' | 'p
  * React Query. Rendered inside a Suspense boundary in the server layout so
  * the dashboard shell stays in the static shell during prerendering.
  */
-export function ServiceDetailLayoutInner({ children }: { children: ReactNode }) {
-  const params = useParams<{ projectId: string; serviceId: string }>()
-  const projectId = params.projectId
-  const serviceId = params.serviceId
-  const segment = useSelectedLayoutSegment()
+export function ServiceDetailLayoutInner({
+    children,
+}: {
+    children: ReactNode
+}) {
+    const params = useParams<{ projectId: string; serviceId: string }>()
+    const projectId = params.projectId
+    const serviceId = params.serviceId
+    const segment = useSelectedLayoutSegment()
 
-  const { data: projectData, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectId)
-  const { data: serviceData, isLoading: serviceLoading, error: serviceError, refetch: refetchService } = useService(serviceId)
-  const toggleActive = useToggleServiceActive()
+    const {
+        data: projectData,
+        isLoading: projectLoading,
+        error: projectError,
+        refetch: refetchProject,
+    } = useProject(projectId)
+    const {
+        data: serviceData,
+        isLoading: serviceLoading,
+        error: serviceError,
+        refetch: refetchService,
+    } = useService(serviceId)
+    const toggleActive = useToggleServiceActive()
 
-  // Breadcrumb: the service's parent (if any) — sub-services are first-class
-  // pages linked to their parent, so show the trail Projects › Project ›
-  // Parent › Service. Only fetch the parent when we know its id.
-  const parentId = (serviceData as unknown as { parentId?: string | null } | undefined)?.parentId
-  const { data: parentData } = useService(parentId ?? '')
+    // Breadcrumb: the service's parent (if any) — sub-services are first-class
+    // pages linked to their parent, so show the trail Projects › Project ›
+    // Parent › Service. Only fetch the parent when we know its id.
+    const parentId = (
+        serviceData as unknown as { parentId?: string | null } | undefined
+    )?.parentId
+    const { data: parentData } = useService(parentId ?? '')
 
-  // Active section: 'configuration' wins for all configuration sub-segments
-  // (general/provider/network/environment).
-  const active: ServiceSection =
-    segment === null || segment === ''
-      ? 'overview'
-      : segment === 'configuration'
-        ? 'configuration'
-        : (segment as ServiceSection)
+    // Active section: 'configuration' wins for all configuration sub-segments
+    // (general/provider/network/environment).
+    const active: ServiceSection =
+        segment === null || segment === ''
+            ? 'overview'
+            : segment === 'configuration'
+              ? 'configuration'
+              : (segment as ServiceSection)
 
-  const isLoading = projectLoading || serviceLoading
+    const isLoading = projectLoading || serviceLoading
 
-  if (isLoading) {
-    return <ServiceDetailSkeleton />
-  }
-
-  const loadError = projectError ?? serviceError
-  if (loadError) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <Alert variant="destructive" className="max-w-md">
-          <Siren className="size-4" />
-          <AlertTitle>Could not load this service</AlertTitle>
-          <AlertDescription>
-            {isDefinedORPCError(loadError) ? getErrorMessage(loadError, 'An unexpected error occurred.') : 'An unexpected error occurred.'}
-          </AlertDescription>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={() => { void refetchProject(); void refetchService() }}
-          >
-            Retry
-          </Button>
-        </Alert>
-      </div>
-    )
-  }
-
-  if (!projectData || !serviceData) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <Alert variant="destructive" className="max-w-md">
-          <Siren className="size-4" />
-          <AlertTitle>Service not found</AlertTitle>
-          <AlertDescription>
-            The service or its project does not exist, or you do not have access to it.
-          </AlertDescription>
-          <AuthDashboardProjects.Link>
-            <Button variant="outline" size="sm" className="mt-4">
-              Back to projects
-            </Button>
-          </AuthDashboardProjects.Link>
-        </Alert>
-      </div>
-    )
-  }
-
-  const service = serviceData as unknown as {
-    id: string
-    name?: string
-    description?: string | null
-    type?: string
-    runnerType?: string
-    status?: string
-    state?: string
-    isActive?: boolean
-    parentId?: string | null
-  }
-  const serviceName = service.name ?? 'Unnamed Service'
-  const serviceStatus = service.status ?? service.state ?? 'unknown'
-  const runnerType = service.runnerType ?? service.type ?? 'application'
-  // Not `?? true`: the toggle below sends `!isActive`, so an unknown value
-  // rendered as active made the FIRST click deactivate the service and report
-  // "Service deactivated" to someone who meant to activate it. Off is the
-  // non-destructive reading of "we do not know".
-  const isActive = service.isActive ?? false
-  const isSubService = Boolean(service.parentId)
-
-  const handleToggleActive = async () => {
-    try {
-      await toggleActive.mutateAsync({ params: { id: serviceId }, body: { isActive: !isActive } })
-      toast.success(isActive ? 'Service deactivated' : 'Service activated')
-    } catch (err) {
-      toast.error('Failed to toggle', { description: isDefinedORPCError(err) ? getErrorMessage(err, 'Unknown error') : UNKNOWN_ORPC_ERROR_MESSAGE })
+    if (isLoading) {
+        return <ServiceDetailSkeleton />
     }
-  }
 
-  const projectName = (projectData as unknown as { name?: string }).name ?? 'Project'
+    const loadError = projectError ?? serviceError
+    if (loadError) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <Alert variant="destructive" className="max-w-md">
+                    <Siren className="size-4" />
+                    <AlertTitle>Could not load this service</AlertTitle>
+                    <AlertDescription>
+                        {isDefinedORPCError(loadError)
+                            ? getErrorMessage(
+                                  loadError,
+                                  'An unexpected error occurred.'
+                              )
+                            : 'An unexpected error occurred.'}
+                    </AlertDescription>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4"
+                        onClick={() => {
+                            void refetchProject()
+                            void refetchService()
+                        }}
+                    >
+                        Retry
+                    </Button>
+                </Alert>
+            </div>
+        )
+    }
 
-  return (
-    <div className="space-y-6">
-      {/* ── Header: breadcrumb + identity + active toggle ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-2">
-          {/* Breadcrumb trail: Projects › Project › [Parent ›] Service */}
-          <nav className="flex items-center gap-1 text-xs text-muted-foreground" aria-label="Breadcrumb">
-            <AuthDashboardProjects.Link className="flex items-center gap-1 transition-colors hover:text-foreground">
-              <Home className="size-3" />
-              Projects
-            </AuthDashboardProjects.Link>
-            <ChevronRight className="size-3" />
-            <AuthDashboardProjectsProjectId.Link projectId={projectId} className="max-w-40 truncate transition-colors hover:text-foreground">
-              {projectName}
-            </AuthDashboardProjectsProjectId.Link>
-            {parentData ? (
-              <>
-                <ChevronRight className="size-3" />
-                <AuthDashboardProjectsProjectIdServicesServiceId.Link
-                  projectId={projectId}
-                  serviceId={parentData.id}
-                  className="max-w-40 truncate transition-colors hover:text-foreground"
-                >
-                  {(parentData as unknown as { name?: string }).name ?? 'Parent'}
-                </AuthDashboardProjectsProjectIdServicesServiceId.Link>
-              </>
-            ) : null}
-            <ChevronRight className="size-3" />
-            <span className="max-w-48 truncate font-medium text-foreground">{serviceName}</span>
-          </nav>
-          <div className={isSubService ? 'rounded-xl border border-amber-500/30 bg-amber-500/6 px-3 py-2' : undefined}>
-            <PageHeader
-              eyebrow="Service"
-              title={serviceName}
-              badge={
-                <>
-                  {isSubService && (
-                    <Badge variant="secondary" className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                      <span className="size-1.5 rounded-full bg-amber-500" />
-                      Sub-service
-                    </Badge>
-                  )}
-                  <Badge variant={statusBadgeVariant(serviceStatus)} className="capitalize">
-                    {serviceStatus}
-                  </Badge>
-                  <Badge variant="outline" className="capitalize">{runnerType}</Badge>
-                  <Badge variant={isActive ? 'secondary' : 'destructive'}>{isActive ? 'Active' : 'Inactive'}</Badge>
-                </>
-              }
-              description={service.description ?? undefined}
+    if (!projectData || !serviceData) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <Alert variant="destructive" className="max-w-md">
+                    <Siren className="size-4" />
+                    <AlertTitle>Service not found</AlertTitle>
+                    <AlertDescription>
+                        The service or its project does not exist, or you do not
+                        have access to it.
+                    </AlertDescription>
+                    <AuthDashboardProjects.Link>
+                        <Button variant="outline" size="sm" className="mt-4">
+                            Back to projects
+                        </Button>
+                    </AuthDashboardProjects.Link>
+                </Alert>
+            </div>
+        )
+    }
+
+    const service = serviceData as unknown as {
+        id: string
+        name?: string
+        description?: string | null
+        type?: string
+        runnerType?: string
+        status?: string
+        state?: string
+        isActive?: boolean
+        parentId?: string | null
+    }
+    const serviceName = service.name ?? 'Unnamed Service'
+    const serviceStatus = service.status ?? service.state ?? 'unknown'
+    const runnerType = service.runnerType ?? service.type ?? 'application'
+    // Not `?? true`: the toggle below sends `!isActive`, so an unknown value
+    // rendered as active made the FIRST click deactivate the service and report
+    // "Service deactivated" to someone who meant to activate it. Off is the
+    // non-destructive reading of "we do not know".
+    const isActive = service.isActive ?? false
+    const isSubService = Boolean(service.parentId)
+
+    const handleToggleActive = async () => {
+        try {
+            await toggleActive.mutateAsync({
+                params: { id: serviceId },
+                body: { isActive: !isActive },
+            })
+            toast.success(
+                isActive ? 'Service deactivated' : 'Service activated'
+            )
+        } catch (err) {
+            toast.error('Failed to toggle', {
+                description: isDefinedORPCError(err)
+                    ? getErrorMessage(err, 'Unknown error')
+                    : UNKNOWN_ORPC_ERROR_MESSAGE,
+            })
+        }
+    }
+
+    const projectName =
+        (projectData as unknown as { name?: string }).name ?? 'Project'
+
+    return (
+        <div className="space-y-6">
+            {/* ── Header: breadcrumb + identity + active toggle ── */}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2">
+                    {/* Breadcrumb trail: Projects › Project › [Parent ›] Service */}
+                    <nav
+                        className="text-muted-foreground flex items-center gap-1 text-xs"
+                        aria-label="Breadcrumb"
+                    >
+                        <AuthDashboardProjects.Link className="hover:text-foreground flex items-center gap-1 transition-colors">
+                            <Home className="size-3" />
+                            Projects
+                        </AuthDashboardProjects.Link>
+                        <ChevronRight className="size-3" />
+                        <AuthDashboardProjectsProjectId.Link
+                            projectId={projectId}
+                            className="hover:text-foreground max-w-40 truncate transition-colors"
+                        >
+                            {projectName}
+                        </AuthDashboardProjectsProjectId.Link>
+                        {parentData ? (
+                            <>
+                                <ChevronRight className="size-3" />
+                                <AuthDashboardProjectsProjectIdServicesServiceId.Link
+                                    projectId={projectId}
+                                    serviceId={parentData.id}
+                                    className="hover:text-foreground max-w-40 truncate transition-colors"
+                                >
+                                    {(
+                                        parentData as unknown as {
+                                            name?: string
+                                        }
+                                    ).name ?? 'Parent'}
+                                </AuthDashboardProjectsProjectIdServicesServiceId.Link>
+                            </>
+                        ) : null}
+                        <ChevronRight className="size-3" />
+                        <span className="text-foreground max-w-48 truncate font-medium">
+                            {serviceName}
+                        </span>
+                    </nav>
+                    <div
+                        className={
+                            isSubService
+                                ? 'rounded-xl border border-amber-500/30 bg-amber-500/6 px-3 py-2'
+                                : undefined
+                        }
+                    >
+                        <PageHeader
+                            eyebrow="Service"
+                            title={serviceName}
+                            badge={
+                                <>
+                                    {isSubService && (
+                                        <Badge
+                                            variant="secondary"
+                                            className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                        >
+                                            <span className="size-1.5 rounded-full bg-amber-500" />
+                                            Sub-service
+                                        </Badge>
+                                    )}
+                                    <Badge
+                                        variant={statusBadgeVariant(
+                                            serviceStatus
+                                        )}
+                                        className="capitalize"
+                                    >
+                                        {serviceStatus}
+                                    </Badge>
+                                    <Badge
+                                        variant="outline"
+                                        className="capitalize"
+                                    >
+                                        {runnerType}
+                                    </Badge>
+                                    <Badge
+                                        variant={
+                                            isActive
+                                                ? 'secondary'
+                                                : 'destructive'
+                                        }
+                                    >
+                                        {isActive ? 'Active' : 'Inactive'}
+                                    </Badge>
+                                </>
+                            }
+                            description={service.description ?? undefined}
+                        />
+                        {isSubService ? (
+                            <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-400/80">
+                                Inherits configuration from its parent service
+                                unless overridden here.
+                            </p>
+                        ) : null}
+                    </div>
+                </div>
+
+                <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                    {isActive ? 'Switched on' : 'Switched off'}
+                    <Switch
+                        aria-label="Switch this service on or off"
+                        checked={isActive}
+                        onCheckedChange={() => {
+                            void handleToggleActive()
+                        }}
+                        disabled={toggleActive.isPending}
+                    />
+                </label>
+            </div>
+
+            {/* ── Section navigation ── */}
+            <ServiceSectionNav
+                projectId={projectId}
+                serviceId={serviceId}
+                active={active}
             />
-            {isSubService ? (
-              <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-400/80">
-                Inherits configuration from its parent service unless overridden here.
-              </p>
-            ) : null}
-          </div>
+
+            {/* ── Page content ── */}
+            {children}
         </div>
-
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          {isActive ? 'Switched on' : 'Switched off'}
-          <Switch aria-label="Switch this service on or off" checked={isActive} onCheckedChange={() => { void handleToggleActive() }} disabled={toggleActive.isPending} />
-        </label>
-      </div>
-
-      {/* ── Section navigation ── */}
-      <ServiceSectionNav projectId={projectId} serviceId={serviceId} active={active} />
-
-      {/* ── Page content ── */}
-      {children}
-    </div>
-  )
+    )
 }

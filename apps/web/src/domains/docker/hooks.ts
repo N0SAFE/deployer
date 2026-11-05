@@ -1,54 +1,55 @@
-"use client"
+'use client'
 
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
-  createContext,
-  createElement,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
+    createContext,
+    createElement,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useReducer,
+    useRef,
+    useState,
 } from 'react'
 
 import {
-  dockerContainerRuntimeEventSchema,
-  dockerImageSecurityScanEventSchema,
-  dockerContainerMetricPointSchema,
-  dockerImageInspectDetailSchema,
-  dockerRuntimeEventSchema,
-  type DockerContainer,
-  type DockerContainerMetricPoint,
-  type DockerRuntimeCatalog,
-  type DockerRuntimeEvent,
+    dockerContainerRuntimeEventSchema,
+    dockerImageSecurityScanEventSchema,
+    dockerContainerMetricPointSchema,
+    dockerImageInspectDetailSchema,
+    dockerRuntimeEventSchema,
+    type DockerContainer,
+    type DockerContainerMetricPoint,
+    type DockerRuntimeCatalog,
+    type DockerRuntimeEvent,
 } from '@deployer/contracts-entities'
-import { isRecord } from "@deployer/type-guards";
+import { isRecord } from '@deployer/type-guards'
 
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { useMeshEventStreams, useMeshSseState } from '@/domains/mesh/hooks'
 import { useServiceList } from '@/domains/service/hooks'
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
+import {
+    isDefinedORPCError,
+    UNKNOWN_ORPC_ERROR_MESSAGE,
+    getErrorMessage,
+} from '@/lib/orpc/typed-errors'
 
 import { dockerEndpoints } from './endpoints'
-
-
-
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
 interface QueryPagination {
-  limit?: number
-  offset?: number
+    limit?: number
+    offset?: number
 }
 
 interface QueryInput {
-  query?: QueryPagination
+    query?: QueryPagination
 }
 
 /**
@@ -60,653 +61,749 @@ interface QueryInput {
  * to the strict schema output type.
  */
 interface DockerContainerListFilter {
-  name?: { operator: 'eq' | 'like' | 'ilike'; value: string }
-  status?: { operator: 'eq'; value: DockerContainer['status'] }
-  projectId?: { operator: 'eq'; value: string }
-  serviceId?: { operator: 'eq'; value: string }
-  managedBy?: { operator: 'eq'; value: DockerContainer['managedBy'] }
-  managedDeploymentId?: { operator: 'eq'; value: string }
-  managedServiceId?: { operator: 'eq'; value: string }
-  managedProjectId?: { operator: 'eq'; value: string }
+    name?: { operator: 'eq' | 'like' | 'ilike'; value: string }
+    status?: { operator: 'eq'; value: DockerContainer['status'] }
+    projectId?: { operator: 'eq'; value: string }
+    serviceId?: { operator: 'eq'; value: string }
+    managedBy?: { operator: 'eq'; value: DockerContainer['managedBy'] }
+    managedDeploymentId?: { operator: 'eq'; value: string }
+    managedServiceId?: { operator: 'eq'; value: string }
+    managedProjectId?: { operator: 'eq'; value: string }
 }
 
 interface DockerContainerListQueryInput {
-  limit?: number
-  offset?: number
-  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status'
-  sortDirection?: 'asc' | 'desc'
-  filter?: DockerContainerListFilter
+    limit?: number
+    offset?: number
+    sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status'
+    sortDirection?: 'asc' | 'desc'
+    filter?: DockerContainerListFilter
 }
 
 type DockerContainerGroupedListQueryInput = DockerContainerListQueryInput
 
 type LinkedContainerQueryInput = QueryInput & {
-  include?: string
-  maxDepth?: 1 | 2 | 3
+    include?: string
+    maxDepth?: 1 | 2 | 3
 }
 
 interface DockerContainerListContractInput {
-  query?: Partial<DockerContainerListQueryInput>
+    query?: Partial<DockerContainerListQueryInput>
 }
 
 interface DockerContainerGroupedListContractInput {
-  query?: Partial<DockerContainerGroupedListQueryInput>
+    query?: Partial<DockerContainerGroupedListQueryInput>
 }
 
-export function useDockerContainerList(input?: DockerContainerListContractInput & { projectId?: string }, options?: { enabled?: boolean }) {
-  const query = input?.query
+export function useDockerContainerList(
+    input?: DockerContainerListContractInput & { projectId?: string },
+    options?: { enabled?: boolean }
+) {
+    const query = input?.query
 
-  return useQuery(
-    dockerEndpoints.containers.list.queryOptions({
-      input: {
-        query: {
-          limit: query?.limit ?? 100,
-          offset: query?.offset ?? 0,
-          sortBy: query?.sortBy,
-          sortDirection: query?.sortDirection,
-          filter: {
-            ...(query?.filter ?? {}),
-            ...(input?.projectId ? { projectId: { operator: 'eq', value: input.projectId } } : {}),
-          },
-        },
-      },
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.list.queryOptions({
+            input: {
+                query: {
+                    limit: query?.limit ?? 100,
+                    offset: query?.offset ?? 0,
+                    sortBy: query?.sortBy,
+                    sortDirection: query?.sortDirection,
+                    filter: {
+                        ...(query?.filter ?? {}),
+                        ...(input?.projectId
+                            ? {
+                                  projectId: {
+                                      operator: 'eq',
+                                      value: input.projectId,
+                                  },
+                              }
+                            : {}),
+                    },
+                },
+            },
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerContainerGroupedList(
-  input?: DockerContainerGroupedListContractInput & { projectId?: string },
-  options?: { enabled?: boolean },
+    input?: DockerContainerGroupedListContractInput & { projectId?: string },
+    options?: { enabled?: boolean }
 ) {
-  const query = input?.query
+    const query = input?.query
 
-  return useQuery(
-    dockerEndpoints.containers.grouped.queryOptions({
-      input: {
-        query: {
-          limit: query?.limit ?? 100,
-          offset: query?.offset ?? 0,
-          ...(query?.sortBy ? { sortBy: query.sortBy } : {}),
-          ...(query?.sortDirection ? { sortDirection: query.sortDirection } : {}),
-          ...(query?.filter ? { filter: query.filter } : {}),
-        },
-      },
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.grouped.queryOptions({
+            input: {
+                query: {
+                    limit: query?.limit ?? 100,
+                    offset: query?.offset ?? 0,
+                    ...(query?.sortBy ? { sortBy: query.sortBy } : {}),
+                    ...(query?.sortDirection
+                        ? { sortDirection: query.sortDirection }
+                        : {}),
+                    ...(query?.filter ? { filter: query.filter } : {}),
+                },
+            },
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
-export function useDockerContainerLinkedList(input?: LinkedContainerQueryInput) {
-  return useQuery(
-    dockerEndpoints.containers.linked.queryOptions({
-      input: {
-        query: {
-          limit: input?.query?.limit ?? 100,
-          offset: input?.query?.offset ?? 0,
-          include: input?.include,
-          maxDepth: input?.maxDepth,
-        },
-      },
-      refetchInterval: false,
-    }),
-  )
+export function useDockerContainerLinkedList(
+    input?: LinkedContainerQueryInput
+) {
+    return useQuery(
+        dockerEndpoints.containers.linked.queryOptions({
+            input: {
+                query: {
+                    limit: input?.query?.limit ?? 100,
+                    offset: input?.query?.offset ?? 0,
+                    include: input?.include,
+                    maxDepth: input?.maxDepth,
+                },
+            },
+            refetchInterval: false,
+        })
+    )
 }
 
-export function useDockerImageList(input?: QueryInput & { projectId?: string }) {
-  return useQuery(
-    dockerEndpoints.images.list.queryOptions({
-      input: {
-        query: {
-          limit: input?.query?.limit ?? 100,
-          offset: input?.query?.offset ?? 0,
-          ...(input?.projectId ? { filter: { projectId: { operator: 'eq', value: input.projectId } } } : {}),
-        },
-      },
-      staleTime: 0,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: true,
-      refetchInterval: false,
-    }),
-  )
+export function useDockerImageList(
+    input?: QueryInput & { projectId?: string }
+) {
+    return useQuery(
+        dockerEndpoints.images.list.queryOptions({
+            input: {
+                query: {
+                    limit: input?.query?.limit ?? 100,
+                    offset: input?.query?.offset ?? 0,
+                    ...(input?.projectId
+                        ? {
+                              filter: {
+                                  projectId: {
+                                      operator: 'eq',
+                                      value: input.projectId,
+                                  },
+                              },
+                          }
+                        : {}),
+                },
+            },
+            staleTime: 0,
+            refetchOnMount: 'always',
+            refetchOnWindowFocus: true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerNetworkList(input?: QueryInput) {
-  return useQuery(
-    dockerEndpoints.networks.list.queryOptions({
-      input: {
-        query: {
-          limit: input?.query?.limit ?? 100,
-          offset: input?.query?.offset ?? 0,
-        },
-      },
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.networks.list.queryOptions({
+            input: {
+                query: {
+                    limit: input?.query?.limit ?? 100,
+                    offset: input?.query?.offset ?? 0,
+                },
+            },
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerVolumeList(input?: QueryInput) {
-  return useQuery(
-    dockerEndpoints.volumes.list.queryOptions({
-      input: {
-        query: {
-          limit: input?.query?.limit ?? 100,
-          offset: input?.query?.offset ?? 0,
-        },
-      },
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.volumes.list.queryOptions({
+            input: {
+                query: {
+                    limit: input?.query?.limit ?? 100,
+                    offset: input?.query?.offset ?? 0,
+                },
+            },
+            refetchInterval: false,
+        })
+    )
 }
 
 type DockerRuntimeEventsStreamInput = Parameters<
-  typeof dockerEndpoints.runtime.stream.experimental_liveObservableOptions
+    typeof dockerEndpoints.runtime.stream.experimental_liveObservableOptions
 >[0]['input']
 
 type DockerRuntimeActivityListInput = Parameters<
-  typeof dockerEndpoints.runtime.activity.list.queryOptions
+    typeof dockerEndpoints.runtime.activity.list.queryOptions
 >[0]['input']
 
 type DockerRuntimeActivityDetailInput = Parameters<
-  typeof dockerEndpoints.runtime.activity.detail.queryOptions
+    typeof dockerEndpoints.runtime.activity.detail.queryOptions
 >[0]['input']
 
 type DockerContainerInspectStreamInput = Parameters<
-  typeof dockerEndpoints.containers.streams.inspect.experimental_liveObservableOptions
+    typeof dockerEndpoints.containers.streams.inspect.experimental_liveObservableOptions
 >[0]['input']
 
 type DockerContainerInspectInput = Parameters<
-  typeof dockerEndpoints.containers.inspect.queryOptions
+    typeof dockerEndpoints.containers.inspect.queryOptions
 >[0]['input']
 
 type DockerContainerLogsStreamInput = Parameters<
-  typeof dockerEndpoints.containers.streams.logs.experimental_streamedObservableOptions
+    typeof dockerEndpoints.containers.streams.logs.experimental_streamedObservableOptions
 >[0]['input']
 
 type DockerContainerLogsSnapshotInput = Parameters<
-  typeof dockerEndpoints.containers.logs.list.queryOptions
+    typeof dockerEndpoints.containers.logs.list.queryOptions
 >[0]['input']
 
 type DockerContainerProcessesInput = Parameters<
-  typeof dockerEndpoints.containers.processes.list.queryOptions
+    typeof dockerEndpoints.containers.processes.list.queryOptions
 >[0]['input']
 
 type DockerContainerProcessesStreamInput = Parameters<
-  typeof dockerEndpoints.containers.streams.processes.experimental_liveObservableOptions
+    typeof dockerEndpoints.containers.streams.processes.experimental_liveObservableOptions
 >[0]['input']
 
 type DockerContainerProcessLogsStreamInput = Parameters<
-  typeof dockerEndpoints.containers.streams.processLogs.experimental_streamedObservableOptions
+    typeof dockerEndpoints.containers.streams.processLogs.experimental_streamedObservableOptions
 >[0]['input']
 
 type DockerContainerFilesInput = Parameters<
-  typeof dockerEndpoints.containers.filesystem.list.queryOptions
+    typeof dockerEndpoints.containers.filesystem.list.queryOptions
 >[0]['input']
 
 type DockerContainerReadFileInput = Parameters<
-  typeof dockerEndpoints.containers.filesystem.read.queryOptions
+    typeof dockerEndpoints.containers.filesystem.read.queryOptions
 >[0]['input']
 
 type DockerImageInspectStreamInput = Parameters<
-  typeof dockerEndpoints.images.streams.inspect.experimental_liveObservableOptions
+    typeof dockerEndpoints.images.streams.inspect.experimental_liveObservableOptions
 >[0]['input']
 
 type DockerImageInspectInput = Parameters<
-  typeof dockerEndpoints.images.inspect.queryOptions
+    typeof dockerEndpoints.images.inspect.queryOptions
 >[0]['input']
 
 type DockerImageSecurityScanStreamInput = Parameters<
-  typeof dockerEndpoints.images.security.scanning.stream.experimental_streamedObservableOptions
+    typeof dockerEndpoints.images.security.scanning.stream.experimental_streamedObservableOptions
 >[0]['input']
 
-type DockerRuntimeEventFilterInput = NonNullable<DockerRuntimeEventsStreamInput['query']>['filter']
+type DockerRuntimeEventFilterInput = NonNullable<
+    DockerRuntimeEventsStreamInput['query']
+>['filter']
 type DockerRuntimeScope = Exclude<DockerRuntimeEvent['source'], 'unknown'>
 
 export interface DockerRuntimeScopeSelection<
-  Scope extends DockerRuntimeScope = DockerRuntimeScope,
-  Actions extends readonly string[] | undefined = readonly string[] | undefined,
+    Scope extends DockerRuntimeScope = DockerRuntimeScope,
+    Actions extends readonly string[] | undefined =
+        readonly string[] | undefined,
 > {
-  scope: Scope
-  actions?: Actions
+    scope: Scope
+    actions?: Actions
 }
 
 type DockerRuntimeScopeSelections = readonly DockerRuntimeScopeSelection[]
 
 export type DockerRuntimeTypedStreamInput<
-  Selections extends DockerRuntimeScopeSelections | undefined = undefined,
+    Selections extends DockerRuntimeScopeSelections | undefined = undefined,
 > = DockerRuntimeEventsStreamInput & {
-  readonly __scopeSelections?: Selections
+    readonly __scopeSelections?: Selections
 }
 
 type DockerRuntimeEventFromSelections<
-  Selections extends DockerRuntimeScopeSelections | undefined,
+    Selections extends DockerRuntimeScopeSelections | undefined,
 > = Selections extends DockerRuntimeScopeSelections
-  ? Extract<DockerRuntimeEvent, { source: Selections[number]['scope'] }>
-  : DockerRuntimeEvent
+    ? Extract<DockerRuntimeEvent, { source: Selections[number]['scope'] }>
+    : DockerRuntimeEvent
 
-export type DockerRuntimeEventFromTypedInput<Input> = Input extends DockerRuntimeTypedStreamInput<
-  infer Selections
->
-  ? DockerRuntimeEventFromSelections<Selections>
-  : DockerRuntimeEvent
+export type DockerRuntimeEventFromTypedInput<Input> =
+    Input extends DockerRuntimeTypedStreamInput<infer Selections>
+        ? DockerRuntimeEventFromSelections<Selections>
+        : DockerRuntimeEvent
 
 interface BuildDockerRuntimeStreamInputOptions<
-  Selections extends DockerRuntimeScopeSelections | undefined = undefined,
+    Selections extends DockerRuntimeScopeSelections | undefined = undefined,
 > {
-  since?: string
-  until?: string
-  filter?: DockerRuntimeEventFilterInput
-  scopes?: Selections
+    since?: string
+    until?: string
+    filter?: DockerRuntimeEventFilterInput
+    scopes?: Selections
 }
 
 interface DockerScopedEventsStreamInput<
-  Actions extends readonly string[] | undefined = readonly string[] | undefined,
+    Actions extends readonly string[] | undefined =
+        readonly string[] | undefined,
 > {
-  query?: {
-    since?: string
-    until?: string
-    actions?: Actions
-    filter?: DockerRuntimeEventFilterInput
-  }
+    query?: {
+        since?: string
+        until?: string
+        actions?: Actions
+        filter?: DockerRuntimeEventFilterInput
+    }
 }
 
 type DockerRuntimeExceptionalSelectionTuple<
-  Scopes extends readonly DockerRuntimeScope[] | undefined,
+    Scopes extends readonly DockerRuntimeScope[] | undefined,
 > = Scopes extends readonly DockerRuntimeScope[]
-  ? {
-      [K in keyof Scopes]: Scopes[K] extends DockerRuntimeScope
-        ? DockerRuntimeScopeSelection<Scopes[K], readonly string[]>
-        : never
-    }
-  : readonly DockerRuntimeScopeSelection[]
+    ? {
+          [K in keyof Scopes]: Scopes[K] extends DockerRuntimeScope
+              ? DockerRuntimeScopeSelection<Scopes[K], readonly string[]>
+              : never
+      }
+    : readonly DockerRuntimeScopeSelection[]
 
-const DEFAULT_DOCKER_DOMAIN_STREAM_INPUT: DockerScopedEventsStreamInput = { query: {} }
+const DEFAULT_DOCKER_DOMAIN_STREAM_INPUT: DockerScopedEventsStreamInput = {
+    query: {},
+}
 
-const EXCEPTIONAL_ACTIONS_BY_SCOPE: Record<DockerRuntimeScope, readonly string[]> = {
-  container: ['create', 'update', 'rename', 'start', 'stop', 'die', 'kill', 'pause', 'unpause', 'destroy', 'delete'],
-  image: ['create', 'update', 'pull', 'tag', 'untag', 'destroy', 'delete', 'scan_queued', 'scan_start', 'scan_progress', 'scan_complete', 'scan_error'],
-  network: ['create', 'update', 'connect', 'disconnect', 'destroy', 'delete'],
-  volume: ['create', 'update', 'mount', 'unmount', 'destroy', 'delete'],
-  daemon: ['start', 'stop', 'restart', 'reload', 'update'],
-  service: ['create', 'update', 'remove', 'delete'],
-  node: ['create', 'update', 'remove', 'delete'],
-  task: ['create', 'update', 'remove', 'delete'],
-  secret: ['create', 'update', 'remove', 'delete'],
-  config: ['create', 'update', 'remove', 'delete'],
-  builder: ['create', 'update', 'destroy', 'delete'],
+const EXCEPTIONAL_ACTIONS_BY_SCOPE: Record<
+    DockerRuntimeScope,
+    readonly string[]
+> = {
+    container: [
+        'create',
+        'update',
+        'rename',
+        'start',
+        'stop',
+        'die',
+        'kill',
+        'pause',
+        'unpause',
+        'destroy',
+        'delete',
+    ],
+    image: [
+        'create',
+        'update',
+        'pull',
+        'tag',
+        'untag',
+        'destroy',
+        'delete',
+        'scan_queued',
+        'scan_start',
+        'scan_progress',
+        'scan_complete',
+        'scan_error',
+    ],
+    network: ['create', 'update', 'connect', 'disconnect', 'destroy', 'delete'],
+    volume: ['create', 'update', 'mount', 'unmount', 'destroy', 'delete'],
+    daemon: ['start', 'stop', 'restart', 'reload', 'update'],
+    service: ['create', 'update', 'remove', 'delete'],
+    node: ['create', 'update', 'remove', 'delete'],
+    task: ['create', 'update', 'remove', 'delete'],
+    secret: ['create', 'update', 'remove', 'delete'],
+    config: ['create', 'update', 'remove', 'delete'],
+    builder: ['create', 'update', 'destroy', 'delete'],
 }
 
 const DEFAULT_EXCEPTIONAL_SCOPE_SELECTIONS: readonly DockerRuntimeScopeSelection[] =
-  (Object.entries(EXCEPTIONAL_ACTIONS_BY_SCOPE) as [DockerRuntimeScope, readonly string[]][])
-    .map(([scope, actions]) => ({ scope, actions }))
+    (
+        Object.entries(EXCEPTIONAL_ACTIONS_BY_SCOPE) as [
+            DockerRuntimeScope,
+            readonly string[],
+        ][]
+    ).map(([scope, actions]) => ({ scope, actions }))
 
 function mergeRuntimeFilters(
-  scopeFilter: DockerRuntimeEventFilterInput | undefined,
-  extraFilter: DockerRuntimeEventFilterInput | undefined,
+    scopeFilter: DockerRuntimeEventFilterInput | undefined,
+    extraFilter: DockerRuntimeEventFilterInput | undefined
 ): DockerRuntimeEventFilterInput | undefined {
-  if (!scopeFilter) {
-    return extraFilter
-  }
+    if (!scopeFilter) {
+        return extraFilter
+    }
 
-  if (!extraFilter) {
-    return scopeFilter
-  }
-
-  return {
-    _and: [isRecord(scopeFilter) ? scopeFilter : {}, isRecord(extraFilter) ? extraFilter : {}],
-  }
-}
-
-function buildScopeFilter(scopes: readonly DockerRuntimeScopeSelection[]): DockerRuntimeEventFilterInput | undefined {
-  if (scopes.length === 0) {
-    return undefined
-  }
-
-  const nodes = scopes.map((selection) => {
-    const normalizedActions = (selection.actions ?? [])
-      .map((action) => action.trim())
-      .filter((action) => action.length > 0)
+    if (!extraFilter) {
+        return scopeFilter
+    }
 
     return {
-      source: {
-        operator: 'eq' as const,
-        value: selection.scope,
-      },
-      ...(normalizedActions.length > 0
-        ? {
-            action: {
-              operator: 'in' as const,
-              value: normalizedActions,
-            },
-          }
-        : {}),
+        _and: [
+            isRecord(scopeFilter) ? scopeFilter : {},
+            isRecord(extraFilter) ? extraFilter : {},
+        ],
     }
-  })
+}
 
-  if (nodes.length === 1) {
-    return nodes[0]
-  }
+function buildScopeFilter(
+    scopes: readonly DockerRuntimeScopeSelection[]
+): DockerRuntimeEventFilterInput | undefined {
+    if (scopes.length === 0) {
+        return undefined
+    }
 
-  return {
-    _or: nodes,
-  }
+    const nodes = scopes.map((selection) => {
+        const normalizedActions = (selection.actions ?? [])
+            .map((action) => action.trim())
+            .filter((action) => action.length > 0)
+
+        return {
+            source: {
+                operator: 'eq' as const,
+                value: selection.scope,
+            },
+            ...(normalizedActions.length > 0
+                ? {
+                      action: {
+                          operator: 'in' as const,
+                          value: normalizedActions,
+                      },
+                  }
+                : {}),
+        }
+    })
+
+    if (nodes.length === 1) {
+        return nodes[0]
+    }
+
+    return {
+        _or: nodes,
+    }
 }
 
 export function buildDockerRuntimeStreamInput<
-  Selections extends DockerRuntimeScopeSelections | undefined = undefined,
+    Selections extends DockerRuntimeScopeSelections | undefined = undefined,
 >(
-  options: BuildDockerRuntimeStreamInputOptions<Selections> = {},
+    options: BuildDockerRuntimeStreamInputOptions<Selections> = {}
 ): DockerRuntimeTypedStreamInput<Selections> {
-  const scopeFilter = buildScopeFilter(options.scopes ?? [])
-  const mergedFilter = mergeRuntimeFilters(scopeFilter, options.filter)
-  const query: Record<string, unknown> = {}
+    const scopeFilter = buildScopeFilter(options.scopes ?? [])
+    const mergedFilter = mergeRuntimeFilters(scopeFilter, options.filter)
+    const query: Record<string, unknown> = {}
 
-  if (options.since) {
-    query.since = options.since
-  }
+    if (options.since) {
+        query.since = options.since
+    }
 
-  if (options.until) {
-    query.until = options.until
-  }
+    if (options.until) {
+        query.until = options.until
+    }
 
-  if (mergedFilter) {
-    query.filter = mergedFilter
-  }
+    if (mergedFilter) {
+        query.filter = mergedFilter
+    }
 
-  return { query }
+    return { query }
 }
 
 export function buildDockerExceptionalRuntimeStreamInput<
-  Scopes extends readonly DockerRuntimeScope[] | undefined = undefined,
+    Scopes extends readonly DockerRuntimeScope[] | undefined = undefined,
 >(
-  scopes?: Scopes,
-): DockerRuntimeTypedStreamInput<DockerRuntimeExceptionalSelectionTuple<Scopes>> {
-  const selectedScopes = scopes && scopes.length > 0
-    ? scopes
-    : (Object.keys(EXCEPTIONAL_ACTIONS_BY_SCOPE) as DockerRuntimeScope[])
+    scopes?: Scopes
+): DockerRuntimeTypedStreamInput<
+    DockerRuntimeExceptionalSelectionTuple<Scopes>
+> {
+    const selectedScopes =
+        scopes && scopes.length > 0
+            ? scopes
+            : (Object.keys(
+                  EXCEPTIONAL_ACTIONS_BY_SCOPE
+              ) as DockerRuntimeScope[])
 
-  return buildDockerRuntimeStreamInput({
-    scopes: selectedScopes.map((scope) => ({
-      scope,
-      actions: EXCEPTIONAL_ACTIONS_BY_SCOPE[scope],
-    })),
-  }) as DockerRuntimeTypedStreamInput<DockerRuntimeExceptionalSelectionTuple<Scopes>>
+    return buildDockerRuntimeStreamInput({
+        scopes: selectedScopes.map((scope) => ({
+            scope,
+            actions: EXCEPTIONAL_ACTIONS_BY_SCOPE[scope],
+        })),
+    }) as DockerRuntimeTypedStreamInput<
+        DockerRuntimeExceptionalSelectionTuple<Scopes>
+    >
 }
 
 const DEFAULT_DOCKER_RUNTIME_STREAM_INPUT = buildDockerRuntimeStreamInput({
-  scopes: DEFAULT_EXCEPTIONAL_SCOPE_SELECTIONS,
+    scopes: DEFAULT_EXCEPTIONAL_SCOPE_SELECTIONS,
 })
 
 function mergeRuntimeScopedInput<
-  Scope extends DockerRuntimeScope,
-  Actions extends readonly string[] | undefined = undefined,
+    Scope extends DockerRuntimeScope,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  source: Scope,
-  input: DockerScopedEventsStreamInput<Actions>,
-): DockerRuntimeTypedStreamInput<readonly [DockerRuntimeScopeSelection<Scope, Actions>]> {
-  const query = input.query ?? {}
+    source: Scope,
+    input: DockerScopedEventsStreamInput<Actions>
+): DockerRuntimeTypedStreamInput<
+    readonly [DockerRuntimeScopeSelection<Scope, Actions>]
+> {
+    const query = input.query ?? {}
 
-  return buildDockerRuntimeStreamInput({
-    since: query.since,
-    until: query.until,
-    filter: query.filter,
-    scopes: [
-      {
-        scope: source,
-        actions: query.actions,
-      },
-    ],
-  })
+    return buildDockerRuntimeStreamInput({
+        since: query.since,
+        until: query.until,
+        filter: query.filter,
+        scopes: [
+            {
+                scope: source,
+                actions: query.actions,
+            },
+        ],
+    })
 }
 
 interface DockerRuntimeEventSubscriptionOptions<
-  Input extends DockerRuntimeTypedStreamInput | DockerRuntimeEventsStreamInput = typeof DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
+    Input extends
+        DockerRuntimeTypedStreamInput | DockerRuntimeEventsStreamInput =
+        typeof DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
 > {
-  enabled?: boolean
-  input?: Input
-  filter?: (event: DockerRuntimeEventFromTypedInput<Input>) => boolean
-  cooldownMs?: number
-  onEvent: (event: DockerRuntimeEventFromTypedInput<Input>) => void
+    enabled?: boolean
+    input?: Input
+    filter?: (event: DockerRuntimeEventFromTypedInput<Input>) => boolean
+    cooldownMs?: number
+    onEvent: (event: DockerRuntimeEventFromTypedInput<Input>) => void
 }
 
 interface DockerRuntimeEventSubscriberOptions {
-  enabled?: boolean
-  filter?: (event: DockerRuntimeEvent) => boolean
-  cooldownMs?: number
-  onEvent: (event: DockerRuntimeEvent) => void
+    enabled?: boolean
+    filter?: (event: DockerRuntimeEvent) => boolean
+    cooldownMs?: number
+    onEvent: (event: DockerRuntimeEvent) => void
 }
 
-type DockerRuntimeStreamStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
+type DockerRuntimeStreamStatus =
+    'connecting' | 'connected' | 'disconnected' | 'error'
 
 export interface DockerRuntimeSseState {
-  status: DockerRuntimeStreamStatus
-  lastError: string | null
+    status: DockerRuntimeStreamStatus
+    lastError: string | null
 }
 
 interface RealtimeMetricsState {
-  timelineByHash: Record<string, DockerContainerMetricPoint[]>
-  latestAtByHash: Record<string, string>
+    timelineByHash: Record<string, DockerContainerMetricPoint[]>
+    latestAtByHash: Record<string, string>
 }
 
 interface UseRealtimeMetricsOptions {
-  enabled?: boolean
-  cooldownMs?: number
-  historySize?: number
-  resolveHash?: (event: DockerRuntimeEvent) => string | null
+    enabled?: boolean
+    cooldownMs?: number
+    historySize?: number
+    resolveHash?: (event: DockerRuntimeEvent) => string | null
 }
 
 interface DockerRuntimeEventsProviderProps {
-  children: ReactNode
-  input?: DockerRuntimeEventsStreamInput
-  enabled?: boolean
-  cooldownMs?: number
+    children: ReactNode
+    input?: DockerRuntimeEventsStreamInput
+    enabled?: boolean
+    cooldownMs?: number
 }
 
 interface RuntimeEventSubscriptionEntry {
-  id: number
-  filter?: (event: DockerRuntimeEvent) => boolean
-  cooldownMs: number
-  lastDispatchedAt: number
-  onEventRef: React.RefObject<(event: DockerRuntimeEvent) => void>
+    id: number
+    filter?: (event: DockerRuntimeEvent) => boolean
+    cooldownMs: number
+    lastDispatchedAt: number
+    onEventRef: React.RefObject<(event: DockerRuntimeEvent) => void>
 }
 
 interface DockerRuntimeEventsContextValue {
-  subscribe: (
-    options: Omit<RuntimeEventSubscriptionEntry, 'id' | 'lastDispatchedAt'>,
-  ) => () => void
-  sseState: DockerRuntimeSseState
+    subscribe: (
+        options: Omit<RuntimeEventSubscriptionEntry, 'id' | 'lastDispatchedAt'>
+    ) => () => void
+    sseState: DockerRuntimeSseState
 }
 
-const DockerRuntimeEventsContext = createContext<DockerRuntimeEventsContextValue | null>(null)
+const DockerRuntimeEventsContext =
+    createContext<DockerRuntimeEventsContextValue | null>(null)
 
 function buildRuntimeEventFingerprint(event: DockerRuntimeEvent): string {
-  const payload: Record<string, unknown> = isRecord(event.payload) ? event.payload : {}
-  const containerId =
-    typeof payload.containerId === 'string' ? payload.containerId : ''
-  const containerName =
-    typeof payload.containerName === 'string' ? payload.containerName : ''
+    const payload: Record<string, unknown> = isRecord(event.payload)
+        ? event.payload
+        : {}
+    const containerId =
+        typeof payload.containerId === 'string' ? payload.containerId : ''
+    const containerName =
+        typeof payload.containerName === 'string' ? payload.containerName : ''
 
-  return [
-    event.eventId ?? '',
-    event.timestamp,
-    event.source,
-    event.action,
-    containerId,
-    containerName,
-  ].join('|')
+    return [
+        event.eventId ?? '',
+        event.timestamp,
+        event.source,
+        event.action,
+        containerId,
+        containerName,
+    ].join('|')
 }
 
 export function useDockerRuntimeEventsHub<
-  Input extends DockerRuntimeTypedStreamInput | DockerRuntimeEventsStreamInput = typeof DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
+    Input extends
+        DockerRuntimeTypedStreamInput | DockerRuntimeEventsStreamInput =
+        typeof DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
 >(
-  input: Input = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT as Input,
-  options?: { enabled?: boolean },
+    input: Input = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT as Input,
+    options?: { enabled?: boolean }
 ) {
-  const streamQuery = useQuery(
-    dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
-      input: input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    const streamQuery = useQuery(
+        dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
+            input: input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 
-  // Memoised on the raw payload: `safeParse` returns a fresh object every call,
-  // and an unstable `event` re-ran every effect/memo that depends on it on each
-  // render, not only when a new event arrived.
-  const { data } = streamQuery
-  const event = useMemo(() => {
-    const parsed = dockerRuntimeEventSchema.safeParse(data)
-    return (parsed.success ? parsed.data : null) as DockerRuntimeEventFromTypedInput<Input> | null
-  }, [data])
+    // Memoised on the raw payload: `safeParse` returns a fresh object every call,
+    // and an unstable `event` re-ran every effect/memo that depends on it on each
+    // render, not only when a new event arrived.
+    const { data } = streamQuery
+    const event = useMemo(() => {
+        const parsed = dockerRuntimeEventSchema.safeParse(data)
+        return (
+            parsed.success ? parsed.data : null
+        ) as DockerRuntimeEventFromTypedInput<Input> | null
+    }, [data])
 
-  return { ...streamQuery, event }
+    return { ...streamQuery, event }
 }
 
-export function  DockerRuntimeEventsProvider({
-  children,
-  input = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
-  enabled = true,
-  cooldownMs = 300,
-}: DockerRuntimeEventsProviderProps) {
-  const runtimeEventsHub = useDockerRuntimeEventsHub(input, { enabled })
-  const { event } = runtimeEventsHub
-
-  // A lazily-created store (not refs): `subscribe` is handed to context
-  // consumers during render, and a ref-reading closure cannot be.
-  const [subscriptionStore] = useState(() => {
-    const entries = new Map<number, RuntimeEventSubscriptionEntry>()
-    let nextId = 0
-    const subscribe: DockerRuntimeEventsContextValue['subscribe'] = (options) => {
-      const id = nextId
-      nextId += 1
-      entries.set(id, { ...options, id, lastDispatchedAt: 0 })
-      return () => {
-        entries.delete(id)
-      }
-    }
-    return { entries, subscribe }
-  })
-  const lastFingerprintRef = useRef<string | null>(null)
-  const lastDispatchAtRef = useRef<number>(0)
-
-  useEffect(() => {
-    if (!enabled || !event) {
-      return
-    }
-
-    const fingerprint = buildRuntimeEventFingerprint(event)
-    if (lastFingerprintRef.current === fingerprint) {
-      return
-    }
-
-    const now = Date.now()
-    if (cooldownMs > 0 && now - lastDispatchAtRef.current < cooldownMs) {
-      lastFingerprintRef.current = fingerprint
-      return
-    }
-
-    lastFingerprintRef.current = fingerprint
-    lastDispatchAtRef.current = now
-
-    for (const subscription of subscriptionStore.entries.values()) {
-      if (subscription.filter && !subscription.filter(event)) {
-        continue
-      }
-
-      if (
-        subscription.cooldownMs > 0
-        && now - subscription.lastDispatchedAt < subscription.cooldownMs
-      ) {
-        continue
-      }
-
-      subscription.lastDispatchedAt = now
-
-      try {
-        subscription.onEventRef.current(event)
-      } catch {
-        // Subscriber handlers should not break other listeners.
-      }
-    }
-  }, [cooldownMs, enabled, event])
-
-  const sseState = useMemo<DockerRuntimeSseState>(() => {
-    const status: DockerRuntimeStreamStatus = runtimeEventsHub.isError
-      ? 'error'
-      : runtimeEventsHub.fetchStatus === 'fetching'
-        ? 'connected'
-        : runtimeEventsHub.isLoading
-          ? 'connecting'
-          : 'disconnected'
-
-    // Deliberately carries no event: the context value must only change when the
-    // connection state does, otherwise every consumer (the containers page reads
-    // just `status`) re-renders on every docker event.
-    return {
-      status,
-      lastError: runtimeEventsHub.isError
-        ? (isDefinedORPCError(runtimeEventsHub.error)
-            ? getErrorMessage(runtimeEventsHub.error, 'Docker runtime stream connection error')
-            : UNKNOWN_ORPC_ERROR_MESSAGE)
-        : null,
-    }
-  }, [runtimeEventsHub.error, runtimeEventsHub.fetchStatus, runtimeEventsHub.isError, runtimeEventsHub.isLoading])
-
-  const contextValue = useMemo<DockerRuntimeEventsContextValue>(
-    () => ({ subscribe: subscriptionStore.subscribe, sseState }),
-    [subscriptionStore, sseState],
-  )
-
-  return createElement(
-    DockerRuntimeEventsContext.Provider,
-    { value: contextValue },
+export function DockerRuntimeEventsProvider({
     children,
-  )
+    input = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
+    enabled = true,
+    cooldownMs = 300,
+}: DockerRuntimeEventsProviderProps) {
+    const runtimeEventsHub = useDockerRuntimeEventsHub(input, { enabled })
+    const { event } = runtimeEventsHub
+
+    // A lazily-created store (not refs): `subscribe` is handed to context
+    // consumers during render, and a ref-reading closure cannot be.
+    const [subscriptionStore] = useState(() => {
+        const entries = new Map<number, RuntimeEventSubscriptionEntry>()
+        let nextId = 0
+        const subscribe: DockerRuntimeEventsContextValue['subscribe'] = (
+            options
+        ) => {
+            const id = nextId
+            nextId += 1
+            entries.set(id, { ...options, id, lastDispatchedAt: 0 })
+            return () => {
+                entries.delete(id)
+            }
+        }
+        return { entries, subscribe }
+    })
+    const lastFingerprintRef = useRef<string | null>(null)
+    const lastDispatchAtRef = useRef<number>(0)
+
+    useEffect(() => {
+        if (!enabled || !event) {
+            return
+        }
+
+        const fingerprint = buildRuntimeEventFingerprint(event)
+        if (lastFingerprintRef.current === fingerprint) {
+            return
+        }
+
+        const now = Date.now()
+        if (cooldownMs > 0 && now - lastDispatchAtRef.current < cooldownMs) {
+            lastFingerprintRef.current = fingerprint
+            return
+        }
+
+        lastFingerprintRef.current = fingerprint
+        lastDispatchAtRef.current = now
+
+        for (const subscription of subscriptionStore.entries.values()) {
+            if (subscription.filter && !subscription.filter(event)) {
+                continue
+            }
+
+            if (
+                subscription.cooldownMs > 0 &&
+                now - subscription.lastDispatchedAt < subscription.cooldownMs
+            ) {
+                continue
+            }
+
+            subscription.lastDispatchedAt = now
+
+            try {
+                subscription.onEventRef.current(event)
+            } catch {
+                // Subscriber handlers should not break other listeners.
+            }
+        }
+    }, [cooldownMs, enabled, event])
+
+    const sseState = useMemo<DockerRuntimeSseState>(() => {
+        const status: DockerRuntimeStreamStatus = runtimeEventsHub.isError
+            ? 'error'
+            : runtimeEventsHub.fetchStatus === 'fetching'
+              ? 'connected'
+              : runtimeEventsHub.isLoading
+                ? 'connecting'
+                : 'disconnected'
+
+        // Deliberately carries no event: the context value must only change when the
+        // connection state does, otherwise every consumer (the containers page reads
+        // just `status`) re-renders on every docker event.
+        return {
+            status,
+            lastError: runtimeEventsHub.isError
+                ? isDefinedORPCError(runtimeEventsHub.error)
+                    ? getErrorMessage(
+                          runtimeEventsHub.error,
+                          'Docker runtime stream connection error'
+                      )
+                    : UNKNOWN_ORPC_ERROR_MESSAGE
+                : null,
+        }
+    }, [
+        runtimeEventsHub.error,
+        runtimeEventsHub.fetchStatus,
+        runtimeEventsHub.isError,
+        runtimeEventsHub.isLoading,
+    ])
+
+    const contextValue = useMemo<DockerRuntimeEventsContextValue>(
+        () => ({ subscribe: subscriptionStore.subscribe, sseState }),
+        [subscriptionStore, sseState]
+    )
+
+    return createElement(
+        DockerRuntimeEventsContext.Provider,
+        { value: contextValue },
+        children
+    )
 }
 
 export function useDockerRuntimeEventSubscriber({
-  enabled = true,
-  filter,
-  cooldownMs = 750,
-  onEvent,
-}: DockerRuntimeEventSubscriberOptions): void {
-  const runtimeEventsContext = useContext(DockerRuntimeEventsContext)
-
-  const onEventRef = useRef(onEvent)
-  const filterRef = useRef(filter)
-  useEffect(() => {
-    onEventRef.current = onEvent
-    filterRef.current = filter
-  }, [onEvent, filter])
-
-  // Callers pass inline closures; subscribing with the closure itself re-subscribed
-  // on every render. The stable wrapper always reads the latest filter.
-  const hasFilter = filter !== undefined
-  const stableFilter = useCallback(
-    (event: DockerRuntimeEvent) => filterRef.current?.(event) ?? true,
-    [],
-  )
-
-  useEffect(() => {
-    if (!enabled || !runtimeEventsContext) {
-      return
-    }
-
-    return runtimeEventsContext.subscribe({
-      filter: hasFilter ? stableFilter : undefined,
-      cooldownMs,
-      onEventRef,
-    })
-  }, [cooldownMs, enabled, hasFilter, runtimeEventsContext, stableFilter])
-
-  useDockerRuntimeEventSubscription({
-    enabled: enabled && runtimeEventsContext === null,
+    enabled = true,
     filter,
-    cooldownMs,
+    cooldownMs = 750,
     onEvent,
-  })
+}: DockerRuntimeEventSubscriberOptions): void {
+    const runtimeEventsContext = useContext(DockerRuntimeEventsContext)
+
+    const onEventRef = useRef(onEvent)
+    const filterRef = useRef(filter)
+    useEffect(() => {
+        onEventRef.current = onEvent
+        filterRef.current = filter
+    }, [onEvent, filter])
+
+    // Callers pass inline closures; subscribing with the closure itself re-subscribed
+    // on every render. The stable wrapper always reads the latest filter.
+    const hasFilter = filter !== undefined
+    const stableFilter = useCallback(
+        (event: DockerRuntimeEvent) => filterRef.current?.(event) ?? true,
+        []
+    )
+
+    useEffect(() => {
+        if (!enabled || !runtimeEventsContext) {
+            return
+        }
+
+        return runtimeEventsContext.subscribe({
+            filter: hasFilter ? stableFilter : undefined,
+            cooldownMs,
+            onEventRef,
+        })
+    }, [cooldownMs, enabled, hasFilter, runtimeEventsContext, stableFilter])
+
+    useDockerRuntimeEventSubscription({
+        enabled: enabled && runtimeEventsContext === null,
+        filter,
+        cooldownMs,
+        onEvent,
+    })
 }
 
 /**
@@ -722,639 +819,701 @@ export function useDockerRuntimeEventSubscriber({
  * forward every event unchanged.
  */
 export function useRealtimeMetrics(
-  containerHashes: string[],
-  {
-    enabled = true,
-    cooldownMs = 1000,
-    historySize = 90,
-    resolveHash,
-  }: UseRealtimeMetricsOptions = {},
-): RealtimeMetricsState {
-  const [state, appendPoint] = useReducer(
-    (
-      previous: RealtimeMetricsState,
-      action: { hash: string; point: DockerContainerMetricPoint; at: string; historySize: number },
-    ): RealtimeMetricsState => {
-      const timeline = previous.timelineByHash[action.hash] ?? []
-      return {
-        timelineByHash: {
-          ...previous.timelineByHash,
-          [action.hash]: [...timeline, action.point].slice(-action.historySize),
-        },
-        latestAtByHash: {
-          ...previous.latestAtByHash,
-          [action.hash]: action.at,
-        },
-      }
-    },
-    { timelineByHash: {}, latestAtByHash: {} },
-  )
-
-  const hashFilterSet = useMemo(() => {
-    return new Set(containerHashes.map((value) => value.trim()).filter((value) => value.length > 0))
-  }, [containerHashes])
-
-  const streamQuery = useDockerContainerEventsStream(
-    { query: {} },
+    containerHashes: string[],
     {
-      enabled: enabled && hashFilterSet.size > 0,
-    },
-  )
+        enabled = true,
+        cooldownMs = 1000,
+        historySize = 90,
+        resolveHash,
+    }: UseRealtimeMetricsOptions = {}
+): RealtimeMetricsState {
+    const [state, appendPoint] = useReducer(
+        (
+            previous: RealtimeMetricsState,
+            action: {
+                hash: string
+                point: DockerContainerMetricPoint
+                at: string
+                historySize: number
+            }
+        ): RealtimeMetricsState => {
+            const timeline = previous.timelineByHash[action.hash] ?? []
+            return {
+                timelineByHash: {
+                    ...previous.timelineByHash,
+                    [action.hash]: [...timeline, action.point].slice(
+                        -action.historySize
+                    ),
+                },
+                latestAtByHash: {
+                    ...previous.latestAtByHash,
+                    [action.hash]: action.at,
+                },
+            }
+        },
+        { timelineByHash: {}, latestAtByHash: {} }
+    )
 
-  const lastFingerprintRef = useRef<string | null>(null)
-  const lastDispatchAtRef = useRef<number>(0)
+    const hashFilterSet = useMemo(() => {
+        return new Set(
+            containerHashes
+                .map((value) => value.trim())
+                .filter((value) => value.length > 0)
+        )
+    }, [containerHashes])
 
-  useEffect(() => {
-    if (!enabled || hashFilterSet.size === 0 || !streamQuery.data) {
-      return
-    }
+    const streamQuery = useDockerContainerEventsStream(
+        { query: {} },
+        {
+            enabled: enabled && hashFilterSet.size > 0,
+        }
+    )
 
-    const parsedEvent = dockerContainerRuntimeEventSchema.safeParse(streamQuery.data)
-    if (!parsedEvent.success) {
-      return
-    }
+    const lastFingerprintRef = useRef<string | null>(null)
+    const lastDispatchAtRef = useRef<number>(0)
 
-    const event = parsedEvent.data
-    const fingerprint = buildRuntimeEventFingerprint(event)
-    if (lastFingerprintRef.current === fingerprint) {
-      return
-    }
+    useEffect(() => {
+        if (!enabled || hashFilterSet.size === 0 || !streamQuery.data) {
+            return
+        }
 
-    const now = Date.now()
-    if (cooldownMs > 0 && now - lastDispatchAtRef.current < cooldownMs) {
-      lastFingerprintRef.current = fingerprint
-      return
-    }
+        const parsedEvent = dockerContainerRuntimeEventSchema.safeParse(
+            streamQuery.data
+        )
+        if (!parsedEvent.success) {
+            return
+        }
 
-    lastFingerprintRef.current = fingerprint
-    lastDispatchAtRef.current = now
+        const event = parsedEvent.data
+        const fingerprint = buildRuntimeEventFingerprint(event)
+        if (lastFingerprintRef.current === fingerprint) {
+            return
+        }
 
-    const resolvedHash =
-      resolveHash?.(event)
-      ?? event.payload.containerId
-      ?? event.payload.containerName
-      ?? event.actorId
-      ?? null
+        const now = Date.now()
+        if (cooldownMs > 0 && now - lastDispatchAtRef.current < cooldownMs) {
+            lastFingerprintRef.current = fingerprint
+            return
+        }
 
-    if (!resolvedHash || !hashFilterSet.has(resolvedHash)) {
-      return
-    }
+        lastFingerprintRef.current = fingerprint
+        lastDispatchAtRef.current = now
 
-    const eventTimestamp = event.timestamp
-    const eventPoint = dockerContainerMetricPointSchema.parse({
-      at: eventTimestamp,
-      cpu: 0,
-      memory: 0,
-      networkRxKb: 0,
-      networkTxKb: 0,
-      ioReadKb: 0,
-      ioWriteKb: 0,
-    })
+        const resolvedHash =
+            resolveHash?.(event) ??
+            event.payload.containerId ??
+            event.payload.containerName ??
+            event.actorId ??
+            null
 
-    appendPoint({ hash: resolvedHash, point: eventPoint, at: eventTimestamp, historySize })
-  }, [cooldownMs, enabled, hashFilterSet, historySize, resolveHash, streamQuery.data])
+        if (!resolvedHash || !hashFilterSet.has(resolvedHash)) {
+            return
+        }
 
-  return state
+        const eventTimestamp = event.timestamp
+        const eventPoint = dockerContainerMetricPointSchema.parse({
+            at: eventTimestamp,
+            cpu: 0,
+            memory: 0,
+            networkRxKb: 0,
+            networkTxKb: 0,
+            ioReadKb: 0,
+            ioWriteKb: 0,
+        })
+
+        appendPoint({
+            hash: resolvedHash,
+            point: eventPoint,
+            at: eventTimestamp,
+            historySize,
+        })
+    }, [
+        cooldownMs,
+        enabled,
+        hashFilterSet,
+        historySize,
+        resolveHash,
+        streamQuery.data,
+    ])
+
+    return state
 }
 
 export function useDockerRuntimeEventSubscription<
-  Input extends DockerRuntimeTypedStreamInput | DockerRuntimeEventsStreamInput = typeof DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
+    Input extends
+        DockerRuntimeTypedStreamInput | DockerRuntimeEventsStreamInput =
+        typeof DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
 >({
-  enabled = true,
-  input = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT as Input,
-  filter,
-  cooldownMs = 750,
-  onEvent,
+    enabled = true,
+    input = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT as Input,
+    filter,
+    cooldownMs = 750,
+    onEvent,
 }: DockerRuntimeEventSubscriptionOptions<Input>): void {
-  const { event } = useDockerRuntimeEventsHub(input, { enabled })
+    const { event } = useDockerRuntimeEventsHub(input, { enabled })
 
-  const lastFingerprintRef = useRef<string | null>(null)
-  const lastDispatchAtRef = useRef<number>(0)
+    const lastFingerprintRef = useRef<string | null>(null)
+    const lastDispatchAtRef = useRef<number>(0)
 
-  useEffect(() => {
-    if (!enabled || !event) {
-      return
-    }
+    useEffect(() => {
+        if (!enabled || !event) {
+            return
+        }
 
-    const fingerprint = buildRuntimeEventFingerprint(event)
-    if (lastFingerprintRef.current === fingerprint) {
-      return
-    }
+        const fingerprint = buildRuntimeEventFingerprint(event)
+        if (lastFingerprintRef.current === fingerprint) {
+            return
+        }
 
-    if (filter && !filter(event)) {
-      lastFingerprintRef.current = fingerprint
-      return
-    }
+        if (filter && !filter(event)) {
+            lastFingerprintRef.current = fingerprint
+            return
+        }
 
-    const now = Date.now()
-    if (cooldownMs > 0 && now - lastDispatchAtRef.current < cooldownMs) {
-      lastFingerprintRef.current = fingerprint
-      return
-    }
+        const now = Date.now()
+        if (cooldownMs > 0 && now - lastDispatchAtRef.current < cooldownMs) {
+            lastFingerprintRef.current = fingerprint
+            return
+        }
 
-    lastFingerprintRef.current = fingerprint
-    lastDispatchAtRef.current = now
-    onEvent(event)
-  }, [cooldownMs, enabled, event, filter, onEvent])
+        lastFingerprintRef.current = fingerprint
+        lastDispatchAtRef.current = now
+        onEvent(event)
+    }, [cooldownMs, enabled, event, filter, onEvent])
 }
 
 export function useDockerRuntimeSnapshot(options?: { enabled?: boolean }) {
-  return useQuery(
-    dockerEndpoints.runtime.snapshot.queryOptions({
-      // Omit `include` — the contract returns every entity kind by default.
-      // The query object exists because the contract declares a query schema
-      // (required for the OpenAPI generator to accept the GET).
-      input: { query: {} },
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.runtime.snapshot.queryOptions({
+            // Omit `include` — the contract returns every entity kind by default.
+            // The query object exists because the contract declares a query schema
+            // (required for the OpenAPI generator to accept the GET).
+            input: { query: {} },
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerRuntimeActivityList(
-  input?: DockerRuntimeActivityListInput,
-  options?: { enabled?: boolean },
+    input?: DockerRuntimeActivityListInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.runtime.activity.list.queryOptions({
-      input: input ?? {
-        query: {
-          limit: 200,
-          offset: 0,
-        },
-      },
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.runtime.activity.list.queryOptions({
+            input: input ?? {
+                query: {
+                    limit: 200,
+                    offset: 0,
+                },
+            },
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerRuntimeActivityDetail(
-  input: DockerRuntimeActivityDetailInput,
-  options?: { enabled?: boolean },
+    input: DockerRuntimeActivityDetailInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.runtime.activity.detail.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.runtime.activity.detail.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerRuntimeSseState(
-  input: DockerRuntimeEventsStreamInput = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT,
+    input: DockerRuntimeEventsStreamInput = DEFAULT_DOCKER_RUNTIME_STREAM_INPUT
 ): DockerRuntimeSseState {
-  const runtimeEventsContext = useContext(DockerRuntimeEventsContext)
+    const runtimeEventsContext = useContext(DockerRuntimeEventsContext)
 
-  const streamQuery = useQuery(
-    dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
-      input,
-      enabled: runtimeEventsContext === null,
-      refetchInterval: false,
-    }),
-  )
+    const streamQuery = useQuery(
+        dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
+            input,
+            enabled: runtimeEventsContext === null,
+            refetchInterval: false,
+        })
+    )
 
-  if (runtimeEventsContext) {
-    return runtimeEventsContext.sseState
-  }
+    if (runtimeEventsContext) {
+        return runtimeEventsContext.sseState
+    }
 
-  const status: DockerRuntimeStreamStatus = streamQuery.isError
-    ? 'error'
-    : streamQuery.fetchStatus === 'fetching'
-      ? 'connected'
-      : streamQuery.isLoading
-        ? 'connecting'
-        : 'disconnected'
+    const status: DockerRuntimeStreamStatus = streamQuery.isError
+        ? 'error'
+        : streamQuery.fetchStatus === 'fetching'
+          ? 'connected'
+          : streamQuery.isLoading
+            ? 'connecting'
+            : 'disconnected'
 
-  return {
-    status,
-    lastError: streamQuery.isError
-      ? (isDefinedORPCError(streamQuery.error)
-          ? getErrorMessage(streamQuery.error, 'Docker runtime stream connection error')
-          : UNKNOWN_ORPC_ERROR_MESSAGE)
-      : null,
-  }
+    return {
+        status,
+        lastError: streamQuery.isError
+            ? isDefinedORPCError(streamQuery.error)
+                ? getErrorMessage(
+                      streamQuery.error,
+                      'Docker runtime stream connection error'
+                  )
+                : UNKNOWN_ORPC_ERROR_MESSAGE
+            : null,
+    }
 }
 
-export type DockerRuntimeCatalogEntityKind = 'containers' | 'images' | 'networks' | 'volumes' | 'registries' | 'stacks'
+export type DockerRuntimeCatalogEntityKind =
+    'containers' | 'images' | 'networks' | 'volumes' | 'registries' | 'stacks'
 
 type DockerRuntimeCatalogEntityMap = {
-  [K in DockerRuntimeCatalogEntityKind]: DockerRuntimeCatalog[K][number]
+    [K in DockerRuntimeCatalogEntityKind]: DockerRuntimeCatalog[K][number]
 }
 
-export function useDockerRuntimeEntityDetail<K extends DockerRuntimeCatalogEntityKind>(
-  kind: K,
-  id: string,
-  options?: { enabled?: boolean },
-) {
-  const runtimeSnapshotQuery = useDockerRuntimeSnapshot(options)
-  const entityList = runtimeSnapshotQuery.data?.[kind] ?? []
-  const entity = entityList.find((item) => item.id === id) as DockerRuntimeCatalogEntityMap[K] | undefined
+export function useDockerRuntimeEntityDetail<
+    K extends DockerRuntimeCatalogEntityKind,
+>(kind: K, id: string, options?: { enabled?: boolean }) {
+    const runtimeSnapshotQuery = useDockerRuntimeSnapshot(options)
+    const entityList = runtimeSnapshotQuery.data?.[kind] ?? []
+    const entity = entityList.find((item) => item.id === id) as
+        DockerRuntimeCatalogEntityMap[K] | undefined
 
-  return {
-    ...runtimeSnapshotQuery,
-    data: entity ?? null,
-  }
+    return {
+        ...runtimeSnapshotQuery,
+        data: entity ?? null,
+    }
 }
 
 type DockerScopedRuntimeEvent<Scope extends DockerRuntimeScope> = Extract<
-  DockerRuntimeEvent,
-  { source: Scope }
+    DockerRuntimeEvent,
+    { source: Scope }
 >
 
 function narrowRuntimeEventByScope<Scope extends DockerRuntimeScope>(
-  event: DockerRuntimeEvent | null,
-  scope: Scope,
+    event: DockerRuntimeEvent | null,
+    scope: Scope
 ): DockerScopedRuntimeEvent<Scope> | null {
-  if (event?.source !== scope) {
-    return null
-  }
+    if (event?.source !== scope) {
+        return null
+    }
 
-  return event as DockerScopedRuntimeEvent<Scope>
+    return event as DockerScopedRuntimeEvent<Scope>
 }
 
 function useDockerScopedRuntimeEventsStream<
-  Scope extends DockerRuntimeScope,
-  Actions extends readonly string[] | undefined = undefined,
+    Scope extends DockerRuntimeScope,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  scope: Scope,
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
-  options?: { enabled?: boolean },
+    scope: Scope,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    options?: { enabled?: boolean }
 ) {
-  const streamQuery = useQuery(
-    dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
-      input: mergeRuntimeScopedInput(scope, input),
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    const streamQuery = useQuery(
+        dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
+            input: mergeRuntimeScopedInput(scope, input),
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 
-  const parsed = dockerRuntimeEventSchema.safeParse(streamQuery.data)
+    const parsed = dockerRuntimeEventSchema.safeParse(streamQuery.data)
 
-  return {
-    ...streamQuery,
-    event: parsed.success ? narrowRuntimeEventByScope(parsed.data, scope) : null,
-  }
+    return {
+        ...streamQuery,
+        event: parsed.success
+            ? narrowRuntimeEventByScope(parsed.data, scope)
+            : null,
+    }
 }
 
 export function useDockerContainerEventsStream(
-  input: DockerScopedEventsStreamInput = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT,
-  options?: { enabled?: boolean },
+    input: DockerScopedEventsStreamInput = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT,
+    options?: { enabled?: boolean }
 ) {
-  const streamQuery = useQuery(
-    dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
-      input: mergeRuntimeScopedInput('container', input),
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    const streamQuery = useQuery(
+        dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
+            input: mergeRuntimeScopedInput('container', input),
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 
-  const parsed = dockerContainerRuntimeEventSchema.safeParse(streamQuery.data)
+    const parsed = dockerContainerRuntimeEventSchema.safeParse(streamQuery.data)
 
-  return {
-    ...streamQuery,
-    event: parsed.success ? parsed.data : null,
-  }
+    return {
+        ...streamQuery,
+        event: parsed.success ? parsed.data : null,
+    }
 }
 
 export function useDockerContainerInspectStream(
-  input: DockerContainerInspectStreamInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerInspectStreamInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.streams.inspect.experimental_liveObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.streams.inspect.experimental_liveObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+            }
+        )
+    )
 }
 
 export function useDockerContainerInspect(
-  input: DockerContainerInspectInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerInspectInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.inspect.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.inspect.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerContainerLogsStream(
-  input: DockerContainerLogsStreamInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerLogsStreamInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.streams.logs.experimental_streamedObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-      
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.streams.logs.experimental_streamedObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+            }
+        )
+    )
 }
 
 export function useDockerContainerLogsSnapshot(
-  input: DockerContainerLogsSnapshotInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerLogsSnapshotInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.logs.list.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.logs.list.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerContainerProcesses(
-  input: DockerContainerProcessesInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerProcessesInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.processes.list.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.processes.list.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerContainerProcessesStream(
-  input: DockerContainerProcessesStreamInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerProcessesStreamInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.streams.processes.experimental_liveObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.streams.processes.experimental_liveObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+            }
+        )
+    )
 }
 
 export function useDockerContainerProcessLogsStream(
-  input: DockerContainerProcessLogsStreamInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerProcessLogsStreamInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.streams.processLogs.experimental_streamedObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.streams.processLogs.experimental_streamedObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+            }
+        )
+    )
 }
 
 export function useDockerContainerFiles(
-  input: DockerContainerFilesInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerFilesInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.filesystem.list.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.filesystem.list.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerContainerReadFile(
-  input: DockerContainerReadFileInput,
-  options?: { enabled?: boolean },
+    input: DockerContainerReadFileInput,
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.filesystem.read.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.filesystem.read.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 }
 
 export function useDockerWriteContainerFile() {
-  return useMutation(dockerEndpoints.containers.filesystem.write.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.filesystem.write.mutationOptions()
+    )
 }
 
 export function useDockerDeleteContainerPath() {
-  return useMutation(dockerEndpoints.containers.filesystem.deletePath.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.filesystem.deletePath.mutationOptions()
+    )
 }
 
 export function useDockerRenameContainerPath() {
-  return useMutation(dockerEndpoints.containers.filesystem.renamePath.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.filesystem.renamePath.mutationOptions()
+    )
 }
 
 export function useDockerCreateContainerDirectory() {
-  return useMutation(dockerEndpoints.containers.filesystem.createDirectory.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.filesystem.createDirectory.mutationOptions()
+    )
 }
 
 export function useDockerRunContainerAction() {
-  return useMutation(dockerEndpoints.containers.actions.run.mutationOptions())
+    return useMutation(dockerEndpoints.containers.actions.run.mutationOptions())
 }
 
 export function useDockerOpenContainerTerminalSession() {
-  return useMutation(dockerEndpoints.containers.terminal.open.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.terminal.open.mutationOptions()
+    )
 }
 
 export function useDockerContainerTerminalSessionStream(
-  input: Parameters<typeof dockerEndpoints.containers.terminal.stream.experimental_liveObservableOptions>[0]['input'],
-  options?: { enabled?: boolean },
+    input: Parameters<
+        typeof dockerEndpoints.containers.terminal.stream.experimental_liveObservableOptions
+    >[0]['input'],
+    options?: { enabled?: boolean }
 ) {
-  return useQuery(
-    dockerEndpoints.containers.terminal.stream.experimental_liveObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    return useQuery(
+        dockerEndpoints.containers.terminal.stream.experimental_liveObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+            }
+        )
+    )
 }
 
 export function useDockerSendContainerTerminalInput() {
-  return useMutation(dockerEndpoints.containers.terminal.sendInput.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.terminal.sendInput.mutationOptions()
+    )
 }
 
 export function useDockerCloseContainerTerminalSession() {
-  return useMutation(dockerEndpoints.containers.terminal.close.mutationOptions())
+    return useMutation(
+        dockerEndpoints.containers.terminal.close.mutationOptions()
+    )
 }
 
 export function useDockerImageInspectStream(
-  input: DockerImageInspectStreamInput,
-  options?: { enabled?: boolean },
+    input: DockerImageInspectStreamInput,
+    options?: { enabled?: boolean }
 ) {
-  const query = useQuery(
-    dockerEndpoints.images.streams.inspect.experimental_liveObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    const query = useQuery(
+        dockerEndpoints.images.streams.inspect.experimental_liveObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+            }
+        )
+    )
 
-  const parsed = dockerImageInspectDetailSchema.safeParse(query.data)
+    const parsed = dockerImageInspectDetailSchema.safeParse(query.data)
 
-  return {
-    ...query,
-    detail: parsed.success ? parsed.data : null,
-  }
+    return {
+        ...query,
+        detail: parsed.success ? parsed.data : null,
+    }
 }
 
 export function useDockerImageSecurityScanStream(
-  input: DockerImageSecurityScanStreamInput,
-  options?: { enabled?: boolean },
+    input: DockerImageSecurityScanStreamInput,
+    options?: { enabled?: boolean }
 ) {
-  const query = useQuery(
-    dockerEndpoints.images.security.scanning.stream.experimental_streamedObservableOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-      refetchOnMount: 'always',
-      refetchOnReconnect: 'always',
-    }),
-  )
+    const query = useQuery(
+        dockerEndpoints.images.security.scanning.stream.experimental_streamedObservableOptions(
+            {
+                input,
+                enabled: options?.enabled ?? true,
+                refetchInterval: false,
+                refetchOnMount: 'always',
+                refetchOnReconnect: 'always',
+            }
+        )
+    )
 
-  const events = useMemo(() => {
-    const data = query.data
-    if (!data) {
-      return []
+    const events = useMemo(() => {
+        const data = query.data
+        if (!data) {
+            return []
+        }
+
+        const candidates = Array.isArray(data) ? data : [data]
+        return candidates.flatMap((candidate) => {
+            const parsed =
+                dockerImageSecurityScanEventSchema.safeParse(candidate)
+            return parsed.success ? [parsed.data] : []
+        })
+    }, [query.data])
+
+    return {
+        ...query,
+        event: events.length > 0 ? events[events.length - 1] : null,
+        events,
     }
-
-    const candidates = Array.isArray(data) ? data : [data]
-    return candidates.flatMap((candidate) => {
-      const parsed = dockerImageSecurityScanEventSchema.safeParse(candidate)
-      return parsed.success ? [parsed.data] : []
-    })
-  }, [query.data])
-
-  return {
-    ...query,
-    event: events.length > 0 ? events[events.length - 1] : null,
-    events,
-  }
 }
 
 export function useDockerImageInspect(
-  input: DockerImageInspectInput,
-  options?: { enabled?: boolean },
+    input: DockerImageInspectInput,
+    options?: { enabled?: boolean }
 ) {
-  const query = useQuery(
-    dockerEndpoints.images.inspect.queryOptions({
-      input,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  )
+    const query = useQuery(
+        dockerEndpoints.images.inspect.queryOptions({
+            input,
+            enabled: options?.enabled ?? true,
+            refetchInterval: false,
+        })
+    )
 
-  return query;
+    return query
 }
 
 export function useDockerImageEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
-  options?: { enabled?: boolean },
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    options?: { enabled?: boolean }
 ) {
-  return useDockerScopedRuntimeEventsStream('image', input, options)
+    return useDockerScopedRuntimeEventsStream('image', input, options)
 }
 
 export function useDockerNetworkEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('network', input)
+    return useDockerScopedRuntimeEventsStream('network', input)
 }
 
 export function useDockerVolumeEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('volume', input)
+    return useDockerScopedRuntimeEventsStream('volume', input)
 }
 
 export function useDockerDaemonEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('daemon', input)
+    return useDockerScopedRuntimeEventsStream('daemon', input)
 }
 
 export function useDockerServiceEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('service', input)
+    return useDockerScopedRuntimeEventsStream('service', input)
 }
 
 export function useDockerNodeEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('node', input)
+    return useDockerScopedRuntimeEventsStream('node', input)
 }
 
 export function useDockerSecretEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('secret', input)
+    return useDockerScopedRuntimeEventsStream('secret', input)
 }
 
 export function useDockerConfigEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('config', input)
+    return useDockerScopedRuntimeEventsStream('config', input)
 }
 
 export function useDockerBuilderEventsStream<
-  Actions extends readonly string[] | undefined = undefined,
+    Actions extends readonly string[] | undefined = undefined,
 >(
-  input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>,
+    input: DockerScopedEventsStreamInput<Actions> = DEFAULT_DOCKER_DOMAIN_STREAM_INPUT as DockerScopedEventsStreamInput<Actions>
 ) {
-  return useDockerScopedRuntimeEventsStream('builder', input)
+    return useDockerScopedRuntimeEventsStream('builder', input)
 }
 
 // Compatibility adapters used by existing docker/admin pages, now backed by real APIs.
 export function useDockerDeploymentList(input?: QueryInput) {
-  return useDeploymentList({
-    query: {
-      limit: input?.query?.limit ?? 100,
-      offset: input?.query?.offset ?? 0,
-    },
-  })
+    return useDeploymentList({
+        query: {
+            limit: input?.query?.limit ?? 100,
+            offset: input?.query?.offset ?? 0,
+        },
+    })
 }
 
 export function useDockerServiceList(input?: QueryInput) {
-  return useServiceList({
-    query: {
-      limit: input?.query?.limit ?? 100,
-      offset: input?.query?.offset ?? 0,
-    },
-  })
+    return useServiceList({
+        query: {
+            limit: input?.query?.limit ?? 100,
+            offset: input?.query?.offset ?? 0,
+        },
+    })
 }
 
 export function useDockerFleetServers() {
-  return useFleetServers()
+    return useFleetServers()
 }
 
 export function useDockerMeshEventStreams(input?: QueryInput) {
-  return useMeshEventStreams({
-    query: {
-      limit: input?.query?.limit ?? 100,
-      offset: input?.query?.offset ?? 0,
-    },
-  })
+    return useMeshEventStreams({
+        query: {
+            limit: input?.query?.limit ?? 100,
+            offset: input?.query?.offset ?? 0,
+        },
+    })
 }
 
 export function useDockerMeshSseState() {
-  return useMeshSseState()
+    return useMeshSseState()
 }

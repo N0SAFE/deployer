@@ -1,6 +1,6 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import { isTransientDatabaseError } from "@deployer/events";
+import { isTransientDatabaseError } from '@deployer/events'
 
 /**
  * Database-not-ready handling for the PLATFORM BOOT SEQUENCE.
@@ -16,7 +16,7 @@ import { isTransientDatabaseError } from "@deployer/events";
  * SQLSTATE list.
  */
 export function isDatabaseNotReadyError(error: unknown): boolean {
-    return isTransientDatabaseError(error);
+    return isTransientDatabaseError(error)
 }
 
 /**
@@ -26,31 +26,44 @@ export function isDatabaseNotReadyError(error: unknown): boolean {
  * errors always warn.
  */
 export class DatabaseNotReadyReporter {
-    private warned = false;
+    private warned = false
 
     report(
-        logger: { warn: (message: string) => void; debug: (message: string) => void },
+        logger: {
+            warn: (message: string) => void
+            debug: (message: string) => void
+        },
         label: string,
         message: string,
-        error?: unknown,
+        error?: unknown
     ): void {
         if (error !== undefined && !isDatabaseNotReadyError(error)) {
-            logger.warn(`${label}: ${message}`);
-            return;
+            logger.warn(`${label}: ${message}`)
+            return
         }
         if (this.warned) {
-            logger.debug(`${label} (db not ready): ${message}`);
-            return;
+            logger.debug(`${label} (db not ready): ${message}`)
+            return
         }
-        this.warned = true;
-        logger.warn(`${label} (db not ready yet — retrying as it comes up): ${message}`);
+        this.warned = true
+        logger.warn(
+            `${label} (db not ready yet — retrying as it comes up): ${message}`
+        )
     }
 
     /** The same once-then-debug reporting, as an Effect for services that log through Effect's logger. */
-    reportEffect(label: string, message: string, error?: unknown): Effect.Effect<void> {
-        if (error !== undefined && !isDatabaseNotReadyError(error)) return Effect.logWarning(`${label}: ${message}`);
-        if (this.warned) return Effect.logDebug(`${label} (db not ready): ${message}`);
-        this.warned = true;
-        return Effect.logWarning(`${label} (db not ready yet — retrying as it comes up): ${message}`);
+    reportEffect(
+        label: string,
+        message: string,
+        error?: unknown
+    ): Effect.Effect<void> {
+        if (error !== undefined && !isDatabaseNotReadyError(error))
+            return Effect.logWarning(`${label}: ${message}`)
+        if (this.warned)
+            return Effect.logDebug(`${label} (db not ready): ${message}`)
+        this.warned = true
+        return Effect.logWarning(
+            `${label} (db not ready yet — retrying as it comes up): ${message}`
+        )
     }
 }

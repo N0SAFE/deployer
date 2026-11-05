@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash } from 'node:crypto'
 
 /**
  * The canonical hash an approval is bound to (`SEC-072`).
@@ -10,6 +10,11 @@ import { createHash } from "node:crypto";
  * Here rather than in each service: the peer that files the request and the guard that spends it must agree byte for byte,
  * and two copies of a canonicalisation is how they stop agreeing.
  */
-export function actionHash(procedure: string, ...parts: readonly (string | number)[]): string {
-	return createHash("sha256").update([procedure, ...parts.map(String)].join("\u0000")).digest("hex");
+export function actionHash(
+    procedure: string,
+    ...parts: readonly (string | number)[]
+): string {
+    return createHash('sha256')
+        .update([procedure, ...parts.map(String)].join('\u0000'))
+        .digest('hex')
 }

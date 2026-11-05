@@ -1,39 +1,59 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
 import {
-	dockerodeVolumeListResponseSchema,
-	type DockerodeVolumeListResponse,
-} from "@deployer/contracts-entities";
+    dockerodeVolumeListResponseSchema,
+    type DockerodeVolumeListResponse,
+} from '@deployer/contracts-entities'
 
-import { engineCall } from "../call";
+import { engineCall } from '../call'
 
-import type { DockerError } from "../../errors/errors";
-import type Docker from "dockerode";
+import type { DockerError } from '../../errors/errors'
+import type Docker from 'dockerode'
 
 export type VolumesShape = {
-	/** Volumes on this engine (`GET /volumes`). */
-	/** Creates the named volume unless it exists. A create that loses a race is not an error. */
-	readonly ensure: (name: string) => Effect.Effect<void, DockerError>;
-	/** The named volume, or `DockerNotFound`. */
-	readonly inspect: (name: string) => Effect.Effect<Docker.VolumeInspectInfo, DockerError>;
-	readonly list: () => Effect.Effect<DockerodeVolumeListResponse["Volumes"], DockerError>;
-};
+    /** Volumes on this engine (`GET /volumes`). */
+    /** Creates the named volume unless it exists. A create that loses a race is not an error. */
+    readonly ensure: (name: string) => Effect.Effect<void, DockerError>
+    /** The named volume, or `DockerNotFound`. */
+    readonly inspect: (
+        name: string
+    ) => Effect.Effect<Docker.VolumeInspectInfo, DockerError>
+    readonly list: () => Effect.Effect<
+        DockerodeVolumeListResponse['Volumes'],
+        DockerError
+    >
+}
 
 export function makeVolumes(client: Docker): VolumesShape {
-	return {
-		ensure: Effect.fn("DockerVolumes.ensure")(function* (name) {
-			const exists = yield* engineCall(`inspect volume ${name}`, () => client.getVolume(name).inspect(), `volume '${name}'`).pipe(
-				Effect.as(true),
-				Effect.catchTag("DockerNotFound", () => Effect.succeed(false)),
-			);
-			if (exists) return;
-			yield* engineCall(`create volume ${name}`, () => client.createVolume({ Name: name })).pipe(Effect.ignore);
-		}),
-		inspect: (name) => engineCall(`inspect volume ${name}`, () => client.getVolume(name).inspect(), `volume '${name}'`),
-		list: Effect.fn("DockerVolumes.list")(function* () {
-			return yield* engineCall("list engine volumes", async () =>
-				dockerodeVolumeListResponseSchema.parse(await client.listVolumes()).Volumes,
-			);
-		}),
-	};
+    return {
+        ensure: Effect.fn('DockerVolumes.ensure')(function* (name) {
+            const exists = yield* engineCall(
+                `inspect volume ${name}`,
+                () => client.getVolume(name).inspect(),
+                `volume '${name}'`
+            ).pipe(
+                Effect.as(true),
+                Effect.catchTag('DockerNotFound', () => Effect.succeed(false))
+            )
+            if (exists) return
+            yield* engineCall(`create volume ${name}`, () =>
+                client.createVolume({ Name: name })
+            ).pipe(Effect.ignore)
+        }),
+        inspect: (name) =>
+            engineCall(
+                `inspect volume ${name}`,
+                () => client.getVolume(name).inspect(),
+                `volume '${name}'`
+            ),
+        list: Effect.fn('DockerVolumes.list')(function* () {
+            return yield* engineCall(
+                'list engine volumes',
+                async () =>
+                    dockerodeVolumeListResponseSchema.parse(
+                        await client.listVolumes()
+                    ).Volumes
+            )
+        }),
+    }
 }

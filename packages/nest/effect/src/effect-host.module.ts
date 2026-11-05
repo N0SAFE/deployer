@@ -1,5 +1,5 @@
-import { createGlobalModule } from "./create-module-context";
-import { EffectHost, effectHostProvider } from "./effect-host";
+import { createGlobalModule } from './create-module-context'
+import { EffectHost, effectHostProvider } from './effect-host'
 
 /**
  * The process-wide `EffectHost`.
@@ -9,6 +9,6 @@ import { EffectHost, effectHostProvider } from "./effect-host";
  * one host serve the transport, the adapters and the loops without each module re-providing (and stopping) its own.
  */
 export class EffectHostModule extends createGlobalModule({
-	providers: [effectHostProvider()],
-	exports: [EffectHost],
+    providers: [effectHostProvider()],
+    exports: [EffectHost],
 }) {}

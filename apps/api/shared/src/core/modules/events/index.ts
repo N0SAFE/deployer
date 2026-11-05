@@ -5,13 +5,25 @@
  * API-specific Drizzle schemas.
  */
 
-export * from './events.module';
+export * from './events.module'
 
-export { BaseEventService, BASE_EVENT_SERVICE_SYMBOL, BasePooledEventService, AbstractDomainEventStreamService, CoreEventStreamPoolService, observableToAsyncIterable } from './base/index';
-export { EventContractBuilder, contractBuilder } from '@deployer/events';
-export type { EventContract, EventContracts, EventInput, EventOutput } from '@deployer/events';
+export {
+    BaseEventService,
+    BASE_EVENT_SERVICE_SYMBOL,
+    BasePooledEventService,
+    AbstractDomainEventStreamService,
+    CoreEventStreamPoolService,
+    observableToAsyncIterable,
+} from './base/index'
+export { EventContractBuilder, contractBuilder } from '@deployer/events'
+export type {
+    EventContract,
+    EventContracts,
+    EventInput,
+    EventOutput,
+} from '@deployer/events'
 
 // Local files (stay in API due to DB schema coupling)
-export * from './services/core-event-sync.service';
-export * from './repositories/core-event-stream.repository';
-export * from './outbox/local-event-outbox-dispatcher.service';
+export * from './services/core-event-sync.service'
+export * from './repositories/core-event-stream.repository'
+export * from './outbox/local-event-outbox-dispatcher.service'

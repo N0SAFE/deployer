@@ -15,15 +15,15 @@ import type { DependencyEdgeLike } from '../_utils/dependency-topology'
 
 /** A sub-service, as the graph renders it: identity, kind, its parent, and the live status if any. */
 interface SubServiceGraphNode {
-  id: string
-  name: string
-  type: string
-  parentId: string | null
-  status?: string
+    id: string
+    name: string
+    type: string
+    parentId: string | null
+    status?: string
 }
 
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 /**
  * Aggregated project detail data hook
@@ -32,101 +32,121 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
  * into a single return value. Extracted from the monolithic page.tsx.
  */
 export function useProjectDetail() {
-  const params = useParams<{ projectId: string }>()
-  const projectId = params.projectId
+    const params = useParams<{ projectId: string }>()
+    const projectId = params.projectId
 
-  // Core data queries
-  const { data: projectData, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectId)
-  const { data: servicesData, isLoading: servicesLoading, refetch: refetchServices } = useServiceList({
-    query: { limit: 100, offset: 0 },
-  })
+    // Core data queries
+    const {
+        data: projectData,
+        isLoading: projectLoading,
+        error: projectError,
+        refetch: refetchProject,
+    } = useProject(projectId)
+    const {
+        data: servicesData,
+        isLoading: servicesLoading,
+        refetch: refetchServices,
+    } = useServiceList({
+        query: { limit: 100, offset: 0 },
+    })
 
-  // Filter services to current project — TOP-LEVEL only. Sub-services are
-  // real rows with the same projectId but a non-null parentId; they must
-  // NOT appear as main services in the project's graph/stats.
-  const localServices = useMemo(() => {
-    if (!servicesData?.data) return []
-    return filterProjectTopLevelServices(servicesData.data, projectId)
-  }, [servicesData, projectId])
+    // Filter services to current project — TOP-LEVEL only. Sub-services are
+    // real rows with the same projectId but a non-null parentId; they must
+    // NOT appear as main services in the project's graph/stats.
+    const localServices = useMemo(() => {
+        if (!servicesData?.data) return []
+        return filterProjectTopLevelServices(servicesData.data, projectId)
+    }, [servicesData, projectId])
 
-  // Dependencies per service (N+1 — known issue, needs batch endpoint).
-  // `enabled` guards prevent `:id` template placeholders reaching the API
-  // when a service row is briefly malformed/undefined (e.g. during HMR).
-  //
-  // The flattening lives in `combine` rather than a `useMemo` over the result
-  // array: `useQueries` returns a NEW array each render, so a memo keyed on it
-  // recomputed every time (and the graph re-derived on every keystroke).
-  const { dependencies, subServiceNodes } = useQueries({
-    queries: localServices.map((service) => {
-      const serviceId = service.id
-      return serviceEndpoints.dependencies.list.queryOptions({
-        input: { params: { id: serviceId } },
-        enabled: UUID_RE.test(serviceId),
-      })
-    }),
-    combine: (results) => {
-      const deps: DependencyEdgeLike[] = []
-      const nodes: SubServiceGraphNode[] = []
-      for (const result of results) {
-        deps.push(...(result.data?.dependencies ?? []))
-        collectSubServiceNodes(result.data?.subServices, deps, nodes, null)
-      }
-      return { dependencies: deps, subServiceNodes: nodes }
-    },
-  })
+    // Dependencies per service (N+1 — known issue, needs batch endpoint).
+    // `enabled` guards prevent `:id` template placeholders reaching the API
+    // when a service row is briefly malformed/undefined (e.g. during HMR).
+    //
+    // The flattening lives in `combine` rather than a `useMemo` over the result
+    // array: `useQueries` returns a NEW array each render, so a memo keyed on it
+    // recomputed every time (and the graph re-derived on every keystroke).
+    const { dependencies, subServiceNodes } = useQueries({
+        queries: localServices.map((service) => {
+            const serviceId = service.id
+            return serviceEndpoints.dependencies.list.queryOptions({
+                input: { params: { id: serviceId } },
+                enabled: UUID_RE.test(serviceId),
+            })
+        }),
+        combine: (results) => {
+            const deps: DependencyEdgeLike[] = []
+            const nodes: SubServiceGraphNode[] = []
+            for (const result of results) {
+                deps.push(...(result.data?.dependencies ?? []))
+                collectSubServiceNodes(
+                    result.data?.subServices,
+                    deps,
+                    nodes,
+                    null
+                )
+            }
+            return { dependencies: deps, subServiceNodes: nodes }
+        },
+    })
 
-  // Deployments
-  const { data: deploymentsData, refetch: refetchDeployments } = useDeploymentList({
-    query: {
-      filter: { projectId: { operator: 'eq' as const, value: projectId } },
-      limit: 50,
-      offset: 0,
-    },
-  })
+    // Deployments
+    const { data: deploymentsData, refetch: refetchDeployments } =
+        useDeploymentList({
+            query: {
+                filter: {
+                    projectId: { operator: 'eq' as const, value: projectId },
+                },
+                limit: 50,
+                offset: 0,
+            },
+        })
 
-  const project = useMemo(() => projectData ?? null, [projectData])
-  const deployments = useMemo(() => deploymentsData?.data ?? [], [deploymentsData])
+    const project = useMemo(() => projectData ?? null, [projectData])
+    const deployments = useMemo(
+        () => deploymentsData?.data ?? [],
+        [deploymentsData]
+    )
 
-  /**
-   * Namespace-aware dependency flattening.
-   *
-   * Each top-level service's dependencies response now carries `subServices`
-   * — the sub-service dependency tree (a service is a namespace for everything
-   * below it). The project graph therefore includes:
-   *  - each top-level service's OWN edges, plus
-   *  - every sub-service's edges (recursively), and
-   *  - the sub-service nodes themselves (so those edges have visible ends).
-   */
-  // The page's inline error retry has to retry the reads that actually failed.
-  // `refetchProject` is what carries `error`, but services feed every graph on
-  // the page, so a retry that skipped them would show a stale, half-empty view.
-  const refetch = useCallback(
-    () => Promise.all([refetchProject(), refetchServices()]),
-    [refetchProject, refetchServices],
-  )
+    /**
+     * Namespace-aware dependency flattening.
+     *
+     * Each top-level service's dependencies response now carries `subServices`
+     * — the sub-service dependency tree (a service is a namespace for everything
+     * below it). The project graph therefore includes:
+     *  - each top-level service's OWN edges, plus
+     *  - every sub-service's edges (recursively), and
+     *  - the sub-service nodes themselves (so those edges have visible ends).
+     */
+    // The page's inline error retry has to retry the reads that actually failed.
+    // `refetchProject` is what carries `error`, but services feed every graph on
+    // the page, so a retry that skipped them would show a stale, half-empty view.
+    const refetch = useCallback(
+        () => Promise.all([refetchProject(), refetchServices()]),
+        [refetchProject, refetchServices]
+    )
 
-  return {
-    projectId,
-    project,
-    localServices,
-    subServiceNodes,
-    deployments,
-    dependencies,
-    isLoading: projectLoading || servicesLoading,
-    error: projectError,
-    refetch,
-    refetchDeployments,
-  }
+    return {
+        projectId,
+        project,
+        localServices,
+        subServiceNodes,
+        deployments,
+        dependencies,
+        isLoading: projectLoading || servicesLoading,
+        error: projectError,
+        refetch,
+        refetchDeployments,
+    }
 }
 
 interface SubDepsNodeShape {
-  serviceId?: string
-  serviceName?: string
-  serviceType?: string
-  status?: string
-  state?: string
-  dependencies?: readonly DependencyEdgeLike[]
-  children?: SubDepsNodeShape[]
+    serviceId?: string
+    serviceName?: string
+    serviceType?: string
+    status?: string
+    state?: string
+    dependencies?: readonly DependencyEdgeLike[]
+    children?: SubDepsNodeShape[]
 }
 
 /**
@@ -135,22 +155,22 @@ interface SubDepsNodeShape {
  * graph can render them as nested/grouped nodes.
  */
 function collectSubServiceNodes(
-  subServices: readonly SubDepsNodeShape[] | undefined,
-  deps: DependencyEdgeLike[],
-  nodes: SubServiceGraphNode[],
-  parentServiceId: string | null,
+    subServices: readonly SubDepsNodeShape[] | undefined,
+    deps: DependencyEdgeLike[],
+    nodes: SubServiceGraphNode[],
+    parentServiceId: string | null
 ): void {
-  for (const raw of subServices ?? []) {
-    const node = raw
-    if (!node.serviceId) continue
-    deps.push(...(node.dependencies ?? []))
-    nodes.push({
-      id: node.serviceId,
-      name: node.serviceName ?? 'Unnamed sub-service',
-      type: node.serviceType ?? 'service',
-      parentId: parentServiceId,
-      status: node.status ?? node.state ?? undefined,
-    })
-    collectSubServiceNodes(node.children, deps, nodes, node.serviceId)
-  }
+    for (const raw of subServices ?? []) {
+        const node = raw
+        if (!node.serviceId) continue
+        deps.push(...(node.dependencies ?? []))
+        nodes.push({
+            id: node.serviceId,
+            name: node.serviceName ?? 'Unnamed sub-service',
+            type: node.serviceType ?? 'service',
+            parentId: parentServiceId,
+            status: node.status ?? node.state ?? undefined,
+        })
+        collectSubServiceNodes(node.children, deps, nodes, node.serviceId)
+    }
 }

@@ -16,39 +16,50 @@ import { bffEndpoints } from './endpoints'
  * meant the browser had to know which service owns which fact.
  */
 export function useDashboardOverview() {
-	return useQuery(bffEndpoints.dashboardOverview.queryOptions())
+    return useQuery(bffEndpoints.dashboardOverview.queryOptions())
 }
 
-export function useProjectOverviews(input?: { limit?: number; offset?: number }) {
-	return useQuery(
-		bffEndpoints.listProjectOverviews.queryOptions({ input: { query: input ?? {} } }),
-	)
+export function useProjectOverviews(input?: {
+    limit?: number
+    offset?: number
+}) {
+    return useQuery(
+        bffEndpoints.listProjectOverviews.queryOptions({
+            input: { query: input ?? {} },
+        })
+    )
 }
 
 export function useBffProjectDetail(projectId: string) {
-	return useQuery({
-		...bffEndpoints.projectDetail.queryOptions({ input: { params: { projectId } } }),
-		enabled: projectId.length > 0,
-	})
+    return useQuery({
+        ...bffEndpoints.projectDetail.queryOptions({
+            input: { params: { projectId } },
+        }),
+        enabled: projectId.length > 0,
+    })
 }
 
 export function useBffServiceDetail(serviceId: string) {
-	return useQuery({
-		...bffEndpoints.serviceDetail.queryOptions({ input: { params: { serviceId } } }),
-		enabled: serviceId.length > 0,
-	})
+    return useQuery({
+        ...bffEndpoints.serviceDetail.queryOptions({
+            input: { params: { serviceId } },
+        }),
+        enabled: serviceId.length > 0,
+    })
 }
 
 export function useAnalyticsOverview(timeRange: TimeRange) {
-	return useQuery(
-		bffEndpoints.analyticsOverview.queryOptions({ input: { query: { timeRange } } }),
-	)
+    return useQuery(
+        bffEndpoints.analyticsOverview.queryOptions({
+            input: { query: { timeRange } },
+        })
+    )
 }
 
 export function useAccountOverview() {
-	return useQuery(bffEndpoints.accountOverview.queryOptions())
+    return useQuery(bffEndpoints.accountOverview.queryOptions())
 }
 
 export function useBffFleetOverview() {
-	return useQuery(bffEndpoints.fleetOverview.queryOptions())
+    return useQuery(bffEndpoints.fleetOverview.queryOptions())
 }

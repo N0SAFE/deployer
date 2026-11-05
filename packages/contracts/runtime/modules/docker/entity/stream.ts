@@ -1,11 +1,11 @@
-import { dockerEntityStreamChunkSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { dockerEntityStreamChunkSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-import { dockerEntityStreamInputSchema } from "./shared";
+import { dockerEntityStreamInputSchema } from './shared'
 
 const dockerEntityStreamOps = standard.zod(
-  dockerEntityStreamChunkSchema,
-  "dockerEntityStreamChunk",
+    dockerEntityStreamChunkSchema,
+    'dockerEntityStreamChunk'
 )
 
 /**
@@ -17,12 +17,12 @@ const dockerEntityStreamOps = standard.zod(
  * never has to follow up with an inspect call.
  */
 export const dockerEntityStreamContract = dockerEntityStreamOps
-  .list()
-  .path("/stream")
-  .input((b) => b.query(dockerEntityStreamInputSchema))
-  .output((b) => b.observable(dockerEntityStreamChunkSchema))
-  .errors((e) => [
-    // Docker daemon unreachable / permission errors surface here.
-    ...standardDomainErrorContracts(e),
-  ])
-  .build()
+    .list()
+    .path('/stream')
+    .input((b) => b.query(dockerEntityStreamInputSchema))
+    .output((b) => b.observable(dockerEntityStreamChunkSchema))
+    .errors((e) => [
+        // Docker daemon unreachable / permission errors surface here.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build()

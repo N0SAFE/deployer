@@ -4,7 +4,10 @@ description: Canonical protocol spec for URL-first server connection, remote log
 order: 25
 ---
 
-<DocMeta source="fleet federation secure connect protocol (RFC 6749/7636/8414/8693/8705 aligned)" scope="canonical" />
+<DocMeta
+    source="fleet federation secure connect protocol (RFC 6749/7636/8414/8693/8705 aligned)"
+    scope="canonical"
+/>
 
 ## Purpose
 
@@ -56,13 +59,9 @@ Request:
 
 ```json
 {
-  "remoteUrl": "https://remote.example.com",
-  "displayName": "prod-eu-1",
-  "requestedScopes": [
-    "fleet:read",
-    "fleet:link:create",
-    "org:map:read"
-  ]
+    "remoteUrl": "https://remote.example.com",
+    "displayName": "prod-eu-1",
+    "requestedScopes": ["fleet:read", "fleet:link:create", "org:map:read"]
 }
 ```
 
@@ -70,10 +69,10 @@ Response:
 
 ```json
 {
-  "connectionId": "cnx_01J...",
-  "authorizationUrl": "https://remote.example.com/federation/authorize?...",
-  "codeChallengeMethod": "S256",
-  "expiresAt": "2026-02-25T12:10:00.000Z"
+    "connectionId": "cnx_01J...",
+    "authorizationUrl": "https://remote.example.com/federation/authorize?...",
+    "codeChallengeMethod": "S256",
+    "expiresAt": "2026-02-25T12:10:00.000Z"
 }
 ```
 
@@ -118,12 +117,12 @@ Local calls remote `POST /federation/token`:
 
 ```json
 {
-  "grant_type": "authorization_code",
-  "code": "auth_code",
-  "redirect_uri": "https://local.example.com/fleet/connect/callback",
-  "client_id": "local-server-id",
-  "code_verifier": "pkce-verifier",
-  "requested_token_type": "urn:ietf:params:oauth:token-type:access_token"
+    "grant_type": "authorization_code",
+    "code": "auth_code",
+    "redirect_uri": "https://local.example.com/fleet/connect/callback",
+    "client_id": "local-server-id",
+    "code_verifier": "pkce-verifier",
+    "requested_token_type": "urn:ietf:params:oauth:token-type:access_token"
 }
 ```
 
@@ -131,15 +130,15 @@ Remote response:
 
 ```json
 {
-  "access_token": "...",
-  "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
-  "token_type": "Bearer",
-  "expires_in": 300,
-  "scope": "fleet:read fleet:link:create org:map:read",
-  "actor": {
-    "sub": "admin@remote",
-    "server_id": "srv_remote_01"
-  }
+    "access_token": "...",
+    "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+    "token_type": "Bearer",
+    "expires_in": 300,
+    "scope": "fleet:read fleet:link:create org:map:read",
+    "actor": {
+        "sub": "admin@remote",
+        "server_id": "srv_remote_01"
+    }
 }
 ```
 
@@ -149,16 +148,16 @@ Local calls remote `POST /federation/link` over authenticated channel:
 
 ```json
 {
-  "connectionId": "cnx_01J...",
-  "localServer": {
-    "serverId": "srv_local_01",
-    "baseUrl": "https://local.example.com"
-  },
-  "proof": {
-    "nonce": "n_...",
-    "timestamp": "2026-02-25T12:03:01.000Z",
-    "idempotencyKey": "idem_01J..."
-  }
+    "connectionId": "cnx_01J...",
+    "localServer": {
+        "serverId": "srv_local_01",
+        "baseUrl": "https://local.example.com"
+    },
+    "proof": {
+        "nonce": "n_...",
+        "timestamp": "2026-02-25T12:03:01.000Z",
+        "idempotencyKey": "idem_01J..."
+    }
 }
 ```
 
@@ -166,10 +165,10 @@ Response:
 
 ```json
 {
-  "linkId": "lnk_01J...",
-  "status": "ACTIVE",
-  "peerServerId": "srv_remote_01",
-  "grantedScopes": ["fleet:read", "fleet:link:create", "org:map:read"]
+    "linkId": "lnk_01J...",
+    "status": "ACTIVE",
+    "peerServerId": "srv_remote_01",
+    "grantedScopes": ["fleet:read", "fleet:link:create", "org:map:read"]
 }
 ```
 
@@ -214,11 +213,11 @@ Error envelope:
 
 ```json
 {
-  "error": "REPLAY_DETECTED",
-  "message": "Nonce already consumed",
-  "correlationId": "corr_01J...",
-  "retryable": false,
-  "retryAfterMs": null
+    "error": "REPLAY_DETECTED",
+    "message": "Nonce already consumed",
+    "correlationId": "corr_01J...",
+    "retryable": false,
+    "retryAfterMs": null
 }
 ```
 

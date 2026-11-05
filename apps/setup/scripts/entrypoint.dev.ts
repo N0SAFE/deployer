@@ -16,23 +16,29 @@
  * task per app, so its dependency rebuilds don't fight a second scheduler.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn } from 'node:child_process'
 
-const vite = spawn('bun', ['run', 'dev:vite'], { stdio: 'inherit', shell: true });
-const nest = spawn('bun', ['run', 'dev:nest'], { stdio: 'inherit', shell: true });
+const vite = spawn('bun', ['run', 'dev:vite'], {
+    stdio: 'inherit',
+    shell: true,
+})
+const nest = spawn('bun', ['run', 'dev:nest'], {
+    stdio: 'inherit',
+    shell: true,
+})
 
 // One shutdown path: whichever process dies takes the other with it, so the
 // container never lingers half-alive.
-let shuttingDown = false;
+let shuttingDown = false
 function shutdown(code: number): void {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  vite.kill('SIGTERM');
-  nest.kill('SIGTERM');
-  process.exit(code);
+    if (shuttingDown) return
+    shuttingDown = true
+    vite.kill('SIGTERM')
+    nest.kill('SIGTERM')
+    process.exit(code)
 }
 
-vite.on('exit', (code) => shutdown(code ?? 1));
-nest.on('exit', (code) => shutdown(code ?? 0)); // Nest exiting cleanly = handover done
-process.on('SIGINT', () => shutdown(130));
-process.on('SIGTERM', () => shutdown(143));
+vite.on('exit', (code) => shutdown(code ?? 1))
+nest.on('exit', (code) => shutdown(code ?? 0)) // Nest exiting cleanly = handover done
+process.on('SIGINT', () => shutdown(130))
+process.on('SIGTERM', () => shutdown(143))

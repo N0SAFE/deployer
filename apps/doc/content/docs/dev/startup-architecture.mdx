@@ -17,13 +17,14 @@ see:
 - [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
 - [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
 - `docs/setup-app-refactor-plan.md` — the refactor that replaced it
-</DocCallout>
-
+    </DocCallout>
 
 ## Core Principle
 
 <DocCallout title="Key Rule" tone="warning">
-A module that requires data or a service that is not finished should **NOT start at all**. Do NOT use null providers to hide the problem — use proper dependency waiting patterns.
+    A module that requires data or a service that is not finished should **NOT
+    start at all**. Do NOT use null providers to hide the problem — use proper
+    dependency waiting patterns.
 </DocCallout>
 
 **The application startup is driven by a lifecycle state machine.** Each phase loads only the modules whose dependencies are satisfied. Modules are not loaded eagerly — they are loaded **when their dependencies are ready**.
@@ -88,18 +89,19 @@ flowchart LR
 // BAD: Null provider that hides the real problem
 @Injectable()
 export class DatabaseService {
-  private _db: DB | null = null;
-  
-  get db() {
-    if (!this._db) {
-      throw new Error('Database not initialized'); // Too late!
+    private _db: DB | null = null
+
+    get db() {
+        if (!this._db) {
+            throw new Error('Database not initialized') // Too late!
+        }
+        return this._db
     }
-    return this._db;
-  }
 }
 ```
 
 This pattern is dangerous because:
+
 1. The module "starts" but doesn't work
 2. Runtime errors occur when services try to use the DB
 3. Debugging is hard — the error happens far from the root cause
@@ -117,21 +119,22 @@ await this.lazyModuleLoader.load(() => AuthModule)
 // No polling, no setInterval — pure event-driven DI resolution.
 
 // 1. Define a trigger (in trigger file):
-export const { Bridge: DbReady, Result: DbReadyResult } =
-  createResultBridge(z.object({ initializedAt: z.string() }))
+export const { Bridge: DbReady, Result: DbReadyResult } = createResultBridge(
+    z.object({ initializedAt: z.string() })
+)
 
 // 2. Wire in module:
 providers: [
-  DbReady,
-  injectResult(DbReady, DbReadyResult),  // async useFactory
+    DbReady,
+    injectResult(DbReady, DbReadyResult), // async useFactory
 ]
 
 // 3. Inject in loader:
 @Injectable()
 export class MyLoader implements OnApplicationBootstrap {
-  constructor(
-    private readonly dbReady: DbReadyResult,  // DI blocks until trigger fires
-  ) {}
+    constructor(
+        private readonly dbReady: DbReadyResult // DI blocks until trigger fires
+    ) {}
 }
 ```
 
@@ -139,14 +142,14 @@ export class MyLoader implements OnApplicationBootstrap {
 
 ```typescript
 export enum AppLifecyclePhase {
-  HTTP_SERVER    = 'http_server',     // Raw Express listening, /health responds
-  SETUP_WIZARD   = 'setup_wizard',   // LocalDatabaseModule + SetupWizardApiModule loaded
-  MESH_INIT      = 'mesh_init',      // MeshInitializer sub-app running
-  GLOBAL_DATABASE = 'global_database', // GlobalDatabaseService initialized
-  AUTH           = 'auth',            // AuthModule loaded
-  FEATURES       = 'features',       // Feature modules loaded
-  READY          = 'ready',           // All modules loaded, full functionality
-  ERROR          = 'error',           // Irrecoverable error
+    HTTP_SERVER = 'http_server', // Raw Express listening, /health responds
+    SETUP_WIZARD = 'setup_wizard', // LocalDatabaseModule + SetupWizardApiModule loaded
+    MESH_INIT = 'mesh_init', // MeshInitializer sub-app running
+    GLOBAL_DATABASE = 'global_database', // GlobalDatabaseService initialized
+    AUTH = 'auth', // AuthModule loaded
+    FEATURES = 'features', // Feature modules loaded
+    READY = 'ready', // All modules loaded, full functionality
+    ERROR = 'error', // Irrecoverable error
 }
 ```
 
@@ -157,6 +160,7 @@ export enum AppLifecyclePhase {
 **What loads:** Nothing NestJS. Only raw Express.
 
 **What's available:**
+
 - `/health` endpoint (returns `{ status: "ok", phase: "http_server" }`)
 - CORS middleware
 - The Express server is listening on the configured port
@@ -183,14 +187,15 @@ flowchart LR
 
 The health endpoint uses a **tiered approach**:
 
-| Tier | Handler | When Available | What It Returns |
-|------|---------|----------------|-----------------|
-| **Tier 1** | Express `server.get("/health")` | Phase 0 (immediately) | `{"status": "ok", uptime: ...}` |
-| **Tier 2** | HealthModule via NestJS | Phase 1+ (after NestJS loads) | Full lifecycle info, readiness, liveness |
+| Tier       | Handler                         | When Available                | What It Returns                          |
+| ---------- | ------------------------------- | ----------------------------- | ---------------------------------------- |
+| **Tier 1** | Express `server.get("/health")` | Phase 0 (immediately)         | `{"status": "ok", uptime: ...}`          |
+| **Tier 2** | HealthModule via NestJS         | Phase 1+ (after NestJS loads) | Full lifecycle info, readiness, liveness |
 
 **Why tiered?** Docker liveness probes must work BEFORE NestJS finishes loading. The Express-level handler ensures probes succeed during bootstrap.
 
 **HealthModule advantages** (when loaded in Phase 1):
+
 - Returns lifecycle phase (`bootstrapping`, `ready`, etc.)
 - Includes setup progress information
 - Can check database readiness via `getReadiness()`
@@ -231,15 +236,16 @@ error: GlobalDatabaseService has not been initialized yet
 
 We use the **existing bridge/trigger infrastructure** that already exists in this repo. This is built on `BaseEventService` (the core event system) — everything is event-driven:
 
-| Existing Tool | Built On | Purpose |
-|---|---|---|
-| `createResultBridge(schema)` | `BaseTriggerService` → `BaseEventService` | Creates a `Bridge` trigger + `Result` DI token pair from a Zod schema |
-| `injectResult(Bridge, Result)` | NestJS `useFactory` | Provider factory that resolves `bridge.waitFor()` as a DI token — the Promise resolves when `bridge.emit()` fires |
-| `BaseTriggerService` | `BaseEventService` (Subject + Observable) | Event-based trigger: `emit()` pushes to a Subject, `waitFor()` returns a Promise resolved by the emission |
-| `BaseEventService` | RxJS `Subject` | Core event bus — `emit()` pushes typed events, `subscribe$()` returns `Observable`, `onValue()` subscribes |
-| `LazyModuleLoader` | NestJS built-in | Loads modules on demand |
+| Existing Tool                  | Built On                                  | Purpose                                                                                                           |
+| ------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `createResultBridge(schema)`   | `BaseTriggerService` → `BaseEventService` | Creates a `Bridge` trigger + `Result` DI token pair from a Zod schema                                             |
+| `injectResult(Bridge, Result)` | NestJS `useFactory`                       | Provider factory that resolves `bridge.waitFor()` as a DI token — the Promise resolves when `bridge.emit()` fires |
+| `BaseTriggerService`           | `BaseEventService` (Subject + Observable) | Event-based trigger: `emit()` pushes to a Subject, `waitFor()` returns a Promise resolved by the emission         |
+| `BaseEventService`             | RxJS `Subject`                            | Core event bus — `emit()` pushes typed events, `subscribe$()` returns `Observable`, `onValue()` subscribes        |
+| `LazyModuleLoader`             | NestJS built-in                           | Loads modules on demand                                                                                           |
 
 **The flow is purely event-driven:**
+
 1. `BootstrapOrchestrator` calls `databaseReadyTrigger.emit({ initializedAt })` — this pushes to the internal `Subject`
 2. `BaseTriggerService.waitFor()` resolves the Promise it returned to the DI container
 3. NestJS injects the resolved value into the loader's constructor
@@ -260,17 +266,19 @@ import type { BaseTriggerService } from '@/core/modules/triggers/base-bridge.ser
  * Any loader that needs the database injects this result.
  */
 export const databaseReadySchema = z.object({
-  initializedAt: z.string().min(1),
-  url: z.string().min(1).optional(),
+    initializedAt: z.string().min(1),
+    url: z.string().min(1).optional(),
 })
 
 export type DatabaseReadyPayload = z.infer<typeof databaseReadySchema>
 
 export const { Bridge: DatabaseReadyTrigger, Result: DatabaseReadyResult } =
-  createResultBridge(databaseReadySchema)
+    createResultBridge(databaseReadySchema)
 
 export interface DatabaseReadyResult extends DatabaseReadyPayload {}
-export interface DatabaseReadyTrigger extends BaseTriggerService<typeof databaseReadySchema> {}
+export interface DatabaseReadyTrigger extends BaseTriggerService<
+    typeof databaseReadySchema
+> {}
 ```
 
 ### Step 2: BootstrapOrchestrator Emits the Trigger
@@ -279,30 +287,30 @@ export interface DatabaseReadyTrigger extends BaseTriggerService<typeof database
 // apps/api/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts
 @Injectable()
 export class BootstrapOrchestratorService implements OnApplicationBootstrap {
-  constructor(
-    private readonly globalDatabase: GlobalDatabaseService,
-    private readonly databaseReadyTrigger: DatabaseReadyTrigger,
-    // ... other deps
-  ) {}
+    constructor(
+        private readonly globalDatabase: GlobalDatabaseService,
+        private readonly databaseReadyTrigger: DatabaseReadyTrigger
+        // ... other deps
+    ) {}
 
-  async onApplicationBootstrap(): Promise<void> {
-    // Phase 1-2: Sub-apps (Setup Wizard, Mesh Initializer)
-    // ... existing code ...
+    async onApplicationBootstrap(): Promise<void> {
+        // Phase 1-2: Sub-apps (Setup Wizard, Mesh Initializer)
+        // ... existing code ...
 
-    // Phase 3: Initialize Database
-    const databaseUrl = setupResult?.databaseUrl ?? process.env.DATABASE_URL
-    if (databaseUrl) {
-      await this.globalDatabase.initialize(databaseUrl)
-      // Emit the trigger — any loader that injects DatabaseReadyResult will resolve
-      this.databaseReadyTrigger.emit({
-        initialized: new Date().toISOString(),
-        url: databaseUrl,
-      })
+        // Phase 3: Initialize Database
+        const databaseUrl = setupResult?.databaseUrl ?? process.env.DATABASE_URL
+        if (databaseUrl) {
+            await this.globalDatabase.initialize(databaseUrl)
+            // Emit the trigger — any loader that injects DatabaseReadyResult will resolve
+            this.databaseReadyTrigger.emit({
+                initialized: new Date().toISOString(),
+                url: databaseUrl,
+            })
+        }
+
+        // Phase 6: READY
+        this.lifecycle.markReady()
     }
-
-    // Phase 6: READY
-    this.lifecycle.markReady()
-  }
 }
 ```
 
@@ -327,46 +335,89 @@ import { DatabaseReadyResult } from '@/core/modules/database/global/database-rea
  */
 @Injectable()
 export class FeatureModuleLoader implements OnApplicationBootstrap {
-  private readonly logger = new Logger(FeatureModuleLoader.name)
+    private readonly logger = new Logger(FeatureModuleLoader.name)
 
-  constructor(
-    private readonly lazyModuleLoader: LazyModuleLoader,
-    /** Injected via DI — NestJS waits for DatabaseReadyTrigger.waitFor() */
-    private readonly dbReady: DatabaseReadyResult,
-  ) {}
+    constructor(
+        private readonly lazyModuleLoader: LazyModuleLoader,
+        /** Injected via DI — NestJS waits for DatabaseReadyTrigger.waitFor() */
+        private readonly dbReady: DatabaseReadyResult
+    ) {}
 
-  async onApplicationBootstrap(): Promise<void> {
-    this.logger.log(`🚀 Database ready at ${this.dbReady.initialized}, loading feature modules…`)
+    async onApplicationBootstrap(): Promise<void> {
+        this.logger.log(
+            `🚀 Database ready at ${this.dbReady.initialized}, loading feature modules…`
+        )
 
-    const modules = [
-      () => import('@/modules/health/health.module').then(m => m.HealthModule),
-      () => import('@/modules/user/user.module').then(m => m.UserModule),
-      () => import('@/modules/docker/docker.module').then(m => m.DockerModule),
-      () => import('@/modules/deployment/deployment.module').then(m => m.DeploymentModule),
-      () => import('@/modules/fleet/fleet.module').then(m => m.FleetModule),
-      () => import('@/modules/service/service.module').then(m => m.ServiceModule),
-      () => import('@/modules/project/project.module').then(m => m.ProjectModule),
-      () => import('@/modules/organization/organization.module').then(m => m.OrganizationModule),
-      () => import('@/modules/github/github.module').then(m => m.GithubModule),
-      () => import('@/modules/domain/domain.module').then(m => m.DomainModule),
-      () => import('@/modules/analytics/analytics.module').then(m => m.AnalyticsModule),
-      () => import('@/modules/provider-schema/provider-schema.module').then(m => m.ProviderSchemaModule),
-      () => import('@/modules/push/push.module').then(m => m.PushModule),
-      () => import('@/modules/test/test.module').then(m => m.TestModule),
-      () => import('@/modules/permission/permission.module').then(m => m.PermissionModule),
-      () => import('@/system/system.module').then(m => m.SystemModule),
-    ]
+        const modules = [
+            () =>
+                import('@/modules/health/health.module').then(
+                    (m) => m.HealthModule
+                ),
+            () =>
+                import('@/modules/user/user.module').then((m) => m.UserModule),
+            () =>
+                import('@/modules/docker/docker.module').then(
+                    (m) => m.DockerModule
+                ),
+            () =>
+                import('@/modules/deployment/deployment.module').then(
+                    (m) => m.DeploymentModule
+                ),
+            () =>
+                import('@/modules/fleet/fleet.module').then(
+                    (m) => m.FleetModule
+                ),
+            () =>
+                import('@/modules/service/service.module').then(
+                    (m) => m.ServiceModule
+                ),
+            () =>
+                import('@/modules/project/project.module').then(
+                    (m) => m.ProjectModule
+                ),
+            () =>
+                import('@/modules/organization/organization.module').then(
+                    (m) => m.OrganizationModule
+                ),
+            () =>
+                import('@/modules/github/github.module').then(
+                    (m) => m.GithubModule
+                ),
+            () =>
+                import('@/modules/domain/domain.module').then(
+                    (m) => m.DomainModule
+                ),
+            () =>
+                import('@/modules/analytics/analytics.module').then(
+                    (m) => m.AnalyticsModule
+                ),
+            () =>
+                import('@/modules/provider-schema/provider-schema.module').then(
+                    (m) => m.ProviderSchemaModule
+                ),
+            () =>
+                import('@/modules/push/push.module').then((m) => m.PushModule),
+            () =>
+                import('@/modules/test/test.module').then((m) => m.TestModule),
+            () =>
+                import('@/modules/permission/permission.module').then(
+                    (m) => m.PermissionModule
+                ),
+            () => import('@/system/system.module').then((m) => m.SystemModule),
+        ]
 
-    for (const loadModule of featureModules) {
-      try {
-        const mod = await loadModule()
-        await this.lazyModuleLoader.load(() => mod)
-        this.logger.log(`  ✅ Loaded: ${mod.name}`)
-      } catch (err) {
-        this.logger.warn(`  ⚠️  Failed to load module: ${err instanceof Error ? err.message : String(err)}`)
-      }
+        for (const loadModule of featureModules) {
+            try {
+                const mod = await loadModule()
+                await this.lazyModuleLoader.load(() => mod)
+                this.logger.log(`  ✅ Loaded: ${mod.name}`)
+            } catch (err) {
+                this.logger.warn(
+                    `  ⚠️  Failed to load module: ${err instanceof Error ? err.message : String(err)}`
+                )
+            }
+        }
     }
-  }
 }
 ```
 
@@ -390,28 +441,28 @@ import { createBetterAuth } from '@/config/auth/auth'
  */
 @Injectable()
 export class AuthModuleLoader implements OnApplicationBootstrap {
-  private readonly logger = new Logger(AuthModuleLoader.name)
+    private readonly logger = new Logger(AuthModuleLoader.name)
 
-  constructor(
-    private readonly lazyModuleLoader: LazyModuleLoader,
-    private readonly dbReady: DatabaseReadyResult,
-    private readonly envService: EnvService,
-  ) {}
+    constructor(
+        private readonly lazyModuleLoader: LazyModuleLoader,
+        private readonly dbReady: DatabaseReadyResult,
+        private readonly envService: EnvService
+    ) {}
 
-  async onApplicationBootstrap(): Promise<void> {
-    this.logger.log(`🔐 Database ready, loading AuthModule…`)
+    async onApplicationBootstrap(): Promise<void> {
+        this.logger.log(`🔐 Database ready, loading AuthModule…`)
 
-    await this.lazyModuleLoader.load(() =>
-      AuthModule.forRootAsync({
-        imports: [],
-        useFactory: createBetterAuth,
-        inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
-        disableBodyParser: false,
-        disableGlobalAuthGuard: true,
-      }),
-    )
-    this.logger.log('✅ AuthModule loaded')
-  }
+        await this.lazyModuleLoader.load(() =>
+            AuthModule.forRootAsync({
+                imports: [],
+                useFactory: createBetterAuth,
+                inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
+                disableBodyParser: false,
+                disableGlobalAuthGuard: true,
+            })
+        )
+        this.logger.log('✅ AuthModule loaded')
+    }
 }
 ```
 
@@ -420,28 +471,27 @@ export class AuthModuleLoader implements OnApplicationBootstrap {
 ```typescript
 // apps/api/src/core/modules/loader/loader.module.ts
 import { Module } from '@nestjs/common'
-import { DatabaseReadyTrigger, DatabaseReadyResult } from '@/core/modules/database/global/database-ready.trigger'
+import {
+    DatabaseReadyTrigger,
+    DatabaseReadyResult,
+} from '@/core/modules/database/global/database-ready.trigger'
 import { injectResult } from '@/core/modules/sub-app-runner/bridge.utils'
 import { FeatureModuleLoader } from './feature-module-loader'
 import { AuthModuleLoader } from './auth-module-loader'
 
 @Module({
-  providers: [
-    // Register the trigger so BootstrapOrchestrator can emit
-    DatabaseReadyTrigger,
+    providers: [
+        // Register the trigger so BootstrapOrchestrator can emit
+        DatabaseReadyTrigger,
 
-    // Register the result token — resolves bridge.waitFor() via DI
-    injectResult(DatabaseReadyTrigger, DatabaseReadyResult),
+        // Register the result token — resolves bridge.waitFor() via DI
+        injectResult(DatabaseReadyTrigger, DatabaseReadyResult),
 
-    // Loaders — they inject DatabaseReadyResult, so NestJS waits
-    FeatureModuleLoader,
-    AuthModuleLoader,
-  ],
-  exports: [
-    DatabaseReadyTrigger,
-    FeatureModuleLoader,
-    AuthModuleLoader,
-  ],
+        // Loaders — they inject DatabaseReadyResult, so NestJS waits
+        FeatureModuleLoader,
+        AuthModuleLoader,
+    ],
+    exports: [DatabaseReadyTrigger, FeatureModuleLoader, AuthModuleLoader],
 })
 export class LoaderModule {}
 ```
@@ -451,19 +501,23 @@ export class LoaderModule {}
 ```typescript
 // apps/api/src/main.ts — only references module loaders
 async function bootstrap(): Promise<void> {
-  const server = express()
-  // ... CORS, health endpoint, server.listen() ...
+    const server = express()
+    // ... CORS, health endpoint, server.listen() ...
 
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
-    snapshot: process.env.NODE_ENV !== 'production',
-    bodyParser: false,
-  })
+    const app = await NestFactory.create(
+        AppModule,
+        new ExpressAdapter(server),
+        {
+            snapshot: process.env.NODE_ENV !== 'production',
+            bodyParser: false,
+        }
+    )
 
-  // The loaders are registered in AppModule and run in OnApplicationBootstrap.
-  // Each loader injects its dependencies as DI tokens — NestJS resolves them.
-  // main.ts doesn't need to know about the dependency graph — DI handles it.
-  
-  // ... shutdown hooks, global filters ...
+    // The loaders are registered in AppModule and run in OnApplicationBootstrap.
+    // Each loader injects its dependencies as DI tokens — NestJS resolves them.
+    // main.ts doesn't need to know about the dependency graph — DI handles it.
+
+    // ... shutdown hooks, global filters ...
 }
 ```
 
@@ -520,11 +574,13 @@ flowchart TB
 ### Why This Solves the Error
 
 The `LocalEventOutboxDispatcherService` error happened because:
+
 1. It was loaded eagerly in `AppModule`
 2. Its `onModuleInit()` started a ticker immediately
 3. The ticker called `this.databaseService.db` before Phase 3 completed
 
 With the loader pattern:
+
 1. `LocalEventOutboxDispatcherService` is NOT loaded eagerly — it's loaded by `FeatureModuleLoader`
 2. `FeatureModuleLoader` injects `DatabaseReadyResult` — NestJS blocks until the trigger fires
 3. By the time `LocalEventOutboxDispatcherService.onModuleInit()` runs, the database is ready
@@ -538,7 +594,7 @@ The same pattern works for **any** dependency, not just the database:
 ```typescript
 // 1. Define a trigger for any async dependency
 export const { Bridge: MeshReadyTrigger, Result: MeshReadyResult } =
-  createResultBridge(z.object({ peers: z.number() }))
+    createResultBridge(z.object({ peers: z.number() }))
 
 // 2. Emit when ready
 this.meshReadyTrigger.emit({ peers: 3 })
@@ -546,15 +602,17 @@ this.meshReadyTrigger.emit({ peers: 3 })
 // 3. Inject in any loader
 @Injectable()
 export class MeshDependentLoader implements OnApplicationBootstrap {
-  constructor(
-    private readonly lazyModuleLoader: LazyModuleLoader,
-    private readonly meshReady: MeshReadyResult,  // ← DI blocks until mesh is ready
-  ) {}
+    constructor(
+        private readonly lazyModuleLoader: LazyModuleLoader,
+        private readonly meshReady: MeshReadyResult // ← DI blocks until mesh is ready
+    ) {}
 
-  async onApplicationBootstrap() {
-    this.logger.log(`🌐 Mesh ready with ${this.meshReady.peers} peers, loading modules…`)
-    // ... load modules that need mesh ...
-  }
+    async onApplicationBootstrap() {
+        this.logger.log(
+            `🌐 Mesh ready with ${this.meshReady.peers} peers, loading modules…`
+        )
+        // ... load modules that need mesh ...
+    }
 }
 ```
 
@@ -562,14 +620,14 @@ export class MeshDependentLoader implements OnApplicationBootstrap {
 
 The pattern uses NestJS's own DI mechanism — there's no custom framework, no base class to extend, no lifecycle hooks to implement for dependency resolution:
 
-| Aspect | How it works |
-|---|---|
-| Dependency declaration | `private readonly dbReady: DatabaseReadyResult` — just a constructor parameter |
-| Waiting mechanism | NestJS `useFactory` provider resolves `bridge.waitFor()` — the Promise resolves when `emit()` fires on the `BaseEventService` Subject |
-| Error handling | NestJS throws on injection failure — standard DI error propagation |
-| Testability | Provide `DatabaseReadyResult` directly in test module — no mocking needed |
-| IDE support | Class token — autocomplete, rename refactoring, find usages all work |
-| Reusability | Any loader injects the same token — define once, use everywhere |
+| Aspect                 | How it works                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependency declaration | `private readonly dbReady: DatabaseReadyResult` — just a constructor parameter                                                        |
+| Waiting mechanism      | NestJS `useFactory` provider resolves `bridge.waitFor()` — the Promise resolves when `emit()` fires on the `BaseEventService` Subject |
+| Error handling         | NestJS throws on injection failure — standard DI error propagation                                                                    |
+| Testability            | Provide `DatabaseReadyResult` directly in test module — no mocking needed                                                             |
+| IDE support            | Class token — autocomplete, rename refactoring, find usages all work                                                                  |
+| Reusability            | Any loader injects the same token — define once, use everywhere                                                                       |
 
 ### NestJS Official Patterns (Evidence)
 
@@ -615,21 +673,23 @@ async onApplicationBootstrap() {
 
 **What loads:** Only the modules needed for setup wizard.
 
-| Module | Why loaded | Dependencies |
-|--------|-----------|-------------|
-| `EnvModule` | Provides `EnvService` | None |
-| `AppLifecycleModule` | Provides `AppLifecycleService` | None |
-| `BootstrapModule` | Provides orchestrator + bridges | `EnvModule` |
-| `LocalDatabaseModule` | SQLite config storage | None |
-| `SetupWizardApiModule` | `/setup/*` HTTP routes | `LocalDatabaseModule`, `EnvModule` |
-| `ORPCModule` | ORPC contract routing | None |
+| Module                 | Why loaded                      | Dependencies                       |
+| ---------------------- | ------------------------------- | ---------------------------------- |
+| `EnvModule`            | Provides `EnvService`           | None                               |
+| `AppLifecycleModule`   | Provides `AppLifecycleService`  | None                               |
+| `BootstrapModule`      | Provides orchestrator + bridges | `EnvModule`                        |
+| `LocalDatabaseModule`  | SQLite config storage           | None                               |
+| `SetupWizardApiModule` | `/setup/*` HTTP routes          | `LocalDatabaseModule`, `EnvModule` |
+| `ORPCModule`           | ORPC contract routing           | None                               |
 
 **What is NOT loaded:**
+
 - ❌ `GlobalDatabaseModule` (no DATABASE_URL yet)
 - ❌ `AuthModule` (no DB yet)
 - ❌ All feature modules (HealthModule, UserModule, DockerModule, etc.)
 
 **HTTP endpoints mapped during this phase:**
+
 - `/health` (raw Express)
 - `/setup/*` (SetupWizardController via ORPC)
 - ORPC contract routes (empty contract — only setup routes)
@@ -695,12 +755,12 @@ async onApplicationBootstrap(): Promise<void> {
 
 **The setup wizard sub-app** is an isolated NestJS context running `SetupWizardAppModule`. It determines the database URL:
 
-| Scenario | Action |
-|----------|--------|
-| Node already configured | Read persisted URL from SQLite config, fire bridge immediately |
-| `DATABASE_URL` set in env | Fire bridge with the URL |
-| `DEV_AUTO_SETUP=true` | Auto-provision Postgres via Docker, await completion, fire bridge |
-| Neither | Wait for user via `/setup/*` API endpoints |
+| Scenario                  | Action                                                            |
+| ------------------------- | ----------------------------------------------------------------- |
+| Node already configured   | Read persisted URL from SQLite config, fire bridge immediately    |
+| `DATABASE_URL` set in env | Fire bridge with the URL                                          |
+| `DEV_AUTO_SETUP=true`     | Auto-provision Postgres via Docker, await completion, fire bridge |
+| Neither                   | Wait for user via `/setup/*` API endpoints                        |
 
 ---
 
@@ -708,13 +768,14 @@ async onApplicationBootstrap(): Promise<void> {
 
 **What loads:** Only the mesh initializer sub-app.
 
-| Module | Why loaded | Dependencies |
-|--------|-----------|-------------|
-| `MeshInitializerAppModule` | Mesh discovery | `SetupWizardBridge` (forwarded) |
-| `MeshInitializationModule` | Mesh peer connection | None |
-| `LocalDatabaseModule` | Read mesh URLs from config | None |
+| Module                     | Why loaded                 | Dependencies                    |
+| -------------------------- | -------------------------- | ------------------------------- |
+| `MeshInitializerAppModule` | Mesh discovery             | `SetupWizardBridge` (forwarded) |
+| `MeshInitializationModule` | Mesh peer connection       | None                            |
+| `LocalDatabaseModule`      | Read mesh URLs from config | None                            |
 
 **What is NOT loaded:**
+
 - ❌ `GlobalDatabaseModule` (waiting for mesh result)
 - ❌ `AuthModule`
 - ❌ All feature modules
@@ -746,11 +807,12 @@ await this.runSubApp(
     [
         // Forward the setup wizard bridge so mesh init can await it
         { provide: SetupWizardBridge, useValue: this.setupWizardBridge },
-    ],
+    ]
 )
 ```
 
 The mesh initializer:
+
 1. Subscribes to `setupWizardBridge.asObservable` (event-based — RxJS `Observable` from `BaseEventService`)
 2. Reads mesh peer URLs from local SQLite config
 3. Tries to connect to each mesh peer
@@ -763,8 +825,8 @@ The mesh initializer:
 
 **What loads:** The real Postgres database connection.
 
-| Module | Why loaded | Dependencies |
-|--------|-----------|-------------|
+| Module                  | Why loaded                        | Dependencies                   |
+| ----------------------- | --------------------------------- | ------------------------------ |
 | `GlobalDatabaseService` | Already exists (null-initialized) | `MeshInitializerBridge` result |
 
 **What happens:**
@@ -784,6 +846,7 @@ if (databaseUrl) {
 **Important:** `GLOBAL_DATABASE_POOL` and `GLOBAL_DATABASE_CONNECTION` tokens (provided by `GlobalDatabaseModule`'s `useFactory`) remain `null`. The `GlobalDatabaseService` is the **single source of truth** for the database connection. Modules that need the DB should inject `GlobalDatabaseService`, not the raw tokens.
 
 After this phase:
+
 - `GlobalDatabaseService.isInitialized` → `true`
 - `GlobalDatabaseService.db` → real Drizzle handle
 - `GlobalDatabaseService.isHealthy()` → `true`
@@ -794,8 +857,8 @@ After this phase:
 
 **What loads:** The `AuthModule` via `AuthModuleLoader` (DI-driven).
 
-| Module | Why loaded | Dependencies |
-|--------|-----------|-------------|
+| Module                         | Why loaded               | Dependencies                            |
+| ------------------------------ | ------------------------ | --------------------------------------- |
 | `AuthModule.forRootAsync(...)` | BetterAuth + auth routes | `DatabaseReadyResult` (resolved via DI) |
 
 **What happens (in AuthModuleLoader):**
@@ -811,13 +874,14 @@ await this.lazyModuleLoader.load(() =>
         inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
         disableBodyParser: false,
         disableGlobalAuthGuard: true,
-    }),
+    })
 )
 ```
 
 **Why lazy via DI:** The `AuthModuleLoader` injects `DatabaseReadyResult`. NestJS's DI container blocks injection until `DatabaseReadyTrigger.emit()` fires (in Phase 3). No polling, no lifecycle phase checks — pure event-driven DI resolution through `BaseEventService`.
 
 **What becomes available:**
+
 - `/api/auth/*` routes (sign-in, sign-up, session, etc.)
 - `AuthService` and `AuthCoreService` in DI
 - Auth guard for protected routes
@@ -828,14 +892,14 @@ await this.lazyModuleLoader.load(() =>
 
 **What loads:** All domain modules via `FeatureModuleLoader` (DI-driven).
 
-| Module | Why loaded | Dependencies |
-|--------|-----------|-------------|
-| `HealthModule` | Health check endpoint | `DatabaseReadyResult` (resolved via DI) |
-| `UserModule` | User management | `DatabaseReadyResult` (resolved via DI) |
-| `DockerModule` | Docker management | `DatabaseReadyResult` (resolved via DI) |
-| `FleetModule` | Fleet management | `DatabaseReadyResult` (resolved via DI) |
-| `SystemModule` | System management | `DatabaseReadyResult` (resolved via DI) |
-| ... | All other feature modules | `DatabaseReadyResult` (resolved via DI) |
+| Module         | Why loaded                | Dependencies                            |
+| -------------- | ------------------------- | --------------------------------------- |
+| `HealthModule` | Health check endpoint     | `DatabaseReadyResult` (resolved via DI) |
+| `UserModule`   | User management           | `DatabaseReadyResult` (resolved via DI) |
+| `DockerModule` | Docker management         | `DatabaseReadyResult` (resolved via DI) |
+| `FleetModule`  | Fleet management          | `DatabaseReadyResult` (resolved via DI) |
+| `SystemModule` | System management         | `DatabaseReadyResult` (resolved via DI) |
+| ...            | All other feature modules | `DatabaseReadyResult` (resolved via DI) |
 
 **What happens (in FeatureModuleLoader):**
 
@@ -883,6 +947,7 @@ this.lifecycle.enterPhase(AppLifecyclePhase.READY)
 ```
 
 The health endpoint now returns:
+
 ```json
 { "status": "ok", "phase": "ready", "uptime": 42 }
 ```
@@ -1063,25 +1128,25 @@ flowchart TB
 
 ## Module Loading Table
 
-| Module | Phase | Load Method | Depends On | Provides |
-|--------|-------|-------------|------------|----------|
-| `EnvModule` | 1 | Eager (`AppModule`) | Nothing | `EnvService` |
-| `AppLifecycleModule` | 1 | Eager (`AppModule`) | Nothing | `AppLifecycleService` |
-| `BootstrapModule` | 1 | Eager (`AppModule`) | `EnvModule` | Orchestrator, bridges |
-| `LocalDatabaseModule` | 1 | Eager (`AppModule`) | Nothing | SQLite config DB |
-| `SetupWizardApiModule` | 1 | Eager (`AppModule`) | `LocalDatabaseModule` | `/setup/*` routes |
-| `ORPCModule` | 1 | Eager (`AppModule`) | Nothing | ORPC contract routing |
-| `GlobalDatabaseModule` | 1 | Eager (`AppModule`) | Nothing | Null-safe DB providers |
-| `SetupWizardAppModule` | 1 | Sub-app (orchestrator) | `LocalDatabaseModule` | DB URL via bridge |
-| `MeshInitializerAppModule` | 2 | Sub-app (orchestrator) | Setup wizard result | Final DB URL via bridge |
-| `GlobalDatabaseService.initialize()` | 3 | Method call (orchestrator) | Mesh init result | Real DB connection |
-| `AuthModule` | 4 | `LazyModuleLoader` | `GlobalDatabaseService` | Auth routes, guards |
-| `HealthModule` | 5 | `LazyModuleLoader` | `GlobalDatabaseService` | `/health` (NestJS) |
-| `UserModule` | 5 | `LazyModuleLoader` | `GlobalDatabaseService`, Auth | `/user/*` |
-| `DockerModule` | 5 | `LazyModuleLoader` | `GlobalDatabaseService`, Auth | `/docker/*` |
-| `FleetModule` | 5 | `LazyModuleLoader` | `GlobalDatabaseService`, Auth | `/fleet/*` |
-| `SystemModule` | 5 | `LazyModuleLoader` | `GlobalDatabaseService`, Auth | `/system/*` |
-| Other feature modules | 5 | `LazyModuleLoader` | `GlobalDatabaseService`, Auth | Domain routes |
+| Module                               | Phase | Load Method                | Depends On                    | Provides                |
+| ------------------------------------ | ----- | -------------------------- | ----------------------------- | ----------------------- |
+| `EnvModule`                          | 1     | Eager (`AppModule`)        | Nothing                       | `EnvService`            |
+| `AppLifecycleModule`                 | 1     | Eager (`AppModule`)        | Nothing                       | `AppLifecycleService`   |
+| `BootstrapModule`                    | 1     | Eager (`AppModule`)        | `EnvModule`                   | Orchestrator, bridges   |
+| `LocalDatabaseModule`                | 1     | Eager (`AppModule`)        | Nothing                       | SQLite config DB        |
+| `SetupWizardApiModule`               | 1     | Eager (`AppModule`)        | `LocalDatabaseModule`         | `/setup/*` routes       |
+| `ORPCModule`                         | 1     | Eager (`AppModule`)        | Nothing                       | ORPC contract routing   |
+| `GlobalDatabaseModule`               | 1     | Eager (`AppModule`)        | Nothing                       | Null-safe DB providers  |
+| `SetupWizardAppModule`               | 1     | Sub-app (orchestrator)     | `LocalDatabaseModule`         | DB URL via bridge       |
+| `MeshInitializerAppModule`           | 2     | Sub-app (orchestrator)     | Setup wizard result           | Final DB URL via bridge |
+| `GlobalDatabaseService.initialize()` | 3     | Method call (orchestrator) | Mesh init result              | Real DB connection      |
+| `AuthModule`                         | 4     | `LazyModuleLoader`         | `GlobalDatabaseService`       | Auth routes, guards     |
+| `HealthModule`                       | 5     | `LazyModuleLoader`         | `GlobalDatabaseService`       | `/health` (NestJS)      |
+| `UserModule`                         | 5     | `LazyModuleLoader`         | `GlobalDatabaseService`, Auth | `/user/*`               |
+| `DockerModule`                       | 5     | `LazyModuleLoader`         | `GlobalDatabaseService`, Auth | `/docker/*`             |
+| `FleetModule`                        | 5     | `LazyModuleLoader`         | `GlobalDatabaseService`, Auth | `/fleet/*`              |
+| `SystemModule`                       | 5     | `LazyModuleLoader`         | `GlobalDatabaseService`, Auth | `/system/*`             |
+| Other feature modules                | 5     | `LazyModuleLoader`         | `GlobalDatabaseService`, Auth | Domain routes           |
 
 ---
 
@@ -1102,10 +1167,10 @@ Each phase is wrapped in try/catch. If a phase fails:
 ```json
 // GET /health during error state
 {
-  "status": "error",
-  "phase": "setup_wizard",
-  "error": "Setup wizard sub-app failed: ...",
-  "uptime": 5.2
+    "status": "error",
+    "phase": "setup_wizard",
+    "error": "Setup wizard sub-app failed: ...",
+    "uptime": 5.2
 }
 ```
 
@@ -1142,14 +1207,14 @@ The current `AppModule` eagerly imports all modules. The migration plan:
 
 ### Files to Create or Modify
 
-| File | Action |
-|------|--------|
-| `apps/api/src/core/modules/loader/database-ready.trigger.ts` | **Create** — `DatabaseReadyTrigger` + `DatabaseReadyResult` via `createResultBridge` |
-| `apps/api/src/core/modules/loader/loader.module.ts` | **Create** — wires trigger + result + loaders |
-| `apps/api/src/core/modules/loader/feature-module-loader.ts` | **Create** — injects `DatabaseReadyResult`, loads feature modules |
-| `apps/api/src/core/modules/loader/auth-module-loader.ts` | **Create** — injects `DatabaseReadyResult`, loads `AuthModule.forRootAsync()` |
-| `apps/api/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts` | **Modify** — emit `DatabaseReadyTrigger` instead of loading modules directly |
-| `apps/api/shared/src/core/modules/bootstrap/bootstrap.module.ts` | **Modify** — add `DatabaseReadyTrigger` to `providers` and `exports` |
-| `apps/api/src/app.module.ts` | **Modify** — import `LoaderModule`, remove eager feature module imports |
-| `apps/api/src/main.ts` | **Verify** — no changes needed, loaders run in `OnApplicationBootstrap` |
-| `apps/api/src/main.ts` | Update health endpoint to report lifecycle phase |
+| File                                                                           | Action                                                                               |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `apps/api/src/core/modules/loader/database-ready.trigger.ts`                   | **Create** — `DatabaseReadyTrigger` + `DatabaseReadyResult` via `createResultBridge` |
+| `apps/api/src/core/modules/loader/loader.module.ts`                            | **Create** — wires trigger + result + loaders                                        |
+| `apps/api/src/core/modules/loader/feature-module-loader.ts`                    | **Create** — injects `DatabaseReadyResult`, loads feature modules                    |
+| `apps/api/src/core/modules/loader/auth-module-loader.ts`                       | **Create** — injects `DatabaseReadyResult`, loads `AuthModule.forRootAsync()`        |
+| `apps/api/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts` | **Modify** — emit `DatabaseReadyTrigger` instead of loading modules directly         |
+| `apps/api/shared/src/core/modules/bootstrap/bootstrap.module.ts`               | **Modify** — add `DatabaseReadyTrigger` to `providers` and `exports`                 |
+| `apps/api/src/app.module.ts`                                                   | **Modify** — import `LoaderModule`, remove eager feature module imports              |
+| `apps/api/src/main.ts`                                                         | **Verify** — no changes needed, loaders run in `OnApplicationBootstrap`              |
+| `apps/api/src/main.ts`                                                         | Update health endpoint to report lifecycle phase                                     |

@@ -1,25 +1,55 @@
-import type { Context } from 'effect';
+import { createGlobalModule } from '@deployer/nest-effect'
+import {
+    NodeConfigRepository,
+    type NodeConfigRepositoryShape,
+} from '@deployer/node-state'
 
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from '@deployer/node-state';
-import { createGlobalModule } from '@deployer/nest-effect';
+import { EnvModule, EnvService } from '../../../config/env/env.module'
+import { GlobalDatabaseModule } from '../database/global/global-database.module'
+import { DatabasePort } from '../database/storage'
+import {
+    EdgeProviderRegistry,
+    type EdgeProviderRegistryShape,
+} from '../edge/edge-provider.registry'
+import { CoreEdgeModule } from '../edge/edge.module'
+import { CoreEgressModule } from '../egress/egress.module'
+import {
+    EgressService,
+    type EgressServiceShape,
+} from '../egress/egress.service'
+import {
+    CoreEventStreamPoolService,
+    type CoreEventStreamPoolServiceShape,
+} from '../events/base/index'
+import { EventsModule } from '../events/events.module'
+import { NodeStateModule } from '../node-state/node-state.module'
+import {
+    IngressLanesService,
+    type IngressLanesServiceShape,
+} from '../platform-ingress/services/ingress-lanes.service'
 
-import { EnvModule, EnvService } from '../../../config/env/env.module';
-import { DatabasePort } from '../database/storage';
-import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from '../edge/edge-provider.registry';
-import { EgressService, type EgressServiceShape } from '../egress/egress.service';
-import { IngressLanesService, type IngressLanesServiceShape } from '../platform-ingress/services/ingress-lanes.service';
-import { GlobalDatabaseModule } from '../database/global/global-database.module';
-import { CoreEdgeModule } from '../edge/edge.module';
-import { CoreEgressModule } from '../egress/egress.module';
-import { EventsModule } from '../events/events.module';
-import { NodeStateModule } from '../node-state/node-state.module';
+import { PublicAccessPointEventService } from './events/public-access-point-event.service'
+import {
+    makeNodeNetworkConfigRepository,
+    NodeNetworkConfigRepository,
+    type NodeNetworkConfigRepositoryShape,
+} from './repositories/node-network-config.repository'
+import {
+    makePublicAccessPointService,
+    PublicAccessPointService,
+} from './services/public-access-point.service'
+import {
+    makePublicEdgeService,
+    PublicEdgeService,
+    type PublicEdgeServiceShape,
+} from './services/public-edge.service'
+import {
+    makeReachabilityService,
+    ReachabilityService,
+    type ReachabilityServiceShape,
+} from './services/reachability.service'
 
-import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from '../events/base/index';
-import { PublicAccessPointEventService } from './events/public-access-point-event.service';
-import { makeNodeNetworkConfigRepository, NodeNetworkConfigRepository, type NodeNetworkConfigRepositoryShape } from './repositories/node-network-config.repository';
-import { makePublicAccessPointService, PublicAccessPointService } from './services/public-access-point.service';
-import { makePublicEdgeService, PublicEdgeService, type PublicEdgeServiceShape } from './services/public-edge.service';
-import { makeReachabilityService, ReachabilityService, type ReachabilityServiceShape } from './services/reachability.service';
+import type { Context } from 'effect'
 
 /**
  * CORE: Reachability + Public Access Point.
@@ -31,46 +61,93 @@ import { makeReachabilityService, ReachabilityService, type ReachabilityServiceS
  * event system as a Zod discriminated-union state.
  */
 export const CoreReachabilityModule = createGlobalModule({
-  imports: [GlobalDatabaseModule, EventsModule, NodeStateModule, CoreEdgeModule, EnvModule, CoreEgressModule],
-  providers: [
-    // NodeConfigRepository comes from NodeStateModule (the single owner of the
-    // local node-state repositories) — redeclaring it here created a SECOND
-    // instance and triggered the SC8 duplication guard.
-    {
-      provide: NodeNetworkConfigRepository,
-      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeNodeNetworkConfigRepository(database),
-      inject: [DatabasePort],
-    },
-    {
-      provide: PublicEdgeService,
-      useFactory: (registry: EdgeProviderRegistryShape, nodeConfigs: NodeNetworkConfigRepositoryShape, env: EnvService) =>
-        makePublicEdgeService({ registry, nodeConfigs, prefix: env.get('DEPLOYER_PREFIX') }),
-      inject: [EdgeProviderRegistry, NodeNetworkConfigRepository, EnvService],
-    },
-    {
-      provide: ReachabilityService,
-      useFactory: (
-        nodeNetworkConfigs: NodeNetworkConfigRepositoryShape,
-        nodeConfig: NodeConfigRepositoryShape,
-        lanes: IngressLanesServiceShape,
-        edges: EdgeProviderRegistryShape,
-        publicEdge: PublicEdgeServiceShape,
-        egress: EgressServiceShape,
-      ) => makeReachabilityService({ nodeNetworkConfigs, nodeConfig, lanes, edges, publicEdge, egress }),
-      inject: [NodeNetworkConfigRepository, NodeConfigRepository, IngressLanesService, EdgeProviderRegistry, PublicEdgeService, EgressService],
-    },
-    { provide: PublicAccessPointEventService, useFactory: (pool?: CoreEventStreamPoolServiceShape) => new PublicAccessPointEventService(pool), inject: [{ token: CoreEventStreamPoolService, optional: true }] },
-    {
-      provide: PublicAccessPointService,
-      useFactory: (reachability: ReachabilityServiceShape, accessPointEvents: PublicAccessPointEventService) =>
-        makePublicAccessPointService({ reachability, accessPointEvents }),
-      inject: [ReachabilityService, PublicAccessPointEventService],
-    },
-  ],
-  exports: [
-    ReachabilityService,
-    PublicEdgeService,
-    PublicAccessPointEventService,
-    PublicAccessPointService,
-  ],
-});
+    imports: [
+        GlobalDatabaseModule,
+        EventsModule,
+        NodeStateModule,
+        CoreEdgeModule,
+        EnvModule,
+        CoreEgressModule,
+    ],
+    providers: [
+        // NodeConfigRepository comes from NodeStateModule (the single owner of the
+        // local node-state repositories) — redeclaring it here created a SECOND
+        // instance and triggered the SC8 duplication guard.
+        {
+            provide: NodeNetworkConfigRepository,
+            useFactory: (
+                database: Context.Service.Shape<typeof DatabasePort>
+            ) => makeNodeNetworkConfigRepository(database),
+            inject: [DatabasePort],
+        },
+        {
+            provide: PublicEdgeService,
+            useFactory: (
+                registry: EdgeProviderRegistryShape,
+                nodeConfigs: NodeNetworkConfigRepositoryShape,
+                env: EnvService
+            ) =>
+                makePublicEdgeService({
+                    registry,
+                    nodeConfigs,
+                    prefix: env.get('DEPLOYER_PREFIX'),
+                }),
+            inject: [
+                EdgeProviderRegistry,
+                NodeNetworkConfigRepository,
+                EnvService,
+            ],
+        },
+        {
+            provide: ReachabilityService,
+            useFactory: (
+                nodeNetworkConfigs: NodeNetworkConfigRepositoryShape,
+                nodeConfig: NodeConfigRepositoryShape,
+                lanes: IngressLanesServiceShape,
+                edges: EdgeProviderRegistryShape,
+                publicEdge: PublicEdgeServiceShape,
+                egress: EgressServiceShape
+            ) =>
+                makeReachabilityService({
+                    nodeNetworkConfigs,
+                    nodeConfig,
+                    lanes,
+                    edges,
+                    publicEdge,
+                    egress,
+                }),
+            inject: [
+                NodeNetworkConfigRepository,
+                NodeConfigRepository,
+                IngressLanesService,
+                EdgeProviderRegistry,
+                PublicEdgeService,
+                EgressService,
+            ],
+        },
+        {
+            provide: PublicAccessPointEventService,
+            useFactory: (pool?: CoreEventStreamPoolServiceShape) =>
+                new PublicAccessPointEventService(pool),
+            inject: [{ token: CoreEventStreamPoolService, optional: true }],
+        },
+        {
+            provide: PublicAccessPointService,
+            useFactory: (
+                reachability: ReachabilityServiceShape,
+                accessPointEvents: PublicAccessPointEventService
+            ) =>
+                makePublicAccessPointService({
+                    reachability,
+                    accessPointEvents,
+                }),
+            inject: [ReachabilityService, PublicAccessPointEventService],
+        },
+    ],
+    exports: [
+        ReachabilityService,
+        PublicEdgeService,
+        PublicAccessPointEventService,
+        PublicAccessPointService,
+    ],
+})

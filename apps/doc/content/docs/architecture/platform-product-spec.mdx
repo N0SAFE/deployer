@@ -25,12 +25,12 @@ flowchart TD
 
 ## Service workload types
 
-| Type | Description | Gets a domain? |
-|------|-------------|----------------|
-| **Web service** | HTTP-based, routed via Traefik | Yes |
-| **Worker** | Long-running background process | No |
-| **Cron job** | Scheduled on a cron expression | No |
-| **One-shot task** | Run once to completion (e.g. migrations) | No |
+| Type              | Description                              | Gets a domain? |
+| ----------------- | ---------------------------------------- | -------------- |
+| **Web service**   | HTTP-based, routed via Traefik           | Yes            |
+| **Worker**        | Long-running background process          | No             |
+| **Cron job**      | Scheduled on a cron expression           | No             |
+| **One-shot task** | Run once to completion (e.g. migrations) | No             |
 
 ## Deployment pipeline
 
@@ -85,11 +85,11 @@ Platform manages start order and waits for health check gates between dependent 
 
 ### Scopes (higher scope overridable at lower scope)
 
-| Scope | Visibility |
-|-------|-----------|
-| **Per-org** | All projects in the org |
+| Scope           | Visibility                  |
+| --------------- | --------------------------- |
+| **Per-org**     | All projects in the org     |
 | **Per-project** | All services in the project |
-| **Per-service** | Only this service |
+| **Per-service** | Only this service           |
 
 ### Behavior
 
@@ -102,9 +102,9 @@ Platform manages start order and waits for health check gates between dependent 
 
 - Tiers are fully configurable (not a fixed prod/staging/preview set)
 - **Convention defaults** with full customization per project:
-  - Branch name patterns (regex): `main` → prod, `develop` → staging, `PR/*` → preview
-  - Docker image tags
-  - PR labels / Git tags
+    - Branch name patterns (regex): `main` → prod, `develop` → staging, `PR/*` → preview
+    - Docker image tags
+    - PR labels / Git tags
 
 ## Preview environments
 
@@ -118,14 +118,14 @@ Platform manages start order and waits for health check gates between dependent 
 
 ## Networking
 
-| Scope | Mechanism |
-|-------|-----------|
-| Intra-project (same node) | Private Docker network (call by container name) |
-| Intra-org (cross-node) | Mesh service URL |
-| Cross-node service discovery | Internal DNS (CoreDNS) |
-| Per-service | Configurable firewall rules |
-| Reverse proxy | Traefik: platform baseline labels + user override snippets |
-| Custom domains | Multiple aliases per service, platform-managed wildcard DNS |
+| Scope                        | Mechanism                                                   |
+| ---------------------------- | ----------------------------------------------------------- |
+| Intra-project (same node)    | Private Docker network (call by container name)             |
+| Intra-org (cross-node)       | Mesh service URL                                            |
+| Cross-node service discovery | Internal DNS (CoreDNS)                                      |
+| Per-service                  | Configurable firewall rules                                 |
+| Reverse proxy                | Traefik: platform baseline labels + user override snippets  |
+| Custom domains               | Multiple aliases per service, platform-managed wildcard DNS |
 
 ## SSL / TLS
 
@@ -187,6 +187,7 @@ Configurable: retain by count OR by time, whichever retains more.
 ## Monorepo support
 
 Three methods for path-to-service mapping:
+
 1. Dashboard UI (manual path filter per service)
 2. Auto-detected from Dockerfile path / package.json location
 3. Defined in `deployer.yaml`
@@ -204,6 +205,7 @@ Configurable per tier. Example: `prod` requires role-based approval, `staging` a
 ## Rate limiting
 
 Both layers:
+
 - **Platform baseline** via Traefik middleware
 - **Service-level overrides** (user adds custom Traefik middleware)
 
@@ -225,6 +227,7 @@ Parallel deploys with dynamic limits, then queued. Prevents node resource exhaus
 ## Scale-to-zero
 
 Heavily configurable:
+
 - Preview environments: ON by default with inactivity-based timing
 - Production: opt-in
 - Wake-on-first-request with loading screen
@@ -290,13 +293,13 @@ All actions logged (actor, action, resource, IP, user-agent). Configurable reten
 
 ## Integrations
 
-| Category | Details |
-|----------|---------|
-| **Source control** | GitHub (launch), GitLab (soon) |
-| **DNS** | Cloudflare (first), extensible multi-provider |
-| **Registries** | Built-in + GHCR + Docker Hub + custom |
-| **Storage** | S3-compatible providers |
-| **Secrets** | DB-encrypted (core), Vault/Infisical (enterprise) |
+| Category           | Details                                           |
+| ------------------ | ------------------------------------------------- |
+| **Source control** | GitHub (launch), GitLab (soon)                    |
+| **DNS**            | Cloudflare (first), extensible multi-provider     |
+| **Registries**     | Built-in + GHCR + Docker Hub + custom             |
+| **Storage**        | S3-compatible providers                           |
+| **Secrets**        | DB-encrypted (core), Vault/Infisical (enterprise) |
 
 ## Plugin system
 

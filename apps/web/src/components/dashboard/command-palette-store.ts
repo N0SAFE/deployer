@@ -8,14 +8,14 @@ type PaletteListener = () => void
 let openListener: PaletteListener | null = null
 
 export function openCommandPalette(): void {
-  openListener?.()
+    openListener?.()
 }
 
 export function subscribeCommandPalette(listener: PaletteListener): () => void {
-  openListener = listener
-  return () => {
-    if (openListener === listener) {
-      openListener = null
+    openListener = listener
+    return () => {
+        if (openListener === listener) {
+            openListener = null
+        }
     }
-  }
 }

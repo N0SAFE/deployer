@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * Setup contract endpoints for the API-served views.
@@ -7,22 +7,22 @@
  * wizard) never index into the contract directly.
  */
 
-import { orpc } from "@/views/lib/orpc";
+import { orpc } from '@/views/lib/orpc'
 
 export const setupEndpoints = {
-	getState: orpc.setup.getState,
-	getNodeStatus: orpc.setup.getNodeStatus,
-	getMeshStatus: orpc.setup.getMeshStatus,
-	joinMesh: orpc.setup.joinMesh,
-	issueMeshToken: orpc.setup.issueMeshToken,
-	probeDatabase: orpc.setup.probeDatabase,
-	triggerInitialize: orpc.setup.triggerInitialize,
-	getInitializeStream: orpc.setup.getInitializeStream,
-	listPostSetupHints: orpc.setup.listPostSetupHints,
-	dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
-	getPostSetupDestination: orpc.setup.getPostSetupDestination,
-	getPostSetupVerification: orpc.setup.getPostSetupVerification,
-	retryHandover: orpc.setup.retryHandover,
-} as const;
+    getState: orpc.setup.getState,
+    getNodeStatus: orpc.setup.getNodeStatus,
+    getMeshStatus: orpc.setup.getMeshStatus,
+    joinMesh: orpc.setup.joinMesh,
+    issueMeshToken: orpc.setup.issueMeshToken,
+    probeDatabase: orpc.setup.probeDatabase,
+    triggerInitialize: orpc.setup.triggerInitialize,
+    getInitializeStream: orpc.setup.getInitializeStream,
+    listPostSetupHints: orpc.setup.listPostSetupHints,
+    dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
+    getPostSetupDestination: orpc.setup.getPostSetupDestination,
+    getPostSetupVerification: orpc.setup.getPostSetupVerification,
+    retryHandover: orpc.setup.retryHandover,
+} as const
 
-export type SetupEndpoints = typeof setupEndpoints;
+export type SetupEndpoints = typeof setupEndpoints

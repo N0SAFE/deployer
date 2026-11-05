@@ -27,36 +27,36 @@
  * the type is never serialized.
  */
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
 import {
-	bffConsoleContract,
-	bffOrchestrationContract,
-	setupContract,
-	templateContract,
-} from "@deployer/bff-contracts";
+    bffConsoleContract,
+    bffOrchestrationContract,
+    setupContract,
+    templateContract,
+} from '@deployer/bff-contracts'
 
-import { serviceSurface } from "./service-surface";
+import { serviceSurface } from './service-surface'
 
 export const appContract = oc.router({
-	// The composition surface — each key answers a SCREEN, not a table.
-	bff: bffOrchestrationContract,
+    // The composition surface — each key answers a SCREEN, not a table.
+    bff: bffOrchestrationContract,
 
-	// The management console. Present because the front links operators INTO it and
-	// renders its state in the settings screen; it is still the BFF's surface.
-	console: bffConsoleContract,
+    // The management console. Present because the front links operators INTO it and
+    // renders its state in the settings screen; it is still the BFF's surface.
+    console: bffConsoleContract,
 
-	// ── THE RESOURCE SURFACE ────────────────────────────────────────────────
-	// The same namespaces the BFF serves, mounted from the SHARED list. A screen calls
-	// these when it wants the RESOURCE, and `bff.*` when it wants a join. Sharing the
-	// list is what makes "the front can only call what the BFF serves" true by
-	// construction rather than by review.
-	...serviceSurface(),
+    // ── THE RESOURCE SURFACE ────────────────────────────────────────────────
+    // The same namespaces the BFF serves, mounted from the SHARED list. A screen calls
+    // these when it wants the RESOURCE, and `bff.*` when it wants a join. Sharing the
+    // list is what makes "the front can only call what the BFF serves" true by
+    // construction rather than by review.
+    ...serviceSurface(),
 
-	// BFF-owned domains: the wizard answers BEFORE auth exists, and the test surface
-	// exists to probe the transport itself.
-	setup: setupContract,
-	template: templateContract,
-});
+    // BFF-owned domains: the wizard answers BEFORE auth exists, and the test surface
+    // exists to probe the transport itself.
+    setup: setupContract,
+    template: templateContract,
+})
 
-export type AppContract = typeof appContract;
+export type AppContract = typeof appContract

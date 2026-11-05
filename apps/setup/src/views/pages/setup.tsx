@@ -1,16 +1,15 @@
-"use client";
+'use client'
 
-import { useEffect } from "react";
-
+import { useEffect } from 'react'
 
 // ONE wizard implementation, shared by the API and the web app. This page only
 // supplies the API's data access (the adapter), never a second copy of the UI.
-import { SetupWizard } from "@deployer/ui/components/setup/setup-wizard";
+import { SetupWizard } from '@deployer/ui/components/setup/setup-wizard'
 
-import { setupApi } from "@/views/setup-adapters/api";
-import { resolvePostSetupRedirect } from "@/views/setup-adapters/redirect-target";
+import { setupApi } from '@/views/setup-adapters/api'
+import { resolvePostSetupRedirect } from '@/views/setup-adapters/redirect-target'
 
-import type { PageProps } from "@nestjs-ssr/react";
+import type { PageProps } from '@nestjs-ssr/react'
 
 /**
  * The setup page, served by the API itself.
@@ -26,34 +25,36 @@ import type { PageProps } from "@nestjs-ssr/react";
  * over at the final wizard step.
  */
 export interface SetupViewProps {
-	/** False when setup already completed — the page then hands the operator to
-	 *  the web app rather than re-running onboarding. */
-	needsSetup: boolean;
+    /** False when setup already completed — the page then hands the operator to
+     *  the web app rather than re-running onboarding. */
+    needsSetup: boolean
 }
 
 export default function SetupView({ needsSetup }: PageProps<SetupViewProps>) {
-	// Setup already done: this page has nothing to do. Send the operator to the
-	// TARGETED web app (the dashboard), not the API's own console — the whole
-	// point of the hand-off is that the API surface is not where they work.
-	useEffect(() => {
-		if (!needsSetup) {
-			window.location.assign(resolvePostSetupRedirect());
-		}
-	}, [needsSetup]);
+    // Setup already done: this page has nothing to do. Send the operator to the
+    // TARGETED web app (the dashboard), not the API's own console — the whole
+    // point of the hand-off is that the API surface is not where they work.
+    useEffect(() => {
+        if (!needsSetup) {
+            window.location.assign(resolvePostSetupRedirect())
+        }
+    }, [needsSetup])
 
-	if (!needsSetup) {
-		return (
-			<div className="flex min-h-[60dvh] items-center justify-center">
-				<p className="text-sm text-muted-foreground">Setup is complete — opening the dashboard…</p>
-			</div>
-		);
-	}
+    if (!needsSetup) {
+        return (
+            <div className="flex min-h-[60dvh] items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                    Setup is complete — opening the dashboard…
+                </p>
+            </div>
+        )
+    }
 
-	return (
-		<div className="flex min-h-0 flex-1 items-center justify-center">
-			<div className="flex max-h-full min-h-0 w-full max-w-2xl flex-col">
-				<SetupWizard api={setupApi} />
-			</div>
-		</div>
-	);
+    return (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="flex max-h-full min-h-0 w-full max-w-2xl flex-col">
+                <SetupWizard api={setupApi} />
+            </div>
+        </div>
+    )
 }

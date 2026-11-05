@@ -1,12 +1,11 @@
-
-export type CrossProjectGateMode = "block" | "warn" | "skip";
+export type CrossProjectGateMode = 'block' | 'warn' | 'skip'
 
 export type CrossProjectDependency = {
     /** Service ID in the current project */
-    localServiceId: string;
+    localServiceId: string
     /** ID of the external service (in another project) that must be ready */
-    remoteServiceId: string;
-    remoteProjectId: string;
+    remoteServiceId: string
+    remoteProjectId: string
 }
 
 export type CrossProjectGateConfig = {
@@ -15,16 +14,19 @@ export type CrossProjectGateConfig = {
      * `warn`  — deployment proceeds but a warning event is emitted
      * `skip`  — all cross-project gate checks are bypassed
      */
-    mode: CrossProjectGateMode;
+    mode: CrossProjectGateMode
     /** Async check: returns true if `remoteServiceId` in `remoteProjectId` is ready */
-    checkFn: (remoteProjectId: string, remoteServiceId: string) => Promise<boolean>;
+    checkFn: (
+        remoteProjectId: string,
+        remoteServiceId: string
+    ) => Promise<boolean>
 }
 
 export type CrossProjectGateServiceResult = {
-    satisfied: boolean;
-    blocked: CrossProjectDependency[];
-    warned: CrossProjectDependency[];
-    skipped: boolean;
+    satisfied: boolean
+    blocked: CrossProjectDependency[]
+    warned: CrossProjectDependency[]
+    skipped: boolean
 }
 
 /**
@@ -40,33 +42,36 @@ export type CrossProjectGateServiceResult = {
 export class CrossProjectGateService {
     async evaluate(
         dependencies: CrossProjectDependency[],
-        config: CrossProjectGateConfig,
+        config: CrossProjectGateConfig
     ): Promise<CrossProjectGateServiceResult> {
-        if (config.mode === "skip") {
-            return { satisfied: true, blocked: [], warned: [], skipped: true };
+        if (config.mode === 'skip') {
+            return { satisfied: true, blocked: [], warned: [], skipped: true }
         }
 
-        const blocked: CrossProjectDependency[] = [];
-        const warned: CrossProjectDependency[] = [];
+        const blocked: CrossProjectDependency[] = []
+        const warned: CrossProjectDependency[] = []
 
         await Promise.all(
             dependencies.map(async (dep) => {
-                const ready = await config.checkFn(dep.remoteProjectId, dep.remoteServiceId);
+                const ready = await config.checkFn(
+                    dep.remoteProjectId,
+                    dep.remoteServiceId
+                )
                 if (!ready) {
-                    if (config.mode === "block") {
-                        blocked.push(dep);
+                    if (config.mode === 'block') {
+                        blocked.push(dep)
                     } else {
-                        warned.push(dep);
+                        warned.push(dep)
                     }
                 }
-            }),
-        );
+            })
+        )
 
         return {
             satisfied: blocked.length === 0,
             blocked,
             warned,
             skipped: false,
-        };
+        }
     }
 }

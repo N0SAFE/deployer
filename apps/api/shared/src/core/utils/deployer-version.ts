@@ -13,13 +13,13 @@
  *   }
  */
 
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { AppError } from "@deployer/errors";
+import { AppError } from '@deployer/errors'
 // ─── Resolve path ──────────────────────────────────────────────────────────────
 // This file lives at: apps/api/shared/src/core/utils/deployer-version.ts
 // Target:          apps/api/shared/package.json
@@ -29,34 +29,36 @@ import { AppError } from "@deployer/errors";
 // one level too far (to `apps/api/package.json`, which does not exist), so the
 // version silently resolved to "0.0.0" in every tier process.
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const PKG_PATH = join(__dirname, "..", "..", "..", "package.json");
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const PKG_PATH = join(__dirname, '..', '..', '..', 'package.json')
 
 // ─── Singleton ─────────────────────────────────────────────────────────────────
 
-let _cachedVersion: string | null = null;
+let _cachedVersion: string | null = null
 
 /** The one field this module needs out of `package.json`; the rest of the file is not ours to assume. */
-const packageJsonSchema = z.object({ version: z.string().min(1).optional() });
+const packageJsonSchema = z.object({ version: z.string().min(1).optional() })
 
 function resolveVersion(): string {
-  if (_cachedVersion !== null) return _cachedVersion;
+    if (_cachedVersion !== null) return _cachedVersion
 
-  let resolved: string;
-  try {
-    const parsed = packageJsonSchema.safeParse(JSON.parse(readFileSync(PKG_PATH, "utf-8")) as unknown);
-    resolved = parsed.success ? (parsed.data.version ?? "0.0.0") : "0.0.0";
-  } catch {
-    resolved = "0.0.0";
-  }
+    let resolved: string
+    try {
+        const parsed = packageJsonSchema.safeParse(
+            JSON.parse(readFileSync(PKG_PATH, 'utf-8')) as unknown
+        )
+        resolved = parsed.success ? (parsed.data.version ?? '0.0.0') : '0.0.0'
+    } catch {
+        resolved = '0.0.0'
+    }
 
-  _cachedVersion = resolved;
-  return resolved;
+    _cachedVersion = resolved
+    return resolved
 }
 
 /** The deployer's app version as resolved from package.json (e.g. "1.0.0"). */
-export const DEPLOYER_VERSION: string = resolveVersion();
+export const DEPLOYER_VERSION: string = resolveVersion()
 
 // ─── Semver utilities ──────────────────────────────────────────────────────────
 
@@ -71,16 +73,16 @@ export const DEPLOYER_VERSION: string = resolveVersion();
  * Throws on malformed input (non-numeric segments).
  */
 export function semverCompare(a: string, b: string): -1 | 0 | 1 {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
+    const pa = a.split('.').map(Number)
+    const pb = b.split('.').map(Number)
 
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const na = i < pa.length ? (pa[i] ?? 0) : 0;
-    const nb = i < pb.length ? (pb[i] ?? 0) : 0;
-    if (na > nb) return 1;
-    if (na < nb) return -1;
-  }
-  return 0;
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const na = i < pa.length ? (pa[i] ?? 0) : 0
+        const nb = i < pb.length ? (pb[i] ?? 0) : 0
+        if (na > nb) return 1
+        if (na < nb) return -1
+    }
+    return 0
 }
 
 /**
@@ -95,38 +97,44 @@ export function semverCompare(a: string, b: string): -1 | 0 | 1 {
  * Throws on unsupported range patterns.
  */
 export function semverSatisfies(version: string, required: string): boolean {
-  const trimmed = required.trim();
+    const trimmed = required.trim()
 
-  // Exact match
-  if (/^\d+\.\d+\.\d+$/.test(trimmed)) {
-    return semverCompare(version, trimmed) === 0;
-  }
+    // Exact match
+    if (/^\d+\.\d+\.\d+$/.test(trimmed)) {
+        return semverCompare(version, trimmed) === 0
+    }
 
-  // >=X.Y.Z
-  if (trimmed.startsWith(">=")) {
-    return semverCompare(version, trimmed.slice(2)) >= 0;
-  }
+    // >=X.Y.Z
+    if (trimmed.startsWith('>=')) {
+        return semverCompare(version, trimmed.slice(2)) >= 0
+    }
 
-  // >X.Y.Z
-  if (trimmed.startsWith(">")) {
-    return semverCompare(version, trimmed.slice(1)) > 0;
-  }
+    // >X.Y.Z
+    if (trimmed.startsWith('>')) {
+        return semverCompare(version, trimmed.slice(1)) > 0
+    }
 
-  // <=X.Y.Z
-  if (trimmed.startsWith("<=")) {
-    return semverCompare(version, trimmed.slice(2)) <= 0;
-  }
+    // <=X.Y.Z
+    if (trimmed.startsWith('<=')) {
+        return semverCompare(version, trimmed.slice(2)) <= 0
+    }
 
-  // <X.Y.Z
-  if (trimmed.startsWith("<")) {
-    return semverCompare(version, trimmed.slice(1)) < 0;
-  }
+    // <X.Y.Z
+    if (trimmed.startsWith('<')) {
+        return semverCompare(version, trimmed.slice(1)) < 0
+    }
 
-  // X.Y.Z - A.B.C (inclusive range)
-  const rangeMatch = /^(\d+\.\d+\.\d+)\s*-\s*(\d+\.\d+\.\d+)$/.exec(trimmed);
-  if (rangeMatch) {
-    return semverCompare(version, rangeMatch[1] ?? "0.0.0") >= 0 && semverCompare(version, rangeMatch[2] ?? "0.0.0") <= 0;
-  }
+    // X.Y.Z - A.B.C (inclusive range)
+    const rangeMatch = /^(\d+\.\d+\.\d+)\s*-\s*(\d+\.\d+\.\d+)$/.exec(trimmed)
+    if (rangeMatch) {
+        return (
+            semverCompare(version, rangeMatch[1] ?? '0.0.0') >= 0 &&
+            semverCompare(version, rangeMatch[2] ?? '0.0.0') <= 0
+        )
+    }
 
-  throw new AppError(`Unsupported semver range pattern: "${required}"`, "VERSION_PARSE_ERROR");
+    throw new AppError(
+        `Unsupported semver range pattern: "${required}"`,
+        'VERSION_PARSE_ERROR'
+    )
 }

@@ -24,15 +24,15 @@ Request body example:
 
 ```json
 {
-  "name": "prod-service-stream",
-  "description": "Live deployment stream for production service",
-  "isActive": true,
-  "serviceId": "11111111-1111-1111-1111-111111111111",
-  "statusFilter": "deploying",
-  "environmentFilter": "production",
-  "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"],
-  "replayDefault": true,
-  "replayLimitDefault": 100
+    "name": "prod-service-stream",
+    "description": "Live deployment stream for production service",
+    "isActive": true,
+    "serviceId": "11111111-1111-1111-1111-111111111111",
+    "statusFilter": "deploying",
+    "environmentFilter": "production",
+    "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"],
+    "replayDefault": true,
+    "replayLimitDefault": 100
 }
 ```
 
@@ -40,22 +40,22 @@ Typical response body (resource):
 
 ```json
 {
-  "id": "2f2f2f2f-2f2f-2f2f-2f2f-2f2f2f2f2f2f",
-  "coreStreamId": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
-  "name": "prod-service-stream",
-  "description": "Live deployment stream for production service",
-  "isActive": true,
-  "deploymentId": null,
-  "serviceId": "11111111-1111-1111-1111-111111111111",
-  "projectId": null,
-  "statusFilter": "deploying",
-  "environmentFilter": "production",
-  "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"],
-  "replayDefault": true,
-  "replayLimitDefault": 100,
-  "createdBy": "user_123",
-  "createdAt": "2026-02-23T16:00:00.000Z",
-  "updatedAt": "2026-02-23T16:00:00.000Z"
+    "id": "2f2f2f2f-2f2f-2f2f-2f2f-2f2f2f2f2f2f",
+    "coreStreamId": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
+    "name": "prod-service-stream",
+    "description": "Live deployment stream for production service",
+    "isActive": true,
+    "deploymentId": null,
+    "serviceId": "11111111-1111-1111-1111-111111111111",
+    "projectId": null,
+    "statusFilter": "deploying",
+    "environmentFilter": "production",
+    "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"],
+    "replayDefault": true,
+    "replayLimitDefault": 100,
+    "createdBy": "user_123",
+    "createdAt": "2026-02-23T16:00:00.000Z",
+    "updatedAt": "2026-02-23T16:00:00.000Z"
 }
 ```
 
@@ -74,17 +74,17 @@ Typical query shape (conceptual):
 
 ```json
 {
-  "filter": {
-    "_and": [
-      { "isActive": { "eq": true } },
-      { "name": { "ilike": "prod%" } },
-      { "environmentFilter": { "eq": "production" } }
-    ]
-  },
-  "sortBy": "createdAt",
-  "sortDirection": "desc",
-  "limit": 20,
-  "offset": 0
+    "filter": {
+        "_and": [
+            { "isActive": { "eq": true } },
+            { "name": { "ilike": "prod%" } },
+            { "environmentFilter": { "eq": "production" } }
+        ]
+    },
+    "sortBy": "createdAt",
+    "sortDirection": "desc",
+    "limit": 20,
+    "offset": 0
 }
 ```
 
@@ -92,31 +92,31 @@ Response shape:
 
 ```json
 {
-  "data": [
-    {
-      "id": "2f2f2f2f-2f2f-2f2f-2f2f-2f2f2f2f2f2f",
-      "coreStreamId": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
-      "name": "prod-service-stream",
-      "isActive": true,
-      "deploymentId": null,
-      "serviceId": "11111111-1111-1111-1111-111111111111",
-      "projectId": null,
-      "statusFilter": "deploying",
-      "environmentFilter": "production",
-      "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"],
-      "replayDefault": true,
-      "replayLimitDefault": 100,
-      "createdBy": "user_123",
-      "createdAt": "2026-02-23T16:00:00.000Z",
-      "updatedAt": "2026-02-23T16:00:00.000Z"
+    "data": [
+        {
+            "id": "2f2f2f2f-2f2f-2f2f-2f2f-2f2f2f2f2f2f",
+            "coreStreamId": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
+            "name": "prod-service-stream",
+            "isActive": true,
+            "deploymentId": null,
+            "serviceId": "11111111-1111-1111-1111-111111111111",
+            "projectId": null,
+            "statusFilter": "deploying",
+            "environmentFilter": "production",
+            "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"],
+            "replayDefault": true,
+            "replayLimitDefault": 100,
+            "createdBy": "user_123",
+            "createdAt": "2026-02-23T16:00:00.000Z",
+            "updatedAt": "2026-02-23T16:00:00.000Z"
+        }
+    ],
+    "meta": {
+        "total": 1,
+        "limit": 20,
+        "offset": 0,
+        "hasMore": false
     }
-  ],
-  "meta": {
-    "total": 1,
-    "limit": 20,
-    "offset": 0,
-    "hasMore": false
-  }
 }
 ```
 
@@ -128,15 +128,15 @@ Typical query shape:
 
 ```json
 {
-  "filter": {
-    "namespace": { "eq": "deployment" },
-    "scope": { "eq": "service" },
-    "isActive": { "eq": true }
-  },
-  "sortBy": "updatedAt",
-  "sortDirection": "desc",
-  "limit": 20,
-  "offset": 0
+    "filter": {
+        "namespace": { "eq": "deployment" },
+        "scope": { "eq": "service" },
+        "isActive": { "eq": true }
+    },
+    "sortBy": "updatedAt",
+    "sortDirection": "desc",
+    "limit": 20,
+    "offset": 0
 }
 ```
 
@@ -144,24 +144,24 @@ Response item shape:
 
 ```json
 {
-  "id": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
-  "name": "prod-service-stream",
-  "namespace": "deployment",
-  "description": "Live deployment stream for production service",
-  "isActive": true,
-  "scope": "service",
-  "scopeId": "11111111-1111-1111-1111-111111111111",
-  "filters": {
-    "serviceId": "11111111-1111-1111-1111-111111111111",
-    "statusFilter": "deploying",
-    "environmentFilter": "production",
-    "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"]
-  },
-  "replayDefault": true,
-  "replayLimitDefault": 100,
-  "createdBy": "user_123",
-  "createdAt": "2026-02-23T16:00:00.000Z",
-  "updatedAt": "2026-02-23T16:00:00.000Z"
+    "id": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
+    "name": "prod-service-stream",
+    "namespace": "deployment",
+    "description": "Live deployment stream for production service",
+    "isActive": true,
+    "scope": "service",
+    "scopeId": "11111111-1111-1111-1111-111111111111",
+    "filters": {
+        "serviceId": "11111111-1111-1111-1111-111111111111",
+        "statusFilter": "deploying",
+        "environmentFilter": "production",
+        "eventTypes": ["statusChanged", "phaseUpdated", "logAppended"]
+    },
+    "replayDefault": true,
+    "replayLimitDefault": 100,
+    "createdBy": "user_123",
+    "createdAt": "2026-02-23T16:00:00.000Z",
+    "updatedAt": "2026-02-23T16:00:00.000Z"
 }
 ```
 
@@ -173,10 +173,10 @@ Request body example:
 
 ```json
 {
-  "id": "2f2f2f2f-2f2f-2f2f-2f2f-2f2f2f2f2f2f",
-  "isActive": false,
-  "eventTypes": ["statusChanged", "deploymentCancelled"],
-  "replayLimitDefault": 50
+    "id": "2f2f2f2f-2f2f-2f2f-2f2f-2f2f2f2f2f2f",
+    "isActive": false,
+    "eventTypes": ["statusChanged", "deploymentCancelled"],
+    "replayLimitDefault": 50
 }
 ```
 
@@ -206,46 +206,46 @@ Sample streamed events (SSE data payloads):
 
 ```json
 {
-  "type": "statusChanged",
-  "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
-  "serviceId": "11111111-1111-1111-1111-111111111111",
-  "status": "deploying",
-  "sequence": 1,
-  "replayed": true,
-  "emittedAt": "2026-02-23T16:01:00.000Z"
-}
-```
-
-```json
-{
-  "type": "phaseUpdated",
-  "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
-  "phase": "building",
-  "phaseProgress": 42,
-  "sequence": 2,
-  "replayed": false,
-  "emittedAt": "2026-02-23T16:01:02.000Z"
-}
-```
-
-```json
-{
-  "type": "logAppended",
-  "log": {
-    "id": "l1l1l1l1-l1l1-l1l1-l1l1-l1l1l1l1l1l1",
+    "type": "statusChanged",
     "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
-    "level": "info",
-    "message": "Docker image build started",
+    "serviceId": "11111111-1111-1111-1111-111111111111",
+    "status": "deploying",
+    "sequence": 1,
+    "replayed": true,
+    "emittedAt": "2026-02-23T16:01:00.000Z"
+}
+```
+
+```json
+{
+    "type": "phaseUpdated",
+    "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
     "phase": "building",
-    "step": "docker-build",
-    "service": "api",
-    "stage": "build",
-    "metadata": null,
-    "timestamp": "2026-02-23T16:01:03.000Z"
-  },
-  "sequence": 3,
-  "replayed": false,
-  "emittedAt": "2026-02-23T16:01:03.000Z"
+    "phaseProgress": 42,
+    "sequence": 2,
+    "replayed": false,
+    "emittedAt": "2026-02-23T16:01:02.000Z"
+}
+```
+
+```json
+{
+    "type": "logAppended",
+    "log": {
+        "id": "l1l1l1l1-l1l1-l1l1-l1l1-l1l1l1l1l1l1",
+        "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
+        "level": "info",
+        "message": "Docker image build started",
+        "phase": "building",
+        "step": "docker-build",
+        "service": "api",
+        "stage": "build",
+        "metadata": null,
+        "timestamp": "2026-02-23T16:01:03.000Z"
+    },
+    "sequence": 3,
+    "replayed": false,
+    "emittedAt": "2026-02-23T16:01:03.000Z"
 }
 ```
 
@@ -260,21 +260,21 @@ Sample envelope event:
 
 ```json
 {
-  "streamId": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
-  "namespace": "deployment",
-  "eventName": "statusChanged",
-  "payload": {
-    "type": "statusChanged",
-    "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
-    "serviceId": "11111111-1111-1111-1111-111111111111",
-    "status": "deploying",
-    "sequence": 4,
+    "streamId": "3a3a3a3a-3a3a-3a3a-3a3a-3a3a3a3a3a3a",
+    "namespace": "deployment",
+    "eventName": "statusChanged",
+    "payload": {
+        "type": "statusChanged",
+        "deploymentId": "d1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1",
+        "serviceId": "11111111-1111-1111-1111-111111111111",
+        "status": "deploying",
+        "sequence": 4,
+        "replayed": false,
+        "emittedAt": "2026-02-23T16:01:05.000Z"
+    },
+    "sequence": 12,
     "replayed": false,
     "emittedAt": "2026-02-23T16:01:05.000Z"
-  },
-  "sequence": 12,
-  "replayed": false,
-  "emittedAt": "2026-02-23T16:01:05.000Z"
 }
 ```
 

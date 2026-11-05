@@ -15,12 +15,8 @@
         "moduleResolution": "bundler",
         "noEmit": true,
         "paths": {
-            "@deployer/env/*": [
-                "./src/*"
-            ]
+            "@deployer/env/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ]
+    "include": ["pkg-build.config.ts", "src/**/*"]
 }

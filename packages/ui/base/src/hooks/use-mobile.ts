@@ -1,22 +1,24 @@
-import * as React from "react"
+import * as React from 'react'
 
 const MOBILE_BREAKPOINT = 768
 
 function subscribe(onStoreChange: () => void): () => void {
-  const mql = window.matchMedia(`(max-width: ${String(MOBILE_BREAKPOINT - 1)}px)`)
-  mql.addEventListener("change", onStoreChange)
-  return () => {
-    mql.removeEventListener("change", onStoreChange)
-  }
+    const mql = window.matchMedia(
+        `(max-width: ${String(MOBILE_BREAKPOINT - 1)}px)`
+    )
+    mql.addEventListener('change', onStoreChange)
+    return () => {
+        mql.removeEventListener('change', onStoreChange)
+    }
 }
 
 function getSnapshot(): boolean {
-  return window.innerWidth < MOBILE_BREAKPOINT
+    return window.innerWidth < MOBILE_BREAKPOINT
 }
 
 /** Server render has no viewport; assume desktop so markup stays stable. */
 function getServerSnapshot(): boolean {
-  return false
+    return false
 }
 
 /**
@@ -29,5 +31,5 @@ function getServerSnapshot(): boolean {
  * there is no cascading render and no hydration mismatch.
  */
 export function useIsMobile(): boolean {
-  return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+    return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }

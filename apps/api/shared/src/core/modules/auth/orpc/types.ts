@@ -1,12 +1,12 @@
-import { AppError } from "@deployer/errors";
+import { AppError } from '@deployer/errors'
 
-import type { Auth } from "../../../../auth";
-import type { SessionUserWithRole } from "../utils/auth-utils";
+import type { Auth } from '../../../../auth'
+import type { SessionUserWithRole } from '../utils/auth-utils'
 
 /**
  * Brand symbol for authenticated context
  */
-declare const AuthenticatedBrand: unique symbol;
+declare const AuthenticatedBrand: unique symbol
 
 // ─── Mesh Context ───────────────────────────────────────────────────────────
 
@@ -17,9 +17,9 @@ declare const AuthenticatedBrand: unique symbol;
  */
 export type MeshParcourEntry = {
     /** Node ID that handled this hop */
-    nodeId: string;
+    nodeId: string
     /** ISO timestamp when this hop occurred (optional) */
-    timestamp?: string;
+    timestamp?: string
 }
 
 /**
@@ -31,10 +31,10 @@ export type MeshParcourEntry = {
  */
 export type MeshContext = {
     /** Whether the caller's mesh credentials were successfully verified. */
-    readonly verified: boolean;
+    readonly verified: boolean
 
     /** Node ID of the immediate caller (the peer that sent this request). */
-    readonly callerNodeId: string;
+    readonly callerNodeId: string
 
     /**
      * Full ordered path this request has traversed through the mesh,
@@ -45,22 +45,22 @@ export type MeshContext = {
      * - `[{ nodeId: "node-a" }]`                    — direct 1-hop call
      * - `[{ nodeId: "node-a" }, { nodeId: "node-b" }]` — forwarded once
      */
-    readonly meshParcour: MeshParcourEntry[];
+    readonly meshParcour: MeshParcourEntry[]
 
     /** The originating node — shorthand for `meshParcour[0]?.nodeId ?? callerNodeId`. */
-    readonly originNodeId: string;
+    readonly originNodeId: string
 
     /**
      * The node that forwarded to the immediate caller, or `null` when
      * the caller is the origin (direct call).
      */
-    readonly previousCallerNodeId: string | null;
+    readonly previousCallerNodeId: string | null
 
     /** Which credential type was used to verify this request. */
     readonly peerIdentity: {
-        readonly nodeId: string;
-        readonly tokenType: "peer-service" | "mesh-internal";
-    };
+        readonly nodeId: string
+        readonly tokenType: 'peer-service' | 'mesh-internal'
+    }
 }
 
 /**
@@ -68,9 +68,9 @@ export type MeshContext = {
  * Use as the input/output type for middlewares that only deal with mesh.
  */
 export type ORPCContextWithMesh = {
-    mesh: MeshContext;
-    [key: string]: unknown;
-    [key: symbol]: unknown;
+    mesh: MeshContext
+    [key: string]: unknown
+    [key: symbol]: unknown
 }
 
 /**
@@ -82,16 +82,16 @@ export type ORPCContextWithMesh = {
  * correctly with both ORPC's MergedInitialContext and standalone use.
  */
 export type ORPCContextWithAuthAndMesh<TLoggedIn extends boolean = boolean> =
-    ORPCContextWithAuth<TLoggedIn> & ORPCContextWithMesh;
+    ORPCContextWithAuth<TLoggedIn> & ORPCContextWithMesh
 
 /**
  * Minimal ORPC context requiring only auth utilities.
  * Use this for middlewares that only need auth context (most access control).
  */
 export type ORPCContextWithAuthOnly<TLoggedIn extends boolean = boolean> = {
-    auth: ORPCAuthContext<TLoggedIn>;
-    [key: string]: unknown;
-    [key: symbol]: unknown;
+    auth: ORPCAuthContext<TLoggedIn>
+    [key: string]: unknown
+    [key: symbol]: unknown
 }
 
 /**
@@ -99,54 +99,54 @@ export type ORPCContextWithAuthOnly<TLoggedIn extends boolean = boolean> = {
  * Use this for middlewares that need access to the raw request.
  */
 export type ORPCContextWithAuth<TLoggedIn extends boolean = boolean> = {
-    request: Request;
-    [key: string]: unknown;
-    [key: symbol]: unknown;
+    request: Request
+    [key: string]: unknown
+    [key: symbol]: unknown
 } & ORPCContextWithAuthOnly<TLoggedIn>
 
 /**
  * Auth context available in ORPC handlers
- * 
+ *
  * For access control, use plugin-based middlewares:
  * - `adminMiddlewares.requireRole(roles)` - Require specific admin role(s)
  * - `adminMiddlewares.requirePermission(permission)` - Require specific permission
- * 
+ *
  * @template TLoggedIn - Whether user is logged in (boolean by default, true for authenticated contexts)
  */
 export type ORPCAuthContext<TLoggedIn extends boolean = boolean> = {
-  /** Whether user is authenticated */
-  readonly isLoggedIn: TLoggedIn;
+    /** Whether user is authenticated */
+    readonly isLoggedIn: TLoggedIn
 
-  /** User session (null if not authenticated) */
-  readonly session: TLoggedIn extends true 
-    ? Auth["$Infer"]["Session"]["session"] 
-    : TLoggedIn extends false 
-      ? null 
-      : Auth["$Infer"]["Session"]["session"] | null;
+    /** User session (null if not authenticated) */
+    readonly session: TLoggedIn extends true
+        ? Auth['$Infer']['Session']['session']
+        : TLoggedIn extends false
+          ? null
+          : Auth['$Infer']['Session']['session'] | null
 
-  /** User object (null if not authenticated) */
-  readonly user: TLoggedIn extends true 
-    ? SessionUserWithRole 
-    : TLoggedIn extends false 
-      ? null 
-      : SessionUserWithRole | null;
+    /** User object (null if not authenticated) */
+    readonly user: TLoggedIn extends true
+        ? SessionUserWithRole
+        : TLoggedIn extends false
+          ? null
+          : SessionUserWithRole | null
 
-  /**
-   * Require authentication - throws if user is not logged in
-   * 
-   * Use this for programmatic auth checks in handlers when you need to
-   * ensure authentication after some business logic.
-   * 
-   * @throws ORPCError with UNAUTHORIZED code if not authenticated
-   * @returns Object with non-null session and user
-   */
-  requireAuth(): { 
-    session: NonNullable<ORPCAuthContext<true>['session']>; 
-    user: NonNullable<ORPCAuthContext<true>['user']>;
-  };
-  
-  /** Internal brand for type narrowing (not accessible at runtime) */
-  [AuthenticatedBrand]?: TLoggedIn extends true ? true : boolean;
+    /**
+     * Require authentication - throws if user is not logged in
+     *
+     * Use this for programmatic auth checks in handlers when you need to
+     * ensure authentication after some business logic.
+     *
+     * @throws ORPCError with UNAUTHORIZED code if not authenticated
+     * @returns Object with non-null session and user
+     */
+    requireAuth(): {
+        session: NonNullable<ORPCAuthContext<true>['session']>
+        user: NonNullable<ORPCAuthContext<true>['user']>
+    }
+
+    /** Internal brand for type narrowing (not accessible at runtime) */
+    [AuthenticatedBrand]?: TLoggedIn extends true ? true : boolean
 }
 
 /**
@@ -154,8 +154,8 @@ export type ORPCAuthContext<TLoggedIn extends boolean = boolean> = {
  * This is the type after requireAuth() middleware has been applied
  */
 export type ORPCAuthenticatedContext = {
-  /** Internal brand for type narrowing */
-  [AuthenticatedBrand]: true;
+    /** Internal brand for type narrowing */
+    [AuthenticatedBrand]: true
 } & ORPCAuthContext<true>
 
 /**
@@ -179,11 +179,16 @@ export type ORPCAuthenticatedContext = {
  * })
  * ```
  */
-export function assertAuthenticated(auth: ORPCAuthContext): ORPCAuthenticatedContext {
-  if (!auth.isLoggedIn || !auth.session || !auth.user) {
-    throw new AppError('Auth context is not authenticated', 'INTERNAL_ERROR');
-  }
-  return auth as ORPCAuthenticatedContext;
+export function assertAuthenticated(
+    auth: ORPCAuthContext
+): ORPCAuthenticatedContext {
+    if (!auth.isLoggedIn || !auth.session || !auth.user) {
+        throw new AppError(
+            'Auth context is not authenticated',
+            'INTERNAL_ERROR'
+        )
+    }
+    return auth as ORPCAuthenticatedContext
 }
 
 /**
@@ -191,20 +196,18 @@ export function assertAuthenticated(auth: ORPCAuthContext): ORPCAuthenticatedCon
  * `requireAuth()` checks for this symbol to verify that `authMiddleware`
  * was called before it in the middleware chain.
  */
-export declare const AUTH_MIDDLEWARE_BRAND: unique symbol;
+export declare const AUTH_MIDDLEWARE_BRAND: unique symbol
 
 /**
  * Runtime value of the auth middleware brand.
  * Set by authMiddleware, checked by requireAuth.
  */
-export const AUTH_MIDDLEWARE_BRAND_VALUE = Symbol('orpc.auth-middleware');
+export const AUTH_MIDDLEWARE_BRAND_VALUE = Symbol('orpc.auth-middleware')
 
 /**
  * Context with the auth middleware brand applied.
  * Used as the output type of authMiddleware and the input type of requireAuth().
  */
 export type ORPCContextWithAuthBrand = {
-  readonly [AUTH_MIDDLEWARE_BRAND]: typeof AUTH_MIDDLEWARE_BRAND;
+    readonly [AUTH_MIDDLEWARE_BRAND]: typeof AUTH_MIDDLEWARE_BRAND
 } & ORPCContextWithAuthOnly
-
-

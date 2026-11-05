@@ -45,17 +45,22 @@ The platform already defines mesh, routing, queue, and rollback resilience behav
 
 ```ts
 type GameDayScenario = {
-  id: string;
-  name: string;
-  faultType: "node_outage" | "queue_backlog" | "route_desync" | "health_failure";
-  targetScope: { organizationId: string; projectId?: string; serviceId?: string };
-  durationSec: number;
-  expectedSLO: {
-    maxRecoverySeconds: number;
-    maxFailedDeployments: number;
-    maxErrorRatePercent: number;
-  };
-};
+    id: string
+    name: string
+    faultType:
+        'node_outage' | 'queue_backlog' | 'route_desync' | 'health_failure'
+    targetScope: {
+        organizationId: string
+        projectId?: string
+        serviceId?: string
+    }
+    durationSec: number
+    expectedSLO: {
+        maxRecoverySeconds: number
+        maxFailedDeployments: number
+        maxErrorRatePercent: number
+    }
+}
 ```
 
 Score model:
@@ -116,10 +121,10 @@ sequenceDiagram
 - “Dry-run” check before injection
 - Live drill timeline and current phase
 - Post-drill report with:
-  - timeline,
-  - observed metrics,
-  - pass/fail reasoning,
-  - suggested corrective actions
+    - timeline,
+    - observed metrics,
+    - pass/fail reasoning,
+    - suggested corrective actions
 
 ---
 

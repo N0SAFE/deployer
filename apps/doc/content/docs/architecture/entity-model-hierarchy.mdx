@@ -634,10 +634,10 @@ flowchart TB
 
 ### Reading notes for this mega graph
 
-- **Global DB** = shared PostgreSQL truth (org/projects/services/deployments/events/mesh index).  
-- **Local DB** = per-node SQLite config/state used by node-level runtime services.  
-- **Server owns Docker features** at runtime (`containers/images/networks/volumes/registries/stacks` + streams).  
-- **User ownership is layered**: platform role + organization membership role + project collaborator role.  
+- **Global DB** = shared PostgreSQL truth (org/projects/services/deployments/events/mesh index).
+- **Local DB** = per-node SQLite config/state used by node-level runtime services.
+- **Server owns Docker features** at runtime (`containers/images/networks/volumes/registries/stacks` + streams).
+- **User ownership is layered**: platform role + organization membership role + project collaborator role.
 - **Mesh owns distributed routing decisions**, not business semantics (it routes ownership for streams/resources/partitions).
 
 ---

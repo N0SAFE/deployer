@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb } from 'drizzle-orm/pg-core'
 
 /**
  * Tracks the schema version of each mesh node within the cluster.
@@ -11,33 +11,33 @@ import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
  *
  * Created by migration 0011_mesh_coordination_tables.
  */
-export const schemaVersion = pgTable("schema_version", {
-  /// Node identity (UUID matching cluster_nodes.nodeId)
-  nodeId: text("node_id").primaryKey(),
+export const schemaVersion = pgTable('schema_version', {
+    /// Node identity (UUID matching cluster_nodes.nodeId)
+    nodeId: text('node_id').primaryKey(),
 
-  /// Latest migration version applied by this node
-  /// e.g. "0011" from the last entry in __drizzle_migrations
-  schemaVersion: text("schema_version").notNull(),
+    /// Latest migration version applied by this node
+    /// e.g. "0011" from the last entry in __drizzle_migrations
+    schemaVersion: text('schema_version').notNull(),
 
-  /// Full ordered list of applied migration file names
-  /// e.g. ["0000_brave_steve_rogers", ..., "0011_mesh_coordination_tables"]
-  appliedMigrations: jsonb("applied_migrations").notNull().$type<string[]>(),
+    /// Full ordered list of applied migration file names
+    /// e.g. ["0000_brave_steve_rogers", ..., "0011_mesh_coordination_tables"]
+    appliedMigrations: jsonb('applied_migrations').notNull().$type<string[]>(),
 
-  /// Application version from package.json
-  /// e.g. "2.1.0"
-  appVersion: text("app_version").notNull(),
+    /// Application version from package.json
+    /// e.g. "2.1.0"
+    appVersion: text('app_version').notNull(),
 
-  /// When this node last verified / reported its schema state
-  lastVerification: timestamp("last_verification", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+    /// When this node last verified / reported its schema state
+    lastVerification: timestamp('last_verification', { withTimezone: true })
+        .notNull()
+        .defaultNow(),
 
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+        .notNull()
+        .defaultNow(),
 
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+        .notNull()
+        .defaultNow()
+        .$onUpdate(() => new Date()),
+})

@@ -1,8 +1,8 @@
-import { createGlobalModule } from "@deployer/nest-effect";
-import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { createGlobalModule } from '@deployer/nest-effect'
+import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
+import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
 
-import { DatabasePort } from "./database.port";
+import { DatabasePort } from './database.port'
 
 /**
  * The app's `DatabasePort`, global.
@@ -13,7 +13,7 @@ import { DatabasePort } from "./database.port";
  * request would fail with `Service not found: fleet/DatabasePort`.
  */
 export const DatabasePortModule = createGlobalModule({
-	imports: [DatabaseModule],
-	providers: [{ provide: DatabasePort, useExisting: GlobalDatabaseService }],
-	exports: [DatabasePort],
-});
+    imports: [DatabaseModule],
+    providers: [{ provide: DatabasePort, useExisting: GlobalDatabaseService }],
+    exports: [DatabasePort],
+})

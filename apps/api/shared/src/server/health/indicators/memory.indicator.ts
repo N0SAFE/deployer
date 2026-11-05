@@ -1,13 +1,13 @@
-import { readFile } from "node:fs/promises";
+import { readFile } from 'node:fs/promises'
 
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { indicatorFor, type HealthIndicatorShape } from "./indicator-result";
+import { indicatorFor, type HealthIndicatorShape } from './indicator-result'
 
-import type { IndicatorResult } from "../types";
+import type { IndicatorResult } from '../types'
 
 /** Heap is reported down above this ratio. */
-const HEAP_DOWN_RATIO = 0.95;
+const HEAP_DOWN_RATIO = 0.95
 
 /**
  * Process memory — a REAL reading, with a threshold that means something.
@@ -26,46 +26,52 @@ const HEAP_DOWN_RATIO = 0.95;
  * `rss` is reported alongside, because RSS growing while the heap does not is a
  * real and different failure (off-heap buffers, native leaks).
  */
-export class MemoryHealthIndicator extends Context.Service<MemoryHealthIndicator, HealthIndicatorShape>()(
-	"shared/health/MemoryHealthIndicator",
-) {
-	static readonly NAME = "memory";
+export class MemoryHealthIndicator extends Context.Service<
+    MemoryHealthIndicator,
+    HealthIndicatorShape
+>()('shared/health/MemoryHealthIndicator') {
+    static readonly NAME = 'memory'
 
-	static readonly live = class MemoryHealthIndicatorImpl implements HealthIndicatorShape {
-		check(): Effect.Effect<IndicatorResult> {
-			return Effect.gen(function* () {
-				const check = indicatorFor(MemoryHealthIndicator.NAME);
+    static readonly live = class MemoryHealthIndicatorImpl implements HealthIndicatorShape {
+        check(): Effect.Effect<IndicatorResult> {
+            return Effect.gen(function* () {
+                const check = indicatorFor(MemoryHealthIndicator.NAME)
 
-				const usage = process.memoryUsage();
-				const ratio = usage.heapTotal === 0 ? 0 : usage.heapUsed / usage.heapTotal;
-				const containerLimit = yield* Effect.promise(() => readCgroupLimitBytes());
+                const usage = process.memoryUsage()
+                const ratio =
+                    usage.heapTotal === 0 ? 0 : usage.heapUsed / usage.heapTotal
+                const containerLimit = yield* Effect.promise(() =>
+                    readCgroupLimitBytes()
+                )
 
-				const detail = {
-					heapUsedMb: bytesToMb(usage.heapUsed),
-					heapTotalMb: bytesToMb(usage.heapTotal),
-					rssMb: bytesToMb(usage.rss),
-					heapRatio: Number(ratio.toFixed(3)),
-					...(containerLimit === undefined
-						? {}
-						: {
-								containerLimitMb: bytesToMb(containerLimit),
-								containerRatio: Number((usage.rss / containerLimit).toFixed(3)),
-							}),
-				};
+                const detail = {
+                    heapUsedMb: bytesToMb(usage.heapUsed),
+                    heapTotalMb: bytesToMb(usage.heapTotal),
+                    rssMb: bytesToMb(usage.rss),
+                    heapRatio: Number(ratio.toFixed(3)),
+                    ...(containerLimit === undefined
+                        ? {}
+                        : {
+                              containerLimitMb: bytesToMb(containerLimit),
+                              containerRatio: Number(
+                                  (usage.rss / containerLimit).toFixed(3)
+                              ),
+                          }),
+                }
 
-				// Down only when the process is genuinely about to fail. Everything else is
-				// detail: a probe that turns red at 80% heap produces alerts nobody can act
-				// on, and then gets ignored at the moment it matters.
-				if (ratio >= HEAP_DOWN_RATIO) {
-					return check.down({
-						message: `heap is at ${String(Math.round(ratio * 100))}% — out of memory imminent`,
-						...detail,
-					});
-				}
-				return check.up(detail);
-			});
-		}
-	};
+                // Down only when the process is genuinely about to fail. Everything else is
+                // detail: a probe that turns red at 80% heap produces alerts nobody can act
+                // on, and then gets ignored at the moment it matters.
+                if (ratio >= HEAP_DOWN_RATIO) {
+                    return check.down({
+                        message: `heap is at ${String(Math.round(ratio * 100))}% — out of memory imminent`,
+                        ...detail,
+                    })
+                }
+                return check.up(detail)
+            })
+        }
+    }
 }
 
 /**
@@ -76,28 +82,33 @@ export class MemoryHealthIndicator extends Context.Service<MemoryHealthIndicator
  * single-path read silently reports "no limit" on half the machines.
  */
 async function readCgroupLimitBytes(): Promise<number | undefined> {
-	const candidates = [
-		"/sys/fs/cgroup/memory.max", // cgroup v2
-		"/sys/fs/cgroup/memory/memory.limit_in_bytes", // cgroup v1
-	];
+    const candidates = [
+        '/sys/fs/cgroup/memory.max', // cgroup v2
+        '/sys/fs/cgroup/memory/memory.limit_in_bytes', // cgroup v1
+    ]
 
-	for (const path of candidates) {
-		let raw: string;
-		try {
-			raw = await readFile(path, "utf8");
-		} catch {
-			continue;
-		}
+    for (const path of candidates) {
+        let raw: string
+        try {
+            raw = await readFile(path, 'utf8')
+        } catch {
+            continue
+        }
 
-		const value = Number(raw.trim());
-		// cgroup v1 uses a huge sentinel for "no limit" — treat it as absent rather
-		// than reporting a nine-exabyte ceiling.
-		if (!Number.isFinite(value) || value <= 0 || value > Number.MAX_SAFE_INTEGER) continue;
-		return value;
-	}
-	return undefined;
+        const value = Number(raw.trim())
+        // cgroup v1 uses a huge sentinel for "no limit" — treat it as absent rather
+        // than reporting a nine-exabyte ceiling.
+        if (
+            !Number.isFinite(value) ||
+            value <= 0 ||
+            value > Number.MAX_SAFE_INTEGER
+        )
+            continue
+        return value
+    }
+    return undefined
 }
 
 function bytesToMb(bytes: number): number {
-	return Math.round(bytes / 1024 / 1024);
+    return Math.round(bytes / 1024 / 1024)
 }

@@ -9,8 +9,9 @@ import type { ReactNode } from 'react'
 // Metadata lives in the layout: the service pages are client components, and
 // `metadata` cannot be exported from a `'use client'` file.
 export const metadata: Metadata = {
-  title: 'Service',
-  description: 'Deployments, configuration, logs and monitoring for this service',
+    title: 'Service',
+    description:
+        'Deployments, configuration, logs and monitoring for this service',
 }
 
 /**
@@ -22,10 +23,14 @@ export const metadata: Metadata = {
  * dashboard shell stays in the static shell — the service shell streams in
  * behind its skeleton after the URL data resolves.
  */
-export default function ServiceDetailLayout({ children }: { children: ReactNode }) {
-  return (
-    <Suspense fallback={<ServiceDetailSkeleton />}>
-      <ServiceDetailLayoutInner>{children}</ServiceDetailLayoutInner>
-    </Suspense>
-  )
+export default function ServiceDetailLayout({
+    children,
+}: {
+    children: ReactNode
+}) {
+    return (
+        <Suspense fallback={<ServiceDetailSkeleton />}>
+            <ServiceDetailLayoutInner>{children}</ServiceDetailLayoutInner>
+        </Suspense>
+    )
 }

@@ -1,14 +1,16 @@
-import { Effect, type Context } from "effect";
+import { Effect, type Context } from 'effect'
 
 /**
  * A class-style implementation whose methods return Effects, with `Deps` taken out of every
  * method's requirements `R`.
  */
 export type Bound<T, Deps> = {
-	readonly [K in keyof T]: T[K] extends (...args: infer P) => Effect.Effect<infer A, infer E, infer R>
-		? (...args: P) => Effect.Effect<A, E, Exclude<R, Deps>>
-		: T[K];
-};
+    readonly [K in keyof T]: T[K] extends (
+        ...args: infer P
+    ) => Effect.Effect<infer A, infer E, infer R>
+        ? (...args: P) => Effect.Effect<A, E, Exclude<R, Deps>>
+        : T[K]
+}
 
 /**
  * Resolve an implementation's dependencies once, at layer build.
@@ -20,23 +22,34 @@ export type Bound<T, Deps> = {
  *
  * Use it to hand a collaborator over with its own requirements settled (see `ingress-edge.service.ts`).
  */
-export function bindServices<T extends object, Deps>(impl: T, context: Context.Context<Deps>): Bound<T, Deps> {
-	return new Proxy(impl, {
-		get(target, key) {
-			const value: unknown = Reflect.get(target, key, target);
-			if (typeof value !== "function") return value;
-			return (...args: unknown[]) => {
-				const result: unknown = (value as (...a: unknown[]) => unknown).apply(target, args);
-				return Effect.isEffect(result) ? Effect.provideContext(result, context) : result;
-			};
-		},
-	}) as unknown as Bound<T, Deps>;
+export function bindServices<T extends object, Deps>(
+    impl: T,
+    context: Context.Context<Deps>
+): Bound<T, Deps> {
+    return new Proxy(impl, {
+        get(target, key) {
+            const value: unknown = Reflect.get(target, key, target)
+            if (typeof value !== 'function') return value
+            return (...args: unknown[]) => {
+                const result: unknown = (
+                    value as (...a: unknown[]) => unknown
+                ).apply(target, args)
+                return Effect.isEffect(result)
+                    ? Effect.provideContext(result, context)
+                    : result
+            }
+        },
+    }) as unknown as Bound<T, Deps>
 }
 
 /** Everything the methods of `T` leave open in `R`. */
 export type RequirementsOf<T> = {
-	[K in keyof T]: T[K] extends (...args: never[]) => Effect.Effect<unknown, unknown, infer R> ? R : never;
-}[keyof T];
+    [K in keyof T]: T[K] extends (
+        ...args: never[]
+    ) => Effect.Effect<unknown, unknown, infer R>
+        ? R
+        : never
+}[keyof T]
 
 /** `T` as `bindServices` hands it out: every requirement discharged. */
-export type Discharged<T> = Bound<T, RequirementsOf<T>>;
+export type Discharged<T> = Bound<T, RequirementsOf<T>>

@@ -1,34 +1,33 @@
-import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
+import type { DependencyTemplateConfig } from '@deployer/contracts-entities'
 
-import { FleetInvalid } from "../../../core/fleet.errors";
-
+import { FleetInvalid } from '../../../core/fleet.errors'
 
 export type ServiceDagEdge = {
-    from: string;
-    to: string;
-    isRequired: boolean;
+    from: string
+    to: string
+    isRequired: boolean
 }
 
 export type ServiceDagNode = {
-    serviceId: string;
-    dependsOn: string[];   // serviceIds this service must wait for
-    dependents: string[];  // serviceIds that depend on this service
-    isRequired: boolean;   // false = optional dependency
+    serviceId: string
+    dependsOn: string[] // serviceIds this service must wait for
+    dependents: string[] // serviceIds that depend on this service
+    isRequired: boolean // false = optional dependency
 }
 
 export type ServiceDag = {
-    nodes: Map<string, ServiceDagNode>;
-    edges: ServiceDagEdge[];
+    nodes: Map<string, ServiceDagNode>
+    edges: ServiceDagEdge[]
     /** Topologically sorted execution layers (innermost = no deps, outermost = final tier) */
-    layers: string[][];
-    hasCycles: boolean;
-    cycleMembers: string[];
+    layers: string[][]
+    hasCycles: boolean
+    cycleMembers: string[]
 }
 
 export type ServiceDependencyInput = {
-    serviceId: string;
-    dependsOnServiceId: string;
-    isRequired: boolean;
+    serviceId: string
+    dependsOnServiceId: string
+    isRequired: boolean
 }
 
 /**
@@ -41,51 +40,65 @@ export type ServiceDependencyInput = {
 export class ServiceDagService {
     build(
         edges: ServiceDependencyInput[],
-        config?: Pick<DependencyTemplateConfig, "orderingStrategy">,
+        config?: Pick<DependencyTemplateConfig, 'orderingStrategy'>
     ): ServiceDag {
-        const ordering = config?.orderingStrategy ?? "topological";
+        const ordering = config?.orderingStrategy ?? 'topological'
 
         // Build node map
-        const nodeMap = new Map<string, ServiceDagNode>();
+        const nodeMap = new Map<string, ServiceDagNode>()
         const ensureNode = (id: string): ServiceDagNode => {
             if (!nodeMap.has(id)) {
-                nodeMap.set(id, { serviceId: id, dependsOn: [], dependents: [], isRequired: true });
+                nodeMap.set(id, {
+                    serviceId: id,
+                    dependsOn: [],
+                    dependents: [],
+                    isRequired: true,
+                })
             }
-            const node = nodeMap.get(id);
+            const node = nodeMap.get(id)
             if (node === undefined) {
-                throw new FleetInvalid({ reason: `[ServiceDagService] invariant violation: node '${id}' missing after ensureNode` });
+                throw new FleetInvalid({
+                    reason: `[ServiceDagService] invariant violation: node '${id}' missing after ensureNode`,
+                })
             }
-            return node;
-        };
+            return node
+        }
 
         for (const e of edges) {
-            const node = ensureNode(e.serviceId);
-            const dep = ensureNode(e.dependsOnServiceId);
+            const node = ensureNode(e.serviceId)
+            const dep = ensureNode(e.dependsOnServiceId)
 
             if (!node.dependsOn.includes(e.dependsOnServiceId)) {
-                node.dependsOn.push(e.dependsOnServiceId);
+                node.dependsOn.push(e.dependsOnServiceId)
             }
             if (!dep.dependents.includes(e.serviceId)) {
-                dep.dependents.push(e.serviceId);
+                dep.dependents.push(e.serviceId)
             }
         }
 
         // Kahn's algorithm for topological sort + cycle detection
-        const { layers, hasCycles, cycleMembers } = this.kahnTopoSort(nodeMap);
+        const { layers, hasCycles, cycleMembers } = this.kahnTopoSort(nodeMap)
 
         // Apply explicit ordering: if strategy is 'explicit', no reordering beyond input order
         const finalLayers =
-            ordering === "explicit"
-                ? this.reorderByInputOrder(layers, edges.map((e) => e.serviceId))
-                : layers;
+            ordering === 'explicit'
+                ? this.reorderByInputOrder(
+                      layers,
+                      edges.map((e) => e.serviceId)
+                  )
+                : layers
 
         return {
             nodes: nodeMap,
-            edges: edges.map((e) => ({ from: e.serviceId, to: e.dependsOnServiceId, isRequired: e.isRequired })),
+            edges: edges.map((e) => ({
+                from: e.serviceId,
+                to: e.dependsOnServiceId,
+                isRequired: e.isRequired,
+            })),
             layers: finalLayers,
             hasCycles,
             cycleMembers,
-        };
+        }
     }
 
     /**
@@ -93,22 +106,22 @@ export class ServiceDagService {
      * Used for blast-radius analysis in fleet rollback and failure containment.
      */
     getTransitiveDependents(dag: ServiceDag, serviceId: string): string[] {
-        const visited = new Set<string>();
-        const queue = [serviceId];
+        const visited = new Set<string>()
+        const queue = [serviceId]
         while (queue.length > 0) {
-            const current = queue.shift();
-            if (current === undefined) break;
-            const node = dag.nodes.get(current);
-            if (!node) continue;
+            const current = queue.shift()
+            if (current === undefined) break
+            const node = dag.nodes.get(current)
+            if (!node) continue
             for (const dep of node.dependents) {
                 if (!visited.has(dep)) {
-                    visited.add(dep);
-                    queue.push(dep);
+                    visited.add(dep)
+                    queue.push(dep)
                 }
             }
         }
-        visited.delete(serviceId);
-        return [...visited];
+        visited.delete(serviceId)
+        return [...visited]
     }
 
     /**
@@ -116,80 +129,87 @@ export class ServiceDagService {
      * of `serviceId` (inclusive).
      */
     getTransitiveDependencies(dag: ServiceDag, serviceId: string): string[] {
-        const visited = new Set<string>();
-        const queue = [serviceId];
+        const visited = new Set<string>()
+        const queue = [serviceId]
         while (queue.length > 0) {
-            const current = queue.shift();
-            if (current === undefined) break;
-            const node = dag.nodes.get(current);
-            if (!node) continue;
+            const current = queue.shift()
+            if (current === undefined) break
+            const node = dag.nodes.get(current)
+            if (!node) continue
             for (const dep of node.dependsOn) {
                 if (!visited.has(dep)) {
-                    visited.add(dep);
-                    queue.push(dep);
+                    visited.add(dep)
+                    queue.push(dep)
                 }
             }
         }
-        visited.delete(serviceId);
-        return [...visited];
+        visited.delete(serviceId)
+        return [...visited]
     }
 
     private kahnTopoSort(nodes: Map<string, ServiceDagNode>): {
-        layers: string[][];
-        hasCycles: boolean;
-        cycleMembers: string[];
+        layers: string[][]
+        hasCycles: boolean
+        cycleMembers: string[]
     } {
         // inDegree = number of dependencies not yet satisfied
-        const inDegree = new Map<string, number>();
+        const inDegree = new Map<string, number>()
         for (const [id, node] of nodes) {
-            inDegree.set(id, node.dependsOn.length);
+            inDegree.set(id, node.dependsOn.length)
         }
 
-        const layers: string[][] = [];
-        let remaining = nodes.size;
+        const layers: string[][] = []
+        let remaining = nodes.size
 
         for (;;) {
             // Collect all nodes with in-degree 0
-            const tier: string[] = [];
+            const tier: string[] = []
             for (const [id, degree] of inDegree) {
                 if (degree === 0) {
-                    tier.push(id);
+                    tier.push(id)
                 }
             }
-            if (tier.length === 0) break;
+            if (tier.length === 0) break
 
             // Remove from tracking
             for (const id of tier) {
-                inDegree.delete(id);
-                const node = nodes.get(id);
+                inDegree.delete(id)
+                const node = nodes.get(id)
                 if (node === undefined) {
-                    throw new FleetInvalid({ reason: `[ServiceDagService] invariant violation: node '${id}' in inDegree but missing from nodes map` });
+                    throw new FleetInvalid({
+                        reason: `[ServiceDagService] invariant violation: node '${id}' in inDegree but missing from nodes map`,
+                    })
                 }
                 for (const dep of node.dependents) {
-                    const cur = inDegree.get(dep);
+                    const cur = inDegree.get(dep)
                     if (cur !== undefined) {
-                        inDegree.set(dep, cur - 1);
+                        inDegree.set(dep, cur - 1)
                     }
                 }
-                remaining--;
+                remaining--
             }
-            layers.push(tier.sort()); // sort for determinism
+            layers.push(tier.sort()) // sort for determinism
         }
 
-        const hasCycles = remaining > 0;
-        const cycleMembers = [...inDegree.keys()];
+        const hasCycles = remaining > 0
+        const cycleMembers = [...inDegree.keys()]
 
-        return { layers, hasCycles, cycleMembers };
+        return { layers, hasCycles, cycleMembers }
     }
 
-    private reorderByInputOrder(layers: string[][], inputOrder: string[]): string[][] {
-        const posMap = new Map<string, number>();
-        let pos = 0;
+    private reorderByInputOrder(
+        layers: string[][],
+        inputOrder: string[]
+    ): string[][] {
+        const posMap = new Map<string, number>()
+        let pos = 0
         for (const id of inputOrder) {
-            if (!posMap.has(id)) posMap.set(id, pos++);
+            if (!posMap.has(id)) posMap.set(id, pos++)
         }
         return layers.map((layer) =>
-            [...layer].sort((a, b) => (posMap.get(a) ?? 999) - (posMap.get(b) ?? 999)),
-        );
+            [...layer].sort(
+                (a, b) => (posMap.get(a) ?? 999) - (posMap.get(b) ?? 999)
+            )
+        )
     }
 }

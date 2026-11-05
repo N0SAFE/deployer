@@ -4,9 +4,12 @@ import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import { Command, CommandRunner } from 'nest-commander'
 
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
-import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
+import { LocalDatabase, type LocalDatabaseShape } from '@deployer/node-state'
 
-import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@/core/modules/database/global/global-database.service';
+import {
+    GlobalDatabaseService,
+    type GlobalDatabaseServiceShape,
+} from '@/core/modules/database/global/global-database.service'
 
 /*
  * ─── Exit codes ──────────────────────────────────────────────────────────────
@@ -21,13 +24,15 @@ import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@/core/m
     description: 'Run database migrations (SQLite + Postgres)',
 })
 export class MigrateCommand extends CommandRunner {
-    private readonly logger = new Logger(MigrateCommand.name);
+    private readonly logger = new Logger(MigrateCommand.name)
 
     constructor(
-        @Inject(LocalDatabase) private readonly localDatabase: LocalDatabaseShape,
-        @Inject(GlobalDatabaseService) private readonly globalDatabaseService: GlobalDatabaseServiceShape,
+        @Inject(LocalDatabase)
+        private readonly localDatabase: LocalDatabaseShape,
+        @Inject(GlobalDatabaseService)
+        private readonly globalDatabaseService: GlobalDatabaseServiceShape
     ) {
-        super();
+        super()
     }
 
     async run(): Promise<void> {
@@ -35,58 +40,74 @@ export class MigrateCommand extends CommandRunner {
         // SQLite tables are created by `LocalDatabaseMigrationService` in
         // `@deployer/nest-database-local`, which runs from its `onModuleInit` — BEFORE
         // this command executes. Here we just verify the result for observability.
-        this.logger.log(`🚀 Verifying local (SQLite) database...`);
+        this.logger.log(`🚀 Verifying local (SQLite) database...`)
         try {
-            const localTableCount = this.localDatabase.db
-                .all("SELECT name FROM sqlite_master WHERE type='table'")
-                .length;
-            this.logger.log(`✅ SQLite database: ${String(localTableCount)} tables present (migrated at module init)`);
+            const localTableCount = this.localDatabase.db.all(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).length
+            this.logger.log(
+                `✅ SQLite database: ${String(localTableCount)} tables present (migrated at module init)`
+            )
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.logger.error(`❌ Local SQLite check failed: ${message}`);
-            process.exit(1);
+            const message =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(`❌ Local SQLite check failed: ${message}`)
+            process.exit(1)
         }
 
         // ── Phase 2: Global (Postgres) connectivity ─────────────────────────
-        this.logger.log(`🚀 Checking global (Postgres) database connectivity...`);
+        this.logger.log(
+            `🚀 Checking global (Postgres) database connectivity...`
+        )
         try {
-            await this.globalDatabaseService.db.execute(sql`SELECT 1`);
-            this.logger.log(`✅ Postgres connection verified`);
+            await this.globalDatabaseService.db.execute(sql`SELECT 1`)
+            this.logger.log(`✅ Postgres connection verified`)
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.logger.error(`❌ Cannot reach global Postgres: ${message}`);
-            process.exit(2);
+            const message =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(`❌ Cannot reach global Postgres: ${message}`)
+            process.exit(2)
         }
 
         // ── Phase 3: Apply migrations ──────────────────────────────────────
-        this.logger.log(`🚀 Running global (Postgres) database migrations...`);
+        this.logger.log(`🚀 Running global (Postgres) database migrations...`)
         // Resolved by `@deployer/shared/server`, NOT by a `../..` count from this
         // file: the migrations moved to `shared/src/config/drizzle/global/migrations`
         // and a hardcoded depth here kept pointing at the old `apps/api/src/config`
         // location, so the migrator reported `Can't find meta/_journal.json file`
         // and applied nothing. See `resolveGlobalMigrationsDir` for the full story.
-        const migrationsFolder = GLOBAL_MIGRATIONS_DIR;
+        const migrationsFolder = GLOBAL_MIGRATIONS_DIR
 
         try {
-            await migratePg(this.globalDatabaseService.db, { migrationsFolder });
-            this.logger.log(`✅ Postgres database migrations completed successfully`);
+            await migratePg(this.globalDatabaseService.db, { migrationsFolder })
+            this.logger.log(
+                `✅ Postgres database migrations completed successfully`
+            )
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message =
+                error instanceof Error ? error.message : String(error)
 
             // Distinguish common failure modes for clearer diagnostics
             if (message.includes('ECONNREFUSED')) {
-                this.logger.error(`❌ Postgres connection lost during migration: ${message}`);
+                this.logger.error(
+                    `❌ Postgres connection lost during migration: ${message}`
+                )
             } else if (message.includes('migration')) {
-                this.logger.error(`❌ Migration file error: ${message}`);
-            } else if (message.includes('duplicate') || message.includes('already exists')) {
-                this.logger.warn(`⚠️  Migration reports duplicate objects — this may indicate a partial previous apply: ${message}`);
+                this.logger.error(`❌ Migration file error: ${message}`)
+            } else if (
+                message.includes('duplicate') ||
+                message.includes('already exists')
+            ) {
+                this.logger.warn(
+                    `⚠️  Migration reports duplicate objects — this may indicate a partial previous apply: ${message}`
+                )
             } else {
-                this.logger.error(`❌ Postgres migration failed: ${message}`);
+                this.logger.error(`❌ Postgres migration failed: ${message}`)
             }
 
-            process.exit(2);
+            process.exit(2)
         }
 
-        return Promise.resolve();
+        return Promise.resolve()
     }
 }

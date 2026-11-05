@@ -1,39 +1,50 @@
-
-export type DeploymentStatus = "pending" | "queued" | "building" | "deploying" | "success" | "failed" | "cancelled";
+export type DeploymentStatus =
+    | 'pending'
+    | 'queued'
+    | 'building'
+    | 'deploying'
+    | 'success'
+    | 'failed'
+    | 'cancelled'
 
 export type ServiceDesiredState = {
-    serviceId: string;
+    serviceId: string
     /** The deployment ID that should be running */
-    expectedDeploymentId: string;
+    expectedDeploymentId: string
     /** The image/ref that should be running */
-    expectedImageRef: string;
+    expectedImageRef: string
 }
 
 export type ServiceActualState = {
-    serviceId: string;
+    serviceId: string
     /** The deployment ID that is currently live */
-    currentDeploymentId: string | undefined;
+    currentDeploymentId: string | undefined
     /** The image/ref that is actually running */
-    currentImageRef: string | undefined;
+    currentImageRef: string | undefined
     /** The last known deployment status */
-    lastStatus: DeploymentStatus;
+    lastStatus: DeploymentStatus
 }
 
-export type DriftSeverity = "none" | "minor" | "major";
+export type DriftSeverity = 'none' | 'minor' | 'major'
 
 export type ServiceDriftRecord = {
-    serviceId: string;
-    severity: DriftSeverity;
-    driftType: "deployment_id_mismatch" | "image_ref_mismatch" | "both_mismatch" | "never_deployed" | "failed";
+    serviceId: string
+    severity: DriftSeverity
+    driftType:
+        | 'deployment_id_mismatch'
+        | 'image_ref_mismatch'
+        | 'both_mismatch'
+        | 'never_deployed'
+        | 'failed'
 }
 
 export type DriftReconciliationReport = {
-    scannedAt: string;
-    driftDetected: boolean;
-    totalServices: number;
-    driftedServices: ServiceDriftRecord[];
+    scannedAt: string
+    driftDetected: boolean
+    totalServices: number
+    driftedServices: ServiceDriftRecord[]
     /** Service IDs that are in-sync */
-    cleanServices: string[];
+    cleanServices: string[]
 }
 
 /**
@@ -53,36 +64,60 @@ export type DriftReconciliationReport = {
 export class DriftReconciliationService {
     reconcile(
         desired: ServiceDesiredState[],
-        actual: ServiceActualState[],
+        actual: ServiceActualState[]
     ): DriftReconciliationReport {
-        const actualMap = new Map(actual.map((s) => [s.serviceId, s]));
-        const driftedServices: ServiceDriftRecord[] = [];
-        const cleanServices: string[] = [];
+        const actualMap = new Map(actual.map((s) => [s.serviceId, s]))
+        const driftedServices: ServiceDriftRecord[] = []
+        const cleanServices: string[] = []
 
         for (const want of desired) {
-            const have = actualMap.get(want.serviceId);
+            const have = actualMap.get(want.serviceId)
 
             if (have?.currentDeploymentId === undefined) {
-                driftedServices.push({ serviceId: want.serviceId, severity: "major", driftType: "never_deployed" });
-                continue;
+                driftedServices.push({
+                    serviceId: want.serviceId,
+                    severity: 'major',
+                    driftType: 'never_deployed',
+                })
+                continue
             }
 
-            if (have.lastStatus === "failed" || have.lastStatus === "cancelled") {
-                driftedServices.push({ serviceId: want.serviceId, severity: "major", driftType: "failed" });
-                continue;
+            if (
+                have.lastStatus === 'failed' ||
+                have.lastStatus === 'cancelled'
+            ) {
+                driftedServices.push({
+                    serviceId: want.serviceId,
+                    severity: 'major',
+                    driftType: 'failed',
+                })
+                continue
             }
 
-            const idMismatch = have.currentDeploymentId !== want.expectedDeploymentId;
-            const imageMismatch = have.currentImageRef !== want.expectedImageRef;
+            const idMismatch =
+                have.currentDeploymentId !== want.expectedDeploymentId
+            const imageMismatch = have.currentImageRef !== want.expectedImageRef
 
             if (idMismatch && imageMismatch) {
-                driftedServices.push({ serviceId: want.serviceId, severity: "major", driftType: "both_mismatch" });
+                driftedServices.push({
+                    serviceId: want.serviceId,
+                    severity: 'major',
+                    driftType: 'both_mismatch',
+                })
             } else if (imageMismatch) {
-                driftedServices.push({ serviceId: want.serviceId, severity: "major", driftType: "image_ref_mismatch" });
+                driftedServices.push({
+                    serviceId: want.serviceId,
+                    severity: 'major',
+                    driftType: 'image_ref_mismatch',
+                })
             } else if (idMismatch) {
-                driftedServices.push({ serviceId: want.serviceId, severity: "minor", driftType: "deployment_id_mismatch" });
+                driftedServices.push({
+                    serviceId: want.serviceId,
+                    severity: 'minor',
+                    driftType: 'deployment_id_mismatch',
+                })
             } else {
-                cleanServices.push(want.serviceId);
+                cleanServices.push(want.serviceId)
             }
         }
 
@@ -92,6 +127,6 @@ export class DriftReconciliationService {
             totalServices: desired.length,
             driftedServices,
             cleanServices,
-        };
+        }
     }
 }

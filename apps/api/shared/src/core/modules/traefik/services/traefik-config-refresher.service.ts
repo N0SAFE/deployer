@@ -13,38 +13,51 @@
  * await it; a failure is logged and surfaces through supervisor health.
  */
 
-import { Logger } from "@nestjs/common";
-import { Context } from "effect";
+import { Logger } from '@nestjs/common'
+import { Context } from 'effect'
 
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { runPromiseUnwrapped } from '@deployer/effect-core'
+import { type SupervisorOrchestratorShape } from '@deployer/supervision'
 
-import { EDGE_CONNECTOR_SUPERVISOR_ID } from "../../supervisors/platform/edge-connector.supervisor";
-import { PLATFORM_INGRESS_SUPERVISOR_ID } from "../../supervisors/platform/traefik.supervisor";
+import { EDGE_CONNECTOR_SUPERVISOR_ID } from '../../supervisors/platform/edge-connector.supervisor'
+import { PLATFORM_INGRESS_SUPERVISOR_ID } from '../../supervisors/platform/traefik.supervisor'
 
 export type TraefikConfigRefresherShape = {
-	/** Re-converge the ingress and the edge connector. Never throws. */
-	readonly refresh: () => void;
-};
-
-export function makeTraefikConfigRefresher(orchestrator: SupervisorOrchestratorShape): TraefikConfigRefresherShape {
-	const logger = new Logger("TraefikConfigRefresher");
-	return {
-		refresh() {
-			void (async () => {
-				for (const id of [PLATFORM_INGRESS_SUPERVISOR_ID, EDGE_CONNECTOR_SUPERVISOR_ID]) {
-					try {
-						const state = await runPromiseUnwrapped(orchestrator.convergeNow(id));
-						if (state === "degraded") logger.warn(`${id} DEGRADED after an ingress refresh — see supervisor health`);
-					} catch (error) {
-						logger.warn(`${id} re-converge failed: ${error instanceof Error ? error.message : String(error)}`);
-					}
-				}
-			})();
-		},
-	};
+    /** Re-converge the ingress and the edge connector. Never throws. */
+    readonly refresh: () => void
 }
 
-export class TraefikConfigRefresher extends Context.Service<TraefikConfigRefresher, TraefikConfigRefresherShape>()(
-	"shared/TraefikConfigRefresher",
-) {}
+export function makeTraefikConfigRefresher(
+    orchestrator: SupervisorOrchestratorShape
+): TraefikConfigRefresherShape {
+    const logger = new Logger('TraefikConfigRefresher')
+    return {
+        refresh() {
+            void (async () => {
+                for (const id of [
+                    PLATFORM_INGRESS_SUPERVISOR_ID,
+                    EDGE_CONNECTOR_SUPERVISOR_ID,
+                ]) {
+                    try {
+                        const state = await runPromiseUnwrapped(
+                            orchestrator.convergeNow(id)
+                        )
+                        if (state === 'degraded')
+                            logger.warn(
+                                `${id} DEGRADED after an ingress refresh — see supervisor health`
+                            )
+                    } catch (error) {
+                        logger.warn(
+                            `${id} re-converge failed: ${error instanceof Error ? error.message : String(error)}`
+                        )
+                    }
+                }
+            })()
+        },
+    }
+}
+
+export class TraefikConfigRefresher extends Context.Service<
+    TraefikConfigRefresher,
+    TraefikConfigRefresherShape
+>()('shared/TraefikConfigRefresher') {}

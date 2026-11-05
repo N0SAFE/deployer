@@ -1,5 +1,5 @@
-import type { Rule } from 'eslint';
-import pc from 'picocolors';
+import type { Rule } from 'eslint'
+import pc from 'picocolors'
 
 /**
  * `file-progress` as a typed ESLint rule.
@@ -38,22 +38,24 @@ import pc from 'picocolors';
  */
 
 /** Bar cells. Matches `bun check`, which does not widen with the terminal. */
-const BAR_WIDTH = 24;
+const BAR_WIDTH = 24
 
 /** `bun check`'s spinner. */
-const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
-const SOURCE_EXTENSIONS = '{ts,tsx,js,jsx,mjs,cjs,mts,cts}';
+const SOURCE_EXTENSIONS = '{ts,tsx,js,jsx,mjs,cjs,mts,cts}'
 
 /** Directories no workspace lints. Mirrors `bunfig.toml`'s `ignorePatterns`. */
-const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.next|\.source|coverage|build)\//;
+const IGNORED_DIRS =
+    /(^|\/)(node_modules|dist|\.next|\.source|coverage|build)\//
 
 /**
  * Files `bun lint` never reports as linted: it drops configs and setups from its
  * own file list. Measured across the repo: excluding these took the estimate
  * from a mean 1.28x of the real count to a mean 1.03x.
  */
-const NOT_LINTED = /(^|\/)(eslint\.config|[^/]*\.config|[^/]*\.setup)\.[cm]?[jt]s$/;
+const NOT_LINTED =
+    /(^|\/)(eslint\.config|[^/]*\.config|[^/]*\.setup)\.[cm]?[jt]s$/
 
 /**
  * Auto-disable when eslint runs with `--debug`: debug output and a repainting
@@ -64,13 +66,13 @@ const NOT_LINTED = /(^|\/)(eslint\.config|[^/]*\.config|[^/]*\.setup)\.[cm]?[jt]
  * reloads this module.
  */
 if (process.argv.includes('--debug')) {
-  process.env.ESLINT_FILE_PROGRESS_DEBUG = '1';
+    process.env.ESLINT_FILE_PROGRESS_DEBUG = '1'
 }
 
 const isDebugEnabled = (): boolean =>
-  process.env.ESLINT_FILE_PROGRESS_DEBUG === '1' ||
-  process.argv.includes('--debug') ||
-  Boolean(process.env.DEBUG);
+    process.env.ESLINT_FILE_PROGRESS_DEBUG === '1' ||
+    process.argv.includes('--debug') ||
+    Boolean(process.env.DEBUG)
 
 /**
  * A repainting line needs a terminal it owns, and turbo only gives tasks one in
@@ -90,24 +92,25 @@ const isDebugEnabled = (): boolean =>
  * too, which is why the check is "not under turbo, OR under a turbo TUI".
  */
 const isInteractive = (): boolean =>
-  Boolean(process.stderr.isTTY) &&
-  !isDebugEnabled() &&
-  (process.env.TURBO_HASH === undefined || process.env.TURBO_IS_TUI === 'true');
+    Boolean(process.stderr.isTTY) &&
+    !isDebugEnabled() &&
+    (process.env.TURBO_HASH === undefined ||
+        process.env.TURBO_IS_TUI === 'true')
 
 interface ProgressSettings {
-  hide: boolean;
+    hide: boolean
 }
 
 const defaultSettings: ProgressSettings = {
-  hide: false,
-};
+    hide: false,
+}
 
-let done = 0;
-let total = 0;
-let spinIndex = 0;
-let drew = false;
-let bindExit = false;
-let totalScanned = false;
+let done = 0
+let total = 0
+let spinIndex = 0
+let drew = false
+let bindExit = false
+let totalScanned = false
 
 /**
  * Count the files this workspace will lint, once per process.
@@ -122,109 +125,107 @@ let totalScanned = false;
  * on overshoot, so the bar can still reach 100% when the estimate is low.
  */
 const estimateTotal = (cwd: string): void => {
-  if (totalScanned) return;
-  totalScanned = true;
+    if (totalScanned) return
+    totalScanned = true
 
-  // The glob comes from Bun's runtime, which is not a compile-time dependency here: the plugin is built with plain
-  // `tsc` and also runs in editors that have no `Bun` global. Reading it off `globalThis` keeps the runtime guard the
-  // `typeof Bun === 'undefined'` check used to provide — and keeps `@types/bun` out of the build.
-  const bun = (globalThis as { Bun?: BunGlobHost }).Bun;
-  if (bun === undefined) return;
+    // The glob comes from Bun's runtime, which is not a compile-time dependency here: the plugin is built with plain
+    // `tsc` and also runs in editors that have no `Bun` global. Reading it off `globalThis` keeps the runtime guard the
+    // `typeof Bun === 'undefined'` check used to provide — and keeps `@types/bun` out of the build.
+    const bun = (globalThis as { Bun?: BunGlobHost }).Bun
+    if (bun === undefined) return
 
-  const seen = new Set<string>();
-  try {
-    for (const file of new bun.Glob(`**/*.${SOURCE_EXTENSIONS}`).scanSync({
-      cwd,
-      dot: false,
-      onlyFiles: true,
-    })) {
-      if (IGNORED_DIRS.test(`${file}/`)) continue;
-      if (NOT_LINTED.test(file)) continue;
-      seen.add(file);
+    const seen = new Set<string>()
+    try {
+        for (const file of new bun.Glob(`**/*.${SOURCE_EXTENSIONS}`).scanSync({
+            cwd,
+            dot: false,
+            onlyFiles: true,
+        })) {
+            if (IGNORED_DIRS.test(`${file}/`)) continue
+            if (NOT_LINTED.test(file)) continue
+            seen.add(file)
+        }
+    } catch {
+        // Unreadable cwd: fall back to showing only the completed count.
+        return
     }
-  } catch {
-    // Unreadable cwd: fall back to showing only the completed count.
-    return;
-  }
-  total = seen.size;
-};
+    total = seen.size
+}
 
 /** The sliver of Bun's glob API this rule uses, so the build needs no `@types/bun`. */
 type BunGlobHost = {
-  readonly Glob: new (
-    pattern: string,
-  ) => {
-    scanSync(options: {
-      cwd: string;
-      dot: boolean;
-      onlyFiles: boolean;
-    }): Iterable<string>;
-  };
-};
+    readonly Glob: new (pattern: string) => {
+        scanSync(options: {
+            cwd: string
+            dot: boolean
+            onlyFiles: boolean
+        }): Iterable<string>
+    }
+}
 
 /** Repaint the line in place. */
 const render = (): void => {
-  const shownTotal = Math.max(total, done);
-  const filled =
-    shownTotal > 0 ? Math.round((done / shownTotal) * BAR_WIDTH) : 0;
-  const frame = SPINNER[spinIndex % SPINNER.length];
-  spinIndex += 1;
+    const shownTotal = Math.max(total, done)
+    const filled =
+        shownTotal > 0 ? Math.round((done / shownTotal) * BAR_WIDTH) : 0
+    const frame = SPINNER[spinIndex % SPINNER.length]
+    spinIndex += 1
 
-  const bar =
-    (filled > 0 ? pc.cyan('━'.repeat(filled)) : '') +
-    (filled < BAR_WIDTH ? pc.dim('━'.repeat(BAR_WIDTH - filled)) : '');
-  const counts =
-    shownTotal > 0
-      ? `${done.toLocaleString('en-US')}${pc.dim(` / ${shownTotal.toLocaleString('en-US')} files`)}`
-      : `${done.toLocaleString('en-US')} files`;
+    const bar =
+        (filled > 0 ? pc.cyan('━'.repeat(filled)) : '') +
+        (filled < BAR_WIDTH ? pc.dim('━'.repeat(BAR_WIDTH - filled)) : '')
+    const counts =
+        shownTotal > 0
+            ? `${done.toLocaleString('en-US')}${pc.dim(` / ${shownTotal.toLocaleString('en-US')} files`)}`
+            : `${done.toLocaleString('en-US')} files`
 
-  process.stderr.write(`\r\x1b[2K${pc.cyan(frame)} Linting ${bar} ${counts}`);
-  drew = true;
-};
+    process.stderr.write(`\r\x1b[2K${pc.cyan(frame)} Linting ${bar} ${counts}`)
+    drew = true
+}
 
 /** Erase the line so the runner's summary starts clean. */
 const clearLine = (): void => {
-  if (!drew) return;
-  process.stderr.write('\x1b[2K\r');
-  drew = false;
-};
+    if (!drew) return
+    process.stderr.write('\x1b[2K\r')
+    drew = false
+}
 
 const onExit = (): void => {
-  clearLine();
-};
+    clearLine()
+}
 
 const create: Rule.RuleModule['create'] = (context) => {
-  const settings: ProgressSettings = {
-    ...defaultSettings,
-    ...(context.settings.progress as Partial<ProgressSettings> | undefined),
-  };
+    const settings: ProgressSettings = {
+        ...defaultSettings,
+        ...(context.settings.progress as Partial<ProgressSettings> | undefined),
+    }
 
-  if (settings.hide || !isInteractive()) return {};
+    if (settings.hide || !isInteractive()) return {}
 
-  if (!bindExit) {
-    process.on('exit', onExit);
-    bindExit = true;
-  }
+    if (!bindExit) {
+        process.on('exit', onExit)
+        bindExit = true
+    }
 
-  estimateTotal(context.cwd);
+    estimateTotal(context.cwd)
 
-  done += 1;
-  // The scan is an estimate; let an overshoot widen the denominator instead of
-  // pinning the bar at 100% while files keep arriving.
-  if (done > total) total = done;
+    done += 1
+    // The scan is an estimate; let an overshoot widen the denominator instead of
+    // pinning the bar at 100% while files keep arriving.
+    if (done > total) total = done
 
-  render();
-  return {};
-};
+    render()
+    return {}
+}
 
 /** The rule itself, in the shape ESLint expects. */
 export const progressRule: Rule.RuleModule = {
-  meta: {
-    type: 'suggestion',
-    messages: {},
-    schema: [],
-  },
-  create,
-};
+    meta: {
+        type: 'suggestion',
+        messages: {},
+        schema: [],
+    },
+    create,
+}
 
-export default progressRule;
+export default progressRule

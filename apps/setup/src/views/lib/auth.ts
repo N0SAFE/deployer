@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * Better Auth client for the wizard's sign-in step.
@@ -19,23 +19,27 @@
  * every surface.
  */
 
-import { createAuthClientFactory } from "@deployer/auth/client";
+import { createAuthClientFactory } from '@deployer/auth/client'
 
 // Explicit `ReturnType` annotation matches the web app: it pins the client
 // type to the factory's declared return, which keeps plugin inference stable
 // across compilers.
-export const auth: ReturnType<typeof createAuthClientFactory> = createAuthClientFactory({
-	basePath: "/api/auth",
-	fetchOptions: { credentials: "include" },
-});
+export const auth: ReturnType<typeof createAuthClientFactory> =
+    createAuthClientFactory({
+        basePath: '/api/auth',
+        fetchOptions: { credentials: 'include' },
+    })
 
 /**
  * Typed email/password sign-in.
  */
-export async function signInWithEmail(input: { email: string; password: string }): Promise<unknown> {
-	const result = await auth.signIn.email(input);
-	if (result.error) {
-		throw new Error(result.error.message ?? "Sign in failed");
-	}
-	return result.data;
+export async function signInWithEmail(input: {
+    email: string
+    password: string
+}): Promise<unknown> {
+    const result = await auth.signIn.email(input)
+    if (result.error) {
+        throw new Error(result.error.message ?? 'Sign in failed')
+    }
+    return result.data
 }

@@ -5,6 +5,7 @@ order: 15
 ---
 
 # Service Creation Wizard — Feature Reference
+
 This document is the **complete feature catalog** for the service creation
 wizard (`apps/web/src/app/dashboard/projects/_components/CreateServiceWizard.tsx`).
 
@@ -19,27 +20,27 @@ domain option is described here so the form can be extended without guessing.
 
 The wizard is a 9-step flow:
 
-| # | Step | File | Purpose |
-|---|------|------|---------|
-| 1 | Basic info | `steps/StepBasicInfo.tsx` | Name, type, description, tags |
-| 2 | Source | `steps/StepProvider.tsx` | Provider (GitHub app/repo/branch, registry, manual) |
-| 3 | **Builder** | `steps/StepBuilder.tsx` | **How the image is built** (build method + paths) |
-| 4 | **Runner** | `steps/StepRunner.tsx` | **How the service runs** (runner type + per-runner config) |
-| 5 | **Runtime** | `steps/StepRuntime.tsx` | Process, ports, volumes, secrets, deployment policy |
-| 6 | **Network** | `steps/StepNetwork.tsx` | Container port, port forwards, internet exposure, TLS, health check |
-| 7 | **Domains** | `steps/StepDomains.tsx` | Custom domains + subdomain/base-path/SSL bindings |
-| 8 | Advanced | `steps/StepAdvanced.tsx` | Environment variables, resource limits |
-| 9 | Review | `steps/StepReview.tsx` | Summary of every choice |
+| #   | Step        | File                      | Purpose                                                             |
+| --- | ----------- | ------------------------- | ------------------------------------------------------------------- |
+| 1   | Basic info  | `steps/StepBasicInfo.tsx` | Name, type, description, tags                                       |
+| 2   | Source      | `steps/StepProvider.tsx`  | Provider (GitHub app/repo/branch, registry, manual)                 |
+| 3   | **Builder** | `steps/StepBuilder.tsx`   | **How the image is built** (build method + paths)                   |
+| 4   | **Runner**  | `steps/StepRunner.tsx`    | **How the service runs** (runner type + per-runner config)          |
+| 5   | **Runtime** | `steps/StepRuntime.tsx`   | Process, ports, volumes, secrets, deployment policy                 |
+| 6   | **Network** | `steps/StepNetwork.tsx`   | Container port, port forwards, internet exposure, TLS, health check |
+| 7   | **Domains** | `steps/StepDomains.tsx`   | Custom domains + subdomain/base-path/SSL bindings                   |
+| 8   | Advanced    | `steps/StepAdvanced.tsx`  | Environment variables, resource limits                              |
+| 9   | Review      | `steps/StepReview.tsx`    | Summary of every choice                                             |
 
 The two load-bearing concepts that were previously conflated:
 
-- **Builder** — how a container image is *produced* (auto / Dockerfile /
+- **Builder** — how a container image is _produced_ (auto / Dockerfile /
   Nixpacks / Buildpack / Railpack / external).
-- **Runner** — how the built service is *deployed & executed* (manual container /
+- **Runner** — how the built service is _deployed & executed_ (manual container /
   compose stack / orchestrator sub-services / Kubernetes / Nomad / worker-runtime /
   static).
 
-> **Service type** is now *derived from the runner* (dokploy-style), not a freeform
+> **Service type** is now _derived from the runner_ (dokploy-style), not a freeform
 > category: `manual → application`, `compose → compose`, `orchestrator → sub-services`,
 > `worker-runtime → worker`, `kubernetes/nomad/static → same`. A compose file detected
 > with **multiple services** prompts the choice: manage as **one stack** (compose runner,
@@ -54,18 +55,18 @@ Two distinct configuration levels, each with its own page:
 
 ### Project level — `projects/[projectId]/configuration`
 
-The **orchestrator / strategy layer**. It configures *how services behave as a
-group* and provides **defaults that cascade into services**:
+The **orchestrator / strategy layer**. It configures _how services behave as a
+group_ and provides **defaults that cascade into services**:
 
-| Concern | What it controls |
-|---------|------------------|
-| General | Name, description, base domain |
-| Deployment | Strategy (rolling/blue-green/canary/recreate), auto-deploy, preview environments, retention |
-| Security | Access policy, secrets policy, build isolation |
-| Resources | Default CPU/memory/storage limits applied to new services |
-| Notifications | Alert channels (webhook/slack/email) for deployment events |
-| Environments | The environment matrix (production/staging/preview/development) every service inherits |
-| Dependencies | Service-to-service dependency graph (deploy order, readiness gating) |
+| Concern       | What it controls                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| General       | Name, description, base domain                                                              |
+| Deployment    | Strategy (rolling/blue-green/canary/recreate), auto-deploy, preview environments, retention |
+| Security      | Access policy, secrets policy, build isolation                                              |
+| Resources     | Default CPU/memory/storage limits applied to new services                                   |
+| Notifications | Alert channels (webhook/slack/email) for deployment events                                  |
+| Environments  | The environment matrix (production/staging/preview/development) every service inherits      |
+| Dependencies  | Service-to-service dependency graph (deploy order, readiness gating)                        |
 
 ### Service level — `projects/[projectId]/services/[serviceId]`
 
@@ -73,13 +74,13 @@ The **per-service execution layer**. Each service (including sub-services —
 they are real `services` rows) has its own detail page with its own
 configuration:
 
-| Section | What it controls |
-|---------|------------------|
-| General | Identity, resources, deployment retention |
-| Provider | Git provider / registry / manual source + branch |
-| Network | Port, network mode, exposure, TLS, custom domains, health check |
-| Environment | Per-environment variable overrides, templates |
-| Deployments / Logs / Monitoring / Previews | Operational views for this one service |
+| Section                                    | What it controls                                                |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| General                                    | Identity, resources, deployment retention                       |
+| Provider                                   | Git provider / registry / manual source + branch                |
+| Network                                    | Port, network mode, exposure, TLS, custom domains, health check |
+| Environment                                | Per-environment variable overrides, templates                   |
+| Deployments / Logs / Monitoring / Previews | Operational views for this one service                          |
 
 **Navigation:** clicking a service anywhere (project page table, dependency
 graph, sub-service tree) navigates to **its own** detail page — never to the
@@ -276,25 +277,25 @@ flowchart TD
 
 ### Build methods (`runner.build.method`)
 
-| Method | Meaning |
-|--------|---------|
-| `auto` | Detect the best method from the repository contents |
-| `dockerfile` | Build with the repository's Dockerfile |
-| `nixpacks` | Zero-config containerization (language auto-detection) |
-| `buildpack` | Cloud Native Buildpacks (Heroku-style) |
-| `railpack` | Railpack runtime detection & builds |
-| `external` | Use a prebuilt image — **no build step** |
+| Method       | Meaning                                                |
+| ------------ | ------------------------------------------------------ |
+| `auto`       | Detect the best method from the repository contents    |
+| `dockerfile` | Build with the repository's Dockerfile                 |
+| `nixpacks`   | Zero-config containerization (language auto-detection) |
+| `buildpack`  | Cloud Native Buildpacks (Heroku-style)                 |
+| `railpack`   | Railpack runtime detection & builds                    |
+| `external`   | Use a prebuilt image — **no build step**               |
 
 ### Build fields (`runner.build.*`)
 
-| Field | Used by | Meaning |
-|-------|---------|---------|
-| `rootPath` | all build methods | Directory containing the app entrypoint |
-| `buildContext` | all build methods | Docker build context path |
-| `dockerfilePath` | `dockerfile` | Path to the Dockerfile (e.g. `docker/Dockerfile`) |
-| `composeFile` | `dockerfile` | Reference compose file (when an orchestrator is used) |
-| `buildCommand` | nixpacks/buildpack/railpack | Custom build command override |
-| `runCommand` | nixpacks/buildpack/railpack | Custom run command override |
+| Field            | Used by                     | Meaning                                               |
+| ---------------- | --------------------------- | ----------------------------------------------------- |
+| `rootPath`       | all build methods           | Directory containing the app entrypoint               |
+| `buildContext`   | all build methods           | Docker build context path                             |
+| `dockerfilePath` | `dockerfile`                | Path to the Dockerfile (e.g. `docker/Dockerfile`)     |
+| `composeFile`    | `dockerfile`                | Reference compose file (when an orchestrator is used) |
+| `buildCommand`   | nixpacks/buildpack/railpack | Custom build command override                         |
+| `runCommand`     | nixpacks/buildpack/railpack | Custom run command override                           |
 
 Every path field is an **autocomplete** — pick a preset or type a custom value.
 
@@ -304,14 +305,14 @@ Every path field is an **autocomplete** — pick a preset or type a custom value
 
 ### Runner types (`runner.runnerId`)
 
-| Runner | Meaning | Config keys |
-|--------|---------|-------------|
-| `manual` | Single container with an explicit start command (classic `docker run`) | `startCommand` (required) |
-| `orchestrator` | Multi-service manifest (compose) that **owns detected sub-services** | `composeFile`, `composeProjectName`, `profiles`, `subServices[]`, `environment` (cascades) |
-| `kubernetes` | Kubernetes Deployment workload | `namespace`, `deploymentName`, `replicas`, `serviceAccountName` |
-| `nomad` | Nomad job on the cluster | `jobName`, `datacenter`, `nomadNamespace` |
-| `worker-runtime` | Queue consumer with N concurrent workers | `queueName`, `concurrency`, `maxRetries` |
-| `static` | Static file server (SPA / JAMstack) | `outputDir`, `indexFile`, `errorPage` |
+| Runner           | Meaning                                                                | Config keys                                                                                |
+| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `manual`         | Single container with an explicit start command (classic `docker run`) | `startCommand` (required)                                                                  |
+| `orchestrator`   | Multi-service manifest (compose) that **owns detected sub-services**   | `composeFile`, `composeProjectName`, `profiles`, `subServices[]`, `environment` (cascades) |
+| `kubernetes`     | Kubernetes Deployment workload                                         | `namespace`, `deploymentName`, `replicas`, `serviceAccountName`                            |
+| `nomad`          | Nomad job on the cluster                                               | `jobName`, `datacenter`, `nomadNamespace`                                                  |
+| `worker-runtime` | Queue consumer with N concurrent workers                               | `queueName`, `concurrency`, `maxRetries`                                                   |
+| `static`         | Static file server (SPA / JAMstack)                                    | `outputDir`, `indexFile`, `errorPage`                                                      |
 
 > **Note:** `docker-compose` and `docker-swarm` are **no longer runner types.**
 > A detected compose file becomes an **orchestrator** runner whose sub-services
@@ -348,12 +349,12 @@ environments, but it is linked to its parent.
 
 **API surface:**
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /services` with `children[]` | Create parent + whole subtree atomically |
+| Endpoint                            | Purpose                                            |
+| ----------------------------------- | -------------------------------------------------- |
+| `POST /services` with `children[]`  | Create parent + whole subtree atomically           |
 | `PUT /services/:id` with `parentId` | Reparent (moves the whole subtree, rebuilds paths) |
-| `GET /services/:id/children` | Direct children (one level) |
-| `GET /services/:id/subtree` | Full nested descendant tree |
+| `GET /services/:id/children`        | Direct children (one level)                        |
+| `GET /services/:id/subtree`         | Full nested descendant tree                        |
 
 The runner config still keeps `subServices[]` as the **wizard authoring
 manifest** (the source of the child rows); the DB rows are the source of
@@ -365,18 +366,18 @@ truth at runtime. The service overview page renders a recursive
 Each sub-service is **as complex as the main service** — it mirrors every main
 service concern:
 
-| Concern | Fields |
-|---------|--------|
-| Identity | `name`, `image` |
-| Build | `build.context`, `build.dockerfile`, `build.args` |
-| Runtime | `command`, `entrypoint` |
-| Networking | `port`, `ports`, `portMappings[]`, `expose`, `tls.{enabled,certSecretRef,httpRedirect}`, `networks`, `customDomains` |
-| Config / storage | `environment` (overrides cascade), `volumes`, `labels`, `secrets` |
-| Dependencies | `dependsOn`, `dependsOnCondition` (started/healthy/completed) |
-| Scaling | `replicas` |
-| Health | `healthCheck.{test,interval,timeout,retries,startPeriod}` |
-| Resources | `resources.{cpus,memory}` |
-| Restart | `restart` (no/always/on-failure/unless-stopped) |
+| Concern          | Fields                                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Identity         | `name`, `image`                                                                                                      |
+| Build            | `build.context`, `build.dockerfile`, `build.args`                                                                    |
+| Runtime          | `command`, `entrypoint`                                                                                              |
+| Networking       | `port`, `ports`, `portMappings[]`, `expose`, `tls.{enabled,certSecretRef,httpRedirect}`, `networks`, `customDomains` |
+| Config / storage | `environment` (overrides cascade), `volumes`, `labels`, `secrets`                                                    |
+| Dependencies     | `dependsOn`, `dependsOnCondition` (started/healthy/completed)                                                        |
+| Scaling          | `replicas`                                                                                                           |
+| Health           | `healthCheck.{test,interval,timeout,retries,startPeriod}`                                                            |
+| Resources        | `resources.{cpus,memory}`                                                                                            |
+| Restart          | `restart` (no/always/on-failure/unless-stopped)                                                                      |
 
 Sub-services are **auto-completed** from the compose detection (`composeServices`
 hints): image, build context/dockerfile/args, command, entrypoint, ports,
@@ -399,16 +400,16 @@ Only shown for **container-style** runners (`manual`, `kubernetes`, `nomad`,
 `worker-runtime`). Orchestrators and static sites declare their process
 differently and are skipped.
 
-| Field | Meaning |
-|-------|---------|
-| `runner.config.startCommand` | Process command that starts the container |
-| `runner.config.args` | Extra CLI arguments (comma-separated) |
-| `runner.config.ports` | Ports exposed by the container |
-| `runner.config.volumeMounts` | Volume mounts (`/host:/container`) |
-| `runner.config.secretRefs` | Secret references consumed by the service |
-| `runner.config.strategy` | Rollout strategy: `rolling`, `recreate`, `blue-green`, `canary` |
-| `runner.config.networkMode` | `bridge`, `host`, `overlay` |
-| `runner.config.gracefulShutdownSeconds` | Grace period before SIGKILL |
+| Field                                   | Meaning                                                         |
+| --------------------------------------- | --------------------------------------------------------------- |
+| `runner.config.startCommand`            | Process command that starts the container                       |
+| `runner.config.args`                    | Extra CLI arguments (comma-separated)                           |
+| `runner.config.ports`                   | Ports exposed by the container                                  |
+| `runner.config.volumeMounts`            | Volume mounts (`/host:/container`)                              |
+| `runner.config.secretRefs`              | Secret references consumed by the service                       |
+| `runner.config.strategy`                | Rollout strategy: `rolling`, `recreate`, `blue-green`, `canary` |
+| `runner.config.networkMode`             | `bridge`, `host`, `overlay`                                     |
+| `runner.config.gracefulShutdownSeconds` | Grace period before SIGKILL                                     |
 
 ---
 
@@ -416,33 +417,33 @@ differently and are skipped.
 
 ### Networking
 
-| Field | Meaning |
-|-------|---------|
-| `network.port` | Primary container port (ingress + health default) |
-| `network.portMappings[]` | Extra forwards: `{ containerPort, hostPort?, protocol, name? }` |
-| `network.expose` | Expose to the internet via the ingress (Traefik) |
-| `network.tls.enabled` | Terminate HTTPS on the edge |
-| `network.tls.certSecretRef` | Certificate source (e.g. `letsencrypt`) |
-| `network.tls.httpRedirect` | Redirect HTTP → HTTPS |
+| Field                       | Meaning                                                         |
+| --------------------------- | --------------------------------------------------------------- |
+| `network.port`              | Primary container port (ingress + health default)               |
+| `network.portMappings[]`    | Extra forwards: `{ containerPort, hostPort?, protocol, name? }` |
+| `network.expose`            | Expose to the internet via the ingress (Traefik)                |
+| `network.tls.enabled`       | Terminate HTTPS on the edge                                     |
+| `network.tls.certSecretRef` | Certificate source (e.g. `letsencrypt`)                         |
+| `network.tls.httpRedirect`  | Redirect HTTP → HTTPS                                           |
 
 ### Health check (`network.healthCheck`)
 
-| Type | Fields |
-|------|--------|
-| `http` | `path`, `method` (GET/HEAD/POST), `expectedStatus`, `headers` |
-| `tcp` | `port` |
-| `command` | `command` |
-| `none` | — |
+| Type      | Fields                                                        |
+| --------- | ------------------------------------------------------------- |
+| `http`    | `path`, `method` (GET/HEAD/POST), `expectedStatus`, `headers` |
+| `tcp`     | `port`                                                        |
+| `command` | `command`                                                     |
+| `none`    | —                                                             |
 
 All non-none types share timing/threshold fields:
 
-| Field | Meaning |
-|-------|---------|
-| `interval` | Seconds between checks |
-| `timeout` | Per-check timeout |
-| `retries` | Retry count |
-| `startPeriod` | Grace period after container start |
-| `successThreshold` | Consecutive successes to mark healthy |
+| Field              | Meaning                                |
+| ------------------ | -------------------------------------- |
+| `interval`         | Seconds between checks                 |
+| `timeout`          | Per-check timeout                      |
+| `retries`          | Retry count                            |
+| `startPeriod`      | Grace period after container start     |
+| `successThreshold` | Consecutive successes to mark healthy  |
 | `failureThreshold` | Consecutive failures to mark unhealthy |
 
 ---
@@ -454,13 +455,13 @@ Two surfaces:
 1. **Custom domains** (`network.customDomains`) — pick registered project domains.
 2. **Subdomain & routing** (`network.domainEntries[]`) — per-domain bindings:
 
-| Field | Meaning |
-|-------|---------|
-| `projectDomainId` | The project domain this entry binds to |
-| `subdomain` | Subdomain (constrained by the domain's allowed list) |
-| `basePath` | Optional path prefix |
-| `isPrimary` | Primary routing entry |
-| `sslEnabled` | Enable SSL for this binding |
+| Field             | Meaning                                              |
+| ----------------- | ---------------------------------------------------- |
+| `projectDomainId` | The project domain this entry binds to               |
+| `subdomain`       | Subdomain (constrained by the domain's allowed list) |
+| `basePath`        | Optional path prefix                                 |
+| `isPrimary`       | Primary routing entry                                |
+| `sslEnabled`      | Enable SSL for this binding                          |
 
 ---
 
@@ -469,16 +470,16 @@ Two surfaces:
 The `detectRunner` GitHub endpoint inspects repository contents and returns a
 `builderId` + `hints`. The wizard maps them (`runner-presets.ts`):
 
-| Detected | → Runner | Build method |
-|----------|----------|--------------|
-| `docker-compose` | `orchestrator` | `auto` (compose manifest) |
-| `static` | `static` | `auto` |
-| `worker-runtime` | `worker-runtime` | `auto` |
-| `dockerfile` | `manual` | `dockerfile` |
-| `nixpacks` | `manual` | `nixpacks` |
-| `buildpack` | `manual` | `buildpack` |
-| `railpack` | `manual` | `railpack` |
-| `null` (no detection) | `manual` | `auto` |
+| Detected              | → Runner         | Build method              |
+| --------------------- | ---------------- | ------------------------- |
+| `docker-compose`      | `orchestrator`   | `auto` (compose manifest) |
+| `static`              | `static`         | `auto`                    |
+| `worker-runtime`      | `worker-runtime` | `auto`                    |
+| `dockerfile`          | `manual`         | `dockerfile`              |
+| `nixpacks`            | `manual`         | `nixpacks`                |
+| `buildpack`           | `manual`         | `buildpack`               |
+| `railpack`            | `manual`         | `railpack`                |
+| `null` (no detection) | `manual`         | `auto`                    |
 
 The hints populate `startCommand`, `ports`, `rootPath`, `buildContext`,
 `dockerfilePath`, `composeFile`, and `composeServices[]` so the form is

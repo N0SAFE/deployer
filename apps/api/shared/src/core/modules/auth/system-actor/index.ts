@@ -1,1 +1,1 @@
-export * from "./system-actor";
+export * from './system-actor'

@@ -1,11 +1,11 @@
 import type { Auth } from '../../auth'
 import type { AppContract } from '../../core/orpc/app-contract'
+import type { HttpEdgeEntry } from '../../server/http-edge'
 import type { INestApplication, Type } from '@nestjs/common'
 import type { TestingModule } from '@nestjs/testing'
 import type { AnyContractRouter, ContractRouterClient } from '@orpc/contract'
 import type { Pool } from 'pg'
 import type request from 'supertest'
-import type { HttpEdgeEntry } from "../../server/http-edge"
 
 export type SharedPostgresContainerHandle = {
     getConnectionUri(): string
@@ -85,19 +85,33 @@ export type SharedRuntimeErrorContext = {
 
 export type SharedRuntimePlugin = {
     name: string
-    onContainerReady?: (context: SharedRuntimeContainerContext) => Promise<void> | void
-    onDatabaseCreated?: (context: SharedRuntimeDatabaseContext) => Promise<void> | void
-    onEnvironmentPrepared?: (context: SharedRuntimeEnvironmentContext) => Promise<void> | void
-    onModuleBuilder?: (context: SharedRuntimeNestModuleBuilderContext) => Promise<void> | void
-    onModuleCompiled?: (context: SharedRuntimeNestModuleCompiledContext) => Promise<void> | void
-    onAppInit?: (context: SharedRuntimeNestAppInitContext) => Promise<void> | void
+    onContainerReady?: (
+        context: SharedRuntimeContainerContext
+    ) => Promise<void> | void
+    onDatabaseCreated?: (
+        context: SharedRuntimeDatabaseContext
+    ) => Promise<void> | void
+    onEnvironmentPrepared?: (
+        context: SharedRuntimeEnvironmentContext
+    ) => Promise<void> | void
+    onModuleBuilder?: (
+        context: SharedRuntimeNestModuleBuilderContext
+    ) => Promise<void> | void
+    onModuleCompiled?: (
+        context: SharedRuntimeNestModuleCompiledContext
+    ) => Promise<void> | void
+    onAppInit?: (
+        context: SharedRuntimeNestAppInitContext
+    ) => Promise<void> | void
     onReady?: (context: SharedRuntimeReadyContext) => Promise<void> | void
     onError?: (context: SharedRuntimeErrorContext) => Promise<void> | void
 }
 
 export type SharedRuntimeDatabaseOptions = {
     name?: string
-    onDatabaseCreate?: (context: SharedRuntimeDatabaseContext) => Promise<void> | void
+    onDatabaseCreate?: (
+        context: SharedRuntimeDatabaseContext
+    ) => Promise<void> | void
 }
 
 export type SharedRuntimeNestOptions = {
@@ -122,9 +136,15 @@ export type SharedRuntimeNestOptions = {
      * `main.ts` passes an edge (the BFF's credentials context) would be tested without it.
      */
     edge?: readonly HttpEdgeEntry[]
-    onModuleBuilder?: (context: SharedRuntimeNestModuleBuilderContext) => Promise<void> | void
-    onModuleCompiled?: (context: SharedRuntimeNestModuleCompiledContext) => Promise<void> | void
-    onAppInit?: (context: SharedRuntimeNestAppInitContext) => Promise<void> | void
+    onModuleBuilder?: (
+        context: SharedRuntimeNestModuleBuilderContext
+    ) => Promise<void> | void
+    onModuleCompiled?: (
+        context: SharedRuntimeNestModuleCompiledContext
+    ) => Promise<void> | void
+    onAppInit?: (
+        context: SharedRuntimeNestAppInitContext
+    ) => Promise<void> | void
 }
 
 export type SharedApiRuntimeOptions = {
@@ -177,7 +197,8 @@ export type SharedRuntimeOrpcInspector = {
     getAllResponses(): SharedOrpcResponseMeta[]
 }
 
-export type SharedRuntimeOrpcClient<TContract extends AnyContractRouter> = ContractRouterClient<TContract>
+export type SharedRuntimeOrpcClient<TContract extends AnyContractRouter> =
+    ContractRouterClient<TContract>
 
 export const DEFAULT_SHARED_RUNTIME_KEY = 'default'
 export const SHARED_RUNTIME_MAX_CONCURRENCY_ENV =
@@ -185,9 +206,7 @@ export const SHARED_RUNTIME_MAX_CONCURRENCY_ENV =
 export const SHARED_POSTGRES_CONNECTION_URI_ENV =
     'E2E_SHARED_POSTGRES_CONNECTION_URI'
 
-export function resolveSharedRuntimeMaxConcurrency(
-    fallback = 4,
-): number {
+export function resolveSharedRuntimeMaxConcurrency(fallback = 4): number {
     const raw = process.env[SHARED_RUNTIME_MAX_CONCURRENCY_ENV]
     const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
 

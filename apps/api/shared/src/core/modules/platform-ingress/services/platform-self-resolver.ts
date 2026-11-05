@@ -5,11 +5,11 @@
  * called on the network" logic lives in ONE place.
  */
 
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import type { ContainersShape } from "@deployer/docker";
+import type { ContainersShape } from '@deployer/docker'
 
-import type { EnvService } from "../../../../config/env/env.module";
+import type { EnvService } from '../../../../config/env/env.module'
 
 /**
  * Priority:
@@ -19,17 +19,21 @@ import type { EnvService } from "../../../../config/env/env.module";
  *   3. HOSTNAME (container id) as a last resort,
  *   4. `host.docker.internal` (bare-metal dev — no container).
  */
-export const resolveSelfContainerName = (containers: ContainersShape, env: EnvService): Effect.Effect<string> =>
-	Effect.gen(function* () {
-		const explicit = env.get("DEPLOYER_API_TARGET")?.trim();
-		if (explicit !== undefined && explicit !== "") return explicit;
+export const resolveSelfContainerName = (
+    containers: ContainersShape,
+    env: EnvService
+): Effect.Effect<string> =>
+    Effect.gen(function* () {
+        const explicit = env.get('DEPLOYER_API_TARGET')?.trim()
+        if (explicit !== undefined && explicit !== '') return explicit
 
-		const selfId = process.env.HOSTNAME;
-		if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId)) return "host.docker.internal";
-		// An inspect that fails falls through to the container-id heuristic.
-		const name = yield* containers.inspect(selfId).pipe(
-			Effect.map((info) => info.Name.replace(/^\//, "")),
-			Effect.orElseSucceed(() => ""),
-		);
-		return name !== "" ? name : selfId;
-	});
+        const selfId = process.env.HOSTNAME
+        if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId))
+            return 'host.docker.internal'
+        // An inspect that fails falls through to the container-id heuristic.
+        const name = yield* containers.inspect(selfId).pipe(
+            Effect.map((info) => info.Name.replace(/^\//, '')),
+            Effect.orElseSucceed(() => '')
+        )
+        return name !== '' ? name : selfId
+    })

@@ -1,20 +1,22 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 import {
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "./base.schema";
+} from './base.schema'
 
 export const deploymentExecutionStateSchema = z.enum([
-    "queued",
-    "running",
-    "cancellation_requested",
-    "cancelled",
-    "failed",
-    "completed",
-    "resumable",
-    "resuming",
-]);
-export type DeploymentExecutionState = z.infer<typeof deploymentExecutionStateSchema>;
+    'queued',
+    'running',
+    'cancellation_requested',
+    'cancelled',
+    'failed',
+    'completed',
+    'resumable',
+    'resuming',
+])
+export type DeploymentExecutionState = z.infer<
+    typeof deploymentExecutionStateSchema
+>
 
 export const deploymentExecutionCheckpointSchema = z.object({
     id: z.uuid(),
@@ -34,8 +36,10 @@ export const deploymentExecutionCheckpointSchema = z.object({
     metadata: z.record(z.string(), z.unknown()).nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
-export type DeploymentExecutionCheckpoint = z.infer<typeof deploymentExecutionCheckpointSchema>;
+})
+export type DeploymentExecutionCheckpoint = z.infer<
+    typeof deploymentExecutionCheckpointSchema
+>
 
 export const deploymentExecutionCancelInputSchema = z.object({
     reason: z.string().min(1).optional(),
@@ -43,8 +47,10 @@ export const deploymentExecutionCancelInputSchema = z.object({
     gracefulTimeoutSec: z.number().int().min(0).max(3_600).default(120),
     requestedBy: z.string().min(1).optional(),
     observability: deploymentObservabilityContextSchema.optional(),
-});
-export type DeploymentExecutionCancelInput = z.infer<typeof deploymentExecutionCancelInputSchema>;
+})
+export type DeploymentExecutionCancelInput = z.infer<
+    typeof deploymentExecutionCancelInputSchema
+>
 
 export const deploymentExecutionCancelResultSchema = z.object({
     accepted: z.boolean(),
@@ -53,18 +59,24 @@ export const deploymentExecutionCancelResultSchema = z.object({
     state: deploymentExecutionStateSchema,
     checkpoint: deploymentExecutionCheckpointSchema.nullable(),
     message: z.string(),
-});
-export type DeploymentExecutionCancelResult = z.infer<typeof deploymentExecutionCancelResultSchema>;
+})
+export type DeploymentExecutionCancelResult = z.infer<
+    typeof deploymentExecutionCancelResultSchema
+>
 
 export const deploymentExecutionResumeInputSchema = z.object({
     resumeFromRunId: z.uuid().optional(),
     resumeFromNodeId: z.string().optional(),
-    strategy: z.enum(["from_last_checkpoint", "from_node", "restart_failed_branch"]).default("from_last_checkpoint"),
+    strategy: z
+        .enum(['from_last_checkpoint', 'from_node', 'restart_failed_branch'])
+        .default('from_last_checkpoint'),
     requestedBy: z.string().min(1).optional(),
     reason: z.string().optional(),
     observability: deploymentObservabilityContextSchema.optional(),
-});
-export type DeploymentExecutionResumeInput = z.infer<typeof deploymentExecutionResumeInputSchema>;
+})
+export type DeploymentExecutionResumeInput = z.infer<
+    typeof deploymentExecutionResumeInputSchema
+>
 
 export const deploymentExecutionResumeResultSchema = z.object({
     resumed: z.boolean(),
@@ -74,11 +86,15 @@ export const deploymentExecutionResumeResultSchema = z.object({
     state: deploymentExecutionStateSchema,
     checkpoint: deploymentExecutionCheckpointSchema,
     message: z.string(),
-});
-export type DeploymentExecutionResumeResult = z.infer<typeof deploymentExecutionResumeResultSchema>;
+})
+export type DeploymentExecutionResumeResult = z.infer<
+    typeof deploymentExecutionResumeResultSchema
+>
 
 export const deploymentExecutionCheckpointByRunResultSchema = z.object({
     runId: z.uuid(),
     checkpoint: deploymentExecutionCheckpointSchema.nullable(),
-});
-export type DeploymentExecutionCheckpointByRunResult = z.infer<typeof deploymentExecutionCheckpointByRunResultSchema>;
+})
+export type DeploymentExecutionCheckpointByRunResult = z.infer<
+    typeof deploymentExecutionCheckpointByRunResultSchema
+>

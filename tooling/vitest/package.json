@@ -26,8 +26,7 @@
     "scripts": {
         "build": "bun --bun pkg-build",
         "compile": "bun --bun pkg-build",
-        "prettify": "bun fmt .",
-        "format": "bun run prettify",
+        "format": "bun fmt .",
         "format:check": "bun fmt --check .",
         "clean": "rimraf dist",
         "type-check": "bun check --no-script",

@@ -1,6 +1,6 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { booleanEnv } from "@deployer/env";
+import { booleanEnv } from '@deployer/env'
 
 /**
  * The setup app's OWN environment contract.
@@ -15,383 +15,394 @@ import { booleanEnv } from "@deployer/env";
  * one: the mechanism is shared, the contract is not.
  */
 export const setupEnvSchema = z.object({
-  /** Port the setup app listens on. Internal only — Traefik fronts it. */
-  SETUP_APP_PORT: z.coerce.number().int().positive().default(3016),
+    /** Port the setup app listens on. Internal only — Traefik fronts it. */
+    SETUP_APP_PORT: z.coerce.number().int().positive().default(3016),
 
-  /**
-   * `dev` waits for the API (compose manages it); `prod` creates the API as a
-   * swarm service from `DEPLOYER_API_IMAGE`.
-   */
-  SETUP_MODE: z.enum(["dev", "prod"]).default("dev"),
+    /**
+     * `dev` waits for the API (compose manages it); `prod` creates the API as a
+     * swarm service from `DEPLOYER_API_IMAGE`.
+     */
+    SETUP_MODE: z.enum(['dev', 'prod']).default('dev'),
 
-  /** Where the full API answers, in dev. Unused in prod (setup creates it). */
-  SETUP_API_URL: z.string().optional(),
+    /** Where the full API answers, in dev. Unused in prod (setup creates it). */
+    SETUP_API_URL: z.string().optional(),
 
-  /**
-   * The port the API listens on inside the platform network.
-   *
-   * Read rather than hardcoded because the correct value genuinely differs by
-   * environment (dev publishes 3005, prod 3001), so a constant would be right in
-   * one mode and silently wrong in the other — producing an ingress backend URL
-   * Traefik cannot reach. The default matches the API's own `app.config.ts`
-   * fallback.
-   */
-  SETUP_API_PORT: z.coerce.number().int().min(1).max(65535).default(3005),
+    /**
+     * The port the API listens on inside the platform network.
+     *
+     * Read rather than hardcoded because the correct value genuinely differs by
+     * environment (dev publishes 3005, prod 3001), so a constant would be right in
+     * one mode and silently wrong in the other — producing an ingress backend URL
+     * Traefik cannot reach. The default matches the API's own `app.config.ts`
+     * fallback.
+     */
+    SETUP_API_PORT: z.coerce.number().int().min(1).max(65535).default(3005),
 
-  /**
-   * Directory the live Traefik file provider watches.
-   *
-   * SAME variable and default as the API's own config services, because both
-   * processes must resolve the SAME mount: setup writes the handover into it and
-   * the API later rewrites its own files there. A mismatch would make the
-   * handover look like "Traefik ignores us" rather than a configuration error.
-   */
-  TRAEFIK_CONFIG_BASE_PATH: z.string().default("/app/traefik-configs"),
+    /**
+     * Directory the live Traefik file provider watches.
+     *
+     * SAME variable and default as the API's own config services, because both
+     * processes must resolve the SAME mount: setup writes the handover into it and
+     * the API later rewrites its own files there. A mismatch would make the
+     * handover look like "Traefik ignores us" rather than a configuration error.
+     */
+    TRAEFIK_CONFIG_BASE_PATH: z.string().default('/app/traefik-configs'),
 
-  // ─── Traefik (the ingress this app SUPERVISES before the API exists) ──────
-  //
-  // ── WHY SETUP RUNS TRAEFIK AT ALL ─────────────────────────────────────────
-  // This app publishes NO ports and is reachable ONLY through the ingress. The
-  // API is the process that normally supervises Traefik, but the API cannot
-  // start until setup's gate opens — and the gate cannot open until an operator
-  // loads the wizard. Without a bootstrap ingress that is a deadlock:
-  //
-  //   setup serves the wizard on 3016, reachable only via Traefik
-  //     → no Traefik exists (compose manages none in dev-supervised/prod)
-  //     → nobody can load the wizard
-  //     → /setup/health never turns 200
-  //     → the API never starts
-  //     → and the API is what supervises Traefik.  ✗
-  //
-  // So the ingress has TWO incarnations (plan §9), one per side of the gate:
-  //
-  //   State A — BOOTSTRAP (here): a plain container, no swarm involved. It
-  //             exists so setup is reachable at all, and it needs no cluster.
-  //   State B — SWARM: the API's `TraefikSupervisorService` promotes it to a
-  //             GLOBAL swarm service once the cluster and the API exist.
-  //
-  // Both use the SAME container name (`deployer-traefik`), the SAME entry port
-  // and the SAME config volume, so the promotion changes how it RUNS without
-  // changing what Traefik IS — no hostname ever changes owner.
+    // ─── Traefik (the ingress this app SUPERVISES before the API exists) ──────
+    //
+    // ── WHY SETUP RUNS TRAEFIK AT ALL ─────────────────────────────────────────
+    // This app publishes NO ports and is reachable ONLY through the ingress. The
+    // API is the process that normally supervises Traefik, but the API cannot
+    // start until setup's gate opens — and the gate cannot open until an operator
+    // loads the wizard. Without a bootstrap ingress that is a deadlock:
+    //
+    //   setup serves the wizard on 3016, reachable only via Traefik
+    //     → no Traefik exists (compose manages none in dev-supervised/prod)
+    //     → nobody can load the wizard
+    //     → /setup/health never turns 200
+    //     → the API never starts
+    //     → and the API is what supervises Traefik.  ✗
+    //
+    // So the ingress has TWO incarnations (plan §9), one per side of the gate:
+    //
+    //   State A — BOOTSTRAP (here): a plain container, no swarm involved. It
+    //             exists so setup is reachable at all, and it needs no cluster.
+    //   State B — SWARM: the API's `TraefikSupervisorService` promotes it to a
+    //             GLOBAL swarm service once the cluster and the API exist.
+    //
+    // Both use the SAME container name (`deployer-traefik`), the SAME entry port
+    // and the SAME config volume, so the promotion changes how it RUNS without
+    // changing what Traefik IS — no hostname ever changes owner.
 
-  /**
-   * Whether the DEPLOYMENT already owns the ingress (compose / operator).
-   *
-   * ── WHY THIS GATE IS ESSENTIAL, NOT A CONVENIENCE ──────────────────────────
-   * The entry port is a HOST port and only one process can hold it. In the plain
-   * `dev` profile compose runs its own Traefik (published on :80,
-   * `MANAGED_TRAEFIK_ENABLED=true`), so starting a bootstrap ingress here would
-   * fail to bind — or worse, silently contend for the port and leave whichever
-   * started second dead.
-   *
-   * So the rule is the SAME one the API's supervisor applies: if the deployment
-   * owns the ingress, this app only ROUTES through it (which it already does by
-   * writing `dynamic-setup.yml` into the shared config volume) and never runs
-   * one.
-   *
-   * `true`  → plain `dev`: compose runs Traefik; this app starts none.
-   * `false` → `dev-supervised` / `prod`: nothing runs Traefik; this app does,
-   *           and hands the port to the swarm incarnation at the gate.
-   *
-   * SAME variable name and default as the API's schema reads, so both apps agree
-   * on who owns the ingress by construction rather than by convention.
-   */
-  MANAGED_TRAEFIK_ENABLED: booleanEnv().default(false),
+    /**
+     * Whether the DEPLOYMENT already owns the ingress (compose / operator).
+     *
+     * ── WHY THIS GATE IS ESSENTIAL, NOT A CONVENIENCE ──────────────────────────
+     * The entry port is a HOST port and only one process can hold it. In the plain
+     * `dev` profile compose runs its own Traefik (published on :80,
+     * `MANAGED_TRAEFIK_ENABLED=true`), so starting a bootstrap ingress here would
+     * fail to bind — or worse, silently contend for the port and leave whichever
+     * started second dead.
+     *
+     * So the rule is the SAME one the API's supervisor applies: if the deployment
+     * owns the ingress, this app only ROUTES through it (which it already does by
+     * writing `dynamic-setup.yml` into the shared config volume) and never runs
+     * one.
+     *
+     * `true`  → plain `dev`: compose runs Traefik; this app starts none.
+     * `false` → `dev-supervised` / `prod`: nothing runs Traefik; this app does,
+     *           and hands the port to the swarm incarnation at the gate.
+     *
+     * SAME variable name and default as the API's schema reads, so both apps agree
+     * on who owns the ingress by construction rather than by convention.
+     */
+    MANAGED_TRAEFIK_ENABLED: booleanEnv().default(false),
 
-  /**
-   * Image for the bootstrap ingress.
-   *
-   * SAME variable the API's `TraefikSupervisorService` runs
-   * (`DEPLOYER_TRAEFIK_IMAGE`), because the bootstrap container is PROMOTED into
-   * that swarm service rather than replaced by it — so both incarnations must
-   * agree on the image or the promotion would silently change the ingress.
-   *
-   * >= v3.6 is required for the swarm side: Traefik <= 3.5 hardcodes Docker
-   * Engine API 1.24, which Engine >= 25 rejects, so its docker provider never
-   * reads a single container label and label-based routing silently stops
-   * working. There is no flag or env workaround.
-   */
-  DEPLOYER_TRAEFIK_IMAGE: z.string().min(1).default("traefik:v3.6.10"),
+    /**
+     * Image for the bootstrap ingress.
+     *
+     * SAME variable the API's `TraefikSupervisorService` runs
+     * (`DEPLOYER_TRAEFIK_IMAGE`), because the bootstrap container is PROMOTED into
+     * that swarm service rather than replaced by it — so both incarnations must
+     * agree on the image or the promotion would silently change the ingress.
+     *
+     * >= v3.6 is required for the swarm side: Traefik <= 3.5 hardcodes Docker
+     * Engine API 1.24, which Engine >= 25 rejects, so its docker provider never
+     * reads a single container label and label-based routing silently stops
+     * working. There is no flag or env workaround.
+     */
+    DEPLOYER_TRAEFIK_IMAGE: z.string().min(1).default('traefik:v3.6.10'),
 
-  /**
-   * Host port the ingress publishes. Default 80.
-   *
-   * SAME variable the API's supervisor resolves, so the bootstrap and the
-   * promoted swarm service bind the SAME port. A mismatch is not cosmetic
-   * drift: the promoted service would fail to bind and Traefik would go
-   * DEGRADED on a port nobody asked for.
-   *
-   * The persisted platform setting `ingress.entry_port` overrides this once the
-   * API owns the ingress — which is why setup RELEASES this port at handover
-   * instead of holding it.
-   */
-  DEPLOYER_TRAEFIK_HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(80),
+    /**
+     * Host port the ingress publishes. Default 80.
+     *
+     * SAME variable the API's supervisor resolves, so the bootstrap and the
+     * promoted swarm service bind the SAME port. A mismatch is not cosmetic
+     * drift: the promoted service would fail to bind and Traefik would go
+     * DEGRADED on a port nobody asked for.
+     *
+     * The persisted platform setting `ingress.entry_port` overrides this once the
+     * API owns the ingress — which is why setup RELEASES this port at handover
+     * instead of holding it.
+     */
+    DEPLOYER_TRAEFIK_HTTP_PORT: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(65535)
+        .default(80),
 
-  /**
-   * The platform's SHARED auth secret, forwarded into the services setup
-   * schedules.
-   *
-   * A swarm task inherits NOTHING from the compose project, so this value has
-   * to be passed explicitly or the WEB app crash-loops on boot:
-   *
-   *   ✖ Invalid input: expected string, received undefined → at AUTH_SECRET
-   *   ✖ ... → at BETTER_AUTH_SECRET
-   *
-   * It is REQUIRED rather than optional-open because the two apps must agree:
-   * the API signs the session cookie and the web app's middleware DECRYPTS it,
-   * so different values silently produce "logged in on one host, signed out on
-   * the other". `BETTER_AUTH_SECRET` is derived from it (see
-   * `platformAuthEnv`), matching the compose convention
-   * (`BETTER_AUTH_SECRET: ${AUTH_SECRET:-...}`), which keeps one source.
-   *
-   * The default matches compose's own fallback literal so a deployment that
-   * never set `AUTH_SECRET` behaves exactly as it did under compose.
-   */
-  AUTH_SECRET: z.string().min(1).default("fallback-auth-secret"),
+    /**
+     * The platform's SHARED auth secret, forwarded into the services setup
+     * schedules.
+     *
+     * A swarm task inherits NOTHING from the compose project, so this value has
+     * to be passed explicitly or the WEB app crash-loops on boot:
+     *
+     *   ✖ Invalid input: expected string, received undefined → at AUTH_SECRET
+     *   ✖ ... → at BETTER_AUTH_SECRET
+     *
+     * It is REQUIRED rather than optional-open because the two apps must agree:
+     * the API signs the session cookie and the web app's middleware DECRYPTS it,
+     * so different values silently produce "logged in on one host, signed out on
+     * the other". `BETTER_AUTH_SECRET` is derived from it (see
+     * `platformAuthEnv`), matching the compose convention
+     * (`BETTER_AUTH_SECRET: ${AUTH_SECRET:-...}`), which keeps one source.
+     *
+     * The default matches compose's own fallback literal so a deployment that
+     * never set `AUTH_SECRET` behaves exactly as it did under compose.
+     */
+    AUTH_SECRET: z.string().min(1).default('fallback-auth-secret'),
 
-  /**
-   * Named volume holding the generated dynamic config.
-   *
-   * Mounted read-only at `/config` inside the ingress, which is the directory
-   * its FILE provider watches. This is the same volume compose mounts at
-   * `/app/traefik-configs` in this container — that shared mount is the entire
-   * contract between the two processes, and it is why `IngressHandoverService`
-   * can publish a route without ever talking to Traefik.
-   */
-  TRAEFIK_CONFIG_VOLUME: z.string().min(1).default("deployer-traefik-config"),
+    /**
+     * Named volume holding the generated dynamic config.
+     *
+     * Mounted read-only at `/config` inside the ingress, which is the directory
+     * its FILE provider watches. This is the same volume compose mounts at
+     * `/app/traefik-configs` in this container — that shared mount is the entire
+     * contract between the two processes, and it is why `IngressHandoverService`
+     * can publish a route without ever talking to Traefik.
+     */
+    TRAEFIK_CONFIG_VOLUME: z.string().min(1).default('deployer-traefik-config'),
 
-  /**
-   * A Postgres the compose profile manages and hands to the platform.
-   *
-   * Read by `SetupGateService` when the operator supplies no URL of their own:
-   * it is the address the API must read from `node_config` on boot. Declared
-   * HERE rather than in the API's schema because setup is what persists it —
-   * and the API never reads this variable at all, only the row setup writes.
-   */
-  MANAGED_GLOBAL_DB_URL: z.string().optional(),
+    /**
+     * A Postgres the compose profile manages and hands to the platform.
+     *
+     * Read by `SetupGateService` when the operator supplies no URL of their own:
+     * it is the address the API must read from `node_config` on boot. Declared
+     * HERE rather than in the API's schema because setup is what persists it —
+     * and the API never reads this variable at all, only the row setup writes.
+     */
+    MANAGED_GLOBAL_DB_URL: z.string().optional(),
 
-  /**
-   * ── THE MICROSERVICES TIER ────────────────────────────────────────────────
-   * In prod, onboarding schedules the BFF plus the five services and hands over to
-   * the BFF. `DEPLOYER_BFF_IMAGE` is REQUIRED then (`ApiServiceProvisioner` refuses
-   * to hand over without it); the schema keeps it optional so a dev stack, where
-   * compose owns the tier, need not set it. The per-service tags are separate so one service
-   * can be pinned without rebuilding the other five (`DEPLOYER_SVC_FLEET_IMAGE`,
-   * …). They are produced by the compose `build-svc-*` services in
-   * `docker-compose.services.dev-supervised.yml`.
-   */
-  DEPLOYER_BFF_IMAGE: z.string().optional(),
-  DEPLOYER_SVC_HEALTH_IMAGE: z.string().optional(),
-  DEPLOYER_SVC_IDENTITY_IMAGE: z.string().optional(),
-  DEPLOYER_SVC_PROJECT_IMAGE: z.string().optional(),
-  DEPLOYER_SVC_FLEET_IMAGE: z.string().optional(),
-  DEPLOYER_SVC_RUNTIME_IMAGE: z.string().optional(),
-  /**
-   * Replica count for every scheduled service in the tier.
-   *
-   * Default 1: each app holds SSE streams and an in-memory event bus, so more
-   * replicas need sticky routing that does not exist yet. The operator can raise
-   * it; the tier stays CORRECT at 1, which is the property that matters.
-   */
-  DEPLOYER_SVC_REPLICAS: z.coerce.number().int().positive().default(1),
-  /**
-   * Per-service port overrides, as a JSON map (`{"project":3203}`).
-   *
-   * Read by BOTH sides from this one value: the port setup passes to the service
-   * it schedules, and the port the BFF dials (`apiServicePort()` reads the same
-   * variable). Two independent defaults would let a service bind 3102 while the
-   * BFF dialled something else.
-   */
-  API_SERVICE_PORTS: z.string().optional(),
+    /**
+     * ── THE MICROSERVICES TIER ────────────────────────────────────────────────
+     * In prod, onboarding schedules the BFF plus the five services and hands over to
+     * the BFF. `DEPLOYER_BFF_IMAGE` is REQUIRED then (`ApiServiceProvisioner` refuses
+     * to hand over without it); the schema keeps it optional so a dev stack, where
+     * compose owns the tier, need not set it. The per-service tags are separate so one service
+     * can be pinned without rebuilding the other five (`DEPLOYER_SVC_FLEET_IMAGE`,
+     * …). They are produced by the compose `build-svc-*` services in
+     * `docker-compose.services.dev-supervised.yml`.
+     */
+    DEPLOYER_BFF_IMAGE: z.string().optional(),
+    DEPLOYER_SVC_HEALTH_IMAGE: z.string().optional(),
+    DEPLOYER_SVC_IDENTITY_IMAGE: z.string().optional(),
+    DEPLOYER_SVC_PROJECT_IMAGE: z.string().optional(),
+    DEPLOYER_SVC_FLEET_IMAGE: z.string().optional(),
+    DEPLOYER_SVC_RUNTIME_IMAGE: z.string().optional(),
+    /**
+     * Replica count for every scheduled service in the tier.
+     *
+     * Default 1: each app holds SSE streams and an in-memory event bus, so more
+     * replicas need sticky routing that does not exist yet. The operator can raise
+     * it; the tier stays CORRECT at 1, which is the property that matters.
+     */
+    DEPLOYER_SVC_REPLICAS: z.coerce.number().int().positive().default(1),
+    /**
+     * Per-service port overrides, as a JSON map (`{"project":3203}`).
+     *
+     * Read by BOTH sides from this one value: the port setup passes to the service
+     * it schedules, and the port the BFF dials (`apiServicePort()` reads the same
+     * variable). Two independent defaults would let a service bind 3102 while the
+     * BFF dialled something else.
+     */
+    API_SERVICE_PORTS: z.string().optional(),
 
-  /**
-   * The images for the services the API CONVERGES once it is running.
-   *
-   * ── WHY SETUP OWNS THESE ─────────────────────────────────────────────────
-   * Setup is what SCHEDULES the API, so it is the only process that can tell
-   * that API which tags to run. Compose produced them (`build-web`, `build-doc`),
-   * and the API cannot discover them: it boots inside a container with no access
-   * to the compose project, and its own schema declares no default for them.
-   *
-   * Left unset, the API falls back to the literal defaults in its own services,
-   * which do NOT match what the dev producers tag —
-   *
-   *   producer: deployer-web:dev    API fallback: deployer-web:latest
-   *
-   * — so the swarm service would be created from a tag that was never built and
-   * the dashboard would never converge. Passing the tags through is what makes
-   * "the image compose built" and "the image the platform runs" the same thing.
-   */
-  MANAGED_WEB_APP_IMAGE: z.string().optional(),
-  /**
-   * Whether the platform runs its own dashboard as a supervised service.
-   *
-   * Forwarded by `ServicesTierProvisioner` into the tier it schedules. Optional
-   * because "unset" is a real answer — it means "leave the deployment's own
-   * default alone", which is what a compose-owned dashboard wants.
-   */
-  MANAGED_WEB_APP_ENABLED: booleanEnv().optional(),
-  /**
-   * Whether the dashboard is served by somebody OTHER than the platform.
-   *
-   * Forwarded beside `MANAGED_WEB_APP_ENABLED` because the BFF's resolver reads the
-   * two in a fixed order: `EXTERNAL` is checked FIRST and a truthy value returns
-   * `null` immediately, so `ENABLED` is only consulted when `EXTERNAL` is falsy.
-   *
-   * The BFF's own schema DEFAULTS this to true (correct everywhere compose runs the
-   * web itself). So a supervised run that forwarded `ENABLED` alone got
-   * `resolveWebTarget() === null` from the unforwarded default: the managed-web
-   * supervisor still created the service — it reads `ENABLED`, which did arrive —
-   * but no `dynamic-web.yml` was ever written and `web.<host>` answered 000/502
-   * while every service reported 1/1.
-   */
-  MANAGED_WEB_APP_EXTERNAL: booleanEnv().optional(),
-  DEPLOYER_REDIS_IMAGE: z.string().optional(),
-  DEPLOYER_DIRECT_PROXY_IMAGE: z.string().optional(),
+    /**
+     * The images for the services the API CONVERGES once it is running.
+     *
+     * ── WHY SETUP OWNS THESE ─────────────────────────────────────────────────
+     * Setup is what SCHEDULES the API, so it is the only process that can tell
+     * that API which tags to run. Compose produced them (`build-web`, `build-doc`),
+     * and the API cannot discover them: it boots inside a container with no access
+     * to the compose project, and its own schema declares no default for them.
+     *
+     * Left unset, the API falls back to the literal defaults in its own services,
+     * which do NOT match what the dev producers tag —
+     *
+     *   producer: deployer-web:dev    API fallback: deployer-web:latest
+     *
+     * — so the swarm service would be created from a tag that was never built and
+     * the dashboard would never converge. Passing the tags through is what makes
+     * "the image compose built" and "the image the platform runs" the same thing.
+     */
+    MANAGED_WEB_APP_IMAGE: z.string().optional(),
+    /**
+     * Whether the platform runs its own dashboard as a supervised service.
+     *
+     * Forwarded by `ServicesTierProvisioner` into the tier it schedules. Optional
+     * because "unset" is a real answer — it means "leave the deployment's own
+     * default alone", which is what a compose-owned dashboard wants.
+     */
+    MANAGED_WEB_APP_ENABLED: booleanEnv().optional(),
+    /**
+     * Whether the dashboard is served by somebody OTHER than the platform.
+     *
+     * Forwarded beside `MANAGED_WEB_APP_ENABLED` because the BFF's resolver reads the
+     * two in a fixed order: `EXTERNAL` is checked FIRST and a truthy value returns
+     * `null` immediately, so `ENABLED` is only consulted when `EXTERNAL` is falsy.
+     *
+     * The BFF's own schema DEFAULTS this to true (correct everywhere compose runs the
+     * web itself). So a supervised run that forwarded `ENABLED` alone got
+     * `resolveWebTarget() === null` from the unforwarded default: the managed-web
+     * supervisor still created the service — it reads `ENABLED`, which did arrive —
+     * but no `dynamic-web.yml` was ever written and `web.<host>` answered 000/502
+     * while every service reported 1/1.
+     */
+    MANAGED_WEB_APP_EXTERNAL: booleanEnv().optional(),
+    DEPLOYER_REDIS_IMAGE: z.string().optional(),
+    DEPLOYER_DIRECT_PROXY_IMAGE: z.string().optional(),
 
-  /** Tenant prefix for hostname and network naming. */
-  DEPLOYER_PREFIX: z.string().default(""),
-  /**
-   * Which bootstrap an admin gets on a supervised node (`auto`, `true`, `false`).
-   *
-   * Forwarded by `ServicesTierProvisioner` into the tier it schedules: a swarm
-   * task inherits nothing, so an unset value would fall back to the app's own
-   * default and quietly ignore the operator's choice.
-   */
-  ADMIN_BOOTSTRAP: z.string().optional(),
-  /** The seeded admin, forwarded to the scheduled tier for the same reason. */
-  DEFAULT_ADMIN_EMAIL: z.string().optional(),
-  DEFAULT_ADMIN_PASSWORD: z.string().optional(),
+    /** Tenant prefix for hostname and network naming. */
+    DEPLOYER_PREFIX: z.string().default(''),
+    /**
+     * Which bootstrap an admin gets on a supervised node (`auto`, `true`, `false`).
+     *
+     * Forwarded by `ServicesTierProvisioner` into the tier it schedules: a swarm
+     * task inherits nothing, so an unset value would fall back to the app's own
+     * default and quietly ignore the operator's choice.
+     */
+    ADMIN_BOOTSTRAP: z.string().optional(),
+    /** The seeded admin, forwarded to the scheduled tier for the same reason. */
+    DEFAULT_ADMIN_EMAIL: z.string().optional(),
+    DEFAULT_ADMIN_PASSWORD: z.string().optional(),
 
-  /**
-   * The container that serves the dashboard, on the platform network.
-   *
-   * Compose-owned deployments set this to the compose service name (`web-dev`);
-   * a managed-web deployment leaves it empty and the API supervises one instead.
-   * The setup app reads it to publish the `web.<host>` ingress route — nothing
-   * else writes that file (`PlatformPaths.webConfigFile()` is declared but
-   * called from nowhere), so without this key the dashboard has no router at all
-   * and the browser gets a Traefik 404 while the container serves 200 happily.
-   */
-  DEPLOYER_WEB_TARGET: z.string().optional(),
+    /**
+     * The container that serves the dashboard, on the platform network.
+     *
+     * Compose-owned deployments set this to the compose service name (`web-dev`);
+     * a managed-web deployment leaves it empty and the API supervises one instead.
+     * The setup app reads it to publish the `web.<host>` ingress route — nothing
+     * else writes that file (`PlatformPaths.webConfigFile()` is declared but
+     * called from nowhere), so without this key the dashboard has no router at all
+     * and the browser gets a Traefik 404 while the container serves 200 happily.
+     */
+    DEPLOYER_WEB_TARGET: z.string().optional(),
 
-  /**
-   * The volume holding the shared SQLite node state, mounted into the API task.
-   *
-   * ── WHY THIS IS AN ENV VAR AND NOT A CONSTANT ───────────────────────────
-   * Setup SCHEDULES the API, and the task must mount the SAME volume setup
-   * itself writes — that is what carries `node_config` (the swarm decision and
-   * the database URL) across to the API.
-   *
-   * Compose names its volumes with the PROJECT prefix
-   * (`${COMPOSE_PROJECT_NAME}_api_local_db_data_<profile>`), which a constant
-   * cannot know. A hardcoded name therefore mounts a DIFFERENT — and empty —
-   * volume than the one setup writes, and the API boots with no node state:
-   *
-   *   Failed query: select "node_id", "server_url" … (db not ready)
-   *
-   * The default matches the prod compose file, so a deployment that does not set
-   * it keeps working; each profile passes its own name, exactly as
-   * `TRAEFIK_CONFIG_VOLUME` already does for the ingress config.
-   */
-  NODE_LOCAL_DB_VOLUME: z.string().min(1).default("api_local_db_data_prod"),
+    /**
+     * The volume holding the shared SQLite node state, mounted into the API task.
+     *
+     * ── WHY THIS IS AN ENV VAR AND NOT A CONSTANT ───────────────────────────
+     * Setup SCHEDULES the API, and the task must mount the SAME volume setup
+     * itself writes — that is what carries `node_config` (the swarm decision and
+     * the database URL) across to the API.
+     *
+     * Compose names its volumes with the PROJECT prefix
+     * (`${COMPOSE_PROJECT_NAME}_api_local_db_data_<profile>`), which a constant
+     * cannot know. A hardcoded name therefore mounts a DIFFERENT — and empty —
+     * volume than the one setup writes, and the API boots with no node state:
+     *
+     *   Failed query: select "node_id", "server_url" … (db not ready)
+     *
+     * The default matches the prod compose file, so a deployment that does not set
+     * it keeps working; each profile passes its own name, exactly as
+     * `TRAEFIK_CONFIG_VOLUME` already does for the ingress config.
+     */
+    NODE_LOCAL_DB_VOLUME: z.string().min(1).default('api_local_db_data_prod'),
 
-  /**
-   * The local SQLite file holding node state (`node_config`, `cluster_node`).
-   *
-   * SAME FILE AS THE API'S, and that is the point: setup writes the swarm
-   * participation decision and the API READS it, so the two processes must
-   * mount the same path. The default matches the API's schema so a single
-   * compose volume satisfies both.
-   */
-  NODE_LOCAL_DB_PATH: z.string().default("/app/data/local.db"),
+    /**
+     * The local SQLite file holding node state (`node_config`, `cluster_node`).
+     *
+     * SAME FILE AS THE API'S, and that is the point: setup writes the swarm
+     * participation decision and the API READS it, so the two processes must
+     * mount the same path. The default matches the API's schema so a single
+     * compose volume satisfies both.
+     */
+    NODE_LOCAL_DB_PATH: z.string().default('/app/data/local.db'),
 
-  // ─── Docker engine ────────────────────────────────────────────────────────
-  // Setup drives the engine directly (swarm init/join, service creation), so
-  // it needs the same connection contract the API uses. Declared HERE rather
-  // than imported from the API's schema: each app validates what IT reads, and
-  // a shared schema would force setup to require variables it never touches.
-  DOCKER_HOST: z.string().default("/var/run/docker.sock"),
-  DOCKER_PORT: z.coerce.number().int().positive().optional(),
-  /** Only read to satisfy the package's scanner contract; setup never scans. */
-  SCANNER_RUNNER_IMAGE: z.string().optional(),
+    // ─── Docker engine ────────────────────────────────────────────────────────
+    // Setup drives the engine directly (swarm init/join, service creation), so
+    // it needs the same connection contract the API uses. Declared HERE rather
+    // than imported from the API's schema: each app validates what IT reads, and
+    // a shared schema would force setup to require variables it never touches.
+    DOCKER_HOST: z.string().default('/var/run/docker.sock'),
+    DOCKER_PORT: z.coerce.number().int().positive().optional(),
+    /** Only read to satisfy the package's scanner contract; setup never scans. */
+    SCANNER_RUNNER_IMAGE: z.string().optional(),
 
-  // ─── Swarm admission ──────────────────────────────────────────────────────
-  //
-  // ── WHAT IS *NOT* HERE, AND WHY ───────────────────────────────────────────
-  // There is deliberately no `SWARM_MODE` / `SWARM_POLICY` / `SWARM_JOIN_TOKEN` /
-  // `SWARM_JOIN_ADDRS`. Those existed as FIRST-RUN DEFAULTS for an unattended
-  // install, and they are unreachable now:
-  //
-  //   - `SwarmBootstrapService.onModuleInit()` REFUSES to converge before
-  //     `setupDone()`, so the engine is never touched on env-derived defaults;
-  //   - the wizard ALWAYS writes the full `node_config.swarmConfig`
-  //     (`local` → create, `remote` → join), and `effectiveConfig()` prefers the
-  //     persisted row, so the env fallback can never be selected;
-  //   - the join path cannot run here at all: `ClusterOrchestratorService` only
-  //     ever starts `{ kind: "found" }`. A joining node gets its token and
-  //     control-plane addresses from the FLEET's grant, consumed by the API's
-  //     
-  //     `RemoteInitializationService` — not from this app's environment.
-  //
-  // Their comment also referenced `SETUP_AUTO`, a flag deleted with the
-  // gate inversion — so they were documented by a mechanism that no longer
-  // exists.
-  //
-  // Leaving them in place was not harmless: compose passes unset optionals as
-  // EMPTY STRINGS, and `"".split(",")` is `[""]` — a one-element list of
-  // nothing — which passed the "do I have addresses?" guard and then failed the
-  // schema's per-item `min(1)`.
+    // ─── Swarm admission ──────────────────────────────────────────────────────
+    //
+    // ── WHAT IS *NOT* HERE, AND WHY ───────────────────────────────────────────
+    // There is deliberately no `SWARM_MODE` / `SWARM_POLICY` / `SWARM_JOIN_TOKEN` /
+    // `SWARM_JOIN_ADDRS`. Those existed as FIRST-RUN DEFAULTS for an unattended
+    // install, and they are unreachable now:
+    //
+    //   - `SwarmBootstrapService.onModuleInit()` REFUSES to converge before
+    //     `setupDone()`, so the engine is never touched on env-derived defaults;
+    //   - the wizard ALWAYS writes the full `node_config.swarmConfig`
+    //     (`local` → create, `remote` → join), and `effectiveConfig()` prefers the
+    //     persisted row, so the env fallback can never be selected;
+    //   - the join path cannot run here at all: `ClusterOrchestratorService` only
+    //     ever starts `{ kind: "found" }`. A joining node gets its token and
+    //     control-plane addresses from the FLEET's grant, consumed by the API's
+    //
+    //     `RemoteInitializationService` — not from this app's environment.
+    //
+    // Their comment also referenced `SETUP_AUTO`, a flag deleted with the
+    // gate inversion — so they were documented by a mechanism that no longer
+    // exists.
+    //
+    // Leaving them in place was not harmless: compose passes unset optionals as
+    // EMPTY STRINGS, and `"".split(",")` is `[""]` — a one-element list of
+    // nothing — which passed the "do I have addresses?" guard and then failed the
+    // schema's per-item `min(1)`.
 
-  // There is no advertise-address key: Swarm advertises, listens and carries its
-  // data path on this node's MESH address, which the node's mesh agent derives
-  // from its own WireGuard key (docs/edge-mesh-architecture.md).
+    // There is no advertise-address key: Swarm advertises, listens and carries its
+    // data path on this node's MESH address, which the node's mesh agent derives
+    // from its own WireGuard key (docs/edge-mesh-architecture.md).
 
-  /**
-   * The NEW mesh agent — the agent this app starts.
-   *
-   * Compose produces `deployer-svc-node-agent:dev`. It answers on its node door
-   * instead of an HTTP control API.
-   */
-  NODE_AGENT_IMAGE: z.string().default("deployer-svc-node-agent:dev"),
-  /**
-   * Opt-in: the swarm runs the agent as a GLOBAL service instead of the host
-   * container this app starts. With it on, this launcher creates nothing — the
-   * two shapes are mutually exclusive (one owner of the socket and of the
-   * `deployer-mesh` interface). It stays off by default because this app starts
-   * the agent BEFORE the swarm exists.
-   */
-  NODE_AGENT_SWARM_MODE: booleanEnv().default(false),
-  /**
-   * The agent's NODE DOOR, as mounted in this container.
-   *
-   * Defaults to `/run/deployer-node/agent.sock`, the path the container binds,
-   * so a deployment that mounts its run volume needs to set nothing. Distinct
-   * from `NODE_AGENT_SOCKET` (what the mesh services dial): the agent serves both
-   * at the same path today, but the keys are not merged here.
-   */
-  NODE_AGENT_SOCKET: z.string().default("/run/deployer-node/agent.sock"),
+    /**
+     * The NEW mesh agent — the agent this app starts.
+     *
+     * Compose produces `deployer-svc-node-agent:dev`. It answers on its node door
+     * instead of an HTTP control API.
+     */
+    NODE_AGENT_IMAGE: z.string().default('deployer-svc-node-agent:dev'),
+    /**
+     * Opt-in: the swarm runs the agent as a GLOBAL service instead of the host
+     * container this app starts. With it on, this launcher creates nothing — the
+     * two shapes are mutually exclusive (one owner of the socket and of the
+     * `deployer-mesh` interface). It stays off by default because this app starts
+     * the agent BEFORE the swarm exists.
+     */
+    NODE_AGENT_SWARM_MODE: booleanEnv().default(false),
+    /**
+     * The agent's NODE DOOR, as mounted in this container.
+     *
+     * Defaults to `/run/deployer-node/agent.sock`, the path the container binds,
+     * so a deployment that mounts its run volume needs to set nothing. Distinct
+     * from `NODE_AGENT_SOCKET` (what the mesh services dial): the agent serves both
+     * at the same path today, but the keys are not merged here.
+     */
+    NODE_AGENT_SOCKET: z.string().default('/run/deployer-node/agent.sock'),
 
-  /**
-   * Cap on the number of managers (the election quorum target).
-   *
-   * Also not a participation default: it is not a field of
-   * `node_config.swarmConfig` at all, so the package's `join.quorumMax` can only
-   * come from here. `SwarmJoinGrantService` reads it when issuing a join grant.
-   */
-  SWARM_QUORUM_MAX: z.coerce.number().int().min(1).default(3),
+    /**
+     * Cap on the number of managers (the election quorum target).
+     *
+     * Also not a participation default: it is not a field of
+     * `node_config.swarmConfig` at all, so the package's `join.quorumMax` can only
+     * come from here. `SwarmJoinGrantService` reads it when issuing a join grant.
+     */
+    SWARM_QUORUM_MAX: z.coerce.number().int().min(1).default(3),
 
-  // ─── Election timings ─────────────────────────────────────────────────────
-  // Setup does NOT run the election loop (the API does); the values are read
-  // only to satisfy `SwarmModuleOptions`, which requires the full contract.
-  SWARM_ELECTION_EVAL_STABLE_MS: z.coerce.number().int().min(500).optional(),
-  SWARM_ELECTION_EVAL_VOLATILE_MS: z.coerce.number().int().min(250).optional(),
-  SWARM_ELECTION_COOLDOWN_MS: z.coerce.number().int().min(0).optional(),
-  SWARM_ELECTION_DELTA_MASTER: z.coerce.number().min(0).max(1).optional(),
-  SWARM_HEARTBEAT_TTL_MS: z.coerce.number().int().min(1000).optional(),
-  SWARM_MASTER_GRACE_MS: z.coerce.number().int().min(0).optional(),
+    // ─── Election timings ─────────────────────────────────────────────────────
+    // Setup does NOT run the election loop (the API does); the values are read
+    // only to satisfy `SwarmModuleOptions`, which requires the full contract.
+    SWARM_ELECTION_EVAL_STABLE_MS: z.coerce.number().int().min(500).optional(),
+    SWARM_ELECTION_EVAL_VOLATILE_MS: z.coerce
+        .number()
+        .int()
+        .min(250)
+        .optional(),
+    SWARM_ELECTION_COOLDOWN_MS: z.coerce.number().int().min(0).optional(),
+    SWARM_ELECTION_DELTA_MASTER: z.coerce.number().min(0).max(1).optional(),
+    SWARM_HEARTBEAT_TTL_MS: z.coerce.number().int().min(1000).optional(),
+    SWARM_MASTER_GRACE_MS: z.coerce.number().int().min(0).optional(),
 
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-});
+    NODE_ENV: z
+        .enum(['development', 'production', 'test'])
+        .default('development'),
+})
 
-export type SetupEnv = z.infer<typeof setupEnvSchema>;
+export type SetupEnv = z.infer<typeof setupEnvSchema>

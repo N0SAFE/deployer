@@ -1,7 +1,7 @@
-import { collaboratorSchema, projectSchema } from "@deployer/contracts-entities";
-import { ForbiddenError, ValidationError } from "@deployer/errors";
+import { collaboratorSchema, projectSchema } from '@deployer/contracts-entities'
+import { ForbiddenError, ValidationError } from '@deployer/errors'
 
-import type { z } from "zod/v4";
+import type { z } from 'zod/v4'
 
 /**
  * The Project aggregate.
@@ -12,8 +12,8 @@ import type { z } from "zod/v4";
  * equivalent `interface Project` here would be a second definition that drifts the
  * first time a column is added.
  */
-export type Project = z.output<typeof projectSchema>;
-export type Collaborator = z.output<typeof collaboratorSchema>;
+export type Project = z.output<typeof projectSchema>
+export type Collaborator = z.output<typeof collaboratorSchema>
 
 /**
  * The role vocabulary, taken from the contract.
@@ -30,7 +30,7 @@ export type Collaborator = z.output<typeof collaboratorSchema>;
  * Deriving the union from the schema makes that class of bug impossible to write:
  * a role that is not in the contract does not type-check.
  */
-export type ProjectRole = Collaborator["role"];
+export type ProjectRole = Collaborator['role']
 
 /**
  * What a caller is trying to do, as a LEVEL rather than a list of roles.
@@ -43,7 +43,7 @@ export type ProjectRole = Collaborator["role"];
  * only place the answer lives — and a call site reads as what it means rather
  * than as a list a reader has to evaluate.
  */
-export type ProjectAccess = "read" | "deploy" | "manage" | "admin";
+export type ProjectAccess = 'read' | 'deploy' | 'manage' | 'admin'
 
 /**
  * Who may do what.
@@ -54,30 +54,36 @@ export type ProjectAccess = "read" | "deploy" | "manage" | "admin";
  * write, `viewer` has read everywhere. Each set below is that statement restated
  * as a lookup, so the two cannot disagree.
  */
-const ACCESS_GRANTS: Readonly<Record<ProjectAccess, ReadonlySet<ProjectRole>>> = {
-	/** Reading the project and its resources. */
-	read: new Set<ProjectRole>(["owner", "maintainer", "deployer", "member"]),
-	/** Changing what runs: services, environments, deployments. */
-	deploy: new Set<ProjectRole>(["owner", "maintainer", "deployer"]),
-	/** Changing how the project is configured. */
-	manage: new Set<ProjectRole>(["owner", "maintainer"]),
-	/** Membership: who else is in the project, and as what. */
-	admin: new Set<ProjectRole>(["owner", "maintainer"]),
-};
+const ACCESS_GRANTS: Readonly<Record<ProjectAccess, ReadonlySet<ProjectRole>>> =
+    {
+        /** Reading the project and its resources. */
+        read: new Set<ProjectRole>([
+            'owner',
+            'maintainer',
+            'deployer',
+            'member',
+        ]),
+        /** Changing what runs: services, environments, deployments. */
+        deploy: new Set<ProjectRole>(['owner', 'maintainer', 'deployer']),
+        /** Changing how the project is configured. */
+        manage: new Set<ProjectRole>(['owner', 'maintainer']),
+        /** Membership: who else is in the project, and as what. */
+        admin: new Set<ProjectRole>(['owner', 'maintainer']),
+    }
 
 /** The fields a collaborator record must never be able to grant itself. */
-const RESERVED_ROLE: ProjectRole = "owner";
+const RESERVED_ROLE: ProjectRole = 'owner'
 
 /**
  * Authority, ascending. Used only to stop a member from granting a role at or
  * above their own — the same list `PROJECT_ROLES` publishes, read as an order.
  */
 const ROLE_RANK: Readonly<Record<ProjectRole, number>> = {
-	member: 1,
-	deployer: 2,
-	maintainer: 3,
-	owner: 4,
-};
+    member: 1,
+    deployer: 2,
+    maintainer: 3,
+    owner: 4,
+}
 
 /**
  * The assertion as a standalone function, because `assertCanGrant` below calls
@@ -86,16 +92,16 @@ const ROLE_RANK: Readonly<Record<ProjectRole, number>> = {
  * duplicate the whole check.
  */
 function assertKnownRole(role: string): asserts role is ProjectRole {
-	if (!(projectRules.roles as readonly string[]).includes(role)) {
-		throw new ValidationError(`${role} is not a project role`, [
-			{
-				path: "role",
-				code: "invalid_enum_value",
-				severity: "error",
-				message: `must be one of: ${projectRules.roles.join(", ")}`,
-			},
-		]);
-	}
+    if (!(projectRules.roles as readonly string[]).includes(role)) {
+        throw new ValidationError(`${role} is not a project role`, [
+            {
+                path: 'role',
+                code: 'invalid_enum_value',
+                severity: 'error',
+                message: `must be one of: ${projectRules.roles.join(', ')}`,
+            },
+        ])
+    }
 }
 
 /**
@@ -108,161 +114,167 @@ function assertKnownRole(role: string): asserts role is ProjectRole {
  * domain never has to know it is being reached over HTTP.
  */
 export const projectRules = {
-	/** The complete role vocabulary, for callers that need to validate input. */
-	roles: Object.freeze([
-		"owner",
-		"maintainer",
-		"deployer",
-		"member",
-	] as const satisfies readonly ProjectRole[]),
+    /** The complete role vocabulary, for callers that need to validate input. */
+    roles: Object.freeze([
+        'owner',
+        'maintainer',
+        'deployer',
+        'member',
+    ] as const satisfies readonly ProjectRole[]),
 
-	/** Is `role` a role the platform actually defines? */
-	isRole(value: string): value is ProjectRole {
-		return (projectRules.roles as readonly string[]).includes(value);
-	},
+    /** Is `role` a role the platform actually defines? */
+    isRole(value: string): value is ProjectRole {
+        return (projectRules.roles as readonly string[]).includes(value)
+    },
 
-	/** May `role` perform `access`? */
-	allows(role: ProjectRole, access: ProjectAccess): boolean {
-		return ACCESS_GRANTS[access].has(role);
-	},
+    /** May `role` perform `access`? */
+    allows(role: ProjectRole, access: ProjectAccess): boolean {
+        return ACCESS_GRANTS[access].has(role)
+    },
 
-	/**
-	 * The roles that may perform `access`, for an error message that says what
-	 * WOULD have worked instead of only refusing.
-	 */
-	rolesFor(access: ProjectAccess): readonly ProjectRole[] {
-		return [...ACCESS_GRANTS[access]];
-	},
+    /**
+     * The roles that may perform `access`, for an error message that says what
+     * WOULD have worked instead of only refusing.
+     */
+    rolesFor(access: ProjectAccess): readonly ProjectRole[] {
+        return [...ACCESS_GRANTS[access]]
+    },
 
-	/**
-	 * Reject a write that names a role the platform does not define.
-	 *
-	 * ── WHY THIS IS CHECKED AT ALL ──────────────────────────────────────────
-	 * The contract's `projectRoleSchema` already constrains the enum, so this
-	 * fires only when a caller reaches the service WITHOUT contract validation —
-	 * an internal caller, a script, or a test. It exists because the failure it
-	 * prevents is silent: an unknown role stores fine and then matches no
-	 * `allows()` check, producing a collaborator who can do nothing and an error
-	 * message that blames their permissions rather than their role name.
-	 */
-	assertRoleIsAssignable(role: string): asserts role is ProjectRole {
-		assertKnownRole(role);
-	},
+    /**
+     * Reject a write that names a role the platform does not define.
+     *
+     * ── WHY THIS IS CHECKED AT ALL ──────────────────────────────────────────
+     * The contract's `projectRoleSchema` already constrains the enum, so this
+     * fires only when a caller reaches the service WITHOUT contract validation —
+     * an internal caller, a script, or a test. It exists because the failure it
+     * prevents is silent: an unknown role stores fine and then matches no
+     * `allows()` check, producing a collaborator who can do nothing and an error
+     * message that blames their permissions rather than their role name.
+     */
+    assertRoleIsAssignable(role: string): asserts role is ProjectRole {
+        assertKnownRole(role)
+    },
 
-	/**
-	 * The caller's effective role on a project.
-	 *
-	 * The owner is `owner` by definition of the row, whether or not a collaborator
-	 * record was ever written for them — ownership is set at creation, so a missing
-	 * record must not read as "no access".
-	 */
-	resolveRole(
-		project: Pick<Project, "ownerId">,
-		actorId: string,
-		collaborator: Pick<Collaborator, "role"> | null,
-	): ProjectRole | null {
-		if (project.ownerId === actorId) return RESERVED_ROLE;
-		return collaborator?.role ?? null;
-	},
+    /**
+     * The caller's effective role on a project.
+     *
+     * The owner is `owner` by definition of the row, whether or not a collaborator
+     * record was ever written for them — ownership is set at creation, so a missing
+     * record must not read as "no access".
+     */
+    resolveRole(
+        project: Pick<Project, 'ownerId'>,
+        actorId: string,
+        collaborator: Pick<Collaborator, 'role'> | null
+    ): ProjectRole | null {
+        if (project.ownerId === actorId) return RESERVED_ROLE
+        return collaborator?.role ?? null
+    },
 
-	/**
-	 * Assert the caller may perform `access`, and answer the role they did it as.
-	 *
-	 * Returns rather than only throwing so a caller that needs the role (to decide
-	 * whether to include owner-only fields, say) does not have to re-derive it.
-	 */
-	assertAccess(
-		project: Pick<Project, "ownerId" | "id">,
-		actorId: string,
-		collaborator: Pick<Collaborator, "role"> | null,
-		access: ProjectAccess,
-	): ProjectRole {
-		const role = projectRules.resolveRole(project, actorId, collaborator);
-		if (role === null || !projectRules.allows(role, access)) {
-			throw new ForbiddenError(
-				`This project requires ${access} access`,
-				access,
-				`project:${project.id}`,
-			);
-		}
-		return role;
-	},
+    /**
+     * Assert the caller may perform `access`, and answer the role they did it as.
+     *
+     * Returns rather than only throwing so a caller that needs the role (to decide
+     * whether to include owner-only fields, say) does not have to re-derive it.
+     */
+    assertAccess(
+        project: Pick<Project, 'ownerId' | 'id'>,
+        actorId: string,
+        collaborator: Pick<Collaborator, 'role'> | null,
+        access: ProjectAccess
+    ): ProjectRole {
+        const role = projectRules.resolveRole(project, actorId, collaborator)
+        if (role === null || !projectRules.allows(role, access)) {
+            throw new ForbiddenError(
+                `This project requires ${access} access`,
+                access,
+                `project:${project.id}`
+            )
+        }
+        return role
+    },
 
-	/**
-	 * Deleting a project is the OWNER's alone.
-	 *
-	 * Not an access level: it is not a stronger `admin`, because `maintainer` is
-	 * defined as "project management WITHOUT deletion capabilities" and collapsing
-	 * the two would silently widen that role.
-	 */
-	assertCanDelete(project: Pick<Project, "ownerId" | "id">, actorId: string): void {
-		if (project.ownerId !== actorId) {
-			throw new ForbiddenError(
-				"Only the project owner can delete the project",
-				"delete",
-				`project:${project.id}`,
-			);
-		}
-	},
+    /**
+     * Deleting a project is the OWNER's alone.
+     *
+     * Not an access level: it is not a stronger `admin`, because `maintainer` is
+     * defined as "project management WITHOUT deletion capabilities" and collapsing
+     * the two would silently widen that role.
+     */
+    assertCanDelete(
+        project: Pick<Project, 'ownerId' | 'id'>,
+        actorId: string
+    ): void {
+        if (project.ownerId !== actorId) {
+            throw new ForbiddenError(
+                'Only the project owner can delete the project',
+                'delete',
+                `project:${project.id}`
+            )
+        }
+    },
 
-	/**
-	 * The project's owner membership is immutable through the collaborator API.
-	 *
-	 * ── WHY ─────────────────────────────────────────────────────────────────
-	 * Ownership is a property of the PROJECT row, so editing a collaborator record
-	 * with `role: "owner"` would create a second, contradictory source of truth —
-	 * and demoting the owner's record would leave the project owned by somebody
-	 * with no member entry. Transferring ownership is a separate operation that
-	 * must move both facts together; until it exists, the honest answer is refusal.
-	 */
-	assertNotOwnerMembership(target: Pick<Collaborator, "role">, action: string): void {
-		if (target.role === RESERVED_ROLE) {
-			throw new ForbiddenError(
-				`Cannot ${action} the project owner's membership; transfer ownership instead`,
-				action,
-				"collaborator",
-			);
-		}
-	},
+    /**
+     * The project's owner membership is immutable through the collaborator API.
+     *
+     * ── WHY ─────────────────────────────────────────────────────────────────
+     * Ownership is a property of the PROJECT row, so editing a collaborator record
+     * with `role: "owner"` would create a second, contradictory source of truth —
+     * and demoting the owner's record would leave the project owned by somebody
+     * with no member entry. Transferring ownership is a separate operation that
+     * must move both facts together; until it exists, the honest answer is refusal.
+     */
+    assertNotOwnerMembership(
+        target: Pick<Collaborator, 'role'>,
+        action: string
+    ): void {
+        if (target.role === RESERVED_ROLE) {
+            throw new ForbiddenError(
+                `Cannot ${action} the project owner's membership; transfer ownership instead`,
+                action,
+                'collaborator'
+            )
+        }
+    },
 
-	/**
-	 * A collaborator may not be promoted to `owner` through the membership API.
-	 *
-	 * See {@link projectRules.assertNotOwnerMembership} — this closes the other
-	 * half, where the role arrives in the PATCH body rather than on the row.
-	 */
-	assertNotOwnerGrant(role: string | undefined): void {
-		if (role === RESERVED_ROLE) {
-			throw new ForbiddenError(
-				"Cannot grant ownership through the collaborator API; transfer ownership instead",
-				"grant",
-				"collaborator",
-			);
-		}
-	},
+    /**
+     * A collaborator may not be promoted to `owner` through the membership API.
+     *
+     * See {@link projectRules.assertNotOwnerMembership} — this closes the other
+     * half, where the role arrives in the PATCH body rather than on the row.
+     */
+    assertNotOwnerGrant(role: string | undefined): void {
+        if (role === RESERVED_ROLE) {
+            throw new ForbiddenError(
+                'Cannot grant ownership through the collaborator API; transfer ownership instead',
+                'grant',
+                'collaborator'
+            )
+        }
+    },
 
-	/**
-	 * Can `actor` give somebody `next`?
-	 *
-	 * ── WHY A RANK, AND WHY AT-OR-ABOVE IS REFUSED ──────────────────────────
-	 * `admin` access (invite/update) is held by `owner` AND `maintainer`, so an
-	 * unchecked cast let a maintainer invite a second maintainer — or, before
-	 * the caller was checked, themselves as `owner`. Granting a role at or above
-	 * your own is a promotion you were not given: authority may only be handed
-	 * DOWN. Combined with {@link projectRules.assertNotOwnerGrant}, that means a
-	 * maintainer can invite deployers and viewers, and only the owner can invite
-	 * maintainers.
-	 */
-	assertCanGrant(actor: ProjectRole, next: string): ProjectRole {
-		assertKnownRole(next);
-		projectRules.assertNotOwnerGrant(next);
-		if (ROLE_RANK[next] >= ROLE_RANK[actor]) {
-			throw new ForbiddenError(
-				`A ${actor} cannot grant the ${next} role; it is at or above their own`,
-				"grant",
-				"collaborator",
-			);
-		}
-		return next;
-	},
-};
+    /**
+     * Can `actor` give somebody `next`?
+     *
+     * ── WHY A RANK, AND WHY AT-OR-ABOVE IS REFUSED ──────────────────────────
+     * `admin` access (invite/update) is held by `owner` AND `maintainer`, so an
+     * unchecked cast let a maintainer invite a second maintainer — or, before
+     * the caller was checked, themselves as `owner`. Granting a role at or above
+     * your own is a promotion you were not given: authority may only be handed
+     * DOWN. Combined with {@link projectRules.assertNotOwnerGrant}, that means a
+     * maintainer can invite deployers and viewers, and only the owner can invite
+     * maintainers.
+     */
+    assertCanGrant(actor: ProjectRole, next: string): ProjectRole {
+        assertKnownRole(next)
+        projectRules.assertNotOwnerGrant(next)
+        if (ROLE_RANK[next] >= ROLE_RANK[actor]) {
+            throw new ForbiddenError(
+                `A ${actor} cannot grant the ${next} role; it is at or above their own`,
+                'grant',
+                'collaborator'
+            )
+        }
+        return next
+    },
+}

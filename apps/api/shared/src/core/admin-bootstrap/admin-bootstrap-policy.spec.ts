@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import { resolveAdminBootstrapDecision } from "./admin-bootstrap-policy";
+import { resolveAdminBootstrapDecision } from './admin-bootstrap-policy'
 
 /**
  * The admin decision is security-adjacent: it decides whether this boot CREATES
@@ -11,101 +11,141 @@ import { resolveAdminBootstrapDecision } from "./admin-bootstrap-policy";
  * is pure, and a spec that mutated the environment would leak between cases and
  * make failures order-dependent.
  */
-describe("resolveAdminBootstrapDecision", () => {
-  describe("the canonical switch wins outright", () => {
-    it("honours ADMIN_BOOTSTRAP=true over a disabling alias", () => {
-      expect(
-        resolveAdminBootstrapDecision({ adminBootstrap: "true", enableDevBootstrap: "false" }),
-      ).toMatchObject({ decision: "always" });
-    });
+describe('resolveAdminBootstrapDecision', () => {
+    describe('the canonical switch wins outright', () => {
+        it('honours ADMIN_BOOTSTRAP=true over a disabling alias', () => {
+            expect(
+                resolveAdminBootstrapDecision({
+                    adminBootstrap: 'true',
+                    enableDevBootstrap: 'false',
+                })
+            ).toMatchObject({ decision: 'always' })
+        })
 
-    it("honours ADMIN_BOOTSTRAP=false over an enabling alias", () => {
-      expect(
-        resolveAdminBootstrapDecision({ adminBootstrap: "false", enableDevBootstrap: "true" }),
-      ).toMatchObject({ decision: "never" });
-    });
+        it('honours ADMIN_BOOTSTRAP=false over an enabling alias', () => {
+            expect(
+                resolveAdminBootstrapDecision({
+                    adminBootstrap: 'false',
+                    enableDevBootstrap: 'true',
+                })
+            ).toMatchObject({ decision: 'never' })
+        })
 
-    it("treats an unrecognised value as NEVER, not as the default", () => {
-      // A typo in this switch must not create an account nobody asked for. The
-      // safe direction for a security-adjacent default is "do nothing".
-      expect(resolveAdminBootstrapDecision({ adminBootstrap: "yes please" })).toMatchObject({
-        decision: "never",
-      });
-    });
-  });
+        it('treats an unrecognised value as NEVER, not as the default', () => {
+            // A typo in this switch must not create an account nobody asked for. The
+            // safe direction for a security-adjacent default is "do nothing".
+            expect(
+                resolveAdminBootstrapDecision({ adminBootstrap: 'yes please' })
+            ).toMatchObject({
+                decision: 'never',
+            })
+        })
+    })
 
-  describe("deprecated aliases, only while the switch is unset", () => {
-    it("uses ENABLE_DEV_BOOTSTRAP in development", () => {
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "development", enableDevBootstrap: "true" }),
-      ).toMatchObject({ decision: "always" });
+    describe('deprecated aliases, only while the switch is unset', () => {
+        it('uses ENABLE_DEV_BOOTSTRAP in development', () => {
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'development',
+                    enableDevBootstrap: 'true',
+                })
+            ).toMatchObject({ decision: 'always' })
 
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "development", enableDevBootstrap: "false" }),
-      ).toMatchObject({ decision: "never" });
-    });
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'development',
+                    enableDevBootstrap: 'false',
+                })
+            ).toMatchObject({ decision: 'never' })
+        })
 
-    it("uses ENABLE_SEEDING in production", () => {
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "production", enableSeeding: "true" }),
-      ).toMatchObject({ decision: "always" });
+        it('uses ENABLE_SEEDING in production', () => {
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'production',
+                    enableSeeding: 'true',
+                })
+            ).toMatchObject({ decision: 'always' })
 
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "production", enableSeeding: "false" }),
-      ).toMatchObject({ decision: "never" });
-    });
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'production',
+                    enableSeeding: 'false',
+                })
+            ).toMatchObject({ decision: 'never' })
+        })
 
-    it("does NOT read the dev alias in production, or vice versa", () => {
-      // The two aliases come from different eras and different operators; letting
-      // the dev one enable seeding in production would be a real privilege bug.
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "production", enableDevBootstrap: "true" }),
-      ).toMatchObject({ decision: "never" });
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "production", enableDevBootstrap: "true" }).reason,
-      ).toContain("default");
+        it('does NOT read the dev alias in production, or vice versa', () => {
+            // The two aliases come from different eras and different operators; letting
+            // the dev one enable seeding in production would be a real privilege bug.
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'production',
+                    enableDevBootstrap: 'true',
+                })
+            ).toMatchObject({ decision: 'never' })
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'production',
+                    enableDevBootstrap: 'true',
+                }).reason
+            ).toContain('default')
 
-      expect(
-        resolveAdminBootstrapDecision({ nodeEnv: "development", enableSeeding: "false" }),
-      ).toMatchObject({ decision: "never" });
-    });
+            expect(
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'development',
+                    enableSeeding: 'false',
+                })
+            ).toMatchObject({ decision: 'never' })
+        })
 
-    it("lets `auto` fall through to the aliases and then the default", () => {
-      expect(
-        resolveAdminBootstrapDecision({ adminBootstrap: "auto", enableDevBootstrap: "false" }),
-      ).toMatchObject({ decision: "never" });
+        it('lets `auto` fall through to the aliases and then the default', () => {
+            expect(
+                resolveAdminBootstrapDecision({
+                    adminBootstrap: 'auto',
+                    enableDevBootstrap: 'false',
+                })
+            ).toMatchObject({ decision: 'never' })
 
-      expect(
-        resolveAdminBootstrapDecision({ adminBootstrap: "auto", enableDevBootstrap: "true" }),
-      ).toMatchObject({ decision: "always" });
+            expect(
+                resolveAdminBootstrapDecision({
+                    adminBootstrap: 'auto',
+                    enableDevBootstrap: 'true',
+                })
+            ).toMatchObject({ decision: 'always' })
 
-      expect(resolveAdminBootstrapDecision({ adminBootstrap: "auto" })).toMatchObject({
-        decision: "never",
-      });
-    });
-  });
+            expect(
+                resolveAdminBootstrapDecision({ adminBootstrap: 'auto' })
+            ).toMatchObject({
+                decision: 'never',
+            })
+        })
+    })
 
-  describe("the default", () => {
-    it("is `never` — an unset switch must not create an account", () => {
-      // Creating a super-admin from `DEFAULT_ADMIN_*` is an explicit request.
-      // "Silence means yes" is the wrong direction for account creation.
-      const resolved = resolveAdminBootstrapDecision({});
+    describe('the default', () => {
+        it('is `never` — an unset switch must not create an account', () => {
+            // Creating a super-admin from `DEFAULT_ADMIN_*` is an explicit request.
+            // "Silence means yes" is the wrong direction for account creation.
+            const resolved = resolveAdminBootstrapDecision({})
 
-      expect(resolved.decision).toBe("never");
-      expect(resolved.reason).toContain("ADMIN_BOOTSTRAP=true");
-    });
+            expect(resolved.decision).toBe('never')
+            expect(resolved.reason).toContain('ADMIN_BOOTSTRAP=true')
+        })
 
-    it("explains WHY the decision was made, for the boot log", () => {
-      // The reason is logged on every boot; an empty or generic string would make
-      // "why did this create an admin?" unanswerable from the logs alone.
-      for (const decision of [
-        resolveAdminBootstrapDecision({ adminBootstrap: "true" }),
-        resolveAdminBootstrapDecision({ adminBootstrap: "false" }),
-        resolveAdminBootstrapDecision({ nodeEnv: "production", enableSeeding: "true" }),
-        resolveAdminBootstrapDecision({}),
-      ]) {
-        expect(decision.reason.length).toBeGreaterThan(10);
-      }
-    });
-  });
-});
+        it('explains WHY the decision was made, for the boot log', () => {
+            // The reason is logged on every boot; an empty or generic string would make
+            // "why did this create an admin?" unanswerable from the logs alone.
+            for (const decision of [
+                resolveAdminBootstrapDecision({ adminBootstrap: 'true' }),
+                resolveAdminBootstrapDecision({ adminBootstrap: 'false' }),
+                resolveAdminBootstrapDecision({
+                    nodeEnv: 'production',
+                    enableSeeding: 'true',
+                }),
+                resolveAdminBootstrapDecision({}),
+            ]) {
+                expect(decision.reason.length).toBeGreaterThan(10)
+            }
+        })
+    })
+})

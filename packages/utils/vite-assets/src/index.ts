@@ -1,14 +1,14 @@
-import { logger } from "@deployer/logger";
+import { logger } from '@deployer/logger'
 
 import {
-  createViteAssetsProxy,
-  isViteAssetRequest,
-  resolveViteDevServerUrl,
-} from "./vite-assets-proxy";
+    createViteAssetsProxy,
+    isViteAssetRequest,
+    resolveViteDevServerUrl,
+} from './vite-assets-proxy'
 
-import type { RequestHandler } from "express";
+import type { RequestHandler } from 'express'
 
-const log = logger.scope("ViteAssetsMiddleware");
+const log = logger.scope('ViteAssetsMiddleware')
 
 /**
  * Express middleware that serves an SSR app's client bundle in dev.
@@ -36,44 +36,53 @@ const log = logger.scope("ViteAssetsMiddleware");
  * app's auth guard (they are static build output, identical for every user).
  */
 export function createViteAssetsMiddleware(options: {
-  /**
-   * Port the app's OWN Vite dev server listens on.
-   *
-   * Required rather than defaulted: a wrong default is silent — the page renders
-   * and every asset 404s — so making each app state its port turns a runtime
-   * mystery into a one-line read.
-   */
-  port: number;
-  /** Overrides `VITE_DEV_SERVER_URL`; mainly for tests and non-standard setups. */
-  devServerUrl?: string;
+    /**
+     * Port the app's OWN Vite dev server listens on.
+     *
+     * Required rather than defaulted: a wrong default is silent — the page renders
+     * and every asset 404s — so making each app state its port turns a runtime
+     * mystery into a one-line read.
+     */
+    port: number
+    /** Overrides `VITE_DEV_SERVER_URL`; mainly for tests and non-standard setups. */
+    devServerUrl?: string
 }): RequestHandler {
-  const proxy = createViteAssetsProxy(
-    options.devServerUrl ?? resolveViteDevServerUrl(options.port),
-  );
+    const proxy = createViteAssetsProxy(
+        options.devServerUrl ?? resolveViteDevServerUrl(options.port)
+    )
 
-  return (req, res, next) => {
-    if (!isViteAssetRequest(req.path)) {
-      next();
-      return;
+    return (req, res, next) => {
+        if (!isViteAssetRequest(req.path)) {
+            next()
+            return
+        }
+
+        if (
+            process.env.NODE_ENV === 'production' ||
+            process.env.NODE_ENV === 'test'
+        ) {
+            // Explicit, not silent: a `/vite/...` request in production is a
+            // configuration error worth seeing in the logs rather than a 404 that
+            // looks like a typo in a URL.
+            log.warn(
+                `Refusing to proxy Vite asset in ${String(process.env.NODE_ENV)}: ${req.path}`
+            )
+            res.status(404).json({
+                statusCode: 404,
+                message: 'Vite assets are unavailable',
+                path: req.path,
+            })
+            return
+        }
+
+        proxy(req, res, next)
     }
-
-    if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") {
-      // Explicit, not silent: a `/vite/...` request in production is a
-      // configuration error worth seeing in the logs rather than a 404 that
-      // looks like a typo in a URL.
-      log.warn(`Refusing to proxy Vite asset in ${String(process.env.NODE_ENV)}: ${req.path}`);
-      res.status(404).json({ statusCode: 404, message: "Vite assets are unavailable", path: req.path });
-      return;
-    }
-
-    proxy(req, res, next);
-  };
 }
 
 export {
-  createViteAssetsProxy,
-  isViteAssetRequest,
-  toViteBasePath,
-  VITE_ASSETS_PREFIX,
-} from "./vite-assets-proxy";
-export type { RequestHandler };
+    createViteAssetsProxy,
+    isViteAssetRequest,
+    toViteBasePath,
+    VITE_ASSETS_PREFIX,
+} from './vite-assets-proxy'
+export type { RequestHandler }

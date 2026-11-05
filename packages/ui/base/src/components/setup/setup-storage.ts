@@ -28,9 +28,9 @@ export const SETUP_COMPLETE_KEY = 'post-setup-complete'
  * appear" turns into an unexplainable bug report.
  */
 export function markSetupComplete(): void {
-	try {
-		window.localStorage.setItem(SETUP_COMPLETE_KEY, '1')
-	} catch (error) {
-		setupLogger.warn('Could not persist the setup-complete flag', { error })
-	}
+    try {
+        window.localStorage.setItem(SETUP_COMPLETE_KEY, '1')
+    } catch (error) {
+        setupLogger.warn('Could not persist the setup-complete flag', { error })
+    }
 }

@@ -1,6 +1,6 @@
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
  * Absolute path to the LOCAL (SQLite) migration files.
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
  * process working directory — the failure mode of a cwd-relative path is a
  * silently skipped migration and an app that boots against a stale schema.
  */
-export const LOCAL_MIGRATIONS_DIR = resolveLocalMigrationsDir();
+export const LOCAL_MIGRATIONS_DIR = resolveLocalMigrationsDir()
 
 /**
  * Walk up from this module until a `migrations/local` directory is found.
@@ -34,20 +34,20 @@ export const LOCAL_MIGRATIONS_DIR = resolveLocalMigrationsDir();
  * any bundle depth.
  */
 function resolveLocalMigrationsDir(): string {
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    const candidate = join(dir, "migrations", "local");
-    if (existsSync(candidate)) {
-      return candidate;
+    let dir = dirname(fileURLToPath(import.meta.url))
+    for (;;) {
+        const candidate = join(dir, 'migrations', 'local')
+        if (existsSync(candidate)) {
+            return candidate
+        }
+        const parent = dirname(dir)
+        if (parent === dir) {
+            throw new Error(
+                `Local migrations directory not found above ${fileURLToPath(import.meta.url)}`
+            )
+        }
+        dir = parent
     }
-    const parent = dirname(dir);
-    if (parent === dir) {
-      throw new Error(
-        `Local migrations directory not found above ${fileURLToPath(import.meta.url)}`,
-      );
-    }
-    dir = parent;
-  }
 }
 
 /**
@@ -69,21 +69,21 @@ function resolveLocalMigrationsDir(): string {
  * The marker is the journal, not the directory: `drizzle-kit generate` writes both
  * together, so an empty leftover directory does not pass for migrations.
  */
-export const GLOBAL_MIGRATIONS_DIR = resolveGlobalMigrationsDir();
+export const GLOBAL_MIGRATIONS_DIR = resolveGlobalMigrationsDir()
 
 function resolveGlobalMigrationsDir(): string {
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    const candidate = join(dir, "migrations", "global");
-    if (existsSync(join(candidate, "meta", "_journal.json"))) {
-      return candidate;
+    let dir = dirname(fileURLToPath(import.meta.url))
+    for (;;) {
+        const candidate = join(dir, 'migrations', 'global')
+        if (existsSync(join(candidate, 'meta', '_journal.json'))) {
+            return candidate
+        }
+        const parent = dirname(dir)
+        if (parent === dir) {
+            throw new Error(
+                `Global migrations directory not found above ${fileURLToPath(import.meta.url)}`
+            )
+        }
+        dir = parent
     }
-    const parent = dirname(dir);
-    if (parent === dir) {
-      throw new Error(
-        `Global migrations directory not found above ${fileURLToPath(import.meta.url)}`,
-      );
-    }
-    dir = parent;
-  }
 }

@@ -8,28 +8,28 @@ import type { PlatformRole } from '@deployer/auth'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@deployer/ui/components/shadcn/select'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from '@deployer/ui/components/shadcn/table'
 
 import { PageHeader, PageErrorState } from '@/components/dashboard'
@@ -39,473 +39,662 @@ import { useCan } from '@/lib/access/permissions'
 import { isPlatformRole } from '@/lib/access/platform-role.rules'
 import { useSession } from '@/lib/auth'
 
-
 import { InviteUserDialog } from './_components/invite-user-dialog'
 import { RequestApprovalDialog } from './_components/request-approval-dialog'
 import { SessionsDialog } from './_components/sessions-dialog'
-import { BanUserDialog, ImpersonateUserDialog, RemoveUserDialog, SetPasswordDialog } from './_components/user-dialogs'
-
+import {
+    BanUserDialog,
+    ImpersonateUserDialog,
+    RemoveUserDialog,
+    SetPasswordDialog,
+} from './_components/user-dialogs'
 
 export default function SettingsUsersPage() {
-  const { data: session } = useSession()
-  const currentUserId = session?.user.id
-  const [page, setPage] = useState(0)
-  const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<'all' | PlatformRole>('all')
-  // The role list comes from the server's catalogue (`GET /roles`), seeded from the same declaration the API checks.
-  const { roles: platformRoles } = usePlatformRoles()
-  // The UI hides what the role cannot do; the API still refuses it. `user:delete` is deliberately NOT used here: that
-  // action has an approval path, so the button stays and the refusal offers to file the request.
-  const canBan = useCan('user:ban')
-  const canSetRole = useCan('user:set-role')
-  const canSetPassword = useCan('user:set-password')
-  const canImpersonate = useCan('user:impersonate')
-  const canListSessions = useCan('session:list')
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
-  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
-  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
-  const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; name: string } | null>(null)
-  const [approvalRequest, setApprovalRequest] = useState<{ user: { id: string; name: string }; actionHash: string } | null>(null)
-  const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null)
-  const [sessionsTarget, setSessionsTarget] = useState<{ id: string; name: string } | null>(null)
-  
-  const pageSize = 20
-  
-  const { data: usersData, isLoading, error: usersError, refetch } = useAdminListUsers({
-    limit: pageSize,
-    offset: page * pageSize,
-  })
-  
-  const { 
-    banUser, 
-    unbanUser, 
-    setRole, 
-    removeUserAsync,
-    setPassword,
-    impersonate,
-    isLoading: actionLoading,
-  } = useAdminActions()
+    const { data: session } = useSession()
+    const currentUserId = session?.user.id
+    const [page, setPage] = useState(0)
+    const [search, setSearch] = useState('')
+    const [roleFilter, setRoleFilter] = useState<'all' | PlatformRole>('all')
+    // The role list comes from the server's catalogue (`GET /roles`), seeded from the same declaration the API checks.
+    const { roles: platformRoles } = usePlatformRoles()
+    // The UI hides what the role cannot do; the API still refuses it. `user:delete` is deliberately NOT used here: that
+    // action has an approval path, so the button stays and the refusal offers to file the request.
+    const canBan = useCan('user:ban')
+    const canSetRole = useCan('user:set-role')
+    const canSetPassword = useCan('user:set-password')
+    const canImpersonate = useCan('user:impersonate')
+    const canListSessions = useCan('session:list')
+    const [inviteOpen, setInviteOpen] = useState(false)
+    const [statusFilter, setStatusFilter] = useState<
+        'all' | 'active' | 'banned'
+    >('all')
+    const [selectedUser, setSelectedUser] = useState<{
+        id: string
+        name: string
+    } | null>(null)
+    const [removeTarget, setRemoveTarget] = useState<{
+        id: string
+        name: string
+    } | null>(null)
+    const [impersonateTarget, setImpersonateTarget] = useState<{
+        id: string
+        name: string
+    } | null>(null)
+    const [approvalRequest, setApprovalRequest] = useState<{
+        user: { id: string; name: string }
+        actionHash: string
+    } | null>(null)
+    const [passwordTarget, setPasswordTarget] = useState<{
+        id: string
+        name: string
+    } | null>(null)
+    const [sessionsTarget, setSessionsTarget] = useState<{
+        id: string
+        name: string
+    } | null>(null)
 
-  const handleRoleChange = (userId: string, role: string) => {
-    if (userId === currentUserId) {
-      toast.error('You cannot change your own role. Ask another admin.')
-      return
-    }
-    // The picker is table-driven; the contract still types `role` as the catalog union, so guard before narrowing.
-    if (!isPlatformRole(role)) {
-      toast.error(`"${role}" is not a role this platform can assign.`)
-      return
-    }
-    setRole({ userId, role })
-  }
+    const pageSize = 20
 
-  const handleBanClick = (user: { id: string; name: string }) => {
-    if (user.id === currentUserId) {
-      toast.error('You cannot ban yourself.')
-      return
-    }
-    setSelectedUser(user)
-  }
-
-  const handleUnban = (userId: string) => {
-    unbanUser({ userId })
-  }
-
-  const handleRemove = (userId: string) => {
-    if (userId === currentUserId) {
-      toast.error('You cannot remove your own account here.')
-      return
-    }
-    // Replaced a blocking `confirm()`: this file already uses <Dialog> for the
-    // ban flow, so an irreversible delete of the same kind was the only place
-    // still relying on the browser's unstyled prompt.
-    setRemoveTarget(usersData?.users.find((u) => u.id === userId) ?? { id: userId, name: userId })
-  }
-
-  /**
-   * Removing an account is destructive, so the API answers "approval required" for anyone without the danger-bundle
-   * capability — and echoes the digest of the exact action. That digest is what the request dialog files, so the
-   * approval the approver grants covers this account and nothing else.
-   */
-  const confirmRemove = async () => {
-    if (!removeTarget) return
-    const target = removeTarget
-    setRemoveTarget(null)
-    try {
-      await removeUserAsync({ userId: target.id })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      const actionHash = /([a-f0-9]{64})/.exec(message)?.[1]
-      if (actionHash !== undefined) setApprovalRequest({ user: target, actionHash })
-    }
-  }
-
-  const users = useMemo(() => usersData?.users ?? [], [usersData])
-  const hasNextPage = users.length === pageSize
-
-  const filteredUsers = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    return users.filter((user) => {
-      const matchesSearch =
-        query.length === 0 ||
-        `${user.name} ${user.email}`.toLowerCase().includes(query)
-
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'active' ? !user.banned : user.banned)
-
-      return matchesSearch && matchesRole && matchesStatus
+    const {
+        data: usersData,
+        isLoading,
+        error: usersError,
+        refetch,
+    } = useAdminListUsers({
+        limit: pageSize,
+        offset: page * pageSize,
     })
-  }, [roleFilter, search, statusFilter, users])
 
-  const surfaceCardClass =
-    'border-border/60 bg-card/40 backdrop-blur-xl'
+    const {
+        banUser,
+        unbanUser,
+        setRole,
+        removeUserAsync,
+        setPassword,
+        impersonate,
+        isLoading: actionLoading,
+    } = useAdminActions()
 
-  if (usersError) {
-    return <PageErrorState title="Could not load users" message={usersError.message} onRetry={() => { void refetch() }} />
-  }
+    const handleRoleChange = (userId: string, role: string) => {
+        if (userId === currentUserId) {
+            toast.error('You cannot change your own role. Ask another admin.')
+            return
+        }
+        // The picker is table-driven; the contract still types `role` as the catalog union, so guard before narrowing.
+        if (!isPlatformRole(role)) {
+            toast.error(`"${role}" is not a role this platform can assign.`)
+            return
+        }
+        setRole({ userId, role })
+    }
 
-  if (isLoading && page === 0) {
+    const handleBanClick = (user: { id: string; name: string }) => {
+        if (user.id === currentUserId) {
+            toast.error('You cannot ban yourself.')
+            return
+        }
+        setSelectedUser(user)
+    }
+
+    const handleUnban = (userId: string) => {
+        unbanUser({ userId })
+    }
+
+    const handleRemove = (userId: string) => {
+        if (userId === currentUserId) {
+            toast.error('You cannot remove your own account here.')
+            return
+        }
+        // Replaced a blocking `confirm()`: this file already uses <Dialog> for the
+        // ban flow, so an irreversible delete of the same kind was the only place
+        // still relying on the browser's unstyled prompt.
+        setRemoveTarget(
+            usersData?.users.find((u) => u.id === userId) ?? {
+                id: userId,
+                name: userId,
+            }
+        )
+    }
+
+    /**
+     * Removing an account is destructive, so the API answers "approval required" for anyone without the danger-bundle
+     * capability — and echoes the digest of the exact action. That digest is what the request dialog files, so the
+     * approval the approver grants covers this account and nothing else.
+     */
+    const confirmRemove = async () => {
+        if (!removeTarget) return
+        const target = removeTarget
+        setRemoveTarget(null)
+        try {
+            await removeUserAsync({ userId: target.id })
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : String(error)
+            const actionHash = /([a-f0-9]{64})/.exec(message)?.[1]
+            if (actionHash !== undefined)
+                setApprovalRequest({ user: target, actionHash })
+        }
+    }
+
+    const users = useMemo(() => usersData?.users ?? [], [usersData])
+    const hasNextPage = users.length === pageSize
+
+    const filteredUsers = useMemo(() => {
+        const query = search.trim().toLowerCase()
+
+        return users.filter((user) => {
+            const matchesSearch =
+                query.length === 0 ||
+                `${user.name} ${user.email}`.toLowerCase().includes(query)
+
+            const matchesRole = roleFilter === 'all' || user.role === roleFilter
+            const matchesStatus =
+                statusFilter === 'all' ||
+                (statusFilter === 'active' ? !user.banned : user.banned)
+
+            return matchesSearch && matchesRole && matchesStatus
+        })
+    }, [roleFilter, search, statusFilter, users])
+
+    const surfaceCardClass = 'border-border/60 bg-card/40 backdrop-blur-xl'
+
+    if (usersError) {
+        return (
+            <PageErrorState
+                title="Could not load users"
+                message={usersError.message}
+                onRetry={() => {
+                    void refetch()
+                }}
+            />
+        )
+    }
+
+    if (isLoading && page === 0) {
+        return (
+            <div className="container mx-auto max-w-350 space-y-6 py-8">
+                <div>
+                    <Skeleton className="mb-2 h-9 w-64" />
+                    <Skeleton className="h-5 w-96" />
+                </div>
+                <Card>
+                    <CardHeader>
+                        <Skeleton className="h-6 w-32" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-2">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <Skeleton key={i} className="h-12 w-full" />
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
     return (
-      <div className="container mx-auto max-w-350 py-8 space-y-6">
-        <div>
-          <Skeleton className="h-9 w-64 mb-2" />
-          <Skeleton className="h-5 w-96" />
-        </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-32" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+        <div className="container mx-auto max-w-350 space-y-6 py-8">
+            <PageHeader
+                eyebrow="Settings"
+                title="Users & access"
+                description="See who can sign in to this platform, what each person is allowed to do, and suspend or remove access when needed."
+                badge={
+                    <>
+                        <Badge variant="secondary">{users.length} loaded</Badge>
+                        <Badge variant="outline">
+                            {filteredUsers.length} visible
+                        </Badge>
+                    </>
+                }
+                actions={
+                    <>
+                        <Button
+                            variant="default"
+                            onClick={() => {
+                                setInviteOpen(true)
+                            }}
+                        >
+                            Invite user
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                                void refetch()
+                            }}
+                            disabled={isLoading}
+                            aria-label="Refresh users"
+                        >
+                            <RefreshCw
+                                className={`size-4 ${isLoading ? 'animate-spin' : ''}`}
+                            />
+                        </Button>
+                    </>
+                }
+            />
 
-  return (
-    <div className="container mx-auto max-w-350 py-8 space-y-6">
-      <PageHeader
-        eyebrow="Settings"
-        title="Users & access"
-        description="See who can sign in to this platform, what each person is allowed to do, and suspend or remove access when needed."
-        badge={
-          <>
-            <Badge variant="secondary">{users.length} loaded</Badge>
-            <Badge variant="outline">{filteredUsers.length} visible</Badge>
-          </>
-        }
-        actions={
-          <>
-            <Button variant="default" onClick={() => { setInviteOpen(true) }}>
-              Invite user
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => {
-                void refetch()
-              }}
-              disabled={isLoading}
-              aria-label="Refresh users"
-            >
-              <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
-          </>
-        }
-      />
+            {/* The role descriptions come from the SERVER's catalogue, so a re-seeded role updates this explainer too. */}
+            <dl className="border-border/60 text-muted-foreground grid gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-sm sm:grid-cols-2">
+                {platformRoles.map((role) => (
+                    <div key={role.name}>
+                        <dt className="text-foreground inline font-medium">
+                            {role.label}:{' '}
+                        </dt>
+                        <dd className="inline">
+                            {role.description ??
+                                'No description recorded for this role.'}
+                        </dd>
+                    </div>
+                ))}
+            </dl>
 
-      {/* The role descriptions come from the SERVER's catalogue, so a re-seeded role updates this explainer too. */}
-      <dl className="grid gap-x-6 gap-y-1 rounded-lg border border-border/60 px-4 py-3 text-sm text-muted-foreground sm:grid-cols-2">
-        {platformRoles.map((role) => (
-          <div key={role.name}>
-            <dt className="inline font-medium text-foreground">{role.label}: </dt>
-            <dd className="inline">{role.description ?? 'No description recorded for this role.'}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <Card className={surfaceCardClass}>
-        <CardHeader>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>People</CardTitle>
-              <CardDescription>
-                Everyone registered on the platform. Changes to roles and bans apply immediately.
-              </CardDescription>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Input
-                placeholder="Search name or email..."
-                aria-label="Search users by name or email"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value)
-                }}
-              />
-              <Select value={roleFilter} onValueChange={(value) => {
-                if (value === 'all' || isPlatformRole(value)) setRoleFilter(value)
-              }}>
-                <SelectTrigger aria-label="Filter by role">
-                  <SelectValue placeholder="Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All roles</SelectItem>
-                  {platformRoles.map((role) => (
-                    <SelectItem key={role.name} value={role.name}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={(value) => {
-                setStatusFilter(value as 'all' | 'active' | 'banned')
-              }}>
-                <SelectTrigger aria-label="Filter by status">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="banned">Banned</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    {users.length === 0 ? 'No users yet.' : 'No users match your filters.'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      {user.name}
-                      {user.id === currentUserId && <Badge variant="outline" className="ml-2">You</Badge>}
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Select
-                        value={user.role ?? 'user'}
-                        onValueChange={(role) => {
-                          handleRoleChange(user.id, role)
-                        }}
-                        disabled={actionLoading.setRole || user.id === currentUserId || !canSetRole}
-                      >
-                        <SelectTrigger className="w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {platformRoles.map((role) => (
-                            <SelectItem key={role.name} value={role.name}>
-                              {role.label}
-                            </SelectItem>
-                          ))}
-                          {/* A stored role the catalogue no longer lists still needs an option, or the select renders
+            <Card className={surfaceCardClass}>
+                <CardHeader>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <CardTitle>People</CardTitle>
+                            <CardDescription>
+                                Everyone registered on the platform. Changes to
+                                roles and bans apply immediately.
+                            </CardDescription>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                            <Input
+                                placeholder="Search name or email..."
+                                aria-label="Search users by name or email"
+                                value={search}
+                                onChange={(event) => {
+                                    setSearch(event.target.value)
+                                }}
+                            />
+                            <Select
+                                value={roleFilter}
+                                onValueChange={(value) => {
+                                    if (
+                                        value === 'all' ||
+                                        isPlatformRole(value)
+                                    )
+                                        setRoleFilter(value)
+                                }}
+                            >
+                                <SelectTrigger aria-label="Filter by role">
+                                    <SelectValue placeholder="Role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        All roles
+                                    </SelectItem>
+                                    {platformRoles.map((role) => (
+                                        <SelectItem
+                                            key={role.name}
+                                            value={role.name}
+                                        >
+                                            {role.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Select
+                                value={statusFilter}
+                                onValueChange={(value) => {
+                                    setStatusFilter(
+                                        value as 'all' | 'active' | 'banned'
+                                    )
+                                }}
+                            >
+                                <SelectTrigger aria-label="Filter by status">
+                                    <SelectValue placeholder="Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        All status
+                                    </SelectItem>
+                                    <SelectItem value="active">
+                                        Active
+                                    </SelectItem>
+                                    <SelectItem value="banned">
+                                        Banned
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredUsers.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={5}
+                                        className="text-muted-foreground py-8 text-center"
+                                    >
+                                        {users.length === 0
+                                            ? 'No users yet.'
+                                            : 'No users match your filters.'}
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredUsers.map((user) => (
+                                    <TableRow key={user.id}>
+                                        <TableCell className="font-medium">
+                                            {user.name}
+                                            {user.id === currentUserId && (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="ml-2"
+                                                >
+                                                    You
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>{user.email}</TableCell>
+                                        <TableCell>
+                                            <Select
+                                                value={user.role ?? 'user'}
+                                                onValueChange={(role) => {
+                                                    handleRoleChange(
+                                                        user.id,
+                                                        role
+                                                    )
+                                                }}
+                                                disabled={
+                                                    actionLoading.setRole ||
+                                                    user.id === currentUserId ||
+                                                    !canSetRole
+                                                }
+                                            >
+                                                <SelectTrigger className="w-36">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {platformRoles.map(
+                                                        (role) => (
+                                                            <SelectItem
+                                                                key={role.name}
+                                                                value={
+                                                                    role.name
+                                                                }
+                                                            >
+                                                                {role.label}
+                                                            </SelectItem>
+                                                        )
+                                                    )}
+                                                    {/* A stored role the catalogue no longer lists still needs an option, or the select renders
                               blank and the operator cannot tell what the account holds. */}
-                          {user.role !== undefined && !platformRoles.some((role) => role.name === user.role) ? (
-                            <SelectItem value={user.role}>{user.role}</SelectItem>
-                          ) : null}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {user.banned ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <Ban className="h-3 w-3" />
-                          Banned
-                        </Badge>
-                      ) : (
-                        <Badge variant="default" className="gap-1 bg-green-600">
-                          <ShieldCheck className="h-3 w-3" />
-                          Active
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        {user.banned ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              handleUnban(user.id)
-                            }}
-                            disabled={actionLoading.unban}
-                            hidden={!canBan}
-                          >
-                            <ShieldCheck className="h-4 w-4 mr-1" />
-                            Unban
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              handleBanClick({ id: user.id, name: user.name })
-                            }}
-                            disabled={actionLoading.ban || user.id === currentUserId}
-                            hidden={!canBan}
-                          >
-                            <Ban className="h-4 w-4 mr-1" />
-                            Ban
-                          </Button>
-                        )}
-                        {canListSessions ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Where this account is signed in"
-                            onClick={() => { setSessionsTarget({ id: user.id, name: user.name }) }}
-                          >
-                            Sessions
-                          </Button>
-                        ) : null}
-                        {canSetPassword ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Set a temporary password (needs a fresh passkey verification)"
-                            onClick={() => { setPasswordTarget({ id: user.id, name: user.name }) }}
-                            disabled={actionLoading.setPassword}
-                          >
-                            Password
-                          </Button>
-                        ) : null}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Act as this user (read-only, needs a fresh passkey verification)"
-                          onClick={() => { setImpersonateTarget({ id: user.id, name: user.name }) }}
-                          disabled={actionLoading.impersonate || user.id === currentUserId}
-                        hidden={!canImpersonate}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Impersonate
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            handleRemove(user.id)
-                          }}
-                          disabled={actionLoading.remove || user.id === currentUserId}
-                        >
-                          <UserX className="h-4 w-4 mr-1" />
-                          Remove
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                                                    {user.role !== undefined &&
+                                                    !platformRoles.some(
+                                                        (role) =>
+                                                            role.name ===
+                                                            user.role
+                                                    ) ? (
+                                                        <SelectItem
+                                                            value={user.role}
+                                                        >
+                                                            {user.role}
+                                                        </SelectItem>
+                                                    ) : null}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                        <TableCell>
+                                            {user.banned ? (
+                                                <Badge
+                                                    variant="destructive"
+                                                    className="gap-1"
+                                                >
+                                                    <Ban className="h-3 w-3" />
+                                                    Banned
+                                                </Badge>
+                                            ) : (
+                                                <Badge
+                                                    variant="default"
+                                                    className="gap-1 bg-green-600"
+                                                >
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    Active
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                {user.banned ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            handleUnban(user.id)
+                                                        }}
+                                                        disabled={
+                                                            actionLoading.unban
+                                                        }
+                                                        hidden={!canBan}
+                                                    >
+                                                        <ShieldCheck className="mr-1 h-4 w-4" />
+                                                        Unban
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            handleBanClick({
+                                                                id: user.id,
+                                                                name: user.name,
+                                                            })
+                                                        }}
+                                                        disabled={
+                                                            actionLoading.ban ||
+                                                            user.id ===
+                                                                currentUserId
+                                                        }
+                                                        hidden={!canBan}
+                                                    >
+                                                        <Ban className="mr-1 h-4 w-4" />
+                                                        Ban
+                                                    </Button>
+                                                )}
+                                                {canListSessions ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        title="Where this account is signed in"
+                                                        onClick={() => {
+                                                            setSessionsTarget({
+                                                                id: user.id,
+                                                                name: user.name,
+                                                            })
+                                                        }}
+                                                    >
+                                                        Sessions
+                                                    </Button>
+                                                ) : null}
+                                                {canSetPassword ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        title="Set a temporary password (needs a fresh passkey verification)"
+                                                        onClick={() => {
+                                                            setPasswordTarget({
+                                                                id: user.id,
+                                                                name: user.name,
+                                                            })
+                                                        }}
+                                                        disabled={
+                                                            actionLoading.setPassword
+                                                        }
+                                                    >
+                                                        Password
+                                                    </Button>
+                                                ) : null}
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    title="Act as this user (read-only, needs a fresh passkey verification)"
+                                                    onClick={() => {
+                                                        setImpersonateTarget({
+                                                            id: user.id,
+                                                            name: user.name,
+                                                        })
+                                                    }}
+                                                    disabled={
+                                                        actionLoading.impersonate ||
+                                                        user.id ===
+                                                            currentUserId
+                                                    }
+                                                    hidden={!canImpersonate}
+                                                >
+                                                    <Eye className="mr-1 h-4 w-4" />
+                                                    Impersonate
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    onClick={() => {
+                                                        handleRemove(user.id)
+                                                    }}
+                                                    disabled={
+                                                        actionLoading.remove ||
+                                                        user.id ===
+                                                            currentUserId
+                                                    }
+                                                >
+                                                    <UserX className="mr-1 h-4 w-4" />
+                                                    Remove
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
 
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <div className="text-sm text-muted-foreground">
-              Showing {filteredUsers.length} of {users.length} loaded users (page {page + 1})
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPage(p => Math.max(0, p - 1))
-                }}
-                disabled={page === 0 || isLoading}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPage(p => p + 1)
-                }}
-                disabled={!hasNextPage || isLoading}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                    <div className="mt-4 flex items-center justify-between border-t pt-4">
+                        <div className="text-muted-foreground text-sm">
+                            Showing {filteredUsers.length} of {users.length}{' '}
+                            loaded users (page {page + 1})
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setPage((p) => Math.max(0, p - 1))
+                                }}
+                                disabled={page === 0 || isLoading}
+                            >
+                                Previous
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setPage((p) => p + 1)
+                                }}
+                                disabled={!hasNextPage || isLoading}
+                            >
+                                Next
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
-      {selectedUser ? (
-        <BanUserDialog
-          user={selectedUser}
-          pending={actionLoading.ban}
-          onClose={() => { setSelectedUser(null) }}
-          onConfirm={({ reason, expiresInSeconds }) => {
-            banUser({ userId: selectedUser.id, banReason: reason, banExpiresIn: expiresInSeconds })
-            setSelectedUser(null)
-          }}
-        />
-      ) : null}
-      {inviteOpen ? (
-        <InviteUserDialog roles={platformRoles} onClose={() => { setInviteOpen(false) }} />
-      ) : null}
-      {impersonateTarget ? (
-        <ImpersonateUserDialog
-          user={impersonateTarget}
-          pending={actionLoading.impersonate}
-          onClose={() => { setImpersonateTarget(null) }}
-          onConfirm={({ reason }) => {
-            impersonate({ userId: impersonateTarget.id, reason })
-            setImpersonateTarget(null)
-          }}
-        />
-      ) : null}
-      {removeTarget ? (
-        <RemoveUserDialog user={removeTarget} pending={actionLoading.remove} onClose={() => { setRemoveTarget(null) }} onConfirm={() => { void confirmRemove() }} />
-      ) : null}
-      {sessionsTarget ? (
-        <SessionsDialog user={sessionsTarget} onClose={() => { setSessionsTarget(null) }} />
-      ) : null}
-      {passwordTarget ? (
-        <SetPasswordDialog
-          user={passwordTarget}
-          pending={actionLoading.setPassword}
-          onClose={() => { setPasswordTarget(null) }}
-          onConfirm={({ password }) => {
-            setPassword({ userId: passwordTarget.id, password })
-            setPasswordTarget(null)
-          }}
-        />
-      ) : null}
-      {approvalRequest ? (
-        <RequestApprovalDialog
-          subject={approvalRequest.user.name}
-          permission="user:delete"
-          actionHash={approvalRequest.actionHash}
-          scope={{ userId: approvalRequest.user.id }}
-          onClose={() => { setApprovalRequest(null) }}
-        />
-      ) : null}
-    </div>
-  )
+            {selectedUser ? (
+                <BanUserDialog
+                    user={selectedUser}
+                    pending={actionLoading.ban}
+                    onClose={() => {
+                        setSelectedUser(null)
+                    }}
+                    onConfirm={({ reason, expiresInSeconds }) => {
+                        banUser({
+                            userId: selectedUser.id,
+                            banReason: reason,
+                            banExpiresIn: expiresInSeconds,
+                        })
+                        setSelectedUser(null)
+                    }}
+                />
+            ) : null}
+            {inviteOpen ? (
+                <InviteUserDialog
+                    roles={platformRoles}
+                    onClose={() => {
+                        setInviteOpen(false)
+                    }}
+                />
+            ) : null}
+            {impersonateTarget ? (
+                <ImpersonateUserDialog
+                    user={impersonateTarget}
+                    pending={actionLoading.impersonate}
+                    onClose={() => {
+                        setImpersonateTarget(null)
+                    }}
+                    onConfirm={({ reason }) => {
+                        impersonate({ userId: impersonateTarget.id, reason })
+                        setImpersonateTarget(null)
+                    }}
+                />
+            ) : null}
+            {removeTarget ? (
+                <RemoveUserDialog
+                    user={removeTarget}
+                    pending={actionLoading.remove}
+                    onClose={() => {
+                        setRemoveTarget(null)
+                    }}
+                    onConfirm={() => {
+                        void confirmRemove()
+                    }}
+                />
+            ) : null}
+            {sessionsTarget ? (
+                <SessionsDialog
+                    user={sessionsTarget}
+                    onClose={() => {
+                        setSessionsTarget(null)
+                    }}
+                />
+            ) : null}
+            {passwordTarget ? (
+                <SetPasswordDialog
+                    user={passwordTarget}
+                    pending={actionLoading.setPassword}
+                    onClose={() => {
+                        setPasswordTarget(null)
+                    }}
+                    onConfirm={({ password }) => {
+                        setPassword({ userId: passwordTarget.id, password })
+                        setPasswordTarget(null)
+                    }}
+                />
+            ) : null}
+            {approvalRequest ? (
+                <RequestApprovalDialog
+                    subject={approvalRequest.user.name}
+                    permission="user:delete"
+                    actionHash={approvalRequest.actionHash}
+                    scope={{ userId: approvalRequest.user.id }}
+                    onClose={() => {
+                        setApprovalRequest(null)
+                    }}
+                />
+            ) : null}
+        </div>
+    )
 }

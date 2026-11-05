@@ -1,19 +1,20 @@
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 import {
-  dockerContainerTerminalSessionEventSchema,
-  dockerContainerTerminalStreamQuerySchema,
-} from "../shared";
+    dockerContainerTerminalSessionEventSchema,
+    dockerContainerTerminalStreamQuerySchema,
+} from '../shared'
 
 const dockerContainerTerminalStreamOps = standard.zod(
-  dockerContainerTerminalSessionEventSchema,
-  "dockerContainerTerminalStream",
-);
+    dockerContainerTerminalSessionEventSchema,
+    'dockerContainerTerminalStream'
+)
 
-export const dockerContainerTerminalStreamContract = dockerContainerTerminalStreamOps
-  .list()
-  .path("/stream")
-  .input((b) => b.query(dockerContainerTerminalStreamQuerySchema))
-  .output((b) => b.observable(dockerContainerTerminalSessionEventSchema))
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+export const dockerContainerTerminalStreamContract =
+    dockerContainerTerminalStreamOps
+        .list()
+        .path('/stream')
+        .input((b) => b.query(dockerContainerTerminalStreamQuerySchema))
+        .output((b) => b.observable(dockerContainerTerminalSessionEventSchema))
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()

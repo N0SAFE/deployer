@@ -42,36 +42,36 @@
  * READY is correct, and that is what happens.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync } from 'node:fs'
 
-import { Logger } from "@nestjs/common";
-import { Context, Effect } from "effect";
-import type { Pool } from "pg";
+import { Logger } from '@nestjs/common'
+import { Context, Effect } from 'effect'
 
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from '@deployer/effect-core'
 // The migration directory is owned by the schema package; resolving it there is
 // what keeps the restart path's "apply pending migrations" step from silently
 // finding nothing (see `resolveMigrationsFolder`).
-import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env";
-import { AppError } from "@deployer/errors";
-import { AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
-import type { ServiceLifecycleShape } from "@deployer/nest-effect";
-import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
-import type { NodeConfigRepositoryShape } from "@deployer/node-state"
-import type { SupervisorOrchestratorShape } from "@deployer/supervision";
+import { resolveManagedGlobalDbUrl, splitManagedEnv } from '@deployer/env'
+import { AppError } from '@deployer/errors'
+import { AppLifecyclePhase, type AppLifecycleShape } from '@deployer/lifecycle'
+import type { ServiceLifecycleShape } from '@deployer/nest-effect'
+import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
+import type { NodeConfigRepositoryShape } from '@deployer/node-state'
+import type { SupervisorOrchestratorShape } from '@deployer/supervision'
 
-import { adminBootstrapDecisionFromProcessEnv } from "../../admin-bootstrap/admin-bootstrap-policy";
-import { ensureDefaultAdmin } from "../../admin-bootstrap/default-admin.bootstrap";
-import { applyGlobalMigrations } from "../database/migrations/global-migrations";
-import type { BootstrapAdvisoryLockServiceShape } from "../database/services/bootstrap-advisory-lock.service";
-import type { DatabaseStartupGuardShape } from "../database/services/database-startup-guard.service";
-import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../supervisors/platform/swarm-app-wiring.supervisor";
+import { adminBootstrapDecisionFromProcessEnv } from '../../admin-bootstrap/admin-bootstrap-policy'
+import { ensureDefaultAdmin } from '../../admin-bootstrap/default-admin.bootstrap'
+import { applyGlobalMigrations } from '../database/migrations/global-migrations'
+import { SWARM_APP_WIRING_SUPERVISOR_ID } from '../supervisors/platform/swarm-app-wiring.supervisor'
 
-import { BootstrapFailed } from "./bootstrap.errors";
+import { BootstrapFailed } from './bootstrap.errors'
 
-import type { GlobalDatabase } from "../database/global/global-database.service";
+import type { GlobalDatabase } from '../database/global/global-database.service'
+import type { BootstrapAdvisoryLockServiceShape } from '../database/services/bootstrap-advisory-lock.service'
+import type { DatabaseStartupGuardShape } from '../database/services/database-startup-guard.service'
+import type { Pool } from 'pg'
 
-export type BootstrapOrchestratorServiceShape = ServiceLifecycleShape;
+export type BootstrapOrchestratorServiceShape = ServiceLifecycleShape
 
 type Ports = {
     /**
@@ -81,46 +81,59 @@ type Ports = {
      * `GlobalDatabaseService` deliberately exposes no `pool` getter, because the pool's lifecycle belongs to the pool
      * lifecycle, not to the wrapper.
      */
-    readonly pool: Pool;
-    readonly db: GlobalDatabase;
-    readonly nodeConfigRepository: NodeConfigRepositoryShape;
+    readonly pool: Pool
+    readonly db: GlobalDatabase
+    readonly nodeConfigRepository: NodeConfigRepositoryShape
     /** Advanced to READY when the boot pipeline completes. */
-    readonly lifecycle: AppLifecycleShape;
-    readonly startupGuard: DatabaseStartupGuardShape;
+    readonly lifecycle: AppLifecycleShape
+    readonly startupGuard: DatabaseStartupGuardShape
     /**
      * Cross-replica guard around the boot-time side effects (migrations + default admin). The step before it (converging the
      * DB supervisor) cannot be guarded: the lock IS a database session, so it can only be taken once the database that
      * supervisor creates is reachable.
      */
-    readonly bootstrapLock: BootstrapAdvisoryLockServiceShape;
+    readonly bootstrapLock: BootstrapAdvisoryLockServiceShape
     /**
      * Converges the GLOBAL POSTGRES supervisor during boot. The database is a swarm service this API's own supervisor
      * creates, so waiting for it without first asking that supervisor to converge waits for something nothing has made.
      */
-    readonly orchestrator: SupervisorOrchestratorShape;
-};
+    readonly orchestrator: SupervisorOrchestratorShape
+}
 
-export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchestratorServiceShape {
-    const { pool, db, nodeConfigRepository, lifecycle, startupGuard, bootstrapLock, orchestrator } = ports;
-    const logger = new Logger("BootstrapOrchestratorService");
-
+export function makeBootstrapOrchestratorService(
+    ports: Ports
+): BootstrapOrchestratorServiceShape {
+    const {
+        pool,
+        db,
+        nodeConfigRepository,
+        lifecycle,
+        startupGuard,
+        bootstrapLock,
+        orchestrator,
+    } = ports
+    const logger = new Logger('BootstrapOrchestratorService')
 
     async function bootstrap(): Promise<void> {
-        logger.log("🚀 Bootstrap starting…");
+        logger.log('🚀 Bootstrap starting…')
 
         try {
-            const config = await runPromiseUnwrapped(nodeConfigRepository.find());
-            const databaseUrl = resolveDatabaseUrl(config?.databaseUrl?.trim() ?? null);
+            const config = await runPromiseUnwrapped(
+                nodeConfigRepository.find()
+            )
+            const databaseUrl = resolveDatabaseUrl(
+                config?.databaseUrl?.trim() ?? null
+            )
 
             if (databaseUrl === null || databaseUrl.length === 0) {
                 // NOT an error: this happens on a node whose onboarding has not
                 // reached the database step. Reported as not-ready so compose
                 // keeps waiting for the gate (plan §7.3).
                 logger.warn(
-                    "⏳ No global database configured yet — the API will report NOT READY " +
-                        "until onboarding (apps/setup) completes.",
-                );
-                return;
+                    '⏳ No global database configured yet — the API will report NOT READY ' +
+                        'until onboarding (apps/setup) completes.'
+                )
+                return
             }
 
             // ── A FRESH INSTALL IS PROVISIONED BY THE WIZARD, NOT HERE ──────
@@ -139,12 +152,12 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
             // So this pipeline is the RESTART path: it applies the delta on a
             // node that a previous run brought up (see `checkConfigAndEmit`,
             // which unblocks the graph on exactly this condition).
-            if (config?.setupState !== "setup_done") {
+            if (config?.setupState !== 'setup_done') {
                 logger.log(
-                    `⏳ Setup state is "${config?.setupState ?? "unknown"}" — the wizard is ` +
-                        "provisioning this node; the boot pipeline will run on the next start.",
-                );
-                return;
+                    `⏳ Setup state is "${config?.setupState ?? 'unknown'}" — the wizard is ` +
+                        'provisioning this node; the boot pipeline will run on the next start.'
+                )
+                return
             }
 
             // 1. Join the swarm overlay FIRST when the engine is swarm-active.
@@ -156,14 +169,16 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
             //    fails against a database that is actually running. No-op while
             //    the engine is not in a swarm.
             try {
-                await runPromiseUnwrapped(orchestrator.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
+                await runPromiseUnwrapped(
+                    orchestrator.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID)
+                )
             } catch (error: unknown) {
                 // Non-fatal by design: pre-swarm on a single node there is
                 // nothing to wire, and failing the boot for it would make the
                 // simple case the fragile one.
                 logger.warn(
-                    `Swarm overlay wiring skipped: ${error instanceof Error ? error.message : String(error)}`,
-                );
+                    `Swarm overlay wiring skipped: ${error instanceof Error ? error.message : String(error)}`
+                )
             }
 
             // 2. CREATE THE DATABASE IF THIS NODE OWNS IT, BEFORE WAITING FOR IT.
@@ -194,14 +209,18 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
             //    there is no supervisor to converge, and the guard is the correct
             //    authority on whether the database is usable.
             try {
-                const databaseState = await runPromiseUnwrapped(orchestrator.convergeNow("global-db-postgres"));
+                const databaseState = await runPromiseUnwrapped(
+                    orchestrator.convergeNow('global-db-postgres')
+                )
                 if (databaseState !== null) {
-                    logger.log(`Global Postgres supervisor converged (state=${databaseState})`);
+                    logger.log(
+                        `Global Postgres supervisor converged (state=${databaseState})`
+                    )
                 }
             } catch (error: unknown) {
                 logger.warn(
-                    `Global Postgres convergence skipped: ${error instanceof Error ? error.message : String(error)}`,
-                );
+                    `Global Postgres convergence skipped: ${error instanceof Error ? error.message : String(error)}`
+                )
             }
 
             // 3. Verify reachability. Throws when the database is unreachable in
@@ -212,7 +231,9 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
             //    It also WAITS for the dependency: the database may be a swarm
             //    service whose task is still being scheduled, so a single-shot
             //    check would fail at random on a boot that is merely early.
-            await runPromiseUnwrapped(startupGuard.ensureDatabaseAvailable(pool));
+            await runPromiseUnwrapped(
+                startupGuard.ensureDatabaseAvailable(pool)
+            )
 
             // 4. Migrations and the default admin, UNDER AN ADVISORY LOCK.
             //    Both are convergent but not atomic: two replicas booting at once
@@ -224,33 +245,36 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
             //    A migration failure is FATAL: booting against a schema nobody
             //    verified fails later on an unrelated query, which is a much worse
             //    place to discover it. See `applyGlobalMigrations`.
-            const lockAcquired = await runPromiseUnwrapped(bootstrapLock.acquire());
+            const lockAcquired = await runPromiseUnwrapped(
+                bootstrapLock.acquire()
+            )
             if (!lockAcquired) {
                 logger.warn(
-                    "⏭  Another replica holds the bootstrap lock — migrations and the " +
-                        "default admin are being applied there; continuing to readiness.",
-                );
+                    '⏭  Another replica holds the bootstrap lock — migrations and the ' +
+                        'default admin are being applied there; continuing to readiness.'
+                )
             } else {
                 try {
-                    await runGlobalMigrations(databaseUrl);
-                    await bootstrapSeededAdmin(databaseUrl);
+                    await runGlobalMigrations(databaseUrl)
+                    await bootstrapSeededAdmin(databaseUrl)
                 } finally {
-                    await runPromiseUnwrapped(bootstrapLock.release());
+                    await runPromiseUnwrapped(bootstrapLock.release())
                 }
             }
 
             lifecycle.transitionNow(AppLifecyclePhase.READY, {
-                message: "Database reachable, migrations applied — the platform is ready",
+                message:
+                    'Database reachable, migrations applied — the platform is ready',
                 databaseReachable: true,
-            });
-            lifecycle.markReadyNow();
+            })
+            lifecycle.markReadyNow()
 
-            logger.log("✅ Bootstrap completed");
+            logger.log('✅ Bootstrap completed')
         } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            logger.error(`❌ Bootstrap failed: ${message}`);
-            lifecycle.markErrorNow(message);
-            throw err;
+            const message = err instanceof Error ? err.message : String(err)
+            logger.error(`❌ Bootstrap failed: ${message}`)
+            lifecycle.markErrorNow(message)
+            throw err
         }
     }
 
@@ -283,14 +307,14 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
      * mirrors it exactly. Anything else reintroduces the split.
      */
     function resolveDatabaseUrl(configuredUrl: string | null): string | null {
-        const managed = splitManagedEnv(process.env).globalDb;
+        const managed = splitManagedEnv(process.env).globalDb
         if (managed.enabled) {
             // With `MANAGED_GLOBAL_DB_ENABLED=true` the deployment owns the
             // database and the URL is derived from env — the persisted row is a
             // leftover from an earlier profile and must not win.
-            return resolveManagedGlobalDbUrl(managed);
+            return resolveManagedGlobalDbUrl(managed)
         }
-        return configuredUrl === "" ? null : configuredUrl;
+        return configuredUrl === '' ? null : configuredUrl
     }
 
     /**
@@ -337,10 +361,10 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
         if (!existsSync(GLOBAL_MIGRATIONS_DIR)) {
             throw new AppError(
                 `Global migrations directory not found at ${GLOBAL_MIGRATIONS_DIR}`,
-                "INTERNAL_ERROR",
-            );
+                'INTERNAL_ERROR'
+            )
         }
-        return GLOBAL_MIGRATIONS_DIR;
+        return GLOBAL_MIGRATIONS_DIR
     }
 
     /**
@@ -353,18 +377,18 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
      * not by matching words in the driver's message.
      */
     async function runGlobalMigrations(databaseUrl: string): Promise<void> {
-        const migrationsFolder = resolveMigrationsFolder();
+        const migrationsFolder = resolveMigrationsFolder()
 
         logger.log(
-            `🔄 Running global Postgres migrations (${databaseUrl.replace(/:[^:@/]*@/, ":***@")})…`,
-        );
-        logger.log(`   migrations: ${migrationsFolder}`);
+            `🔄 Running global Postgres migrations (${databaseUrl.replace(/:[^:@/]*@/, ':***@')})…`
+        )
+        logger.log(`   migrations: ${migrationsFolder}`)
 
-        const outcome = await applyGlobalMigrations(db, { migrationsFolder });
-        if (outcome === "already-applied") {
-            logger.log("✅ Global Postgres migrations: schema already current");
+        const outcome = await applyGlobalMigrations(db, { migrationsFolder })
+        if (outcome === 'already-applied') {
+            logger.log('✅ Global Postgres migrations: schema already current')
         } else {
-            logger.log("✅ Global Postgres migrations applied");
+            logger.log('✅ Global Postgres migrations applied')
         }
     }
 
@@ -383,32 +407,39 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
      * and failing loudly here is the only way that becomes visible.
      */
     async function bootstrapSeededAdmin(databaseUrl: string): Promise<void> {
-        const { decision: admin, reason: adminReason } = adminBootstrapDecisionFromProcessEnv();
+        const { decision: admin, reason: adminReason } =
+            adminBootstrapDecisionFromProcessEnv()
 
-        if (admin === "never") {
-            logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`);
-            return;
+        if (admin === 'never') {
+            logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`)
+            return
         }
-        if (adminReason.includes("deprecated alias")) {
-            logger.warn(`⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`);
+        if (adminReason.includes('deprecated alias')) {
+            logger.warn(
+                `⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`
+            )
         }
 
-        logger.log(`🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`);
+        logger.log(
+            `🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`
+        )
 
-        const result = await ensureDefaultAdmin(databaseUrl);
+        const result = await ensureDefaultAdmin(databaseUrl)
 
-        if (result.outcome === "failed") {
+        if (result.outcome === 'failed') {
             throw new AppError(
                 `Failed to ensure default admin: ${result.error}`,
-                "INTERNAL_ERROR",
-            );
+                'INTERNAL_ERROR'
+            )
         }
-        if (result.outcome === "created") {
-            logger.log(`✅ Default admin created (id=${result.userId})`);
-        } else if (result.outcome === "promoted") {
-            logger.log(`✅ Existing user promoted to superAdmin (id=${result.userId})`);
+        if (result.outcome === 'created') {
+            logger.log(`✅ Default admin created (id=${result.userId})`)
+        } else if (result.outcome === 'promoted') {
+            logger.log(
+                `✅ Existing user promoted to superAdmin (id=${result.userId})`
+            )
         } else {
-            logger.log(`ℹ️  Default admin already exists (id=${result.userId})`);
+            logger.log(`ℹ️  Default admin already exists (id=${result.userId})`)
         }
     }
 
@@ -418,11 +449,19 @@ export function makeBootstrapOrchestratorService(ports: Ports): BootstrapOrchest
         onReady: () =>
             Effect.tryPromise({
                 try: () => bootstrap(),
-                catch: (cause) => new BootstrapFailed({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+                catch: (cause) =>
+                    new BootstrapFailed({
+                        reason:
+                            cause instanceof Error
+                                ? cause.message
+                                : String(cause),
+                        cause,
+                    }),
             }),
-    };
+    }
 }
 
-export class BootstrapOrchestratorService extends Context.Service<BootstrapOrchestratorService, BootstrapOrchestratorServiceShape>()(
-    "shared/BootstrapOrchestratorService",
-) {}
+export class BootstrapOrchestratorService extends Context.Service<
+    BootstrapOrchestratorService,
+    BootstrapOrchestratorServiceShape
+>()('shared/BootstrapOrchestratorService') {}

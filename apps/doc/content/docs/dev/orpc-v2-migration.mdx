@@ -14,11 +14,11 @@ dependency is pinned in the root `catalogs.orpc` block.
 
 ## Package map
 
-| v1 | v2 |
-| --- | --- |
-| `@orpc/openapi-client` | merged into `@orpc/openapi` (`@orpc/openapi/fetch`) |
+| v1                                        | v2                                                          |
+| ----------------------------------------- | ----------------------------------------------------------- |
+| `@orpc/openapi-client`                    | merged into `@orpc/openapi` (`@orpc/openapi/fetch`)         |
 | `@orpc/nest` re-exporting builders/errors | `implement`, `ORPCError`, `onError` now from `@orpc/server` |
-| — | `@orpc/node` added (Node-only plugins) |
+| —                                         | `@orpc/node` added (Node-only plugins)                      |
 
 ## Breaking changes that mattered
 
@@ -35,7 +35,7 @@ Three v2 renames still compile but change behaviour, so the compiler cannot catc
 - Link `clientInterceptors` → `transportInterceptors` (the handler-side `clientInterceptors` still exists).
 - `sendResponseInterceptors` was **removed** from the handler config. It is not on `ORPCModuleConfig`, and excess-property checking does not fire on that literal — so nothing flagged it. The equivalent is `interceptors`. Left unmigrated, every Nest `HttpException` and mesh domain error degraded to a generic 500.
 - `rootInterceptors` → `routingInterceptors`.
-</DocCallout>
+    </DocCallout>
 
 ## Transport plugins
 
@@ -79,10 +79,10 @@ give `@orpc/nest` a router-scoped handler instead of a per-procedure one.
 
 A byte-counting probe against the real `OpenAPIHandler`:
 
-| | `content-encoding` | bytes |
-| --- | --- | --- |
-| without plugin | `null` | 27,010 |
-| with plugin | `gzip` | 75 |
+|                | `content-encoding` | bytes  |
+| -------------- | ------------------ | ------ |
+| without plugin | `null`             | 27,010 |
+| with plugin    | `gzip`             | 75     |
 
 Gzip magic bytes (`1f 8b`) confirmed, and the same handler without the plugin
 returned the full 27,010 bytes.

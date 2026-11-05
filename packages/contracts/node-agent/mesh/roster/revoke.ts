@@ -1,6 +1,6 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * Revoking a join token before it expires.
@@ -10,19 +10,19 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  * which keeps the call idempotent.
  */
 export const meshRevokeInput = z.object({
-  token: z.string().min(1).max(4096),
-});
+    token: z.string().min(1).max(4096),
+})
 
 export const meshRevokeOutput = z.object({
-  revoked: z.boolean(),
-});
+    revoked: z.boolean(),
+})
 
-const meshRevokeOps = standard.zod(meshRevokeOutput, "meshRevoke");
+const meshRevokeOps = standard.zod(meshRevokeOutput, 'meshRevoke')
 
 export const meshRevokeContract = meshRevokeOps
-  .create()
-  .path("/revoke")
-  .input((b) => b.body(meshRevokeInput))
-  .output(meshRevokeOutput)
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+    .create()
+    .path('/revoke')
+    .input((b) => b.body(meshRevokeInput))
+    .output(meshRevokeOutput)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()

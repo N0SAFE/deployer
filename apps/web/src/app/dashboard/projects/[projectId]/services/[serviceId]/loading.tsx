@@ -7,17 +7,17 @@ import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
  * content.
  */
 export default function ServiceDetailLoading() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Skeleton className="size-9 rounded-lg" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-56" />
-          <Skeleton className="h-4 w-40" />
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-4">
+                <Skeleton className="size-9 rounded-lg" />
+                <div className="space-y-2">
+                    <Skeleton className="h-6 w-56" />
+                    <Skeleton className="h-4 w-40" />
+                </div>
+            </div>
+            <Skeleton className="h-12 w-full rounded-xl" />
+            <Skeleton className="h-96 w-full rounded-xl" />
         </div>
-      </div>
-      <Skeleton className="h-12 w-full rounded-xl" />
-      <Skeleton className="h-96 w-full rounded-xl" />
-    </div>
-  )
+    )
 }

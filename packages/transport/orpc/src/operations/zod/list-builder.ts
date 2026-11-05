@@ -32,11 +32,11 @@
  * ```
  */
 
-import * as z from "zod";
+import * as z from 'zod'
 
-import type { RouteBuilder } from "@deployer/orpc-utils/builder/core/route-builder";
-import type { ZodEntitySchema } from "@deployer/orpc-utils/operations/zod/standard-operations";
-import type { ZodStandardOperations } from "@deployer/orpc-utils/operations/zod/standard-operations";
+import type { RouteBuilder } from '@deployer/orpc-utils/builder/core/route-builder'
+import type { ZodEntitySchema } from '@deployer/orpc-utils/operations/zod/standard-operations'
+import type { ZodStandardOperations } from '@deployer/orpc-utils/operations/zod/standard-operations'
 import {
     createQueryBuilder,
     createPaginationConfigSchema,
@@ -48,10 +48,13 @@ import {
     type QueryConfig,
     type FieldFilterConfig,
     type FilterOperator,
-} from "@deployer/orpc-utils/operations/zod/utils/index";
-import type { ComputeInputSchema, ComputeOutputSchema } from "@deployer/orpc-utils/operations/zod/utils/index";
+} from '@deployer/orpc-utils/operations/zod/utils/index'
+import type {
+    ComputeInputSchema,
+    ComputeOutputSchema,
+} from '@deployer/orpc-utils/operations/zod/utils/index'
 
-import type { AnySchema } from "@orpc/contract";
+import type { AnySchema } from '@orpc/contract'
 
 /**
  * Filter field definition for the builder's fluent API.
@@ -61,7 +64,10 @@ import type { AnySchema } from "@orpc/contract";
  * - `{ schema: ZodType, operators: [...] }` for explicit control
  * - Existing FieldFilterConfig for advanced use
  */
-export type BuilderFilterField = z.ZodType | { schema: z.ZodType; operators: readonly FilterOperator[] } | FieldFilterConfig;
+export type BuilderFilterField =
+    | z.ZodType
+    | { schema: z.ZodType; operators: readonly FilterOperator[] }
+    | FieldFilterConfig
 
 /**
  * Infer the TypeScript value type from a BuilderFilterField.
@@ -69,39 +75,52 @@ export type BuilderFilterField = z.ZodType | { schema: z.ZodType; operators: rea
  * - { schema: ZodType } → z.infer<T['schema']>
  * - FieldFilterConfig → unknown (no schema info available)
  */
-type InferBuilderFieldValue<T extends BuilderFilterField> = T extends z.ZodType ? z.infer<T> : T extends { schema: infer S extends z.ZodType } ? z.infer<S> : unknown;
+type InferBuilderFieldValue<T extends BuilderFilterField> = T extends z.ZodType
+    ? z.infer<T>
+    : T extends { schema: infer S extends z.ZodType }
+      ? z.infer<S>
+      : unknown
 
 /**
  * Infer the operator literal types from a BuilderFilterField.
  * - { operators: readonly [...] } → union of literal operator types
  * - ZodType / FieldFilterConfig without explicit operators → FilterOperator (all)
  */
-type InferBuilderFieldOperators<T extends BuilderFilterField> = T extends { operators: readonly (infer U extends FilterOperator)[] } ? U : FilterOperator;
+type InferBuilderFieldOperators<T extends BuilderFilterField> = T extends {
+    operators: readonly (infer U extends FilterOperator)[]
+}
+    ? U
+    : FilterOperator
 
 /**
  * Normalize BuilderFilterField types to FieldFilterConfig while preserving
  * both the value type and the exact operator literals via phantom fields.
  */
-type NormalizeFilterFields<TFields extends Record<string, BuilderFilterField>> = {
-    [K in keyof TFields]: FieldFilterConfig & {
-        _valueType: InferBuilderFieldValue<TFields[K]>;
-        _operators: InferBuilderFieldOperators<TFields[K]>;
-    };
-};
+type NormalizeFilterFields<TFields extends Record<string, BuilderFilterField>> =
+    {
+        [K in keyof TFields]: FieldFilterConfig & {
+            _valueType: InferBuilderFieldValue<TFields[K]>
+            _operators: InferBuilderFieldOperators<TFields[K]>
+        }
+    }
 
 /**
  * Check if a field is the `{ schema, operators }` shorthand pattern
  */
-function isSchemaWithOperators(field: BuilderFilterField): field is { schema: z.ZodType; operators: readonly FilterOperator[] } {
-    return "schema" in field && "operators" in field;
+function isSchemaWithOperators(
+    field: BuilderFilterField
+): field is { schema: z.ZodType; operators: readonly FilterOperator[] } {
+    return 'schema' in field && 'operators' in field
 }
 
 /**
  * Check if a field is already a FieldFilterConfig (has `type` or `operators` without `schema`)
  */
-function isExistingFieldFilterConfig(field: BuilderFilterField): field is FieldFilterConfig {
+function isExistingFieldFilterConfig(
+    field: BuilderFilterField
+): field is FieldFilterConfig {
     // ZodFieldFilterConfig has 'type', BaseFieldFilterConfig has 'operators' but not 'schema'
-    return "type" in field || ("operators" in field && !("schema" in field));
+    return 'type' in field || ('operators' in field && !('schema' in field))
 }
 
 /**
@@ -110,13 +129,13 @@ function isExistingFieldFilterConfig(field: BuilderFilterField): field is FieldF
 function normalizeFilterField(field: BuilderFilterField): FieldFilterConfig {
     if (isSchemaWithOperators(field)) {
         // Convert { schema, operators } → BaseFieldFilterConfig (just operators)
-        return { operators: [...field.operators] };
+        return { operators: [...field.operators] }
     }
     if (isExistingFieldFilterConfig(field)) {
-        return field;
+        return field
     }
     // Bare ZodType → use all operators
-    return { operators: [...ALL_FILTER_OPERATORS] };
+    return { operators: [...ALL_FILTER_OPERATORS] }
 }
 
 /**
@@ -130,14 +149,21 @@ export class ListOperationBuilder<
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     TConfig extends QueryConfig = {},
 > {
-    private readonly operations: ZodStandardOperations<TEntity, string, z.ZodType>;
-    private readonly _entitySchema: TEntity;
-    private queryBuilder: QueryBuilder<TConfig>;
+    private readonly operations: ZodStandardOperations<
+        TEntity,
+        string,
+        z.ZodType
+    >
+    private readonly _entitySchema: TEntity
+    private queryBuilder: QueryBuilder<TConfig>
 
-    constructor(operations: ZodStandardOperations<TEntity, string, z.ZodType>, entitySchema: TEntity) {
-        this.operations = operations;
-        this._entitySchema = entitySchema;
-        this.queryBuilder = createQueryBuilder<TConfig>();
+    constructor(
+        operations: ZodStandardOperations<TEntity, string, z.ZodType>,
+        entitySchema: TEntity
+    ) {
+        this.operations = operations
+        this._entitySchema = entitySchema
+        this.queryBuilder = createQueryBuilder<TConfig>()
     }
 
     /**
@@ -151,21 +177,33 @@ export class ListOperationBuilder<
         TIncludeCursor extends boolean = false,
         TIncludePage extends boolean = false,
     >(options?: {
-        defaultLimit?: TDefaultLimit;
-        maxLimit?: TMaxLimit;
-        minLimit?: TMinLimit;
-        includeOffset?: TIncludeOffset;
-        includeCursor?: TIncludeCursor;
-        includePage?: TIncludePage;
+        defaultLimit?: TDefaultLimit
+        maxLimit?: TMaxLimit
+        minLimit?: TMinLimit
+        includeOffset?: TIncludeOffset
+        includeCursor?: TIncludeCursor
+        includePage?: TIncludePage
     }): ListOperationBuilder<
         TEntity,
         TConfig & {
-            pagination: ReturnType<typeof createPaginationConfigSchema<TDefaultLimit, TMaxLimit, TMinLimit, TIncludeOffset, TIncludeCursor, TIncludePage>>;
+            pagination: ReturnType<
+                typeof createPaginationConfigSchema<
+                    TDefaultLimit,
+                    TMaxLimit,
+                    TMinLimit,
+                    TIncludeOffset,
+                    TIncludeCursor,
+                    TIncludePage
+                >
+            >
         }
     > {
-        const paginationConfig = createPaginationConfigSchema(options);
-        this.queryBuilder = this.queryBuilder.withPagination(paginationConfig);
-        return this as unknown as ListOperationBuilder<TEntity, TConfig & { pagination: typeof paginationConfig }>;
+        const paginationConfig = createPaginationConfigSchema(options)
+        this.queryBuilder = this.queryBuilder.withPagination(paginationConfig)
+        return this as unknown as ListOperationBuilder<
+            TEntity,
+            TConfig & { pagination: typeof paginationConfig }
+        >
     }
 
     /**
@@ -174,20 +212,25 @@ export class ListOperationBuilder<
     withSorting<TFields extends readonly string[]>(
         fields: TFields,
         options?: {
-            defaultField?: TFields[number];
-            defaultDirection?: "asc" | "desc";
-            allowMultiple?: boolean;
-            allowNullsHandling?: boolean;
-        },
+            defaultField?: TFields[number]
+            defaultDirection?: 'asc' | 'desc'
+            allowMultiple?: boolean
+            allowNullsHandling?: boolean
+        }
     ): ListOperationBuilder<
         TEntity,
         TConfig & {
-            sorting: ReturnType<typeof createSortingConfigSchema<TFields, boolean, boolean>>;
+            sorting: ReturnType<
+                typeof createSortingConfigSchema<TFields, boolean, boolean>
+            >
         }
     > {
-        const sortingConfig = createSortingConfigSchema(fields, options);
-        this.queryBuilder = this.queryBuilder.withSorting(sortingConfig);
-        return this as unknown as ListOperationBuilder<TEntity, TConfig & { sorting: typeof sortingConfig }>;
+        const sortingConfig = createSortingConfigSchema(fields, options)
+        this.queryBuilder = this.queryBuilder.withSorting(sortingConfig)
+        return this as unknown as ListOperationBuilder<
+            TEntity,
+            TConfig & { sorting: typeof sortingConfig }
+        >
     }
 
     /**
@@ -200,32 +243,54 @@ export class ListOperationBuilder<
      *
      * Field keys must be properties of the entity schema.
      */
-    withFiltering<TFields extends Partial<Record<keyof z.infer<TEntity>, BuilderFilterField>>>(
+    withFiltering<
+        TFields extends Partial<
+            Record<keyof z.infer<TEntity>, BuilderFilterField>
+        >,
+    >(
         fields: TFields,
         options?: {
-            allowLogicalOperators?: boolean;
-        },
+            allowLogicalOperators?: boolean
+        }
     ): ListOperationBuilder<
         TEntity,
         TConfig & {
-            filtering: ReturnType<typeof createFilteringConfigSchema<NormalizeFilterFields<{ [K in keyof TFields]-?: NonNullable<TFields[K]> }>>>;
+            filtering: ReturnType<
+                typeof createFilteringConfigSchema<
+                    NormalizeFilterFields<{
+                        [K in keyof TFields]-?: NonNullable<TFields[K]>
+                    }>
+                >
+            >
         }
     > {
         // Normalize all fields to FieldFilterConfig before passing to createFilteringConfigSchema
-        const normalizedFields = {} as { [K in keyof TFields]: FieldFilterConfig };
+        const normalizedFields = {} as {
+            [K in keyof TFields]: FieldFilterConfig
+        }
         for (const [key, field] of Object.entries(fields)) {
             if (field !== undefined) {
-                normalizedFields[key as keyof TFields] = normalizeFilterField(field);
+                normalizedFields[key as keyof TFields] =
+                    normalizeFilterField(field)
             }
         }
-        const filteringConfig = createFilteringConfigSchema(normalizedFields, options);
-        this.queryBuilder = this.queryBuilder.withFiltering(filteringConfig);
+        const filteringConfig = createFilteringConfigSchema(
+            normalizedFields,
+            options
+        )
+        this.queryBuilder = this.queryBuilder.withFiltering(filteringConfig)
         return this as unknown as ListOperationBuilder<
             TEntity,
             TConfig & {
-                filtering: ReturnType<typeof createFilteringConfigSchema<NormalizeFilterFields<{ [K in keyof TFields]-?: NonNullable<TFields[K]> }>>>;
+                filtering: ReturnType<
+                    typeof createFilteringConfigSchema<
+                        NormalizeFilterFields<{
+                            [K in keyof TFields]-?: NonNullable<TFields[K]>
+                        }>
+                    >
+                >
             }
-        >;
+        >
     }
 
     /**
@@ -234,25 +299,28 @@ export class ListOperationBuilder<
     withSearch<TFields extends readonly string[]>(
         fields: TFields,
         options?: {
-            minQueryLength?: number;
-            allowFieldSelection?: boolean;
-        },
+            minQueryLength?: number
+            allowFieldSelection?: boolean
+        }
     ): ListOperationBuilder<
         TEntity,
         TConfig & {
-            search: ReturnType<typeof createSearchConfigSchema<TFields>>;
+            search: ReturnType<typeof createSearchConfigSchema<TFields>>
         }
     > {
-        const searchConfig = createSearchConfigSchema(fields, options);
-        this.queryBuilder = this.queryBuilder.withSearch(searchConfig);
-        return this as unknown as ListOperationBuilder<TEntity, TConfig & { search: typeof searchConfig }>;
+        const searchConfig = createSearchConfigSchema(fields, options)
+        this.queryBuilder = this.queryBuilder.withSearch(searchConfig)
+        return this as unknown as ListOperationBuilder<
+            TEntity,
+            TConfig & { search: typeof searchConfig }
+        >
     }
 
     /**
      * Get the built query configuration schemas for type computation and reuse.
      */
     getSchemas(): TConfig {
-        return this.buildConfig();
+        return this.buildConfig()
     }
 
     /**
@@ -261,7 +329,7 @@ export class ListOperationBuilder<
      * Useful when you want to pass config to `ops.list(config)`.
      */
     buildConfig(): TConfig {
-        return this.queryBuilder.getConfig();
+        return this.queryBuilder.getConfig()
     }
 
     /**
@@ -270,22 +338,29 @@ export class ListOperationBuilder<
      * Returns a fully built ORPC contract (not a RouteBuilder).
      * Use this directly in router definitions.
      */
-    build(): ReturnType<RouteBuilder<AnySchema, AnySchema, "GET", TEntity>["build"]> {
-        return this.operations.list(this.buildConfig()).build();
+    build(): ReturnType<
+        RouteBuilder<AnySchema, AnySchema, 'GET', TEntity>['build']
+    > {
+        return this.operations.list(this.buildConfig()).build()
     }
 
     /**
      * Build the input Zod schema (for type extraction or reuse).
      */
-    buildInputSchema(): z.ZodType<ComputeInputSchema<TConfig>, ComputeInputSchema<TConfig>> {
-        return this.queryBuilder.buildInputSchema();
+    buildInputSchema(): z.ZodType<
+        ComputeInputSchema<TConfig>,
+        ComputeInputSchema<TConfig>
+    > {
+        return this.queryBuilder.buildInputSchema()
     }
 
     /**
      * Build the output Zod schema (for type extraction or reuse).
      */
-    buildOutputSchema(): z.ZodType<ComputeOutputSchema<TConfig, z.infer<TEntity>>> {
-        return this.queryBuilder.buildOutputSchema(this._entitySchema);
+    buildOutputSchema(): z.ZodType<
+        ComputeOutputSchema<TConfig, z.infer<TEntity>>
+    > {
+        return this.queryBuilder.buildOutputSchema(this._entitySchema)
     }
 }
 
@@ -303,12 +378,12 @@ export class ListOperationBuilder<
  * ```
  */
 export function createListConfig<TEntity extends ZodEntitySchema>(
-    operations: ZodStandardOperations<TEntity, string, z.ZodType>,
+    operations: ZodStandardOperations<TEntity, string, z.ZodType>
 ) {
-    return new ListOperationBuilder(operations, operations.getEntitySchema());
+    return new ListOperationBuilder(operations, operations.getEntitySchema())
 }
 
 /**
  * Backward-compatible alias with a filtering-first naming.
  */
-export const createFilterConfig = createListConfig;
+export const createFilterConfig = createListConfig

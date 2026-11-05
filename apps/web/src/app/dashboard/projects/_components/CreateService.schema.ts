@@ -55,10 +55,12 @@ const domainEntrySchema = z.object({
     sslEnabled: z.boolean(),
 })
 
-const resourceLimitsSchema = z.object({
-    memory: z.string().optional(),
-    cpu: z.string().optional(),
-}).optional()
+const resourceLimitsSchema = z
+    .object({
+        memory: z.string().optional(),
+        cpu: z.string().optional(),
+    })
+    .optional()
 
 /* ─── FULL WIZARD SCHEMA ──────────────────────────────────────────── */
 
@@ -80,11 +82,13 @@ export const wizardSchema = z.object({
          * `public` = also on the public lane when one is enabled. */
         visibility: z.enum(['private', 'public']).default('public'),
         /** TLS termination config. */
-        tls: z.object({
-            enabled: z.boolean().default(false),
-            certSecretRef: z.string().optional(),
-            httpRedirect: z.boolean().default(true),
-        }).default({ enabled: false, httpRedirect: true }),
+        tls: z
+            .object({
+                enabled: z.boolean().default(false),
+                certSecretRef: z.string().optional(),
+                httpRedirect: z.boolean().default(true),
+            })
+            .default({ enabled: false, httpRedirect: true }),
         healthCheck: healthCheckSchema,
         customDomains: z.array(z.string()).optional(),
         domainEntries: z.array(domainEntrySchema).optional(),

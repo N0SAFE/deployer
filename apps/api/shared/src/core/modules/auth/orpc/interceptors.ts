@@ -10,7 +10,7 @@ import { AppError } from '@deployer/errors'
 import { MeshBaseDomainError } from '../../mesh/shared/domain/mesh-base-error'
 
 import type { InternalErrorInsightServiceShape } from '../../../middlewares/internal-error/internal-error-insight.service'
-import type { Logger } from '@nestjs/common';
+import type { Logger } from '@nestjs/common'
 import type { ORPCErrorCode } from '@orpc/client'
 import type { Interceptor } from '@orpc/shared'
 
@@ -123,15 +123,15 @@ export function transformDomainErrorToOrpcError(): Interceptor<any, any> {
  */
 export function logOrpcErrors(
     logger: Logger,
-    internalErrorInsightService?: InternalErrorInsightServiceShape,
+    internalErrorInsightService?: InternalErrorInsightServiceShape
 ): Interceptor<any, any> {
     return onError((error: unknown) => {
         if (error instanceof ORPCError) {
             const isInternalServerError = error.code === 'INTERNAL_SERVER_ERROR'
             const traceId = isInternalServerError
                 ? internalErrorInsightService?.capture(error, {
-                    source: 'orpc',
-                }).traceId
+                      source: 'orpc',
+                  }).traceId
                 : undefined
 
             switch (error.code) {
@@ -153,7 +153,7 @@ export function logOrpcErrors(
                                         key,
                                         'value' in desc ? desc.value : desc,
                                     ])
-                                )
+                                ),
                             }
                         )
                     }

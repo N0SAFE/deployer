@@ -7,11 +7,11 @@ import { RouteError } from '@/components/error/RouteError'
  * service's tab bar stays available while one tab fails.
  */
 export default function ServiceError({
-  error,
-  reset,
+    error,
+    reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+    error: Error & { digest?: string }
+    reset: () => void
 }) {
-  return <RouteError error={error} reset={reset} scope="This service" />
+    return <RouteError error={error} reset={reset} scope="This service" />
 }

@@ -17,8 +17,7 @@
         }
     },
     "scripts": {
-        "prettify": "bun fmt .",
-        "format": "bun run prettify",
+        "format": "bun fmt .",
         "format:check": "bun fmt --check .",
         "lint": "bun lint --no-script --type-aware",
         "lint:fix": "bun lint --no-script --fix --type-aware",

@@ -1,12 +1,12 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import type { DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from '@deployer/docker'
 
-import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { RuntimeInvalid } from '../../../../core/runtime.errors'
 
-import type { BuilderStrategy } from "../base/builder-strategy.interface";
+import type { BuilderStrategy } from '../base/builder-strategy.interface'
 
-export type BuildpackFamilyKind = "nixpacks" | "buildpack" | "railpack";
+export type BuildpackFamilyKind = 'nixpacks' | 'buildpack' | 'railpack'
 
 /**
  * The buildpack-family builders: `nixpacks`, `buildpack`, `railpack`.
@@ -31,28 +31,35 @@ export type BuildpackFamilyKind = "nixpacks" | "buildpack" | "railpack";
  */
 export function makeBuildpackFamilyBuilderStrategy(
     builderType: BuildpackFamilyKind,
-    engine: DockerEngineShape,
+    engine: DockerEngineShape
 ): BuilderStrategy {
     return {
         builderType,
         isAvailable: () => true,
-        unavailableReason: () => "",
+        unavailableReason: () => '',
         build: (context) =>
             Effect.gen(function* () {
                 // Present only when the operator supplied custom commands — the caller writes it
                 // in `prepareCustomBuilderDockerfileIfNeeded`.
                 if (context.dockerfileName === null) {
-                    return yield* new RuntimeInvalid({ reason: `Builder '${builderType}' requires custom build and run commands: this platform ` +
+                    return yield* new RuntimeInvalid({
+                        reason:
+                            `Builder '${builderType}' requires custom build and run commands: this platform ` +
                             `runs no ${builderType} toolchain, so the artifact is produced from a generated ` +
                             "Dockerfile. Set a build command (and run command), or use 'dockerfile' with a " +
-                            "committed Dockerfile instead." });
+                            'committed Dockerfile instead.',
+                    })
                 }
 
-                yield* engine.build.image(context.buildContextPath, context.imageTag, {
-                    dockerfileName: context.dockerfileName,
-                });
+                yield* engine.build.image(
+                    context.buildContextPath,
+                    context.imageTag,
+                    {
+                        dockerfileName: context.dockerfileName,
+                    }
+                )
 
-                return { image: context.imageTag };
+                return { image: context.imageTag }
             }),
-    };
+    }
 }

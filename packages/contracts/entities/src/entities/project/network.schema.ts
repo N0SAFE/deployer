@@ -1,6 +1,6 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { routeVisibilitySchema } from "../ingress/lanes.schema";
+import { routeVisibilitySchema } from '../ingress/lanes.schema'
 
 /**
  * Network Configuration — provider-backed networking for projects & services.
@@ -17,9 +17,11 @@ import { routeVisibilitySchema } from "../ingress/lanes.schema";
  */
 
 /** DNS record types we can provision through a provider. */
-export const networkDnsRecordTypeSchema = z.enum(["A", "AAAA", "CNAME", "TXT"]);
-export type NetworkDnsRecordType = z.infer<typeof networkDnsRecordTypeSchema>;
-export const NETWORK_DNS_RECORD_TYPES = [...networkDnsRecordTypeSchema.options] as readonly NetworkDnsRecordType[];
+export const networkDnsRecordTypeSchema = z.enum(['A', 'AAAA', 'CNAME', 'TXT'])
+export type NetworkDnsRecordType = z.infer<typeof networkDnsRecordTypeSchema>
+export const NETWORK_DNS_RECORD_TYPES = [
+    ...networkDnsRecordTypeSchema.options,
+] as readonly NetworkDnsRecordType[]
 
 /** TLS policy applied at the edge (ingress / proxy). */
 export const networkTlsSchema = z
@@ -28,8 +30,8 @@ export const networkTlsSchema = z
         /** Redirect plain HTTP → HTTPS. */
         httpRedirect: z.boolean().default(true),
     })
-    .default({ enabled: false, httpRedirect: true });
-export type NetworkTls = z.infer<typeof networkTlsSchema>;
+    .default({ enabled: false, httpRedirect: true })
+export type NetworkTls = z.infer<typeof networkTlsSchema>
 
 /**
  * PROJECT-level network configuration.
@@ -53,16 +55,16 @@ export const projectNetworkConfigSchema = z
         /** Allow wildcard subdomains (e.g. `*.preview.example.com`). */
         wildcardSubdomains: z.boolean().default(false),
         /** Record type used when auto-provisioning service bindings. */
-        recordType: networkDnsRecordTypeSchema.default("CNAME"),
+        recordType: networkDnsRecordTypeSchema.default('CNAME'),
         /** Target content for provisioned records (e.g. LB hostname). */
         recordContent: z.string().nullable().default(null),
     })
-    .strict();
-export type ProjectNetworkConfig = z.infer<typeof projectNetworkConfigSchema>;
+    .strict()
+export type ProjectNetworkConfig = z.infer<typeof projectNetworkConfigSchema>
 
 /** Full defaults — used when a project has no network config yet. */
 export const defaultProjectNetworkConfig = (): ProjectNetworkConfig =>
-    projectNetworkConfigSchema.parse({});
+    projectNetworkConfigSchema.parse({})
 
 /**
  * SERVICE-level network configuration.
@@ -79,7 +81,7 @@ export const serviceNetworkConfigSchema = z
         /** Zone name (read-model, kept in sync). */
         zoneName: z.string().nullable().default(null),
         /** Record type for this service's provisioned records. */
-        recordType: networkDnsRecordTypeSchema.default("CNAME"),
+        recordType: networkDnsRecordTypeSchema.default('CNAME'),
         /** Target content for this service's records. */
         recordContent: z.string().nullable().default(null),
         /** Proxy through the provider (Cloudflare orange-cloud). */
@@ -90,13 +92,13 @@ export const serviceNetworkConfigSchema = z
          * Which ingress lanes reach this service: `private` = this machine + the
          * private mesh; `public` = also the public lane when one is enabled.
          */
-        visibility: routeVisibilitySchema.default("public"),
+        visibility: routeVisibilitySchema.default('public'),
         /** Edge TLS policy. */
         tls: networkTlsSchema,
     })
-    .strict();
-export type ServiceNetworkConfig = z.infer<typeof serviceNetworkConfigSchema>;
+    .strict()
+export type ServiceNetworkConfig = z.infer<typeof serviceNetworkConfigSchema>
 
 /** Full defaults for a fresh service network config. */
 export const defaultServiceNetworkConfig = (): ServiceNetworkConfig =>
-    serviceNetworkConfigSchema.parse({});
+    serviceNetworkConfigSchema.parse({})

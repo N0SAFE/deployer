@@ -11,20 +11,40 @@
  * - DatabaseFailureTracker: Observer that counts failures and transitions lifecycle to degraded
  */
 
-import { createGlobalModule, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect"
-import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle"
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { AppLifecycle, type AppLifecycleShape } from '@deployer/lifecycle'
+import {
+    createGlobalModule,
+    effectHostProvider,
+    serviceLifecycle,
+} from '@deployer/nest-effect'
+import {
+    NodeConfigRepository,
+    type NodeConfigRepositoryShape,
+} from '@deployer/node-state'
 
 import { AppLifecycleModule } from '../lifecycle'
 
-import { GlobalDatabaseModule } from './global/global-database.module'
-import { LocalDatabaseModule } from "./local/local-database.module";
 import { GLOBAL_DATABASE_POOL } from './database-connection'
-import { BootstrapAdvisoryLockService, makeBootstrapAdvisoryLockService } from './services/bootstrap-advisory-lock.service'
-import { DatabaseFailureTracker, makeDatabaseFailureTracker } from './services/database-failure-tracker.service'
-import { DatabaseProbeService, makeDatabaseProbeService, type DatabaseProbeServiceShape } from './services/database-probe.service'
+import { GlobalDatabaseModule } from './global/global-database.module'
+import { LocalDatabaseModule } from './local/local-database.module'
+import {
+    BootstrapAdvisoryLockService,
+    makeBootstrapAdvisoryLockService,
+} from './services/bootstrap-advisory-lock.service'
+import {
+    DatabaseFailureTracker,
+    makeDatabaseFailureTracker,
+} from './services/database-failure-tracker.service'
+import {
+    DatabaseProbeService,
+    makeDatabaseProbeService,
+    type DatabaseProbeServiceShape,
+} from './services/database-probe.service'
+import {
+    DatabaseStartupGuard,
+    makeDatabaseStartupGuard,
+} from './services/database-startup-guard.service'
 import { GlobalDatabaseService } from './services/global-database.service'
-import { DatabaseStartupGuard, makeDatabaseStartupGuard } from './services/database-startup-guard.service'
 import { DatabasePort } from './storage'
 
 import type { Pool } from 'pg'
@@ -48,22 +68,38 @@ export const DatabaseModule = createGlobalModule({
         // The Effect view of the global database, for services that query it as a port.
         { provide: DatabasePort, useExisting: GlobalDatabaseService },
         effectHostProvider(),
-        { provide: DatabaseProbeService, useFactory: () => makeDatabaseProbeService() },
+        {
+            provide: DatabaseProbeService,
+            useFactory: () => makeDatabaseProbeService(),
+        },
         {
             provide: DatabaseStartupGuard,
-            useFactory: (nodeConfigRepository: NodeConfigRepositoryShape, lifecycle: AppLifecycleShape, probeService: DatabaseProbeServiceShape) =>
-                makeDatabaseStartupGuard({ nodeConfigRepository, lifecycle, probeService }),
+            useFactory: (
+                nodeConfigRepository: NodeConfigRepositoryShape,
+                lifecycle: AppLifecycleShape,
+                probeService: DatabaseProbeServiceShape
+            ) =>
+                makeDatabaseStartupGuard({
+                    nodeConfigRepository,
+                    lifecycle,
+                    probeService,
+                }),
             inject: [NodeConfigRepository, AppLifecycle, DatabaseProbeService],
         },
         {
             provide: DatabaseFailureTracker,
-            useFactory: (lifecycle: AppLifecycleShape) => makeDatabaseFailureTracker(lifecycle),
+            useFactory: (lifecycle: AppLifecycleShape) =>
+                makeDatabaseFailureTracker(lifecycle),
             inject: [AppLifecycle],
         },
         serviceLifecycle(DatabaseFailureTracker),
         // Guards the boot sequence (migrations + admin) across replicas; see the docs of the service. Lives next to the
         // pool it borrows a connection from.
-        { provide: BootstrapAdvisoryLockService, useFactory: (pool: Pool) => makeBootstrapAdvisoryLockService(pool), inject: [GLOBAL_DATABASE_POOL] },
+        {
+            provide: BootstrapAdvisoryLockService,
+            useFactory: (pool: Pool) => makeBootstrapAdvisoryLockService(pool),
+            inject: [GLOBAL_DATABASE_POOL],
+        },
         serviceLifecycle(BootstrapAdvisoryLockService),
     ],
     exports: [

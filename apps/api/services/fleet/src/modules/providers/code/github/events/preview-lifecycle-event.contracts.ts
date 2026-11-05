@@ -1,6 +1,6 @@
-import * as z from "zod/v4";
+import * as z from 'zod/v4'
 
-import { contractBuilder } from "@deployer/events";
+import { contractBuilder } from '@deployer/events'
 
 // T037: Preview lifecycle audit trail event contracts.
 
@@ -18,7 +18,7 @@ export const previewLifecycleEventContracts = {
                 previewTemplateId: z.string().nullable(),
                 deliveryId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -34,7 +34,7 @@ export const previewLifecycleEventContracts = {
                 commitSha: z.string().nullable(),
                 deliveryId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -44,13 +44,14 @@ export const previewLifecycleEventContracts = {
             z.object({
                 serviceId: z.string(),
                 previewName: z.string(),
-                trigger: z.enum(["merge", "close", "ttl_expired"]),
+                trigger: z.enum(['merge', 'close', 'ttl_expired']),
                 reason: z.string(),
                 deliveryId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
-} as const;
+} as const
 
-export type PreviewLifecycleEventContracts = typeof previewLifecycleEventContracts;
+export type PreviewLifecycleEventContracts =
+    typeof previewLifecycleEventContracts

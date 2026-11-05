@@ -37,43 +37,46 @@ feature-x.dev.api.example.com      → subdomain: "feature-x.dev.api"
 ### Examples by Registered Domain
 
 **If registered domain is `example.com` (root)**:
-| Subdomain | Base Path | Full URL | Status |
-|-----------|-----------|----------|--------|
-| `null` | `null` | `https://example.com/` | ✅ Valid |
-| `"api"` | `"/v1"` | `https://api.example.com/v1` | ✅ Valid |
-| `"staging.api"` | `null` | `https://staging.api.example.com/` | ✅ Valid |
+
+| Subdomain       | Base Path | Full URL                           | Status   |
+| --------------- | --------- | ---------------------------------- | -------- |
+| `null`          | `null`    | `https://example.com/`             | ✅ Valid |
+| `"api"`         | `"/v1"`   | `https://api.example.com/v1`       | ✅ Valid |
+| `"staging.api"` | `null`    | `https://staging.api.example.com/` | ✅ Valid |
 
 **If registered domain is `api.example.com` (subdomain)**:
-| Subdomain | Base Path | Full URL | Status |
-|-----------|-----------|----------|--------|
-| `null` | `null` | `https://api.example.com/` | ✅ Valid (exact) |
-| `"staging"` | `"/v1"` | `https://staging.api.example.com/v1` | ✅ Valid (child) |
-| `"v2.staging"` | `null` | `https://v2.staging.api.example.com/` | ✅ Valid (nested child) |
-| `null` on parent | `null` | `https://example.com/` | ❌ **INVALID** (parent domain) |
-| `"www"` on parent | `null` | `https://www.example.com/` | ❌ **INVALID** (sibling domain) |
+
+| Subdomain         | Base Path | Full URL                              | Status                          |
+| ----------------- | --------- | ------------------------------------- | ------------------------------- |
+| `null`            | `null`    | `https://api.example.com/`            | ✅ Valid (exact)                |
+| `"staging"`       | `"/v1"`   | `https://staging.api.example.com/v1`  | ✅ Valid (child)                |
+| `"v2.staging"`    | `null`    | `https://v2.staging.api.example.com/` | ✅ Valid (nested child)         |
+| `null` on parent  | `null`    | `https://example.com/`                | ❌ **INVALID** (parent domain)  |
+| `"www"` on parent | `null`    | `https://www.example.com/`            | ❌ **INVALID** (sibling domain) |
 
 **If registered domain is `feat.api.example.com` (nested subdomain)**:
-| Subdomain | Base Path | Full URL | Status |
-|-----------|-----------|----------|--------|
-| `null` | `null` | `https://feat.api.example.com/` | ✅ Valid (exact) |
-| `"v2"` | `null` | `https://v2.feat.api.example.com/` | ✅ Valid (child) |
-| On `api.example.com` | `null` | `https://api.example.com/` | ❌ **INVALID** (parent) |
-| On `example.com` | `null` | `https://example.com/` | ❌ **INVALID** (grandparent) |
+
+| Subdomain            | Base Path | Full URL                           | Status                       |
+| -------------------- | --------- | ---------------------------------- | ---------------------------- |
+| `null`               | `null`    | `https://feat.api.example.com/`    | ✅ Valid (exact)             |
+| `"v2"`               | `null`    | `https://v2.feat.api.example.com/` | ✅ Valid (child)             |
+| On `api.example.com` | `null`    | `https://api.example.com/`         | ❌ **INVALID** (parent)      |
+| On `example.com`     | `null`    | `https://example.com/`             | ❌ **INVALID** (grandparent) |
 
 ### URL Examples Table
 
-| Subdomain | Base Path | Full URL |
-|-----------|-----------|----------|
-| `null` | `null` | `https://example.com/` |
-| `"www"` | `null` | `https://www.example.com/` |
-| `"api"` | `null` | `https://api.example.com/` |
-| `"api"` | `"/v1"` | `https://api.example.com/v1` |
-| `"api"` | `"/v2"` | `https://api.example.com/v2` |
-| `null` | `"/docs"` | `https://example.com/docs` |
-| `"admin"` | `"/dashboard"` | `https://admin.example.com/dashboard` |
-| `"staging.api"` | `"/v1"` | `https://staging.api.example.com/v1` |
-| `"v2.staging.api"` | `null` | `https://v2.staging.api.example.com/` |
-| `"feature-123.dev"` | `null` | `https://feature-123.dev.example.com/` |
+| Subdomain           | Base Path      | Full URL                               |
+| ------------------- | -------------- | -------------------------------------- |
+| `null`              | `null`         | `https://example.com/`                 |
+| `"www"`             | `null`         | `https://www.example.com/`             |
+| `"api"`             | `null`         | `https://api.example.com/`             |
+| `"api"`             | `"/v1"`        | `https://api.example.com/v1`           |
+| `"api"`             | `"/v2"`        | `https://api.example.com/v2`           |
+| `null`              | `"/docs"`      | `https://example.com/docs`             |
+| `"admin"`           | `"/dashboard"` | `https://admin.example.com/dashboard`  |
+| `"staging.api"`     | `"/v1"`        | `https://staging.api.example.com/v1`   |
+| `"v2.staging.api"`  | `null`         | `https://v2.staging.api.example.com/`  |
+| `"feature-123.dev"` | `null`         | `https://feature-123.dev.example.com/` |
 
 ## Creating Service Mappings
 
@@ -82,14 +85,14 @@ feature-x.dev.api.example.com      → subdomain: "feature-x.dev.api"
 ```typescript
 // Map frontend to www.example.com
 const frontendMapping = await serviceMappingRepository.create({
-  serviceId: 'svc_frontend',
-  projectDomainId: projectDomain.id,
-  subdomain: 'www',
-  basePath: null,            // Root path
-  isPrimary: true,
-  sslEnabled: true,
-  sslProvider: 'letsencrypt',
-});
+    serviceId: 'svc_frontend',
+    projectDomainId: projectDomain.id,
+    subdomain: 'www',
+    basePath: null, // Root path
+    isPrimary: true,
+    sslEnabled: true,
+    sslProvider: 'letsencrypt',
+})
 ```
 
 ### API Versioning
@@ -97,23 +100,23 @@ const frontendMapping = await serviceMappingRepository.create({
 ```typescript
 // API v1: api.example.com/v1
 await serviceMappingRepository.create({
-  serviceId: 'svc_api_v1',
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',
-  basePath: '/v1',
-  isPrimary: true,
-  sslEnabled: true,
-});
+    serviceId: 'svc_api_v1',
+    projectDomainId: projectDomain.id,
+    subdomain: 'api',
+    basePath: '/v1',
+    isPrimary: true,
+    sslEnabled: true,
+})
 
 // API v2: api.example.com/v2
 await serviceMappingRepository.create({
-  serviceId: 'svc_api_v2',
-  projectDomainId: projectDomain.id,
-  subdomain: 'api',
-  basePath: '/v2',
-  isPrimary: true,
-  sslEnabled: true,
-});
+    serviceId: 'svc_api_v2',
+    projectDomainId: projectDomain.id,
+    subdomain: 'api',
+    basePath: '/v2',
+    isPrimary: true,
+    sslEnabled: true,
+})
 ```
 
 ### Root Domain with Path
@@ -121,38 +124,38 @@ await serviceMappingRepository.create({
 ```typescript
 // Documentation at example.com/docs
 await serviceMappingRepository.create({
-  serviceId: 'svc_docs',
-  projectDomainId: projectDomain.id,
-  subdomain: null,           // No subdomain = root domain
-  basePath: '/docs',
-  isPrimary: true,
-  sslEnabled: true,
-});
+    serviceId: 'svc_docs',
+    projectDomainId: projectDomain.id,
+    subdomain: null, // No subdomain = root domain
+    basePath: '/docs',
+    isPrimary: true,
+    sslEnabled: true,
+})
 ```
 
 ## Schema Reference
 
 ```typescript
 interface ServiceDomainMapping {
-  id: string;
-  serviceId: string;              // Target service
-  projectDomainId: string;        // Parent project domain
-  
-  // URL Configuration
-  subdomain: string | null;       // null = root domain
-  basePath: string | null;        // null = root path "/"
-  
-  // Priority
-  isPrimary: boolean;             // Primary URL for this service
-  
-  // SSL Configuration
-  sslEnabled: boolean;            // Enable HTTPS (default: true)
-  sslProvider: 'letsencrypt' | 'custom' | 'none';
-  
-  // Metadata
-  createdAt: Date;
-  updatedAt: Date;
-  metadata: Record<string, any>;
+    id: string
+    serviceId: string // Target service
+    projectDomainId: string // Parent project domain
+
+    // URL Configuration
+    subdomain: string | null // null = root domain
+    basePath: string | null // null = root path "/"
+
+    // Priority
+    isPrimary: boolean // Primary URL for this service
+
+    // SSL Configuration
+    sslEnabled: boolean // Enable HTTPS (default: true)
+    sslProvider: 'letsencrypt' | 'custom' | 'none'
+
+    // Metadata
+    createdAt: Date
+    updatedAt: Date
+    metadata: Record<string, any>
 }
 ```
 
@@ -195,6 +198,7 @@ Automatic certificate provisioning via Let's Encrypt:
 ```
 
 **Benefits**:
+
 - ✅ Automatic renewal
 - ✅ No cost
 - ✅ No manual management
@@ -231,19 +235,19 @@ Each service can have multiple URL mappings, but one should be marked as primary
 ```typescript
 // Primary URL: api.example.com/v2 (latest version)
 await serviceMappingRepository.create({
-  serviceId: 'svc_api',
-  subdomain: 'api',
-  basePath: '/v2',
-  isPrimary: true,           // ← Primary
-});
+    serviceId: 'svc_api',
+    subdomain: 'api',
+    basePath: '/v2',
+    isPrimary: true, // ← Primary
+})
 
 // Secondary URL: api.example.com/v1 (legacy)
 await serviceMappingRepository.create({
-  serviceId: 'svc_api',
-  subdomain: 'api',
-  basePath: '/v1',
-  isPrimary: false,          // ← Not primary
-});
+    serviceId: 'svc_api',
+    subdomain: 'api',
+    basePath: '/v1',
+    isPrimary: false, // ← Not primary
+})
 ```
 
 ### Setting Primary URL
@@ -276,28 +280,29 @@ async setPrimaryServiceDomain(serviceId: string, mappingId: string) {
 
 ```typescript
 // Returns all mappings with computed full URLs
-const mappings = await serviceMappingRepository.findByServiceIdWithUrls(serviceId);
+const mappings =
+    await serviceMappingRepository.findByServiceIdWithUrls(serviceId)
 
 // Result:
-[
-  {
-    id: 'sdm_1',
-    serviceId: 'svc_api',
-    subdomain: 'api',
-    basePath: '/v2',
-    isPrimary: true,
-    sslEnabled: true,
-    fullUrl: 'https://api.example.com/v2',
-  },
-  {
-    id: 'sdm_2',
-    serviceId: 'svc_api',
-    subdomain: 'api',
-    basePath: '/v1',
-    isPrimary: false,
-    sslEnabled: true,
-    fullUrl: 'https://api.example.com/v1',
-  },
+;[
+    {
+        id: 'sdm_1',
+        serviceId: 'svc_api',
+        subdomain: 'api',
+        basePath: '/v2',
+        isPrimary: true,
+        sslEnabled: true,
+        fullUrl: 'https://api.example.com/v2',
+    },
+    {
+        id: 'sdm_2',
+        serviceId: 'svc_api',
+        subdomain: 'api',
+        basePath: '/v1',
+        isPrimary: false,
+        sslEnabled: true,
+        fullUrl: 'https://api.example.com/v1',
+    },
 ]
 ```
 
@@ -306,20 +311,27 @@ const mappings = await serviceMappingRepository.findByServiceIdWithUrls(serviceI
 ```typescript
 // In controller - enriches with org domain info
 const mappingsWithDetails = await Promise.all(
-  mappings.map(async (mapping) => {
-    const projectDomain = await projectDomainRepo.findById(mapping.projectDomainId);
-    const orgDomain = await orgDomainRepo.findById(projectDomain.organizationDomainId);
-    
-    return {
-      ...DomainAdapter.toServiceDomainMappingWithUrl(mapping, mapping.fullUrl),
-      organizationDomain: {
-        id: orgDomain.id,
-        domain: orgDomain.domain,
-        verificationStatus: orgDomain.verificationStatus,
-      },
-    };
-  })
-);
+    mappings.map(async (mapping) => {
+        const projectDomain = await projectDomainRepo.findById(
+            mapping.projectDomainId
+        )
+        const orgDomain = await orgDomainRepo.findById(
+            projectDomain.organizationDomainId
+        )
+
+        return {
+            ...DomainAdapter.toServiceDomainMappingWithUrl(
+                mapping,
+                mapping.fullUrl
+            ),
+            organizationDomain: {
+                id: orgDomain.id,
+                domain: orgDomain.domain,
+                verificationStatus: orgDomain.verificationStatus,
+            },
+        }
+    })
+)
 ```
 
 ## Updating Mappings
@@ -329,42 +341,42 @@ const mappingsWithDetails = await Promise.all(
 ```typescript
 // Check availability first!
 const availability = await conflictService.checkSubdomainAvailability(
-  mapping.projectDomainId,
-  newSubdomain,
-  newBasePath
-);
+    mapping.projectDomainId,
+    newSubdomain,
+    newBasePath
+)
 
 if (!availability.available) {
-  throw new Error('URL already in use');
+    throw new Error('URL already in use')
 }
 
 // Then update
 await serviceMappingRepository.update(mappingId, {
-  subdomain: newSubdomain,
-  basePath: newBasePath,
-});
+    subdomain: newSubdomain,
+    basePath: newBasePath,
+})
 ```
 
 ### Update SSL Settings
 
 ```typescript
 await serviceMappingRepository.update(mappingId, {
-  sslEnabled: true,
-  sslProvider: 'letsencrypt',
-});
+    sslEnabled: true,
+    sslProvider: 'letsencrypt',
+})
 ```
 
 ## Removing Mappings
 
 ```typescript
 // Verify ownership before deletion
-const mapping = await serviceMappingRepository.findById(mappingId);
+const mapping = await serviceMappingRepository.findById(mappingId)
 
 if (mapping.serviceId !== serviceId) {
-  throw new Error('Mapping does not belong to this service');
+    throw new Error('Mapping does not belong to this service')
 }
 
-await serviceMappingRepository.delete(mappingId);
+await serviceMappingRepository.delete(mappingId)
 ```
 
 ## Shared Subdomains
@@ -382,20 +394,20 @@ api.example.com/products → Product Service
 ```typescript
 // All services share "api" subdomain
 const services = [
-  { id: 'svc_users', basePath: '/users' },
-  { id: 'svc_orders', basePath: '/orders' },
-  { id: 'svc_products', basePath: '/products' },
-];
+    { id: 'svc_users', basePath: '/users' },
+    { id: 'svc_orders', basePath: '/orders' },
+    { id: 'svc_products', basePath: '/products' },
+]
 
 for (const service of services) {
-  await serviceMappingRepository.create({
-    serviceId: service.id,
-    projectDomainId: projectDomain.id,
-    subdomain: 'api',        // Same subdomain
-    basePath: service.basePath, // Different paths
-    isPrimary: true,
-    sslEnabled: true,
-  });
+    await serviceMappingRepository.create({
+        serviceId: service.id,
+        projectDomainId: projectDomain.id,
+        subdomain: 'api', // Same subdomain
+        basePath: service.basePath, // Different paths
+        isPrimary: true,
+        sslEnabled: true,
+    })
 }
 ```
 
@@ -406,24 +418,24 @@ The system detects and warns about shared subdomains:
 ```typescript
 // After creating mapping, check for shared usage
 const sharedMappings = await serviceMappingRepository.findBySubdomain(
-  projectDomainId,
-  subdomain
-);
+    projectDomainId,
+    subdomain
+)
 
 if (sharedMappings.length > 1) {
-  return {
-    mapping,
-    fullUrl,
-    warning: {
-      message: `This subdomain is shared with ${sharedMappings.length - 1} other service(s)`,
-      sharedWith: sharedMappings
-        .filter(m => m.id !== mapping.id)
-        .map(m => ({
-          serviceId: m.serviceId,
-          basePath: m.basePath,
-        })),
-    },
-  };
+    return {
+        mapping,
+        fullUrl,
+        warning: {
+            message: `This subdomain is shared with ${sharedMappings.length - 1} other service(s)`,
+            sharedWith: sharedMappings
+                .filter((m) => m.id !== mapping.id)
+                .map((m) => ({
+                    serviceId: m.serviceId,
+                    basePath: m.basePath,
+                })),
+        },
+    }
 }
 ```
 
@@ -440,6 +452,7 @@ api.example.com/             → /      (Root Service, if exists)
 ```
 
 **Rules**:
+
 1. Longer paths match first (more specific)
 2. Exact paths match before prefix paths
 3. Root path (`/`) is the fallback
@@ -451,14 +464,14 @@ Service domain mappings generate Traefik router rules:
 ```yaml
 # Generated for api.example.com/v1 → API v1 Service
 http:
-  routers:
-    api-v1-router:
-      rule: "Host(`api.example.com`) && PathPrefix(`/v1`)"
-      service: api-v1-service
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
+    routers:
+        api-v1-router:
+            rule: 'Host(`api.example.com`) && PathPrefix(`/v1`)'
+            service: api-v1-service
+            entryPoints:
+                - websecure
+            tls:
+                certResolver: letsencrypt
 ```
 
 ## Best Practices
@@ -467,25 +480,25 @@ http:
 
 ```typescript
 // ✅ Good: Consistent API versioning
-api.example.com/v1
-api.example.com/v2
+api.example.com / v1
+api.example.com / v2
 
 // ❌ Bad: Inconsistent patterns
-v1-api.example.com
-api.example.com/version2
+v1 - api.example.com
+api.example.com / version2
 ```
 
 ### 2. Plan Path Hierarchies
 
 ```typescript
 // ✅ Good: Clear service boundaries
-api.example.com/users
-api.example.com/orders
-api.example.com/products
+api.example.com / users
+api.example.com / orders
+api.example.com / products
 
 // ❌ Bad: Overlapping paths (routing confusion)
-api.example.com/users
-api.example.com/users/admin  // Is this part of users or separate?
+api.example.com / users
+api.example.com / users / admin // Is this part of users or separate?
 ```
 
 ### 3. Set Primary URLs
@@ -512,14 +525,16 @@ api.example.com/users/admin  // Is this part of users or separate?
 ```typescript
 // Always check availability before creating
 const check = await conflictService.checkSubdomainAvailability(
-  projectDomainId,
-  subdomain,
-  basePath
-);
+    projectDomainId,
+    subdomain,
+    basePath
+)
 
 if (!check.available) {
-  // Use suggestions or return error
-  throw new Error(`URL in use. Try: ${check.suggestions.availableBasePaths.join(', ')}`);
+    // Use suggestions or return error
+    throw new Error(
+        `URL in use. Try: ${check.suggestions.availableBasePaths.join(', ')}`
+    )
 }
 ```
 

@@ -1,6 +1,6 @@
-import { pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid } from 'drizzle-orm/pg-core'
 
-import { encryptedText } from "../../codecs/codec-registry";
+import { encryptedText } from '../../codecs/codec-registry'
 
 /**
  * GitLab source provider accounts.
@@ -10,22 +10,21 @@ import { encryptedText } from "../../codecs/codec-registry";
  * One row per configured GitLab account.
  */
 export const gitlabApps = pgTable(
-  "gitlab_apps",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    name: text("name").notNull(),
-    /** GitLab instance base URL, e.g. https://gitlab.com or a self-hosted host. */
-    url: text("url").notNull(),
-    /** Personal / project access token (encrypted at rest). */
-    accessToken: encryptedText("access_token").notNull(),
-    isActive: boolean("is_active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-  ],
-);
+    'gitlab_apps',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        name: text('name').notNull(),
+        /** GitLab instance base URL, e.g. https://gitlab.com or a self-hosted host. */
+        url: text('url').notNull(),
+        /** Personal / project access token (encrypted at rest). */
+        accessToken: encryptedText('access_token').notNull(),
+        isActive: boolean('is_active').notNull().default(true),
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+    },
+    (table) => []
+)

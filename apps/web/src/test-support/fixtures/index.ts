@@ -11,10 +11,10 @@ export type { HookFixture } from './types'
 export * from './types'
 
 export const HOOK_FIXTURES: FixtureMap = {
-	...platformFixtures,
-	...fleetFixtures,
-	...clusterFixtures,
-	...projectsFixtures,
-	...settingsFixtures,
-	...dockerFixtures,
+    ...platformFixtures,
+    ...fleetFixtures,
+    ...clusterFixtures,
+    ...projectsFixtures,
+    ...settingsFixtures,
+    ...dockerFixtures,
 }

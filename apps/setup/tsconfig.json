@@ -1,34 +1,17 @@
 {
-  "extends": "@deployer/config-typescript/nestjs",
-  "compilerOptions": {
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "rootDir": "./",
-    "outDir": "./dist",
-    "types": [
-      "node",
-      "bun",
-      "vitest/globals",
-      "vite/client"
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+    "extends": "@deployer/config-typescript/nestjs",
+    "compilerOptions": {
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "rootDir": "./",
+        "outDir": "./dist",
+        "types": ["node", "bun", "vitest/globals", "vite/client"],
+        "paths": {
+            "@/*": ["./src/*"]
+        },
+        "jsx": "react-jsx",
+        "lib": ["ES2023", "DOM", "DOM.Iterable"]
     },
-    "jsx": "react-jsx",
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable"
-    ]
-  },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+    "include": ["src/**/*.ts", "src/**/*.tsx"],
+    "exclude": ["node_modules", "dist"]
 }

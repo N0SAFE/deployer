@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * Where a completed setup hands the operator over.
@@ -29,26 +29,26 @@
  * "setup." is not mistaken for the setup surface.
  */
 export function resolvePostSetupRedirect(search?: string): string {
-	const params = new URLSearchParams(
-		search ?? (typeof window === "undefined" ? "" : window.location.search),
-	);
+    const params = new URLSearchParams(
+        search ?? (typeof window === 'undefined' ? '' : window.location.search)
+    )
 
-	// What the gate captured before bouncing into setup — a WEB-app path.
-	const target = params.get("redirectTo")?.trim() || "/";
+    // What the gate captured before bouncing into setup — a WEB-app path.
+    const target = params.get('redirectTo')?.trim() || '/'
 
-	// Server-side render: no origin to cross, so a relative path is correct and
-	// always valid (it used to return a protocol-less hostname here).
-	if (typeof window === "undefined") return target;
+    // Server-side render: no origin to cross, so a relative path is correct and
+    // always valid (it used to return a protocol-less hostname here).
+    if (typeof window === 'undefined') return target
 
-	const { hostname, protocol } = window.location;
+    const { hostname, protocol } = window.location
 
-	// Already on the web surface (or a single-origin deployment): the dashboard
-	// is on THIS origin, so stay relative.
-	if (!hostname.startsWith("setup.")) return target;
+    // Already on the web surface (or a single-origin deployment): the dashboard
+    // is on THIS origin, so stay relative.
+    if (!hostname.startsWith('setup.')) return target
 
-	// Cross-origin hand-off: the wizard is on `setup.<domain>` and the dashboard
-	// on `web.<domain>`. This is the ONLY case needing an absolute URL, and the
-	// origin is stated explicitly rather than inferred at the call site.
-	const webOrigin = `${protocol}//${hostname.replace(/^setup\./, "web.")}`;
-	return new URL(target, webOrigin).toString();
+    // Cross-origin hand-off: the wizard is on `setup.<domain>` and the dashboard
+    // on `web.<domain>`. This is the ONLY case needing an absolute URL, and the
+    // origin is stated explicitly rather than inferred at the call site.
+    const webOrigin = `${protocol}//${hostname.replace(/^setup\./, 'web.')}`
+    return new URL(target, webOrigin).toString()
 }

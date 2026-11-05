@@ -1,95 +1,96 @@
-import { Logger } from '@nestjs/common';
-import { Effect, Stream } from 'effect';
-import { EMPTY, merge, Observable, Subject } from 'rxjs';
-import { filter as rxFilter, map } from 'rxjs/operators';
+import { Logger } from '@nestjs/common'
+import { Effect, Stream } from 'effect'
+import { EMPTY, merge, Observable, Subject } from 'rxjs'
+import { filter as rxFilter, map } from 'rxjs/operators'
 
-import { runPromiseUnwrapped } from '@deployer/effect-core';
+import { runPromiseUnwrapped } from '@deployer/effect-core'
 import {
-  makeEventJournal,
-  type EventJournalShape,
-  type EventLogStoreShape,
-  type PersistedEventLog,
-} from '@deployer/events';
+    makeEventJournal,
+    type EventJournalShape,
+    type EventLogStoreShape,
+    type PersistedEventLog,
+} from '@deployer/events'
 import type {
-  EventContracts,
-  EventContract,
-  EventInput,
-  EventOutput,
-} from '@deployer/events';
-import { isRecord } from '@deployer/type-guards';
+    EventContracts,
+    EventContract,
+    EventInput,
+    EventOutput,
+} from '@deployer/events'
+import { isRecord } from '@deployer/type-guards'
 
-import { observableToAsyncIterable } from './observable.utils';
+import { observableToAsyncIterable } from './observable.utils'
 
-export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
+export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service')
 
 export type BaseEventServiceSymbolized = {
-  readonly [BASE_EVENT_SERVICE_SYMBOL]: true;
+    readonly [BASE_EVENT_SERVICE_SYMBOL]: true
 }
 
 export type BaseEventServiceRegistryEntry = {
-  namespace: string;
-  domainServiceName: string;
-  referenceScope: string;
-  service: BaseEventService;
+    namespace: string
+    domainServiceName: string
+    referenceScope: string
+    service: BaseEventService
 }
 
 export type MergedDomainEventEnvelope = {
-  namespace: string;
-  domainServiceName: string;
-  referenceScope: string;
-  eventName: string;
-  input: Record<string, unknown>;
-  output: unknown;
-  emittedAt: string;
+    namespace: string
+    domainServiceName: string
+    referenceScope: string
+    eventName: string
+    input: Record<string, unknown>
+    output: unknown
+    emittedAt: string
 }
 
 /**
  * Event subscription result
  * Returns an async iterator of the event output type
  */
-export type EventSubscription<T extends EventContract> = AsyncIterableIterator<EventOutput<T>>;
+export type EventSubscription<T extends EventContract> = AsyncIterableIterator<
+    EventOutput<T>
+>
 
 export type AnyEventEmission<T extends EventContract> = {
-  input: EventInput<T>;
-  output: EventOutput<T>;
+    input: EventInput<T>
+    output: EventOutput<T>
 }
 
 /**
  * Event subscription tracking
  */
 
-
 type EventSubscriptionData<T> = {
-  eventName: string;
-  subject: Subject<T>;
-  subscriberCount: number;
+    eventName: string
+    subject: Subject<T>
+    subscriberCount: number
 }
 
-export type { PersistedEventLog };
+export type { PersistedEventLog }
 
 type ReplayOptions = {
-  replayLimit?: number;
-  includePersisted?: boolean;
-  /**
-   * If set, only buffered events with sequence > afterSequence are replayed.
-   * Used for cursor-based reconnect: subscribers pass back the last sequence they observed.
-   */
-  afterSequence?: number;
+    replayLimit?: number
+    includePersisted?: boolean
+    /**
+     * If set, only buffered events with sequence > afterSequence are replayed.
+     * Used for cursor-based reconnect: subscribers pass back the last sequence they observed.
+     */
+    afterSequence?: number
 }
 
 type QueryByInputOptions<TInput> = {
-  fuzzy?: string;
-  predicate?: (input: TInput) => boolean;
+    fuzzy?: string
+    predicate?: (input: TInput) => boolean
 } & ReplayOptions
 
 /**
  * Base Event Service
- * 
+ *
  * Generic base class for feature-specific event services.
  * Provides type-safe event subscription and durable emission buffering with automatic validation.
- * 
+ *
  * @template TContracts - Map of event names to their contracts
- * 
+ *
  * @example
  * ```typescript
  * // Define contracts
@@ -99,7 +100,7 @@ type QueryByInputOptions<TInput> = {
  *     output: z.object({ progress: z.number(), status: z.string() }),
  *   })
  * } satisfies EventContracts;
- * 
+ *
  * // Create event service
  * @Injectable()
  * class VideoEventService extends BaseEventService<typeof videoContracts> {
@@ -110,758 +111,889 @@ type QueryByInputOptions<TInput> = {
  * ```
  */
 export abstract class BaseEventService<
-  TContracts extends EventContracts = EventContracts,
-  TNamespace extends string = string,
+    TContracts extends EventContracts = EventContracts,
+    TNamespace extends string = string,
 > {
-  /** The registered log, seen through an Effect store; null until the app registers one. */
-  private static eventLogStore: EventLogStoreShape | null = null;
-  private static readonly serviceRegistry = new Set<BaseEventService>();
+    /** The registered log, seen through an Effect store; null until the app registers one. */
+    private static eventLogStore: EventLogStoreShape | null = null
+    private static readonly serviceRegistry = new Set<BaseEventService>()
 
-  readonly [BASE_EVENT_SERVICE_SYMBOL] = true as const;
+    readonly [BASE_EVENT_SERVICE_SYMBOL] = true as const
 
-  protected readonly logger: Logger;
-  protected readonly eventPrefix: TNamespace;
-  private readonly events = new Map<string, EventSubscriptionData<unknown>>();
-  private readonly anyEventSubscriptions = new Map<string, EventSubscriptionData<unknown>>();
-  protected readonly durableReplayLimit = 2_000;
-  protected readonly pendingFlushBatchSize = 200;
-  protected readonly flushIntervalMs = 3 * 60 * 1000;
+    protected readonly logger: Logger
+    protected readonly eventPrefix: TNamespace
+    private readonly events = new Map<string, EventSubscriptionData<unknown>>()
+    private readonly anyEventSubscriptions = new Map<
+        string,
+        EventSubscriptionData<unknown>
+    >()
+    protected readonly durableReplayLimit = 2_000
+    protected readonly pendingFlushBatchSize = 200
+    protected readonly flushIntervalMs = 3 * 60 * 1000
 
-  /** The durable journal: sequences, replay buffers and the retrying persistence queue (`@deployer/events`). */
-  private readonly journal: EventJournalShape;
+    /** The durable journal: sequences, replay buffers and the retrying persistence queue (`@deployer/events`). */
+    private readonly journal: EventJournalShape
 
-  constructor(
-    eventPrefix: TNamespace,
-    protected readonly contracts: TContracts,
-  ) {
-    this.eventPrefix = eventPrefix;
-    this.logger = new Logger(`${eventPrefix}EventService`);
-    this.journal = makeEventJournal({
-      namespace: eventPrefix,
-      store: () => BaseEventService.eventLogStore,
-      logger: {
-        warn: (message) => { this.logger.warn(message); },
-        debug: (message) => { this.logger.debug(message); },
-        log: (message) => { this.logger.log(message); },
-      },
-      settings: () => ({
-        replayLimit: this.durableReplayLimit,
-        flushBatchSize: this.pendingFlushBatchSize,
-        flushIntervalMs: this.flushIntervalMs,
-        retryBaseMs: 500,
-        retryMaxMs: 60_000,
-        maxPending: 10_000,
-      }),
-    });
-    Effect.runSync(this.journal.start);
-    BaseEventService.registerInstance(this as unknown as BaseEventService);
-  }
-
-  get namespace(): TNamespace {
-    return this.eventPrefix;
-  }
-
-  get domainServiceName(): string {
-    return this.constructor.name;
-  }
-
-  get referenceScope(): string {
-    return this.domainServiceName;
-  }
-
-  getContractNames(): (keyof TContracts & string)[] {
-    return Object.keys(this.contracts);
-  }
-
-  /** Binds the durable log every event service persists to (an Effect store). */
-  static configureEventLogStore(store: EventLogStoreShape): void {
-    BaseEventService.eventLogStore = store;
-  }
-
-  static hasBaseEventSymbol(value: unknown): value is BaseEventServiceSymbolized {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      BASE_EVENT_SERVICE_SYMBOL in value &&
-      (value as Record<symbol, unknown>)[BASE_EVENT_SERVICE_SYMBOL] === true
-    );
-  }
-
-  static listRegisteredServices(): BaseEventService[] {
-    return Array.from(BaseEventService.serviceRegistry);
-  }
-
-  static listRegisteredServiceEntries(): BaseEventServiceRegistryEntry[] {
-    return BaseEventService.listRegisteredServices().map((service) => ({
-      namespace: service.namespace,
-      domainServiceName: service.domainServiceName,
-      referenceScope: service.referenceScope,
-      service,
-    }));
-  }
-
-  static findRegisteredByNamespace(namespace: string): BaseEventService[] {
-    return BaseEventService.listRegisteredServices().filter((service) => service.namespace === namespace);
-  }
-
-  static findRegisteredByReferenceScope(referenceScope: string): BaseEventService[] {
-    return BaseEventService.listRegisteredServices().filter((service) => service.referenceScope === referenceScope);
-  }
-
-  static mergeBuilder(): BaseEventMergeBuilder {
-    return new BaseEventMergeBuilder().fromRegistered();
-  }
-
-  static clearRegistryForTests(): void {
-    BaseEventService.serviceRegistry.clear();
-  }
-
-  private static registerInstance(instance: BaseEventService): void {
-    BaseEventService.serviceRegistry.add(instance);
-  }
-
-  subscribe$<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    options?: ReplayOptions,
-  ): Observable<EventOutput<TContracts[K]>> {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
+    constructor(
+        eventPrefix: TNamespace,
+        protected readonly contracts: TContracts
+    ) {
+        this.eventPrefix = eventPrefix
+        this.logger = new Logger(`${eventPrefix}EventService`)
+        this.journal = makeEventJournal({
+            namespace: eventPrefix,
+            store: () => BaseEventService.eventLogStore,
+            logger: {
+                warn: (message) => {
+                    this.logger.warn(message)
+                },
+                debug: (message) => {
+                    this.logger.debug(message)
+                },
+                log: (message) => {
+                    this.logger.log(message)
+                },
+            },
+            settings: () => ({
+                replayLimit: this.durableReplayLimit,
+                flushBatchSize: this.pendingFlushBatchSize,
+                flushIntervalMs: this.flushIntervalMs,
+                retryBaseMs: 500,
+                retryMaxMs: 60_000,
+                maxPending: 10_000,
+            }),
+        })
+        Effect.runSync(this.journal.start)
+        BaseEventService.registerInstance(this as unknown as BaseEventService)
     }
 
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-
-    let subscription = this.events.get(fullEventName) as EventSubscriptionData<EventOutput<TContracts[K]>> | undefined;
-    if (!subscription) {
-      subscription = {
-        eventName: fullEventName,
-        subject: new Subject<EventOutput<TContracts[K]>>(),
-        subscriberCount: 0,
-      };
-      this.events.set(fullEventName, subscription as unknown as EventSubscriptionData<unknown>);
+    get namespace(): TNamespace {
+        return this.eventPrefix
     }
 
-    subscription.subscriberCount += 1;
+    get domainServiceName(): string {
+        return this.constructor.name
+    }
 
-    const replayLimit = options?.replayLimit ?? this.durableReplayLimit;
-    const includePersisted = options?.includePersisted ?? true;
-    const afterSequence = options?.afterSequence;
+    get referenceScope(): string {
+        return this.domainServiceName
+    }
 
-    return new Observable<EventOutput<TContracts[K]>>((subscriber) => {
-      void runPromiseUnwrapped(
-        this.journal.replayByKey(String(eventName), fullEventName, {
-          limit: replayLimit,
-          includePersisted,
-          ...(afterSequence == null ? {} : { afterSequence }),
-        }),
-      ).then((replayed) => {
-        for (const item of replayed) {
-          subscriber.next(item.output as EventOutput<TContracts[K]>);
-        }
-      });
+    getContractNames(): (keyof TContracts & string)[] {
+        return Object.keys(this.contracts)
+    }
 
-      const internalSubscription = subscription.subject.subscribe(subscriber);
-      return () => {
-        internalSubscription.unsubscribe();
+    /** Binds the durable log every event service persists to (an Effect store). */
+    static configureEventLogStore(store: EventLogStoreShape): void {
+        BaseEventService.eventLogStore = store
+    }
 
-        const current = this.events.get(fullEventName);
-        if (!current) {
-          return;
+    static hasBaseEventSymbol(
+        value: unknown
+    ): value is BaseEventServiceSymbolized {
+        return (
+            typeof value === 'object' &&
+            value !== null &&
+            BASE_EVENT_SERVICE_SYMBOL in value &&
+            (value as Record<symbol, unknown>)[BASE_EVENT_SERVICE_SYMBOL] ===
+                true
+        )
+    }
+
+    static listRegisteredServices(): BaseEventService[] {
+        return Array.from(BaseEventService.serviceRegistry)
+    }
+
+    static listRegisteredServiceEntries(): BaseEventServiceRegistryEntry[] {
+        return BaseEventService.listRegisteredServices().map((service) => ({
+            namespace: service.namespace,
+            domainServiceName: service.domainServiceName,
+            referenceScope: service.referenceScope,
+            service,
+        }))
+    }
+
+    static findRegisteredByNamespace(namespace: string): BaseEventService[] {
+        return BaseEventService.listRegisteredServices().filter(
+            (service) => service.namespace === namespace
+        )
+    }
+
+    static findRegisteredByReferenceScope(
+        referenceScope: string
+    ): BaseEventService[] {
+        return BaseEventService.listRegisteredServices().filter(
+            (service) => service.referenceScope === referenceScope
+        )
+    }
+
+    static mergeBuilder(): BaseEventMergeBuilder {
+        return new BaseEventMergeBuilder().fromRegistered()
+    }
+
+    static clearRegistryForTests(): void {
+        BaseEventService.serviceRegistry.clear()
+    }
+
+    private static registerInstance(instance: BaseEventService): void {
+        BaseEventService.serviceRegistry.add(instance)
+    }
+
+    subscribe$<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        options?: ReplayOptions
+    ): Observable<EventOutput<TContracts[K]>> {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
         }
 
-        current.subscriberCount = Math.max(0, current.subscriberCount - 1);
-        if (current.subscriberCount === 0) {
-          this.events.delete(fullEventName);
-        }
-      };
-    });
-  }
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+        const fullEventName = this.buildFullEventName(
+            String(eventName),
+            validatedInput
+        )
 
-  subscribeAny$<K extends keyof TContracts>(
-    eventName: K,
-  ): Observable<AnyEventEmission<TContracts[K]>> {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-
-    const eventKey = String(eventName);
-    let subscription = this.anyEventSubscriptions.get(eventKey) as EventSubscriptionData<AnyEventEmission<TContracts[K]>> | undefined;
-    if (!subscription) {
-      subscription = {
-        eventName: eventKey,
-        subject: new Subject<AnyEventEmission<TContracts[K]>>(),
-        subscriberCount: 0,
-      };
-      this.anyEventSubscriptions.set(eventKey, subscription as unknown as EventSubscriptionData<unknown>);
-    }
-
-    subscription.subscriberCount += 1;
-
-    return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
-      const internalSubscription = subscription.subject.subscribe(subscriber);
-      return () => {
-        internalSubscription.unsubscribe();
-
-        const current = this.anyEventSubscriptions.get(eventKey);
-        if (!current) {
-          return;
+        let subscription = this.events.get(fullEventName) as
+            EventSubscriptionData<EventOutput<TContracts[K]>> | undefined
+        if (!subscription) {
+            subscription = {
+                eventName: fullEventName,
+                subject: new Subject<EventOutput<TContracts[K]>>(),
+                subscriberCount: 0,
+            }
+            this.events.set(
+                fullEventName,
+                subscription as unknown as EventSubscriptionData<unknown>
+            )
         }
 
-        current.subscriberCount = Math.max(0, current.subscriberCount - 1);
-        if (current.subscriberCount === 0) {
-          this.anyEventSubscriptions.delete(eventKey);
+        subscription.subscriberCount += 1
+
+        const replayLimit = options?.replayLimit ?? this.durableReplayLimit
+        const includePersisted = options?.includePersisted ?? true
+        const afterSequence = options?.afterSequence
+
+        return new Observable<EventOutput<TContracts[K]>>((subscriber) => {
+            void runPromiseUnwrapped(
+                this.journal.replayByKey(String(eventName), fullEventName, {
+                    limit: replayLimit,
+                    includePersisted,
+                    ...(afterSequence == null ? {} : { afterSequence }),
+                })
+            ).then((replayed) => {
+                for (const item of replayed) {
+                    subscriber.next(item.output as EventOutput<TContracts[K]>)
+                }
+            })
+
+            const internalSubscription =
+                subscription.subject.subscribe(subscriber)
+            return () => {
+                internalSubscription.unsubscribe()
+
+                const current = this.events.get(fullEventName)
+                if (!current) {
+                    return
+                }
+
+                current.subscriberCount = Math.max(
+                    0,
+                    current.subscriberCount - 1
+                )
+                if (current.subscriberCount === 0) {
+                    this.events.delete(fullEventName)
+                }
+            }
+        })
+    }
+
+    subscribeAny$<K extends keyof TContracts>(
+        eventName: K
+    ): Observable<AnyEventEmission<TContracts[K]>> {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
         }
-      };
-    });
-  }
 
-  observeAnyByName$(eventName: string): Observable<AnyEventEmission<EventContract>> {
-    if (!Object.prototype.hasOwnProperty.call(this.contracts, eventName)) {
-      throw new Error(`Contract not found for event: ${eventName}`);
-    }
-
-    return this.subscribeAny$(eventName);
-  }
-
-  /**
-   * Subscribe to an event
-   * 
-   * @param eventName - Name of the event to subscribe to
-   * @param input - Input parameters for the event (validated against contract)
-   * @returns Async iterator yielding event data
-   */
-  subscribe<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    options?: ReplayOptions,
-  ): EventSubscription<TContracts[K]> {
-    const stream$ = this.subscribe$(eventName, input, options);
-    return observableToAsyncIterable(stream$)[Symbol.asyncIterator]() as EventSubscription<TContracts[K]>;
-  }
-
-  queryByInput$<K extends keyof TContracts>(
-    eventName: K,
-    options?: QueryByInputOptions<EventInput<TContracts[K]>>,
-  ): Observable<AnyEventEmission<TContracts[K]>> {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-
-    const replayLimit = options?.replayLimit ?? this.durableReplayLimit;
-    const includePersisted = options?.includePersisted ?? true;
-
-    return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
-      void runPromiseUnwrapped(
-        this.journal.replayByName(String(eventName), { limit: replayLimit, includePersisted }),
-      ).then((replayed) => {
-        for (const item of replayed) {
-          const parsedInput = contract.input.parse(item.input) as EventInput<TContracts[K]>;
-          if (!this.matchesInput(parsedInput, options)) {
-            continue;
-          }
-          subscriber.next({
-            input: parsedInput,
-            output: item.output as EventOutput<TContracts[K]>,
-          });
+        const eventKey = String(eventName)
+        let subscription = this.anyEventSubscriptions.get(eventKey) as
+            EventSubscriptionData<AnyEventEmission<TContracts[K]>> | undefined
+        if (!subscription) {
+            subscription = {
+                eventName: eventKey,
+                subject: new Subject<AnyEventEmission<TContracts[K]>>(),
+                subscriberCount: 0,
+            }
+            this.anyEventSubscriptions.set(
+                eventKey,
+                subscription as unknown as EventSubscriptionData<unknown>
+            )
         }
-      });
 
-      const subscription = this.subscribeAny$(eventName).subscribe((event) => {
-        if (!this.matchesInput(event.input, options)) {
-          return;
+        subscription.subscriberCount += 1
+
+        return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
+            const internalSubscription =
+                subscription.subject.subscribe(subscriber)
+            return () => {
+                internalSubscription.unsubscribe()
+
+                const current = this.anyEventSubscriptions.get(eventKey)
+                if (!current) {
+                    return
+                }
+
+                current.subscriberCount = Math.max(
+                    0,
+                    current.subscriberCount - 1
+                )
+                if (current.subscriberCount === 0) {
+                    this.anyEventSubscriptions.delete(eventKey)
+                }
+            }
+        })
+    }
+
+    observeAnyByName$(
+        eventName: string
+    ): Observable<AnyEventEmission<EventContract>> {
+        if (!Object.prototype.hasOwnProperty.call(this.contracts, eventName)) {
+            throw new Error(`Contract not found for event: ${eventName}`)
         }
-        subscriber.next(event);
-      });
 
-      return () => {
-        subscription.unsubscribe();
-      };
-    });
-  }
-
-  /**
-   * Effect view of {@link emit}.
-   *
-   * `emit` is synchronous: it validates against the contract, bumps the
-   * sequence and buffers the record; persistence drains on the ticker. Wrapping
-   * it keeps that behaviour and moves the synchronous validation throw into the
-   * error channel — an Effect caller must never guard a throw that is really a
-   * contract violation.
-   */
-  emitEffect<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    output: EventOutput<TContracts[K]>,
-  ): Effect.Effect<void, Error> {
-    return Effect.try({
-      try: () => {
-        this.emit(eventName, input, output);
-      },
-      catch: (cause: unknown) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
-    });
-  }
-
-  /**
-   * Effect view of {@link subscribe}: the same async iterator, as a Stream.
-   *
-   * Use this instead of calling `subscribe` inside `Stream.fromAsyncIterable`
-   * in every consumer; the conversion lives next to the iterator it adapts.
-   */
-  subscribeEffect<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    options?: ReplayOptions,
-  ): Stream.Stream<EventOutput<TContracts[K]>, Error> {
-    return Stream.fromAsyncIterable(this.subscribe(eventName, input, options), (cause: unknown) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
-    );
-  }
-
-  /**
-   * Emit an event
-   * 
-   * @param eventName - Name of the event to emit
-   * @param input - Input parameters for the event (used to build event name)
-   * @param output - Event data to emit (validated against contract)
-   */
-  emit<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    output: EventOutput<TContracts[K]>
-  ): void {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
+        return this.subscribeAny$(eventName)
     }
 
-    // Validate input and output
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const validatedOutput = contract.output.parse(output) as EventOutput<TContracts[K]>;
-
-    // Build full event name using fileId from input
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-    this.journal.record({
-      eventName: String(eventName),
-      eventKey: fullEventName,
-      input: validatedInput,
-      output: validatedOutput,
-    });
-
-    const subscription = this.events.get(fullEventName);
-    if (subscription) {
-      const typedSubject = subscription.subject as Subject<EventOutput<TContracts[K]>>;
-      typedSubject.next(validatedOutput);
+    /**
+     * Subscribe to an event
+     *
+     * @param eventName - Name of the event to subscribe to
+     * @param input - Input parameters for the event (validated against contract)
+     * @returns Async iterator yielding event data
+     */
+    subscribe<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        options?: ReplayOptions
+    ): EventSubscription<TContracts[K]> {
+        const stream$ = this.subscribe$(eventName, input, options)
+        return observableToAsyncIterable(stream$)[
+            Symbol.asyncIterator
+        ]() as EventSubscription<TContracts[K]>
     }
 
-    const anySubscription = this.anyEventSubscriptions.get(String(eventName));
-    if (anySubscription) {
-      const anyTypedSubject = anySubscription.subject as Subject<AnyEventEmission<TContracts[K]>>;
-      anyTypedSubject.next({
-        input: validatedInput,
-        output: validatedOutput,
-      });
-    }
-  }
+    queryByInput$<K extends keyof TContracts>(
+        eventName: K,
+        options?: QueryByInputOptions<EventInput<TContracts[K]>>
+    ): Observable<AnyEventEmission<TContracts[K]>> {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
 
-  /**
-   * Start a processing operation and expose an emit bridge tied to the event input.
-   */
-  async startProcessing<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    handler: (params: {
-      abortSignal?: AbortSignal;
-      input: EventInput<TContracts[K]>;
-      emit: (output: EventOutput<TContracts[K]>) => void;
-    }) => void | Promise<void>
-  ): Promise<void> {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
+        const replayLimit = options?.replayLimit ?? this.durableReplayLimit
+        const includePersisted = options?.includePersisted ?? true
 
-    const emit = (output: EventOutput<TContracts[K]>): void => {
-      this.emit(eventName, validatedInput, output);
-    };
+        return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
+            void runPromiseUnwrapped(
+                this.journal.replayByName(String(eventName), {
+                    limit: replayLimit,
+                    includePersisted,
+                })
+            ).then((replayed) => {
+                for (const item of replayed) {
+                    const parsedInput = contract.input.parse(
+                        item.input
+                    ) as EventInput<TContracts[K]>
+                    if (!this.matchesInput(parsedInput, options)) {
+                        continue
+                    }
+                    subscriber.next({
+                        input: parsedInput,
+                        output: item.output as EventOutput<TContracts[K]>,
+                    })
+                }
+            })
 
-    await Promise.resolve(handler({ input: validatedInput, emit }));
-  }
+            const subscription = this.subscribeAny$(eventName).subscribe(
+                (event) => {
+                    if (!this.matchesInput(event.input, options)) {
+                        return
+                    }
+                    subscriber.next(event)
+                }
+            )
 
-  /**
-   * Check if an event has active subscribers
-   * 
-   * @param eventName - Name of the event to check
-   * @param input - Input parameters for the event
-   */
-  hasSubscribers<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>
-  ): boolean {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-
-    const subscription = this.events.get(fullEventName);
-    return subscription ? subscription.subscriberCount > 0 : false;
-  }
-
-  /**
-   * Get subscriber count for an event
-   * 
-   * @param eventName - Name of the event to check
-   * @param input - Input parameters for the event
-   */
-  getSubscriberCount<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>
-  ): number {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-
-    const subscription = this.events.get(fullEventName);
-    return subscription ? subscription.subscriberCount : 0;
-  }
-
-  /**
-   * Check if an event is currently processing
-   * 
-   * @param eventName - Name of the event to check
-   * @param input - Input parameters for the event
-   */
-  isProcessing<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>
-  ): boolean {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-    contract.input.parse(input);
-    return false;
-  }
-
-  /**
-   * Get queue length for an event
-   * 
-   * @param eventName - Name of the event to check
-   * @param input - Input parameters for the event
-   */
-  getQueueLength<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>
-  ): number {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-    contract.input.parse(input);
-    return 0;
-  }
-
-  /**
-   * Build full event name from prefix, event name, and input
-   * Override this method to customize event naming strategy
-   * 
-   * @param eventName - Base event name
-   * @param input - Validated input data
-   */
-  protected buildFullEventName(
-    eventName: string,
-    input: Record<string, unknown>
-  ): string {
-    // Default implementation: prefix:eventName:firstInputValue
-    const firstValue = Object.values(input)[0];
-    return `${this.eventPrefix}:${eventName}:${String(firstValue)}`;
-  }
-
-  /**
-   * Remove all subscribers for an event (cleanup utility)
-   * 
-   * @param eventName - Name of the event to clear
-   * @param input - Input parameters for the event
-   */
-  removeAllSubscribers<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>
-  ): void {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      throw new Error(`Contract not found for event: ${String(eventName)}`);
-    }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-
-    const subscription = this.events.get(fullEventName);
-    if (subscription) {
-      subscription.subject.complete();
-      this.events.delete(fullEventName);
-    }
-  }
-
-  /**
-   * Get all active event names
-   */
-  getActiveEvents(): string[] {
-    return Array.from(this.events.keys());
-  }
-
-  /**
-   * Clear all events and subscriptions
-   */
-  clearAll(): void {
-    // Clear all subscriptions
-    for (const subscription of this.events.values()) {
-      subscription.subject.complete();
-    }
-    this.events.clear();
-
-    for (const subscription of this.anyEventSubscriptions.values()) {
-      subscription.subject.complete();
-    }
-    this.anyEventSubscriptions.clear();
-    Effect.runSync(this.journal.clear);
-
-    this.logger.log('All events cleared');
-  }
-
-  protected buildInputReplayFuzzy<TInput extends Record<string, unknown>>(input: TInput): string {
-    return JSON.stringify(input).toLowerCase();
-  }
-
-  /**
-   * Returns the highest sequence number buffered for the given event key.
-   * Callers use this as the cursor value to pass back on reconnect via `afterSequence`.
-   */
-  getLastSequence<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-  ): number {
-    const contract = this.contracts[eventName];
-    if (!contract) {
-      return 0;
-    }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-    return this.journal.lastSequence(fullEventName);
-  }
-
-  private matchesInput<TInput extends Record<string, unknown>>(
-    input: TInput,
-    options?: QueryByInputOptions<TInput>,
-  ): boolean {
-    if (options?.predicate && !options.predicate(input)) {
-      return false;
+            return () => {
+                subscription.unsubscribe()
+            }
+        })
     }
 
-    if (options?.fuzzy) {
-      const haystack = this.buildInputReplayFuzzy(input);
-      return haystack.includes(options.fuzzy.trim().toLowerCase());
+    /**
+     * Effect view of {@link emit}.
+     *
+     * `emit` is synchronous: it validates against the contract, bumps the
+     * sequence and buffers the record; persistence drains on the ticker. Wrapping
+     * it keeps that behaviour and moves the synchronous validation throw into the
+     * error channel — an Effect caller must never guard a throw that is really a
+     * contract violation.
+     */
+    emitEffect<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        output: EventOutput<TContracts[K]>
+    ): Effect.Effect<void, Error> {
+        return Effect.try({
+            try: () => {
+                this.emit(eventName, input, output)
+            },
+            catch: (cause: unknown) =>
+                cause instanceof Error ? cause : new Error(String(cause)),
+        })
     }
 
-    return true;
-  }
+    /**
+     * Effect view of {@link subscribe}: the same async iterator, as a Stream.
+     *
+     * Use this instead of calling `subscribe` inside `Stream.fromAsyncIterable`
+     * in every consumer; the conversion lives next to the iterator it adapts.
+     */
+    subscribeEffect<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        options?: ReplayOptions
+    ): Stream.Stream<EventOutput<TContracts[K]>, Error> {
+        return Stream.fromAsyncIterable(
+            this.subscribe(eventName, input, options),
+            (cause: unknown) =>
+                cause instanceof Error ? cause : new Error(String(cause))
+        )
+    }
 
-  /**
-   * Stops the journal's periodic flush and pending retry so the process can exit cleanly. The events module calls
-   * {@link disposeAll} at shutdown; a subclass needing more teardown overrides this and calls `super.dispose()`.
-   */
-  dispose(): void {
-    Effect.runSync(this.journal.close);
-  }
+    /**
+     * Emit an event
+     *
+     * @param eventName - Name of the event to emit
+     * @param input - Input parameters for the event (used to build event name)
+     * @param output - Event data to emit (validated against contract)
+     */
+    emit<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        output: EventOutput<TContracts[K]>
+    ): void {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
 
-  /** Disposes every event service built in this process. */
-  static disposeAll(): void {
-    for (const service of BaseEventService.serviceRegistry) service.dispose();
-  }
+        // Validate input and output
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+        const validatedOutput = contract.output.parse(output) as EventOutput<
+            TContracts[K]
+        >
+
+        // Build full event name using fileId from input
+        const fullEventName = this.buildFullEventName(
+            String(eventName),
+            validatedInput
+        )
+        this.journal.record({
+            eventName: String(eventName),
+            eventKey: fullEventName,
+            input: validatedInput,
+            output: validatedOutput,
+        })
+
+        const subscription = this.events.get(fullEventName)
+        if (subscription) {
+            const typedSubject = subscription.subject as Subject<
+                EventOutput<TContracts[K]>
+            >
+            typedSubject.next(validatedOutput)
+        }
+
+        const anySubscription = this.anyEventSubscriptions.get(
+            String(eventName)
+        )
+        if (anySubscription) {
+            const anyTypedSubject = anySubscription.subject as Subject<
+                AnyEventEmission<TContracts[K]>
+            >
+            anyTypedSubject.next({
+                input: validatedInput,
+                output: validatedOutput,
+            })
+        }
+    }
+
+    /**
+     * Start a processing operation and expose an emit bridge tied to the event input.
+     */
+    async startProcessing<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        handler: (params: {
+            abortSignal?: AbortSignal
+            input: EventInput<TContracts[K]>
+            emit: (output: EventOutput<TContracts[K]>) => void
+        }) => void | Promise<void>
+    ): Promise<void> {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+
+        const emit = (output: EventOutput<TContracts[K]>): void => {
+            this.emit(eventName, validatedInput, output)
+        }
+
+        await Promise.resolve(handler({ input: validatedInput, emit }))
+    }
+
+    /**
+     * Check if an event has active subscribers
+     *
+     * @param eventName - Name of the event to check
+     * @param input - Input parameters for the event
+     */
+    hasSubscribers<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>
+    ): boolean {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+        const fullEventName = this.buildFullEventName(
+            String(eventName),
+            validatedInput
+        )
+
+        const subscription = this.events.get(fullEventName)
+        return subscription ? subscription.subscriberCount > 0 : false
+    }
+
+    /**
+     * Get subscriber count for an event
+     *
+     * @param eventName - Name of the event to check
+     * @param input - Input parameters for the event
+     */
+    getSubscriberCount<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>
+    ): number {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+        const fullEventName = this.buildFullEventName(
+            String(eventName),
+            validatedInput
+        )
+
+        const subscription = this.events.get(fullEventName)
+        return subscription ? subscription.subscriberCount : 0
+    }
+
+    /**
+     * Check if an event is currently processing
+     *
+     * @param eventName - Name of the event to check
+     * @param input - Input parameters for the event
+     */
+    isProcessing<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>
+    ): boolean {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
+        contract.input.parse(input)
+        return false
+    }
+
+    /**
+     * Get queue length for an event
+     *
+     * @param eventName - Name of the event to check
+     * @param input - Input parameters for the event
+     */
+    getQueueLength<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>
+    ): number {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
+        contract.input.parse(input)
+        return 0
+    }
+
+    /**
+     * Build full event name from prefix, event name, and input
+     * Override this method to customize event naming strategy
+     *
+     * @param eventName - Base event name
+     * @param input - Validated input data
+     */
+    protected buildFullEventName(
+        eventName: string,
+        input: Record<string, unknown>
+    ): string {
+        // Default implementation: prefix:eventName:firstInputValue
+        const firstValue = Object.values(input)[0]
+        return `${this.eventPrefix}:${eventName}:${String(firstValue)}`
+    }
+
+    /**
+     * Remove all subscribers for an event (cleanup utility)
+     *
+     * @param eventName - Name of the event to clear
+     * @param input - Input parameters for the event
+     */
+    removeAllSubscribers<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>
+    ): void {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            throw new Error(
+                `Contract not found for event: ${String(eventName)}`
+            )
+        }
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+        const fullEventName = this.buildFullEventName(
+            String(eventName),
+            validatedInput
+        )
+
+        const subscription = this.events.get(fullEventName)
+        if (subscription) {
+            subscription.subject.complete()
+            this.events.delete(fullEventName)
+        }
+    }
+
+    /**
+     * Get all active event names
+     */
+    getActiveEvents(): string[] {
+        return Array.from(this.events.keys())
+    }
+
+    /**
+     * Clear all events and subscriptions
+     */
+    clearAll(): void {
+        // Clear all subscriptions
+        for (const subscription of this.events.values()) {
+            subscription.subject.complete()
+        }
+        this.events.clear()
+
+        for (const subscription of this.anyEventSubscriptions.values()) {
+            subscription.subject.complete()
+        }
+        this.anyEventSubscriptions.clear()
+        Effect.runSync(this.journal.clear)
+
+        this.logger.log('All events cleared')
+    }
+
+    protected buildInputReplayFuzzy<TInput extends Record<string, unknown>>(
+        input: TInput
+    ): string {
+        return JSON.stringify(input).toLowerCase()
+    }
+
+    /**
+     * Returns the highest sequence number buffered for the given event key.
+     * Callers use this as the cursor value to pass back on reconnect via `afterSequence`.
+     */
+    getLastSequence<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>
+    ): number {
+        const contract = this.contracts[eventName]
+        if (!contract) {
+            return 0
+        }
+        const validatedInput = contract.input.parse(input) as EventInput<
+            TContracts[K]
+        >
+        const fullEventName = this.buildFullEventName(
+            String(eventName),
+            validatedInput
+        )
+        return this.journal.lastSequence(fullEventName)
+    }
+
+    private matchesInput<TInput extends Record<string, unknown>>(
+        input: TInput,
+        options?: QueryByInputOptions<TInput>
+    ): boolean {
+        if (options?.predicate && !options.predicate(input)) {
+            return false
+        }
+
+        if (options?.fuzzy) {
+            const haystack = this.buildInputReplayFuzzy(input)
+            return haystack.includes(options.fuzzy.trim().toLowerCase())
+        }
+
+        return true
+    }
+
+    /**
+     * Stops the journal's periodic flush and pending retry so the process can exit cleanly. The events module calls
+     * {@link disposeAll} at shutdown; a subclass needing more teardown overrides this and calls `super.dispose()`.
+     */
+    dispose(): void {
+        Effect.runSync(this.journal.close)
+    }
+
+    /** Disposes every event service built in this process. */
+    static disposeAll(): void {
+        for (const service of BaseEventService.serviceRegistry)
+            service.dispose()
+    }
 }
 
 type MergeSelection = {
-  service: BaseEventService;
-  eventNames: Set<string> | null;
+    service: BaseEventService
+    eventNames: Set<string> | null
 }
 
 export type MergeRegisteredOptions = {
-  namespaces?: string[];
-  referenceScopes?: string[];
+    namespaces?: string[]
+    referenceScopes?: string[]
 }
 
 export class BaseEventMergeBuilder {
-  private readonly selections = new Map<string, MergeSelection>();
-  private readonly predicates: ((event: MergedDomainEventEnvelope) => boolean)[] = [];
-  private activeSelectionKeys: string[] = [];
+    private readonly selections = new Map<string, MergeSelection>()
+    private readonly predicates: ((
+        event: MergedDomainEventEnvelope
+    ) => boolean)[] = []
+    private activeSelectionKeys: string[] = []
 
-  fromService(service: BaseEventService): this {
-    if (!BaseEventService.hasBaseEventSymbol(service)) {
-      throw new Error('Service does not extend BaseEventService symbol contract');
+    fromService(service: BaseEventService): this {
+        if (!BaseEventService.hasBaseEventSymbol(service)) {
+            throw new Error(
+                'Service does not extend BaseEventService symbol contract'
+            )
+        }
+
+        const selectionKey = this.buildSelectionKey(service)
+        const existing = this.selections.get(selectionKey)
+
+        this.selections.set(selectionKey, {
+            service,
+            eventNames: existing?.eventNames ?? null,
+        })
+
+        this.activeSelectionKeys = [selectionKey]
+        return this
     }
 
-    const selectionKey = this.buildSelectionKey(service);
-    const existing = this.selections.get(selectionKey);
+    fromServices(services: readonly BaseEventService[]): this {
+        const keys: string[] = []
 
-    this.selections.set(selectionKey, {
-      service,
-      eventNames: existing?.eventNames ?? null,
-    });
+        for (const service of services) {
+            if (!BaseEventService.hasBaseEventSymbol(service)) {
+                continue
+            }
 
-    this.activeSelectionKeys = [selectionKey];
-    return this;
-  }
+            const selectionKey = this.buildSelectionKey(service)
+            const existing = this.selections.get(selectionKey)
 
-  fromServices(services: readonly BaseEventService[]): this {
-    const keys: string[] = [];
+            this.selections.set(selectionKey, {
+                service,
+                eventNames: existing?.eventNames ?? null,
+            })
 
-    for (const service of services) {
-      if (!BaseEventService.hasBaseEventSymbol(service)) {
-        continue;
-      }
+            keys.push(selectionKey)
+        }
 
-      const selectionKey = this.buildSelectionKey(service);
-      const existing = this.selections.get(selectionKey);
-
-      this.selections.set(selectionKey, {
-        service,
-        eventNames: existing?.eventNames ?? null,
-      });
-
-      keys.push(selectionKey);
+        this.activeSelectionKeys = keys
+        return this
     }
 
-    this.activeSelectionKeys = keys;
-    return this;
-  }
-
-  fromNamespace(namespace: string): this {
-    return this.fromServices(BaseEventService.findRegisteredByNamespace(namespace));
-  }
-
-  fromReferenceScope(referenceScope: string): this {
-    return this.fromServices(BaseEventService.findRegisteredByReferenceScope(referenceScope));
-  }
-
-  fromRegistered(options?: MergeRegisteredOptions): this {
-    const namespaces = options?.namespaces ? new Set(options.namespaces) : null;
-    const referenceScopes = options?.referenceScopes ? new Set(options.referenceScopes) : null;
-
-    const services = BaseEventService.listRegisteredServices().filter((service) => {
-      const namespaceMatch = namespaces ? namespaces.has(service.namespace) : true;
-      const referenceScopeMatch = referenceScopes ? referenceScopes.has(service.referenceScope) : true;
-      return namespaceMatch && referenceScopeMatch;
-    });
-
-    return this.fromServices(services);
-  }
-
-  events(...eventNames: string[]): this {
-    const normalized = eventNames
-      .map((eventName) => eventName.trim())
-      .filter((eventName) => eventName.length > 0);
-
-    if (normalized.length === 0) {
-      return this;
+    fromNamespace(namespace: string): this {
+        return this.fromServices(
+            BaseEventService.findRegisteredByNamespace(namespace)
+        )
     }
 
-    const selectionKeys = this.resolveSelectionKeys();
-    for (const key of selectionKeys) {
-      const selection = this.selections.get(key);
-      if (!selection) {
-        continue;
-      }
-
-      const current = selection.eventNames ?? new Set<string>();
-      for (const eventName of normalized) {
-        current.add(eventName);
-      }
-
-      selection.eventNames = current;
-      this.selections.set(key, selection);
+    fromReferenceScope(referenceScope: string): this {
+        return this.fromServices(
+            BaseEventService.findRegisteredByReferenceScope(referenceScope)
+        )
     }
 
-    return this;
-  }
+    fromRegistered(options?: MergeRegisteredOptions): this {
+        const namespaces = options?.namespaces
+            ? new Set(options.namespaces)
+            : null
+        const referenceScopes = options?.referenceScopes
+            ? new Set(options.referenceScopes)
+            : null
 
-  allEvents(): this {
-    const selectionKeys = this.resolveSelectionKeys();
-    for (const key of selectionKeys) {
-      const selection = this.selections.get(key);
-      if (!selection) {
-        continue;
-      }
+        const services = BaseEventService.listRegisteredServices().filter(
+            (service) => {
+                const namespaceMatch = namespaces
+                    ? namespaces.has(service.namespace)
+                    : true
+                const referenceScopeMatch = referenceScopes
+                    ? referenceScopes.has(service.referenceScope)
+                    : true
+                return namespaceMatch && referenceScopeMatch
+            }
+        )
 
-      selection.eventNames = null;
-      this.selections.set(key, selection);
+        return this.fromServices(services)
     }
 
-    return this;
-  }
+    events(...eventNames: string[]): this {
+        const normalized = eventNames
+            .map((eventName) => eventName.trim())
+            .filter((eventName) => eventName.length > 0)
 
-  where(predicate: (event: MergedDomainEventEnvelope) => boolean): this {
-    this.predicates.push(predicate);
-    return this;
-  }
+        if (normalized.length === 0) {
+            return this
+        }
 
-  toObservable(): Observable<MergedDomainEventEnvelope> {
-    const streams: Observable<MergedDomainEventEnvelope>[] = [];
+        const selectionKeys = this.resolveSelectionKeys()
+        for (const key of selectionKeys) {
+            const selection = this.selections.get(key)
+            if (!selection) {
+                continue
+            }
 
-    for (const selection of this.selections.values()) {
-      const eventNames = selection.eventNames
-        ? Array.from(selection.eventNames)
-        : selection.service.getContractNames();
+            const current = selection.eventNames ?? new Set<string>()
+            for (const eventName of normalized) {
+                current.add(eventName)
+            }
 
-      for (const eventName of eventNames) {
-        streams.push(
-          selection.service.observeAnyByName$(eventName).pipe(
-            map((event) => ({
-              namespace: selection.service.namespace,
-              domainServiceName: selection.service.domainServiceName,
-              referenceScope: selection.service.referenceScope,
-              eventName,
-              input: isRecord(event.input) ? event.input : {},
-              output: event.output,
-              emittedAt: new Date().toISOString(),
-            })),
-          ),
-        );
-      }
+            selection.eventNames = current
+            this.selections.set(key, selection)
+        }
+
+        return this
     }
 
-    if (streams.length === 0) {
-      return EMPTY;
+    allEvents(): this {
+        const selectionKeys = this.resolveSelectionKeys()
+        for (const key of selectionKeys) {
+            const selection = this.selections.get(key)
+            if (!selection) {
+                continue
+            }
+
+            selection.eventNames = null
+            this.selections.set(key, selection)
+        }
+
+        return this
     }
 
-    let merged$ = merge(...streams);
-    for (const predicate of this.predicates) {
-      merged$ = merged$.pipe(rxFilter(predicate));
+    where(predicate: (event: MergedDomainEventEnvelope) => boolean): this {
+        this.predicates.push(predicate)
+        return this
     }
 
-    return merged$;
-  }
+    toObservable(): Observable<MergedDomainEventEnvelope> {
+        const streams: Observable<MergedDomainEventEnvelope>[] = []
 
-  toAsyncIterable(): AsyncIterableIterator<MergedDomainEventEnvelope> {
-    return observableToAsyncIterable(this.toObservable())[Symbol.asyncIterator]() as AsyncIterableIterator<MergedDomainEventEnvelope>;
-  }
+        for (const selection of this.selections.values()) {
+            const eventNames = selection.eventNames
+                ? Array.from(selection.eventNames)
+                : selection.service.getContractNames()
 
-  private resolveSelectionKeys(): string[] {
-    if (this.activeSelectionKeys.length > 0) {
-      return this.activeSelectionKeys;
+            for (const eventName of eventNames) {
+                streams.push(
+                    selection.service.observeAnyByName$(eventName).pipe(
+                        map((event) => ({
+                            namespace: selection.service.namespace,
+                            domainServiceName:
+                                selection.service.domainServiceName,
+                            referenceScope: selection.service.referenceScope,
+                            eventName,
+                            input: isRecord(event.input) ? event.input : {},
+                            output: event.output,
+                            emittedAt: new Date().toISOString(),
+                        }))
+                    )
+                )
+            }
+        }
+
+        if (streams.length === 0) {
+            return EMPTY
+        }
+
+        let merged$ = merge(...streams)
+        for (const predicate of this.predicates) {
+            merged$ = merged$.pipe(rxFilter(predicate))
+        }
+
+        return merged$
     }
 
-    return Array.from(this.selections.keys());
-  }
+    toAsyncIterable(): AsyncIterableIterator<MergedDomainEventEnvelope> {
+        return observableToAsyncIterable(this.toObservable())[
+            Symbol.asyncIterator
+        ]() as AsyncIterableIterator<MergedDomainEventEnvelope>
+    }
 
-  private buildSelectionKey(service: BaseEventService): string {
-    return `${service.namespace}:${service.referenceScope}`;
-  }
+    private resolveSelectionKeys(): string[] {
+        if (this.activeSelectionKeys.length > 0) {
+            return this.activeSelectionKeys
+        }
+
+        return Array.from(this.selections.keys())
+    }
+
+    private buildSelectionKey(service: BaseEventService): string {
+        return `${service.namespace}:${service.referenceScope}`
+    }
 }

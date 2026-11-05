@@ -1,10 +1,10 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mkdir, rename, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
-import { Logger } from "@nestjs/common";
-import { Context, Effect } from "effect";
+import { Logger } from '@nestjs/common'
+import { Context, Effect } from 'effect'
 
-import { EnvService } from "@/config/env/env.module";
+import { EnvService } from '@/config/env/env.module'
 
 /**
  * The compose network alias Traefik uses to reach this app.
@@ -15,7 +15,7 @@ import { EnvService } from "@/config/env/env.module";
  * contract with the compose files — if an alias is ever renamed, this constant
  * and the two profiles must change together.
  */
-const SETUP_SERVICE_ALIAS = "setup";
+const SETUP_SERVICE_ALIAS = 'setup'
 
 /**
  * Rewrites the two dynamic Traefik config files that decide who owns each
@@ -52,346 +52,374 @@ const SETUP_SERVICE_ALIAS = "setup";
  * "never let a URL change owner by disappearing" rule.
  */
 export class IngressHandoverServiceImpl {
-  /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
-  readonly onStart = (): Effect.Effect<void, unknown> => Effect.tryPromise({ try: () => this.bootstrap(), catch: (error) => error });
+    /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
+    readonly onStart = (): Effect.Effect<void, unknown> =>
+        Effect.tryPromise({
+            try: () => this.bootstrap(),
+            catch: (error) => error,
+        })
 
-  private readonly logger = new Logger("IngressHandoverService");
+    private readonly logger = new Logger('IngressHandoverService')
 
-  /**
-   * Traefik's router priority for the setup hostname.
-   *
-   * Higher than the API's console router (2000) on purpose: `setup.<host>` must
-   * win outright for its own hostname, and an explicit value keeps that true
-   * even if the API later adds a broader Host rule. Rule-length precedence would
-   * probably also suffice — which is exactly why this states the intent instead
-   * of relying on a tiebreak.
-   */
-  private static readonly SETUP_ROUTER_PRIORITY = 3000;
+    /**
+     * Traefik's router priority for the setup hostname.
+     *
+     * Higher than the API's console router (2000) on purpose: `setup.<host>` must
+     * win outright for its own hostname, and an explicit value keeps that true
+     * even if the API later adds a broader Host rule. Rule-length precedence would
+     * probably also suffice — which is exactly why this states the intent instead
+     * of relying on a tiebreak.
+     */
+    private static readonly SETUP_ROUTER_PRIORITY = 3000
 
-  /** Port the web container serves on INSIDE the platform network. */
-  private static readonly WEB_INTERNAL_PORT = Number(process.env.NEXT_PUBLIC_APP_PORT ?? 3000);
+    /** Port the web container serves on INSIDE the platform network. */
+    private static readonly WEB_INTERNAL_PORT = Number(
+        process.env.NEXT_PUBLIC_APP_PORT ?? 3000
+    )
 
-  constructor(private readonly env: EnvService) {}
+    constructor(private readonly env: EnvService) {}
 
-  /**
-   * Directory the live Traefik file provider watches.
-   *
-   * Same variable and same default as the API's own services, so both processes
-   * resolve the SAME mount — a mismatch here would write the handover into a
-   * directory nothing reads, and the failure would look like "Traefik ignores
-   * us" rather than a config error.
-   */
-  configDir(): string {
-    return this.env.get("TRAEFIK_CONFIG_BASE_PATH") ?? "/app/traefik-configs";
-  }
-
-  /** `api.<prefix>deployer.localhost` — the platform hostname grammar. */
-  apiHostname(): string {
-    return this.prefixedHost("api");
-  }
-
-  /** `setup.<prefix>deployer.localhost`. */
-  setupHostname(): string {
-    return this.prefixedHost("setup");
-  }
-
-  /**
-   * `web.<prefix>deployer.localhost` — the dashboard's public surface.
-   *
-   * Needed by the handover to verify the dashboard is actually ROUTED before
-   * declaring setup finished: the managed web container can be running while the
-   * ingress has no rule for this host, which is a browser-visible 404 on the
-   * operator's first click.
-   */
-  webHostname(): string {
-    return this.prefixedHost("web");
-  }
-
-  private prefixedHost(service: "api" | "setup" | "web"): string {
-    const prefix = this.env.get("DEPLOYER_PREFIX");
-    const base = "deployer.localhost";
-    return prefix === "" ? `${service}.${base}` : `${service}.${prefix}.${base}`;
-  }
-
-  /**
-   * Route `web.<host>` at the dashboard.
-   *
-   * ── WHY THIS EXISTS: NOTHING EVER WROTE `dynamic-web.yml` ────────────────
-   * The ingress handover wrote `dynamic-api.yml` and `dynamic-setup.yml`, and the
-   * API's own config service takes those over later. Neither ever wrote the WEB
-   * route, and `PlatformPaths.webConfigFile()` exists but is called from NOWHERE
-   * (verified: its only two references are its own definitions). The consequence
-   * is a dashboard that is completely unreachable from a browser while looking
-   * perfectly healthy:
-   *
-   *   docker port nextjs-nestjs-web-dev   → (nothing: no published port)
-   *   traefik /config                     → dynamic-api.yml, dynamic-setup.yml
-   *   Host: web.deployer.localhost        → 404
-   *   Host: setup.deployer.localhost      → 200
-   *   docker exec web-dev wget :3000      → 200   ← healthy the whole time
-   *
-   * The web container serves fine; the ingress simply had no rule for its
-   * hostname, so Traefik answered with its own 404.
-   *
-   * ── WHY SETUP WRITES IT ──────────────────────────────────────────────────
-   * Setup is what knows the deployment is compose-owned and WHERE the web
-   * container lives (`DEPLOYER_WEB_TARGET`), and it already owns the ingress
-   * directory for the other two hostnames. Writing all three from one place
-   * keeps the grammar (`<service>.<prefix>deployer.localhost`) in one file.
-   *
-   * A null target is a legitimate answer — "this deployment serves no web" — so
-   * it writes nothing and says so, rather than emitting a router pointing at a
-   * container that does not exist (which would turn a clean 404 into a 502).
-   */
-  async pointWebAtTarget(target: string | null): Promise<void> {
-    if (target === null) {
-      this.logger.log("No web target for this deployment — `web.<host>` stays unrouted");
-      return;
-    }
-
-    const backend = `http://${target}:${String(IngressHandoverServiceImpl.WEB_INTERNAL_PORT)}`;
-    const file = path.join(this.configDir(), "dynamic-web.yml");
-    await this.write(
-      file,
-      this.document([
-        {
-          router: "platform-web",
-          rule: `Host(\`${this.webHostname()}\`)`,
-          service: "platform-web-svc",
-          backend,
-          // Below setup's 3000 so a mid-handover deployment still resolves
-          // `setup.<host>` first if the rules ever overlap.
-          priority: null,
-        },
-      ]),
-      `web → ${backend}`,
-    );
-  }
-
-  /**
-   * Point `api.<host>` at a backend.
-   *
-   * Called TWICE with the same router name and different backends:
-   *   1. before the swap — at whatever currently serves (the API's container
-   *      address), so the hostname is never unrouted;
-   *   2. after the swap — at the swarm service's DNS name.
-   *
-   * Reusing the router and service names across both calls is what makes this a
-   * RETARGET rather than two competing routers: Traefik's file provider keys by
-   * name, so the second write replaces the first atomically enough for a
-   * reload, and there is never a moment with two `platform-api` routers.
-   */
-  async pointApiAt(backendUrl: string): Promise<void> {
-    const file = path.join(this.configDir(), "dynamic-api.yml");
-    await this.write(
-      file,
-      this.document([
-        {
-          router: "platform-api",
-          rule: `Host(\`${this.apiHostname()}\`)`,
-          service: "platform-api-svc",
-          backend: backendUrl,
-          priority: null,
-        },
-      ]),
-      `api → ${backendUrl}`,
-    );
-  }
-
-  /**
-   * Route `setup.<host>` to this app as soon as the process is up.
-   *
-   * ── WHY THIS IS HERE AND NOT IN THE HANDOVER ─────────────────────────────
-   * The handover writes `dynamic-setup.yml` at the END, pointing at the done
-   * page. Nothing wrote it at the START, so `setup.<host>` had no router for the
-   * whole of onboarding — the operator would see a Traefik 404 on the only page
-   * that exists to fix a broken setup.
-   *
-   * ── WHY A FAILURE IS NON-FATAL ───────────────────────────────────────────
-   * Throwing here would restart-loop the container, and a restarted container
-   * still has no route: the failure would be identical on every attempt while
-   * also destroying the wizard's ability to report it. Logging loudly at ERROR
-   * keeps the process serving on its internal port (where compose's healthcheck
-   * and the handover still work) and names the exact path to inspect.
-   *
-   * The handover rewrites the same file later, so a transient failure here is
-   * also self-healing in the common case.
-   */
-  async bootstrap(): Promise<void> {
-    try {
-      await this.pointSetupAtSelf();
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Could not publish the wizard route — ${this.setupHostname()} will 404 until the ` +
-          `handover retries. Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is ` +
-          `writable and shared with Traefik. Cause: ${detail}`,
-      );
-    }
-
-    // The dashboard's route, written at boot for the same reason as setup's:
-    // nothing else writes it, and an unrouted `web.<host>` is a browser-visible
-    // 404 that no health check reports. Failure is non-fatal — the wizard is the
-    // surface that has to keep working so the operator can see the problem.
-    try {
-      await this.pointWebAtTarget(this.env.get("DEPLOYER_WEB_TARGET")?.trim() || null);
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Could not publish the dashboard route — ${this.webHostname()} will 404. ` +
-          `Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is writable and ` +
-          `shared with Traefik. Cause: ${detail}`,
-      );
-    }
-  }
-
-  /**
-   * Point `setup.<host>` at THIS app — the wizard itself.
-   *
-   * Called FIRST, at boot, before any cluster or handover work. Without it the
-   * hostname has no router at all until the handover rewrites the file, so the
-   * operator would get a Traefik 404 for the ENTIRE onboarding — the one phase
-   * whose only purpose is to be reachable.
-   *
-   * WHY AT BOOT AND NOT WHEN THE CLUSTER SUCCEEDS: a failed cluster is exactly
-   * when the wizard matters most. It is the only surface that can show the
-   * operator what went wrong and let them retry, so the route must exist before
-   * the first attempt rather than after it succeeds.
-   *
-   * Order-independent with respect to Traefik: the file lands on the shared
-   * volume, and Traefik's file provider reads it on its own start (`watch: true`
-   * also picks up later changes), so neither process needs the other to be up.
-   */
-  async pointSetupAtSelf(): Promise<void> {
-    const file = path.join(this.configDir(), "dynamic-setup.yml");
-    await this.write(
-      file,
-      this.document([
-        {
-          router: "platform-setup",
-          rule: `Host(\`${this.setupHostname()}\`)`,
-          service: "platform-setup-svc",
-          backend: this.selfBackendUrl(),
-          priority: IngressHandoverServiceImpl.SETUP_ROUTER_PRIORITY,
-        },
-      ]),
-      `setup → this app (${this.selfBackendUrl()})`,
-    );
-  }
-
-  /**
-   * This app's address as Traefik must reach it.
-   *
-   * The HOST is the compose network alias (both profiles declare `setup`), not
-   * a hostname: Traefik resolves it over the docker network, where the public
-   * hostname means nothing. The PORT comes from the env because it is genuinely
-   * configurable, and a hardcoded 3016 would silently disagree with a container
-   * that bound something else.
-   */
-  private selfBackendUrl(): string {
-    return `http://${SETUP_SERVICE_ALIAS}:${String(this.env.get("SETUP_APP_PORT"))}`;
-  }
-
-  /**
-   * Point `setup.<host>` at the API's static done page.
-   *
-   * REWRITTEN, never deleted (plan §9.2): deleting the router would leave
-   * `setup.<host>` resolving to no route, i.e. a Traefik 404 for an operator who
-   * bookmarked the wizard. Keeping the router and only changing its backend
-   * means the hostname is answerable before, during and after the handover —
-   * it simply changes from the wizard to the "setup done" page.
-   */
-  async pointSetupAtDonePage(apiBackendUrl: string): Promise<void> {
-    const file = path.join(this.configDir(), "dynamic-setup.yml");
-    await this.write(
-      file,
-      this.document([
-        {
-          router: "platform-setup",
-          rule: `Host(\`${this.setupHostname()}\`)`,
-          service: "platform-setup-svc",
-          backend: `${apiBackendUrl}/setup/done`,
-          priority: IngressHandoverServiceImpl.SETUP_ROUTER_PRIORITY,
-        },
-      ]),
-      `setup → ${apiBackendUrl}/setup/done`,
-    );
-  }
-
-  /**
-   * Emit one `http.routers` / `http.services` pair per entry.
-   *
-   * SHAPE MATCHES THE API'S BUILDER: a single `http:` root (Traefik's file
-   * provider rejects two `http:` keys in one document), routers referenced by
-   * their service name, and the backend spelled out in a `loadBalancer`.
-   */
-  private document(
-    entries: {
-      router: string;
-      rule: string;
-      service: string;
-      backend: string;
-      priority: number | null;
-    }[],
-  ): string {
-    const routers = entries
-      .map((e) => {
-        const priority = e.priority === null ? "" : `      priority: ${String(e.priority)}\n`;
+    /**
+     * Directory the live Traefik file provider watches.
+     *
+     * Same variable and same default as the API's own services, so both processes
+     * resolve the SAME mount — a mismatch here would write the handover into a
+     * directory nothing reads, and the failure would look like "Traefik ignores
+     * us" rather than a config error.
+     */
+    configDir(): string {
         return (
-          `    ${e.router}:\n` +
-          `      rule: ${JSON.stringify(e.rule)}\n` +
-          `      service: ${e.service}\n` +
-          `      entryPoints:\n` +
-          `        - web\n` +
-          priority
-        );
-      })
-      .join("\n");
+            this.env.get('TRAEFIK_CONFIG_BASE_PATH') ?? '/app/traefik-configs'
+        )
+    }
 
-    const services = entries
-      .map(
-        (e) =>
-          `    ${e.service}:\n` +
-          `      loadBalancer:\n` +
-          `        servers:\n` +
-          `          - url: ${JSON.stringify(e.backend)}\n`,
-      )
-      .join("\n");
+    /** `api.<prefix>deployer.localhost` — the platform hostname grammar. */
+    apiHostname(): string {
+        return this.prefixedHost('api')
+    }
 
-    return (
-      "# Written by the setup app's handover. The Traefik supervisor does NOT\n" +
-      "# own this file while setup runs; ownership passes to the API's own\n" +
-      "# config service once it boots.\n" +
-      "http:\n" +
-      "  routers:\n" +
-      routers +
-      "\n  services:\n" +
-      services
-    );
-  }
+    /** `setup.<prefix>deployer.localhost`. */
+    setupHostname(): string {
+        return this.prefixedHost('setup')
+    }
 
-  /**
-   * Write atomically: temp file + rename.
-   *
-   * Traefik's file provider watches this directory with `watch: true`. A plain
-   * `writeFile` can be observed HALF-WRITTEN, and a partially-read YAML makes
-   * Traefik discard the whole configuration — dropping every route in the file,
-   * not just the truncated one. `rename` within the same directory is atomic on
-   * POSIX, so the provider only ever sees a complete document.
-   */
-  private async write(file: string, contents: string, describe: string): Promise<void> {
-    await mkdir(this.configDir(), { recursive: true });
+    /**
+     * `web.<prefix>deployer.localhost` — the dashboard's public surface.
+     *
+     * Needed by the handover to verify the dashboard is actually ROUTED before
+     * declaring setup finished: the managed web container can be running while the
+     * ingress has no rule for this host, which is a browser-visible 404 on the
+     * operator's first click.
+     */
+    webHostname(): string {
+        return this.prefixedHost('web')
+    }
 
-    const temporary = `${file}.tmp`;
-    await writeFile(temporary, contents, "utf8");
-    await rename(temporary, file);
+    private prefixedHost(service: 'api' | 'setup' | 'web'): string {
+        const prefix = this.env.get('DEPLOYER_PREFIX')
+        const base = 'deployer.localhost'
+        return prefix === ''
+            ? `${service}.${base}`
+            : `${service}.${prefix}.${base}`
+    }
 
-    this.logger.log(`Ingress retargeted: ${describe} (${file})`);
-  }
+    /**
+     * Route `web.<host>` at the dashboard.
+     *
+     * ── WHY THIS EXISTS: NOTHING EVER WROTE `dynamic-web.yml` ────────────────
+     * The ingress handover wrote `dynamic-api.yml` and `dynamic-setup.yml`, and the
+     * API's own config service takes those over later. Neither ever wrote the WEB
+     * route, and `PlatformPaths.webConfigFile()` exists but is called from NOWHERE
+     * (verified: its only two references are its own definitions). The consequence
+     * is a dashboard that is completely unreachable from a browser while looking
+     * perfectly healthy:
+     *
+     *   docker port nextjs-nestjs-web-dev   → (nothing: no published port)
+     *   traefik /config                     → dynamic-api.yml, dynamic-setup.yml
+     *   Host: web.deployer.localhost        → 404
+     *   Host: setup.deployer.localhost      → 200
+     *   docker exec web-dev wget :3000      → 200   ← healthy the whole time
+     *
+     * The web container serves fine; the ingress simply had no rule for its
+     * hostname, so Traefik answered with its own 404.
+     *
+     * ── WHY SETUP WRITES IT ──────────────────────────────────────────────────
+     * Setup is what knows the deployment is compose-owned and WHERE the web
+     * container lives (`DEPLOYER_WEB_TARGET`), and it already owns the ingress
+     * directory for the other two hostnames. Writing all three from one place
+     * keeps the grammar (`<service>.<prefix>deployer.localhost`) in one file.
+     *
+     * A null target is a legitimate answer — "this deployment serves no web" — so
+     * it writes nothing and says so, rather than emitting a router pointing at a
+     * container that does not exist (which would turn a clean 404 into a 502).
+     */
+    async pointWebAtTarget(target: string | null): Promise<void> {
+        if (target === null) {
+            this.logger.log(
+                'No web target for this deployment — `web.<host>` stays unrouted'
+            )
+            return
+        }
+
+        const backend = `http://${target}:${String(IngressHandoverServiceImpl.WEB_INTERNAL_PORT)}`
+        const file = path.join(this.configDir(), 'dynamic-web.yml')
+        await this.write(
+            file,
+            this.document([
+                {
+                    router: 'platform-web',
+                    rule: `Host(\`${this.webHostname()}\`)`,
+                    service: 'platform-web-svc',
+                    backend,
+                    // Below setup's 3000 so a mid-handover deployment still resolves
+                    // `setup.<host>` first if the rules ever overlap.
+                    priority: null,
+                },
+            ]),
+            `web → ${backend}`
+        )
+    }
+
+    /**
+     * Point `api.<host>` at a backend.
+     *
+     * Called TWICE with the same router name and different backends:
+     *   1. before the swap — at whatever currently serves (the API's container
+     *      address), so the hostname is never unrouted;
+     *   2. after the swap — at the swarm service's DNS name.
+     *
+     * Reusing the router and service names across both calls is what makes this a
+     * RETARGET rather than two competing routers: Traefik's file provider keys by
+     * name, so the second write replaces the first atomically enough for a
+     * reload, and there is never a moment with two `platform-api` routers.
+     */
+    async pointApiAt(backendUrl: string): Promise<void> {
+        const file = path.join(this.configDir(), 'dynamic-api.yml')
+        await this.write(
+            file,
+            this.document([
+                {
+                    router: 'platform-api',
+                    rule: `Host(\`${this.apiHostname()}\`)`,
+                    service: 'platform-api-svc',
+                    backend: backendUrl,
+                    priority: null,
+                },
+            ]),
+            `api → ${backendUrl}`
+        )
+    }
+
+    /**
+     * Route `setup.<host>` to this app as soon as the process is up.
+     *
+     * ── WHY THIS IS HERE AND NOT IN THE HANDOVER ─────────────────────────────
+     * The handover writes `dynamic-setup.yml` at the END, pointing at the done
+     * page. Nothing wrote it at the START, so `setup.<host>` had no router for the
+     * whole of onboarding — the operator would see a Traefik 404 on the only page
+     * that exists to fix a broken setup.
+     *
+     * ── WHY A FAILURE IS NON-FATAL ───────────────────────────────────────────
+     * Throwing here would restart-loop the container, and a restarted container
+     * still has no route: the failure would be identical on every attempt while
+     * also destroying the wizard's ability to report it. Logging loudly at ERROR
+     * keeps the process serving on its internal port (where compose's healthcheck
+     * and the handover still work) and names the exact path to inspect.
+     *
+     * The handover rewrites the same file later, so a transient failure here is
+     * also self-healing in the common case.
+     */
+    async bootstrap(): Promise<void> {
+        try {
+            await this.pointSetupAtSelf()
+        } catch (error: unknown) {
+            const detail =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(
+                `Could not publish the wizard route — ${this.setupHostname()} will 404 until the ` +
+                    `handover retries. Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is ` +
+                    `writable and shared with Traefik. Cause: ${detail}`
+            )
+        }
+
+        // The dashboard's route, written at boot for the same reason as setup's:
+        // nothing else writes it, and an unrouted `web.<host>` is a browser-visible
+        // 404 that no health check reports. Failure is non-fatal — the wizard is the
+        // surface that has to keep working so the operator can see the problem.
+        try {
+            await this.pointWebAtTarget(
+                this.env.get('DEPLOYER_WEB_TARGET')?.trim() || null
+            )
+        } catch (error: unknown) {
+            const detail =
+                error instanceof Error ? error.message : String(error)
+            this.logger.error(
+                `Could not publish the dashboard route — ${this.webHostname()} will 404. ` +
+                    `Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is writable and ` +
+                    `shared with Traefik. Cause: ${detail}`
+            )
+        }
+    }
+
+    /**
+     * Point `setup.<host>` at THIS app — the wizard itself.
+     *
+     * Called FIRST, at boot, before any cluster or handover work. Without it the
+     * hostname has no router at all until the handover rewrites the file, so the
+     * operator would get a Traefik 404 for the ENTIRE onboarding — the one phase
+     * whose only purpose is to be reachable.
+     *
+     * WHY AT BOOT AND NOT WHEN THE CLUSTER SUCCEEDS: a failed cluster is exactly
+     * when the wizard matters most. It is the only surface that can show the
+     * operator what went wrong and let them retry, so the route must exist before
+     * the first attempt rather than after it succeeds.
+     *
+     * Order-independent with respect to Traefik: the file lands on the shared
+     * volume, and Traefik's file provider reads it on its own start (`watch: true`
+     * also picks up later changes), so neither process needs the other to be up.
+     */
+    async pointSetupAtSelf(): Promise<void> {
+        const file = path.join(this.configDir(), 'dynamic-setup.yml')
+        await this.write(
+            file,
+            this.document([
+                {
+                    router: 'platform-setup',
+                    rule: `Host(\`${this.setupHostname()}\`)`,
+                    service: 'platform-setup-svc',
+                    backend: this.selfBackendUrl(),
+                    priority: IngressHandoverServiceImpl.SETUP_ROUTER_PRIORITY,
+                },
+            ]),
+            `setup → this app (${this.selfBackendUrl()})`
+        )
+    }
+
+    /**
+     * This app's address as Traefik must reach it.
+     *
+     * The HOST is the compose network alias (both profiles declare `setup`), not
+     * a hostname: Traefik resolves it over the docker network, where the public
+     * hostname means nothing. The PORT comes from the env because it is genuinely
+     * configurable, and a hardcoded 3016 would silently disagree with a container
+     * that bound something else.
+     */
+    private selfBackendUrl(): string {
+        return `http://${SETUP_SERVICE_ALIAS}:${String(this.env.get('SETUP_APP_PORT'))}`
+    }
+
+    /**
+     * Point `setup.<host>` at the API's static done page.
+     *
+     * REWRITTEN, never deleted (plan §9.2): deleting the router would leave
+     * `setup.<host>` resolving to no route, i.e. a Traefik 404 for an operator who
+     * bookmarked the wizard. Keeping the router and only changing its backend
+     * means the hostname is answerable before, during and after the handover —
+     * it simply changes from the wizard to the "setup done" page.
+     */
+    async pointSetupAtDonePage(apiBackendUrl: string): Promise<void> {
+        const file = path.join(this.configDir(), 'dynamic-setup.yml')
+        await this.write(
+            file,
+            this.document([
+                {
+                    router: 'platform-setup',
+                    rule: `Host(\`${this.setupHostname()}\`)`,
+                    service: 'platform-setup-svc',
+                    backend: `${apiBackendUrl}/setup/done`,
+                    priority: IngressHandoverServiceImpl.SETUP_ROUTER_PRIORITY,
+                },
+            ]),
+            `setup → ${apiBackendUrl}/setup/done`
+        )
+    }
+
+    /**
+     * Emit one `http.routers` / `http.services` pair per entry.
+     *
+     * SHAPE MATCHES THE API'S BUILDER: a single `http:` root (Traefik's file
+     * provider rejects two `http:` keys in one document), routers referenced by
+     * their service name, and the backend spelled out in a `loadBalancer`.
+     */
+    private document(
+        entries: {
+            router: string
+            rule: string
+            service: string
+            backend: string
+            priority: number | null
+        }[]
+    ): string {
+        const routers = entries
+            .map((e) => {
+                const priority =
+                    e.priority === null
+                        ? ''
+                        : `      priority: ${String(e.priority)}\n`
+                return (
+                    `    ${e.router}:\n` +
+                    `      rule: ${JSON.stringify(e.rule)}\n` +
+                    `      service: ${e.service}\n` +
+                    `      entryPoints:\n` +
+                    `        - web\n` +
+                    priority
+                )
+            })
+            .join('\n')
+
+        const services = entries
+            .map(
+                (e) =>
+                    `    ${e.service}:\n` +
+                    `      loadBalancer:\n` +
+                    `        servers:\n` +
+                    `          - url: ${JSON.stringify(e.backend)}\n`
+            )
+            .join('\n')
+
+        return (
+            "# Written by the setup app's handover. The Traefik supervisor does NOT\n" +
+            "# own this file while setup runs; ownership passes to the API's own\n" +
+            '# config service once it boots.\n' +
+            'http:\n' +
+            '  routers:\n' +
+            routers +
+            '\n  services:\n' +
+            services
+        )
+    }
+
+    /**
+     * Write atomically: temp file + rename.
+     *
+     * Traefik's file provider watches this directory with `watch: true`. A plain
+     * `writeFile` can be observed HALF-WRITTEN, and a partially-read YAML makes
+     * Traefik discard the whole configuration — dropping every route in the file,
+     * not just the truncated one. `rename` within the same directory is atomic on
+     * POSIX, so the provider only ever sees a complete document.
+     */
+    private async write(
+        file: string,
+        contents: string,
+        describe: string
+    ): Promise<void> {
+        await mkdir(this.configDir(), { recursive: true })
+
+        const temporary = `${file}.tmp`
+        await writeFile(temporary, contents, 'utf8')
+        await rename(temporary, file)
+
+        this.logger.log(`Ingress retargeted: ${describe} (${file})`)
+    }
 }
 
 /** The tag: what a module provides and a consumer asks for (`IngressHandoverService["Service"]` is its type). */
-export class IngressHandoverService extends Context.Service<IngressHandoverService, IngressHandoverServiceImpl>()("setup/IngressHandoverService") {}
+export class IngressHandoverService extends Context.Service<
+    IngressHandoverService,
+    IngressHandoverServiceImpl
+>()('setup/IngressHandoverService') {}
 
 /** The one way to build it — the module's `useFactory` and a spec both call this. */
-export const makeIngressHandoverService = (...args: ConstructorParameters<typeof IngressHandoverServiceImpl>): IngressHandoverServiceImpl => new IngressHandoverServiceImpl(...args);
+export const makeIngressHandoverService = (
+    ...args: ConstructorParameters<typeof IngressHandoverServiceImpl>
+): IngressHandoverServiceImpl => new IngressHandoverServiceImpl(...args)

@@ -1,1 +1,1 @@
-export * from './github-events.types';
+export * from './github-events.types'

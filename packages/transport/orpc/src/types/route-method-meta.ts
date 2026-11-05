@@ -1,8 +1,13 @@
- 
-import type { AnyContractBuilder, AnyContractProcedureOrBuilder } from "@deployer/orpc-utils/types/type-helpers";
-import { getProcedureMeta, withMeta } from "@deployer/orpc-utils/types/type-helpers";
-import type { HTTPMethod } from "@deployer/orpc-utils/types/types";
-import { isRecord } from "@deployer/type-guards"
+import type {
+    AnyContractBuilder,
+    AnyContractProcedureOrBuilder,
+} from '@deployer/orpc-utils/types/type-helpers'
+import {
+    getProcedureMeta,
+    withMeta,
+} from '@deployer/orpc-utils/types/type-helpers'
+import type { HTTPMethod } from '@deployer/orpc-utils/types/types'
+import { isRecord } from '@deployer/type-guards'
 
 /**
  * @fileoverview Mount method helper for ORPC contracts
@@ -30,12 +35,12 @@ import { isRecord } from "@deployer/type-guards"
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-export const ROUTE_METHOD_META_KEY = "__orpc_route_builder_method__" as const;
+export const ROUTE_METHOD_META_KEY = '__orpc_route_builder_method__' as const
 
 /**
  * Type for the unique metadata key
  */
-export type RouteMethodMetaKey = typeof ROUTE_METHOD_META_KEY;
+export type RouteMethodMetaKey = typeof ROUTE_METHOD_META_KEY
 
 /**
  * Metadata shape that RouteBuilder injects into contracts.
@@ -53,9 +58,9 @@ export type RouteMethodMetaKey = typeof ROUTE_METHOD_META_KEY;
  */
 export type RouteMethodMeta<TMethod extends HTTPMethod = HTTPMethod> = {
     readonly [ROUTE_METHOD_META_KEY]: {
-        readonly method: TMethod;
-    };
-};
+        readonly method: TMethod
+    }
+}
 
 /**
  * Type guard to check if a contract has RouteBuilder method metadata.
@@ -70,7 +75,8 @@ export type RouteMethodMeta<TMethod extends HTTPMethod = HTTPMethod> = {
  * type HasMeta = HasRouteMethodMeta<typeof myContract>; // true | false
  * ```
  */
-export type HasRouteMethodMeta<T> = ExtractRouteMethod<T> extends never ? false : true;
+export type HasRouteMethodMeta<T> =
+    ExtractRouteMethod<T> extends never ? false : true
 
 /**
  * Extract the HTTP method from RouteBuilder contract metadata.
@@ -88,7 +94,7 @@ export type HasRouteMethodMeta<T> = ExtractRouteMethod<T> extends never ? false 
  * type NoMethod = ExtractRouteMethod<typeof handMadeContract>; // never
  * ```
  */
-export type ExtractRouteMethod<T> = T extends { "~orpc": infer Orpc }
+export type ExtractRouteMethod<T> = T extends { '~orpc': infer Orpc }
     ? Orpc extends { meta: infer Meta }
         ? Meta extends Record<RouteMethodMetaKey, infer RouteMeta>
             ? RouteMeta extends { method: infer M }
@@ -98,31 +104,51 @@ export type ExtractRouteMethod<T> = T extends { "~orpc": infer Orpc }
                 : never
             : never
         : never
-    : never;
+    : never
 
 /**
  * Check if the extracted method is a GET method (for query operations)
  * Only returns true if the contract has RouteBuilder metadata AND method is GET
  */
-export type IsRouteBuilderGetMethod<T> = ExtractRouteMethod<T> extends HTTPMethod ? (Uppercase<ExtractRouteMethod<T>> extends "GET" ? true : false) : false;
+export type IsRouteBuilderGetMethod<T> =
+    ExtractRouteMethod<T> extends HTTPMethod
+        ? Uppercase<ExtractRouteMethod<T>> extends 'GET'
+            ? true
+            : false
+        : false
 
 /**
  * Check if the extracted method is a non-GET method (for mutation operations)
  * Only returns true if the contract has RouteBuilder metadata AND method is NOT GET
  */
-export type IsRouteBuilderNonGetMethod<T> = ExtractRouteMethod<T> extends HTTPMethod ? (Uppercase<ExtractRouteMethod<T>> extends "GET" ? false : true) : false;
+export type IsRouteBuilderNonGetMethod<T> =
+    ExtractRouteMethod<T> extends HTTPMethod
+        ? Uppercase<ExtractRouteMethod<T>> extends 'GET'
+            ? false
+            : true
+        : false
 
 /**
  * Check if a procedure is a valid RouteBuilder query procedure.
  * Must have RouteBuilder metadata with GET method.
  */
-export type IsRouteBuilderQuery<T> = IsRouteBuilderGetMethod<T> extends true ? (T extends { queryOptions: unknown } ? true : false) : false;
+export type IsRouteBuilderQuery<T> =
+    IsRouteBuilderGetMethod<T> extends true
+        ? T extends { queryOptions: unknown }
+            ? true
+            : false
+        : false
 
 /**
  * Check if a procedure is a valid RouteBuilder mutation procedure.
  * Must have RouteBuilder metadata with non-GET method.
  */
-export type IsRouteBuilderMutation<T> = IsRouteBuilderNonGetMethod<T> extends true ? (T extends { mutationOptions: unknown } ? true : false) : false;
+export type IsRouteBuilderMutation<T> =
+    IsRouteBuilderNonGetMethod<T> extends true
+        ? T extends { mutationOptions: unknown }
+            ? true
+            : false
+        : false
 
 /**
  * Create the metadata object for a specific HTTP method.
@@ -137,12 +163,14 @@ export type IsRouteBuilderMutation<T> = IsRouteBuilderNonGetMethod<T> extends tr
  * // { __orpc_route_builder_method__: { method: "GET" } }
  * ```
  */
-export function createRouteMethodMeta<TMethod extends HTTPMethod>(method: TMethod): RouteMethodMeta<TMethod> {
+export function createRouteMethodMeta<TMethod extends HTTPMethod>(
+    method: TMethod
+): RouteMethodMeta<TMethod> {
     return {
         [ROUTE_METHOD_META_KEY]: {
             method,
         },
-    };
+    }
 }
 
 /**
@@ -162,17 +190,19 @@ export function createRouteMethodMeta<TMethod extends HTTPMethod>(method: TMetho
  * }
  * ```
  */
-export function hasRouteMethodMeta(procedure: AnyContractProcedureOrBuilder): boolean {
-    const metaObj = getProcedureMeta(procedure);
-    
-    if (!metaObj || typeof metaObj !== "object") return false;
-  
-    const routeMeta = metaObj[ROUTE_METHOD_META_KEY];
-    if (!routeMeta || typeof routeMeta !== "object") return false;
+export function hasRouteMethodMeta(
+    procedure: AnyContractProcedureOrBuilder
+): boolean {
+    const metaObj = getProcedureMeta(procedure)
 
-    const routeMetaObj = isRecord(routeMeta) ? routeMeta : {};
-    const method = routeMetaObj.method;
-    return typeof method === "string" && method.length > 0;
+    if (!metaObj || typeof metaObj !== 'object') return false
+
+    const routeMeta = metaObj[ROUTE_METHOD_META_KEY]
+    if (!routeMeta || typeof routeMeta !== 'object') return false
+
+    const routeMetaObj = isRecord(routeMeta) ? routeMeta : {}
+    const method = routeMetaObj.method
+    return typeof method === 'string' && method.length > 0
 }
 
 /**
@@ -194,17 +224,20 @@ export function hasRouteMethodMeta(procedure: AnyContractProcedureOrBuilder): bo
  * }
  * ```
  */
-export function getRouteMethod(procedure: AnyContractProcedureOrBuilder): HTTPMethod | undefined {
+export function getRouteMethod(
+    procedure: AnyContractProcedureOrBuilder
+): HTTPMethod | undefined {
     if (!hasRouteMethodMeta(procedure)) {
-        return undefined;
+        return undefined
     }
 
     // Extract metadata using the helper from type-helpers
-    const meta = getProcedureMeta(procedure);
-    if (!meta || typeof meta !== "object") return undefined;
-    
-    const routeMeta = meta[ROUTE_METHOD_META_KEY] as { method: HTTPMethod } | undefined;
-    return routeMeta?.method;
+    const meta = getProcedureMeta(procedure)
+    if (!meta || typeof meta !== 'object') return undefined
+
+    const routeMeta = meta[ROUTE_METHOD_META_KEY] as
+        { method: HTTPMethod } | undefined
+    return routeMeta?.method
 }
 
 /**
@@ -242,11 +275,8 @@ export function getRouteMethod(procedure: AnyContractProcedureOrBuilder): HTTPMe
  */
 export function withRouteMethod<
     TMethod extends HTTPMethod,
-    TBuilder extends AnyContractBuilder
->(
-    method: TMethod,
-    builder: TBuilder
-) {
-    const meta = createRouteMethodMeta(method);
-    return withMeta(builder, meta);
+    TBuilder extends AnyContractBuilder,
+>(method: TMethod, builder: TBuilder) {
+    const meta = createRouteMethodMeta(method)
+    return withMeta(builder, meta)
 }

@@ -4,6 +4,6 @@ import { describePageStates } from '@/test-support'
 import DashboardDeploymentsPage from './page'
 
 describePageStates('Deployments list', {
-	page: () => <DashboardDeploymentsPage />,
-	empty: { action: /create|project|deploy|service/i },
+    page: () => <DashboardDeploymentsPage />,
+    empty: { action: /create|project|deploy|service/i },
 })

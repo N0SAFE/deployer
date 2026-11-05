@@ -7,7 +7,7 @@
  * @module domain/interfaces/project-domain
  */
 
-import type { projectDomains } from "@deployer/nest-schema/global/project/domain";
+import type { projectDomains } from '@deployer/nest-schema/global/project/domain'
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)
@@ -16,12 +16,12 @@ import type { projectDomains } from "@deployer/nest-schema/global/project/domain
 /**
  * Project domain entity from database
  */
-export type ProjectDomain = typeof projectDomains.$inferSelect;
+export type ProjectDomain = typeof projectDomains.$inferSelect
 
 /**
  * Input type for creating a project domain
  */
-export type InsertProjectDomain = typeof projectDomains.$inferInsert;
+export type InsertProjectDomain = typeof projectDomains.$inferInsert
 
 // ============================================================================
 // DOMAIN ASSIGNMENT
@@ -31,20 +31,20 @@ export type InsertProjectDomain = typeof projectDomains.$inferInsert;
  * Input for assigning a domain to a project
  */
 export type AssignDomainInput = {
-  /** Project ID to assign the domain to */
-  projectId: string;
-  /** Domain ID (must be verified) */
-  domainId: string;
-  /** Allowed subdomain patterns (e.g., ['staging', 'api', '*']) */
-  allowedSubdomains?: string[];
+    /** Project ID to assign the domain to */
+    projectId: string
+    /** Domain ID (must be verified) */
+    domainId: string
+    /** Allowed subdomain patterns (e.g., ['staging', 'api', '*']) */
+    allowedSubdomains?: string[]
 }
 
 /**
  * Response after domain assignment
  */
 export type AssignDomainResponse = {
-  /** Created project domain entity */
-  projectDomain: ProjectDomain;
+    /** Created project domain entity */
+    projectDomain: ProjectDomain
 }
 
 // ============================================================================
@@ -55,10 +55,10 @@ export type AssignDomainResponse = {
  * A verified domain available for project assignment
  */
 export type AvailableDomain = {
-  /** Domain ID */
-  domainId: string;
-  /** Domain name */
-  domain: string;
+    /** Domain ID */
+    domainId: string
+    /** Domain name */
+    domain: string
 }
 
 // ============================================================================
@@ -69,12 +69,12 @@ export type AvailableDomain = {
  * Result of checking subdomain granularity
  */
 export type GranularityCheckResult = {
-  /** Whether the subdomain respects granularity rules */
-  allowed: boolean;
-  /** Registered domain level */
-  registeredDomain: string;
-  /** Requested subdomain */
-  requestedSubdomain: string;
-  /** Error message if not allowed */
-  error?: string;
+    /** Whether the subdomain respects granularity rules */
+    allowed: boolean
+    /** Registered domain level */
+    registeredDomain: string
+    /** Requested subdomain */
+    requestedSubdomain: string
+    /** Error message if not allowed */
+    error?: string
 }

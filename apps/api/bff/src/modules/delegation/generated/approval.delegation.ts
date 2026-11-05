@@ -26,40 +26,48 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { approvalContract } from "@deployer/identity-contracts";
+import { approvalContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class ApprovalDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", approvalContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', approvalContract)
+    }
 
-	@Implement(approvalContract.request)
-	request() {
-		return implement(approvalContract.request).handler(({ input }) => this.client.request(input));
-	}
+    @Implement(approvalContract.request)
+    request() {
+        return implement(approvalContract.request).handler(({ input }) =>
+            this.client.request(input)
+        )
+    }
 
-	@Implement(approvalContract.list)
-	list() {
-		return implement(approvalContract.list).handler(({ input }) => this.client.list(input));
-	}
+    @Implement(approvalContract.list)
+    list() {
+        return implement(approvalContract.list).handler(({ input }) =>
+            this.client.list(input)
+        )
+    }
 
-	@Implement(approvalContract.decide)
-	decide() {
-		return implement(approvalContract.decide).handler(({ input }) => this.client.decide(input));
-	}
+    @Implement(approvalContract.decide)
+    decide() {
+        return implement(approvalContract.decide).handler(({ input }) =>
+            this.client.decide(input)
+        )
+    }
 
-	@Implement(approvalContract.consume)
-	consume() {
-		return implement(approvalContract.consume).handler(({ input }) => this.client.consume(input));
-	}
+    @Implement(approvalContract.consume)
+    consume() {
+        return implement(approvalContract.consume).handler(({ input }) =>
+            this.client.consume(input)
+        )
+    }
 }

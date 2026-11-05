@@ -10,36 +10,45 @@
  * - PaginationMetaOutput uses BasePaginationMetaSchemaOutput
  */
 
-import * as z from "zod";
+import * as z from 'zod'
 
-import { CONFIG_SYMBOL } from "@deployer/orpc-utils/operations/base/types";
+import { CONFIG_SYMBOL } from '@deployer/orpc-utils/operations/base/types'
 import {
     type PaginationConfig as BasePaginationConfig,
     type PaginationSchemaOutput as BasePaginationSchemaOutput,
     type PaginationMetaSchemaOutput as BasePaginationMetaSchemaOutput,
-} from "@deployer/orpc-utils/operations/base/utils/pagination";
+} from '@deployer/orpc-utils/operations/base/utils/pagination'
 
 // Re-export base types for external use
-export type { BasePaginationConfig, BasePaginationSchemaOutput, BasePaginationMetaSchemaOutput };
+export type {
+    BasePaginationConfig,
+    BasePaginationSchemaOutput,
+    BasePaginationMetaSchemaOutput,
+}
 
 // Re-export CONFIG_SYMBOL for use in other zod utilities
-export { CONFIG_SYMBOL };
+export { CONFIG_SYMBOL }
 
 /**
  * Zod schema with embedded configuration
  * Uses the same CONFIG_SYMBOL as base for cross-compatibility
- * 
+ *
  * This explicitly types the config-enhanced schema to ensure proper type narrowing
  */
-export type ZodSchemaWithConfig<TConfig, TSchema extends z.ZodType = z.ZodType> = TSchema & {
-    [CONFIG_SYMBOL]: TConfig;
-};
+export type ZodSchemaWithConfig<
+    TConfig,
+    TSchema extends z.ZodType = z.ZodType,
+> = TSchema & {
+    [CONFIG_SYMBOL]: TConfig
+}
 
 /**
  * Check if a schema has embedded configuration
  */
-export function hasConfig<T>(schema: z.ZodType): schema is ZodSchemaWithConfig<T> {
-    return CONFIG_SYMBOL in schema;
+export function hasConfig<T>(
+    schema: z.ZodType
+): schema is ZodSchemaWithConfig<T> {
+    return CONFIG_SYMBOL in schema
 }
 
 /**
@@ -47,14 +56,14 @@ export function hasConfig<T>(schema: z.ZodType): schema is ZodSchemaWithConfig<T
  */
 export function getConfig<T>(schema: z.ZodType): T | undefined {
     if (hasConfig<T>(schema)) {
-        return schema[CONFIG_SYMBOL];
+        return schema[CONFIG_SYMBOL]
     }
-    return undefined;
+    return undefined
 }
 
 /**
  * Attach configuration to a schema
- * 
+ *
  * Mutates the schema object to add the CONFIG_SYMBOL property.
  * Returns the same schema instance with updated type information.
  */
@@ -63,20 +72,21 @@ export function withConfig<TConfig, TSchema extends z.ZodType>(
     config: TConfig
 ): ZodSchemaWithConfig<TConfig, TSchema> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-    (schema as any)[CONFIG_SYMBOL] = config;
-    return schema as ZodSchemaWithConfig<TConfig, TSchema>;
+    ;(schema as any)[CONFIG_SYMBOL] = config
+    return schema as ZodSchemaWithConfig<TConfig, TSchema>
 }
 
 /**
  * Pagination configuration - extends base type
  * Any changes to BasePaginationConfig will be reflected here
  */
-export type PaginationConfig = BasePaginationConfig;
+export type PaginationConfig = BasePaginationConfig
 
 /**
  * Pagination input fields from the config - extends base type
  */
-export type PaginationInputFields<TConfig extends Partial<PaginationConfig>> = BasePaginationSchemaOutput<TConfig>;
+export type PaginationInputFields<TConfig extends Partial<PaginationConfig>> =
+    BasePaginationSchemaOutput<TConfig>
 
 /**
  * Create a pagination configuration schema
@@ -100,23 +110,21 @@ export function createPaginationConfigSchema<
     TMinLimit extends number = 1,
     TIncludeOffset extends boolean = true,
     TIncludeCursor extends boolean = false,
-    TIncludePage extends boolean = false
->(
-    config?: {
-        defaultLimit?: TDefaultLimit;
-        maxLimit?: TMaxLimit;
-        minLimit?: TMinLimit;
-        includeOffset?: TIncludeOffset;
-        includeCursor?: TIncludeCursor;
-        includePage?: TIncludePage;
-    }
-): ZodSchemaWithConfig<{
-    defaultLimit: TDefaultLimit;
-    maxLimit: TMaxLimit;
-    minLimit: TMinLimit;
-    includeOffset: TIncludeOffset;
-    includeCursor: TIncludeCursor;
-    includePage: TIncludePage;
+    TIncludePage extends boolean = false,
+>(config?: {
+    defaultLimit?: TDefaultLimit
+    maxLimit?: TMaxLimit
+    minLimit?: TMinLimit
+    includeOffset?: TIncludeOffset
+    includeCursor?: TIncludeCursor
+    includePage?: TIncludePage
+}): ZodSchemaWithConfig<{
+    defaultLimit: TDefaultLimit
+    maxLimit: TMaxLimit
+    minLimit: TMinLimit
+    includeOffset: TIncludeOffset
+    includeCursor: TIncludeCursor
+    includePage: TIncludePage
 }> {
     const finalConfig = {
         defaultLimit: (config?.defaultLimit ?? 10) as TDefaultLimit,
@@ -125,28 +133,33 @@ export function createPaginationConfigSchema<
         includeOffset: (config?.includeOffset ?? true) as TIncludeOffset,
         includeCursor: (config?.includeCursor ?? false) as TIncludeCursor,
         includePage: (config?.includePage ?? false) as TIncludePage,
-    };
+    }
 
     // Build schema shape dynamically based on config
     const shape: Record<string, z.ZodType> = {
-        limit: z.number().int().min(finalConfig.minLimit).max(finalConfig.maxLimit).default(finalConfig.defaultLimit),
-    };
+        limit: z
+            .number()
+            .int()
+            .min(finalConfig.minLimit)
+            .max(finalConfig.maxLimit)
+            .default(finalConfig.defaultLimit),
+    }
 
     if (finalConfig.includeOffset) {
-        shape.offset = z.number().int().min(0).default(0);
+        shape.offset = z.number().int().min(0).default(0)
     }
 
     if (finalConfig.includePage) {
-        shape.page = z.number().int().min(1).default(1);
+        shape.page = z.number().int().min(1).default(1)
     }
 
     if (finalConfig.includeCursor) {
-        shape.cursor = z.string().optional();
+        shape.cursor = z.string().optional()
     }
 
-    const schema = z.object(shape);
+    const schema = z.object(shape)
 
-    return withConfig(schema, finalConfig);
+    return withConfig(schema, finalConfig)
 }
 
 /**
@@ -155,43 +168,56 @@ export function createPaginationConfigSchema<
  * @param config Pagination configuration
  * @returns Zod schema for pagination input
  */
-export function createPaginationSchema<TConfig extends Partial<PaginationConfig>>(
+export function createPaginationSchema<
+    TConfig extends Partial<PaginationConfig>,
+>(
     config: ZodSchemaWithConfig<TConfig>
 ): z.ZodType<PaginationInputFields<TConfig>> {
-    const paginationConfig = getConfig<TConfig>(config);
+    const paginationConfig = getConfig<TConfig>(config)
     if (!paginationConfig) {
-        throw new Error("Invalid pagination config schema");
+        throw new Error('Invalid pagination config schema')
     }
 
     const shape: Record<string, z.ZodType> = {
-        limit: z.coerce.number().int().min(1).max(paginationConfig.maxLimit ?? 100).default(paginationConfig.defaultLimit ?? 10),
-    };
+        limit: z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(paginationConfig.maxLimit ?? 100)
+            .default(paginationConfig.defaultLimit ?? 10),
+    }
 
     if (paginationConfig.includeOffset) {
-        shape.offset = z.coerce.number().int().min(0).default(0);
+        shape.offset = z.coerce.number().int().min(0).default(0)
     }
 
     if (paginationConfig.includePage) {
-        shape.page = z.coerce.number().int().min(1).default(1);
+        shape.page = z.coerce.number().int().min(1).default(1)
     }
 
     if (paginationConfig.includeCursor) {
-        shape.cursor = z.string().optional();
+        shape.cursor = z.string().optional()
     }
 
-    return z.object(shape) as unknown as z.ZodType<PaginationInputFields<TConfig>>;
+    return z.object(shape) as unknown as z.ZodType<
+        PaginationInputFields<TConfig>
+    >
 }
 
 /**
  * Pagination meta schema output type
  */
 export type PaginationMetaOutput<TConfig extends Partial<PaginationConfig>> = {
-    total: number;
-    limit: number;
-    hasMore: boolean;
-} & (TConfig["includeOffset"] extends true ? { offset: number } : object) &
-    (TConfig["includePage"] extends true ? { page: number; totalPages: number } : object) &
-    (TConfig["includeCursor"] extends true ? { nextCursor?: string | null; prevCursor?: string | null } : object);
+    total: number
+    limit: number
+    hasMore: boolean
+} & (TConfig['includeOffset'] extends true ? { offset: number } : object) &
+    (TConfig['includePage'] extends true
+        ? { page: number; totalPages: number }
+        : object) &
+    (TConfig['includeCursor'] extends true
+        ? { nextCursor?: string | null; prevCursor?: string | null }
+        : object)
 
 /**
  * Create a pagination meta schema
@@ -199,35 +225,39 @@ export type PaginationMetaOutput<TConfig extends Partial<PaginationConfig>> = {
  * @param config Pagination configuration
  * @returns Zod schema for pagination metadata output
  */
-export function createPaginationMetaSchema<TConfig extends Partial<PaginationConfig>>(
+export function createPaginationMetaSchema<
+    TConfig extends Partial<PaginationConfig>,
+>(
     config: ZodSchemaWithConfig<TConfig>
 ): z.ZodType<PaginationMetaOutput<TConfig>> {
-    const paginationConfig = getConfig<TConfig>(config);
+    const paginationConfig = getConfig<TConfig>(config)
     if (!paginationConfig) {
-        throw new Error("Invalid pagination config schema");
+        throw new Error('Invalid pagination config schema')
     }
 
     const shape: Record<string, z.ZodType> = {
         total: z.number().int().min(0),
         limit: z.number().int().min(1),
         hasMore: z.boolean(),
-    };
+    }
 
     if (paginationConfig.includeOffset) {
-        shape.offset = z.number().int().min(0);
+        shape.offset = z.number().int().min(0)
     }
 
     if (paginationConfig.includePage) {
-        shape.page = z.number().int().min(1);
-        shape.totalPages = z.number().int().min(0);
+        shape.page = z.number().int().min(1)
+        shape.totalPages = z.number().int().min(0)
     }
 
     if (paginationConfig.includeCursor) {
-        shape.nextCursor = z.string().nullable().optional();
-        shape.prevCursor = z.string().nullable().optional();
+        shape.nextCursor = z.string().nullable().optional()
+        shape.prevCursor = z.string().nullable().optional()
     }
 
-    return z.object(shape) as unknown as z.ZodType<PaginationMetaOutput<TConfig>>;
+    return z.object(shape) as unknown as z.ZodType<
+        PaginationMetaOutput<TConfig>
+    >
 }
 
 /**
@@ -239,12 +269,12 @@ export function createPaginationMetaSchema<TConfig extends Partial<PaginationCon
  */
 export function createPaginatedResponseSchema<
     TItemSchema extends z.ZodType,
-    TConfig extends Partial<PaginationConfig>
+    TConfig extends Partial<PaginationConfig>,
 >(itemSchema: TItemSchema, config: ZodSchemaWithConfig<TConfig>) {
     return z.object({
         data: z.array(itemSchema),
         meta: createPaginationMetaSchema(config),
-    });
+    })
 }
 
 /**
@@ -254,7 +284,7 @@ export const offsetPagination = createPaginationConfigSchema({
     includeOffset: true,
     includePage: false,
     includeCursor: false,
-});
+})
 
 /**
  * Preset: Page-based pagination config
@@ -263,7 +293,7 @@ export const pagePagination = createPaginationConfigSchema({
     includeOffset: false,
     includePage: true,
     includeCursor: false,
-});
+})
 
 /**
  * Preset: Cursor-based pagination config
@@ -272,7 +302,7 @@ export const cursorPagination = createPaginationConfigSchema({
     includeOffset: false,
     includePage: false,
     includeCursor: true,
-});
+})
 
 /**
  * Preset: Full pagination config (all methods)
@@ -281,4 +311,4 @@ export const fullPagination = createPaginationConfigSchema({
     includeOffset: true,
     includePage: true,
     includeCursor: true,
-});
+})

@@ -42,16 +42,40 @@ export type PushFailure =
  * platform, not a user (`deliverableCount`, `recordDelivery`), need nothing from the request.
  */
 export type PushServiceShape = {
-    readonly publicKey: () => Effect.Effect<PublicKey, PushFailure, Ambient | PushRepository | DatabasePort>
+    readonly publicKey: () => Effect.Effect<
+        PublicKey,
+        PushFailure,
+        Ambient | PushRepository | DatabasePort
+    >
     readonly subscribe: (
         request: SubscribeRequest
-    ) => Effect.Effect<SubscribeResult, PushFailure, Ambient | PushRepository | DatabasePort>
+    ) => Effect.Effect<
+        SubscribeResult,
+        PushFailure,
+        Ambient | PushRepository | DatabasePort
+    >
     readonly unsubscribe: (
         endpoint: string
-    ) => Effect.Effect<{ readonly success: boolean }, PushFailure, Ambient | PushRepository | DatabasePort>
-    readonly list: () => Effect.Effect<PushSubscription[], PushFailure, Ambient | PushRepository | DatabasePort>
-    readonly stats: () => Effect.Effect<PushStats, PushFailure, Ambient | PushRepository | DatabasePort>
-    readonly deliverableCount: () => Effect.Effect<number, PushFailure, PushRepository | DatabasePort>
+    ) => Effect.Effect<
+        { readonly success: boolean },
+        PushFailure,
+        Ambient | PushRepository | DatabasePort
+    >
+    readonly list: () => Effect.Effect<
+        PushSubscription[],
+        PushFailure,
+        Ambient | PushRepository | DatabasePort
+    >
+    readonly stats: () => Effect.Effect<
+        PushStats,
+        PushFailure,
+        Ambient | PushRepository | DatabasePort
+    >
+    readonly deliverableCount: () => Effect.Effect<
+        number,
+        PushFailure,
+        PushRepository | DatabasePort
+    >
     readonly recordDelivery: (
         id: string,
         outcome: DeliveryOutcome
@@ -64,8 +88,7 @@ export class PushService extends Context.Service<
     PushServiceShape
 >()('identity/PushService') {
     /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(PushRepository, makePushService);
-
+    static readonly live = serviceOver(PushRepository, makePushService)
 }
 
 const actingUserId = Effect.gen(function* () {
@@ -82,9 +105,7 @@ const actingUserId = Effect.gen(function* () {
  * Not here: SQL (the repository), the HTTP shape (the controller), or the
  * notification PAYLOAD — composing what a message says is a caller's concern.
  */
-function makePushService(
-    subscriptions: PushRepositoryShape
-): PushServiceShape {
+function makePushService(subscriptions: PushRepositoryShape): PushServiceShape {
     /**
      * The VAPID public key this user's browser should subscribe with, generating the
      * keypair on first use.
@@ -172,7 +193,8 @@ function makePushService(
                 userId,
                 endpoint
             )
-            if (!deleted) return yield* new PushSubscriptionNotFound({ endpoint })
+            if (!deleted)
+                return yield* new PushSubscriptionNotFound({ endpoint })
             return { success: true }
         }),
 
@@ -228,17 +250,16 @@ function makePushService(
          * push service's status codes. Keeping the OUTCOME here means the one piece of
          * knowledge that must persist (a retired endpoint) is recorded authoritatively.
          */
-        recordDelivery: Effect.fn('PushService.recordDelivery')(function* (
-            id,
-            outcome
-        ) {
-            if (outcome.delivered) {
-                yield* subscriptions.markUsed(id)
-                return
+        recordDelivery: Effect.fn('PushService.recordDelivery')(
+            function* (id, outcome) {
+                if (outcome.delivered) {
+                    yield* subscriptions.markUsed(id)
+                    return
+                }
+                if (outcome.gone) {
+                    yield* subscriptions.deactivate(id)
+                }
             }
-            if (outcome.gone) {
-                yield* subscriptions.deactivate(id)
-            }
-        }),
+        ),
     }
 }

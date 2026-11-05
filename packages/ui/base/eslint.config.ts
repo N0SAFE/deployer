@@ -1,13 +1,17 @@
-import reactConfig from "@deployer/config-eslint/react";
-import { defineConfig } from "@deployer/config-eslint";
+import reactConfig from '@deployer/config-eslint/react'
+import { defineConfig } from '@deployer/config-eslint'
 
 export default defineConfig([
-    { extends: [reactConfig.configs.base()], files: ["src/**/*.{ts,tsx}"] },
+    { extends: [reactConfig.configs.base()], files: ['src/**/*.{ts,tsx}'] },
     {
         extends: [reactConfig.configs.test()],
-        files: ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],
+        files: [
+            '**/__tests__/**/*.{ts,tsx}',
+            '**/*.test.{ts,tsx}',
+            '**/*.spec.{ts,tsx}',
+        ],
         rules: {
-            "@typescript-eslint/no-empty-function": "off",
+            '@typescript-eslint/no-empty-function': 'off',
         },
     },
-]);
+])

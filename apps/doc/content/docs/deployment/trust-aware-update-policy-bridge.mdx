@@ -38,16 +38,17 @@ Trust checks are most useful when they can alter runtime decisions, not only pro
 
 ```ts
 type TrustOutcome = {
-  decision: "allow" | "warn" | "block";
-  reasonCode: string;
-  severity: "low" | "medium" | "high" | "critical";
-  evidenceRef?: string;
-};
+    decision: 'allow' | 'warn' | 'block'
+    reasonCode: string
+    severity: 'low' | 'medium' | 'high' | 'critical'
+    evidenceRef?: string
+}
 
 type UpdateBridgeDecision = {
-  orchestrationAction: "proceed" | "proceed_with_warning" | "halt" | "quarantine";
-  reasonCode: string;
-};
+    orchestrationAction:
+        'proceed' | 'proceed_with_warning' | 'halt' | 'quarantine'
+    reasonCode: string
+}
 ```
 
 ---
@@ -58,8 +59,8 @@ Let $T$ be trust outcome and $E$ target environment tier:
 
 - `allow` → `proceed`
 - `warn` →
-  - `proceed_with_warning` in non-protected tiers
-  - policy-configurable in protected tiers (`proceed_with_warning` or `halt`) **per org/project (no hard global default)**
+    - `proceed_with_warning` in non-protected tiers
+    - policy-configurable in protected tiers (`proceed_with_warning` or `halt`) **per org/project (no hard global default)**
 - `block` → `halt` (or `quarantine` when policy enabled)
 
 Formalized:

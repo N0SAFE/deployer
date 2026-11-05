@@ -5,29 +5,37 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AUTH_AUDIT_ACTIONS } from '@deployer/auth/audit'
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@deployer/ui/components/shadcn/select'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from '@deployer/ui/components/shadcn/table'
-
-
 
 import { PageErrorState, PageHeader } from '@/components/dashboard'
 import { useAuditEvents, useAuditExport } from '@/domains/audit/hooks'
@@ -38,13 +46,13 @@ const LIMITS = [50, 100, 200] as const
 
 /** Hand a CSV string to the browser as a download. */
 function downloadCsv(csv: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
 }
 
 /**
@@ -54,176 +62,271 @@ function downloadCsv(csv: string): void {
  * actors and targets, which is why the API gates the read at all.
  */
 export default function SettingsAuditPage() {
-  const canRead = useCan('audit:read')
-  const canExport = useCan('audit:export')
-  const [action, setAction] = useState('')
-  const [actorId, setActorId] = useState('')
-  const [targetId, setTargetId] = useState('')
-  const [limit, setLimit] = useState<number>(50)
+    const canRead = useCan('audit:read')
+    const canExport = useCan('audit:export')
+    const [action, setAction] = useState('')
+    const [actorId, setActorId] = useState('')
+    const [targetId, setTargetId] = useState('')
+    const [limit, setLimit] = useState<number>(50)
 
-  const query = useAuditEvents({ action, actorId, targetId, limit }, { enabled: canRead })
-  const exportAudit = useAuditExport()
-  const rows = useMemo(() => query.data?.pages.flatMap((page) => page.data) ?? [], [query.data])
-
-  if (!canRead) {
-    return (
-      <Alert>
-        <ShieldAlert className="size-4" />
-        <AlertTitle>Not for this account</AlertTitle>
-        <AlertDescription>
-          Reading the audit log needs the <code>audit:read</code> capability.
-        </AlertDescription>
-      </Alert>
+    const query = useAuditEvents(
+        { action, actorId, targetId, limit },
+        { enabled: canRead }
     )
-  }
+    const exportAudit = useAuditExport()
+    const rows = useMemo(
+        () => query.data?.pages.flatMap((page) => page.data) ?? [],
+        [query.data]
+    )
 
-  const download = async () => {
-    try {
-      const result = await exportAudit.mutateAsync({ query: { action, actorId, limit: 5000 } })
-      downloadCsv(result.csv)
-      if (result.truncated) {
-        toast.warning(`Exported ${String(result.rows)} rows — the 5000-row cap applied. Narrow the filters for the rest.`)
-      }
-    } catch (error) {
-      toast.error(getErrorMessage(error))
+    if (!canRead) {
+        return (
+            <Alert>
+                <ShieldAlert className="size-4" />
+                <AlertTitle>Not for this account</AlertTitle>
+                <AlertDescription>
+                    Reading the audit log needs the <code>audit:read</code>{' '}
+                    capability.
+                </AlertDescription>
+            </Alert>
+        )
     }
-  }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Settings"
-        title="Audit log"
-        description="Every authentication and administration action the platform recorded: who did it, to whom, from where. Newest first."
-        badge={<Badge variant="secondary">{query.hasNextPage ? `${String(rows.length)}+` : String(rows.length)}</Badge>}
-      />
+    const download = async () => {
+        try {
+            const result = await exportAudit.mutateAsync({
+                query: { action, actorId, limit: 5000 },
+            })
+            downloadCsv(result.csv)
+            if (result.truncated) {
+                toast.warning(
+                    `Exported ${String(result.rows)} rows — the 5000-row cap applied. Narrow the filters for the rest.`
+                )
+            }
+        } catch (error) {
+            toast.error(getErrorMessage(error))
+        }
+    }
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>
-            Matching is exact. Leave a field empty to include every value; the last {limit} events are returned.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="min-w-48 flex-1">
-            <label className="mb-1 block text-sm font-medium" htmlFor="audit-action">
-              Action
-            </label>
-            <Input
-              id="audit-action"
-              list="audit-actions"
-              placeholder="role-change"
-              value={action}
-              onChange={(event) => { setAction(event.target.value) }}
+    return (
+        <div className="space-y-6">
+            <PageHeader
+                eyebrow="Settings"
+                title="Audit log"
+                description="Every authentication and administration action the platform recorded: who did it, to whom, from where. Newest first."
+                badge={
+                    <Badge variant="secondary">
+                        {query.hasNextPage
+                            ? `${String(rows.length)}+`
+                            : String(rows.length)}
+                    </Badge>
+                }
             />
-            <datalist id="audit-actions">
-              {AUTH_AUDIT_ACTIONS.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          </div>
-          <div className="min-w-48 flex-1">
-            <label className="mb-1 block text-sm font-medium" htmlFor="audit-actor">
-              Actor id
-            </label>
-            <Input id="audit-actor" value={actorId} onChange={(event) => { setActorId(event.target.value) }} />
-          </div>
-          <div className="min-w-48 flex-1">
-            <label className="mb-1 block text-sm font-medium" htmlFor="audit-target">
-              Target id
-            </label>
-            <Input id="audit-target" value={targetId} onChange={(event) => { setTargetId(event.target.value) }} />
-          </div>
-          <div className="w-32">
-            <label className="mb-1 block text-sm font-medium" htmlFor="audit-limit">
-              Limit
-            </label>
-            <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)) }}>
-              <SelectTrigger id="audit-limit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LIMITS.map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
-            <RefreshCw className={query.isFetching ? 'size-4 animate-spin' : 'size-4'} />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={() => void download()} disabled={exportAudit.isPending || !canExport}>
-            <Download className="size-4" />
-            Export all matching
-          </Button>
-        </CardContent>
-      </Card>
 
-      {query.isError ? (
-        <PageErrorState title="Could not read the audit log" message={getErrorMessage(query.error)} onRetry={() => void query.refetch()} />
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            {query.isLoading ? (
-              <div className="space-y-2 p-6">
-                {Array.from({ length: 5 }, (_, index) => (
-                  <Skeleton key={index} className="h-9 w-full" />
-                ))}
-              </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Filters</CardTitle>
+                    <CardDescription>
+                        Matching is exact. Leave a field empty to include every
+                        value; the last {limit} events are returned.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-end gap-3">
+                    <div className="min-w-48 flex-1">
+                        <label
+                            className="mb-1 block text-sm font-medium"
+                            htmlFor="audit-action"
+                        >
+                            Action
+                        </label>
+                        <Input
+                            id="audit-action"
+                            list="audit-actions"
+                            placeholder="role-change"
+                            value={action}
+                            onChange={(event) => {
+                                setAction(event.target.value)
+                            }}
+                        />
+                        <datalist id="audit-actions">
+                            {AUTH_AUDIT_ACTIONS.map((name) => (
+                                <option key={name} value={name} />
+                            ))}
+                        </datalist>
+                    </div>
+                    <div className="min-w-48 flex-1">
+                        <label
+                            className="mb-1 block text-sm font-medium"
+                            htmlFor="audit-actor"
+                        >
+                            Actor id
+                        </label>
+                        <Input
+                            id="audit-actor"
+                            value={actorId}
+                            onChange={(event) => {
+                                setActorId(event.target.value)
+                            }}
+                        />
+                    </div>
+                    <div className="min-w-48 flex-1">
+                        <label
+                            className="mb-1 block text-sm font-medium"
+                            htmlFor="audit-target"
+                        >
+                            Target id
+                        </label>
+                        <Input
+                            id="audit-target"
+                            value={targetId}
+                            onChange={(event) => {
+                                setTargetId(event.target.value)
+                            }}
+                        />
+                    </div>
+                    <div className="w-32">
+                        <label
+                            className="mb-1 block text-sm font-medium"
+                            htmlFor="audit-limit"
+                        >
+                            Limit
+                        </label>
+                        <Select
+                            value={String(limit)}
+                            onValueChange={(value) => {
+                                setLimit(Number(value))
+                            }}
+                        >
+                            <SelectTrigger id="audit-limit">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {LIMITS.map((size) => (
+                                    <SelectItem key={size} value={String(size)}>
+                                        {size}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Button
+                        variant="outline"
+                        onClick={() => void query.refetch()}
+                        disabled={query.isFetching}
+                    >
+                        <RefreshCw
+                            className={
+                                query.isFetching
+                                    ? 'size-4 animate-spin'
+                                    : 'size-4'
+                            }
+                        />
+                        Refresh
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={() => void download()}
+                        disabled={exportAudit.isPending || !canExport}
+                    >
+                        <Download className="size-4" />
+                        Export all matching
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {query.isError ? (
+                <PageErrorState
+                    title="Could not read the audit log"
+                    message={getErrorMessage(query.error)}
+                    onRetry={() => void query.refetch()}
+                />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>When</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Actor</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Detail</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="whitespace-nowrap text-sm">{row.createdAt.toLocaleString()}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.action}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.actorId ?? '—'}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.targetId ?? '—'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{row.ip ?? '—'}</TableCell>
-                      <TableCell className="max-w-72 truncate font-mono text-xs" title={JSON.stringify(row.detail)}>
-                        {Object.keys(row.detail).length === 0 ? '—' : JSON.stringify(row.detail)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {rows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                        No events match these filters.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
+                <Card>
+                    <CardContent className="p-0">
+                        {query.isLoading ? (
+                            <div className="space-y-2 p-6">
+                                {Array.from({ length: 5 }, (_, index) => (
+                                    <Skeleton
+                                        key={index}
+                                        className="h-9 w-full"
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>When</TableHead>
+                                        <TableHead>Action</TableHead>
+                                        <TableHead>Actor</TableHead>
+                                        <TableHead>Target</TableHead>
+                                        <TableHead>Source</TableHead>
+                                        <TableHead>Detail</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {rows.map((row) => (
+                                        <TableRow key={row.id}>
+                                            <TableCell className="text-sm whitespace-nowrap">
+                                                {row.createdAt.toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">
+                                                {row.action}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">
+                                                {row.actorId ?? '—'}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">
+                                                {row.targetId ?? '—'}
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground text-xs">
+                                                {row.ip ?? '—'}
+                                            </TableCell>
+                                            <TableCell
+                                                className="max-w-72 truncate font-mono text-xs"
+                                                title={JSON.stringify(
+                                                    row.detail
+                                                )}
+                                            >
+                                                {Object.keys(row.detail)
+                                                    .length === 0
+                                                    ? '—'
+                                                    : JSON.stringify(
+                                                          row.detail
+                                                      )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {rows.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={6}
+                                                className="text-muted-foreground py-8 text-center text-sm"
+                                            >
+                                                No events match these filters.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </CardContent>
+                </Card>
             )}
-          </CardContent>
-        </Card>
-      )}
 
-      {query.hasNextPage ? (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => void query.fetchNextPage()}
-            disabled={query.isFetchingNextPage}
-          >
-            {query.isFetchingNextPage ? 'Loading older events…' : 'Load older events'}
-          </Button>
+            {query.hasNextPage ? (
+                <div className="flex justify-center">
+                    <Button
+                        variant="outline"
+                        onClick={() => void query.fetchNextPage()}
+                        disabled={query.isFetchingNextPage}
+                    >
+                        {query.isFetchingNextPage
+                            ? 'Loading older events…'
+                            : 'Load older events'}
+                    </Button>
+                </div>
+            ) : null}
         </div>
-      ) : null}
-    </div>
-  )
+    )
 }

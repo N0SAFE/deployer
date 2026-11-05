@@ -1,11 +1,11 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 import {
     deploymentEnvironmentSchema,
     deploymentPhaseSchema,
     deploymentStatusSchema,
     rollbackStatusSchema,
     sourceTypeSchema,
-} from "@deployer/contracts-common";
+} from '@deployer/contracts-common'
 
 export {
     deploymentEnvironmentSchema,
@@ -13,14 +13,14 @@ export {
     deploymentStatusSchema,
     rollbackStatusSchema,
     sourceTypeSchema,
-} from "@deployer/contracts-common";
+} from '@deployer/contracts-common'
 export type {
     DeploymentEnvironment,
     DeploymentPhase,
     DeploymentStatus,
     RollbackStatus,
     SourceType,
-} from "@deployer/contracts-common";
+} from '@deployer/contracts-common'
 
 export const deploymentObservabilityContextSchema = z.object({
     correlationId: z.string().min(1),
@@ -28,8 +28,10 @@ export const deploymentObservabilityContextSchema = z.object({
     spanId: z.string().min(1).optional(),
     parentSpanId: z.string().min(1).optional(),
     source: z.string().min(1).optional(),
-});
-export type DeploymentObservabilityContext = z.infer<typeof deploymentObservabilityContextSchema>;
+})
+export type DeploymentObservabilityContext = z.infer<
+    typeof deploymentObservabilityContextSchema
+>
 
 export const deploymentExecutionProgressSchema = z.object({
     overallPercent: z.number().int().min(0).max(100),
@@ -38,16 +40,20 @@ export const deploymentExecutionProgressSchema = z.object({
     completedNodes: z.number().int().min(0).optional(),
     activeNodeId: z.string().min(1).optional(),
     etaSeconds: z.number().int().min(0).optional(),
-});
-export type DeploymentExecutionProgress = z.infer<typeof deploymentExecutionProgressSchema>;
+})
+export type DeploymentExecutionProgress = z.infer<
+    typeof deploymentExecutionProgressSchema
+>
 
 export const deploymentConnectivityStatusSchema = z.enum([
-    "connected",
-    "degraded",
-    "reconnecting",
-    "disconnected",
-]);
-export type DeploymentConnectivityStatus = z.infer<typeof deploymentConnectivityStatusSchema>;
+    'connected',
+    'degraded',
+    'reconnecting',
+    'disconnected',
+])
+export type DeploymentConnectivityStatus = z.infer<
+    typeof deploymentConnectivityStatusSchema
+>
 
 export const deploymentSchema = z.object({
     id: z.uuid(),
@@ -82,13 +88,13 @@ export const deploymentSchema = z.object({
     metadata: z.record(z.string(), z.unknown()).nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
-export type Deployment = z.infer<typeof deploymentSchema>;
+})
+export type Deployment = z.infer<typeof deploymentSchema>
 
 export const deploymentLogSchema = z.object({
     id: z.uuid(),
     deploymentId: z.uuid(),
-    level: z.enum(["info", "warn", "error", "debug"]),
+    level: z.enum(['info', 'warn', 'error', 'debug']),
     message: z.string(),
     phase: z.string().nullable(),
     step: z.string().nullable(),
@@ -99,25 +105,27 @@ export const deploymentLogSchema = z.object({
     spanId: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
     timestamp: z.string(),
-});
-export type DeploymentLog = z.infer<typeof deploymentLogSchema>;
+})
+export type DeploymentLog = z.infer<typeof deploymentLogSchema>
 
 export const deploymentStreamEventTypeSchema = z.enum([
-    "deploymentTriggered",
-    "statusChanged",
-    "phaseUpdated",
-    "logAppended",
-    "deploymentCancelled",
-    "rollbackStarted",
-    "rollbackCompleted",
-    "healthCheckUpdated",
-    "domainRouteUpdated",
-    "metricsSnapshot",
-    "connectivityChanged",
-    "progressSnapshot",
-    "nodeLifecycle",
-]);
-export type DeploymentStreamEventType = z.infer<typeof deploymentStreamEventTypeSchema>;
+    'deploymentTriggered',
+    'statusChanged',
+    'phaseUpdated',
+    'logAppended',
+    'deploymentCancelled',
+    'rollbackStarted',
+    'rollbackCompleted',
+    'healthCheckUpdated',
+    'domainRouteUpdated',
+    'metricsSnapshot',
+    'connectivityChanged',
+    'progressSnapshot',
+    'nodeLifecycle',
+])
+export type DeploymentStreamEventType = z.infer<
+    typeof deploymentStreamEventTypeSchema
+>
 
 export const deploymentStreamSchema = z.object({
     id: z.uuid(),
@@ -136,8 +144,8 @@ export const deploymentStreamSchema = z.object({
     createdBy: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
-export type DeploymentStream = z.infer<typeof deploymentStreamSchema>;
+})
+export type DeploymentStream = z.infer<typeof deploymentStreamSchema>
 
 export const deploymentRollbackSchema = z.object({
     id: z.uuid(),
@@ -153,5 +161,5 @@ export const deploymentRollbackSchema = z.object({
     metadata: z.record(z.string(), z.unknown()).nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
-export type DeploymentRollback = z.infer<typeof deploymentRollbackSchema>;
+})
+export type DeploymentRollback = z.infer<typeof deploymentRollbackSchema>

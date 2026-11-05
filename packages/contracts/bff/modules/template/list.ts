@@ -1,7 +1,12 @@
-import { deploymentTemplateSchema } from "@deployer/contracts-entities";
-import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { deploymentTemplateSchema } from '@deployer/contracts-entities'
+import {
+    createFilterConfig,
+    standard,
+    type ComputeInputSchema,
+    standardDomainErrorContracts,
+} from '@deployer/orpc-utils'
 
-const templateOps = standard.zod(deploymentTemplateSchema, "deploymentTemplate");
+const templateOps = standard.zod(deploymentTemplateSchema, 'deploymentTemplate')
 
 const templateListConfig = createFilterConfig(templateOps)
     .withPagination({
@@ -9,10 +14,13 @@ const templateListConfig = createFilterConfig(templateOps)
         maxLimit: 100,
         includeOffset: true,
     } as const)
-    .withSorting(["createdAt", "updatedAt", "name", "key", "version"] as const, {
-        defaultField: "updatedAt",
-        defaultDirection: "desc",
-    })
+    .withSorting(
+        ['createdAt', 'updatedAt', 'name', 'key', 'version'] as const,
+        {
+            defaultField: 'updatedAt',
+            defaultDirection: 'desc',
+        }
+    )
     .withFiltering({
         id: deploymentTemplateSchema.shape.id,
         kind: deploymentTemplateSchema.shape.kind,
@@ -20,29 +28,34 @@ const templateListConfig = createFilterConfig(templateOps)
         status: deploymentTemplateSchema.shape.status,
         key: {
             schema: deploymentTemplateSchema.shape.key,
-            operators: ["eq", "like", "ilike"] as const,
+            operators: ['eq', 'like', 'ilike'] as const,
         },
         name: {
             schema: deploymentTemplateSchema.shape.name,
-            operators: ["eq", "like", "ilike"] as const,
+            operators: ['eq', 'like', 'ilike'] as const,
         },
         version: {
             schema: deploymentTemplateSchema.shape.version,
-            operators: ["eq", "like"] as const,
+            operators: ['eq', 'like'] as const,
         },
         createdAt: {
             schema: deploymentTemplateSchema.shape.createdAt,
-            operators: ["gt", "gte", "lt", "lte", "between"] as const,
+            operators: ['gt', 'gte', 'lt', 'lte', 'between'] as const,
         },
         updatedAt: {
             schema: deploymentTemplateSchema.shape.updatedAt,
-            operators: ["gt", "gte", "lt", "lte", "between"] as const,
+            operators: ['gt', 'gte', 'lt', 'lte', 'between'] as const,
         },
     })
-    .buildConfig();
+    .buildConfig()
 
-export const templateListConfigSchemas = templateListConfig;
+export const templateListConfigSchemas = templateListConfig
 
-export const templateListContract = templateOps.list(templateListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
+export const templateListContract = templateOps
+    .list(templateListConfig)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()
 
-export type TemplateListInput = ComputeInputSchema<typeof templateListConfigSchemas>;
+export type TemplateListInput = ComputeInputSchema<
+    typeof templateListConfigSchemas
+>

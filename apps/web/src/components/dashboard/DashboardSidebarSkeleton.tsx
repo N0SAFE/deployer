@@ -1,27 +1,27 @@
 'use client'
 
-import { 
-  Home, 
-  LayoutDashboard,
-  FolderKanban,
-  Server,
-  Rocket,
-  UserCircle,
+import {
+    Home,
+    LayoutDashboard,
+    FolderKanban,
+    Server,
+    Rocket,
+    UserCircle,
 } from 'lucide-react'
 
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-  SidebarSeparator,
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarGroupLabel,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarRail,
+    SidebarSeparator,
 } from '@deployer/ui/components/shadcn/sidebar'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 
@@ -29,104 +29,108 @@ import { Home as HomeRoute } from '@/routes'
 
 /**
  * DashboardSidebarSkeleton - Static skeleton for the dashboard sidebar
- * 
+ *
  * Used as a Suspense fallback during prerendering when useSession() is not available.
  * Shows the basic structure without session-dependent content like:
  * - Admin section (requires role check)
  * - User avatar and info in footer
  */
 export function DashboardSidebarSkeleton() {
-  return (
-    <Sidebar collapsible="icon">
-      {/* Header */}
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <HomeRoute.Link>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Home className="size-4" />
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Dashboard</span>
-                  <span className="text-xs text-muted-foreground">Manage your workspace</span>
-                </div>
-              </HomeRoute.Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
+    return (
+        <Sidebar collapsible="icon">
+            {/* Header */}
+            <SidebarHeader>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton size="lg" asChild>
+                            <HomeRoute.Link>
+                                <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                                    <Home className="size-4" />
+                                </div>
+                                <div className="flex flex-col gap-0.5 leading-none">
+                                    <span className="font-semibold">
+                                        Dashboard
+                                    </span>
+                                    <span className="text-muted-foreground text-xs">
+                                        Manage your workspace
+                                    </span>
+                                </div>
+                            </HomeRoute.Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarHeader>
 
-      <SidebarContent>
-        {/* Main Navigation - Static items */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Overview">
-                  <LayoutDashboard />
-                  <span>Overview</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Projects">
-                  <FolderKanban />
-                  <span>Projects</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Services">
-                  <Server />
-                  <span>Services</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Deployments">
-                  <Rocket />
-                  <span>Deployments</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            <SidebarContent>
+                {/* Main Navigation - Static items */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Overview">
+                                    <LayoutDashboard />
+                                    <span>Overview</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Projects">
+                                    <FolderKanban />
+                                    <span>Projects</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Services">
+                                    <Server />
+                                    <span>Services</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Deployments">
+                                    <Rocket />
+                                    <span>Deployments</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
 
-        {/* Admin Section - Hidden in skeleton (requires session) */}
+                {/* Admin Section - Hidden in skeleton (requires session) */}
 
-        {/* Account Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Profile">
-                  <UserCircle />
-                  <span>Profile</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+                {/* Account Section */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Account</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton tooltip="Profile">
+                                    <UserCircle />
+                                    <span>Profile</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            </SidebarContent>
 
-      <SidebarSeparator />
+            <SidebarSeparator />
 
-      {/* User Footer - Loading skeleton */}
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="cursor-default">
-              <Skeleton className="h-8 w-8 rounded-lg" />
-              <div className="grid flex-1 gap-1.5">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-32" />
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+            {/* User Footer - Loading skeleton */}
+            <SidebarFooter>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton size="lg" className="cursor-default">
+                            <Skeleton className="h-8 w-8 rounded-lg" />
+                            <div className="grid flex-1 gap-1.5">
+                                <Skeleton className="h-4 w-24" />
+                                <Skeleton className="h-3 w-32" />
+                            </div>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarFooter>
 
-      <SidebarRail />
-    </Sidebar>
-  )
+            <SidebarRail />
+        </Sidebar>
+    )
 }

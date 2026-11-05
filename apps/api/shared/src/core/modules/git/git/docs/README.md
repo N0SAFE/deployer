@@ -8,10 +8,12 @@
 **This module is scheduled to be merged into the Providers module.**
 
 The Git functionality should become part of a unified `GitHubProviderModule` that combines:
+
 - Git repository operations (clone, extract, commit info)
 - GitHub API operations (webhooks, OAuth, deployments)
 
-**See**: 
+**See**:
+
 - [ARCHITECTURE.md](./ARCHITECTURE.md) for the migration plan
 - [CRITICAL-ISSUES.md](../../docs/CRITICAL-ISSUES.md#-issue-3-gitgithub-modules-scattered-responsibility) for tracking
 
@@ -26,26 +28,26 @@ The Git module provides basic Git repository operations for deployments:
 
 ## Services Provided
 
-| Service | Description |
-|---------|-------------|
+| Service      | Description                                   |
+| ------------ | --------------------------------------------- |
 | `GitService` | Git repository and file extraction operations |
 
 ## Quick Start
 
 ```typescript
-import { GitService } from '@/core/modules/git/services/git.service';
+import { GitService } from '@/core/modules/git/services/git.service'
 
 @Injectable()
 export class MyService {
-  constructor(private readonly gitService: GitService) {}
+    constructor(private readonly gitService: GitService) {}
 
-  async cloneRepo() {
-    const repoPath = await this.gitService.cloneRepository({
-      url: 'https://github.com/user/repo.git',
-      branch: 'main',
-      deploymentId: 'deploy-123',
-    });
-  }
+    async cloneRepo() {
+        const repoPath = await this.gitService.cloneRepository({
+            url: 'https://github.com/user/repo.git',
+            branch: 'main',
+            deploymentId: 'deploy-123',
+        })
+    }
 }
 ```
 
@@ -65,16 +67,18 @@ async cloneRepository(options: {
 ```
 
 **Parameters:**
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `url` | `string` | - | Repository URL |
-| `branch` | `string` | `'main'` | Branch to clone |
-| `commit` | `string` | - | Specific commit SHA to checkout |
-| `deploymentId` | `string` | - | Deployment ID (used for directory name) |
+
+| Name           | Type     | Default  | Description                             |
+| -------------- | -------- | -------- | --------------------------------------- |
+| `url`          | `string` | -        | Repository URL                          |
+| `branch`       | `string` | `'main'` | Branch to clone                         |
+| `commit`       | `string` | -        | Specific commit SHA to checkout         |
+| `deploymentId` | `string` | -        | Deployment ID (used for directory name) |
 
 **Returns:** Path to the cloned repository
 
 **Implementation Details:**
+
 - Uses shallow clone (`--depth 1`) for efficiency
 - Cleans up existing directory if present
 - Supports commit checkout after clone
@@ -93,6 +97,7 @@ async extractUploadedFile(options: {
 ```
 
 **Supported Formats:**
+
 - `.zip` - Uses `unzip` command
 - `.tar` - Uses tar-stream library
 - `.gz`, `.tgz` - Uses tar-stream with gzip decompression
@@ -138,13 +143,13 @@ async validateRepository(url: string): Promise<boolean>
 
 ## Configuration
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `WORKSPACE_DIR` | `/tmp/deployer-workspace` | Base directory for cloned repositories |
+| Environment Variable | Default                   | Description                            |
+| -------------------- | ------------------------- | -------------------------------------- |
+| `WORKSPACE_DIR`      | `/tmp/deployer-workspace` | Base directory for cloned repositories |
 
 ## Documentation Index
 
-| Document | Description |
-|----------|-------------|
+| Document                             | Description                             |
+| ------------------------------------ | --------------------------------------- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Current architecture and migration plan |
-| [MIGRATION.md](./MIGRATION.md) | Steps to migrate to Providers module |
+| [MIGRATION.md](./MIGRATION.md)       | Steps to migrate to Providers module    |

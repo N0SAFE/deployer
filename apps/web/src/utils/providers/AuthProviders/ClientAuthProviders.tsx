@@ -17,7 +17,7 @@ configureClientAuth({
             data: session.data ?? null,
             // useSession may return either isPending (Better Auth native) or isLoading (our bridge)
             // We need to handle both cases
-            isPending: ('isPending' in session ? session.isPending : false),
+            isPending: 'isPending' in session ? session.isPending : false,
             refetch: session.refetch,
         }
     },
@@ -27,7 +27,9 @@ configureClientAuth({
  * Client-side auth providers wrapper.
  * Configures the auth adapter for declarative routing.
  */
-export const ClientAuthProviders: React.FC<React.PropsWithChildren> = ({ children }) => {
+export const ClientAuthProviders: React.FC<React.PropsWithChildren> = ({
+    children,
+}) => {
     // No longer need SessionBridgeProvider - useSession from createSessionAwareAuthClient
     // automatically subscribes to React Query cache for hydrated session data
     return <>{children}</>

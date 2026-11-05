@@ -1,23 +1,21 @@
-import { scryptSync } from "crypto";
+import { scryptSync } from 'crypto'
 
-import { Logger } from "@nestjs/common";
-import { Redacted } from "effect";
+import { Logger } from '@nestjs/common'
+import { Redacted } from 'effect'
 
-import { runSyncUnwrapped } from "@deployer/effect-core";
-import { makeSyncSecretBox } from "@deployer/effect-infra";
-import { validateApiEnvPath } from "@deployer/env";
+import { runSyncUnwrapped } from '@deployer/effect-core'
+import { makeSyncSecretBox } from '@deployer/effect-infra'
+import { validateApiEnvPath } from '@deployer/env'
 import {
-	configureSchemaCodecs,
-	type EncryptedTextKeyProvider,
-	type EncryptedTextSealer,
-	type TraefikConfigCodec,
-} from "@deployer/nest-schema/codecs/codec-registry";
+    configureSchemaCodecs,
+    type EncryptedTextKeyProvider,
+    type EncryptedTextSealer,
+    type TraefikConfigCodec,
+} from '@deployer/nest-schema/codecs/codec-registry'
 
-import { TraefikConfigBuilder } from "../../core/modules/traefik/config-builder/builders";
+import { TraefikConfigBuilder } from '../../core/modules/traefik/config-builder/builders'
 
-const logger = new Logger("SchemaCodecs");
-
-
+const logger = new Logger('SchemaCodecs')
 
 /**
  * The APP half of the schema codecs: where the encryption key comes from, and
@@ -47,41 +45,43 @@ const logger = new Logger("SchemaCodecs");
  * schema's message rather than a cryptic crypto error later.
  */
 const legacyKeyProvider: EncryptedTextKeyProvider = {
-	resolveKey(): Buffer {
-		// `AUTH_SECRET` is OPTIONAL in the shared env schema, so the validated
-		// value can legitimately be undefined — that is the "not configured"
-		// case the fallback below handles, not an invariant to assert.
-		const secret = process.env.AUTH_SECRET
-			? validateApiEnvPath(process.env.AUTH_SECRET, "AUTH_SECRET")
-			: undefined;
-		if (secret !== undefined && secret !== "") {
-			return Buffer.from(secret, "hex");
-		}
+    resolveKey(): Buffer {
+        // `AUTH_SECRET` is OPTIONAL in the shared env schema, so the validated
+        // value can legitimately be undefined — that is the "not configured"
+        // case the fallback below handles, not an invariant to assert.
+        const secret = process.env.AUTH_SECRET
+            ? validateApiEnvPath(process.env.AUTH_SECRET, 'AUTH_SECRET')
+            : undefined
+        if (secret !== undefined && secret !== '') {
+            return Buffer.from(secret, 'hex')
+        }
 
-		// Fail fast: never run production with an in-source fallback key — any
-		// ciphertext written under it is trivially decryptable.
-		if (process.env.NODE_ENV === "production") {
-			throw new Error("Encryption key (AUTH_SECRET) is required in production — refusing to boot");
-		}
+        // Fail fast: never run production with an in-source fallback key — any
+        // ciphertext written under it is trivially decryptable.
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error(
+                'Encryption key (AUTH_SECRET) is required in production — refusing to boot'
+            )
+        }
 
-		logger.warn(
-			"⚠️  AUTH_SECRET not found. PRODUCTION WILL REFUSE TO BOOT — this shows because " +
-				"non-production environments (dev/test) use a temporary key, which is NOT secure. " +
-				'Generate a key with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
-		);
-		return scryptSync("temporary-fallback-key", "salt", 32);
-	},
-};
+        logger.warn(
+            '⚠️  AUTH_SECRET not found. PRODUCTION WILL REFUSE TO BOOT — this shows because ' +
+                'non-production environments (dev/test) use a temporary key, which is NOT secure. ' +
+                "Generate a key with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+        )
+        return scryptSync('temporary-fallback-key', 'salt', 32)
+    },
+}
 
 /** Root used when NO secret is configured outside production. It is public: never a real key. */
-const INSECURE_DEV_ROOT = "insecure-dev-root-secret-never-use-in-production";
+const INSECURE_DEV_ROOT = 'insecure-dev-root-secret-never-use-in-production'
 
 /** The slice of the environment the sealer policy reads. */
 export type SealerEnv = {
-	readonly DEPLOYER_ROOT_SECRET?: string | undefined;
-	readonly AUTH_SECRET?: string | undefined;
-	readonly NODE_ENV?: string | undefined;
-};
+    readonly DEPLOYER_ROOT_SECRET?: string | undefined
+    readonly AUTH_SECRET?: string | undefined
+    readonly NODE_ENV?: string | undefined
+}
 
 /**
  * Build the sealing codec: the policy for the key that protects NEW writes (SEC-016).
@@ -93,37 +93,58 @@ export type SealerEnv = {
  * working (a random per-process key would make dev data unreadable after a restart).
  */
 export function resolveSealer(env: SealerEnv): EncryptedTextSealer {
-	const configured = [env.DEPLOYER_ROOT_SECRET?.trim(), env.AUTH_SECRET?.trim()].find(
-		(value) => value !== undefined && value.length > 0,
-	);
-	const production = env.NODE_ENV === "production";
-	const fix = "Set DEPLOYER_ROOT_SECRET to at least 32 random characters (for example `openssl rand -base64 48`)";
+    const configured = [
+        env.DEPLOYER_ROOT_SECRET?.trim(),
+        env.AUTH_SECRET?.trim(),
+    ].find((value) => value !== undefined && value.length > 0)
+    const production = env.NODE_ENV === 'production'
+    const fix =
+        'Set DEPLOYER_ROOT_SECRET to at least 32 random characters (for example `openssl rand -base64 48`)'
 
-	if (configured === undefined) {
-		if (production) {
-			throw new Error(`Encryption root secret is required in production: ${fix} — refusing to boot`);
-		}
-		logger.warn("⚠️  No DEPLOYER_ROOT_SECRET/AUTH_SECRET: using a PUBLIC dev root. Production will refuse to boot.");
-		return sealerFor(INSECURE_DEV_ROOT, true);
-	}
+    if (configured === undefined) {
+        if (production) {
+            throw new Error(
+                `Encryption root secret is required in production: ${fix} — refusing to boot`
+            )
+        }
+        logger.warn(
+            '⚠️  No DEPLOYER_ROOT_SECRET/AUTH_SECRET: using a PUBLIC dev root. Production will refuse to boot.'
+        )
+        return sealerFor(INSECURE_DEV_ROOT, true)
+    }
 
-	try {
-		return sealerFor(configured, false);
-	} catch (error) {
-		if ((error as { _tag?: string })._tag !== "WeakRootSecret") throw error;
-		const reason = error instanceof Error ? error.message : "weak secret";
-		if (production) {
-			throw new Error(`Encryption root secret rejected (${reason}). ${fix} — refusing to boot`);
-		}
-		logger.warn(`⚠️  Encryption root secret is weak (${reason}); allowed outside production only.`);
-		return sealerFor(configured, true);
-	}
+    try {
+        return sealerFor(configured, false)
+    } catch (error) {
+        if ((error as { _tag?: string })._tag !== 'WeakRootSecret') throw error
+        const reason = error instanceof Error ? error.message : 'weak secret'
+        if (production) {
+            throw new Error(
+                `Encryption root secret rejected (${reason}). ${fix} — refusing to boot`
+            )
+        }
+        logger.warn(
+            `⚠️  Encryption root secret is weak (${reason}); allowed outside production only.`
+        )
+        return sealerFor(configured, true)
+    }
 }
 
-function sealerFor(root: string, allowInsecureRoot: boolean): EncryptedTextSealer {
-	const box = runSyncUnwrapped(makeSyncSecretBox({ rootSecret: Redacted.make(root), allowInsecureRoot }));
-	// A drizzle column codec is synchronous, so the Effects run here, at the codec boundary.
-	return { seal: (plaintext) => runSyncUnwrapped(box.seal(plaintext)), open: (stored) => runSyncUnwrapped(box.open(stored)) };
+function sealerFor(
+    root: string,
+    allowInsecureRoot: boolean
+): EncryptedTextSealer {
+    const box = runSyncUnwrapped(
+        makeSyncSecretBox({
+            rootSecret: Redacted.make(root),
+            allowInsecureRoot,
+        })
+    )
+    // A drizzle column codec is synchronous, so the Effects run here, at the codec boundary.
+    return {
+        seal: (plaintext) => runSyncUnwrapped(box.seal(plaintext)),
+        open: (stored) => runSyncUnwrapped(box.open(stored)),
+    }
 }
 
 /**
@@ -133,24 +154,26 @@ function sealerFor(root: string, allowInsecureRoot: boolean): EncryptedTextSeale
  * is what the column receives depending on the driver path.
  */
 const traefikConfigCodec: TraefikConfigCodec<TraefikConfigBuilder> = {
-	// `load` accepts a stored JSON string OR an already-parsed object, which is
-	// what the column receives depending on the driver path.
-	load: (value: string | object) =>
-		TraefikConfigBuilder.load(typeof value === "string" ? value : JSON.stringify(value)),
-	empty: () => new TraefikConfigBuilder(),
-	build: (builder: TraefikConfigBuilder) => builder.build(),
-};
+    // `load` accepts a stored JSON string OR an already-parsed object, which is
+    // what the column receives depending on the driver path.
+    load: (value: string | object) =>
+        TraefikConfigBuilder.load(
+            typeof value === 'string' ? value : JSON.stringify(value)
+        ),
+    empty: () => new TraefikConfigBuilder(),
+    build: (builder: TraefikConfigBuilder) => builder.build(),
+}
 
 /**
  * Wire the schema codecs. MUST run before the first query touches an encrypted
  * or traefik-config column; the package throws a named error if it does not.
  */
 export function registerSchemaCodecs(): void {
-	configureSchemaCodecs({
-		// Reads of rows written by the old codec.
-		encryption: legacyKeyProvider,
-		// Every write, and every read of a sealed value. Built eagerly so a weak root fails at boot.
-		sealing: resolveSealer(process.env),
-		traefik: traefikConfigCodec,
-	});
+    configureSchemaCodecs({
+        // Reads of rows written by the old codec.
+        encryption: legacyKeyProvider,
+        // Every write, and every read of a sealed value. Built eagerly so a weak root fails at boot.
+        sealing: resolveSealer(process.env),
+        traefik: traefikConfigCodec,
+    })
 }

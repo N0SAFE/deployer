@@ -60,7 +60,10 @@ export function getZodObjectShallowDefaults<T extends z.ZodObject>(
 
     for (const [key, fieldSchema] of Object.entries(shape)) {
         const explicit = getZodDefault(fieldSchema as z.ZodType)
-        defaults[key] = explicit !== undefined ? explicit : getEmptyPrimitive(fieldSchema as z.ZodType)
+        defaults[key] =
+            explicit !== undefined
+                ? explicit
+                : getEmptyPrimitive(fieldSchema as z.ZodType)
     }
 
     return defaults as z.infer<T>
@@ -128,7 +131,10 @@ function getEmptyPrimitive(schema: z.ZodType): unknown {
 }
 
 function getEnumValues(schema: z.ZodType): unknown[] {
-    const def = schema as { options?: readonly unknown[]; enum?: readonly unknown[] }
+    const def = schema as {
+        options?: readonly unknown[]
+        enum?: readonly unknown[]
+    }
     if (Array.isArray(def.options)) return Array.from(def.options)
     if (Array.isArray(def.enum)) return Array.from(def.enum)
     const values = (schema as { _def?: { values?: unknown } })._def?.values

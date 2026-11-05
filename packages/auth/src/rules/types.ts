@@ -9,36 +9,47 @@
 // Resources & Actions
 // ---------------------------------------------------------------------------
 
-export type ProjectResource = "project" | "service" | "deployment" | "logs" | "webhook" | "apiKey" | "environment";
+export type ProjectResource =
+    | 'project'
+    | 'service'
+    | 'deployment'
+    | 'logs'
+    | 'webhook'
+    | 'apiKey'
+    | 'environment'
 
-export type ResourceAction = string;
+export type ResourceAction = string
 
 // ---------------------------------------------------------------------------
 // Scope types
 // ---------------------------------------------------------------------------
 
 export interface ResourceScopeAll {
-    type: "all";
+    type: 'all'
 }
 
 export interface ResourceScopeIds {
-    type: "ids";
-    values: string[];
+    type: 'ids'
+    values: string[]
 }
 
 export interface ResourceScopeCascade {
-    type: "cascade";
+    type: 'cascade'
     /** Which ancestor resource type to inherit access from. */
-    from: ProjectResource;
+    from: ProjectResource
 }
 
 export interface ResourceScopeFilter {
-    type: "filter";
+    type: 'filter'
     /** Directus-style JSON condition evaluated against a record. */
-    condition: DFilter;
+    condition: DFilter
 }
 
-export type ResourceScope = ResourceScopeAll | ResourceScopeIds | ResourceScopeCascade | ResourceScopeFilter;
+export type ResourceScope =
+    | ResourceScopeAll
+    | ResourceScopeIds
+    | ResourceScopeCascade
+    | ResourceScopeFilter
 
 // ---------------------------------------------------------------------------
 // DFilter — Directus-style JSON filter language
@@ -48,14 +59,14 @@ export type ResourceScope = ResourceScopeAll | ResourceScopeIds | ResourceScopeC
  * Any scalar value that a filter operator can compare against.
  * Matches what is safely serialisable to/from JSON.
  */
-export type FilterableScalar = string | number | boolean | null;
+export type FilterableScalar = string | number | boolean | null
 
 // ---------------------------------------------------------------------------
 // Variable — typed runtime variable reference
 // ---------------------------------------------------------------------------
 
 // Unique symbol — makes Variable a nominal type (prevents plain { name: "x" } from matching).
-declare const variableBrand: unique symbol;
+declare const variableBrand: unique symbol
 
 /**
  * A typed reference to a named runtime variable.
@@ -86,14 +97,14 @@ declare const variableBrand: unique symbol;
  */
 export class Variable<K extends string = string> {
     /** Nominal brand — carries K so that Variable<"$a"> ≠ Variable<"$b"> structurally. */
-    declare readonly [variableBrand]: K;
+    declare readonly [variableBrand]: K
 
     constructor(readonly name: K) {}
 }
 
 /** Returns `true` when `v` is a `Variable` instance (any key-type). */
 export function isVariable(v: unknown): v is Variable {
-    return v instanceof Variable;
+    return v instanceof Variable
 }
 
 /**
@@ -111,8 +122,8 @@ export function isVariable(v: unknown): v is Variable {
  * ```
  */
 export type VarKeysFor<TVars extends object, T> = {
-    [K in keyof TVars & string]: TVars[K] extends T ? K : never;
-}[keyof TVars & string];
+    [K in keyof TVars & string]: TVars[K] extends T ? K : never
+}[keyof TVars & string]
 
 /**
  * Either a literal value `T` or a `Variable` whose `TVars`-lookup is type-compatible with `T`.
@@ -123,7 +134,7 @@ export type VarKeysFor<TVars extends object, T> = {
  * disallowing any Variable there.
  */
 export type OrVar<T, TVars extends object = object> =
-    T | Variable<VarKeysFor<TVars, T>>;
+    T | Variable<VarKeysFor<TVars, T>>
 
 /**
  * Per-field filter operators.
@@ -134,26 +145,33 @@ export type OrVar<T, TVars extends object = object> =
  *                   Defaults to an open `Record<string, unknown>` (any variable name
  *                   allowed) so that unparameterised use still compiles.
  */
-export interface DFilterOperator<V = FilterableScalar, TVars extends object = object> {
+export interface DFilterOperator<
+    V = FilterableScalar,
+    TVars extends object = object,
+> {
     // Equality — scalar literal or Variable whose TVars value extends V
-    _eq?: V extends FilterableScalar ? OrVar<V, TVars> : OrVar<FilterableScalar, TVars>;
-    _neq?: V extends FilterableScalar ? OrVar<V, TVars> : OrVar<FilterableScalar, TVars>;
+    _eq?: V extends FilterableScalar
+        ? OrVar<V, TVars>
+        : OrVar<FilterableScalar, TVars>
+    _neq?: V extends FilterableScalar
+        ? OrVar<V, TVars>
+        : OrVar<FilterableScalar, TVars>
     // Inclusion — array literal or Variable whose TVars value extends V[]
-    _in?: OrVar<(V extends FilterableScalar ? V : FilterableScalar)[], TVars>;
-    _nin?: OrVar<(V extends FilterableScalar ? V : FilterableScalar)[], TVars>;
+    _in?: OrVar<(V extends FilterableScalar ? V : FilterableScalar)[], TVars>
+    _nin?: OrVar<(V extends FilterableScalar ? V : FilterableScalar)[], TVars>
     // Null checks — boolean only, no Variable
-    _null?: boolean;
-    _nnull?: boolean;
+    _null?: boolean
+    _nnull?: boolean
     // String operators — string literal or Variable whose TVars value extends string
-    _contains?: OrVar<string, TVars>;
-    _icontains?: OrVar<string, TVars>;
-    _starts_with?: OrVar<string, TVars>;
-    _ends_with?: OrVar<string, TVars>;
+    _contains?: OrVar<string, TVars>
+    _icontains?: OrVar<string, TVars>
+    _starts_with?: OrVar<string, TVars>
+    _ends_with?: OrVar<string, TVars>
     // Numeric comparisons — value or Variable whose TVars value extends number | string
-    _gt?: OrVar<number | string, TVars>;
-    _gte?: OrVar<number | string, TVars>;
-    _lt?: OrVar<number | string, TVars>;
-    _lte?: OrVar<number | string, TVars>;
+    _gt?: OrVar<number | string, TVars>
+    _gte?: OrVar<number | string, TVars>
+    _lt?: OrVar<number | string, TVars>
+    _lte?: OrVar<number | string, TVars>
 }
 
 /**
@@ -180,21 +198,31 @@ export interface DFilterOperator<V = FilterableScalar, TVars extends object = ob
  * ```
  */
 export type DFilter<
-    TSchema extends object = Record<string, FilterableScalar | FilterableScalar[]>,
+    TSchema extends object = Record<
+        string,
+        FilterableScalar | FilterableScalar[]
+    >,
     TVars extends object = DynamicVars,
 > = string extends keyof TSchema
     ? // Loose branch: TSchema has a string index (e.g. the default Record<string,…>).
       {
-          _and?: DFilter<TSchema, TVars>[];
-          _or?: DFilter<TSchema, TVars>[];
-      } & Record<string, DFilterOperator<FilterableScalar | FilterableScalar[], TVars> | DFilter<TSchema, TVars>[] | undefined>
+          _and?: DFilter<TSchema, TVars>[]
+          _or?: DFilter<TSchema, TVars>[]
+      } & Record<
+          string,
+          | DFilterOperator<FilterableScalar | FilterableScalar[], TVars>
+          | DFilter<TSchema, TVars>[]
+          | undefined
+      >
     : // Strict branch: TSchema has specific literal keys (concrete schema interface).
       {
-          _and?: DFilter<TSchema, TVars>[];
-          _or?: DFilter<TSchema, TVars>[];
+          _and?: DFilter<TSchema, TVars>[]
+          _or?: DFilter<TSchema, TVars>[]
       } & {
-          [K in keyof TSchema as K extends "_and" | "_or" ? never : K]?: DFilterOperator<TSchema[K & keyof TSchema], TVars>;
-      };
+          [
+              K in keyof TSchema as K extends '_and' | '_or' ? never : K
+          ]?: DFilterOperator<TSchema[K & keyof TSchema], TVars>
+      }
 
 // ---------------------------------------------------------------------------
 // ResourceRule — the core unit stored in role_rules.resource_rules JSONB
@@ -202,23 +230,23 @@ export type DFilter<
 
 export interface ResourceRule {
     /** Target resource type, or "*" for all resources. */
-    resource: ProjectResource | "*";
+    resource: ProjectResource | '*'
     /** Target action(s), or "*" for all actions. */
-    actions: ResourceAction[] | "*";
+    actions: ResourceAction[] | '*'
     /** Scope constraint restricting which instances this rule applies to. */
-    scope: ResourceScope;
+    scope: ResourceScope
     /**
      * If true, this rule explicitly denies the action.
      * Deny rules with higher priority override allow rules.
      * Ties: deny wins over allow.
      * Default: false (allow).
      */
-    deny?: boolean;
+    deny?: boolean
     /**
      * Priority for conflict resolution. Higher number = wins in tie-breaks.
      * Default: 0.
      */
-    priority?: number;
+    priority?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -227,31 +255,31 @@ export interface ResourceRule {
 
 /** Known dynamic variable keys that can be referenced in DFilterOperator. */
 export interface DynamicVars {
-    $currentUser: string;
-    $accessibleProjects: string[];
-    $accessibleServices: string[];
+    $currentUser: string
+    $accessibleProjects: string[]
+    $accessibleServices: string[]
 }
 
 export interface EngineContext {
-    userId: string;
+    userId: string
     /** User's platform-level role (e.g. "superAdmin", "admin", "user"). */
-    platformRole?: string;
+    platformRole?: string
     /**
      * Pre-resolved dynamic variables for filter evaluation.
      * At minimum $currentUser is auto-populated from userId.
      */
-    vars?: Partial<DynamicVars>;
+    vars?: Partial<DynamicVars>
 }
 
 // ---------------------------------------------------------------------------
 // Engine result types
 // ---------------------------------------------------------------------------
 
-export type PermissionDecision = "ALLOW" | "DENY";
+export type PermissionDecision = 'ALLOW' | 'DENY'
 
 export interface PermissionCheckResult {
-    decision: PermissionDecision;
+    decision: PermissionDecision
     /** The winning rule that produced this decision, if any. */
-    matchedRule?: ResourceRule;
-    reason: string;
+    matchedRule?: ResourceRule
+    reason: string
 }

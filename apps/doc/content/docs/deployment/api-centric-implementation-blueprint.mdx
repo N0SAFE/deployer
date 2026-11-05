@@ -4,16 +4,25 @@ description: File-by-file engineering spec for the API-centric deployment rewrit
 order: 22
 ---
 
-<DocMeta source="apps/doc/content/docs/deployment/api-centric-implementation-blueprint.mdx" scope="canonical" />
+<DocMeta
+    source="apps/doc/content/docs/deployment/api-centric-implementation-blueprint.mdx"
+    scope="canonical"
+/>
 
 <DocCallout title="Companion to the concept doc" tone="info">
-This page turns [API-Centric Deployment Architecture](/docs/deployment/api-centric-deployment-architecture) into an implementable engineering plan. The concept doc owns *what and why*; this blueprint owns *where and how*, grounded in the actual repository layout. Every original requirement is traceable in the [traceability matrix](#requirement-traceability).
+    This page turns [API-Centric Deployment
+    Architecture](/docs/deployment/api-centric-deployment-architecture) into an
+    implementable engineering plan. The concept doc owns *what and why*; this
+    blueprint owns *where and how*, grounded in the actual repository layout.
+    Every original requirement is traceable in the [traceability
+    matrix](#requirement-traceability).
 </DocCallout>
 
 <DocCallout title="Implementation status" tone="success">
 Landed and verified: supervisor framework (`core/modules/supervisors/` + `BaseDockerSupervisorService`), platform Traefik via the config-builder (file provider, self-network-attach), managed-web supervisor with flag-driven lifecycle + token provisioning shortcut, `/manage/web-app` console, `app_instances` schema + migration 0027, platform contracts + ORPC middlewares, web-side identity bootstrap + client plugin, BYO compose template, three-tier compose wiring (dev/prod-like compose-managed web, prod API-owned web), gateway CORS relaxation via `resolveCorsDecision`, **e2e suite for the BYO app-instance lifecycle (6/6 passing against a real API + Postgres)**, and the scripted real-docker gate `scripts/local-gate-api-centric.sh` covering prod-boot and side-by-side flows.
 
 Architecture note: per-request identity verification lives in `AppInstancePlugin` — a server handler plugin mirroring `AuthPlugin` — because ORPC `context.request` is only the boot-time initial context; the plugin reads the real per-request headers via its root interceptor and populates `context.appInstance`.
+
 </DocCallout>
 
 ## Table of contents
@@ -36,24 +45,24 @@ Architecture note: per-request identity verification lives in `AppInstancePlugin
 
 The rewrite reuses machinery that already exists. Implementation must extend these, never duplicate them:
 
-| Existing asset | Path | Reuse in this rewrite |
-|---|---|---|
-| Express gateway + CORS + health | `apps/api/src/main.ts` | App-token middleware slots into the same middleware chain; CORS policy replaced per Workstream C |
-| Sub-app orchestrator | `apps/api/src/core/orchestrator/orchestrator.service.ts` | Platform supervisors join the bootstrap sequence as lifecycle participants |
-| Postgres auto-provisioning via dockerode | `apps/api/shared/src/core/modules/setup/services/local-initialization.service.ts` | The dockerode access pattern (client acquisition, pull/create/start, probe) is the template for both new supervisors |
-| User-project Traefik domain | `apps/api/shared/src/core/modules/traefik/` (config-builder, validation, sync services) | **Different concern** (see boundaries below). Potential later reuse of validation/middleware-library; not a dependency for Phase 1 |
-| Contract aggregation | `packages/contracts/api/index.ts` (`oc.router`) | New `platform` contract group registered here |
-| Contract modules convention | `packages/contracts/api/modules/<domain>/` | Home of the new app-instance contracts |
-| Env schema (Zod, single SSOT) | `packages/config/env/src/index.ts` | All new env vars declared here (`API_PORT`, `TRUSTED_ORIGINS`, `SETUP_AUTO` already live there) |
-| Global platform config tables | `packages/nest/schema/src/global/platform/app-config.ts` | Candidate store for the managed-web flag (verify key/value shape in Phase 0) |
-| Drizzle schema + migrations flow | `apps/api/src/db/drizzle/schema/`, generate → review → migrate | New `app_instances` table follows this exact flow |
-| Better Auth wiring + trustedOrigins | `apps/api/shared/src/core/modules/auth/auth.module.ts`, `apps/api/shared/src/auth.ts` | User-auth layer untouched; trustedOrigins cross-origin role removed |
+| Existing asset                           | Path                                                                                    | Reuse in this rewrite                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Express gateway + CORS + health          | `apps/api/src/main.ts`                                                                  | App-token middleware slots into the same middleware chain; CORS policy replaced per Workstream C                                   |
+| Sub-app orchestrator                     | `apps/api/src/core/orchestrator/orchestrator.service.ts`                                | Platform supervisors join the bootstrap sequence as lifecycle participants                                                         |
+| Postgres auto-provisioning via dockerode | `apps/api/shared/src/core/modules/setup/services/local-initialization.service.ts`       | The dockerode access pattern (client acquisition, pull/create/start, probe) is the template for both new supervisors               |
+| User-project Traefik domain              | `apps/api/shared/src/core/modules/traefik/` (config-builder, validation, sync services) | **Different concern** (see boundaries below). Potential later reuse of validation/middleware-library; not a dependency for Phase 1 |
+| Contract aggregation                     | `packages/contracts/api/index.ts` (`oc.router`)                                         | New `platform` contract group registered here                                                                                      |
+| Contract modules convention              | `packages/contracts/api/modules/<domain>/`                                              | Home of the new app-instance contracts                                                                                             |
+| Env schema (Zod, single SSOT)            | `packages/config/env/src/index.ts`                                                      | All new env vars declared here (`API_PORT`, `TRUSTED_ORIGINS`, `SETUP_AUTO` already live there)                                    |
+| Global platform config tables            | `packages/nest/schema/src/global/platform/app-config.ts`                                | Candidate store for the managed-web flag (verify key/value shape in Phase 0)                                                       |
+| Drizzle schema + migrations flow         | `apps/api/src/db/drizzle/schema/`, generate → review → migrate                          | New `app_instances` table follows this exact flow                                                                                  |
+| Better Auth wiring + trustedOrigins      | `apps/api/shared/src/core/modules/auth/auth.module.ts`, `apps/api/shared/src/auth.ts`   | User-auth layer untouched; trustedOrigins cross-origin role removed                                                                |
 
 ---
 
 ## Naming and boundaries
 
-**Platform ingress is not user Traefik.** The existing `core/modules/traefik/` manages Traefik *configuration artifacts for user-deployed projects* (static configs, routes, TLS per project). The new concern — supervising the API's **own ingress container** — is a distinct bounded context:
+**Platform ingress is not user Traefik.** The existing `core/modules/traefik/` manages Traefik _configuration artifacts for user-deployed projects_ (static configs, routes, TLS per project). The new concern — supervising the API's **own ingress container** — is a distinct bounded context:
 
 ```text
 core/modules/platform-ingress/        ← NEW (this rewrite)
@@ -103,7 +112,7 @@ core/modules/docker/services/
 
 How the pieces connect:
 
-1. **Auto-registration** — `BaseSupervisorService` declares `@Inject(SupervisorOrchestratorService)` and publishes itself in `onModuleInit()`. A supervisor added to *any* module appears in boot convergence and health output with **zero manual registry edits**. Direct construction (`new`, unit tests) leaves the injected property unset and skips registration harmlessly.
+1. **Auto-registration** — `BaseSupervisorService` declares `@Inject(SupervisorOrchestratorService)` and publishes itself in `onModuleInit()`. A supervisor added to _any_ module appears in boot convergence and health output with **zero manual registry edits**. Direct construction (`new`, unit tests) leaves the injected property unset and skips registration harmlessly.
 2. **Boot convergence** — `SupervisorOrchestratorService.onApplicationBootstrap` converges every registered supervisor in parallel; one degraded supervisor never blocks another.
 3. **Health aggregation** — `HealthService.getDetailedHealth()` injects the orchestrator and appends `supervisors: SupervisorHealth[]` to the detailed-health contract (`packages/contracts/api/modules/health/detailed.ts`). Overall status degrades when the DB is unhealthy OR any supervisor is unhealthy.
 
@@ -135,12 +144,12 @@ One function derives every self-referencing URL in the codebase. Nothing else ma
 ```ts
 // apps/api/shared/src/core/modules/platform-ingress/services/hostname.service.ts — sketch
 export abstract class HostnameService {
-  /** "acme" → "api.acme.deployer.localhost"; "" → "api.deployer.localhost" */
-  abstract apiHostname(): string;
-  /** Same grammar for the managed web app */
-  abstract webHostname(): string;
-  /** Full origin including scheme for non-loopback deployments */
-  abstract apiOrigin(scheme?: "http" | "https"): string;
+    /** "acme" → "api.acme.deployer.localhost"; "" → "api.deployer.localhost" */
+    abstract apiHostname(): string
+    /** Same grammar for the managed web app */
+    abstract webHostname(): string
+    /** Full origin including scheme for non-loopback deployments */
+    abstract apiOrigin(scheme?: 'http' | 'https'): string
 }
 ```
 
@@ -156,16 +165,16 @@ Also required in this workstream: declare every new var in `turbo.json` `globalE
 
 The supervisor ensures exactly one Traefik container, idempotently, on every boot:
 
-| Property | Value |
-|---|---|
-| Name | `deployer-platform-traefik` (+ `-<prefix>` when prefixed) |
-| Image | `DEPLOYER_TRAEFIK_IMAGE` |
-| Network | `deployer-platform` (created if absent; API joins it too) |
-| Command | `--providers.docker=true --providers.docker.exposedbydefault=false --entrypoints.web.address=:80` |
-| Mounts | `/var/run/docker.sock:/var/run/docker.sock:ro` |
-| Labels | `deployer.platform.role=ingress` (ownership marker for cleanup) |
-| Ports | `:80` published in dev; prod binding decided per concept doc open question #2 |
-| Restart policy | `unless-stopped` |
+| Property       | Value                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------- |
+| Name           | `deployer-platform-traefik` (+ `-<prefix>` when prefixed)                                         |
+| Image          | `DEPLOYER_TRAEFIK_IMAGE`                                                                          |
+| Network        | `deployer-platform` (created if absent; API joins it too)                                         |
+| Command        | `--providers.docker=true --providers.docker.exposedbydefault=false --entrypoints.web.address=:80` |
+| Mounts         | `/var/run/docker.sock:/var/run/docker.sock:ro`                                                    |
+| Labels         | `deployer.platform.role=ingress` (ownership marker for cleanup)                                   |
+| Ports          | `:80` published in dev; prod binding decided per concept doc open question #2                     |
+| Restart policy | `unless-stopped`                                                                                  |
 
 ### Reconciliation loop
 
@@ -193,7 +202,13 @@ Behavioral rules:
 ### Routing (implemented — builder-driven file provider)
 
 <DocCallout title="Superseded by the HTTP provider" tone="warning">
-The file-provider routing below is historical. The platform Traefik is now a swarm `global` service with no Docker socket, no config volume and no docker/swarm provider: it polls one dynamic configuration from the API (`GET /internal/ingress/traefik-config`, built by `TraefikIngressConfigService`). See [API-Centric Deployment Architecture](/docs/deployment/api-centric-deployment-architecture#traefik-first-ingress-no-public-service-ports) and [Networking](/docs/deployment/networking).
+    The file-provider routing below is historical. The platform Traefik is now a
+    swarm `global` service with no Docker socket, no config volume and no
+    docker/swarm provider: it polls one dynamic configuration from the API (`GET
+    /internal/ingress/traefik-config`, built by `TraefikIngressConfigService`).
+    See [API-Centric Deployment
+    Architecture](/docs/deployment/api-centric-deployment-architecture#traefik-first-ingress-no-public-service-ports)
+    and [Networking](/docs/deployment/networking).
 </DocCallout>
 
 Platform routes are generated through the **existing traefik config-builder** (`core/modules/traefik/config-builder`) — the single source of truth for Traefik config shapes. `PlatformRouteConfigService.buildDynamicYaml()` emits the dynamic config (`Host(<api hostname>)` router → Traefik `loadBalancer` service targeting the API inside the platform network), written to `<TRAEFIK_CONFIG_BASE_PATH>/platform[-<prefix>]/dynamic.yml`.
@@ -219,35 +234,43 @@ New Drizzle table colocated with the global schemas:
 ```ts
 // packages/nest/schema/src/global/platform/app-instance.ts — sketch
 export const appInstances = pgTable(
-  "app_instances",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    label: text("label").notNull(),
-    kind: text("kind", { enum: ["managed", "external"] }).notNull(),
-    tokenHash: text("token_hash").notNull().unique(), // sha256(token) — raw token NEVER stored
-    status: text("status", { enum: ["active", "stale", "revoked"] }).notNull().default("active"),
-    createdByUserId: uuid("created_by_user_id"),
-    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index("app_instances_status_idx").on(t.status)],
-);
+    'app_instances',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        label: text('label').notNull(),
+        kind: text('kind', { enum: ['managed', 'external'] }).notNull(),
+        tokenHash: text('token_hash').notNull().unique(), // sha256(token) — raw token NEVER stored
+        status: text('status', { enum: ['active', 'stale', 'revoked'] })
+            .notNull()
+            .default('active'),
+        createdByUserId: uuid('created_by_user_id'),
+        lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .notNull()
+            .defaultNow(),
+    },
+    (t) => [index('app_instances_status_idx').on(t.status)]
+)
 ```
 
 Migration via the standard generate → review → migrate flow. No changes to auth/user tables.
 
 ### Token format and lifecycle
 
-| Aspect | Decision |
-|---|---|
-| Format | Opaque random 32 bytes, base64url (`crypto.randomBytes`) — no JWT, no claims to leak or validate client-side |
-| Transport | `X-App-Instance-Token` request header; returned once at registration |
-| Storage (server) | SHA-256 hash only, unique index for O(1) lookup |
-| Storage (web side) | Server-side runtime file on a container volume (`/app/.deployer/app-instance-token`), chmod 600; regenerated automatically if invalid |
-| Renewal | Heartbeat every 10 min bumps `lastSeenAt`; no token rotation initially (rotation = issue new + revoke old, deferred until needed — YAGNI) |
-| Staleness | `active` → `stale` after 30 min without heartbeat; `stale` → auto-`revoked` after 7 days |
-| Revocation | Gateway deny-check against status; revocation is immediate (cache invalidated on write) |
+| Aspect             | Decision                                                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Format             | Opaque random 32 bytes, base64url (`crypto.randomBytes`) — no JWT, no claims to leak or validate client-side                              |
+| Transport          | `X-App-Instance-Token` request header; returned once at registration                                                                      |
+| Storage (server)   | SHA-256 hash only, unique index for O(1) lookup                                                                                           |
+| Storage (web side) | Server-side runtime file on a container volume (`/app/.deployer/app-instance-token`), chmod 600; regenerated automatically if invalid     |
+| Renewal            | Heartbeat every 10 min bumps `lastSeenAt`; no token rotation initially (rotation = issue new + revoke old, deferred until needed — YAGNI) |
+| Staleness          | `active` → `stale` after 30 min without heartbeat; `stale` → auto-`revoked` after 7 days                                                  |
+| Revocation         | Gateway deny-check against status; revocation is immediate (cache invalidated on write)                                                   |
 
 ### Contracts (`packages/contracts/api/modules/platform/`)
 
@@ -256,9 +279,9 @@ Four operations registered under a new `platform` key in `packages/contracts/api
 ```ts
 // register-app-instance.contract.ts — sketch (full shapes finalized in PR)
 const registerOutputSchema = z.object({
-  instanceId: z.string().min(1),
-  appToken: z.string().min(1),
-  heartbeatIntervalMs: z.number().int().positive(),
+    instanceId: z.string().min(1),
+    appToken: z.string().min(1),
+    heartbeatIntervalMs: z.number().int().positive(),
 })
 // input: email, password, instanceLabel — verified against Better Auth credentials
 // errors: UNAUTHORIZED (bad credentials), TOO_MANY_REQUESTS (rate limit)
@@ -293,12 +316,12 @@ Verification middleware behavior:
 
 ### Web-side changes (`apps/web`)
 
-| Concern | Change |
-|---|---|
+| Concern           | Change                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Boot registration | Server-only module runs once per server start: read persisted token → heartbeat probe → if missing/invalid, `POST register-app-instance` (managed mode receives provisioned token via env instead — no credentials shipped) → persist |
-| Client headers | ORPC client (`apps/web/src/lib/orpc.ts`) attaches `X-App-Instance-Token` server-side; browser-originating calls pass through the Next.js server proxy so the token never reaches the browser bundle |
-| User token | Unchanged Better Auth session handling, layered alongside |
-| BYO entrypoint | Documented env contract (`API_URL`, `NEXT_PUBLIC_API_URL`, `DEPLOYER_INSTANCE_LABEL`) validated at startup with actionable error messages |
+| Client headers    | ORPC client (`apps/web/src/lib/orpc.ts`) attaches `X-App-Instance-Token` server-side; browser-originating calls pass through the Next.js server proxy so the token never reaches the browser bundle                                   |
+| User token        | Unchanged Better Auth session handling, layered alongside                                                                                                                                                                             |
+| BYO entrypoint    | Documented env contract (`API_URL`, `NEXT_PUBLIC_API_URL`, `DEPLOYER_INSTANCE_LABEL`) validated at startup with actionable error messages                                                                                             |
 
 Managed-mode provisioning shortcut: when the API spawns the web container it creates the `app_instances` row itself and injects the raw token as an env var of that container only — the web side skips credential registration but still heartbeats.
 
@@ -312,14 +335,14 @@ Managed-mode provisioning shortcut: when the API spawns the web container it cre
 
 ### Container specification
 
-| Property | Value |
-|---|---|
-| Name | `deployer-managed-web` (+ prefix suffix) |
-| Image | `MANAGED_WEB_APP_IMAGE` or the API's release tag |
-| Network | `deployer-platform` |
-| Env | `NODE_ENV=production`, internal `API_URL`, public hostnames from `HostnameService`, provisioned `APP_INSTANCE_TOKEN` (managed shortcut) |
-| Labels | Traefik router for `webHostname()` + `deployer.platform.role=managed-web` |
-| Health | HTTP probe on the web listen port; supervisor marks Healthy only after registration+heartbeat observed |
+| Property | Value                                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Name     | `deployer-managed-web` (+ prefix suffix)                                                                                                |
+| Image    | `MANAGED_WEB_APP_IMAGE` or the API's release tag                                                                                        |
+| Network  | `deployer-platform`                                                                                                                     |
+| Env      | `NODE_ENV=production`, internal `API_URL`, public hostnames from `HostnameService`, provisioned `APP_INSTANCE_TOKEN` (managed shortcut) |
+| Labels   | Traefik router for `webHostname()` + `deployer.platform.role=managed-web`                                                               |
+| Health   | HTTP probe on the web listen port; supervisor marks Healthy only after registration+heartbeat observed                                  |
 
 State machine, events, and backoff mirror Workstream B's loop — extracted as a shared `SupervisorLoop` helper parameterized by desired-state reader and probe, so both supervisors share one tested convergence implementation (DRY; two implementations of the same loop would violate three-strikes immediately).
 
@@ -338,12 +361,12 @@ Plain Express handler chain in `management.controller.ts` — server-rendered st
 
 ### Tier wiring (implemented)
 
-| Tier | Web ownership | API env | Stack contents |
-|---|---|---|---|
-| **dev** (`docker-compose.dev.yml`) | Compose (`web-dev`) | `MANAGED_WEB_APP_EXTERNAL=true` (default), flag seeded `false` | api + web + doc + lb |
-| **prod-like** (`docker-compose.prod-like.yml`) | Compose (`web-prod`) | `MANAGED_WEB_APP_EXTERNAL=true`, flag seeded `false` | api + db + web + doc + lb (prod images) |
-| **prod** (`docker-compose.prod.yml`) | **The API itself** | `MANAGED_WEB_APP_EXTERNAL=false`, `MANAGED_WEB_APP_ENABLED=true` (default), `MANAGED_WEB_APP_IMAGE` | api + doc + lb — **no web service** |
-| **BYO** (`web/docker-compose.web.byo.yml`) | The consumer | registration credentials or pre-held token; token volume | web only |
+| Tier                                           | Web ownership        | API env                                                                                             | Stack contents                          |
+| ---------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **dev** (`docker-compose.dev.yml`)             | Compose (`web-dev`)  | `MANAGED_WEB_APP_EXTERNAL=true` (default), flag seeded `false`                                      | api + web + doc + lb                    |
+| **prod-like** (`docker-compose.prod-like.yml`) | Compose (`web-prod`) | `MANAGED_WEB_APP_EXTERNAL=true`, flag seeded `false`                                                | api + db + web + doc + lb (prod images) |
+| **prod** (`docker-compose.prod.yml`)           | **The API itself**   | `MANAGED_WEB_APP_EXTERNAL=false`, `MANAGED_WEB_APP_ENABLED=true` (default), `MANAGED_WEB_APP_IMAGE` | api + doc + lb — **no web service**     |
+| **BYO** (`web/docker-compose.web.byo.yml`)     | The consumer         | registration credentials or pre-held token; token volume                                            | web only                                |
 
 Details landed with this workstream:
 
@@ -354,11 +377,11 @@ Details landed with this workstream:
 
 ### Deletions
 
-| Artifact | Status |
-|---|---|
+| Artifact                                                                 | Status                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------- |
 | `docker-compose.web.prod.yml` + its include line + `depends_on` coupling | Deleted (replaced by BYO template + managed supervisor) |
-| Cross-origin `TRUSTED_ORIGINS` enforcement in `main.ts` / `cors.utils` | Pending Phase 4 (after e2e flows) |
-| Dev workflow docs referencing compose-started web in prod | Updated alongside doc pages |
+| Cross-origin `TRUSTED_ORIGINS` enforcement in `main.ts` / `cors.utils`   | Pending Phase 4 (after e2e flows)                       |
+| Dev workflow docs referencing compose-started web in prod                | Updated alongside doc pages                             |
 
 ---
 
@@ -386,16 +409,16 @@ Every PR gate, without exception: `bun --bun run api -- type-check` + `bun --bun
 
 ## Test matrix
 
-| Component | Unit | E2E |
-|---|---|---|
-| HostnameService | prefix empty/present/special-char rejection; grammar snapshots | — |
-| SupervisorLoop (shared) | fake-clock backoff; converge-on-missing; degraded ceiling | — |
-| Traefik supervisor | inspect/create/start branching vs mocked repo | real-docker smoke: boot API → container up → hostname routes (manual gate) |
-| Registration contract | bad creds 401, rate-limit 429, success shape parse | BYO web against running API registers and heartbeats |
-| Token middleware | revoked/stale/valid matrix; cache invalidation on revoke | revoked instance blocked mid-session |
-| Managed-web supervisor | flag flip converges create/remove; probe-fail backoff | toggle off → container gone → toggle on → healthy |
-| Console page | hidden under EXTERNAL flag; auth required | operator toggles flag from page |
-| CORS relaxation | preflight allows dual-header; wildcard reflection non-cookie | consumer-origin dashboard performs full login+data flow |
+| Component               | Unit                                                           | E2E                                                                        |
+| ----------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| HostnameService         | prefix empty/present/special-char rejection; grammar snapshots | —                                                                          |
+| SupervisorLoop (shared) | fake-clock backoff; converge-on-missing; degraded ceiling      | —                                                                          |
+| Traefik supervisor      | inspect/create/start branching vs mocked repo                  | real-docker smoke: boot API → container up → hostname routes (manual gate) |
+| Registration contract   | bad creds 401, rate-limit 429, success shape parse             | BYO web against running API registers and heartbeats                       |
+| Token middleware        | revoked/stale/valid matrix; cache invalidation on revoke       | revoked instance blocked mid-session                                       |
+| Managed-web supervisor  | flag flip converges create/remove; probe-fail backoff          | toggle off → container gone → toggle on → healthy                          |
+| Console page            | hidden under EXTERNAL flag; auth required                      | operator toggles flag from page                                            |
+| CORS relaxation         | preflight allows dual-header; wildcard reflection non-cookie   | consumer-origin dashboard performs full login+data flow                    |
 
 E2E suites join the existing shared-postgres harness (`apps/api/vitest.shared-postgres.e2e.ts`); real-docker checks stay out of CI and run as scripted local gates.
 
@@ -403,15 +426,15 @@ E2E suites join the existing shared-postgres harness (`apps/api/vitest.shared-po
 
 ## Risk register and failure modes
 
-| Risk | Mitigation |
-|---|---|
+| Risk                                                    | Mitigation                                                                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Traefik never converges (socket perms, image pull fail) | Degraded-mode startup: API stays reachable by port; `/health` reports ingress status; console shows reconciliation events |
-| Flag flipped while container operation in-flight | Single-flight guard per supervisor (mutex on reconcile); desired-state re-read after each action wins |
-| Token leaked from browser bundle | Token never leaves server side; proxy-only exposure; penetration checklist item in Phase 4 |
-| Registration endpoint abuse | IP sliding-window + account lockout + alert on failure spikes |
-| Web image drifts from API release | Default tag = API release; explicit pin requires conscious override; compatibility note in console when versions mismatch |
-| Docker socket sprawl | Only API (rw) and platform Traefik (ro) mount the socket; managed web gets none |
-| Migration ordering (table before contracts ship) | Schema PR precedes contract PR within Phase 2; both behind same merge train |
+| Flag flipped while container operation in-flight        | Single-flight guard per supervisor (mutex on reconcile); desired-state re-read after each action wins                     |
+| Token leaked from browser bundle                        | Token never leaves server side; proxy-only exposure; penetration checklist item in Phase 4                                |
+| Registration endpoint abuse                             | IP sliding-window + account lockout + alert on failure spikes                                                             |
+| Web image drifts from API release                       | Default tag = API release; explicit pin requires conscious override; compatibility note in console when versions mismatch |
+| Docker socket sprawl                                    | Only API (rw) and platform Traefik (ro) mount the socket; managed web gets none                                           |
+| Migration ordering (table before contracts ship)        | Schema PR precedes contract PR within Phase 2; both behind same merge train                                               |
 
 ---
 
@@ -419,20 +442,20 @@ E2E suites join the existing shared-postgres harness (`apps/api/vitest.shared-po
 
 Guarantee that nothing from the original brief was lost. Each numbered requirement maps to concept coverage and its implementing workstream/phase:
 
-| # | Original requirement | Concept section | Blueprint location |
-|---|---|---|---|
-| R1 | API runs self-contained with its own services | Design principles; Component ownership | Naming/boundaries; Workstreams B+D |
-| R2 | API starts its own Traefik container at boot | Platform Traefik | Workstream B |
-| R3 | Web app never runs from docker compose | What gets deleted | Workstream E (compose surgery) |
-| R4 | Prod = only API container starts; API handles dependencies | Before/after; Flows per environment | Workstreams B+D; PR sequencing |
-| R5 | API starts web app only when managed flag enabled | The managed web app | Workstream D |
-| R6 | Flag controlled by a page served directly by the API | Management console page | Workstream D (console endpoints) |
-| R7 | Dev passes env var for externally-running web; toggle page then hidden | The managed web app (dev side-by-side) | `MANAGED_WEB_APP_EXTERNAL` in Workstream A; gating in Workstream D |
-| R8 | Consumer hosts web anywhere pointing at any API | Externally-managed web apps | Workstream C (registration); Workstream E (BYO template) |
-| R9 | Static CORS cannot serve unknown origins | Identity redesign rationale | Workstream C (middleware + relaxation/deletion) |
-| R10 | Web app obtains a token for ITSELF (not the user) via account login at boot | Registration handshake | Workstream C (contracts, token lifecycle, managed shortcut) |
-| R11 | Requests carry app token AND user auth token when logged in | Dual-token request flow | Workstream C (middleware order, web proxy headers) |
-| R12 | Traefik forwards via `api.<prefix>deployer.localhost`; prefix from env; empty prefix = no segment | Hostname scheme | Workstream A (env + HostnameService); Workstream B (labels) |
+| #   | Original requirement                                                                              | Concept section                        | Blueprint location                                                 |
+| --- | ------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------ |
+| R1  | API runs self-contained with its own services                                                     | Design principles; Component ownership | Naming/boundaries; Workstreams B+D                                 |
+| R2  | API starts its own Traefik container at boot                                                      | Platform Traefik                       | Workstream B                                                       |
+| R3  | Web app never runs from docker compose                                                            | What gets deleted                      | Workstream E (compose surgery)                                     |
+| R4  | Prod = only API container starts; API handles dependencies                                        | Before/after; Flows per environment    | Workstreams B+D; PR sequencing                                     |
+| R5  | API starts web app only when managed flag enabled                                                 | The managed web app                    | Workstream D                                                       |
+| R6  | Flag controlled by a page served directly by the API                                              | Management console page                | Workstream D (console endpoints)                                   |
+| R7  | Dev passes env var for externally-running web; toggle page then hidden                            | The managed web app (dev side-by-side) | `MANAGED_WEB_APP_EXTERNAL` in Workstream A; gating in Workstream D |
+| R8  | Consumer hosts web anywhere pointing at any API                                                   | Externally-managed web apps            | Workstream C (registration); Workstream E (BYO template)           |
+| R9  | Static CORS cannot serve unknown origins                                                          | Identity redesign rationale            | Workstream C (middleware + relaxation/deletion)                    |
+| R10 | Web app obtains a token for ITSELF (not the user) via account login at boot                       | Registration handshake                 | Workstream C (contracts, token lifecycle, managed shortcut)        |
+| R11 | Requests carry app token AND user auth token when logged in                                       | Dual-token request flow                | Workstream C (middleware order, web proxy headers)                 |
+| R12 | Traefik forwards via `api.<prefix>deployer.localhost`; prefix from env; empty prefix = no segment | Hostname scheme                        | Workstream A (env + HostnameService); Workstream B (labels)        |
 
 Any future scope discussion on this rewrite should reference row IDs (R1–R12) to keep the brief atomic.
 

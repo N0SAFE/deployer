@@ -1,5 +1,5 @@
-import { Test } from "@nestjs/testing";
-import { describe,  it, vi } from "vitest";
+import { Test } from '@nestjs/testing'
+import { describe, it, vi } from 'vitest'
 
 // The SSR module resolves a client bundle on disk (its RenderService reads
 // `dist/client/index.html`) and throws when the app has not been built:
@@ -11,12 +11,12 @@ import { describe,  it, vi } from "vitest";
 // mirrors `apps/api/src/app.module.spec.ts`, which documents the same reason. The
 // mock keeps the module's SHAPE (so consumers of its exports still resolve)
 // while removing the filesystem dependency.
-vi.mock("@nestjs-ssr/react", () => ({
-  RenderModule: { forRoot: vi.fn().mockReturnValue({ module: class {} }) },
-  Render: () => () => {},
-}));
+vi.mock('@nestjs-ssr/react', () => ({
+    RenderModule: { forRoot: vi.fn().mockReturnValue({ module: class {} }) },
+    Render: () => () => {},
+}))
 
-import { SetupAppModule } from "./app.module";
+import { SetupAppModule } from './app.module'
 
 /**
  * The Nest GRAPH is assemblable.
@@ -49,12 +49,12 @@ import { SetupAppModule } from "./app.module";
  * `close()` is not optional: leaving a compiled module open keeps its providers'
  * subscriptions and timers alive, which in a test runner means a hanging process.
  */
-describe("SetupAppModule", () => {
-  it("assembles the Nest module graph", async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [SetupAppModule],
-    }).compile();
+describe('SetupAppModule', () => {
+    it('assembles the Nest module graph', async () => {
+        const moduleRef = await Test.createTestingModule({
+            imports: [SetupAppModule],
+        }).compile()
 
-    await moduleRef.close();
-  });
-});
+        await moduleRef.close()
+    })
+})

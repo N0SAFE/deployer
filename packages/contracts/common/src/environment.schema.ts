@@ -12,7 +12,9 @@ import z from 'zod'
  */
 export const environmentKindSchema = z.enum(['stable', 'preview', 'ephemeral'])
 export type EnvironmentKind = z.infer<typeof environmentKindSchema>
-export const ENVIRONMENT_KINDS = [...environmentKindSchema.options] as readonly EnvironmentKind[]
+export const ENVIRONMENT_KINDS = [
+    ...environmentKindSchema.options,
+] as readonly EnvironmentKind[]
 export const ENVIRONMENT_KIND_VALUES = environmentKindSchema.options
 
 /**
@@ -31,7 +33,9 @@ export const environmentTriggerSourceSchema = z.enum([
     'branch',
     'schedule',
 ])
-export type EnvironmentTriggerSource = z.infer<typeof environmentTriggerSourceSchema>
+export type EnvironmentTriggerSource = z.infer<
+    typeof environmentTriggerSourceSchema
+>
 
 export const environmentTriggerSchema = z
     .object({
@@ -57,37 +61,79 @@ export type EnvironmentTrigger = z.infer<typeof environmentTriggerSchema>
  * deployment backward-compat (deployments.environment enum) and as convenient
  * defaults when seeding a project. New environments use free-form names.
  */
-export const envNameSchema = z.enum(['production', 'staging', 'preview', 'development'])
+export const envNameSchema = z.enum([
+    'production',
+    'staging',
+    'preview',
+    'development',
+])
 export type EnvName = z.infer<typeof envNameSchema>
 export const ENV_NAMES = [...envNameSchema.options] as readonly EnvName[]
 export const ENV_NAME_VALUES = envNameSchema.options
 export const REQUIRED_ENV_NAMES = ['production'] as const
 export const SPECIAL_ENV_NAMES = ['preview', 'development'] as const
 
-export const withRequiredEnvironments = <T extends z.ZodTypeAny>(valueSchema: T) =>
-	z
-		.object({
-			production: valueSchema,
-			staging: valueSchema.optional(),
-			preview: valueSchema.optional(),
-			development: valueSchema.optional(),
-		})
-		.catchall(valueSchema)
+export const withRequiredEnvironments = <T extends z.ZodTypeAny>(
+    valueSchema: T
+) =>
+    z
+        .object({
+            production: valueSchema,
+            staging: valueSchema.optional(),
+            preview: valueSchema.optional(),
+            development: valueSchema.optional(),
+        })
+        .catchall(valueSchema)
 
-export const projectEnvironmentDeploymentStrategySchema = z.enum(['rolling', 'canary', 'blue-green', 'manual'])
-export type ProjectEnvironmentDeploymentStrategy = z.infer<typeof projectEnvironmentDeploymentStrategySchema>
+export const projectEnvironmentDeploymentStrategySchema = z.enum([
+    'rolling',
+    'canary',
+    'blue-green',
+    'manual',
+])
+export type ProjectEnvironmentDeploymentStrategy = z.infer<
+    typeof projectEnvironmentDeploymentStrategySchema
+>
 
-export const projectEnvironmentHealthGateSchema = z.enum(['strict', 'warn', 'ignore'])
-export type ProjectEnvironmentHealthGate = z.infer<typeof projectEnvironmentHealthGateSchema>
+export const projectEnvironmentHealthGateSchema = z.enum([
+    'strict',
+    'warn',
+    'ignore',
+])
+export type ProjectEnvironmentHealthGate = z.infer<
+    typeof projectEnvironmentHealthGateSchema
+>
 
-export const projectEnvironmentStartupModeSchema = z.enum(['before', 'parallel', 'after'])
-export type ProjectEnvironmentStartupMode = z.infer<typeof projectEnvironmentStartupModeSchema>
+export const projectEnvironmentStartupModeSchema = z.enum([
+    'before',
+    'parallel',
+    'after',
+])
+export type ProjectEnvironmentStartupMode = z.infer<
+    typeof projectEnvironmentStartupModeSchema
+>
 
-export const serviceHealthProtocolSchema = z.enum(['http', 'tcp', 'grpc', 'command'])
+export const serviceHealthProtocolSchema = z.enum([
+    'http',
+    'tcp',
+    'grpc',
+    'command',
+])
 export type ServiceHealthProtocol = z.infer<typeof serviceHealthProtocolSchema>
 
-export const serviceLifecycleSchema = z.enum(['running', 'degraded', 'starting', 'stopped', 'maintenance'])
+export const serviceLifecycleSchema = z.enum([
+    'running',
+    'degraded',
+    'starting',
+    'stopped',
+    'maintenance',
+])
 export type ServiceLifecycle = z.infer<typeof serviceLifecycleSchema>
 
-export const serviceHealthStateSchema = z.enum(['passing', 'warning', 'failing', 'unknown'])
+export const serviceHealthStateSchema = z.enum([
+    'passing',
+    'warning',
+    'failing',
+    'unknown',
+])
 export type ServiceHealthState = z.infer<typeof serviceHealthStateSchema>

@@ -34,27 +34,27 @@ Provide a single typed contract for long-running operations that supports:
 ## Contract
 
 ```ts
-type OperationMode = "async" | "sync";
+type OperationMode = 'async' | 'sync'
 
 type OperationRequest<TInput> = {
-  mode?: OperationMode;
-  syncTimeoutMs?: number;
-  input: TInput;
-};
+    mode?: OperationMode
+    syncTimeoutMs?: number
+    input: TInput
+}
 
 type OperationAccepted = {
-  operationId: string;
-  status: "accepted" | "running";
-  correlationId: string;
-};
+    operationId: string
+    status: 'accepted' | 'running'
+    correlationId: string
+}
 
 type OperationTerminal<TOutput> = {
-  operationId: string;
-  status: "succeeded" | "failed" | "timeout";
-  output?: TOutput;
-  errorCode?: string;
-  correlationId: string;
-};
+    operationId: string
+    status: 'succeeded' | 'failed' | 'timeout'
+    output?: TOutput
+    errorCode?: string
+    correlationId: string
+}
 ```
 
 ---

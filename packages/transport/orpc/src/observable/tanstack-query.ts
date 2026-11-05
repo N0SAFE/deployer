@@ -1,68 +1,76 @@
 import {
-  createTanstackQueryUtils,
-  type RouterUtilsOptions,
-  type RouterUtils,
-} from "@orpc/tanstack-query";
-import { Observable as RxjsObservable } from "rxjs";
+    createTanstackQueryUtils,
+    type RouterUtilsOptions,
+    type RouterUtils,
+} from '@orpc/tanstack-query'
+import { Observable as RxjsObservable } from 'rxjs'
 
-import { reconstructObservableFromEventIterator } from "@deployer/orpc-utils/observable/event-iterator";
-import { isObjectLike } from "@deployer/type-guards"
+import { reconstructObservableFromEventIterator } from '@deployer/orpc-utils/observable/event-iterator'
+import { isObjectLike } from '@deployer/type-guards'
 
-import type { Client, ClientContext, NestedClient } from "@orpc/client";
-import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
-import type { Observable as RxObservable } from "rxjs";
+import type { Client, ClientContext, NestedClient } from '@orpc/client'
+import type {
+    QueryFunctionContext,
+    QueryKey,
+    UseQueryOptions,
+} from '@tanstack/react-query'
+import type { Observable as RxObservable } from 'rxjs'
 
-export type ObservableQueryMode = "observable" | "streamed-observable";
+export type ObservableQueryMode = 'observable' | 'streamed-observable'
 
 type InputOption<TInput> = undefined extends TInput
-  ? { input?: TInput }
-  : { input: TInput };
+    ? { input?: TInput }
+    : { input: TInput }
 
 type ContextOption<TContext> = object extends TContext
-  ? { context?: TContext }
-  : { context: TContext };
+    ? { context?: TContext }
+    : { context: TContext }
 
 type RuntimeProcedureWithCall = {
-  call: (...args: unknown[]) => unknown;
-};
+    call: (...args: unknown[]) => unknown
+}
 
 type TanstackProcedureUtilsLike = {
-  call: unknown;
-};
+    call: unknown
+}
 
 type ExtractProcedureInput<TProcedure> = TProcedure extends {
-  call: Client<infer _TContext, infer TInput, infer _TOutput, infer _TError>;
+    call: Client<infer _TContext, infer TInput, infer _TOutput, infer _TError>
 }
-  ? TInput
-  : never;
+    ? TInput
+    : never
 
 type ExtractProcedureOutput<TProcedure> = TProcedure extends {
-  call: Client<infer _TContext, infer _TInput, infer TOutput, infer _TError>;
+    call: Client<infer _TContext, infer _TInput, infer TOutput, infer _TError>
 }
-  ? TOutput
-  : never;
+    ? TOutput
+    : never
 
 type ExtractProcedureContext<TProcedure> = TProcedure extends {
-  call: Client<infer TContext, infer _TInput, infer _TOutput, infer _TError>;
+    call: Client<infer TContext, infer _TInput, infer _TOutput, infer _TError>
 }
-  ? TContext
-  : object;
+    ? TContext
+    : object
 
-type ExtractStreamValue<TOutput> = TOutput extends AsyncIterable<infer TChunk>
-  ? TChunk
-  : TOutput extends RxObservable<infer TChunk>
-    ? TChunk
-    : TOutput;
+type ExtractStreamValue<TOutput> =
+    TOutput extends AsyncIterable<infer TChunk>
+        ? TChunk
+        : TOutput extends RxObservable<infer TChunk>
+          ? TChunk
+          : TOutput
 
-type ExtractProcedureStreamValue<TProcedure> = ExtractStreamValue<ExtractProcedureOutput<TProcedure>>;
+type ExtractProcedureStreamValue<TProcedure> = ExtractStreamValue<
+    ExtractProcedureOutput<TProcedure>
+>
 
 type AliasKeyMethod<
-  TProcedure,
-  TMethodName extends "experimental_liveKey" | "experimental_streamedKey",
-  TInput,
-> = TProcedure extends Record<TMethodName, infer TMethod>
-  ? TMethod
-  : (options?: { input?: TInput; queryKey?: QueryKey }) => QueryKey;
+    TProcedure,
+    TMethodName extends 'experimental_liveKey' | 'experimental_streamedKey',
+    TInput,
+> =
+    TProcedure extends Record<TMethodName, infer TMethod>
+        ? TMethod
+        : (options?: { input?: TInput; queryKey?: QueryKey }) => QueryKey
 
 /**
  * Transform a source RxJS observable produced by an ORPC stream/live endpoint.
@@ -86,194 +94,223 @@ type AliasKeyMethod<
  *   }))
  */
 export type ObservablePipeTransform<TValue> = (
-  source$: RxObservable<TValue>,
-) => RxObservable<TValue>;
+    source$: RxObservable<TValue>
+) => RxObservable<TValue>
 
 export type LiveObservableOptionsConfig<
-  TInput,
-  TStreamValue,
-  TError = Error,
-  TContext = object,
+    TInput,
+    TStreamValue,
+    TError = Error,
+    TContext = object,
 > = InputOption<TInput> &
-  ContextOption<TContext> & {
-  queryKey?: QueryKey;
-  queryFnOptions?: ObservablePipeTransform<TStreamValue>;
-} & Omit<UseQueryOptions<TStreamValue, TError>, "queryKey" | "queryFn">;
+    ContextOption<TContext> & {
+        queryKey?: QueryKey
+        queryFnOptions?: ObservablePipeTransform<TStreamValue>
+    } & Omit<UseQueryOptions<TStreamValue, TError>, 'queryKey' | 'queryFn'>
 
 export type StreamedObservableOptionsConfig<
-  TInput,
-  TStreamValue,
-  TError = Error,
-  TContext = object,
+    TInput,
+    TStreamValue,
+    TError = Error,
+    TContext = object,
 > = InputOption<TInput> &
-  ContextOption<TContext> & {
-  queryKey?: QueryKey;
-  queryFnOptions?: ObservablePipeTransform<TStreamValue>;
-  /**
-   * Whether the values seen so far mean the stream's work is genuinely OVER.
-   *
-   * ── WHY A CALLER MUST SOMETIMES SAY ──────────────────────────────────────
-   * A stream that is CUT (an ingress swap tears the connection down, say) ends
-   * with a clean `complete()`, which is indistinguishable from "finished" from
-   * the outside. Without this predicate the collector treats that as success,
-   * TanStack records a successful query, and NOTHING retries — the operator sees
-   * the view blank out and no request in the network tab, because none is made.
-   *
-   * Supplying it inverts that: an incomplete stream REJECTS, so the query's own
-   * `retry` configuration fires and `queryFn` runs again — which is the only
-   * place a new HTTP request can be issued.
-   *
-   * Omit it for streams where ending IS the completion (a finite list, a log
-   * stream that closes when its subject exits).
-   */
-  isComplete?: (emitted: readonly TStreamValue[]) => boolean;
-  /**
-   * How long the stream may go SILENT before it is treated as dead.
-   *
-   * ── WHAT MAKES A SHORT WINDOW SAFE ──────────────────────────────────────
-   * SSE has no heartbeat of its own, so "no bytes arrived" cannot distinguish a
-   * dead connection from a step that is legitimately WAITING on something slow.
-   * That ambiguity is why this option exists rather than a hard-coded value.
-   *
-   * It is meant to be used WITH a server heartbeat: producers that can go quiet
-   * should emit a periodic liveness event, which resets this clock without
-   * carrying any state. Then a short window detects a real drop in seconds,
-   * instead of being padded out to the longest possible wait.
-   *
-   * Seeding it below a legitimate quiet period — on a stream with no heartbeat —
-   * aborts healthy runs mid-step, and a reconnect during work that must not be
-   * interrupted is worse than the hang it was meant to prevent.
-   */
-  inactivityTimeoutMs?: number;
-} & Omit<UseQueryOptions<TStreamValue[], TError>, "queryKey" | "queryFn">;
+    ContextOption<TContext> & {
+        queryKey?: QueryKey
+        queryFnOptions?: ObservablePipeTransform<TStreamValue>
+        /**
+         * Whether the values seen so far mean the stream's work is genuinely OVER.
+         *
+         * ── WHY A CALLER MUST SOMETIMES SAY ──────────────────────────────────────
+         * A stream that is CUT (an ingress swap tears the connection down, say) ends
+         * with a clean `complete()`, which is indistinguishable from "finished" from
+         * the outside. Without this predicate the collector treats that as success,
+         * TanStack records a successful query, and NOTHING retries — the operator sees
+         * the view blank out and no request in the network tab, because none is made.
+         *
+         * Supplying it inverts that: an incomplete stream REJECTS, so the query's own
+         * `retry` configuration fires and `queryFn` runs again — which is the only
+         * place a new HTTP request can be issued.
+         *
+         * Omit it for streams where ending IS the completion (a finite list, a log
+         * stream that closes when its subject exits).
+         */
+        isComplete?: (emitted: readonly TStreamValue[]) => boolean
+        /**
+         * How long the stream may go SILENT before it is treated as dead.
+         *
+         * ── WHAT MAKES A SHORT WINDOW SAFE ──────────────────────────────────────
+         * SSE has no heartbeat of its own, so "no bytes arrived" cannot distinguish a
+         * dead connection from a step that is legitimately WAITING on something slow.
+         * That ambiguity is why this option exists rather than a hard-coded value.
+         *
+         * It is meant to be used WITH a server heartbeat: producers that can go quiet
+         * should emit a periodic liveness event, which resets this clock without
+         * carrying any state. Then a short window detects a real drop in seconds,
+         * instead of being padded out to the longest possible wait.
+         *
+         * Seeding it below a legitimate quiet period — on a stream with no heartbeat —
+         * aborts healthy runs mid-step, and a reconnect during work that must not be
+         * interrupted is worse than the hang it was meant to prevent.
+         */
+        inactivityTimeoutMs?: number
+    } & Omit<UseQueryOptions<TStreamValue[], TError>, 'queryKey' | 'queryFn'>
 
 type LiveObservableQueryOptionsResult<TStreamValue, TError> = Omit<
-  UseQueryOptions<TStreamValue, TError>,
-  "queryKey" | "queryFn"
+    UseQueryOptions<TStreamValue, TError>,
+    'queryKey' | 'queryFn'
 > & {
-  queryKey: QueryKey;
-  queryFn: (context: QueryFunctionContext) => Promise<TStreamValue>;
-};
+    queryKey: QueryKey
+    queryFn: (context: QueryFunctionContext) => Promise<TStreamValue>
+}
 
 type StreamedObservableQueryOptionsResult<TStreamValue, TError> = Omit<
-  UseQueryOptions<TStreamValue[], TError>,
-  "queryKey" | "queryFn"
+    UseQueryOptions<TStreamValue[], TError>,
+    'queryKey' | 'queryFn'
 > & {
-  queryKey: QueryKey;
-  queryFn: (context: QueryFunctionContext) => Promise<TStreamValue[]>;
-};
+    queryKey: QueryKey
+    queryFn: (context: QueryFunctionContext) => Promise<TStreamValue[]>
+}
 
 export type ObservableProcedureQueryUtils<
-  TInput,
-  TStreamValue,
-  TContext = object,
+    TInput,
+    TStreamValue,
+    TContext = object,
 > = {
-  experimental_liveObservableOptions<TError = Error>(
-    options: LiveObservableOptionsConfig<TInput, TStreamValue, TError, TContext>,
-  ): LiveObservableQueryOptionsResult<TStreamValue, TError>;
-  experimental_streamedObservableOptions<TError = Error>(
-    options: StreamedObservableOptionsConfig<TInput, TStreamValue, TError, TContext>,
-  ): StreamedObservableQueryOptionsResult<TStreamValue, TError>;
-};
+    experimental_liveObservableOptions<TError = Error>(
+        options: LiveObservableOptionsConfig<
+            TInput,
+            TStreamValue,
+            TError,
+            TContext
+        >
+    ): LiveObservableQueryOptionsResult<TStreamValue, TError>
+    experimental_streamedObservableOptions<TError = Error>(
+        options: StreamedObservableOptionsConfig<
+            TInput,
+            TStreamValue,
+            TError,
+            TContext
+        >
+    ): StreamedObservableQueryOptionsResult<TStreamValue, TError>
+}
 
-type ObservableRouterQueryUtils<TOrpc> = TOrpc extends TanstackProcedureUtilsLike
-  ? TOrpc &
-      ObservableProcedureQueryUtils<
-        ExtractProcedureInput<TOrpc>,
-        ExtractProcedureStreamValue<TOrpc>,
-        ExtractProcedureContext<TOrpc>
-      > & {
-        experimental_liveObservableKey: AliasKeyMethod<
-          TOrpc,
-          "experimental_liveKey",
-          ExtractProcedureInput<TOrpc>
-        >;
-        experimental_streamedObservableKey: AliasKeyMethod<
-          TOrpc,
-          "experimental_streamedKey",
-          ExtractProcedureInput<TOrpc>
-        >;
-      }
-  : TOrpc extends (...args: unknown[]) => unknown
-    ? TOrpc
-  : TOrpc extends object
-    ? { [K in keyof TOrpc]: ObservableRouterQueryUtils<TOrpc[K]> }
-    : TOrpc;
+type ObservableRouterQueryUtils<TOrpc> =
+    TOrpc extends TanstackProcedureUtilsLike
+        ? TOrpc &
+              ObservableProcedureQueryUtils<
+                  ExtractProcedureInput<TOrpc>,
+                  ExtractProcedureStreamValue<TOrpc>,
+                  ExtractProcedureContext<TOrpc>
+              > & {
+                  experimental_liveObservableKey: AliasKeyMethod<
+                      TOrpc,
+                      'experimental_liveKey',
+                      ExtractProcedureInput<TOrpc>
+                  >
+                  experimental_streamedObservableKey: AliasKeyMethod<
+                      TOrpc,
+                      'experimental_streamedKey',
+                      ExtractProcedureInput<TOrpc>
+                  >
+              }
+        : TOrpc extends (...args: unknown[]) => unknown
+          ? TOrpc
+          : TOrpc extends object
+            ? { [K in keyof TOrpc]: ObservableRouterQueryUtils<TOrpc[K]> }
+            : TOrpc
 
-export type ObservableQueryUtils<TInputOrOrpc, TStreamValue = never> = [TStreamValue] extends [never]
-  ? ObservableRouterQueryUtils<TInputOrOrpc>
-  : ObservableProcedureQueryUtils<TInputOrOrpc, TStreamValue>;
+export type ObservableQueryUtils<TInputOrOrpc, TStreamValue = never> = [
+    TStreamValue,
+] extends [never]
+    ? ObservableRouterQueryUtils<TInputOrOrpc>
+    : ObservableProcedureQueryUtils<TInputOrOrpc, TStreamValue>
 
-
-function isProcedureWithCall(value: unknown): value is RuntimeProcedureWithCall {
-  return isObjectLike(value) && "call" in value && typeof (value as { call?: unknown }).call === "function";
+function isProcedureWithCall(
+    value: unknown
+): value is RuntimeProcedureWithCall {
+    return (
+        isObjectLike(value) &&
+        'call' in value &&
+        typeof (value as { call?: unknown }).call === 'function'
+    )
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
-  return typeof value === "object" && value !== null && Symbol.asyncIterator in value;
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        Symbol.asyncIterator in value
+    )
 }
 
 function isRxObservable(value: unknown): value is RxObservable<unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "subscribe" in value &&
-    typeof (value as { subscribe?: unknown }).subscribe === "function"
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'subscribe' in value &&
+        typeof (value as { subscribe?: unknown }).subscribe === 'function'
+    )
 }
 
-function getBoundMethod(target: object, methodName: string): ((...args: unknown[]) => unknown) | undefined {
-  if (!(methodName in target)) {
-    return undefined;
-  }
+function getBoundMethod(
+    target: object,
+    methodName: string
+): ((...args: unknown[]) => unknown) | undefined {
+    if (!(methodName in target)) {
+        return undefined
+    }
 
-  const source = (target as Record<string, unknown>)[methodName];
-  if (typeof source !== "function") {
-    return undefined;
-  }
+    const source = (target as Record<string, unknown>)[methodName]
+    if (typeof source !== 'function') {
+        return undefined
+    }
 
-  const callable = source as (...args: unknown[]) => unknown;
-  return (...args: unknown[]) => Reflect.apply(callable, target, args);
+    const callable = source as (...args: unknown[]) => unknown
+    return (...args: unknown[]) => Reflect.apply(callable, target, args)
 }
 
 function isTanstackUtilsLike(value: unknown): value is object {
-  return (
-    isObjectLike(value) &&
-    ("key" in value ||
-      ("queryKey" in value && "queryOptions" in value) ||
-      isProcedureWithCall(value))
-  );
+    return (
+        isObjectLike(value) &&
+        ('key' in value ||
+            ('queryKey' in value && 'queryOptions' in value) ||
+            isProcedureWithCall(value))
+    )
 }
 
-function applyPipeTransform<TValue>(source$: RxObservable<TValue>): RxObservable<TValue>;
 function applyPipeTransform<TValue>(
-  source$: RxObservable<TValue>,
-  pipeTransform: ObservablePipeTransform<TValue>,
-): RxObservable<TValue>;
+    source$: RxObservable<TValue>
+): RxObservable<TValue>
 function applyPipeTransform<TValue>(
-  source$: RxObservable<TValue>,
-  pipeTransform?: ObservablePipeTransform<TValue>,
+    source$: RxObservable<TValue>,
+    pipeTransform: ObservablePipeTransform<TValue>
+): RxObservable<TValue>
+function applyPipeTransform<TValue>(
+    source$: RxObservable<TValue>,
+    pipeTransform?: ObservablePipeTransform<TValue>
 ): RxObservable<TValue> {
-  if (!pipeTransform) {
-    return source$;
-  }
+    if (!pipeTransform) {
+        return source$
+    }
 
-  return pipeTransform(source$);
+    return pipeTransform(source$)
 }
 
 function toObservable<TValue>(source: unknown): RxObservable<TValue> {
-  if (isRxObservable(source)) {
-    return source as RxObservable<TValue>;
-  }
+    if (isRxObservable(source)) {
+        return source as RxObservable<TValue>
+    }
 
-  if (isAsyncIterable(source)) {
-    return reconstructObservableFromEventIterator(source) as RxObservable<TValue>;
-  }
+    if (isAsyncIterable(source)) {
+        return reconstructObservableFromEventIterator(
+            source
+        ) as RxObservable<TValue>
+    }
 
-  return new RxjsObservable<TValue>((subscriber) => {
-    subscriber.next(source as TValue);
-    subscriber.complete();
-  });
+    return new RxjsObservable<TValue>((subscriber) => {
+        subscriber.next(source as TValue)
+        subscriber.complete()
+    })
 }
 
 /**
@@ -295,147 +332,153 @@ function toObservable<TValue>(source: unknown): RxObservable<TValue> {
  * not to the run), so it is NOT mistaken for a replay.
  */
 function eventIdentity(event: unknown): string | null {
-  if (!isObjectLike(event)) return null;
-  const record = event as { type?: unknown; stepId?: unknown; seq?: unknown };
-  if (typeof record.seq !== "number") return null;
-  const kind = typeof record.type === "string" ? record.type : "?";
-  const stepId = typeof record.stepId === "string" ? record.stepId : "";
-  return `${kind}:${stepId}:${String(record.seq)}`;
+    if (!isObjectLike(event)) return null
+    const record = event as { type?: unknown; stepId?: unknown; seq?: unknown }
+    if (typeof record.seq !== 'number') return null
+    const kind = typeof record.type === 'string' ? record.type : '?'
+    const stepId = typeof record.stepId === 'string' ? record.stepId : ''
+    return `${kind}:${stepId}:${String(record.seq)}`
 }
 
 async function collectObservableValues<TValue>(
-  context: QueryFunctionContext,
-  source$: RxObservable<TValue>,
-  isComplete?: (emitted: readonly TValue[]) => boolean,
-  /**
-   * How long the stream may go SILENT before it is treated as dead.
-   *
-   * ── A BACKSTOP, NOT A LIVENESS CHECK ────────────────────────────────────
-   * SSE has no heartbeat, so silence means "nothing to say" as often as it means
-   * "connection gone". This must therefore sit ABOVE the longest quiet period the
-   * caller's own pipeline produces while healthy — otherwise it aborts working
-   * runs, and a reconnect mid-step is worse than the hang it prevents.
-   *
-   * Its real job: an SSE connection has no natural end, so without a watchdog a
-   * half-open socket sits `pending` forever and the caller's `retry` never fires,
-   * because nothing rejected. See the option's note for how to size it.
-   */
-  inactivityTimeoutMs = 120_000,
-): Promise<TValue[]> {
-  return await new Promise<TValue[]>((resolve, reject) => {
-    // ── ACCUMULATE ACROSS ATTEMPTS, DON'T RESTART ───────────────────────────
-    // A reconnecting stream is a NEW stream, and on the server side it may even
-    // be a DIFFERENT producer: the setup progress stream is served by the setup
-    // app, and after the handover that same URL is owned by the API. The API
-    // replays ITS OWN events, which do not include the steps setup emitted.
-    //
-    // So a retry that started from an empty list would REPLACE the operator's
-    // steps with whatever the new producer happens to know — the "all steps are
-    // gone, only the loading text" state. Seeding from what is already cached
-    // means the timeline only ever GROWS, whichever process is answering.
-    const existing = context.client.getQueryData<TValue[]>(context.queryKey);
-    const values: TValue[] = Array.isArray(existing) ? [...existing] : [];
-
-    // Every identity already applied, so a REPLAYED event is recognised and
-    // skipped rather than re-applied. See `eventIdentity`.
-    const seen = new Set<string>();
-    for (const value of values) {
-      const identity = eventIdentity(value);
-      if (identity !== null) seen.add(identity);
-    }
-
-    const rejectWith = (reason: unknown) => {
-      clearTimeout(watchdog);
-      reject(reason instanceof Error ? reason : new Error("Unknown stream error"));
-    };
-
-    const onAbort = () => {
-      subscription.unsubscribe();
-      rejectWith(context.signal.reason);
-    };
-
-    // Seed only when there is nothing yet: the intent is "do not show values
-    // from a PREVIOUS, unrelated stream", never "wipe the current timeline".
-    if (!Array.isArray(existing)) {
-      context.client.setQueryData(context.queryKey, []);
-    }
-
+    context: QueryFunctionContext,
+    source$: RxObservable<TValue>,
+    isComplete?: (emitted: readonly TValue[]) => boolean,
     /**
-     * Re-armed on every event, so it measures SILENCE rather than total age.
+     * How long the stream may go SILENT before it is treated as dead.
      *
-     * Declared before the subscription because `next` closes over it, and
-     * `rejectWith` clears it — a rejected attempt must not leave a timer behind
-     * that would fire against a later subscription.
+     * ── A BACKSTOP, NOT A LIVENESS CHECK ────────────────────────────────────
+     * SSE has no heartbeat, so silence means "nothing to say" as often as it means
+     * "connection gone". This must therefore sit ABOVE the longest quiet period the
+     * caller's own pipeline produces while healthy — otherwise it aborts working
+     * runs, and a reconnect mid-step is worse than the hang it prevents.
+     *
+     * Its real job: an SSE connection has no natural end, so without a watchdog a
+     * half-open socket sits `pending` forever and the caller's `retry` never fires,
+     * because nothing rejected. See the option's note for how to size it.
      */
-    let watchdog: ReturnType<typeof setTimeout>;
-    const armWatchdog = () => {
-      clearTimeout(watchdog);
-      watchdog = setTimeout(() => {
-        subscription.unsubscribe();
-        context.signal.removeEventListener("abort", onAbort);
-        rejectWith(
-          new Error(
-            `Stream produced no events for ${String(inactivityTimeoutMs)}ms — treating the connection as dead`,
-          ),
-        );
-      }, inactivityTimeoutMs);
-    };
-
-    const subscription = source$.subscribe({
-      next(value) {
-        // Every event proves the connection is alive, so the clock restarts.
-        armWatchdog();
-
-        // ── THE LINE THAT MAKES A RECONNECT FEEL INSTANT ────────────────────
-        // Dropping replayed events is what keeps a reconnect from re-running the
-        // pipeline on screen: the client keeps the steps it already drew, and
-        // only the events it genuinely MISSED are appended. No reset, no flash,
-        // and no duplicated log lines.
-        const identity = eventIdentity(value);
-        if (identity !== null) {
-          if (seen.has(identity)) return;
-          seen.add(identity);
-        }
-
-        values.push(value);
-        context.client.setQueryData(context.queryKey, [...values]);
-      },
-      error(error) {
-        context.signal.removeEventListener("abort", onAbort);
-        subscription.unsubscribe();
-        rejectWith(error);
-      },
-      complete() {
-        context.signal.removeEventListener("abort", onAbort);
-        subscription.unsubscribe();
-        clearTimeout(watchdog);
-
-        // A CLEAN END IS NOT ALWAYS COMPLETION. See `isComplete` on the options:
-        // rejecting here is what lets the caller's `retry` re-run `queryFn` and
-        // issue a genuinely new request — the only layer that can.
+    inactivityTimeoutMs = 120_000
+): Promise<TValue[]> {
+    return await new Promise<TValue[]>((resolve, reject) => {
+        // ── ACCUMULATE ACROSS ATTEMPTS, DON'T RESTART ───────────────────────────
+        // A reconnecting stream is a NEW stream, and on the server side it may even
+        // be a DIFFERENT producer: the setup progress stream is served by the setup
+        // app, and after the handover that same URL is owned by the API. The API
+        // replays ITS OWN events, which do not include the steps setup emitted.
         //
-        // The predicate is asked about the WHOLE accumulated list, so a
-        // reconnect that already saw the terminal event does not loop.
-        if (isComplete !== undefined && !isComplete(values)) {
-          rejectWith(new Error("Stream ended before the work completed"));
-          return;
+        // So a retry that started from an empty list would REPLACE the operator's
+        // steps with whatever the new producer happens to know — the "all steps are
+        // gone, only the loading text" state. Seeding from what is already cached
+        // means the timeline only ever GROWS, whichever process is answering.
+        const existing = context.client.getQueryData<TValue[]>(context.queryKey)
+        const values: TValue[] = Array.isArray(existing) ? [...existing] : []
+
+        // Every identity already applied, so a REPLAYED event is recognised and
+        // skipped rather than re-applied. See `eventIdentity`.
+        const seen = new Set<string>()
+        for (const value of values) {
+            const identity = eventIdentity(value)
+            if (identity !== null) seen.add(identity)
         }
 
-        resolve(values);
-      },
-    });
+        const rejectWith = (reason: unknown) => {
+            clearTimeout(watchdog)
+            reject(
+                reason instanceof Error
+                    ? reason
+                    : new Error('Unknown stream error')
+            )
+        }
 
-    // Armed immediately, so a connection that never delivers a first event is
-    // also caught — otherwise the watchdog would only start after a first byte.
-    armWatchdog();
+        const onAbort = () => {
+            subscription.unsubscribe()
+            rejectWith(context.signal.reason)
+        }
 
-    if (context.signal.aborted) {
-      onAbort();
-      return;
-    }
+        // Seed only when there is nothing yet: the intent is "do not show values
+        // from a PREVIOUS, unrelated stream", never "wipe the current timeline".
+        if (!Array.isArray(existing)) {
+            context.client.setQueryData(context.queryKey, [])
+        }
 
-    context.signal.addEventListener("abort", onAbort, { once: true });
-  });
+        /**
+         * Re-armed on every event, so it measures SILENCE rather than total age.
+         *
+         * Declared before the subscription because `next` closes over it, and
+         * `rejectWith` clears it — a rejected attempt must not leave a timer behind
+         * that would fire against a later subscription.
+         */
+        let watchdog: ReturnType<typeof setTimeout>
+        const armWatchdog = () => {
+            clearTimeout(watchdog)
+            watchdog = setTimeout(() => {
+                subscription.unsubscribe()
+                context.signal.removeEventListener('abort', onAbort)
+                rejectWith(
+                    new Error(
+                        `Stream produced no events for ${String(inactivityTimeoutMs)}ms — treating the connection as dead`
+                    )
+                )
+            }, inactivityTimeoutMs)
+        }
+
+        const subscription = source$.subscribe({
+            next(value) {
+                // Every event proves the connection is alive, so the clock restarts.
+                armWatchdog()
+
+                // ── THE LINE THAT MAKES A RECONNECT FEEL INSTANT ────────────────────
+                // Dropping replayed events is what keeps a reconnect from re-running the
+                // pipeline on screen: the client keeps the steps it already drew, and
+                // only the events it genuinely MISSED are appended. No reset, no flash,
+                // and no duplicated log lines.
+                const identity = eventIdentity(value)
+                if (identity !== null) {
+                    if (seen.has(identity)) return
+                    seen.add(identity)
+                }
+
+                values.push(value)
+                context.client.setQueryData(context.queryKey, [...values])
+            },
+            error(error) {
+                context.signal.removeEventListener('abort', onAbort)
+                subscription.unsubscribe()
+                rejectWith(error)
+            },
+            complete() {
+                context.signal.removeEventListener('abort', onAbort)
+                subscription.unsubscribe()
+                clearTimeout(watchdog)
+
+                // A CLEAN END IS NOT ALWAYS COMPLETION. See `isComplete` on the options:
+                // rejecting here is what lets the caller's `retry` re-run `queryFn` and
+                // issue a genuinely new request — the only layer that can.
+                //
+                // The predicate is asked about the WHOLE accumulated list, so a
+                // reconnect that already saw the terminal event does not loop.
+                if (isComplete !== undefined && !isComplete(values)) {
+                    rejectWith(
+                        new Error('Stream ended before the work completed')
+                    )
+                    return
+                }
+
+                resolve(values)
+            },
+        })
+
+        // Armed immediately, so a connection that never delivers a first event is
+        // also caught — otherwise the watchdog would only start after a first byte.
+        armWatchdog()
+
+        if (context.signal.aborted) {
+            onAbort()
+            return
+        }
+
+        context.signal.addEventListener('abort', onAbort, { once: true })
+    })
 }
 
 /**
@@ -447,327 +490,447 @@ async function collectObservableValues<TValue>(
  * newest one of a burst is written when the window closes (trailing edge), so the
  * UI never shows anything but the latest state, at most once per window.
  */
-const LIVE_WRITE_INTERVAL_MS = 100;
+const LIVE_WRITE_INTERVAL_MS = 100
 
 async function consumeObservableLatestValue<TValue>(
-  context: QueryFunctionContext,
-  source$: RxObservable<TValue>,
+    context: QueryFunctionContext,
+    source$: RxObservable<TValue>
 ): Promise<TValue> {
-  return await new Promise<TValue>((resolve, reject) => {
-    let hasValue = false;
-    let latestValue!: TValue;
-    let lastWriteAt = 0;
-    let pendingWrite: ReturnType<typeof setTimeout> | null = null;
+    return await new Promise<TValue>((resolve, reject) => {
+        let hasValue = false
+        let latestValue!: TValue
+        let lastWriteAt = 0
+        let pendingWrite: ReturnType<typeof setTimeout> | null = null
 
-    const writeLatest = () => {
-      pendingWrite = null;
-      lastWriteAt = Date.now();
-      context.client.setQueryData(context.queryKey, latestValue);
-    };
-    const cancelPendingWrite = () => {
-      if (pendingWrite !== null) {
-        clearTimeout(pendingWrite);
-        pendingWrite = null;
-      }
-    };
-
-    const rejectWith = (reason: unknown) => {
-      cancelPendingWrite();
-      reject(reason instanceof Error ? reason : new Error("Unknown stream error"));
-    };
-
-    const onAbort = () => {
-      subscription.unsubscribe();
-      rejectWith(context.signal.reason);
-    };
-
-    const subscription = source$.subscribe({
-      next(value) {
-        hasValue = true;
-        latestValue = value;
-        if (pendingWrite !== null) return;
-        const wait = LIVE_WRITE_INTERVAL_MS - (Date.now() - lastWriteAt);
-        if (wait <= 0) {
-          writeLatest();
-        } else {
-          pendingWrite = setTimeout(writeLatest, wait);
+        const writeLatest = () => {
+            pendingWrite = null
+            lastWriteAt = Date.now()
+            context.client.setQueryData(context.queryKey, latestValue)
         }
-      },
-      error(error) {
-        context.signal.removeEventListener("abort", onAbort);
-        subscription.unsubscribe();
-        rejectWith(error);
-      },
-      complete() {
-        context.signal.removeEventListener("abort", onAbort);
-        subscription.unsubscribe();
-        cancelPendingWrite();
-
-        if (!hasValue) {
-          reject(new Error("Observable stream completed without emitting any value"));
-          return;
+        const cancelPendingWrite = () => {
+            if (pendingWrite !== null) {
+                clearTimeout(pendingWrite)
+                pendingWrite = null
+            }
         }
 
-        // The resolved value becomes the cache entry; nothing is left to flush.
-        resolve(latestValue);
-      },
-    });
+        const rejectWith = (reason: unknown) => {
+            cancelPendingWrite()
+            reject(
+                reason instanceof Error
+                    ? reason
+                    : new Error('Unknown stream error')
+            )
+        }
 
-    if (context.signal.aborted) {
-      onAbort();
-      return;
-    }
+        const onAbort = () => {
+            subscription.unsubscribe()
+            rejectWith(context.signal.reason)
+        }
 
-    context.signal.addEventListener("abort", onAbort, { once: true });
-  });
+        const subscription = source$.subscribe({
+            next(value) {
+                hasValue = true
+                latestValue = value
+                if (pendingWrite !== null) return
+                const wait = LIVE_WRITE_INTERVAL_MS - (Date.now() - lastWriteAt)
+                if (wait <= 0) {
+                    writeLatest()
+                } else {
+                    pendingWrite = setTimeout(writeLatest, wait)
+                }
+            },
+            error(error) {
+                context.signal.removeEventListener('abort', onAbort)
+                subscription.unsubscribe()
+                rejectWith(error)
+            },
+            complete() {
+                context.signal.removeEventListener('abort', onAbort)
+                subscription.unsubscribe()
+                cancelPendingWrite()
+
+                if (!hasValue) {
+                    reject(
+                        new Error(
+                            'Observable stream completed without emitting any value'
+                        )
+                    )
+                    return
+                }
+
+                // The resolved value becomes the cache entry; nothing is left to flush.
+                resolve(latestValue)
+            },
+        })
+
+        if (context.signal.aborted) {
+            onAbort()
+            return
+        }
+
+        context.signal.addEventListener('abort', onAbort, { once: true })
+    })
 }
 
-function normalizeQueryKey(baseKey: QueryKey, providedQueryKey?: QueryKey): QueryKey {
-  return providedQueryKey ?? baseKey;
+function normalizeQueryKey(
+    baseKey: QueryKey,
+    providedQueryKey?: QueryKey
+): QueryKey {
+    return providedQueryKey ?? baseKey
 }
 
 type ProcedureBaseQueryOptions = {
-  queryKey?: QueryKey;
-  queryFn?: (context: QueryFunctionContext) => Promise<unknown>;
-  [key: string]: unknown;
-};
+    queryKey?: QueryKey
+    queryFn?: (context: QueryFunctionContext) => Promise<unknown>
+    [key: string]: unknown
+}
 
 function resolveBaseProcedureOptions(
-  procedure: object,
-  methodName: "experimental_liveOptions" | "experimental_streamedOptions",
-  options: {
-    input: unknown;
-    queryKey?: QueryKey;
-    context: unknown;
-    queryOptions: Record<string, unknown>;
-  },
+    procedure: object,
+    methodName: 'experimental_liveOptions' | 'experimental_streamedOptions',
+    options: {
+        input: unknown
+        queryKey?: QueryKey
+        context: unknown
+        queryOptions: Record<string, unknown>
+    }
 ): ProcedureBaseQueryOptions | null {
-  const method = getBoundMethod(procedure, methodName);
-  if (!method) {
-    return null;
-  }
+    const method = getBoundMethod(procedure, methodName)
+    if (!method) {
+        return null
+    }
 
-  const baseOptionsInput: Record<string, unknown> = {
-    ...options.queryOptions,
-    input: options.input,
-  };
+    const baseOptionsInput: Record<string, unknown> = {
+        ...options.queryOptions,
+        input: options.input,
+    }
 
-  if (options.queryKey !== undefined) {
-    baseOptionsInput.queryKey = options.queryKey;
-  }
+    if (options.queryKey !== undefined) {
+        baseOptionsInput.queryKey = options.queryKey
+    }
 
-  if (options.context !== undefined) {
-    baseOptionsInput.context = options.context;
-  }
+    if (options.context !== undefined) {
+        baseOptionsInput.context = options.context
+    }
 
-  const result = method(baseOptionsInput);
-  return isObjectLike(result) ? (result) : null;
+    const result = method(baseOptionsInput)
+    return isObjectLike(result) ? result : null
 }
 
 function resolveProcedureKey(
-  procedure: object,
-  preferredMethodName: "experimental_liveKey" | "experimental_streamedKey",
-  mode: ObservableQueryMode,
-  input: unknown,
-  providedQueryKey?: QueryKey,
+    procedure: object,
+    preferredMethodName: 'experimental_liveKey' | 'experimental_streamedKey',
+    mode: ObservableQueryMode,
+    input: unknown,
+    providedQueryKey?: QueryKey
 ): QueryKey {
-  if (providedQueryKey) {
-    return providedQueryKey;
-  }
+    if (providedQueryKey) {
+        return providedQueryKey
+    }
 
-  const preferredMethod = getBoundMethod(procedure, preferredMethodName);
-  if (preferredMethod) {
-    return (input === undefined ? preferredMethod() : preferredMethod({ input })) as QueryKey;
-  }
+    const preferredMethod = getBoundMethod(procedure, preferredMethodName)
+    if (preferredMethod) {
+        return (
+            input === undefined ? preferredMethod() : preferredMethod({ input })
+        ) as QueryKey
+    }
 
-  const keyMethod = getBoundMethod(procedure, "key");
-  if (keyMethod) {
-    const operationType = mode === "observable" ? "live" : "streamed";
-    return (input === undefined
-      ? keyMethod({ type: operationType })
-      : keyMethod({ type: operationType, input })) as QueryKey;
-  }
+    const keyMethod = getBoundMethod(procedure, 'key')
+    if (keyMethod) {
+        const operationType = mode === 'observable' ? 'live' : 'streamed'
+        return (
+            input === undefined
+                ? keyMethod({ type: operationType })
+                : keyMethod({ type: operationType, input })
+        ) as QueryKey
+    }
 
-  const queryKeyMethod = getBoundMethod(procedure, "queryKey");
-  if (queryKeyMethod) {
-    return (input === undefined ? queryKeyMethod() : queryKeyMethod({ input })) as QueryKey;
-  }
+    const queryKeyMethod = getBoundMethod(procedure, 'queryKey')
+    if (queryKeyMethod) {
+        return (
+            input === undefined ? queryKeyMethod() : queryKeyMethod({ input })
+        ) as QueryKey
+    }
 
-  return input === undefined ? [mode] : [mode, input];
+    return input === undefined ? [mode] : [mode, input]
 }
 
 async function callProcedure(
-  procedure: RuntimeProcedureWithCall,
-  input: unknown,
-  signal: AbortSignal,
-  context: unknown,
+    procedure: RuntimeProcedureWithCall,
+    input: unknown,
+    signal: AbortSignal,
+    context: unknown
 ): Promise<unknown> {
-  const callOptions = context === undefined
-    ? { signal }
-    : { signal, context };
+    const callOptions = context === undefined ? { signal } : { signal, context }
 
-  return await procedure.call(input, callOptions);
+    return await procedure.call(input, callOptions)
 }
 
-function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): ObservableRouterQueryUtils<TOrpc> {
-  const cache = new WeakMap<object, object>();
-  const injectedMethodCache = new WeakMap<object, Map<PropertyKey, unknown>>();
+function enhanceObservableQueryUtils<TOrpc extends object>(
+    orpc: TOrpc
+): ObservableRouterQueryUtils<TOrpc> {
+    const cache = new WeakMap<object, object>()
+    const injectedMethodCache = new WeakMap<object, Map<PropertyKey, unknown>>()
 
-  const getInjectedMethod = (
-    target: object,
-    prop: PropertyKey,
-    factory: () => unknown,
-  ): unknown => {
-    const byTarget = injectedMethodCache.get(target) ?? new Map<PropertyKey, unknown>();
-    injectedMethodCache.set(target, byTarget);
+    const getInjectedMethod = (
+        target: object,
+        prop: PropertyKey,
+        factory: () => unknown
+    ): unknown => {
+        const byTarget =
+            injectedMethodCache.get(target) ?? new Map<PropertyKey, unknown>()
+        injectedMethodCache.set(target, byTarget)
 
-    if (byTarget.has(prop)) {
-      return byTarget.get(prop);
+        if (byTarget.has(prop)) {
+            return byTarget.get(prop)
+        }
+
+        const next = factory()
+        byTarget.set(prop, next)
+        return next
     }
 
-    const next = factory();
-    byTarget.set(prop, next);
-    return next;
-  };
+    const wrap = <TNode>(node: TNode): TNode => {
+        if (!isObjectLike(node)) {
+            return node
+        }
 
-  const wrap = <TNode>(node: TNode): TNode => {
-    if (!isObjectLike(node)) {
-      return node;
+        const existing = cache.get(node)
+        if (existing) {
+            return existing as TNode
+        }
+
+        const proxy = new Proxy(node, {
+            get(target, prop, receiver) {
+                if (
+                    prop === 'experimental_liveObservableKey' &&
+                    isProcedureWithCall(target)
+                ) {
+                    return getInjectedMethod(target, prop, () => {
+                        return (options?: {
+                            input?: unknown
+                            queryKey?: QueryKey
+                        }): QueryKey => {
+                            return resolveProcedureKey(
+                                target,
+                                'experimental_liveKey',
+                                'observable',
+                                options?.input,
+                                options?.queryKey
+                            )
+                        }
+                    })
+                }
+
+                if (
+                    prop === 'experimental_streamedObservableKey' &&
+                    isProcedureWithCall(target)
+                ) {
+                    return getInjectedMethod(target, prop, () => {
+                        return (options?: {
+                            input?: unknown
+                            queryKey?: QueryKey
+                        }): QueryKey => {
+                            return resolveProcedureKey(
+                                target,
+                                'experimental_streamedKey',
+                                'streamed-observable',
+                                options?.input,
+                                options?.queryKey
+                            )
+                        }
+                    })
+                }
+
+                if (
+                    prop === 'experimental_liveObservableOptions' &&
+                    isProcedureWithCall(target)
+                ) {
+                    return getInjectedMethod(target, prop, () => {
+                        return <TError = Error>(
+                            options: LiveObservableOptionsConfig<
+                                unknown,
+                                unknown,
+                                TError,
+                                unknown
+                            >
+                        ): LiveObservableQueryOptionsResult<
+                            unknown,
+                            TError
+                        > => {
+                            const {
+                                input,
+                                queryKey,
+                                queryFnOptions,
+                                context,
+                                ...rest
+                            } = options
+                            const baseOptions = resolveBaseProcedureOptions(
+                                target,
+                                'experimental_liveOptions',
+                                {
+                                    input,
+                                    queryKey,
+                                    context,
+                                    queryOptions: rest,
+                                }
+                            )
+                            const key = normalizeQueryKey(
+                                baseOptions?.queryKey ??
+                                    resolveProcedureKey(
+                                        target,
+                                        'experimental_liveKey',
+                                        'observable',
+                                        input,
+                                        queryKey
+                                    ),
+                                queryKey
+                            )
+
+                            return {
+                                ...(baseOptions ?? {}),
+                                ...rest,
+                                queryKey: key,
+                                queryFn: async (queryContext) => {
+                                    const result = await callProcedure(
+                                        target,
+                                        input,
+                                        queryContext.signal,
+                                        context
+                                    )
+                                    const source$ =
+                                        toObservable<unknown>(result)
+                                    const transformed$ = queryFnOptions
+                                        ? applyPipeTransform(
+                                              source$,
+                                              queryFnOptions
+                                          )
+                                        : source$
+
+                                    return await consumeObservableLatestValue(
+                                        queryContext,
+                                        transformed$
+                                    )
+                                },
+                            }
+                        }
+                    })
+                }
+
+                if (
+                    prop === 'experimental_streamedObservableOptions' &&
+                    isProcedureWithCall(target)
+                ) {
+                    return getInjectedMethod(target, prop, () => {
+                        return <TError = Error>(
+                            options: StreamedObservableOptionsConfig<
+                                unknown,
+                                unknown,
+                                TError,
+                                unknown
+                            >
+                        ): StreamedObservableQueryOptionsResult<
+                            unknown,
+                            TError
+                        > => {
+                            const {
+                                input,
+                                queryKey,
+                                queryFnOptions,
+                                context,
+                                isComplete,
+                                inactivityTimeoutMs,
+                                ...rest
+                            } = options
+                            const baseOptions = resolveBaseProcedureOptions(
+                                target,
+                                'experimental_streamedOptions',
+                                {
+                                    input,
+                                    queryKey,
+                                    context,
+                                    queryOptions: rest,
+                                }
+                            )
+                            const key = normalizeQueryKey(
+                                baseOptions?.queryKey ??
+                                    resolveProcedureKey(
+                                        target,
+                                        'experimental_streamedKey',
+                                        'streamed-observable',
+                                        input,
+                                        queryKey
+                                    ),
+                                queryKey
+                            )
+
+                            return {
+                                ...(baseOptions ?? {}),
+                                ...rest,
+                                queryKey: key,
+                                queryFn: async (
+                                    queryContext: QueryFunctionContext
+                                ) => {
+                                    const result = await callProcedure(
+                                        target,
+                                        input,
+                                        queryContext.signal,
+                                        context
+                                    )
+                                    const source$ =
+                                        toObservable<unknown>(result)
+                                    const transformed$ = queryFnOptions
+                                        ? applyPipeTransform(
+                                              source$,
+                                              queryFnOptions
+                                          )
+                                        : source$
+
+                                    return await collectObservableValues(
+                                        queryContext,
+                                        transformed$,
+                                        isComplete,
+                                        inactivityTimeoutMs
+                                    )
+                                },
+                            }
+                        }
+                    })
+                }
+
+                const value = Reflect.get(target, prop, receiver)
+                return isObjectLike(value) ? wrap(value) : value
+            },
+        })
+
+        cache.set(node, proxy)
+        return proxy
     }
 
-    const existing = cache.get(node);
-    if (existing) {
-      return existing as TNode;
-    }
-
-    const proxy = new Proxy(node, {
-      get(target, prop, receiver) {
-        if (prop === "experimental_liveObservableKey" && isProcedureWithCall(target)) {
-          return getInjectedMethod(target, prop, () => {
-            return (options?: { input?: unknown; queryKey?: QueryKey }): QueryKey => {
-              return resolveProcedureKey(
-                target,
-                "experimental_liveKey",
-                "observable",
-                options?.input,
-                options?.queryKey,
-              );
-            };
-          });
-        }
-
-        if (prop === "experimental_streamedObservableKey" && isProcedureWithCall(target)) {
-          return getInjectedMethod(target, prop, () => {
-            return (options?: { input?: unknown; queryKey?: QueryKey }): QueryKey => {
-              return resolveProcedureKey(
-                target,
-                "experimental_streamedKey",
-                "streamed-observable",
-                options?.input,
-                options?.queryKey,
-              );
-            };
-          });
-        }
-
-        if (prop === "experimental_liveObservableOptions" && isProcedureWithCall(target)) {
-          return getInjectedMethod(target, prop, () => {
-            return <TError = Error>(
-              options: LiveObservableOptionsConfig<unknown, unknown, TError, unknown>,
-            ): LiveObservableQueryOptionsResult<unknown, TError> => {
-              const { input, queryKey, queryFnOptions, context, ...rest } = options;
-              const baseOptions = resolveBaseProcedureOptions(target, "experimental_liveOptions", {
-                input,
-                queryKey,
-                context,
-                queryOptions: rest,
-              });
-              const key = normalizeQueryKey(
-                (baseOptions?.queryKey)
-                  ?? resolveProcedureKey(target, "experimental_liveKey", "observable", input, queryKey),
-                queryKey,
-              );
-
-              return {
-                ...(baseOptions ?? {}),
-                ...rest,
-                queryKey: key,
-                queryFn: async (queryContext) => {
-                  const result = await callProcedure(target, input, queryContext.signal, context);
-                  const source$ = toObservable<unknown>(result);
-                  const transformed$ = queryFnOptions
-                    ? applyPipeTransform(source$, queryFnOptions)
-                    : source$;
-
-                  return await consumeObservableLatestValue(queryContext, transformed$);
-                },
-              };
-            };
-          });
-        }
-
-        if (prop === "experimental_streamedObservableOptions" && isProcedureWithCall(target)) {
-          return getInjectedMethod(target, prop, () => {
-            return <TError = Error>(
-              options: StreamedObservableOptionsConfig<unknown, unknown, TError, unknown>,
-            ): StreamedObservableQueryOptionsResult<unknown, TError> => {
-              const { input, queryKey, queryFnOptions, context, isComplete, inactivityTimeoutMs, ...rest } = options;
-              const baseOptions = resolveBaseProcedureOptions(target, "experimental_streamedOptions", {
-                input,
-                queryKey,
-                context,
-                queryOptions: rest,
-              });
-              const key = normalizeQueryKey(
-                (baseOptions?.queryKey)
-                  ?? resolveProcedureKey(target, "experimental_streamedKey", "streamed-observable", input, queryKey),
-                queryKey,
-              );
-
-              return {
-                ...(baseOptions ?? {}),
-                ...rest,
-                queryKey: key,
-                queryFn: async (queryContext: QueryFunctionContext) => {
-                  const result = await callProcedure(target, input, queryContext.signal, context);
-                  const source$ = toObservable<unknown>(result);
-                  const transformed$ = queryFnOptions
-                    ? applyPipeTransform(source$, queryFnOptions)
-                    : source$;
-
-                  return await collectObservableValues(queryContext, transformed$, isComplete, inactivityTimeoutMs);
-                },
-              };
-            };
-          });
-        }
-
-        const value = Reflect.get(target, prop, receiver);
-        return isObjectLike(value) ? wrap(value) : value;
-      },
-    });
-
-    cache.set(node, proxy);
-    return proxy;
-  };
-
-  return wrap(orpc) as ObservableRouterQueryUtils<TOrpc>;
+    return wrap(orpc) as ObservableRouterQueryUtils<TOrpc>
 }
 
-export function createObservableQueryUtils<TClient extends NestedClient<ClientContext>>(
-  client: TClient,
-  options?: RouterUtilsOptions<TClient>,
-): ObservableRouterQueryUtils<RouterUtils<TClient>>;
+export function createObservableQueryUtils<
+    TClient extends NestedClient<ClientContext>,
+>(
+    client: TClient,
+    options?: RouterUtilsOptions<TClient>
+): ObservableRouterQueryUtils<RouterUtils<TClient>>
 export function createObservableQueryUtils<TOrpc extends object>(
-  orpc: TOrpc,
-): ObservableRouterQueryUtils<TOrpc>;
+    orpc: TOrpc
+): ObservableRouterQueryUtils<TOrpc>
 export function createObservableQueryUtils(
-  orpcOrClient: object,
-  options?: RouterUtilsOptions<NestedClient<ClientContext>>,
+    orpcOrClient: object,
+    options?: RouterUtilsOptions<NestedClient<ClientContext>>
 ): ObservableRouterQueryUtils<object> {
-  const baseUtils = options !== undefined || !isTanstackUtilsLike(orpcOrClient)
-    ? createTanstackQueryUtils(orpcOrClient as NestedClient<ClientContext>, options)
-    : orpcOrClient;
+    const baseUtils =
+        options !== undefined || !isTanstackUtilsLike(orpcOrClient)
+            ? createTanstackQueryUtils(
+                  orpcOrClient as NestedClient<ClientContext>,
+                  options
+              )
+            : orpcOrClient
 
-  return enhanceObservableQueryUtils(baseUtils);
+    return enhanceObservableQueryUtils(baseUtils)
 }

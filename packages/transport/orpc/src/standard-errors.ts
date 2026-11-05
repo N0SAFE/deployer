@@ -1,7 +1,7 @@
-import { ORPCError } from "@orpc/client";
-import z from "zod/v4";
+import { ORPCError } from '@orpc/client'
+import z from 'zod/v4'
 
-import type { ErrorDefinitionBuilder } from "@deployer/orpc-utils/builder/core/error-builder";
+import type { ErrorDefinitionBuilder } from '@deployer/orpc-utils/builder/core/error-builder'
 
 /**
  * Shared wire payload for product-domain (non-mesh) ORPC errors.
@@ -13,9 +13,11 @@ export const standardDomainErrorPayloadSchema = z.object({
     code: z.string(),
     message: z.string(),
     orpcCode: z.string(),
-});
+})
 
-export type StandardDomainErrorPayload = z.infer<typeof standardDomainErrorPayloadSchema>;
+export type StandardDomainErrorPayload = z.infer<
+    typeof standardDomainErrorPayloadSchema
+>
 
 /**
  * The canonical ORPC error codes for product domains (project, service,
@@ -24,13 +26,13 @@ export type StandardDomainErrorPayload = z.infer<typeof standardDomainErrorPaylo
  * uniformly across every domain.
  */
 export const STANDARD_DOMAIN_ORPC_CODE = {
-    not_found: "NOT_FOUND",
-    validation: "BAD_REQUEST",
-    conflict: "CONFLICT",
-    unauthorized: "UNAUTHORIZED",
-    forbidden: "FORBIDDEN",
-    dependency_missing: "FAILED_DEPENDENCY",
-} as const;
+    not_found: 'NOT_FOUND',
+    validation: 'BAD_REQUEST',
+    conflict: 'CONFLICT',
+    unauthorized: 'UNAUTHORIZED',
+    forbidden: 'FORBIDDEN',
+    dependency_missing: 'FAILED_DEPENDENCY',
+} as const
 
 export const STANDARD_DOMAIN_HTTP_STATUS = {
     not_found: 404,
@@ -39,7 +41,7 @@ export const STANDARD_DOMAIN_HTTP_STATUS = {
     unauthorized: 401,
     forbidden: 403,
     dependency_missing: 424,
-} as const;
+} as const
 
 /**
  * Ready-to-pass options for typed ORPC errors.
@@ -53,9 +55,13 @@ export const STANDARD_DOMAIN_HTTP_STATUS = {
  */
 export function standardErrorOptions(
     kind: keyof typeof STANDARD_DOMAIN_ORPC_CODE,
-    message: string,
+    message: string
 ): { status: number; message: string; data: StandardDomainErrorPayload } {
-    return domainErrorOptions(STANDARD_DOMAIN_ORPC_CODE[kind], STANDARD_DOMAIN_HTTP_STATUS[kind], message);
+    return domainErrorOptions(
+        STANDARD_DOMAIN_ORPC_CODE[kind],
+        STANDARD_DOMAIN_HTTP_STATUS[kind],
+        message
+    )
 }
 
 /**
@@ -70,13 +76,13 @@ export function standardErrorOptions(
 export function domainErrorOptions(
     orpcCode: string,
     statusCode: number,
-    message: string,
+    message: string
 ): { status: number; message: string; data: StandardDomainErrorPayload } {
     return {
         status: statusCode,
         message,
         data: { statusCode, code: orpcCode, message, orpcCode },
-    };
+    }
 }
 
 /**
@@ -88,36 +94,36 @@ export function domainErrorOptions(
  */
 export const STANDARD_DOMAIN_ERROR_DEFS = {
     [STANDARD_DOMAIN_ORPC_CODE.not_found]: {
-        message: "Resource not found",
+        message: 'Resource not found',
         status: STANDARD_DOMAIN_HTTP_STATUS.not_found,
         data: standardDomainErrorPayloadSchema,
     },
     [STANDARD_DOMAIN_ORPC_CODE.validation]: {
-        message: "Invalid input",
+        message: 'Invalid input',
         status: STANDARD_DOMAIN_HTTP_STATUS.validation,
         data: standardDomainErrorPayloadSchema,
     },
     [STANDARD_DOMAIN_ORPC_CODE.conflict]: {
-        message: "Conflict",
+        message: 'Conflict',
         status: STANDARD_DOMAIN_HTTP_STATUS.conflict,
         data: standardDomainErrorPayloadSchema,
     },
     [STANDARD_DOMAIN_ORPC_CODE.unauthorized]: {
-        message: "Unauthorized",
+        message: 'Unauthorized',
         status: STANDARD_DOMAIN_HTTP_STATUS.unauthorized,
         data: standardDomainErrorPayloadSchema,
     },
     [STANDARD_DOMAIN_ORPC_CODE.forbidden]: {
-        message: "Forbidden",
+        message: 'Forbidden',
         status: STANDARD_DOMAIN_HTTP_STATUS.forbidden,
         data: standardDomainErrorPayloadSchema,
     },
     [STANDARD_DOMAIN_ORPC_CODE.dependency_missing]: {
-        message: "Dependency missing",
+        message: 'Dependency missing',
         status: STANDARD_DOMAIN_HTTP_STATUS.dependency_missing,
         data: standardDomainErrorPayloadSchema,
     },
-} as const;
+} as const
 
 /**
  * Closed-set throwable factories for the standard domain errors.
@@ -138,23 +144,40 @@ export const STANDARD_DOMAIN_ERROR_DEFS = {
  */
 export const standardErrorActions = {
     NOT_FOUND: (message: string) =>
-        new ORPCError(STANDARD_DOMAIN_ORPC_CODE.not_found, standardErrorOptions("not_found", message)),
+        new ORPCError(
+            STANDARD_DOMAIN_ORPC_CODE.not_found,
+            standardErrorOptions('not_found', message)
+        ),
     BAD_REQUEST: (message: string) =>
-        new ORPCError(STANDARD_DOMAIN_ORPC_CODE.validation, standardErrorOptions("validation", message)),
+        new ORPCError(
+            STANDARD_DOMAIN_ORPC_CODE.validation,
+            standardErrorOptions('validation', message)
+        ),
     CONFLICT: (message: string) =>
-        new ORPCError(STANDARD_DOMAIN_ORPC_CODE.conflict, standardErrorOptions("conflict", message)),
+        new ORPCError(
+            STANDARD_DOMAIN_ORPC_CODE.conflict,
+            standardErrorOptions('conflict', message)
+        ),
     UNAUTHORIZED: (message: string) =>
-        new ORPCError(STANDARD_DOMAIN_ORPC_CODE.unauthorized, standardErrorOptions("unauthorized", message)),
+        new ORPCError(
+            STANDARD_DOMAIN_ORPC_CODE.unauthorized,
+            standardErrorOptions('unauthorized', message)
+        ),
     FORBIDDEN: (message: string) =>
-        new ORPCError(STANDARD_DOMAIN_ORPC_CODE.forbidden, standardErrorOptions("forbidden", message)),
+        new ORPCError(
+            STANDARD_DOMAIN_ORPC_CODE.forbidden,
+            standardErrorOptions('forbidden', message)
+        ),
     FAILED_DEPENDENCY: (message: string) =>
         new ORPCError(
             STANDARD_DOMAIN_ORPC_CODE.dependency_missing,
-            standardErrorOptions("dependency_missing", message),
+            standardErrorOptions('dependency_missing', message)
         ),
-} as const;
+} as const
 
-export type StandardErrorAction = (message: string) => ORPCError<string, StandardDomainErrorPayload>;
+export type StandardErrorAction = (
+    message: string
+) => ORPCError<string, StandardDomainErrorPayload>
 
 /**
  * Attach the canonical product-domain errors to an ORPC contract.
@@ -171,38 +194,38 @@ export type StandardErrorAction = (message: string) => ORPCError<string, Standar
  * ```
  */
 export function standardDomainErrorContracts(
-    e: (code?: string) => ErrorDefinitionBuilder,
+    e: (code?: string) => ErrorDefinitionBuilder
 ) {
     return [
         e()
             .code(STANDARD_DOMAIN_ORPC_CODE.not_found)
-            .message("Resource not found")
+            .message('Resource not found')
             .status(STANDARD_DOMAIN_HTTP_STATUS.not_found)
             .data(standardDomainErrorPayloadSchema),
         e()
             .code(STANDARD_DOMAIN_ORPC_CODE.validation)
-            .message("Invalid input")
+            .message('Invalid input')
             .status(STANDARD_DOMAIN_HTTP_STATUS.validation)
             .data(standardDomainErrorPayloadSchema),
         e()
             .code(STANDARD_DOMAIN_ORPC_CODE.conflict)
-            .message("Conflict")
+            .message('Conflict')
             .status(STANDARD_DOMAIN_HTTP_STATUS.conflict)
             .data(standardDomainErrorPayloadSchema),
         e()
             .code(STANDARD_DOMAIN_ORPC_CODE.unauthorized)
-            .message("Unauthorized")
+            .message('Unauthorized')
             .status(STANDARD_DOMAIN_HTTP_STATUS.unauthorized)
             .data(standardDomainErrorPayloadSchema),
         e()
             .code(STANDARD_DOMAIN_ORPC_CODE.forbidden)
-            .message("Forbidden")
+            .message('Forbidden')
             .status(STANDARD_DOMAIN_HTTP_STATUS.forbidden)
             .data(standardDomainErrorPayloadSchema),
         e()
             .code(STANDARD_DOMAIN_ORPC_CODE.dependency_missing)
-            .message("Dependency missing")
+            .message('Dependency missing')
             .status(STANDARD_DOMAIN_HTTP_STATUS.dependency_missing)
             .data(standardDomainErrorPayloadSchema),
-    ] as const;
+    ] as const
 }

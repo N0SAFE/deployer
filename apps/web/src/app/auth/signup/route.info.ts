@@ -1,15 +1,13 @@
-import { z } from "zod";
-
+import { z } from 'zod'
 
 // Auto-generated flags - DO NOT EDIT manually, these are synced by dr:build
-export const page = true;
-export const layout = false;
+export const page = true
+export const layout = false
 export const Route = {
-  name: "AuthSignup",
-  params: z.object({
-  }),
-  search: z.object({
-    callbackUrl: z.string().optional(),
-    redirectTo: z.string().optional(),
-  }),
-};
+    name: 'AuthSignup',
+    params: z.object({}),
+    search: z.object({
+        callbackUrl: z.string().optional(),
+        redirectTo: z.string().optional(),
+    }),
+}

@@ -1,12 +1,23 @@
-import { getAsyncIteratorObjectSchemasDetails, type AnySchema } from "@orpc/contract";
-import { get } from "@orpc/shared";
+import {
+    getAsyncIteratorObjectSchemasDetails,
+    type AnySchema,
+} from '@orpc/contract'
+import { get } from '@orpc/shared'
 
-import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "@deployer/orpc-utils/observable/contract";
-import { reconstructObservableFromEventIterator } from "@deployer/orpc-utils/observable/event-iterator";
-import { isContractProcedure } from "@deployer/orpc-utils/types/type-helpers";
+import {
+    OBSERVABLE_DETAILS_SYMBOL,
+    toAsyncIteratorFromObservable,
+    type Observable,
+} from '@deployer/orpc-utils/observable/contract'
+import { reconstructObservableFromEventIterator } from '@deployer/orpc-utils/observable/event-iterator'
+import { isContractProcedure } from '@deployer/orpc-utils/types/type-helpers'
 
-import type { ClientContext } from "@orpc/client";
-import type { StandardLinkPlugin, StandardLinkOptions, StandardLinkInterceptorOptions } from "@orpc/client/standard";
+import type { ClientContext } from '@orpc/client'
+import type {
+    StandardLinkPlugin,
+    StandardLinkOptions,
+    StandardLinkInterceptorOptions,
+} from '@orpc/client/standard'
 
 /**
  * StandardLinkPlugin that reconciles Observable ↔ AsyncIterable at the transport boundary.
@@ -29,96 +40,129 @@ import type { StandardLinkPlugin, StandardLinkOptions, StandardLinkInterceptorOp
  * });
  * ```
  */
-export class ObservableLinkPlugin<T extends ClientContext> implements StandardLinkPlugin<T> {
-  /** Unique plugin name — oRPC v2 requires it for ordering identification. */
-  public readonly name = "observable-link";
+export class ObservableLinkPlugin<
+    T extends ClientContext,
+> implements StandardLinkPlugin<T> {
+    /** Unique plugin name — oRPC v2 requires it for ordering identification. */
+    public readonly name = 'observable-link'
 
-  /**
-   * Run before other plugins so downstream code already sees the correct
-   * Observable/AsyncIterable types.
-   */
-  public readonly before = ["request-compression", "response-compression", "batch"];
+    /**
+     * Run before other plugins so downstream code already sees the correct
+     * Observable/AsyncIterable types.
+     */
+    public readonly before = [
+        'request-compression',
+        'response-compression',
+        'batch',
+    ]
 
-  constructor(private readonly appContract: unknown) {}
+    constructor(private readonly appContract: unknown) {}
 
-  init(options: StandardLinkOptions<T>): StandardLinkOptions<T> {
-    const plugin = this;
-    const existing = options.interceptors ?? [];
+    init(options: StandardLinkOptions<T>): StandardLinkOptions<T> {
+        const plugin = this
+        const existing = options.interceptors ?? []
 
-    return {
-      ...options,
-      interceptors: [
-        ...existing,
-      async (interceptorOptions: {
-        readonly path: readonly string[];
-        input: unknown;
-        next: (options: StandardLinkInterceptorOptions<T>) => Promise<unknown>;
-      } & Record<string, unknown>): Promise<unknown> => {
-        const { path, input, next } = interceptorOptions;
+        return {
+            ...options,
+            interceptors: [
+                ...existing,
+                async (
+                    interceptorOptions: {
+                        readonly path: readonly string[]
+                        input: unknown
+                        next: (
+                            options: StandardLinkInterceptorOptions<T>
+                        ) => Promise<unknown>
+                    } & Record<string, unknown>
+                ): Promise<unknown> => {
+                    const { path, input, next } = interceptorOptions
 
-        // 1. Look up the procedure in the contract via the call path
-        const procedure = get(plugin.appContract, path);
-        if (!procedure || !isContractProcedure(procedure)) {
-          return next(interceptorOptions as unknown as StandardLinkInterceptorOptions<T>);
+                    // 1. Look up the procedure in the contract via the call path
+                    const procedure = get(plugin.appContract, path)
+                    if (!procedure || !isContractProcedure(procedure)) {
+                        return next(
+                            interceptorOptions as unknown as StandardLinkInterceptorOptions<T>
+                        )
+                    }
+
+                    // oRPC v2 stores schemas as arrays (`inputSchemas` / `outputSchemas`);
+                    // the builder applies exactly one of each, so index 0 is the schema.
+                    const procDef = (
+                        procedure as {
+                            '~orpc': {
+                                outputSchemas?: unknown[]
+                                inputSchemas?: unknown[]
+                            }
+                        }
+                    )['~orpc']
+
+                    // 2. Check if input schema is observable-marked
+                    const inputSchema = procDef.inputSchemas?.[0] as
+                        | { '~standard'?: Record<PropertyKey, unknown> }
+                        | undefined
+                    const inputIsObservable =
+                        inputSchema?.['~standard']?.[
+                            OBSERVABLE_DETAILS_SYMBOL
+                        ] !== undefined
+
+                    // 3. Check if output schema is observable-marked
+                    const outputSchema = procDef.outputSchemas?.[0] as
+                        | { '~standard'?: Record<PropertyKey, unknown> }
+                        | undefined
+                    const outputHasObservableSymbol =
+                        outputSchema?.['~standard']?.[
+                            OBSERVABLE_DETAILS_SYMBOL
+                        ] !== undefined
+                    const outputHasEventIterator =
+                        getAsyncIteratorObjectSchemasDetails(
+                            outputSchema
+                                ? [outputSchema as unknown as AnySchema]
+                                : undefined
+                        ) !== undefined
+                    const outputIsObservable =
+                        outputHasObservableSymbol || outputHasEventIterator
+
+                    // 4. If neither input nor output needs conversion, pass through
+                    if (!inputIsObservable && !outputIsObservable) {
+                        return next(
+                            interceptorOptions as unknown as StandardLinkInterceptorOptions<T>
+                        )
+                    }
+
+                    // 5. INPUT: Convert Observable → AsyncIterable when the user passes an Observable
+                    if (
+                        inputIsObservable &&
+                        input !== null &&
+                        typeof input === 'object' &&
+                        'subscribe' in (input as Record<string, unknown>)
+                    ) {
+                        interceptorOptions.input =
+                            toAsyncIteratorFromObservable(
+                                input as Observable<unknown>
+                            )
+                    }
+
+                    // 6. Call next — runs codec.encode → sender.call → codec.decode
+                    const result = await next(
+                        interceptorOptions as unknown as StandardLinkInterceptorOptions<T>
+                    )
+
+                    // 7. OUTPUT: Convert AsyncIterable → Observable when the output schema is observable-marked
+                    if (
+                        outputIsObservable &&
+                        result !== null &&
+                        typeof result === 'object' &&
+                        Symbol.asyncIterator in
+                            (result as AsyncIterable<unknown>)
+                    ) {
+                        return reconstructObservableFromEventIterator(
+                            result as AsyncIterable<unknown>
+                        )
+                    }
+
+                    return result
+                },
+            ],
         }
-
-        // oRPC v2 stores schemas as arrays (`inputSchemas` / `outputSchemas`);
-        // the builder applies exactly one of each, so index 0 is the schema.
-        const procDef = (procedure as { "~orpc": { outputSchemas?: unknown[]; inputSchemas?: unknown[] } })["~orpc"];
-
-        // 2. Check if input schema is observable-marked
-        const inputSchema = procDef.inputSchemas?.[0] as
-          | { "~standard"?: Record<PropertyKey, unknown> }
-          | undefined;
-        const inputIsObservable =
-          inputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
-
-        // 3. Check if output schema is observable-marked
-        const outputSchema = procDef.outputSchemas?.[0] as
-          | { "~standard"?: Record<PropertyKey, unknown> }
-          | undefined;
-        const outputHasObservableSymbol =
-          outputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
-        const outputHasEventIterator =
-          getAsyncIteratorObjectSchemasDetails(outputSchema ? [outputSchema as unknown as AnySchema] : undefined) !== undefined;
-        const outputIsObservable =
-          outputHasObservableSymbol || outputHasEventIterator;
-
-        // 4. If neither input nor output needs conversion, pass through
-        if (!inputIsObservable && !outputIsObservable) {
-          return next(interceptorOptions as unknown as StandardLinkInterceptorOptions<T>);
-        }
-
-        // 5. INPUT: Convert Observable → AsyncIterable when the user passes an Observable
-        if (
-          inputIsObservable &&
-          input !== null &&
-          typeof input === "object" &&
-          "subscribe" in (input as Record<string, unknown>)
-        ) {
-          interceptorOptions.input = toAsyncIteratorFromObservable(
-            input as Observable<unknown>,
-          );
-        }
-
-        // 6. Call next — runs codec.encode → sender.call → codec.decode
-        const result = await next(interceptorOptions as unknown as StandardLinkInterceptorOptions<T>);
-
-        // 7. OUTPUT: Convert AsyncIterable → Observable when the output schema is observable-marked
-        if (
-          outputIsObservable &&
-          result !== null &&
-          typeof result === "object" &&
-          Symbol.asyncIterator in (result as AsyncIterable<unknown>)
-        ) {
-          return reconstructObservableFromEventIterator(
-            result as AsyncIterable<unknown>,
-          );
-        }
-
-        return result;
-      },
-      ],
-    };
-  }
+    }
 }

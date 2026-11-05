@@ -1,10 +1,12 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
-import { serviceToggleActiveContract } from "./toggle-active";
+import { serviceToggleActiveContract } from './toggle-active'
 
-export const serviceLifecycleContract = oc.meta(openapi({ tags: ["Service Lifecycle"] })).router({
-  toggleActive: serviceToggleActiveContract,
-});
+export const serviceLifecycleContract = oc
+    .meta(openapi({ tags: ['Service Lifecycle'] }))
+    .router({
+        toggleActive: serviceToggleActiveContract,
+    })
 
-export { serviceToggleActiveContract };
+export { serviceToggleActiveContract }

@@ -1,5 +1,8 @@
-import z from "zod/v4";
-import { builderCategorySchema, providerCategorySchema } from "@deployer/provider-schema/domain/enums";
+import z from 'zod/v4'
+import {
+    builderCategorySchema,
+    providerCategorySchema,
+} from '@deployer/provider-schema/domain/enums'
 
 export const providerMetadataSchema = z.object({
     id: z.string(),
@@ -9,7 +12,7 @@ export const providerMetadataSchema = z.object({
     category: providerCategorySchema,
     supportedBuilders: z.array(z.string()),
     tags: z.array(z.string()),
-});
+})
 
 export const builderMetadataSchema = z.object({
     id: z.string(),
@@ -19,9 +22,9 @@ export const builderMetadataSchema = z.object({
     category: builderCategorySchema,
     compatibleProviders: z.array(z.string()),
     tags: z.array(z.string()),
-});
+})
 
 export const providerConfigValidationResultSchema = z.object({
     valid: z.boolean(),
     errors: z.array(z.string()),
-});
+})

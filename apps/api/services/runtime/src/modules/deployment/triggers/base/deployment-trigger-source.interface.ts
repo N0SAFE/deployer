@@ -1,6 +1,6 @@
-import type { Effect } from "effect";
+import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import type { Effect } from 'effect'
 
 /**
  * DeploymentTriggerSource — the public entry point for "what can START a deployment".
@@ -35,7 +35,7 @@ import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules
  */
 export type DeploymentTriggerSource<R = never> = {
     /** Dispatch key, lowercase: "api" | "github-push" | "github-pull-request" | "schedule" | … */
-    readonly sourceId: string;
+    readonly sourceId: string
 
     /**
      * Whether this source owns the given event.
@@ -44,7 +44,7 @@ export type DeploymentTriggerSource<R = never> = {
      * A source must return `false` rather than throw on a payload it does not recognise,
      * so one malformed delivery cannot break dispatch for the others.
      */
-    matches(event: DeploymentTriggerEvent): boolean;
+    matches(event: DeploymentTriggerEvent): boolean
 
     /**
      * Translate the event into the input `triggerDeployment` accepts.
@@ -54,7 +54,9 @@ export type DeploymentTriggerSource<R = never> = {
      * cannot be built. "Nothing to deploy" (e.g. no service is linked to that repository) is `null`.
      * `R` is what the source reads while it runs (a lookup port); it is yielded, never injected.
      */
-    toTriggerInput(event: DeploymentTriggerEvent): Effect.Effect<DeploymentTriggerInput | null, unknown, R>;
+    toTriggerInput(
+        event: DeploymentTriggerEvent
+    ): Effect.Effect<DeploymentTriggerInput | null, unknown, R>
 
     /**
      * Whether this source can fire right now.
@@ -63,10 +65,10 @@ export type DeploymentTriggerSource<R = never> = {
      * for example a push source on a platform with no repo→service link — and report why
      * instead of silently never matching.
      */
-    isEnabled(): boolean;
+    isEnabled(): boolean
 
     /** Reason when `isEnabled()` is false. */
-    disabledReason(): string;
+    disabledReason(): string
 }
 
 /**
@@ -78,15 +80,15 @@ export type DeploymentTriggerSource<R = never> = {
  */
 export type DeploymentTriggerEvent = {
     /** Where the event came from: "api" | "github" | "gitlab" | "schedule" | … */
-    readonly provider: string;
+    readonly provider: string
     /** The provider's event name, e.g. "push" | "pull_request" | "deployment". */
-    readonly eventName: string;
+    readonly eventName: string
     /** The raw parsed body. Sources narrow it themselves. */
-    readonly payload: unknown;
+    readonly payload: unknown
     /** Set when the caller already knows the service (API path). */
-    readonly serviceId?: string | null;
+    readonly serviceId?: string | null
     /** Set when the caller already knows the project. */
-    readonly projectId?: string | null;
+    readonly projectId?: string | null
 }
 
 /**
@@ -95,4 +97,4 @@ export type DeploymentTriggerEvent = {
  * `DeploymentTriggerInput` is the contract's own type — redefining it here would be a
  * second source of truth for the most important shape in the trigger path.
  */
-export type { DeploymentTriggerInput };
+export type { DeploymentTriggerInput }

@@ -1,97 +1,97 @@
 {
-  "version": "8",
-  "dialect": "sqlite",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1774968121442,
-      "tag": "0000_sour_king_cobra",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1775062346033,
-      "tag": "0001_optimal_prowler",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1779967212279,
-      "tag": "0002_ancient_colonel_america",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1748438400000,
-      "tag": "0003_add_node_config_database_url",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1780699535351,
-      "tag": "0004_violet_sandman",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1781609835657,
-      "tag": "0005_absent_stark_industries",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1782000000000,
-      "tag": "0006_add_mesh_shared_secret",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1782944875753,
-      "tag": "0007_aberrant_sabra",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1781000000000,
-      "tag": "0008_add_scan_config",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1784249327356,
-      "tag": "0009_aspiring_secret_warriors",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1787826407062,
-      "tag": "0010_rare_jazinda",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1787841587635,
-      "tag": "0011_foamy_spirit",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1789986393391,
-      "tag": "0012_lame_serpent_society",
-      "breakpoints": true
-    }
-  ]
+    "version": "8",
+    "dialect": "sqlite",
+    "entries": [
+        {
+            "idx": 0,
+            "version": "6",
+            "when": 1774968121442,
+            "tag": "0000_sour_king_cobra",
+            "breakpoints": true
+        },
+        {
+            "idx": 1,
+            "version": "6",
+            "when": 1775062346033,
+            "tag": "0001_optimal_prowler",
+            "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "6",
+            "when": 1779967212279,
+            "tag": "0002_ancient_colonel_america",
+            "breakpoints": true
+        },
+        {
+            "idx": 3,
+            "version": "6",
+            "when": 1748438400000,
+            "tag": "0003_add_node_config_database_url",
+            "breakpoints": true
+        },
+        {
+            "idx": 4,
+            "version": "6",
+            "when": 1780699535351,
+            "tag": "0004_violet_sandman",
+            "breakpoints": true
+        },
+        {
+            "idx": 5,
+            "version": "6",
+            "when": 1781609835657,
+            "tag": "0005_absent_stark_industries",
+            "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "6",
+            "when": 1782000000000,
+            "tag": "0006_add_mesh_shared_secret",
+            "breakpoints": true
+        },
+        {
+            "idx": 7,
+            "version": "6",
+            "when": 1782944875753,
+            "tag": "0007_aberrant_sabra",
+            "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "6",
+            "when": 1781000000000,
+            "tag": "0008_add_scan_config",
+            "breakpoints": true
+        },
+        {
+            "idx": 9,
+            "version": "6",
+            "when": 1784249327356,
+            "tag": "0009_aspiring_secret_warriors",
+            "breakpoints": true
+        },
+        {
+            "idx": 10,
+            "version": "6",
+            "when": 1787826407062,
+            "tag": "0010_rare_jazinda",
+            "breakpoints": true
+        },
+        {
+            "idx": 11,
+            "version": "6",
+            "when": 1787841587635,
+            "tag": "0011_foamy_spirit",
+            "breakpoints": true
+        },
+        {
+            "idx": 12,
+            "version": "6",
+            "when": 1789986393391,
+            "tag": "0012_lame_serpent_society",
+            "breakpoints": true
+        }
+    ]
 }

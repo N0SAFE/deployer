@@ -26,30 +26,34 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { healthContract } from "@deployer/health-contracts";
+import { healthContract } from '@deployer/health-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class HealthDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("health", healthContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('health', healthContract)
+    }
 
-	@Implement(healthContract.check)
-	check() {
-		return implement(healthContract.check).handler(({ input }) => this.client.check(input));
-	}
+    @Implement(healthContract.check)
+    check() {
+        return implement(healthContract.check).handler(({ input }) =>
+            this.client.check(input)
+        )
+    }
 
-	@Implement(healthContract.detailed)
-	detailed() {
-		return implement(healthContract.detailed).handler(({ input }) => this.client.detailed(input));
-	}
+    @Implement(healthContract.detailed)
+    detailed() {
+        return implement(healthContract.detailed).handler(({ input }) =>
+            this.client.detailed(input)
+        )
+    }
 }

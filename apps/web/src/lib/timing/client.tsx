@@ -2,7 +2,7 @@
 
 /**
  * Client-Side Page Timing Components
- * 
+ *
  * Components that measure and log client-side performance metrics:
  * - Hydration time
  * - Time to interactive
@@ -19,12 +19,12 @@ import { AppLogger } from '@deployer/logger'
 // ============================================================================
 
 interface TimingEntry {
-  pageName: string
-  pathname: string
-  timestamp: number
-  hydrationTime?: number
-  navigationTime?: number
-  meta?: Record<string, string | number | boolean>
+    pageName: string
+    pathname: string
+    timestamp: number
+    hydrationTime?: number
+    navigationTime?: number
+    meta?: Record<string, string | number | boolean>
 }
 
 // ============================================================================
@@ -35,24 +35,24 @@ const timingHistory: TimingEntry[] = []
 const MAX_HISTORY = 50
 
 function addTimingEntry(entry: TimingEntry) {
-  timingHistory.push(entry)
-  if (timingHistory.length > MAX_HISTORY) {
-    timingHistory.shift()
-  }
+    timingHistory.push(entry)
+    if (timingHistory.length > MAX_HISTORY) {
+        timingHistory.shift()
+    }
 }
 
 /**
  * Get timing history for debugging
  */
 export function getTimingHistory(): TimingEntry[] {
-  return [...timingHistory]
+    return [...timingHistory]
 }
 
 /**
  * Clear timing history
  */
 export function clearTimingHistory(): void {
-  timingHistory.length = 0
+    timingHistory.length = 0
 }
 
 // ============================================================================
@@ -60,22 +60,26 @@ export function clearTimingHistory(): void {
 // ============================================================================
 
 function formatDuration(ms: number): string {
-  if (ms < 100) return `${ms.toFixed(0)}ms`
-  if (ms < 1000) return `${ms.toFixed(0)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
+    if (ms < 100) return `${ms.toFixed(0)}ms`
+    if (ms < 1000) return `${ms.toFixed(0)}ms`
+    return `${(ms / 1000).toFixed(2)}s`
 }
 
 function logTiming(
-  type: 'hydration' | 'navigation' | 'render',
-  pageName: string,
-  duration: number,
-  meta?: Record<string, string | number | boolean>
+    type: 'hydration' | 'navigation' | 'render',
+    pageName: string,
+    duration: number,
+    meta?: Record<string, string | number | boolean>
 ) {
-  const metaStr = meta 
-    ? ` | ${Object.entries(meta).map(([k, v]) => `${k}=${String(v)}`).join(', ')}`
-    : ''
-  
-  timingLogger.debug(`[Client/${type}] ${pageName}: ${formatDuration(duration)}${metaStr}`)
+    const metaStr = meta
+        ? ` | ${Object.entries(meta)
+              .map(([k, v]) => `${k}=${String(v)}`)
+              .join(', ')}`
+        : ''
+
+    timingLogger.debug(
+        `[Client/${type}] ${pageName}: ${formatDuration(duration)}${metaStr}`
+    )
 }
 
 const timingLogger = new AppLogger('web').scope('ClientTiming')
@@ -85,137 +89,141 @@ const timingLogger = new AppLogger('web').scope('ClientTiming')
 // ============================================================================
 
 interface PageTimingLoggerProps {
-  /** Name of the page for logging */
-  pageName: string
-  /** Optional metadata to include in logs */
-  meta?: Record<string, string | number | boolean>
+    /** Name of the page for logging */
+    pageName: string
+    /** Optional metadata to include in logs */
+    meta?: Record<string, string | number | boolean>
 }
 
 /**
  * Component that logs timing when mounted (hydration complete)
  * Place this at the end of your page component
- * 
+ *
  * Wraps the usePathname() read in a Suspense boundary so this component
  * never blocks prerendering on routes with dynamic params (the pathname
  * suspends during prerendering; the timing log is a client-only concern).
  */
 export function PageTimingLogger({ pageName, meta }: PageTimingLoggerProps) {
-  return (
-    <Suspense fallback={null}>
-      <PageTimingLoggerInner pageName={pageName} meta={meta} />
-    </Suspense>
-  )
+    return (
+        <Suspense fallback={null}>
+            <PageTimingLoggerInner pageName={pageName} meta={meta} />
+        </Suspense>
+    )
 }
 
 function PageTimingLoggerInner({ pageName, meta }: PageTimingLoggerProps) {
-  const pathname = usePathname()
-  const mountTimeRef = useRef<number | null>(null)
-  const hasLoggedRef = useRef(false)
+    const pathname = usePathname()
+    const mountTimeRef = useRef<number | null>(null)
+    const hasLoggedRef = useRef(false)
 
-  // Initialize mount time in effect to avoid impure function during render
-  useEffect(() => {
-    mountTimeRef.current ??= performance.now()
-  }, [])
+    // Initialize mount time in effect to avoid impure function during render
+    useEffect(() => {
+        mountTimeRef.current ??= performance.now()
+    }, [])
 
-  useEffect(() => {
-    // Only log once per mount
-    if (hasLoggedRef.current) return
-    hasLoggedRef.current = true
+    useEffect(() => {
+        // Only log once per mount
+        if (hasLoggedRef.current) return
+        hasLoggedRef.current = true
 
-    const mountTime = mountTimeRef.current ?? performance.now()
-    const hydrationTime = performance.now() - mountTime
-    
-    // Try to get navigation timing if available
-    let navigationTime: number | undefined
-    const navEntries = performance.getEntriesByType('navigation')
-    if (navEntries.length > 0) {
-      const navEntry = navEntries[0] as PerformanceNavigationTiming
-      navigationTime = navEntry.domContentLoadedEventEnd - navEntry.startTime
-    }
+        const mountTime = mountTimeRef.current ?? performance.now()
+        const hydrationTime = performance.now() - mountTime
 
-    logTiming('hydration', pageName, hydrationTime, meta)
-    
-    if (navigationTime) {
-      logTiming('navigation', pageName, navigationTime)
-    }
+        // Try to get navigation timing if available
+        let navigationTime: number | undefined
+        const navEntries = performance.getEntriesByType('navigation')
+        if (navEntries.length > 0) {
+            const navEntry = navEntries[0] as PerformanceNavigationTiming
+            navigationTime =
+                navEntry.domContentLoadedEventEnd - navEntry.startTime
+        }
 
-    // Store timing entry
-    addTimingEntry({
-      pageName,
-      pathname,
-      timestamp: Date.now(),
-      hydrationTime,
-      navigationTime,
-      meta,
-    })
-  }, [pageName, pathname, meta])
+        logTiming('hydration', pageName, hydrationTime, meta)
 
-  return null
+        if (navigationTime) {
+            logTiming('navigation', pageName, navigationTime)
+        }
+
+        // Store timing entry
+        addTimingEntry({
+            pageName,
+            pathname,
+            timestamp: Date.now(),
+            hydrationTime,
+            navigationTime,
+            meta,
+        })
+    }, [pageName, pathname, meta])
+
+    return null
 }
 
 /**
  * Hook to measure component render time
  */
 export function useRenderTiming(componentName: string) {
-  const renderCount = useRef(0)
-  const lastRenderTime = useRef<number | null>(null)
+    const renderCount = useRef(0)
+    const lastRenderTime = useRef<number | null>(null)
 
-  useEffect(() => {
-    // Initialize on first effect
-    if (lastRenderTime.current === null) {
-      lastRenderTime.current = performance.now()
-      return
-    }
-    
-    renderCount.current++
-    const renderTime = performance.now() - lastRenderTime.current
-    
-    if (renderCount.current > 0) {
-      // Only log re-renders, not initial mount
-      timingLogger.debug(`[Re-render] ${componentName}: ${formatDuration(renderTime)} (render #${String(renderCount.current)})`)
-    }
-    
-    lastRenderTime.current = performance.now()
-  })
+    useEffect(() => {
+        // Initialize on first effect
+        if (lastRenderTime.current === null) {
+            lastRenderTime.current = performance.now()
+            return
+        }
+
+        renderCount.current++
+        const renderTime = performance.now() - lastRenderTime.current
+
+        if (renderCount.current > 0) {
+            // Only log re-renders, not initial mount
+            timingLogger.debug(
+                `[Re-render] ${componentName}: ${formatDuration(renderTime)} (render #${String(renderCount.current)})`
+            )
+        }
+
+        lastRenderTime.current = performance.now()
+    })
 }
 
 /**
  * Hook to track route changes and their timing
  */
 export function useNavigationTiming() {
-  const pathname = usePathname()
-  const navigationStartRef = useRef<number | null>(null)
-  const lastPathnameRef = useRef<string>(pathname)
+    const pathname = usePathname()
+    const navigationStartRef = useRef<number | null>(null)
+    const lastPathnameRef = useRef<string>(pathname)
 
-  useEffect(() => {
-    // Initialize on first effect
-    navigationStartRef.current ??= performance.now()
-    
-    if (lastPathnameRef.current !== pathname) {
-      const navigationTime = performance.now() - navigationStartRef.current
-      
-      logTiming(
-        'navigation',
-        `${lastPathnameRef.current} → ${pathname}`,
-        navigationTime
-      )
-      
-      lastPathnameRef.current = pathname
-    }
-    
-    navigationStartRef.current = performance.now()
-  }, [pathname])
+    useEffect(() => {
+        // Initialize on first effect
+        navigationStartRef.current ??= performance.now()
+
+        if (lastPathnameRef.current !== pathname) {
+            const navigationTime =
+                performance.now() - navigationStartRef.current
+
+            logTiming(
+                'navigation',
+                `${lastPathnameRef.current} → ${pathname}`,
+                navigationTime
+            )
+
+            lastPathnameRef.current = pathname
+        }
+
+        navigationStartRef.current = performance.now()
+    }, [pathname])
 }
 
 /**
  * Provider component that tracks all navigation timing
  * Place this in your root layout
  */
-export function NavigationTimingProvider({ 
-  children 
-}: { 
-  children: React.ReactNode 
+export function NavigationTimingProvider({
+    children,
+}: {
+    children: React.ReactNode
 }) {
-  useNavigationTiming()
-  return <>{children}</>
+    useNavigationTiming()
+    return <>{children}</>
 }

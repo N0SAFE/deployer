@@ -23,8 +23,14 @@ export interface DevtoolsResource<T> extends ResourceState<T> {
  * State is only ever set from the promise callbacks, never synchronously inside
  * the effect, so it does not trigger a cascading render.
  */
-export function useDevtoolsResource<T>(fetcher: () => Promise<T>): DevtoolsResource<T> {
-    const [state, setState] = useState<ResourceState<T>>({ data: null, error: null, loading: true })
+export function useDevtoolsResource<T>(
+    fetcher: () => Promise<T>
+): DevtoolsResource<T> {
+    const [state, setState] = useState<ResourceState<T>>({
+        data: null,
+        error: null,
+        loading: true,
+    })
     const [version, setVersion] = useState(0)
 
     useEffect(() => {
@@ -35,8 +41,13 @@ export function useDevtoolsResource<T>(fetcher: () => Promise<T>): DevtoolsResou
             })
             .catch((err: unknown) => {
                 if (cancelled) return
-                const message = err instanceof Error ? err.message : 'Request failed'
-                setState((prev) => ({ ...prev, error: message, loading: false }))
+                const message =
+                    err instanceof Error ? err.message : 'Request failed'
+                setState((prev) => ({
+                    ...prev,
+                    error: message,
+                    loading: false,
+                }))
             })
         return () => {
             cancelled = true

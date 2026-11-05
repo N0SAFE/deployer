@@ -42,19 +42,19 @@ Each permission grant can be scoped to environment selectors such as `preview`, 
 ## Permission model
 
 ```ts
-type RbacDomain = "deploy" | "registry" | "backup" | "audit";
+type RbacDomain = 'deploy' | 'registry' | 'backup' | 'audit'
 
 type EnvScope = {
-  include: string[]; // e.g. ["preview", "staging"]
-  exclude?: string[];
-};
+    include: string[] // e.g. ["preview", "staging"]
+    exclude?: string[]
+}
 
 type PermissionGrant = {
-  domain: RbacDomain;
-  action: string;    // e.g. deploy.trigger, registry.push, backup.restore, audit.export
-  scope: EnvScope;
-  effect: "allow" | "deny";
-};
+    domain: RbacDomain
+    action: string // e.g. deploy.trigger, registry.push, backup.restore, audit.export
+    scope: EnvScope
+    effect: 'allow' | 'deny'
+}
 ```
 
 ---

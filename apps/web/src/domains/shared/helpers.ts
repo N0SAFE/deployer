@@ -33,7 +33,7 @@
  * ```
  */
 
-import { createRouterUtils, type ProcedureUtils } from "@orpc/tanstack-query";
+import { createRouterUtils, type ProcedureUtils } from '@orpc/tanstack-query'
 
 /**
  * Public surface of a single auto-generated procedure utility.
@@ -42,22 +42,24 @@ import { createRouterUtils, type ProcedureUtils } from "@orpc/tanstack-query";
  * (not exported) to strip `protected`/`private` members. Reproduced here so the
  * helpers can name their return type.
  */
-type ProcedureUtilsPublic<
-  TInput,
-  TOutput,
-  TError,
-> = Pick<
-  ProcedureUtils<Record<never, never>, TInput, TOutput, TError>,
-  keyof ProcedureUtils<Record<never, never>, TInput, TOutput, TError>
->;
-import { enhanceSingleEndpoint, type EndpointWithCache } from "./cache-operations";
+type ProcedureUtilsPublic<TInput, TOutput, TError> = Pick<
+    ProcedureUtils<Record<never, never>, TInput, TOutput, TError>,
+    keyof ProcedureUtils<Record<never, never>, TInput, TOutput, TError>
+>
+import {
+    enhanceSingleEndpoint,
+    type EndpointWithCache,
+} from './cache-operations'
 
-import type { BetterFetchResponse } from "@better-fetch/fetch";
-import type { Client } from "@orpc/client";
-import type { useQueryClient } from "@tanstack/react-query";
-import type { MutationOptions, QueryKey, DataTag } from "@tanstack/react-query";
-import type { z } from "zod";
-type MaybeOptionalOptions<TOptions> = Record<never, never> extends TOptions ? [options?: TOptions] : [options: TOptions];
+import type { BetterFetchResponse } from '@better-fetch/fetch'
+import type { Client } from '@orpc/client'
+import type { useQueryClient } from '@tanstack/react-query'
+import type { MutationOptions, QueryKey, DataTag } from '@tanstack/react-query'
+import type { z } from 'zod'
+type MaybeOptionalOptions<TOptions> =
+    Record<never, never> extends TOptions
+        ? [options?: TOptions]
+        : [options: TOptions]
 
 // ============================================================================
 // ERROR HANDLING UTILITIES
@@ -86,43 +88,40 @@ type MaybeOptionalOptions<TOptions> = Record<never, never> extends TOptions ? [o
  * Type guard for `{ message: string }` — narrows `unknown` to an
  * object with a string `message` field without a cast.
  */
-function isObjectWithMessage(
-  value: object,
-): value is { message: string } {
-  return (
-    "message" in value &&
-    typeof value.message === "string"
-  )
+function isObjectWithMessage(value: object): value is { message: string } {
+    return 'message' in value && typeof value.message === 'string'
 }
 
 export class Thrower<TError = unknown> extends Error {
-  /**
-   * Unique brand property for type-level discrimination
-   * Enables TypeScript to properly infer TError through the entire chain.
-   * Using a branded property that TypeScript can track through the generic TError.
-   */
-  readonly __brand: "Thrower" = "Thrower" as const;
+    /**
+     * Unique brand property for type-level discrimination
+     * Enables TypeScript to properly infer TError through the entire chain.
+     * Using a branded property that TypeScript can track through the generic TError.
+     */
+    readonly __brand: 'Thrower' = 'Thrower' as const
 
-  constructor(public readonly error: TError) {
-    // Create error message from the wrapped error
-    const message =
-      error instanceof Error
-        ? error.message
-        : typeof error === "object" && error !== null && isObjectWithMessage(error)
-          ? error.message
-          : String(error);
+    constructor(public readonly error: TError) {
+        // Create error message from the wrapped error
+        const message =
+            error instanceof Error
+                ? error.message
+                : typeof error === 'object' &&
+                    error !== null &&
+                    isObjectWithMessage(error)
+                  ? error.message
+                  : String(error)
 
-    super(message);
-    this.name = "Thrower";
-  }
+        super(message)
+        this.name = 'Thrower'
+    }
 
-  /**
-   * Type guard to check if a value is a Thrower instance
-   * Checks both instanceof and the brand symbol
-   */
-  static is<TError = unknown>(value: unknown): value is Thrower<TError> {
-    return value instanceof Thrower && "__brand" in value;
-  }
+    /**
+     * Type guard to check if a value is a Thrower instance
+     * Checks both instanceof and the brand symbol
+     */
+    static is<TError = unknown>(value: unknown): value is Thrower<TError> {
+        return value instanceof Thrower && '__brand' in value
+    }
 }
 
 /**
@@ -130,15 +129,15 @@ export class Thrower<TError = unknown> extends Error {
  * Extends Error with Better Auth specific error information
  */
 export class BetterAuthError extends Error {
-  constructor(
-    message: string,
-    public readonly status?: number,
-    public readonly code?: string,
-    public readonly statusText?: string,
-  ) {
-    super(message);
-    this.name = "BetterAuthError";
-  }
+    constructor(
+        message: string,
+        public readonly status?: number,
+        public readonly code?: string,
+        public readonly statusText?: string
+    ) {
+        super(message)
+        this.name = 'BetterAuthError'
+    }
 }
 
 /**
@@ -148,14 +147,14 @@ export class BetterAuthError extends Error {
  * - Error$1<E> has { data: null, error: { status, statusText, message?, ... } }
  */
 export function isBetterAuthError(
-  result: unknown,
+    result: unknown
 ): result is { data: null; error: { status: number; statusText: string } } {
-  if (result === null || typeof result !== "object") return false
-  // After the `in` check, TypeScript knows the property exists but not
-  // its type. Use a type guard to narrow without a cast.
-  if (!("data" in result)) return false
-  if (!("error" in result)) return false
-  return result.data === null && result.error !== null
+    if (result === null || typeof result !== 'object') return false
+    // After the `in` check, TypeScript knows the property exists but not
+    // its type. Use a type guard to narrow without a cast.
+    if (!('data' in result)) return false
+    if (!('error' in result)) return false
+    return result.data === null && result.error !== null
 }
 
 /**
@@ -181,54 +180,54 @@ export function isBetterAuthError(
  * const result = handleBetterAuthResult(syncBetterAuthCall())
  */
 export function handleBetterAuthResult<T, E = unknown>(
-  result: Promise<BetterFetchResponse<T, E, boolean>>,
-): Promise<T>;
+    result: Promise<BetterFetchResponse<T, E, boolean>>
+): Promise<T>
 export function handleBetterAuthResult<T, E = unknown>(
-  result: BetterFetchResponse<T, E, boolean>,
-): T;
+    result: BetterFetchResponse<T, E, boolean>
+): T
 export function handleBetterAuthResult<T, E = unknown>(
-  result:
-    | Promise<BetterFetchResponse<T, E, boolean>>
-    | BetterFetchResponse<T, E, boolean>,
+    result:
+        | Promise<BetterFetchResponse<T, E, boolean>>
+        | BetterFetchResponse<T, E, boolean>
 ): Promise<T> | T {
-  // Handle Promise case
-  if (result instanceof Promise) {
-    return result.then((resolved) => {
-      if (isBetterAuthError(resolved)) {
-        const err = resolved.error as {
-          status: number;
-          statusText: string;
-          message?: string;
-          code?: string;
-        };
+    // Handle Promise case
+    if (result instanceof Promise) {
+        return result.then((resolved) => {
+            if (isBetterAuthError(resolved)) {
+                const err = resolved.error as {
+                    status: number
+                    statusText: string
+                    message?: string
+                    code?: string
+                }
+                throw new BetterAuthError(
+                    err.message ?? err.statusText,
+                    err.status,
+                    err.code,
+                    err.statusText
+                )
+            }
+            return (resolved as { data: T; error: null }).data
+        })
+    }
+
+    // Handle sync case
+    if (isBetterAuthError(result)) {
+        const err = result.error as {
+            status: number
+            statusText: string
+            message?: string
+            code?: string
+        }
         throw new BetterAuthError(
-          err.message ?? err.statusText,
-          err.status,
-          err.code,
-          err.statusText,
-        );
-      }
-      return (resolved as { data: T; error: null }).data;
-    });
-  }
+            err.message ?? err.statusText,
+            err.status,
+            err.code,
+            err.statusText
+        )
+    }
 
-  // Handle sync case
-  if (isBetterAuthError(result)) {
-    const err = result.error as {
-      status: number;
-      statusText: string;
-      message?: string;
-      code?: string;
-    };
-    throw new BetterAuthError(
-      err.message ?? err.statusText,
-      err.status,
-      err.code,
-      err.statusText,
-    );
-  }
-
-  return (result as { data: T; error: null }).data;
+    return (result as { data: T; error: null }).data
 }
 
 /**
@@ -274,7 +273,7 @@ export function handleBetterAuthResult<T, E = unknown>(
  */
 /**
  * Better Auth response mapper with automatic type inference and optional transformation
- * 
+ *
  * This is a higher-order function that returns a map function.
  * Allows chaining additional transformations on the extracted data.
  *
@@ -301,43 +300,43 @@ export function handleBetterAuthResult<T, E = unknown>(
  * ```
  */
 export function mapBetterAuth<TTransformed = never>(
-  transform?: (extracted: never) => TTransformed | Promise<TTransformed>
+    transform?: (extracted: never) => TTransformed | Promise<TTransformed>
 ) {
-  return <THandlerOutput>(
-    output: THandlerOutput,
-  ): THandlerOutput extends { data: infer D; error: infer E | null }
-    ? [TTransformed] extends [never] 
-      ? NonNullable<D> | Thrower<NonNullable<E>>
-      : TTransformed | Thrower<NonNullable<E>>
-    : [TTransformed] extends [never]
-      ? NonNullable<THandlerOutput> | Thrower<BetterAuthError>
-      : TTransformed | Thrower<BetterAuthError> => {
-    // Check if the Better Auth response has an error
-    if (isBetterAuthError(output)) {
-      type ErrorType = THandlerOutput extends { error: infer E | null }
-        ? NonNullable<E>
-        : BetterAuthError;
-      return new Thrower(output.error as ErrorType) as never;
+    return <THandlerOutput>(
+        output: THandlerOutput
+    ): THandlerOutput extends { data: infer D; error: infer E | null }
+        ? [TTransformed] extends [never]
+            ? NonNullable<D> | Thrower<NonNullable<E>>
+            : TTransformed | Thrower<NonNullable<E>>
+        : [TTransformed] extends [never]
+          ? NonNullable<THandlerOutput> | Thrower<BetterAuthError>
+          : TTransformed | Thrower<BetterAuthError> => {
+        // Check if the Better Auth response has an error
+        if (isBetterAuthError(output)) {
+            type ErrorType = THandlerOutput extends { error: infer E | null }
+                ? NonNullable<E>
+                : BetterAuthError
+            return new Thrower(output.error as ErrorType) as never
+        }
+
+        // Extract the data (non-null in success case)
+        type DataType = THandlerOutput extends { data: infer D }
+            ? NonNullable<D>
+            : NonNullable<THandlerOutput>
+        const data = (output as { data: DataType; error: null }).data
+
+        // Apply transformation if provided
+        if (transform) {
+            const result = transform(data as never)
+            // Handle async transformations
+            if (result instanceof Promise) {
+                return result as never
+            }
+            return result as never
+        }
+
+        return data as never
     }
-
-    // Extract the data (non-null in success case)
-    type DataType = THandlerOutput extends { data: infer D } 
-      ? NonNullable<D> 
-      : NonNullable<THandlerOutput>;
-    const data = (output as { data: DataType; error: null }).data;
-
-    // Apply transformation if provided
-    if (transform) {
-      const result = transform(data as never);
-      // Handle async transformations
-      if (result instanceof Promise) {
-        return result as never;
-      }
-      return result as never;
-    }
-
-    return data as never;
-  };
 }
 
 // ============================================================================
@@ -366,101 +365,101 @@ export function mapBetterAuth<TTransformed = never>(
  * ```
  */
 type MapFunction<THandlerOutput, TMappedOutput, TError = unknown> = (
-  output: THandlerOutput,
-) =>
-  | TMappedOutput
-  | Thrower<TError>
-  | Promise<TMappedOutput | Thrower<TError>>;
+    output: THandlerOutput
+) => TMappedOutput | Thrower<TError> | Promise<TMappedOutput | Thrower<TError>>
 
 /**
  * Infer input type from handler function
  * Returns undefined for parameterless functions to avoid 'never' issues
  */
 export type InferInput<T> = T extends () => unknown
-  ? undefined
-  : T extends (input: infer I) => unknown
-    ? I
-    : never;
+    ? undefined
+    : T extends (input: infer I) => unknown
+      ? I
+      : never
 
 /**
  * Infer output type from handler function (handles both sync and async)
  */
 export type InferOutput<T> = T extends (input: unknown) => infer R
-  ? R extends Promise<infer O>
-    ? O
-    : R
-  : never;
+    ? R extends Promise<infer O>
+        ? O
+        : R
+    : never
 
 /**
  * Handler function type that makes input optional when TInput is undefined
  */
 type HandlerFunction<TInput, TOutput> = TInput extends undefined
-  ? () => Promise<TOutput> | TOutput
-  : (input: TInput) => Promise<TOutput> | TOutput;
+    ? () => Promise<TOutput> | TOutput
+    : (input: TInput) => Promise<TOutput> | TOutput
 
 /**
  * Configuration for creating a custom contract with Zod schema
  */
 interface CustomContractConfigWithSchema<
-  TInputSchema extends z.ZodType,
-  THandlerOutput,
-  TMappedOutput,
-  TError = Error,
+    TInputSchema extends z.ZodType,
+    THandlerOutput,
+    TMappedOutput,
+    TError = Error,
 > {
-  /** Zod schema for input validation and type inference */
-  input: TInputSchema;
+    /** Zod schema for input validation and type inference */
+    input: TInputSchema
 
-  /** Optional Zod schema for output validation (useful for Better Auth responses) */
-  validation?: TInputSchema;
+    /** Optional Zod schema for output validation (useful for Better Auth responses) */
+    validation?: TInputSchema
 
-  /** Cache keys - can be static array or dynamic function */
-  keys:
-    | QueryKey
-    | ((input: z.infer<TInputSchema>) => QueryKey);
+    /** Cache keys - can be static array or dynamic function */
+    keys: QueryKey | ((input: z.infer<TInputSchema>) => QueryKey)
 
-  /** Handler function that executes the operation (can be sync or async) */
-  handler: HandlerFunction<z.infer<TInputSchema>, THandlerOutput>;
+    /** Handler function that executes the operation (can be sync or async) */
+    handler: HandlerFunction<z.infer<TInputSchema>, THandlerOutput>
 
-  /** Optional map function to transform handler output and discriminate success/error */
-  map?: MapFunction<THandlerOutput, TMappedOutput, TError>;
+    /** Optional map function to transform handler output and discriminate success/error */
+    map?: MapFunction<THandlerOutput, TMappedOutput, TError>
 
-  // TanStack Query defaults (applied via ORPC's experimental_defaults)
-  staleTime?: number;
-  gcTime?: number;
-  retry?: number | false | ((failureCount: number, error: TError) => boolean);
-  enabled?: boolean;
-  refetchOnWindowFocus?: boolean;
-  refetchOnMount?: boolean;
-  refetchOnReconnect?: boolean;
+    // TanStack Query defaults (applied via ORPC's experimental_defaults)
+    staleTime?: number
+    gcTime?: number
+    retry?: number | false | ((failureCount: number, error: TError) => boolean)
+    enabled?: boolean
+    refetchOnWindowFocus?: boolean
+    refetchOnMount?: boolean
+    refetchOnReconnect?: boolean
 }
 
 /**
  * Configuration for creating a custom contract without schema (manual types)
  */
-interface CustomContractConfigWithoutSchema<TInput, THandlerOutput, TMappedOutput, TError = Error> {
-  /** Optional Zod schema for input validation (not used for type inference) */
-  input?: never;
+interface CustomContractConfigWithoutSchema<
+    TInput,
+    THandlerOutput,
+    TMappedOutput,
+    TError = Error,
+> {
+    /** Optional Zod schema for input validation (not used for type inference) */
+    input?: never
 
-  /** Optional Zod schema for validation (can be used even without input schema) */
-  validation?: z.ZodType;
+    /** Optional Zod schema for validation (can be used even without input schema) */
+    validation?: z.ZodType
 
-  /** Cache keys - can be static array or dynamic function */
-  keys: QueryKey | ((input: TInput) => QueryKey);
+    /** Cache keys - can be static array or dynamic function */
+    keys: QueryKey | ((input: TInput) => QueryKey)
 
-  /** Handler function that executes the operation (can be sync or async) */
-  handler: HandlerFunction<TInput, THandlerOutput>;
+    /** Handler function that executes the operation (can be sync or async) */
+    handler: HandlerFunction<TInput, THandlerOutput>
 
-  /** Optional map function to transform handler output and discriminate success/error */
-  map?: MapFunction<THandlerOutput, TMappedOutput, TError>;
+    /** Optional map function to transform handler output and discriminate success/error */
+    map?: MapFunction<THandlerOutput, TMappedOutput, TError>
 
-  // TanStack Query defaults (applied via ORPC's experimental_defaults)
-  staleTime?: number;
-  gcTime?: number;
-  retry?: number | false | ((failureCount: number, error: TError) => boolean);
-  enabled?: boolean;
-  refetchOnWindowFocus?: boolean;
-  refetchOnMount?: boolean;
-  refetchOnReconnect?: boolean;
+    // TanStack Query defaults (applied via ORPC's experimental_defaults)
+    staleTime?: number
+    gcTime?: number
+    retry?: number | false | ((failureCount: number, error: TError) => boolean)
+    enabled?: boolean
+    refetchOnWindowFocus?: boolean
+    refetchOnMount?: boolean
+    refetchOnReconnect?: boolean
 }
 
 // ============================================================================
@@ -479,20 +478,20 @@ interface CustomContractConfigWithoutSchema<TInput, THandlerOutput, TMappedOutpu
  * })
  */
 export function custom<
-  TInputSchema extends z.ZodType,
-  THandlerOutput,
-  TMappedOutput = THandlerOutput,
-  TError = Error,
->(
-  config: CustomContractConfigWithSchema<
-    TInputSchema,
+    TInputSchema extends z.ZodType,
     THandlerOutput,
-    TMappedOutput,
-    TError
-  >,
+    TMappedOutput = THandlerOutput,
+    TError = Error,
+>(
+    config: CustomContractConfigWithSchema<
+        TInputSchema,
+        THandlerOutput,
+        TMappedOutput,
+        TError
+    >
 ): EndpointWithCache<
-  ProcedureUtilsPublic<z.infer<TInputSchema>, TMappedOutput, TError>
->;
+    ProcedureUtilsPublic<z.infer<TInputSchema>, TMappedOutput, TError>
+>
 
 /**
  * Create an ORPC-native contract with automatic type inference from handler
@@ -510,21 +509,19 @@ export function custom<
  * })
  */
 export function custom<THandler extends (input: unknown) => unknown>(config: {
-  input?: never;
-  keys:
-    | QueryKey
-    | ((input: InferInput<THandler>) => QueryKey);
-  handler: THandler;
-  staleTime?: number;
-  gcTime?: number;
-  retry?: number | false | ((failureCount: number, error: Error) => boolean);
-  enabled?: boolean;
-  refetchOnWindowFocus?: boolean;
-  refetchOnMount?: boolean;
-  refetchOnReconnect?: boolean;
+    input?: never
+    keys: QueryKey | ((input: InferInput<THandler>) => QueryKey)
+    handler: THandler
+    staleTime?: number
+    gcTime?: number
+    retry?: number | false | ((failureCount: number, error: Error) => boolean)
+    enabled?: boolean
+    refetchOnWindowFocus?: boolean
+    refetchOnMount?: boolean
+    refetchOnReconnect?: boolean
 }): EndpointWithCache<
-  ProcedureUtilsPublic<InferInput<THandler>, InferOutput<THandler>, Error>
->;
+    ProcedureUtilsPublic<InferInput<THandler>, InferOutput<THandler>, Error>
+>
 
 /**
  * Create an ORPC-native contract for custom endpoints with explicit generics
@@ -537,185 +534,194 @@ export function custom<THandler extends (input: unknown) => unknown>(config: {
  * })
  */
 export function custom<
-  TInput = never,
-  THandlerOutput = unknown,
-  TMappedOutput = THandlerOutput,
-  TError = Error,
+    TInput = never,
+    THandlerOutput = unknown,
+    TMappedOutput = THandlerOutput,
+    TError = Error,
 >(
-  config: CustomContractConfigWithoutSchema<
-    TInput,
-    THandlerOutput,
-    TMappedOutput,
-    TError
-  >,
-): EndpointWithCache<
-  ProcedureUtilsPublic<TInput, TMappedOutput, TError>
->;
+    config: CustomContractConfigWithoutSchema<
+        TInput,
+        THandlerOutput,
+        TMappedOutput,
+        TError
+    >
+): EndpointWithCache<ProcedureUtilsPublic<TInput, TMappedOutput, TError>>
 
 /**
  * Implementation - Uses ORPC's native createProcedureUtils
  */
 export function custom<
-  TInput,
-  THandlerOutput,
-  TMappedOutput = THandlerOutput,
-  TError = Error,
+    TInput,
+    THandlerOutput,
+    TMappedOutput = THandlerOutput,
+    TError = Error,
 >(
-  config:
-    | CustomContractConfigWithoutSchema<
-        TInput,
-        THandlerOutput,
-        TMappedOutput,
-        TError
-      >
-    | CustomContractConfigWithSchema<
+    config:
+        | CustomContractConfigWithoutSchema<
+              TInput,
+              THandlerOutput,
+              TMappedOutput,
+              TError
+          >
+        | CustomContractConfigWithSchema<
+              z.ZodType,
+              THandlerOutput,
+              TMappedOutput,
+              TError
+          >
+): ProcedureUtilsPublic<TInput, TMappedOutput, TError> {
+    // Type guard to check if config has Zod schema
+    const hasSchema = (
+        cfg: typeof config
+    ): cfg is CustomContractConfigWithSchema<
         z.ZodType,
         THandlerOutput,
         TMappedOutput,
         TError
-      >,
-): ProcedureUtilsPublic<TInput, TMappedOutput, TError> {
-  // Type guard to check if config has Zod schema
-  const hasSchema = (
-    cfg: typeof config,
-  ): cfg is CustomContractConfigWithSchema<
-    z.ZodType,
-    THandlerOutput,
-    TMappedOutput,
-    TError
-  > => {
-    return "input" in cfg && cfg.input !== undefined;
-  };
-
-  // Determine the base path for ORPC
-  // If keys is a function, we use an empty array as the base path
-  // The actual keys will be computed at call time
-  const basePath = (typeof config.keys === "function" ? [] : config.keys).map((v) => JSON.stringify(v));
-
-  // Create ORPC Client-compatible function with optional Zod validation and map function
-  // Client signature: (...rest: ClientRest<TContext, TInput>) => Promise<TOutput>
-  // For Record<never, never> context, this is: (input?: TInput, options?) => Promise<TOutput>
-  // When map is provided, TOutput becomes TMappedOutput
-  const client: Client<Record<never, never>, TInput, TMappedOutput, TError> = (
-    (
-      ...args: unknown[]
-    ) => {
-      const input = args[0] as TInput;
-
-      // Validate with Zod if schema provided
-      if (hasSchema(config)) {
-        const result = config.input.safeParse(input);
-        if (!result.success) {
-          throw new Error(`Input validation failed: ${result.error.message}`);
-        }
-        // Use validated data - wrap in Promise.resolve to handle sync handlers
-        const handlerResult = config.handler(result.data);
-        return Promise.resolve(handlerResult).then(async (output) => {
-          // If map function provided, use it to transform output
-          if (config.map) {
-            const mapped = await config.map(output);
-            // If map returns Thrower, throw it so TanStack Query types the error
-            if (Thrower.is(mapped)) {
-              // eslint-disable-next-line @typescript-eslint/only-throw-error
-              throw mapped.error;
-            }
-            return mapped;
-          }
-          return output as unknown as TMappedOutput;
-        });
-      }
-
-      // No validation - execute directly and wrap in Promise.resolve to handle sync handlers
-      const handlerResult = config.handler(input);
-      return Promise.resolve(handlerResult).then(async (output) => {
-        // If map function provided, use it to transform output
-        if (config.map) {
-          const mapped = await config.map(output);
-          // If map returns Thrower, throw it so TanStack Query types the error
-          if (Thrower.is(mapped)) {
-            // eslint-disable-next-line @typescript-eslint/only-throw-error
-            throw mapped.error;
-          }
-          return mapped;
-        }
-        return output as unknown as TMappedOutput;
-      });
+    > => {
+        return 'input' in cfg && cfg.input !== undefined
     }
-  );
 
-  // Use ORPC's native createProcedureUtils - this ensures perfect alignment!
-  const hasAnyOptions =
-    config.staleTime !== undefined ||
-    config.gcTime !== undefined ||
-    config.retry !== undefined ||
-    config.enabled !== undefined ||
-    config.refetchOnWindowFocus !== undefined ||
-    config.refetchOnMount !== undefined ||
-    config.refetchOnReconnect !== undefined;
+    // Determine the base path for ORPC
+    // If keys is a function, we use an empty array as the base path
+    // The actual keys will be computed at call time
+    const basePath = (typeof config.keys === 'function' ? [] : config.keys).map(
+        (v) => JSON.stringify(v)
+    )
 
-  if (hasAnyOptions) {
-    // Build options object - cast entire options object to satisfy ORPC's complex type
-    const options = {
-      path: basePath,
-      experimental_defaults: {
-        queryOptions: {
-          ...(config.staleTime !== undefined && {
-            staleTime: config.staleTime,
-          }),
-          ...(config.gcTime !== undefined && { gcTime: config.gcTime }),
-          ...(config.retry !== undefined && { retry: config.retry }),
-          ...(config.enabled !== undefined && { enabled: config.enabled }),
-          ...(config.refetchOnWindowFocus !== undefined && {
-            refetchOnWindowFocus: config.refetchOnWindowFocus,
-          }),
-          ...(config.refetchOnMount !== undefined && {
-            refetchOnMount: config.refetchOnMount,
-          }),
-          ...(config.refetchOnReconnect !== undefined && {
-            refetchOnReconnect: config.refetchOnReconnect,
-          }),
-        },
-      },
-    };
+    // Create ORPC Client-compatible function with optional Zod validation and map function
+    // Client signature: (...rest: ClientRest<TContext, TInput>) => Promise<TOutput>
+    // For Record<never, never> context, this is: (input?: TInput, options?) => Promise<TOutput>
+    // When map is provided, TOutput becomes TMappedOutput
+    const client: Client<
+        Record<never, never>,
+        TInput,
+        TMappedOutput,
+        TError
+    > = (...args: unknown[]) => {
+        const input = args[0] as TInput
 
-    // If keys is a function, we need to wrap the utils to compute keys at call time
-    const utils = createRouterUtils(
-      client,
-      options as unknown as Parameters<typeof createRouterUtils>[1],
-    );
+        // Validate with Zod if schema provided
+        if (hasSchema(config)) {
+            const result = config.input.safeParse(input)
+            if (!result.success) {
+                throw new Error(
+                    `Input validation failed: ${result.error.message}`
+                )
+            }
+            // Use validated data - wrap in Promise.resolve to handle sync handlers
+            const handlerResult = config.handler(result.data)
+            return Promise.resolve(handlerResult).then(async (output) => {
+                // If map function provided, use it to transform output
+                if (config.map) {
+                    const mapped = await config.map(output)
+                    // If map returns Thrower, throw it so TanStack Query types the error
+                    if (Thrower.is(mapped)) {
+                        // eslint-disable-next-line @typescript-eslint/only-throw-error
+                        throw mapped.error
+                    }
+                    return mapped
+                }
+                return output as unknown as TMappedOutput
+            })
+        }
+
+        // No validation - execute directly and wrap in Promise.resolve to handle sync handlers
+        const handlerResult = config.handler(input)
+        return Promise.resolve(handlerResult).then(async (output) => {
+            // If map function provided, use it to transform output
+            if (config.map) {
+                const mapped = await config.map(output)
+                // If map returns Thrower, throw it so TanStack Query types the error
+                if (Thrower.is(mapped)) {
+                    // eslint-disable-next-line @typescript-eslint/only-throw-error
+                    throw mapped.error
+                }
+                return mapped
+            }
+            return output as unknown as TMappedOutput
+        })
+    }
+
+    // Use ORPC's native createProcedureUtils - this ensures perfect alignment!
+    const hasAnyOptions =
+        config.staleTime !== undefined ||
+        config.gcTime !== undefined ||
+        config.retry !== undefined ||
+        config.enabled !== undefined ||
+        config.refetchOnWindowFocus !== undefined ||
+        config.refetchOnMount !== undefined ||
+        config.refetchOnReconnect !== undefined
+
+    if (hasAnyOptions) {
+        // Build options object - cast entire options object to satisfy ORPC's complex type
+        const options = {
+            path: basePath,
+            experimental_defaults: {
+                queryOptions: {
+                    ...(config.staleTime !== undefined && {
+                        staleTime: config.staleTime,
+                    }),
+                    ...(config.gcTime !== undefined && {
+                        gcTime: config.gcTime,
+                    }),
+                    ...(config.retry !== undefined && { retry: config.retry }),
+                    ...(config.enabled !== undefined && {
+                        enabled: config.enabled,
+                    }),
+                    ...(config.refetchOnWindowFocus !== undefined && {
+                        refetchOnWindowFocus: config.refetchOnWindowFocus,
+                    }),
+                    ...(config.refetchOnMount !== undefined && {
+                        refetchOnMount: config.refetchOnMount,
+                    }),
+                    ...(config.refetchOnReconnect !== undefined && {
+                        refetchOnReconnect: config.refetchOnReconnect,
+                    }),
+                },
+            },
+        }
+
+        // If keys is a function, we need to wrap the utils to compute keys at call time
+        const utils = createRouterUtils(
+            client,
+            options as unknown as Parameters<typeof createRouterUtils>[1]
+        )
+
+        // If keys is dynamic, wrap the queryKey method
+        if (typeof config.keys === 'function') {
+            utils.queryKey = (...args: unknown[]) => {
+                const options = args[0] as { input?: TInput } | undefined
+                const input = options?.input
+                const dynamicKeys = (
+                    config.keys as (input: TInput) => QueryKey
+                )(input as TInput)
+                return dynamicKeys as unknown as ReturnType<
+                    typeof utils.queryKey
+                >
+            }
+        }
+
+        return utils
+    }
+
+    const utils = createRouterUtils(client, {
+        path: basePath,
+    })
 
     // If keys is dynamic, wrap the queryKey method
-    if (typeof config.keys === "function") {
-      utils.queryKey = ((...args: unknown[]) => {
-        const options = args[0] as { input?: TInput } | undefined;
-        const input = options?.input;
-        const dynamicKeys = (
-          config.keys as (input: TInput) => QueryKey
-        )(input as TInput);
-        return dynamicKeys as unknown as ReturnType<typeof utils.queryKey>;
-      });
+    if (typeof config.keys === 'function') {
+        utils.queryKey = (...args: unknown[]) => {
+            const options = args[0] as { input?: TInput } | undefined
+            const input = options?.input
+            const dynamicKeys = (
+                config.keys as (input: TInput) => readonly string[]
+            )(input as TInput)
+            return dynamicKeys as unknown as ReturnType<typeof utils.queryKey>
+        }
     }
 
-    return utils;
-  }
-
-  const utils = createRouterUtils(client, {
-    path: basePath,
-  });
-
-  // If keys is dynamic, wrap the queryKey method
-  if (typeof config.keys === "function") {
-    utils.queryKey = ((...args: unknown[]) => {
-      const options = args[0] as { input?: TInput } | undefined;
-      const input = options?.input;
-      const dynamicKeys = (config.keys as (input: TInput) => readonly string[])(
-        input as TInput,
-      );
-      return dynamicKeys as unknown as ReturnType<typeof utils.queryKey>;
-    });
-  }
-
-  return enhanceSingleEndpoint(utils);
+    return enhanceSingleEndpoint(utils)
 }
 
 // ============================================================================
@@ -739,23 +745,21 @@ export function custom<
  * })
  */
 export function customTyped<
-  THandler extends (input: unknown) => unknown,
+    THandler extends (input: unknown) => unknown,
 >(config: {
-  input?: never;
-  keys:
-    | QueryKey
-    | ((input: InferInput<THandler>) => QueryKey);
-  handler: THandler;
-  staleTime?: number;
-  gcTime?: number;
-  retry?: number | false | ((failureCount: number, error: Error) => boolean);
-  enabled?: boolean;
-  refetchOnWindowFocus?: boolean;
-  refetchOnMount?: boolean;
-  refetchOnReconnect?: boolean;
+    input?: never
+    keys: QueryKey | ((input: InferInput<THandler>) => QueryKey)
+    handler: THandler
+    staleTime?: number
+    gcTime?: number
+    retry?: number | false | ((failureCount: number, error: Error) => boolean)
+    enabled?: boolean
+    refetchOnWindowFocus?: boolean
+    refetchOnMount?: boolean
+    refetchOnReconnect?: boolean
 }): ProcedureUtilsPublic<InferInput<THandler>, InferOutput<THandler>, Error> {
-  // Directly call custom - overload 2 will match since we have THandler and input?: never
-  return custom(config);
+    // Directly call custom - overload 2 will match since we have THandler and input?: never
+    return custom(config)
 }
 
 // ============================================================================
@@ -779,13 +783,18 @@ export function customTyped<
  * ```
  */
 export type ExtractKeys<TRecord extends Record<string, unknown>> = {
-  [K in keyof TRecord]: TRecord[K] extends {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    call: Client<any, infer TInput, infer TOutput, infer TError>;
-  }
-    ? (...args: MaybeOptionalOptions<{ input?: TInput; queryKey?: QueryKey }>) => DataTag<QueryKey, TOutput, TError>
-    : never;
-};
+    [K in keyof TRecord]: TRecord[K] extends {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        call: Client<any, infer TInput, infer TOutput, infer TError>
+    }
+        ? (
+              ...args: MaybeOptionalOptions<{
+                  input?: TInput
+                  queryKey?: QueryKey
+              }>
+          ) => DataTag<QueryKey, TOutput, TError>
+        : never
+}
 
 /**
  * Helper to extract keys from an ORPC-compatible record
@@ -794,21 +803,25 @@ export type ExtractKeys<TRecord extends Record<string, unknown>> = {
  * @returns Object with same keys but functions that return QueryKey
  */
 export function getKeysRetrieval<TRecord extends Record<string, unknown>>(
-  record: TRecord,
+    record: TRecord
 ): ExtractKeys<TRecord> {
-  const keys = {} as ExtractKeys<TRecord>;
+    const keys = {} as ExtractKeys<TRecord>
 
-  for (const key in record) {
-    const endpoint = record[key];
-    if (endpoint && typeof endpoint === "object" && "queryKey" in endpoint) {
-      const queryKeyFn = (
-        endpoint as { queryKey: (...args: unknown[]) => QueryKey }
-      ).queryKey;
-      keys[key] = queryKeyFn as ExtractKeys<TRecord>[typeof key];
+    for (const key in record) {
+        const endpoint = record[key]
+        if (
+            endpoint &&
+            typeof endpoint === 'object' &&
+            'queryKey' in endpoint
+        ) {
+            const queryKeyFn = (
+                endpoint as { queryKey: (...args: unknown[]) => QueryKey }
+            ).queryKey
+            keys[key] = queryKeyFn as ExtractKeys<TRecord>[typeof key]
+        }
     }
-  }
 
-  return keys;
+    return keys
 }
 
 /**
@@ -822,10 +835,10 @@ export function getKeysRetrieval<TRecord extends Record<string, unknown>>(
  * We extract from the `call` signature which always has the input as first param
  */
 export type ExtractMutationInput<TEndpoint> = TEndpoint extends {
-  call: (input: infer I) => unknown;
+    call: (input: infer I) => unknown
 }
-  ? I
-  : never;
+    ? I
+    : never
 
 /**
  * Extract invalidation ref functions from an ORPC-compatible record
@@ -840,13 +853,18 @@ export type ExtractMutationInput<TEndpoint> = TEndpoint extends {
  * ```
  */
 export type ExtractInvalidations<TRecord extends Record<string, unknown>> = {
-  [K in keyof TRecord]: TRecord[K] extends {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    call: Client<any, infer TInput, any, any>;
-  }
-    ? (...args: MaybeOptionalOptions<{ input?: TInput; queryKey?: QueryKey }>) => InvalidationRef
-    : never;
-};
+    [K in keyof TRecord]: TRecord[K] extends {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        call: Client<any, infer TInput, any, any>
+    }
+        ? (
+              ...args: MaybeOptionalOptions<{
+                  input?: TInput
+                  queryKey?: QueryKey
+              }>
+          ) => InvalidationRef
+        : never
+}
 
 /**
  * Configuration for cache invalidation - definition format
@@ -855,12 +873,12 @@ export type ExtractInvalidations<TRecord extends Record<string, unknown>> = {
  * The function receives a context object with input and keys properties.
  */
 export type InvalidationConfig<TRecord extends Record<string, unknown>> = {
-  [K in keyof TRecord]?: (context: {
-    input: ExtractMutationInput<TRecord[K]>;
-    keys: ExtractKeys<TRecord>;
-    invalidations: ExtractInvalidations<TRecord>;
-  }) => (QueryKey | InvalidationRef)[];
-};
+    [K in keyof TRecord]?: (context: {
+        input: ExtractMutationInput<TRecord[K]>
+        keys: ExtractKeys<TRecord>
+        invalidations: ExtractInvalidations<TRecord>
+    }) => (QueryKey | InvalidationRef)[]
+}
 
 /**
  * Callable invalidation config - usage format
@@ -872,15 +890,17 @@ export type InvalidationConfig<TRecord extends Record<string, unknown>> = {
  * automatically resolves transitive dependencies with cycle detection.
  */
 export type CallableInvalidationConfig<
-  TRecord extends Record<string, unknown>,
-  TConfig extends InvalidationConfig<TRecord>,
+    TRecord extends Record<string, unknown>,
+    TConfig extends InvalidationConfig<TRecord>,
 > = {
-  [K in keyof TConfig as TConfig[K] extends undefined ? never : K]: TConfig[K] extends (...args: unknown[]) => unknown
-    ? TConfig[K] extends (context: { input: infer I }) => unknown
-      ? (input: I) => QueryKey[]
-      : (input: never) => QueryKey[]
-    : never;
-};
+    [
+        K in keyof TConfig as TConfig[K] extends undefined ? never : K
+    ]: TConfig[K] extends (...args: unknown[]) => unknown
+        ? TConfig[K] extends (context: { input: infer I }) => unknown
+            ? (input: I) => QueryKey[]
+            : (input: never) => QueryKey[]
+        : never
+}
 
 /**
  * Define cache invalidation configuration for ORPC-compatible endpoints
@@ -958,140 +978,159 @@ export type CallableInvalidationConfig<
  * ```
  */
 export function defineInvalidations<
-  TRecord extends Record<string, unknown>,
-  TConfig extends InvalidationConfig<TRecord>,
+    TRecord extends Record<string, unknown>,
+    TConfig extends InvalidationConfig<TRecord>,
 >(
-  record: TRecord,
-  config: TConfig,
+    record: TRecord,
+    config: TConfig
 ): CallableInvalidationConfig<TRecord, TConfig> {
-  const keys = getKeysRetrieval(record);
+    const keys = getKeysRetrieval(record)
 
-  // ─── Detect graph mode: check if any config function uses `invalidations` ──
-  const hasGraphRefs = Object.values(config).some(
-    (fn): fn is NonNullable<typeof fn> =>
-      typeof fn === "function" && fn.toString().includes("invalidations"),
-  );
+    // ─── Detect graph mode: check if any config function uses `invalidations` ──
+    const hasGraphRefs = Object.values(config).some(
+        (fn): fn is NonNullable<typeof fn> =>
+            typeof fn === 'function' && fn.toString().includes('invalidations')
+    )
 
-  // ─── Build reference graph (graph mode only) ─────────────────────────
-  let refGraph: Record<string, Set<string>> | undefined;
-  if (hasGraphRefs) {
-    refGraph = {};
+    // ─── Build reference graph (graph mode only) ─────────────────────────
+    let refGraph: Record<string, Set<string>> | undefined
+    if (hasGraphRefs) {
+        refGraph = {}
 
-    for (const mutationName in config) {
-      const fn = config[mutationName];
-      if (typeof fn !== "function") continue;
+        for (const mutationName in config) {
+            const fn = config[mutationName]
+            if (typeof fn !== 'function') continue
 
-      const refDetector = buildInvalidationProxy<TRecord>((name: string) => {
-        (refGraph![name] ??= new Set()).add(mutationName);
-      });
+            const refDetector = buildInvalidationProxy<TRecord>(
+                (name: string) => {
+                    ;(refGraph![name] ??= new Set()).add(mutationName)
+                }
+            )
 
-      try {
-        fn({
-          invalidations: refDetector,
-          keys: buildKeysProxy() as unknown as ExtractKeys<TRecord>,
-          input: buildTruthyInputProxy() as never,
-        });
-      } catch {
-        // Dry-run failures → partial graph is still correct, just less aggressive
-      }
-    }
-  }
-
-  // ─── Create callable functions ────────────────────────────────────────
-  const callableConfig: Record<string, unknown> = {};
-
-  for (const key in config) {
-    const invalidationFn = config[key];
-    if (!invalidationFn) continue;
-
-    if (hasGraphRefs && refGraph) {
-      // ── Graph mode: capture refs with per-call input and resolve with BFS ──
-      callableConfig[key] = (runtimeInput: unknown) => {
-        const capturedRefs = new Map<string, InvalidationRef>();
-        const invalidations = buildInvalidationProxy<TRecord>((name: string, refInput?: unknown) => {
-          const ref = invalidationRef(name, refInput);
-          capturedRefs.set(refVisitKey(name, refInput), ref);
-        });
-
-        const items = invalidationFn({
-          invalidations,
-          keys,
-          input: runtimeInput as never,
-        });
-
-        const directKeys: QueryKey[] = [];
-        for (const item of items) {
-          if (isInvalidationRef(item)) {
-            capturedRefs.set(refVisitKey(item.name, item.input), item);
-          } else {
-            directKeys.push(item);
-          }
+            try {
+                fn({
+                    invalidations: refDetector,
+                    keys: buildKeysProxy() as unknown as ExtractKeys<TRecord>,
+                    input: buildTruthyInputProxy() as never,
+                })
+            } catch {
+                // Dry-run failures → partial graph is still correct, just less aggressive
+            }
         }
-
-        const resolvedKeys = resolveLinkedInvalidations(
-          [...capturedRefs.values()],
-          refGraph,
-          keys,
-          config as unknown as Record<keyof TRecord, (ctx: {
-            input: unknown;
-            keys: ExtractKeys<TRecord>;
-            invalidations: ExtractInvalidations<TRecord>;
-          }) => (QueryKey | InvalidationRef)[]>,
-          runtimeInput,
-        );
-
-        return [...directKeys, ...resolvedKeys];
-      };
-    } else {
-      // ── Standard mode (backward compatible) ──
-      callableConfig[key] = (input: unknown) => {
-        const dummyInvalidations = buildInvalidationProxy<TRecord>(() => {});
-        return invalidationFn({
-          input: input as never,
-          keys,
-          invalidations: dummyInvalidations,
-        }) as unknown as QueryKey[];
-      };
     }
-  }
 
-  return callableConfig as CallableInvalidationConfig<TRecord, TConfig>;
+    // ─── Create callable functions ────────────────────────────────────────
+    const callableConfig: Record<string, unknown> = {}
+
+    for (const key in config) {
+        const invalidationFn = config[key]
+        if (!invalidationFn) continue
+
+        if (hasGraphRefs && refGraph) {
+            // ── Graph mode: capture refs with per-call input and resolve with BFS ──
+            callableConfig[key] = (runtimeInput: unknown) => {
+                const capturedRefs = new Map<string, InvalidationRef>()
+                const invalidations = buildInvalidationProxy<TRecord>(
+                    (name: string, refInput?: unknown) => {
+                        const ref = invalidationRef(name, refInput)
+                        capturedRefs.set(refVisitKey(name, refInput), ref)
+                    }
+                )
+
+                const items = invalidationFn({
+                    invalidations,
+                    keys,
+                    input: runtimeInput as never,
+                })
+
+                const directKeys: QueryKey[] = []
+                for (const item of items) {
+                    if (isInvalidationRef(item)) {
+                        capturedRefs.set(
+                            refVisitKey(item.name, item.input),
+                            item
+                        )
+                    } else {
+                        directKeys.push(item)
+                    }
+                }
+
+                const resolvedKeys = resolveLinkedInvalidations(
+                    [...capturedRefs.values()],
+                    refGraph,
+                    keys,
+                    config as unknown as Record<
+                        keyof TRecord,
+                        (ctx: {
+                            input: unknown
+                            keys: ExtractKeys<TRecord>
+                            invalidations: ExtractInvalidations<TRecord>
+                        }) => (QueryKey | InvalidationRef)[]
+                    >,
+                    runtimeInput
+                )
+
+                return [...directKeys, ...resolvedKeys]
+            }
+        } else {
+            // ── Standard mode (backward compatible) ──
+            callableConfig[key] = (input: unknown) => {
+                const dummyInvalidations = buildInvalidationProxy<TRecord>(
+                    () => {}
+                )
+                return invalidationFn({
+                    input: input as never,
+                    keys,
+                    invalidations: dummyInvalidations,
+                }) as unknown as QueryKey[]
+            }
+        }
+    }
+
+    return callableConfig as CallableInvalidationConfig<TRecord, TConfig>
 }
 
 /**
  * Enhanced endpoint with invalidation methods
  */
 type EnhancedEndpoint<TEndpoint, TCallableInvalidationFn> = TEndpoint & {
-  applyInvalidation: TCallableInvalidationFn extends (input: infer I) => QueryKey[]
-    ? (
-        queryClient: ReturnType<typeof useQueryClient>,
-        input: I,
-      ) => Promise<void>
-    : never;
-  withInvalidationOnSuccess: TEndpoint extends {
-    mutationOptions: (...args: never[]) => infer TMutationOptions;
-  }
-    ? TMutationOptions extends { onSuccess?: infer TOnSuccess }
-      ? TOnSuccess extends (...args: never[]) => unknown
-        ? (callback?: TOnSuccess) => TOnSuccess
+    applyInvalidation: TCallableInvalidationFn extends (
+        input: infer I
+    ) => QueryKey[]
+        ? (
+              queryClient: ReturnType<typeof useQueryClient>,
+              input: I
+          ) => Promise<void>
         : never
-      : never
-    : never;
-};
+    withInvalidationOnSuccess: TEndpoint extends {
+        mutationOptions: (...args: never[]) => infer TMutationOptions
+    }
+        ? TMutationOptions extends { onSuccess?: infer TOnSuccess }
+            ? TOnSuccess extends (...args: never[]) => unknown
+                ? (callback?: TOnSuccess) => TOnSuccess
+                : never
+            : never
+        : never
+}
 
 /**
  * Enhanced endpoints record with invalidation methods
  */
 type EnhancedEndpoints<
-  TRecord extends Record<string, unknown>,
-  TCallableInvalidations,
+    TRecord extends Record<string, unknown>,
+    TCallableInvalidations,
 > = {
-  [K in keyof TRecord]: K extends keyof TCallableInvalidations
-    ? NonNullable<TCallableInvalidations[K]> extends (...args: never[]) => unknown
-      ? EnhancedEndpoint<TRecord[K], NonNullable<TCallableInvalidations[K]>>
-      : TRecord[K]
-    : TRecord[K];
-};
+    [K in keyof TRecord]: K extends keyof TCallableInvalidations
+        ? NonNullable<TCallableInvalidations[K]> extends (
+              ...args: never[]
+          ) => unknown
+            ? EnhancedEndpoint<
+                  TRecord[K],
+                  NonNullable<TCallableInvalidations[K]>
+              >
+            : TRecord[K]
+        : TRecord[K]
+}
 
 /**
  * Wrap endpoints with automatic invalidation methods
@@ -1149,92 +1188,110 @@ type EnhancedEndpoints<
  * ```
  */
 export function wrapWithInvalidations<
-  TRecord extends Record<string, unknown>,
-  TConfig extends InvalidationConfig<TRecord>,
+    TRecord extends Record<string, unknown>,
+    TConfig extends InvalidationConfig<TRecord>,
 >(
-  endpoints: TRecord,
-  invalidations: TConfig | CallableInvalidationConfig<TRecord, TConfig>,
+    endpoints: TRecord,
+    invalidations: TConfig | CallableInvalidationConfig<TRecord, TConfig>
 ): EnhancedEndpoints<TRecord, CallableInvalidationConfig<TRecord, TConfig>> {
-  const keys = getKeysRetrieval(endpoints);
-  const enhanced: Record<string, unknown> = {};
+    const keys = getKeysRetrieval(endpoints)
+    const enhanced: Record<string, unknown> = {}
 
-  for (const endpointName in endpoints) {
-    const endpoint = endpoints[endpointName];
-    // Dynamic index on a generic union — cast is required
-    const rawInvalidationFn = (invalidations as Record<string, unknown>)[endpointName];
+    for (const endpointName in endpoints) {
+        const endpoint = endpoints[endpointName]
+        // Dynamic index on a generic union — cast is required
+        const rawInvalidationFn = (invalidations as Record<string, unknown>)[
+            endpointName
+        ]
 
-    if (rawInvalidationFn && typeof rawInvalidationFn === 'function') {
-      // Check if this is already a callable (1 param) or raw config (expects an object context)
-      // A raw config destructures the first parameter (e.g., `({ input, keys })` or `({ invalidations, keys })`)
-      const fnString = rawInvalidationFn.toString();
-      const isRawConfig = /^\s*\(\s*\{/.test(fnString.split('=>')[0]!);
-      
-      // Create unified invalidation function that takes just input
-      const invalidationFn = isRawConfig
-        ? (input: unknown) => (rawInvalidationFn as (context: { input: unknown; keys: ExtractKeys<TRecord> }) => QueryKey[])({ input, keys })
-        : (rawInvalidationFn as (input: unknown) => QueryKey[]);
+        if (rawInvalidationFn && typeof rawInvalidationFn === 'function') {
+            // Check if this is already a callable (1 param) or raw config (expects an object context)
+            // A raw config destructures the first parameter (e.g., `({ input, keys })` or `({ invalidations, keys })`)
+            const fnString = rawInvalidationFn.toString()
+            const isRawConfig = /^\s*\(\s*\{/.test(fnString.split('=>')[0]!)
 
-      // Extract input type
-      type InputType = Parameters<typeof invalidationFn>[0];
+            // Create unified invalidation function that takes just input
+            const invalidationFn = isRawConfig
+                ? (input: unknown) =>
+                      (
+                          rawInvalidationFn as (context: {
+                              input: unknown
+                              keys: ExtractKeys<TRecord>
+                          }) => QueryKey[]
+                      )({ input, keys })
+                : (rawInvalidationFn as (input: unknown) => QueryKey[])
 
-      // Add both invalidation methods
-      enhanced[endpointName] = {
-        ...(endpoint as object),
-        applyInvalidation: async (
-          queryClient: ReturnType<typeof useQueryClient>,
-          input: unknown,
-        ) => {
-          const keysToInvalidate = invalidationFn(input);
+            // Extract input type
+            type InputType = Parameters<typeof invalidationFn>[0]
 
-          for (const queryKey of keysToInvalidate) {
-            await queryClient.invalidateQueries({ queryKey: queryKey });
-          }
-        },
-        withInvalidationOnSuccess: <
-          TData = unknown,
-          TError = unknown,
-          TOnMutateResult = unknown,
-        >(
-          callback?: NonNullable<
-            MutationOptions<
-              TData,
-              TError,
-              InputType,
-              TOnMutateResult
-            >["onSuccess"]
-          >,
-        ): NonNullable<
-          MutationOptions<
-            TData,
-            TError,
-            InputType,
-            TOnMutateResult
-          >["onSuccess"]
-        > => {
-          return async (data, variables, onMutateResult, context) => {
-            // Apply invalidations using queryClient from context
-            const keysToInvalidate = invalidationFn(variables);
+            // Add both invalidation methods
+            enhanced[endpointName] = {
+                ...(endpoint as object),
+                applyInvalidation: async (
+                    queryClient: ReturnType<typeof useQueryClient>,
+                    input: unknown
+                ) => {
+                    const keysToInvalidate = invalidationFn(input)
 
-            for (const queryKey of keysToInvalidate) {
-              await context.client.invalidateQueries({
-                queryKey: queryKey as never,
-              });
+                    for (const queryKey of keysToInvalidate) {
+                        await queryClient.invalidateQueries({
+                            queryKey: queryKey,
+                        })
+                    }
+                },
+                withInvalidationOnSuccess: <
+                    TData = unknown,
+                    TError = unknown,
+                    TOnMutateResult = unknown,
+                >(
+                    callback?: NonNullable<
+                        MutationOptions<
+                            TData,
+                            TError,
+                            InputType,
+                            TOnMutateResult
+                        >['onSuccess']
+                    >
+                ): NonNullable<
+                    MutationOptions<
+                        TData,
+                        TError,
+                        InputType,
+                        TOnMutateResult
+                    >['onSuccess']
+                > => {
+                    return async (data, variables, onMutateResult, context) => {
+                        // Apply invalidations using queryClient from context
+                        const keysToInvalidate = invalidationFn(variables)
+
+                        for (const queryKey of keysToInvalidate) {
+                            await context.client.invalidateQueries({
+                                queryKey: queryKey as never,
+                            })
+                        }
+
+                        // Call user's callback if provided
+                        if (callback) {
+                            await callback(
+                                data,
+                                variables,
+                                onMutateResult,
+                                context
+                            )
+                        }
+                    }
+                },
             }
-
-            // Call user's callback if provided
-            if (callback) {
-              await callback(data, variables, onMutateResult, context);
-            }
-          };
-        },
-      };
-    } else {
-      // No invalidation configured, pass through as-is
-      enhanced[endpointName] = endpoint;
+        } else {
+            // No invalidation configured, pass through as-is
+            enhanced[endpointName] = endpoint
+        }
     }
-  }
 
-  return enhanced as EnhancedEndpoints<TRecord, CallableInvalidationConfig<TRecord, TConfig>>;
+    return enhanced as EnhancedEndpoints<
+        TRecord,
+        CallableInvalidationConfig<TRecord, TConfig>
+    >
 }
 
 // ============================================================================
@@ -1248,7 +1305,9 @@ export function wrapWithInvalidations<
  * so they are treated as separate graph nodes during BFS resolution.
  */
 function refVisitKey(name: string, input?: unknown): string {
-  return input !== undefined ? `${name}::${JSON.stringify(input)}` : `${name}::`;
+    return input !== undefined
+        ? `${name}::${JSON.stringify(input)}`
+        : `${name}::`
 }
 
 /**
@@ -1262,28 +1321,28 @@ function refVisitKey(name: string, input?: unknown): string {
  * invoked with different inputs is treated as a distinct graph node.
  */
 export interface InvalidationRef {
-  readonly __tag: "invalidation-ref";
-  readonly name: string;
-  readonly input?: unknown;
-};
+    readonly __tag: 'invalidation-ref'
+    readonly name: string
+    readonly input?: unknown
+}
 
 /**
  * Type guard to check if a value is an InvalidationRef
  */
 export function isInvalidationRef(value: unknown): value is InvalidationRef {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__tag" in value &&
-    (value as { __tag: string }).__tag === "invalidation-ref"
-  );
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        '__tag' in value &&
+        (value as { __tag: string }).__tag === 'invalidation-ref'
+    )
 }
 
 /**
  * Create an invalidation reference to a named node with an optional input.
  */
 function invalidationRef(name: string, input?: unknown): InvalidationRef {
-  return { __tag: "invalidation-ref", name, input };
+    return { __tag: 'invalidation-ref', name, input }
 }
 
 /**
@@ -1294,44 +1353,46 @@ function invalidationRef(name: string, input?: unknown): InvalidationRef {
  * Captures the call arguments as the ref's `input` for per-input dedup.
  */
 function buildInvalidationProxy<TRecord extends Record<string, unknown>>(
-  onRef: (name: string, input?: unknown) => void,
+    onRef: (name: string, input?: unknown) => void
 ): ExtractInvalidations<TRecord> {
-  return new Proxy<ExtractInvalidations<TRecord>>(
-    {} as ExtractInvalidations<TRecord>,
-    {
-      get: (_target, name: string) => (...args: unknown[]) => {
-        const options = args[0] as { input?: unknown } | undefined;
-        const refInput = options?.input;
-        onRef(name, refInput);
-        return invalidationRef(name, refInput);
-      },
-    },
-  );
+    return new Proxy<ExtractInvalidations<TRecord>>(
+        {} as ExtractInvalidations<TRecord>,
+        {
+            get:
+                (_target, name: string) =>
+                (...args: unknown[]) => {
+                    const options = args[0] as { input?: unknown } | undefined
+                    const refInput = options?.input
+                    onRef(name, refInput)
+                    return invalidationRef(name, refInput)
+                },
+        }
+    )
 }
 
 /**
  * Build a keys proxy that returns sentinel values (for dry-run).
  */
 function buildKeysProxy(): Record<string, (...args: unknown[]) => QueryKey> {
-  return new Proxy<Record<string, (...args: unknown[]) => QueryKey>>(
-    {},
-    {
-      get: () => () => ["__dry_run__"],
-    },
-  );
+    return new Proxy<Record<string, (...args: unknown[]) => QueryKey>>(
+        {},
+        {
+            get: () => () => ['__dry_run__'],
+        }
+    )
 }
 
 /**
  * Build an input proxy that returns truthy for any property access.
  */
 function buildTruthyInputProxy(): Record<string, unknown> {
-  return new Proxy<Record<string, unknown>>(
-    {},
-    {
-      get: () => true,
-      has: () => true,
-    },
-  );
+    return new Proxy<Record<string, unknown>>(
+        {},
+        {
+            get: () => true,
+            has: () => true,
+        }
+    )
 }
 
 /**
@@ -1349,106 +1410,112 @@ function buildTruthyInputProxy(): Record<string, unknown> {
  * - A → B → A (same input) → cycle halted because A+input is already visited
  * - A → B → A (different input) → processed because it's a fresh (A, input) pair
  */
-function resolveLinkedInvalidations<
-  TRecord extends Record<string, unknown>,
->(
-  refs: InvalidationRef[],
-  refGraph: Record<string, Set<string>>,
-  keys: ExtractKeys<TRecord>,
-  config: Record<keyof TRecord, (ctx: {
-    input: unknown;
-    keys: ExtractKeys<TRecord>;
-    invalidations: ExtractInvalidations<TRecord>;
-  }) => (QueryKey | InvalidationRef)[]>,
-  originalInput: unknown,
+function resolveLinkedInvalidations<TRecord extends Record<string, unknown>>(
+    refs: InvalidationRef[],
+    refGraph: Record<string, Set<string>>,
+    keys: ExtractKeys<TRecord>,
+    config: Record<
+        keyof TRecord,
+        (ctx: {
+            input: unknown
+            keys: ExtractKeys<TRecord>
+            invalidations: ExtractInvalidations<TRecord>
+        }) => (QueryKey | InvalidationRef)[]
+    >,
+    originalInput: unknown
 ): QueryKey[] {
-  const visitedRefs = new Set<string>();
-  const resolvedKeys: QueryKey[] = [];
-  const seenKeys = new Set<string>(); // Serialized key dedup
-  const queue: { name: string; input?: unknown }[] = refs.map((r) => ({
-    name: r.name,
-    input: r.input,
-  }));
+    const visitedRefs = new Set<string>()
+    const resolvedKeys: QueryKey[] = []
+    const seenKeys = new Set<string>() // Serialized key dedup
+    const queue: { name: string; input?: unknown }[] = refs.map((r) => ({
+        name: r.name,
+        input: r.input,
+    }))
 
-  while (queue.length > 0) {
-    const entry = queue.shift();
-    if (!entry) break;
-    const { name: nodeName, input: refInput } = entry;
-    const visitKey = refVisitKey(nodeName, refInput);
-    if (visitedRefs.has(visitKey)) continue;
-    visitedRefs.add(visitKey);
+    while (queue.length > 0) {
+        const entry = queue.shift()
+        if (!entry) break
+        const { name: nodeName, input: refInput } = entry
+        const visitKey = refVisitKey(nodeName, refInput)
+        if (visitedRefs.has(visitKey)) continue
+        visitedRefs.add(visitKey)
 
-    // ── Resolve node with its per-call input ──
-    const keyFn = (keys as Record<string, unknown>)[nodeName];
-    if (typeof keyFn === "function") {
-      const resolvedKey = refInput !== undefined
-        ? (keyFn as (...args: unknown[]) => QueryKey)({ input: refInput })
-        : (keyFn as () => QueryKey)();
-      const keyStr = JSON.stringify(resolvedKey);
-      if (!seenKeys.has(keyStr)) {
-        seenKeys.add(keyStr);
-        resolvedKeys.push(resolvedKey);
-      }
+        // ── Resolve node with its per-call input ──
+        const keyFn = (keys as Record<string, unknown>)[nodeName]
+        if (typeof keyFn === 'function') {
+            const resolvedKey =
+                refInput !== undefined
+                    ? (keyFn as (...args: unknown[]) => QueryKey)({
+                          input: refInput,
+                      })
+                    : (keyFn as () => QueryKey)()
+            const keyStr = JSON.stringify(resolvedKey)
+            if (!seenKeys.has(keyStr)) {
+                seenKeys.add(keyStr)
+                resolvedKeys.push(resolvedKey)
+            }
+        }
+
+        // ── Find all mutations that reference this endpoint via invalidations.X() ──
+        const dependantMutations = refGraph[nodeName]
+        if (!dependantMutations || dependantMutations.size === 0) continue
+
+        for (const mutName of dependantMutations) {
+            const mutVisitKey = refVisitKey(mutName, originalInput)
+            if (visitedRefs.has(mutVisitKey)) continue
+
+            const mutFn = config[mutName]
+            if (typeof mutFn !== 'function') continue
+
+            // Call the mutation's invalidation function with a proxy that captures
+            // per-call inputs
+            const capturedRefs = new Array<InvalidationRef>()
+
+            const mutInvalidations = buildInvalidationProxy<TRecord>(
+                (name: string, callInput?: unknown) => {
+                    const ref = invalidationRef(name, callInput)
+                    capturedRefs.push(ref)
+                }
+            )
+
+            let mutItems: (QueryKey | InvalidationRef)[]
+            try {
+                mutItems = mutFn({
+                    invalidations: mutInvalidations,
+                    keys,
+                    input: originalInput,
+                })
+            } catch {
+                continue // Skip this mutation if it fails
+            }
+
+            // Process mutation's items: add direct keys, enqueue new refs
+            for (const item of mutItems) {
+                if (isInvalidationRef(item)) {
+                    const itemVisitKey = refVisitKey(item.name, item.input)
+                    // Only push if this (name, input) pair hasn't been visited or queued
+                    if (!visitedRefs.has(itemVisitKey)) {
+                        queue.push({ name: item.name, input: item.input })
+                    }
+                } else {
+                    const key = item
+                    const keyStr = JSON.stringify(key)
+                    if (!seenKeys.has(keyStr)) {
+                        seenKeys.add(keyStr)
+                        resolvedKeys.push(key)
+                    }
+                }
+            }
+
+            // Enqueue newly discovered refs from proxy captures
+            for (const ref of capturedRefs) {
+                const refVisitKey_ = refVisitKey(ref.name, ref.input)
+                if (!visitedRefs.has(refVisitKey_)) {
+                    queue.push({ name: ref.name, input: ref.input })
+                }
+            }
+        }
     }
 
-    // ── Find all mutations that reference this endpoint via invalidations.X() ──
-    const dependantMutations = refGraph[nodeName];
-    if (!dependantMutations || dependantMutations.size === 0) continue;
-
-    for (const mutName of dependantMutations) {
-      const mutVisitKey = refVisitKey(mutName, originalInput);
-      if (visitedRefs.has(mutVisitKey)) continue;
-
-      const mutFn = config[mutName];
-      if (typeof mutFn !== "function") continue;
-
-      // Call the mutation's invalidation function with a proxy that captures
-      // per-call inputs
-      const capturedRefs = new Array<InvalidationRef>();
-
-      const mutInvalidations = buildInvalidationProxy<TRecord>((name: string, callInput?: unknown) => {
-        const ref = invalidationRef(name, callInput);
-        capturedRefs.push(ref);
-      });
-
-      let mutItems: (QueryKey | InvalidationRef)[];
-      try {
-        mutItems = mutFn({
-          invalidations: mutInvalidations,
-          keys,
-          input: originalInput,
-        });
-      } catch {
-        continue; // Skip this mutation if it fails
-      }
-
-      // Process mutation's items: add direct keys, enqueue new refs
-      for (const item of mutItems) {
-        if (isInvalidationRef(item)) {
-          const itemVisitKey = refVisitKey(item.name, item.input);
-          // Only push if this (name, input) pair hasn't been visited or queued
-          if (!visitedRefs.has(itemVisitKey)) {
-            queue.push({ name: item.name, input: item.input });
-          }
-        } else {
-          const key = item;
-          const keyStr = JSON.stringify(key);
-          if (!seenKeys.has(keyStr)) {
-            seenKeys.add(keyStr);
-            resolvedKeys.push(key);
-          }
-        }
-      }
-
-      // Enqueue newly discovered refs from proxy captures
-      for (const ref of capturedRefs) {
-        const refVisitKey_ = refVisitKey(ref.name, ref.input);
-        if (!visitedRefs.has(refVisitKey_)) {
-          queue.push({ name: ref.name, input: ref.input });
-        }
-      }
-    }
-  }
-
-  return resolvedKeys;
+    return resolvedKeys
 }

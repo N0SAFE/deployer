@@ -36,7 +36,10 @@ describe('GLOBAL_DB_POOL_* sizing', () => {
     })
 
     it('clamps min to max when min is configured above it', () => {
-        const s = poolSizingFrom({ GLOBAL_DB_POOL_MAX: '3', GLOBAL_DB_POOL_MIN: '9' })
+        const s = poolSizingFrom({
+            GLOBAL_DB_POOL_MAX: '3',
+            GLOBAL_DB_POOL_MIN: '9',
+        })
         expect(s.min).toBe(3)
         expect(s.min).toBeLessThanOrEqual(s.max)
     })

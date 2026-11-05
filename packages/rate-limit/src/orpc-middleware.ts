@@ -1,23 +1,26 @@
-import { os } from "@orpc/server";
+import { os } from '@orpc/server'
 
-import { domainErrorOptions, standardDomainErrorPayloadSchema } from "@deployer/orpc-utils";
+import {
+    domainErrorOptions,
+    standardDomainErrorPayloadSchema,
+} from '@deployer/orpc-utils'
 
-import { clientKey } from "./client-key";
-import { makeSlidingWindowLimiter } from "./sliding-window";
+import { clientKey } from './client-key'
+import { makeSlidingWindowLimiter } from './sliding-window'
 
 /** Minimal context contract: the runtime provides `request` on every call (set as the initial context by `ORPCModule`). */
 export type RequestContext = {
-	request: globalThis.Request;
-};
+    request: globalThis.Request
+}
 
 export type RateLimitOptions = {
-	/** Sliding window length in milliseconds. */
-	windowMs: number;
-	/** Maximum requests per window per key. */
-	max: number;
-	/** Human-readable message sent to the client. */
-	message?: string;
-};
+    /** Sliding window length in milliseconds. */
+    windowMs: number
+    /** Maximum requests per window per key. */
+    max: number
+    /** Human-readable message sent to the client. */
+    message?: string
+}
 
 /**
  * An oRPC middleware that limits each client (see `clientKey`) to `max` requests per `windowMs`.
@@ -28,23 +31,27 @@ export type RateLimitOptions = {
  * protected by the same implementation.
  */
 export function rateLimit(options: RateLimitOptions) {
-	const limiter = makeSlidingWindowLimiter(options);
+    const limiter = makeSlidingWindowLimiter(options)
 
-	return os
-		.$context<RequestContext>()
-		.errors({
-			TOO_MANY_REQUESTS: {
-				message: "Too many requests",
-				status: 429,
-				data: standardDomainErrorPayloadSchema,
-			},
-		})
-		.middleware(({ context, next, errors }) => {
-			if (!limiter.consumeNow(clientKey(context.request)).allowed) {
-				throw errors.TOO_MANY_REQUESTS(
-					domainErrorOptions("TOO_MANY_REQUESTS", 429, options.message ?? "Too many requests — try again later"),
-				);
-			}
-			return next({ context });
-		});
+    return os
+        .$context<RequestContext>()
+        .errors({
+            TOO_MANY_REQUESTS: {
+                message: 'Too many requests',
+                status: 429,
+                data: standardDomainErrorPayloadSchema,
+            },
+        })
+        .middleware(({ context, next, errors }) => {
+            if (!limiter.consumeNow(clientKey(context.request)).allowed) {
+                throw errors.TOO_MANY_REQUESTS(
+                    domainErrorOptions(
+                        'TOO_MANY_REQUESTS',
+                        429,
+                        options.message ?? 'Too many requests — try again later'
+                    )
+                )
+            }
+            return next({ context })
+        })
 }

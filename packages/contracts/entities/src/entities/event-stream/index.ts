@@ -3,10 +3,7 @@ export {
     coreEventStreamDefinitionSchema,
 } from './base.schema'
 
-export type {
-    CoreEventScope,
-    CoreEventStreamDefinition,
-} from './base.schema'
+export type { CoreEventScope, CoreEventStreamDefinition } from './base.schema'
 
 export {
     coreDomainEventEnvelopeSchema,

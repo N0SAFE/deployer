@@ -29,7 +29,7 @@
  * (`/setup`) and relative paths (`dashboard`) stay inside it.
  */
 export function isExternalRedirect(target: string): boolean {
-	return /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("//");
+    return /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//')
 }
 
 /**
@@ -43,24 +43,27 @@ export function isExternalRedirect(target: string): boolean {
  * Returns `fallback` (default `/`) when the input is empty or unparseable, so a
  * caller never emits an empty `Location`.
  */
-export function toRedirectTarget(target: string | null | undefined, fallback = "/"): string {
-	if (!target || target.trim() === "") return fallback;
-	const value = target.trim();
+export function toRedirectTarget(
+    target: string | null | undefined,
+    fallback = '/'
+): string {
+    if (!target || target.trim() === '') return fallback
+    const value = target.trim()
 
-	if (isExternalRedirect(value)) {
-		try {
-			// Validate: a malformed absolute URL would otherwise produce a
-			// Location the browser rejects outright.
-			return new URL(value, "http://placeholder.invalid").toString();
-		} catch {
-			return fallback;
-		}
-	}
+    if (isExternalRedirect(value)) {
+        try {
+            // Validate: a malformed absolute URL would otherwise produce a
+            // Location the browser rejects outright.
+            return new URL(value, 'http://placeholder.invalid').toString()
+        } catch {
+            return fallback
+        }
+    }
 
-	// In-deployment target. Collapse any accidental scheme/host by treating the
-	// value as a path — `toAbsoluteUrl`-style expansion is exactly what leaked
-	// the internal hostname.
-	return value.startsWith("/") ? value : `/${value}`;
+    // In-deployment target. Collapse any accidental scheme/host by treating the
+    // value as a path — `toAbsoluteUrl`-style expansion is exactly what leaked
+    // the internal hostname.
+    return value.startsWith('/') ? value : `/${value}`
 }
 
 /**
@@ -70,11 +73,15 @@ export function toRedirectTarget(target: string | null | undefined, fallback = "
  * explicit origin so the caller must name the destination: there is no implicit
  * fallback to an internal address, which is how the internal hostname leaked.
  */
-export function toExternalRedirectUrl(origin: string, path: string, fallbackOrigin: string): string {
-	const base = isExternalRedirect(origin) ? origin : fallbackOrigin;
-	try {
-		return new URL(path, base).toString();
-	} catch {
-		return fallbackOrigin;
-	}
+export function toExternalRedirectUrl(
+    origin: string,
+    path: string,
+    fallbackOrigin: string
+): string {
+    const base = isExternalRedirect(origin) ? origin : fallbackOrigin
+    try {
+        return new URL(path, base).toString()
+    } catch {
+        return fallbackOrigin
+    }
 }

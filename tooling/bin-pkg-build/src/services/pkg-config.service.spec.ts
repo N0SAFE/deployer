@@ -141,7 +141,9 @@ describe('PkgConfigService', () => {
         const exit = vi.spyOn(process, 'exit').mockImplementation((code) => {
             throw new Error(`exit:${String(code)}`)
         })
-        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        const error = vi
+            .spyOn(console, 'error')
+            .mockImplementation(() => undefined)
         try {
             await expect(PkgConfigService.create(dir)).rejects.toThrow('exit:1')
         } finally {

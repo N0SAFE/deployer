@@ -12,9 +12,11 @@ order: 32
 > **Scope**: v3
 
 ### Summary
+
 A super admin connects multiple servers and assigns per-organization CPU/RAM quotas per server; each instance uses exactly one database, and the load balancer uses the same database as its host instance.
 
 ### Context
+
 To reduce complexity and avoid ambiguous data ownership, the current scope intentionally excludes multi-database merge/federation logic. The first deliverable is a clear super-admin manager for server connections and org resource allocations.
 
 ## Scope freeze (Phase 1 authoritative decisions)
@@ -26,10 +28,10 @@ This section is the source of truth for current implementation and product behav
 - **No database federation / merge across instances in Phase 1**.
 - **No cross-instance shared application database in Phase 1**.
 - **Super admin controls only**:
-  - server connections,
-  - organization-to-server assignment,
-  - per-organization CPU/RAM capacity allocation by server,
-  - fleet usage visibility (metrics).
+    - server connections,
+    - organization-to-server assignment,
+    - per-organization CPU/RAM capacity allocation by server,
+    - fleet usage visibility (metrics).
 - **Organization users can read** their allowed CPU/RAM by server.
 
 ### Deferred (explicitly out of scope)
@@ -40,18 +42,20 @@ This section is the source of truth for current implementation and product behav
 - Cross-instance secret orchestration beyond current control-plane needs.
 
 ### Rules (explicit constraints)
+
 - One instance = one database.
 - A load balancer attached to an instance uses that instance database.
 - No cross-instance database merge orchestration in this phase.
 - Super admin is the only role that can manage:
-  - server connections,
-  - organization → server assignment,
-  - organization quota limits (CPU, RAM).
+    - server connections,
+    - organization → server assignment,
+    - organization quota limits (CPU, RAM).
 - Organizations can read their allowed CPU/RAM by server.
 
 ## Conceptual schema
 
 ### Core entities
+
 - **Instance**: a deployer control plane node.
 - **DatabaseBinding**: selected database for the instance (internal/external).
 - **ServerConnection**: trusted link between two instances.
@@ -234,6 +238,7 @@ sequenceDiagram
 ```
 
 ## Implementation status
+
 - ✅ Architecture constraints frozen for current scope.
 - ✅ Diagram + schema documentation added.
 - ✅ Contracts moved to `packages/contracts/api/modules/nodes` and wired into the `nodes` contract group (the mesh is the single tenant — no org concept).
@@ -242,4 +247,5 @@ sequenceDiagram
 - ✅ Fleet/allocations surfaced in `apps/web/src/app/dashboard/nodes` (fleet view) and `apps/web/src/app/dashboard/configuration` (per-node capacity cards).
 
 ## Related execution tracking
+
 - [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)

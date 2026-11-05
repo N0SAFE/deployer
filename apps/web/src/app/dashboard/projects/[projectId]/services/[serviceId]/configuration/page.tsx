@@ -9,10 +9,15 @@ import { AuthDashboardProjectsProjectIdServicesServiceIdConfigurationGeneral } f
  * places.
  */
 export default async function DashboardServiceConfigurationIndexPage({
-  params,
+    params,
 }: {
-  params: Promise<{ projectId: string; serviceId: string }>
+    params: Promise<{ projectId: string; serviceId: string }>
 }) {
-  const { projectId, serviceId } = await params
-  redirect(AuthDashboardProjectsProjectIdServicesServiceIdConfigurationGeneral({ projectId, serviceId }))
+    const { projectId, serviceId } = await params
+    redirect(
+        AuthDashboardProjectsProjectIdServicesServiceIdConfigurationGeneral({
+            projectId,
+            serviceId,
+        })
+    )
 }

@@ -11,41 +11,41 @@
 // VERIFICATION TYPES
 // ============================================================================
 export type {
-  VerificationMethod,
-  VerificationInstructions,
-  VerifyDomainResult,
-} from './verification.interfaces';
+    VerificationMethod,
+    VerificationInstructions,
+    VerifyDomainResult,
+} from './verification.interfaces'
 
 // ============================================================================
 // CONFLICT RESOLUTION TYPES
 // ============================================================================
 export type {
-  SubdomainConflict,
-  SubdomainAvailabilityResult,
-  SubdomainValidationResult,
-  BasePathValidationResult,
-} from './conflict.interfaces';
+    SubdomainConflict,
+    SubdomainAvailabilityResult,
+    SubdomainValidationResult,
+    BasePathValidationResult,
+} from './conflict.interfaces'
 
 // ============================================================================
 // SERVICE MAPPING TYPES
 // ============================================================================
 export type {
-  ServiceDomainMapping,
-  InsertServiceDomainMapping,
-  ServiceDomainMappingWithUrls,
-  SSLProvider,
-  SSLConfig,
-  ServiceMappingWithServiceName,
-} from './service-mapping.interfaces';
+    ServiceDomainMapping,
+    InsertServiceDomainMapping,
+    ServiceDomainMappingWithUrls,
+    SSLProvider,
+    SSLConfig,
+    ServiceMappingWithServiceName,
+} from './service-mapping.interfaces'
 
 // ============================================================================
 // PROJECT DOMAIN TYPES
 // ============================================================================
 export type {
-  ProjectDomain,
-  InsertProjectDomain,
-  AssignDomainInput,
-  AssignDomainResponse,
-  AvailableDomain,
-  GranularityCheckResult,
-} from './project-domain.interfaces';
+    ProjectDomain,
+    InsertProjectDomain,
+    AssignDomainInput,
+    AssignDomainResponse,
+    AvailableDomain,
+    GranularityCheckResult,
+} from './project-domain.interfaces'

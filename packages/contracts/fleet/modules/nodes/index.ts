@@ -1,9 +1,9 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
-import z from "zod/v4";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * Nodes contract — the fleet view of the mesh. Every operation is
@@ -15,8 +15,17 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  * are per node.
  */
 
-export const fleetAllocationModeSchema = z.enum(["dedicated_full", "dedicated_slice", "shared_slice"]);
-export const fleetAdmissionRequestStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
+export const fleetAllocationModeSchema = z.enum([
+    'dedicated_full',
+    'dedicated_slice',
+    'shared_slice',
+])
+export const fleetAdmissionRequestStatusSchema = z.enum([
+    'pending',
+    'approved',
+    'rejected',
+    'cancelled',
+])
 
 export const fleetNodeMetricSchema = z.object({
     cpuUsage: z.number().min(0).max(1),
@@ -24,14 +33,14 @@ export const fleetNodeMetricSchema = z.object({
     activeStreams: z.number().int().min(0),
     queueDepth: z.number().int().min(0),
     reportedAt: z.string(),
-});
+})
 
 export const fleetServerSummarySchema = z.object({
     nodeId: z.string(),
     swarmNodeId: z.string().nullable().optional(),
     serverUrl: z.string(),
     displayName: z.string().nullable(),
-    status: z.enum(["active", "suspect", "draining", "revoked"]),
+    status: z.enum(['active', 'suspect', 'draining', 'revoked']),
     healthy: z.boolean(),
     lastSeenAt: z.string().nullable(),
     maxCpuMillicores: z.number().int().min(0).nullable(),
@@ -42,7 +51,7 @@ export const fleetServerSummarySchema = z.object({
         cpuMillicores: z.number().int().min(0),
         memoryMb: z.number().int().min(0),
     }),
-});
+})
 
 export const fleetServerAllocationSchema = z.object({
     id: z.uuid(),
@@ -54,11 +63,11 @@ export const fleetServerAllocationSchema = z.object({
     maxServices: z.number().int().min(0).nullable(),
     isEnabled: z.boolean(),
     updatedAt: z.string(),
-});
+})
 
 const listFleetAllocationsQuerySchema = z.object({
     serverNodeId: z.string().optional(),
-});
+})
 
 const upsertFleetAllocationInputSchema = z.object({
     serverNodeId: z.string(),
@@ -67,18 +76,18 @@ const upsertFleetAllocationInputSchema = z.object({
     memoryMb: z.number().int().min(0),
     maxServices: z.number().int().min(0).nullable().optional(),
     isEnabled: z.boolean().default(true),
-});
+})
 
 const deleteFleetAllocationInputSchema = z.object({
     serverNodeId: z.string(),
-});
+})
 
 const fleetAdmissionCheckInputSchema = z.object({
     requestedCpuMillicores: z.number().int().min(0),
     requestedMemoryMb: z.number().int().min(0),
     requestedServices: z.number().int().min(0).default(1),
     serverNodeId: z.string().optional(),
-});
+})
 
 const createFleetAdmissionRequestInputSchema = z.object({
     requestedCpuMillicores: z.number().int().min(0),
@@ -86,18 +95,18 @@ const createFleetAdmissionRequestInputSchema = z.object({
     requestedServices: z.number().int().min(0).default(1),
     requestedServerNodeId: z.string().optional(),
     requesterNote: z.string().max(1024).nullable().optional(),
-});
+})
 
 const listFleetAdmissionRequestsQuerySchema = z.object({
     status: fleetAdmissionRequestStatusSchema.optional(),
-});
+})
 
 const resolveFleetAdmissionRequestInputSchema = z.object({
     requestId: z.uuid(),
-    decision: z.enum(["approved", "rejected", "cancelled"]),
+    decision: z.enum(['approved', 'rejected', 'cancelled']),
     reviewerNote: z.string().max(1024).nullable().optional(),
     decisionServerNodeId: z.string().nullable().optional(),
-});
+})
 
 const fleetAdmissionCandidateSchema = z.object({
     allocationId: z.uuid(),
@@ -107,14 +116,14 @@ const fleetAdmissionCandidateSchema = z.object({
     availableCpuMillicores: z.number().int().min(0),
     availableMemoryMb: z.number().int().min(0),
     maxServices: z.number().int().min(0).nullable(),
-});
+})
 
 const fleetAdmissionCheckResultSchema = z.object({
     allowed: z.boolean(),
     reason: z.string().nullable(),
     evaluatedAt: z.string(),
     candidates: z.array(fleetAdmissionCandidateSchema),
-});
+})
 
 const fleetAdmissionRequestSchema = z.object({
     id: z.uuid(),
@@ -131,137 +140,182 @@ const fleetAdmissionRequestSchema = z.object({
     reviewedAt: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
+})
 
-const fleetServerSummaryOps = standard.zod(fleetServerSummarySchema, "fleetServerSummary");
+const fleetServerSummaryOps = standard.zod(
+    fleetServerSummarySchema,
+    'fleetServerSummary'
+)
 const fleetServerAllocationOps = standard.zod(
     fleetServerAllocationSchema,
-    "fleetServerAllocation",
-);
-const fleetAdmissionCheckOps = standard.zod(fleetAdmissionCheckResultSchema, "fleetAdmissionCheck");
-const fleetAdmissionRequestOps = standard.zod(fleetAdmissionRequestSchema, "fleetAdmissionRequest");
-const fleetAllocationDeleteResultSchema = z.object({ deleted: z.boolean() });
+    'fleetServerAllocation'
+)
+const fleetAdmissionCheckOps = standard.zod(
+    fleetAdmissionCheckResultSchema,
+    'fleetAdmissionCheck'
+)
+const fleetAdmissionRequestOps = standard.zod(
+    fleetAdmissionRequestSchema,
+    'fleetAdmissionRequest'
+)
+const fleetAllocationDeleteResultSchema = z.object({ deleted: z.boolean() })
 const fleetAllocationDeleteOps = standard.zod(
     fleetAllocationDeleteResultSchema,
-    "fleetAllocationDelete",
-);
+    'fleetAllocationDelete'
+)
 
 export const fleetListServersContract = fleetServerSummaryOps
     .list()
-    .path("/servers")
+    .path('/servers')
     .input(z.object({}))
-    .output((b) => b.body(z.object({ items: z.array(fleetServerSummarySchema) })))
-    .meta(access({ permission: "node:read" }))
-    .build();
+    .output((b) =>
+        b.body(z.object({ items: z.array(fleetServerSummarySchema) }))
+    )
+    .meta(access({ permission: 'node:read' }))
+    .build()
 
 export const fleetListAllocationsContract = fleetServerAllocationOps
     .list()
-    .path("/allocations")
+    .path('/allocations')
     .input((b) => b.query(listFleetAllocationsQuerySchema))
-    .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
-    .meta(access({ permission: "node:read" }))
-    .build();
+    .output((b) =>
+        b.body(z.object({ items: z.array(fleetServerAllocationSchema) }))
+    )
+    .meta(access({ permission: 'node:read' }))
+    .build()
 
 export const fleetListMyAllocationsContract = fleetServerAllocationOps
     .list()
-    .path("/allocations/me")
+    .path('/allocations/me')
     .input(z.object({}))
-    .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
-    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
-    .build();
+    .output((b) =>
+        b.body(z.object({ items: z.array(fleetServerAllocationSchema) }))
+    )
+    .meta(
+        access({
+            self: true,
+            reason: "a node owner reads and files their own admission, never someone else's",
+        })
+    )
+    .build()
 
 export const fleetUpsertAllocationContract = fleetServerAllocationOps
     .create()
-    .path("/allocations/upsert")
+    .path('/allocations/upsert')
     .input((b) => b.body(upsertFleetAllocationInputSchema))
     .output((b) => b.body(fleetServerAllocationSchema))
     .errors((e) => [
         // 404 unknown node/server; 409 allocation conflict.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: "node:operate" }))
-    .build();
+    .meta(access({ permission: 'node:operate' }))
+    .build()
 
 export const fleetDeleteAllocationContract = fleetAllocationDeleteOps
     .create()
-    .path("/allocations/delete")
+    .path('/allocations/delete')
     .input((b) => b.body(deleteFleetAllocationInputSchema))
     .output((b) => b.body(fleetAllocationDeleteResultSchema))
     .errors((e) => [
         // 404 for unknown allocation.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: "node:operate" }))
-    .build();
+    .meta(access({ permission: 'node:operate' }))
+    .build()
 
 export const fleetCheckMyAdmissionContract = fleetAdmissionCheckOps
     .create()
-    .path("/allocations/me/admission-check")
+    .path('/allocations/me/admission-check')
     .input((b) => b.body(fleetAdmissionCheckInputSchema))
     .output((b) => b.body(fleetAdmissionCheckResultSchema))
-    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
-    .build();
+    .meta(
+        access({
+            self: true,
+            reason: "a node owner reads and files their own admission, never someone else's",
+        })
+    )
+    .build()
 
 export const fleetCreateMyAdmissionRequestContract = fleetAdmissionRequestOps
     .create()
-    .path("/allocations/me/requests")
+    .path('/allocations/me/requests')
     .input((b) => b.body(createFleetAdmissionRequestInputSchema))
     .output((b) => b.body(fleetAdmissionRequestSchema))
-    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
-    .build();
+    .meta(
+        access({
+            self: true,
+            reason: "a node owner reads and files their own admission, never someone else's",
+        })
+    )
+    .build()
 
 export const fleetListMyAdmissionRequestsContract = fleetAdmissionRequestOps
     .list()
-    .path("/allocations/me/requests")
-    .input((b) => b.query(z.object({ status: fleetAdmissionRequestStatusSchema.optional() })))
-    .output((b) => b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) })))
-    .meta(access({ self: true, reason: "a node owner reads and files their own admission, never someone else's" }))
-    .build();
+    .path('/allocations/me/requests')
+    .input((b) =>
+        b.query(
+            z.object({ status: fleetAdmissionRequestStatusSchema.optional() })
+        )
+    )
+    .output((b) =>
+        b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) }))
+    )
+    .meta(
+        access({
+            self: true,
+            reason: "a node owner reads and files their own admission, never someone else's",
+        })
+    )
+    .build()
 
 export const fleetListAdmissionRequestsContract = fleetAdmissionRequestOps
     .list()
-    .path("/allocations/requests")
+    .path('/allocations/requests')
     .input((b) => b.query(listFleetAdmissionRequestsQuerySchema))
-    .output((b) => b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) })))
-    .meta(access({ permission: "node:read" }))
-    .build();
+    .output((b) =>
+        b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) }))
+    )
+    .meta(access({ permission: 'node:read' }))
+    .build()
 
 export const fleetResolveAdmissionRequestContract = fleetAdmissionRequestOps
     .create()
-    .path("/allocations/requests/resolve")
+    .path('/allocations/requests/resolve')
     .input((b) => b.body(resolveFleetAdmissionRequestInputSchema))
     .output((b) => b.body(fleetAdmissionRequestSchema))
-    .meta(access({ permission: "node:operate" }))
-    .build();
+    .meta(access({ permission: 'node:operate' }))
+    .build()
 
 export const fleetSetServerCapacityContract = fleetServerSummaryOps
     .create()
-    .path("/servers/capacity")
+    .path('/servers/capacity')
     .input((b) =>
         b.body(
             z.object({
                 serverNodeId: z.string(),
                 maxCpuMillicores: z.number().int().min(1).nullable(),
                 maxMemoryMb: z.number().int().min(1).nullable(),
-            }),
-        ),
+            })
+        )
     )
     .output((b) => b.body(fleetServerSummarySchema))
-    .meta(access({ permission: "node:operate" }))
-    .build();
+    .meta(access({ permission: 'node:operate' }))
+    .build()
 
-export const nodesContract = oc.meta(openapi({ tags: ["Nodes"], prefix: "/nodes" })).router({
-    listServers: fleetListServersContract,
-    setServerCapacity: fleetSetServerCapacityContract,
-    listAllocations: fleetListAllocationsContract,
-    listMyAllocations: fleetListMyAllocationsContract,
-    upsertAllocation: fleetUpsertAllocationContract,
-    deleteAllocation: fleetDeleteAllocationContract,
-    checkMyAdmission: fleetCheckMyAdmissionContract,
-    createMyAdmissionRequest: fleetCreateMyAdmissionRequestContract,
-    listMyAdmissionRequests: fleetListMyAdmissionRequestsContract,
-    listAdmissionRequests: fleetListAdmissionRequestsContract,
-    resolveAdmissionRequest: fleetResolveAdmissionRequestContract,
-});
+export const nodesContract = oc
+    .meta(openapi({ tags: ['Nodes'], prefix: '/nodes' }))
+    .router({
+        listServers: fleetListServersContract,
+        setServerCapacity: fleetSetServerCapacityContract,
+        listAllocations: fleetListAllocationsContract,
+        listMyAllocations: fleetListMyAllocationsContract,
+        upsertAllocation: fleetUpsertAllocationContract,
+        deleteAllocation: fleetDeleteAllocationContract,
+        checkMyAdmission: fleetCheckMyAdmissionContract,
+        createMyAdmissionRequest: fleetCreateMyAdmissionRequestContract,
+        listMyAdmissionRequests: fleetListMyAdmissionRequestsContract,
+        listAdmissionRequests: fleetListAdmissionRequestsContract,
+        resolveAdmissionRequest: fleetResolveAdmissionRequestContract,
+    })
 
-export type NodesContract = typeof nodesContract;
+export type NodesContract = typeof nodesContract

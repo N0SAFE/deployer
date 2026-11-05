@@ -1,13 +1,13 @@
-import { 
-  AuthUtils as GlobalAuthUtils, 
-  AuthUtilsEmpty as GlobalAuthUtilsEmpty,
-  type UserSession
-} from "../utils/auth-utils";
+import {
+    AuthUtils as GlobalAuthUtils,
+    AuthUtilsEmpty as GlobalAuthUtilsEmpty,
+    type UserSession,
+} from '../utils/auth-utils'
 
-import type { ORPCAuthContext } from "./types";
+import type { ORPCAuthContext } from './types'
 
 // Re-export UserSession for use in plugins
-export type { UserSession };
+export type { UserSession }
 
 /**
  * Auth utilities class for ORPC handlers
@@ -20,4 +20,6 @@ export class AuthUtils extends GlobalAuthUtils implements ORPCAuthContext {}
  * Empty auth utilities for unauthenticated ORPC contexts
  * This extends the global AuthUtilsEmpty class and implements ORPCAuthContext
  */
-export class AuthUtilsEmpty extends GlobalAuthUtilsEmpty implements ORPCAuthContext {}
+export class AuthUtilsEmpty
+    extends GlobalAuthUtilsEmpty
+    implements ORPCAuthContext {}

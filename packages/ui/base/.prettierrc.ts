@@ -1,5 +1,4 @@
 // @ts-expect-error shared config package does not expose TS declarations
-import config from '@deployer/config-prettier/tailwind';
+import config from '@deployer/config-prettier/tailwind'
 
-export default config;
-
+export default config

@@ -26,70 +26,90 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { platformContract } from "@deployer/fleet-contracts";
+import { platformContract } from '@deployer/fleet-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class PlatformDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("fleet", platformContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('fleet', platformContract)
+    }
 
-	@Implement(platformContract.registerAppInstance)
-	registerAppInstance() {
-		return implement(platformContract.registerAppInstance).handler(({ input }) => this.client.registerAppInstance(input));
-	}
+    @Implement(platformContract.registerAppInstance)
+    registerAppInstance() {
+        return implement(platformContract.registerAppInstance).handler(
+            ({ input }) => this.client.registerAppInstance(input)
+        )
+    }
 
-	@Implement(platformContract.heartbeatAppInstance)
-	heartbeatAppInstance() {
-		return implement(platformContract.heartbeatAppInstance).handler(({ input }) => this.client.heartbeatAppInstance(input));
-	}
+    @Implement(platformContract.heartbeatAppInstance)
+    heartbeatAppInstance() {
+        return implement(platformContract.heartbeatAppInstance).handler(
+            ({ input }) => this.client.heartbeatAppInstance(input)
+        )
+    }
 
-	@Implement(platformContract.listAppInstances)
-	listAppInstances() {
-		return implement(platformContract.listAppInstances).handler(({ input }) => this.client.listAppInstances(input));
-	}
+    @Implement(platformContract.listAppInstances)
+    listAppInstances() {
+        return implement(platformContract.listAppInstances).handler(
+            ({ input }) => this.client.listAppInstances(input)
+        )
+    }
 
-	@Implement(platformContract.revokeAppInstance)
-	revokeAppInstance() {
-		return implement(platformContract.revokeAppInstance).handler(({ input }) => this.client.revokeAppInstance(input));
-	}
+    @Implement(platformContract.revokeAppInstance)
+    revokeAppInstance() {
+        return implement(platformContract.revokeAppInstance).handler(
+            ({ input }) => this.client.revokeAppInstance(input)
+        )
+    }
 
-	@Implement(platformContract.getManagedWebState)
-	getManagedWebState() {
-		return implement(platformContract.getManagedWebState).handler(({ input }) => this.client.getManagedWebState(input));
-	}
+    @Implement(platformContract.getManagedWebState)
+    getManagedWebState() {
+        return implement(platformContract.getManagedWebState).handler(
+            ({ input }) => this.client.getManagedWebState(input)
+        )
+    }
 
-	@Implement(platformContract.toggleManagedWeb)
-	toggleManagedWeb() {
-		return implement(platformContract.toggleManagedWeb).handler(({ input }) => this.client.toggleManagedWeb(input));
-	}
+    @Implement(platformContract.toggleManagedWeb)
+    toggleManagedWeb() {
+        return implement(platformContract.toggleManagedWeb).handler(
+            ({ input }) => this.client.toggleManagedWeb(input)
+        )
+    }
 
-	@Implement(platformContract.restartManagedWeb)
-	restartManagedWeb() {
-		return implement(platformContract.restartManagedWeb).handler(({ input }) => this.client.restartManagedWeb(input));
-	}
+    @Implement(platformContract.restartManagedWeb)
+    restartManagedWeb() {
+        return implement(platformContract.restartManagedWeb).handler(
+            ({ input }) => this.client.restartManagedWeb(input)
+        )
+    }
 
-	@Implement(platformContract.setManagedWebOrigin)
-	setManagedWebOrigin() {
-		return implement(platformContract.setManagedWebOrigin).handler(({ input }) => this.client.setManagedWebOrigin(input));
-	}
+    @Implement(platformContract.setManagedWebOrigin)
+    setManagedWebOrigin() {
+        return implement(platformContract.setManagedWebOrigin).handler(
+            ({ input }) => this.client.setManagedWebOrigin(input)
+        )
+    }
 
-	@Implement(platformContract.enableManagedWebTunnel)
-	enableManagedWebTunnel() {
-		return implement(platformContract.enableManagedWebTunnel).handler(({ input }) => this.client.enableManagedWebTunnel(input));
-	}
+    @Implement(platformContract.enableManagedWebTunnel)
+    enableManagedWebTunnel() {
+        return implement(platformContract.enableManagedWebTunnel).handler(
+            ({ input }) => this.client.enableManagedWebTunnel(input)
+        )
+    }
 
-	@Implement(platformContract.disableManagedWebTunnel)
-	disableManagedWebTunnel() {
-		return implement(platformContract.disableManagedWebTunnel).handler(({ input }) => this.client.disableManagedWebTunnel(input));
-	}
+    @Implement(platformContract.disableManagedWebTunnel)
+    disableManagedWebTunnel() {
+        return implement(platformContract.disableManagedWebTunnel).handler(
+            ({ input }) => this.client.disableManagedWebTunnel(input)
+        )
+    }
 }

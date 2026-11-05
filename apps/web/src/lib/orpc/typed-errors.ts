@@ -1,11 +1,11 @@
-import { isDefinedError, ORPCError } from "@orpc/client";
+import { isDefinedError, ORPCError } from '@orpc/client'
 
 import {
     standardDomainErrorPayloadSchema,
     type StandardDomainErrorPayload,
-} from "@deployer/orpc-utils";
+} from '@deployer/orpc-utils'
 
-export { isDefinedError };
+export { isDefinedError }
 
 /**
  * Proper type guard for DEFINED ORPC errors.
@@ -26,11 +26,13 @@ export { isDefinedError };
  * }
  * ```
  */
-export function isDefinedORPCError(error: unknown): error is ORPCError<string, unknown> {
-    return error instanceof ORPCError && isDefinedError(error);
+export function isDefinedORPCError(
+    error: unknown
+): error is ORPCError<string, unknown> {
+    return error instanceof ORPCError && isDefinedError(error)
 }
 
-export type DomainErrorCode = StandardDomainErrorPayload["code"];
+export type DomainErrorCode = StandardDomainErrorPayload['code']
 
 /**
  * Narrow a thrown ORPC client error to the standard domain-error payload.
@@ -57,13 +59,15 @@ export type DomainErrorCode = StandardDomainErrorPayload["code"];
  * }
  * ```
  */
-export function getDomainErrorPayload(error: unknown): StandardDomainErrorPayload | null {
+export function getDomainErrorPayload(
+    error: unknown
+): StandardDomainErrorPayload | null {
     // `isDefinedError` narrows via Extract<T, ORPCError>, which collapses to
     // `never` for plain `unknown` — so check instanceof first.
-    if (!(error instanceof ORPCError) || !isDefinedError(error)) return null;
+    if (!(error instanceof ORPCError) || !isDefinedError(error)) return null
 
-    const parsed = standardDomainErrorPayloadSchema.safeParse(error.data);
-    return parsed.success ? parsed.data : null;
+    const parsed = standardDomainErrorPayloadSchema.safeParse(error.data)
+    return parsed.success ? parsed.data : null
 }
 
 /**
@@ -81,13 +85,13 @@ export function getDomainErrorPayload(error: unknown): StandardDomainErrorPayloa
  */
 export function isDomainError(
     error: unknown,
-    code?: DomainErrorCode | readonly DomainErrorCode[],
+    code?: DomainErrorCode | readonly DomainErrorCode[]
 ): error is ORPCError<string, StandardDomainErrorPayload> {
-    const payload = getDomainErrorPayload(error);
-    if (!payload) return false;
-    if (code === undefined) return true;
-    const codes = Array.isArray(code) ? code : [code];
-    return codes.some((c) => c === payload.code);
+    const payload = getDomainErrorPayload(error)
+    if (!payload) return false
+    if (code === undefined) return true
+    const codes = Array.isArray(code) ? code : [code]
+    return codes.some((c) => c === payload.code)
 }
 
 /**
@@ -95,11 +99,14 @@ export function isDomainError(
  * domain-error payload message (what the API sent), falling back to
  * `error.message`, then the provided fallback. Safe to render directly.
  */
-export function getErrorMessage(error: unknown, fallback = "Something went wrong"): string {
-    const payload = getDomainErrorPayload(error);
-    if (payload?.message) return payload.message;
-    if (error instanceof Error && error.message) return error.message;
-    return fallback;
+export function getErrorMessage(
+    error: unknown,
+    fallback = 'Something went wrong'
+): string {
+    const payload = getDomainErrorPayload(error)
+    if (payload?.message) return payload.message
+    if (error instanceof Error && error.message) return error.message
+    return fallback
 }
 
 /**
@@ -108,7 +115,7 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
  * cases" with one canonical unknown-fallback string.
  */
 export const UNKNOWN_ORPC_ERROR_MESSAGE =
-    "An unexpected error occurred. Please check your connection and try again.";
+    'An unexpected error occurred. Please check your connection and try again.'
 
 /**
  * The canonical ORPC error code (`NOT_FOUND`, `CONFLICT`, ...) for a
@@ -116,11 +123,11 @@ export const UNKNOWN_ORPC_ERROR_MESSAGE =
  * is needed as a value (keys, analytics, sentry tags).
  */
 export function getErrorType(error: unknown): string | null {
-    const payload = getDomainErrorPayload(error);
-    if (payload) return payload.code;
+    const payload = getDomainErrorPayload(error)
+    if (payload) return payload.code
     if (error instanceof ORPCError && isDefinedError(error)) {
-        const code: unknown = error.code;
-        return typeof code === "string" ? code : null;
+        const code: unknown = error.code
+        return typeof code === 'string' ? code : null
     }
-    return null;
+    return null
 }

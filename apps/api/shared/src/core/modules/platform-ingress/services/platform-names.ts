@@ -11,13 +11,13 @@
  *  names append `-<prefix>`). Shared by the managed-web supervisor (spawns
  *  it), the Traefik supervisor (web-route backend) and the failover proxy
  *  (default web forward target). */
-export const MANAGED_WEB_CONTAINER_BASE_NAME = "deployer-managed-web";
+export const MANAGED_WEB_CONTAINER_BASE_NAME = 'deployer-managed-web'
 
 /** Base container name of the platform Traefik (per-prefix names append
  *  `-<prefix>`). The single entry point for ALL public traffic: tunnels and
  *  domains resolve here, and Traefik routes by Host (global domain → API,
  *  deployment domain → its container, web domain → the web app). */
-export const PLATFORM_TRAEFIK_BASE_NAME = "deployer-traefik";
+export const PLATFORM_TRAEFIK_BASE_NAME = 'deployer-traefik'
 
 /**
  * Traefik container name on the platform network at `DEPLOYER_PREFIX`.
@@ -26,16 +26,16 @@ export const PLATFORM_TRAEFIK_BASE_NAME = "deployer-traefik";
  * the web app's own address → the web container.
  */
 export function platformTraefikContainerName(prefix?: string | null): string {
-	return prefix === "" || prefix === undefined || prefix === null
-		? PLATFORM_TRAEFIK_BASE_NAME
-		: `${PLATFORM_TRAEFIK_BASE_NAME}-${prefix}`;
+    return prefix === '' || prefix === undefined || prefix === null
+        ? PLATFORM_TRAEFIK_BASE_NAME
+        : `${PLATFORM_TRAEFIK_BASE_NAME}-${prefix}`
 }
 
 /** Web runtime port INSIDE the container (the web runtime image serves 3000,
  *  never published to the host). */
-export const PLATFORM_WEB_INTERNAL_PORT = 3000;
+export const PLATFORM_WEB_INTERNAL_PORT = 3000
 /** Base name of the API swarm service (setup creates it with this name). */
-export const PLATFORM_API_BASE_NAME = "deployer-api";
+export const PLATFORM_API_BASE_NAME = 'deployer-api'
 
 /**
  * The API's swarm SERVICE name — also its overlay alias.
@@ -46,5 +46,7 @@ export const PLATFORM_API_BASE_NAME = "deployer-api";
  * their own name into Traefik's arguments would roll the ingress forever).
  */
 export function platformApiServiceName(prefix?: string | null): string {
-	return prefix === "" || prefix === undefined || prefix === null ? PLATFORM_API_BASE_NAME : `${PLATFORM_API_BASE_NAME}-${prefix}`;
+    return prefix === '' || prefix === undefined || prefix === null
+        ? PLATFORM_API_BASE_NAME
+        : `${PLATFORM_API_BASE_NAME}-${prefix}`
 }

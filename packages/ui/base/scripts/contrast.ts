@@ -58,7 +58,8 @@ export function readTokens(css: string): Record<Theme, Tokens> {
         const m = selector.exec(css)
         if (!m) throw new Error(`Block not found: ${selector}`)
         const tokens: Tokens = {}
-        for (const d of m[1]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) tokens[d[1]!] = d[2]!.trim()
+        for (const d of m[1]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g))
+            tokens[d[1]!] = d[2]!.trim()
         return tokens
     }
     return {
@@ -81,20 +82,80 @@ const STATUSES = ['live', 'pending', 'danger', 'busy', 'idle'] as const
 export const CHECKS: Check[] = [
     { name: 'body text', fg: '--foreground', bg: '--background', min: 7 },
     { name: 'card text', fg: '--card-foreground', bg: '--card', min: 7 },
-    { name: 'muted text on background', fg: '--muted-foreground', bg: '--background', min: 4.5 },
-    { name: 'muted text on card', fg: '--muted-foreground', bg: '--card', min: 4.5 },
-    { name: 'muted text on muted surface', fg: '--muted-foreground', bg: '--muted', min: 4.5 },
-    { name: 'primary button label', fg: '--primary-foreground', bg: '--primary', min: 4.5 },
-    { name: 'primary as text on background', fg: '--primary', bg: '--background', min: 4.5 },
-    { name: 'destructive button label', fg: '--destructive-foreground', bg: '--destructive', min: 4.5 },
-    { name: 'sidebar text', fg: '--sidebar-foreground', bg: '--sidebar', min: 7 },
-    { name: 'control border on background', fg: '--control-border', bg: '--background', min: 3 },
-    { name: 'control border on card', fg: '--control-border', bg: '--card', min: 3 },
-    { name: 'focus ring on background', fg: '--ring', bg: '--background', min: 3 },
+    {
+        name: 'muted text on background',
+        fg: '--muted-foreground',
+        bg: '--background',
+        min: 4.5,
+    },
+    {
+        name: 'muted text on card',
+        fg: '--muted-foreground',
+        bg: '--card',
+        min: 4.5,
+    },
+    {
+        name: 'muted text on muted surface',
+        fg: '--muted-foreground',
+        bg: '--muted',
+        min: 4.5,
+    },
+    {
+        name: 'primary button label',
+        fg: '--primary-foreground',
+        bg: '--primary',
+        min: 4.5,
+    },
+    {
+        name: 'primary as text on background',
+        fg: '--primary',
+        bg: '--background',
+        min: 4.5,
+    },
+    {
+        name: 'destructive button label',
+        fg: '--destructive-foreground',
+        bg: '--destructive',
+        min: 4.5,
+    },
+    {
+        name: 'sidebar text',
+        fg: '--sidebar-foreground',
+        bg: '--sidebar',
+        min: 7,
+    },
+    {
+        name: 'control border on background',
+        fg: '--control-border',
+        bg: '--background',
+        min: 3,
+    },
+    {
+        name: 'control border on card',
+        fg: '--control-border',
+        bg: '--card',
+        min: 3,
+    },
+    {
+        name: 'focus ring on background',
+        fg: '--ring',
+        bg: '--background',
+        min: 3,
+    },
     { name: 'focus ring on card', fg: '--ring', bg: '--card', min: 3 },
     ...STATUSES.flatMap((s): Check[] => [
-        { name: `status-${s} text on background`, fg: `--status-${s}`, bg: '--background', min: 4.5 },
-        { name: `status-${s} text on card`, fg: `--status-${s}`, bg: '--card', min: 4.5 },
+        {
+            name: `status-${s} text on background`,
+            fg: `--status-${s}`,
+            bg: '--background',
+            min: 4.5,
+        },
+        {
+            name: `status-${s} text on card`,
+            fg: `--status-${s}`,
+            bg: '--card',
+            min: 4.5,
+        },
         {
             name: `status-${s} text on its 12% tint (badge)`,
             fg: `--status-${s}`,
@@ -122,7 +183,9 @@ export function runChecks(css: string): Result[] {
             return oklchToSrgb(v)
         }
         for (const c of CHECKS) {
-            const bg = c.tint ? mix(get(c.tint.token), get(c.tint.over), c.tint.alpha) : get(c.bg)
+            const bg = c.tint
+                ? mix(get(c.tint.token), get(c.tint.over), c.tint.alpha)
+                : get(c.bg)
             const ratio = contrastRatio(get(c.fg), bg)
             out.push({ ...c, theme, ratio, pass: ratio >= c.min })
         }
@@ -135,11 +198,15 @@ export function loadGlobalCss(): string {
     return readFileSync(resolve(here, '../src/styles/globals.css'), 'utf8')
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+const isMain =
+    process.argv[1] &&
+    fileURLToPath(import.meta.url) === resolve(process.argv[1])
 if (isMain) {
     const results = runChecks(loadGlobalCss())
     for (const r of results) {
-        console.log(`${r.pass ? 'ok  ' : 'FAIL'} ${r.theme.padEnd(5)} ${r.ratio.toFixed(2).padStart(6)} (>=${r.min})  ${r.name}`)
+        console.log(
+            `${r.pass ? 'ok  ' : 'FAIL'} ${r.theme.padEnd(5)} ${r.ratio.toFixed(2).padStart(6)} (>=${r.min})  ${r.name}`
+        )
     }
     if (results.some((r) => !r.pass)) process.exit(1)
 }

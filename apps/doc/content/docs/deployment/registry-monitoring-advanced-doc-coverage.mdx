@@ -21,13 +21,13 @@ Short answer:
 
 ## Coverage matrix
 
-| Area | Coverage depth | Quality verdict | Notes |
-|---|---|---|---|
-| Docker registry capabilities | High (feature inventory) | 🟡 Good but fragmented | Detailed in inventory; lacks a single operator/implementation guide page |
-| Registry migration tasks | Medium | 🟡 Adequate baseline | Core task exists (`T148`), but no deep subtask decomposition equivalent to GitHub (`T182+`) |
-| Monitoring metrics model | Very high | ✅ Strong architecture detail | Host/container/service/project/cluster metrics, storage tiers, dashboard views are extensively specified |
-| Monitoring migration execution | Medium | 🟡 Adequate but scattered | Spread across `T050`, `T109`, and many inventory roadmap bullets |
-| Advanced roadmap ideas | High enumeration | 🟡 Good scope, weaker execution discipline | Ideas are complete; per-item ownership/defer metadata should be stricter |
+| Area                           | Coverage depth           | Quality verdict                            | Notes                                                                                                    |
+| ------------------------------ | ------------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Docker registry capabilities   | High (feature inventory) | 🟡 Good but fragmented                     | Detailed in inventory; lacks a single operator/implementation guide page                                 |
+| Registry migration tasks       | Medium                   | 🟡 Adequate baseline                       | Core task exists (`T148`), but no deep subtask decomposition equivalent to GitHub (`T182+`)              |
+| Monitoring metrics model       | Very high                | ✅ Strong architecture detail              | Host/container/service/project/cluster metrics, storage tiers, dashboard views are extensively specified |
+| Monitoring migration execution | Medium                   | 🟡 Adequate but scattered                  | Spread across `T050`, `T109`, and many inventory roadmap bullets                                         |
+| Advanced roadmap ideas         | High enumeration         | 🟡 Good scope, weaker execution discipline | Ideas are complete; per-item ownership/defer metadata should be stricter                                 |
 
 ---
 
@@ -35,30 +35,30 @@ Short answer:
 
 ### Docker registry
 
-- Core product requirements:  
-  - [/docs/architecture/platform-product-spec](/docs/architecture/platform-product-spec)
-- Exhaustive feature inventory (built-in + external + UI):  
-  - [/docs/architecture/complete-feature-inventory](/docs/architecture/complete-feature-inventory)
-- Migration execution tasks:  
-  - [/docs/deployment/migration-task-breakdown](/docs/deployment/migration-task-breakdown) (`T148` and related runtime tasks)
+- Core product requirements:
+    - [/docs/architecture/platform-product-spec](/docs/architecture/platform-product-spec)
+- Exhaustive feature inventory (built-in + external + UI):
+    - [/docs/architecture/complete-feature-inventory](/docs/architecture/complete-feature-inventory)
+- Migration execution tasks:
+    - [/docs/deployment/migration-task-breakdown](/docs/deployment/migration-task-breakdown) (`T148` and related runtime tasks)
 
 ### Monitoring and observability
 
-- Product-level observability contract:  
-  - [/docs/architecture/platform-product-spec](/docs/architecture/platform-product-spec)
-- Full metrics/monitoring architecture and dashboard blueprint:  
-  - [/docs/architecture/complete-feature-inventory](/docs/architecture/complete-feature-inventory) (sections `14`, `14b`, `20b`)
-- Migration execution:  
-  - [/docs/deployment/migration-task-breakdown](/docs/deployment/migration-task-breakdown) (`T049`, `T050`, `T051`, `T109`, `T120`)
+- Product-level observability contract:
+    - [/docs/architecture/platform-product-spec](/docs/architecture/platform-product-spec)
+- Full metrics/monitoring architecture and dashboard blueprint:
+    - [/docs/architecture/complete-feature-inventory](/docs/architecture/complete-feature-inventory) (sections `14`, `14b`, `20b`)
+- Migration execution:
+    - [/docs/deployment/migration-task-breakdown](/docs/deployment/migration-task-breakdown) (`T049`, `T050`, `T051`, `T109`, `T120`)
 
 ### Advanced features
 
-- Advanced roadmap ideas (scope):  
-  - [/docs/deployment/platform-feature-target](/docs/deployment/platform-feature-target)
-- Governance-oriented advanced execution tracks:  
-  - [/docs/deployment/migration-master-plan](/docs/deployment/migration-master-plan) (section `O`)
-- Canonical executable checklist:  
-  - [/docs/deployment/migration-task-breakdown](/docs/deployment/migration-task-breakdown) (Phase 10 tasks `T076`–`T093` + `T157`)
+- Advanced roadmap ideas (scope):
+    - [/docs/deployment/platform-feature-target](/docs/deployment/platform-feature-target)
+- Governance-oriented advanced execution tracks:
+    - [/docs/deployment/migration-master-plan](/docs/deployment/migration-master-plan) (section `O`)
+- Canonical executable checklist:
+    - [/docs/deployment/migration-task-breakdown](/docs/deployment/migration-task-breakdown) (Phase 10 tasks `T076`–`T093` + `T157`)
 
 ---
 
@@ -71,10 +71,10 @@ Current state is rich in **what** but thinner on **how**.
 Recommended doc additions:
 
 - Dedicated registry implementation guide covering:
-  - chosen architecture path (`distribution/distribution` sidecar vs native API implementation)
-  - auth challenge flow (Bearer realm/token issuance)
-  - digest pinning model (build push → deploy pull by digest)
-  - retention and GC operational runbook
+    - chosen architecture path (`distribution/distribution` sidecar vs native API implementation)
+    - auth challenge flow (Bearer realm/token issuance)
+    - digest pinning model (build push → deploy pull by digest)
+    - retention and GC operational runbook
 
 ### 2) Monitoring
 
@@ -83,10 +83,10 @@ Architecture is very complete; missing piece is an implementation sequencing gui
 Recommended doc additions:
 
 - Dedicated monitoring implementation playbook covering:
-  - metrics ingestion topology (agent → hot/warm/cold stores)
-  - cardinality controls and retention policies
-  - alert-rule authoring conventions and noisy-alert suppression
-  - rollout order for dashboards and SLO alerting
+    - metrics ingestion topology (agent → hot/warm/cold stores)
+    - cardinality controls and retention policies
+    - alert-rule authoring conventions and noisy-alert suppression
+    - rollout order for dashboards and SLO alerting
 
 ### 3) Advanced features
 
@@ -95,10 +95,10 @@ Scope is complete, but execution governance can be sharper.
 Recommended doc additions:
 
 - For each advanced feature item, enforce a compact metadata block:
-  - owner
-  - target milestone
-  - block/non-block classification
-  - defer rationale (if not in current release)
+    - owner
+    - target milestone
+    - block/non-block classification
+    - defer rationale (if not in current release)
 
 ---
 

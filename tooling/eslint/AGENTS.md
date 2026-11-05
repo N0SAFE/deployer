@@ -27,6 +27,7 @@ must run AFTER `@deployer/config-eslint#build:types`, which `turbo.json`
 encodes.
 
 ## Rules
+
 - Keep configs minimal and sharable. Avoid project-specific rules here.
 
 ### Import order
@@ -50,7 +51,7 @@ one blank line between groups and alphabetical order inside a group.
   until a `bun run lint:fix` pass has been committed. Promote it once that pass
   lands.
 - When updating rules, run lint across repo and document notable changes.
- - Prefer using MCP `run-script` to run lint tasks across targets or consult `repo://commit/plan` for sequencing.
+- Prefer using MCP `run-script` to run lint tasks across targets or consult `repo://commit/plan` for sequencing.
 
 ## @shadcn/lint
 
@@ -98,6 +99,7 @@ from the TS6 island) in one snapshot over every module file. The rules only look
 `src` file. Usage sites are matched by symbol, not by name.
 
 **Nothing is skipped silently** — a gate that skips a file reads as a clean file:
+
 - a file the compiler could not analyse (outside every tsconfig, a compiler error) → `analysisFailed`;
 - a module declaration in a file outside the configured `globs` → `noFacts`; one the compiler and linter place differently → `unanalysedCall`;
 - `unknownExport` / `duplicateProvider` need `providers` and `imports` to be fully static; a variable, spread, factory call or
@@ -123,10 +125,10 @@ The demo, `samples/api-sample/requirements-demo`, has its own `eslint.config.mjs
 The Effect + oRPC integration replaces every Nest role with code that carries its own types. The full guide — how to write each
 replacement — is `docs/architecture/effect-orpc-conventions.md`; this section is how it is enforced.
 
-| Rule | Source | Flags |
-|---|---|---|
-| `noInjectableService` | `src/rules/no-injectable-service.ts` | `@Injectable` on a class. **No exemptions.** Class-level, option `allow: [names]` |
-| `noNestLifecycleHook`, `noNestGuard`, `noPassport`, `noNestPipe`, `noNestInterceptor`, `noNestExceptionFilter`, `noNestMiddleware`, `noNestRequestScope`, `noNestGateway` | `src/rules/nest-roles.ts` | an **import** of the role's decorator/interface/token from a Nest package (or of the whole package, for Passport and websockets) |
+| Rule                                                                                                                                                                      | Source                               | Flags                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `noInjectableService`                                                                                                                                                     | `src/rules/no-injectable-service.ts` | `@Injectable` on a class. **No exemptions.** Class-level, option `allow: [names]`                                                |
+| `noNestLifecycleHook`, `noNestGuard`, `noPassport`, `noNestPipe`, `noNestInterceptor`, `noNestExceptionFilter`, `noNestMiddleware`, `noNestRequestScope`, `noNestGateway` | `src/rules/nest-roles.ts`            | an **import** of the role's decorator/interface/token from a Nest package (or of the whole package, for Passport and websockets) |
 
 - All are syntactic, so they run natively under `bun lint` and the ESLint CLI. The import-based rules come from ONE factory
   (`createNestRoleRule(spec)`); a new role is a new entry in `NEST_ROLE_SPECS`, a test, and a line in the guide's table.

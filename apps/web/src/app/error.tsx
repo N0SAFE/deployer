@@ -9,11 +9,11 @@ import { RouteError } from '@/components/error/RouteError'
  * theme.
  */
 export default function AppError({
-  error,
-  reset,
+    error,
+    reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+    error: Error & { digest?: string }
+    reset: () => void
 }) {
-  return <RouteError error={error} reset={reset} />
+    return <RouteError error={error} reset={reset} />
 }

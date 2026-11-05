@@ -19,5 +19,5 @@ import type { Metadata } from 'next'
  * here is the bare page name ("Nodes") rather than the full document title.
  */
 export function pageMetadata(title: string, description?: string): Metadata {
-	return description === undefined ? { title } : { title, description }
+    return description === undefined ? { title } : { title, description }
 }

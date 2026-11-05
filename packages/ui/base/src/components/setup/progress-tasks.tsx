@@ -1,21 +1,31 @@
-"use client"
+'use client'
 
-import { CheckCircle2, Loader2, Circle, XCircle, ChevronDown } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import {
+    CheckCircle2,
+    Loader2,
+    Circle,
+    XCircle,
+    ChevronDown,
+} from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
-import type { SetupStreamEvent, SetupStepId, SetupStreamStepState } from "@deployer/contracts-entities"
-import { cn } from "@deployer/ui/lib/utils"
+import type {
+    SetupStreamEvent,
+    SetupStepId,
+    SetupStreamStepState,
+} from '@deployer/contracts-entities'
+import { cn } from '@deployer/ui/lib/utils'
 
-export type TaskStatus = "pending" | "running" | "done" | "error"
+export type TaskStatus = 'pending' | 'running' | 'done' | 'error'
 
 export interface ProgressTask {
-  id: string
-  label: string
-  description: string
-  status: TaskStatus
-  logs: string[]
-  durationMs?: number
-  error?: string
+    id: string
+    label: string
+    description: string
+    status: TaskStatus
+    logs: string[]
+    durationMs?: number
+    error?: string
 }
 
 /**
@@ -37,10 +47,10 @@ export interface ProgressTask {
  * underneath while the ingress step still spun.
  */
 const SETUP_OWNED_STEP_IDS: readonly string[] = [
-  "initialize_swarm",
-  "start_api",
-  "await_api_boot",
-  "promote_ingress",
+    'initialize_swarm',
+    'start_api',
+    'await_api_boot',
+    'promote_ingress',
 ]
 
 /**
@@ -55,14 +65,18 @@ const SETUP_OWNED_STEP_IDS: readonly string[] = [
  * button on a live check rather than on this inference.
  */
 function apiTookOver(events: SetupStreamEvent[]): boolean {
-  return events.some((event) => {
-    if (event.type === "step_detail") return !SETUP_OWNED_STEP_IDS.includes(event.stepId)
-    if (event.type === "log") return !SETUP_OWNED_STEP_IDS.includes(event.stepId)
-    if (event.type === "snapshot") {
-      return event.steps.some((step) => !SETUP_OWNED_STEP_IDS.includes(step.id))
-    }
-    return false
-  })
+    return events.some((event) => {
+        if (event.type === 'step_detail')
+            return !SETUP_OWNED_STEP_IDS.includes(event.stepId)
+        if (event.type === 'log')
+            return !SETUP_OWNED_STEP_IDS.includes(event.stepId)
+        if (event.type === 'snapshot') {
+            return event.steps.some(
+                (step) => !SETUP_OWNED_STEP_IDS.includes(step.id)
+            )
+        }
+        return false
+    })
 }
 
 /**
@@ -72,10 +86,10 @@ function apiTookOver(events: SetupStreamEvent[]): boolean {
  * authoritative state replaces the template for that step.
  */
 export interface TaskTemplate {
-  /** SetupStepId (or any stable string). Must match what the API emits. */
-  id: SetupStepId | (string & {})
-  label: string
-  description: string
+    /** SetupStepId (or any stable string). Must match what the API emits. */
+    id: SetupStepId | (string & {})
+    label: string
+    description: string
 }
 
 /**
@@ -100,52 +114,52 @@ export interface TaskTemplate {
  * not displace the ones whose position is already known.
  */
 const CANONICAL_STEP_ORDER: readonly string[] = [
-  // Wizard-collected, before any work starts.
-  'choose_strategy',
-  'reachability_check',
-  'configure_account',
-  'agent_join',
-  'version_check',
-  // Engine first: the swarm-managed Postgres is a swarm SERVICE.
-  'initialize_swarm',
-  // Then the API, which provisions the platform…
-  'start_api',
-  'await_api_boot',
-  'provision_database',
-  'ensure_empty',
-  'run_migrations',
-  'seed_initial_data',
-  'mesh_handshake',
-  'register_node',
-  'finalize',
-  // …and only THEN the ingress swap, because it hands over the entry port the
-  // wizard itself is still being served through. It is last by definition: the
-  // operator's next action is what it makes possible.
-  'promote_ingress',
+    // Wizard-collected, before any work starts.
+    'choose_strategy',
+    'reachability_check',
+    'configure_account',
+    'agent_join',
+    'version_check',
+    // Engine first: the swarm-managed Postgres is a swarm SERVICE.
+    'initialize_swarm',
+    // Then the API, which provisions the platform…
+    'start_api',
+    'await_api_boot',
+    'provision_database',
+    'ensure_empty',
+    'run_migrations',
+    'seed_initial_data',
+    'mesh_handshake',
+    'register_node',
+    'finalize',
+    // …and only THEN the ingress swap, because it hands over the entry port the
+    // wizard itself is still being served through. It is last by definition: the
+    // operator's next action is what it makes possible.
+    'promote_ingress',
 ]
 
 /** Rank a step id for sorting; unknown ids go last, keeping their own order. */
 function stepRank(id: string): number {
-  const index = CANONICAL_STEP_ORDER.indexOf(id)
-  return index === -1 ? CANONICAL_STEP_ORDER.length : index
+    const index = CANONICAL_STEP_ORDER.indexOf(id)
+    return index === -1 ? CANONICAL_STEP_ORDER.length : index
 }
 
 /**
  * Maps a SetupStreamStepState.status to the UI's TaskStatus.
  */
-function mapStatus(s: SetupStreamStepState["status"]): TaskStatus {
-  switch (s) {
-    case "pending":
-      return "pending"
-    case "in_progress":
-      return "running"
-    case "completed":
-      return "done"
-    case "failed":
-      return "error"
-    case "skipped":
-      return "pending"
-  }
+function mapStatus(s: SetupStreamStepState['status']): TaskStatus {
+    switch (s) {
+        case 'pending':
+            return 'pending'
+        case 'in_progress':
+            return 'running'
+        case 'completed':
+            return 'done'
+        case 'failed':
+            return 'error'
+        case 'skipped':
+            return 'pending'
+    }
 }
 
 /**
@@ -178,133 +192,140 @@ function mapStatus(s: SetupStreamStepState["status"]): TaskStatus {
  * a snapshot lands, the producer's data wins.
  */
 export function buildTasksFromEvents(
-  events: SetupStreamEvent[],
-  templates: TaskTemplate[] = [],
+    events: SetupStreamEvent[],
+    templates: TaskTemplate[] = []
 ): ProgressTask[] {
-  const tasksById = new Map<string, ProgressTask>()
-  const orderedIds: string[] = []
+    const tasksById = new Map<string, ProgressTask>()
+    const orderedIds: string[] = []
 
-  const upsertFromApi = (state: SetupStreamStepState): void => {
-    // Labels and descriptions come from the producer on every snapshot, but a
-    // step that already exists KEEPS its accumulated logs: a snapshot from the
-    // API carries logs for the API's steps only, and blanking the setup app's
-    // step would drop lines the operator already saw.
-    const existing = tasksById.get(state.id)
-    const task: ProgressTask = {
-      id: state.id,
-      label: state.title,
-      description: state.description ?? state.title,
-      status: mapStatus(state.status),
-      logs: state.logs.length > 0 ? [...state.logs] : (existing?.logs ?? []),
-      durationMs: state.durationMs,
-      error: state.error,
-    }
-    if (!tasksById.has(state.id)) {
-      orderedIds.push(state.id)
-    }
-    tasksById.set(state.id, task)
-  }
-
-  // Seed with templates — they cover the gap before the first snapshot
-  // and let the UI render immediately. The first snapshot will replace
-  // them with the API's authoritative data.
-  for (const t of templates) {
-    tasksById.set(t.id, {
-      id: t.id,
-      label: t.label,
-      description: t.description,
-      status: "pending",
-      logs: [],
-    })
-    orderedIds.push(t.id)
-  }
-
-  for (const event of events) {
-    switch (event.type) {
-      case "snapshot": {
-        // Snapshot is authoritative FOR THE STEPS IT CARRIES. Steps another
-        // producer owns are left as they are — see the note above.
-        for (const step of event.steps) {
-          upsertFromApi(step)
+    const upsertFromApi = (state: SetupStreamStepState): void => {
+        // Labels and descriptions come from the producer on every snapshot, but a
+        // step that already exists KEEPS its accumulated logs: a snapshot from the
+        // API carries logs for the API's steps only, and blanking the setup app's
+        // step would drop lines the operator already saw.
+        const existing = tasksById.get(state.id)
+        const task: ProgressTask = {
+            id: state.id,
+            label: state.title,
+            description: state.description ?? state.title,
+            status: mapStatus(state.status),
+            logs:
+                state.logs.length > 0
+                    ? [...state.logs]
+                    : (existing?.logs ?? []),
+            durationMs: state.durationMs,
+            error: state.error,
         }
-        break
-      }
-      case "log": {
-        // Append a single line to the matching step. If the step
-        // doesn't exist yet (no snapshot arrived), create it from
-        // a template fallback so the line isn't dropped.
-        let task = tasksById.get(event.stepId)
-        if (!task) {
-          const tmpl = templates.find((t) => t.id === event.stepId)
-          task = {
-            id: event.stepId,
-            label: tmpl?.label ?? event.stepId,
-            description: tmpl?.description ?? event.stepId,
-            status: "running",
+        if (!tasksById.has(state.id)) {
+            orderedIds.push(state.id)
+        }
+        tasksById.set(state.id, task)
+    }
+
+    // Seed with templates — they cover the gap before the first snapshot
+    // and let the UI render immediately. The first snapshot will replace
+    // them with the API's authoritative data.
+    for (const t of templates) {
+        tasksById.set(t.id, {
+            id: t.id,
+            label: t.label,
+            description: t.description,
+            status: 'pending',
             logs: [],
-          }
-          orderedIds.push(event.stepId)
-          tasksById.set(event.stepId, task)
-        }
-        task.logs.push(event.line)
-        // A log implies the step is running unless already finalized.
-        if (task.status === "pending") task.status = "running"
-        break
-      }
-      case "step_detail": {
-        // Server tells us about a step. Create a pending placeholder
-        // if we haven't seen it yet so the UI shows the full pipeline
-        // immediately, without hardcoded templates.
-        if (!tasksById.has(event.stepId)) {
-          tasksById.set(event.stepId, {
-            id: event.stepId,
-            label: event.title,
-            description: event.description,
-            status: "pending",
-            logs: [],
-          })
-          orderedIds.push(event.stepId)
-        }
-        break
-      }
-      case "completed":
-      case "error":
-      case "heartbeat":
-        // Terminal events — no per-step state to mutate.
-        //
-        // `heartbeat` is grouped here for a different reason: it carries NO
-        // state. Its only job is to prove the socket is alive so a client
-        // timeout can stay short (see the event contract). Rendering it would
-        // invent a step that does not exist.
-        break
+        })
+        orderedIds.push(t.id)
     }
-  }
 
-  // ── RETIRE SETUP-OWNED STEPS ONCE THE API HAS TAKEN OVER ──────────────────
-  // Setup exits after handing over, so its steps can never be updated again —
-  // and a step left `in_progress` at the moment of the drop spins forever, which
-  // also keeps `isPipelineComplete` false and the Continue button hidden.
-  //
-  // Any step that is still unfinished when the API starts reporting is therefore
-  // DONE: the API only answers on this URL after the handover repointed it, and
-  // that repoint is the last act of `promote_ingress`. See `apiTookOver`.
-  if (apiTookOver(events)) {
-    for (const id of SETUP_OWNED_STEP_IDS) {
-      const task = tasksById.get(id)
-      if (task !== undefined && task.status !== "done" && task.status !== "error") {
-        tasksById.set(id, { ...task, status: "done" })
-      }
+    for (const event of events) {
+        switch (event.type) {
+            case 'snapshot': {
+                // Snapshot is authoritative FOR THE STEPS IT CARRIES. Steps another
+                // producer owns are left as they are — see the note above.
+                for (const step of event.steps) {
+                    upsertFromApi(step)
+                }
+                break
+            }
+            case 'log': {
+                // Append a single line to the matching step. If the step
+                // doesn't exist yet (no snapshot arrived), create it from
+                // a template fallback so the line isn't dropped.
+                let task = tasksById.get(event.stepId)
+                if (!task) {
+                    const tmpl = templates.find((t) => t.id === event.stepId)
+                    task = {
+                        id: event.stepId,
+                        label: tmpl?.label ?? event.stepId,
+                        description: tmpl?.description ?? event.stepId,
+                        status: 'running',
+                        logs: [],
+                    }
+                    orderedIds.push(event.stepId)
+                    tasksById.set(event.stepId, task)
+                }
+                task.logs.push(event.line)
+                // A log implies the step is running unless already finalized.
+                if (task.status === 'pending') task.status = 'running'
+                break
+            }
+            case 'step_detail': {
+                // Server tells us about a step. Create a pending placeholder
+                // if we haven't seen it yet so the UI shows the full pipeline
+                // immediately, without hardcoded templates.
+                if (!tasksById.has(event.stepId)) {
+                    tasksById.set(event.stepId, {
+                        id: event.stepId,
+                        label: event.title,
+                        description: event.description,
+                        status: 'pending',
+                        logs: [],
+                    })
+                    orderedIds.push(event.stepId)
+                }
+                break
+            }
+            case 'completed':
+            case 'error':
+            case 'heartbeat':
+                // Terminal events — no per-step state to mutate.
+                //
+                // `heartbeat` is grouped here for a different reason: it carries NO
+                // state. Its only job is to prove the socket is alive so a client
+                // timeout can stay short (see the event contract). Rendering it would
+                // invent a step that does not exist.
+                break
+        }
     }
-  }
 
-  // Sorted into the CANONICAL order rather than the announcement order: two
-  // producers append to this list independently, so insertion order reflects
-  // which process spoke first, not which step happens first. See
-  // `CANONICAL_STEP_ORDER`.
-  return orderedIds
-    .map((id) => tasksById.get(id))
-    .filter((t): t is ProgressTask => Boolean(t))
-    .sort((a, b) => stepRank(a.id) - stepRank(b.id))
+    // ── RETIRE SETUP-OWNED STEPS ONCE THE API HAS TAKEN OVER ──────────────────
+    // Setup exits after handing over, so its steps can never be updated again —
+    // and a step left `in_progress` at the moment of the drop spins forever, which
+    // also keeps `isPipelineComplete` false and the Continue button hidden.
+    //
+    // Any step that is still unfinished when the API starts reporting is therefore
+    // DONE: the API only answers on this URL after the handover repointed it, and
+    // that repoint is the last act of `promote_ingress`. See `apiTookOver`.
+    if (apiTookOver(events)) {
+        for (const id of SETUP_OWNED_STEP_IDS) {
+            const task = tasksById.get(id)
+            if (
+                task !== undefined &&
+                task.status !== 'done' &&
+                task.status !== 'error'
+            ) {
+                tasksById.set(id, { ...task, status: 'done' })
+            }
+        }
+    }
+
+    // Sorted into the CANONICAL order rather than the announcement order: two
+    // producers append to this list independently, so insertion order reflects
+    // which process spoke first, not which step happens first. See
+    // `CANONICAL_STEP_ORDER`.
+    return orderedIds
+        .map((id) => tasksById.get(id))
+        .filter((t): t is ProgressTask => Boolean(t))
+        .sort((a, b) => stepRank(a.id) - stepRank(b.id))
 }
 
 /**
@@ -327,7 +348,7 @@ export function buildTasksFromEvents(
  * so the pipeline is not over.
  */
 export function isPipelineComplete(tasks: ProgressTask[]): boolean {
-  return tasks.length > 0 && tasks.every((task) => task.status === "done")
+    return tasks.length > 0 && tasks.every((task) => task.status === 'done')
 }
 
 /**
@@ -349,243 +370,292 @@ export function isPipelineComplete(tasks: ProgressTask[]): boolean {
  * Searched over the whole timeline rather than read from the last event: two
  * producers append to it and the later one can append after a terminal.
  */
-export function isSetupRunFinished(events: readonly SetupStreamEvent[]): boolean {
-  if (events.some((event) => event.type === "error")) return true
-  if (!events.some((event) => event.type === "completed")) return false
-  return isPipelineComplete(buildTasksFromEvents([...events]))
+export function isSetupRunFinished(
+    events: readonly SetupStreamEvent[]
+): boolean {
+    if (events.some((event) => event.type === 'error')) return true
+    if (!events.some((event) => event.type === 'completed')) return false
+    return isPipelineComplete(buildTasksFromEvents([...events]))
 }
 
-export function ProgressTasks({ tasks, scrollable = false }: { tasks: ProgressTask[]; scrollable?: boolean }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const prevStatusRef = useRef<Record<string, TaskStatus>>({})
+export function ProgressTasks({
+    tasks,
+    scrollable = false,
+}: {
+    tasks: ProgressTask[]
+    scrollable?: boolean
+}) {
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+    const prevStatusRef = useRef<Record<string, TaskStatus>>({})
 
-  // Auto-expand when running, auto-collapse when done — only on transition,
-  // so the user's manual clicks aren't overridden later.
-  useEffect(() => {
-    setExpanded((prev) => {
-      const next = { ...prev }
-      for (const t of tasks) {
-        const prevStatus = prevStatusRef.current[t.id]
-        if (prevStatus !== t.status) {
-          if (t.status === "running") next[t.id] = true
-          if (t.status === "done") next[t.id] = false
-          if (t.status === "error") next[t.id] = true
-        }
-        prevStatusRef.current[t.id] = t.status
-      }
-      return next
-    })
-  }, [tasks])
+    // Auto-expand when running, auto-collapse when done — only on transition,
+    // so the user's manual clicks aren't overridden later.
+    useEffect(() => {
+        setExpanded((prev) => {
+            const next = { ...prev }
+            for (const t of tasks) {
+                const prevStatus = prevStatusRef.current[t.id]
+                if (prevStatus !== t.status) {
+                    if (t.status === 'running') next[t.id] = true
+                    if (t.status === 'done') next[t.id] = false
+                    if (t.status === 'error') next[t.id] = true
+                }
+                prevStatusRef.current[t.id] = t.status
+            }
+            return next
+        })
+    }, [tasks])
 
-  function toggle(id: string) {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
-  }
+    function toggle(id: string) {
+        setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
+    }
 
-  // ── SCROLLABLE: PINNED TO THE NEWEST STEP ──────────────────────────────────
-  // The list takes the space its flex-column parent leaves (`flex-1 min-h-0`) and
-  // scrolls inside itself, so a long run never pushes the heading and the
-  // verification steps off screen — the page itself does not scroll.
-  //
-  // `flex-col-reverse` is what makes the scroll position STICK to the bottom: a
-  // reversed column's scroll origin is its bottom edge, so new content grows
-  // upward and the newest step stays in view without any scroll-to-end effect. The
-  // DOM order is reversed to compensate, which leaves the steps reading
-  // first-to-last from the top while the LAST one rests at the bottom.
-  const ordered = scrollable ? [...tasks].reverse() : tasks
+    // ── SCROLLABLE: PINNED TO THE NEWEST STEP ──────────────────────────────────
+    // The list takes the space its flex-column parent leaves (`flex-1 min-h-0`) and
+    // scrolls inside itself, so a long run never pushes the heading and the
+    // verification steps off screen — the page itself does not scroll.
+    //
+    // `flex-col-reverse` is what makes the scroll position STICK to the bottom: a
+    // reversed column's scroll origin is its bottom edge, so new content grows
+    // upward and the newest step stays in view without any scroll-to-end effect. The
+    // DOM order is reversed to compensate, which leaves the steps reading
+    // first-to-last from the top while the LAST one rests at the bottom.
+    const ordered = scrollable ? [...tasks].reverse() : tasks
 
-  return (
-    <ol
-      className={cn(
-        "flex gap-2.5",
-        scrollable ? "min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain pr-1" : "shrink-0 flex-col",
-      )}
-      aria-label="Setup progress"
-    >
-      {ordered.map((task) => (
-        <li key={task.id} className="shrink-0">
-          <TaskCard task={task} expanded={!!expanded[task.id]} onToggle={() => { toggle(task.id); }} />
-        </li>
-      ))}
-    </ol>
-  )
+    return (
+        <ol
+            className={cn(
+                'flex gap-2.5',
+                scrollable
+                    ? 'min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain pr-1'
+                    : 'shrink-0 flex-col'
+            )}
+            aria-label="Setup progress"
+        >
+            {ordered.map((task) => (
+                <li key={task.id} className="shrink-0">
+                    <TaskCard
+                        task={task}
+                        expanded={!!expanded[task.id]}
+                        onToggle={() => {
+                            toggle(task.id)
+                        }}
+                    />
+                </li>
+            ))}
+        </ol>
+    )
 }
 
 function TaskCard({
-  task,
-  expanded,
-  onToggle,
+    task,
+    expanded,
+    onToggle,
 }: {
-  task: ProgressTask
-  expanded: boolean
-  onToggle: () => void
+    task: ProgressTask
+    expanded: boolean
+    onToggle: () => void
 }) {
-  const hasLogs = task.logs.length > 0
-  const isRunning = task.status === "running"
-  const isDone = task.status === "done"
-  const isError = task.status === "error"
-  const isPending = task.status === "pending"
+    const hasLogs = task.logs.length > 0
+    const isRunning = task.status === 'running'
+    const isDone = task.status === 'done'
+    const isError = task.status === 'error'
+    const isPending = task.status === 'pending'
 
-  return (
-    <div
-      className={cn(
-        "rounded-lg border overflow-hidden transition-colors",
-        isRunning && "border-primary/50 bg-primary/3 shadow-[0_0_0_3px_rgba(167,139,250,0.06)]",
-        isDone && "border-border bg-card/40",
-        isError && "border-destructive/50 bg-destructive/4",
-        isPending && "border-border/60 bg-card/20",
-      )}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={!hasLogs}
-        aria-expanded={expanded}
-        className={cn(
-          "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
-          hasLogs && "hover:bg-muted/30 cursor-pointer",
-          !hasLogs && "cursor-default",
-        )}
-      >
-        <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
-          <TaskIcon status={task.status} />
-        </div>
-        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-          <span
+    return (
+        <div
             className={cn(
-              "text-sm font-medium leading-tight truncate",
-              isPending ? "text-muted-foreground" : "text-foreground",
+                'overflow-hidden rounded-lg border transition-colors',
+                isRunning &&
+                    'border-primary/50 bg-primary/3 shadow-[0_0_0_3px_rgba(167,139,250,0.06)]',
+                isDone && 'border-border bg-card/40',
+                isError && 'border-destructive/50 bg-destructive/4',
+                isPending && 'border-border/60 bg-card/20'
             )}
-          >
-            {task.label}
-          </span>
-          <span className="text-xs text-muted-foreground leading-snug truncate">{task.description}</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <StatusBadge status={task.status} />
-          {hasLogs ? (
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                expanded && "rotate-180",
-              )}
-              aria-hidden="true"
-            />
-          ) : (
-            <span className="w-4" aria-hidden="true" />
-          )}
-        </div>
-      </button>
+        >
+            <button
+                type="button"
+                onClick={onToggle}
+                disabled={!hasLogs}
+                aria-expanded={expanded}
+                className={cn(
+                    'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors',
+                    hasLogs && 'hover:bg-muted/30 cursor-pointer',
+                    !hasLogs && 'cursor-default'
+                )}
+            >
+                <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+                    <TaskIcon status={task.status} />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span
+                        className={cn(
+                            'truncate text-sm leading-tight font-medium',
+                            isPending
+                                ? 'text-muted-foreground'
+                                : 'text-foreground'
+                        )}
+                    >
+                        {task.label}
+                    </span>
+                    <span className="text-muted-foreground truncate text-xs leading-snug">
+                        {task.description}
+                    </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                    <StatusBadge status={task.status} />
+                    {hasLogs ? (
+                        <ChevronDown
+                            className={cn(
+                                'text-muted-foreground h-4 w-4 transition-transform duration-200',
+                                expanded && 'rotate-180'
+                            )}
+                            aria-hidden="true"
+                        />
+                    ) : (
+                        <span className="w-4" aria-hidden="true" />
+                    )}
+                </div>
+            </button>
 
-      {/* Expandable logs */}
-      <div
-        className={cn(
-          "grid transition-all duration-300 ease-out",
-          expanded && hasLogs ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-        )}
-      >
-        <div className="overflow-hidden">
-          <LogPanel task={task} />
+            {/* Expandable logs */}
+            <div
+                className={cn(
+                    'grid transition-all duration-300 ease-out',
+                    expanded && hasLogs ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                )}
+            >
+                <div className="overflow-hidden">
+                    <LogPanel task={task} />
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    )
 }
 
 function LogPanel({ task }: { task: ProgressTask }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+    const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom while running so the latest line is visible.
-  useEffect(() => {
-    if (task.status === "running" && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [task.logs.length, task.status])
+    // Auto-scroll to bottom while running so the latest line is visible.
+    useEffect(() => {
+        if (task.status === 'running' && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        }
+    }, [task.logs.length, task.status])
 
-  return (
-    <div className="border-t border-border/60 bg-background/60">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/60">
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Output
-        </span>
-        <span className="font-mono text-[10px] text-muted-foreground/70">
-          {task.logs.length} {task.logs.length === 1 ? "line" : "lines"}
-        </span>
-      </div>
-      <div
-        ref={scrollRef}
-        className="max-h-64 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-[1.7]"
-      >
-        {task.logs.map((line, i) => (
-          <LogLine key={i} line={line} />
-        ))}
-        {task.status === "running" ? (
-          <div className="flex items-center gap-1.5 text-muted-foreground/60">
-            <span className="inline-block h-2 w-1.5 bg-primary/70 animate-pulse" aria-hidden="true" />
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
+    return (
+        <div className="border-border/60 bg-background/60 border-t">
+            <div className="border-border/60 flex items-center justify-between border-b px-4 py-2">
+                <span className="text-muted-foreground font-mono text-[10px] tracking-[0.18em] uppercase">
+                    Output
+                </span>
+                <span className="text-muted-foreground/70 font-mono text-[10px]">
+                    {task.logs.length}{' '}
+                    {task.logs.length === 1 ? 'line' : 'lines'}
+                </span>
+            </div>
+            <div
+                ref={scrollRef}
+                className="max-h-64 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-[1.7]"
+            >
+                {task.logs.map((line, i) => (
+                    <LogLine key={i} line={line} />
+                ))}
+                {task.status === 'running' ? (
+                    <div className="text-muted-foreground/60 flex items-center gap-1.5">
+                        <span
+                            className="bg-primary/70 inline-block h-2 w-1.5 animate-pulse"
+                            aria-hidden="true"
+                        />
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    )
 }
 
 function LogLine({ line }: { line: string }) {
-  const isCommand = line.startsWith("$")
-  return (
-    <div className="flex gap-2 animate-in fade-in slide-in-from-left-1 duration-300">
-      <span className="select-none text-muted-foreground/40 shrink-0 w-4 text-right">›</span>
-      <span
-        className={cn(
-          "whitespace-pre-wrap break-all",
-          isCommand ? "text-primary/90 font-medium" : "text-muted-foreground",
-        )}
-      >
-        {line}
-      </span>
-    </div>
-  )
+    const isCommand = line.startsWith('$')
+    return (
+        <div className="animate-in fade-in slide-in-from-left-1 flex gap-2 duration-300">
+            <span className="text-muted-foreground/40 w-4 shrink-0 text-right select-none">
+                ›
+            </span>
+            <span
+                className={cn(
+                    'break-all whitespace-pre-wrap',
+                    isCommand
+                        ? 'text-primary/90 font-medium'
+                        : 'text-muted-foreground'
+                )}
+            >
+                {line}
+            </span>
+        </div>
+    )
 }
 
 function StatusBadge({ status }: { status: TaskStatus }) {
-  const map: Record<TaskStatus, { label: string; className: string }> = {
-    pending: {
-      label: "Queued",
-      className: "bg-muted/60 text-muted-foreground",
-    },
-    running: {
-      label: "Running",
-      className: "bg-primary/15 text-primary",
-    },
-    done: {
-      label: "Done",
-      className: "bg-emerald-500/15 text-emerald-400",
-    },
-    error: {
-      label: "Failed",
-      className: "bg-destructive/15 text-destructive",
-    },
-  }
-  const { label, className } = map[status]
-  return (
-    <span
-      className={cn(
-        "font-mono text-[10px] font-medium tracking-[0.18em] px-2 py-0.5 rounded-md uppercase",
-        className,
-      )}
-    >
-      {label}
-    </span>
-  )
+    const map: Record<TaskStatus, { label: string; className: string }> = {
+        pending: {
+            label: 'Queued',
+            className: 'bg-muted/60 text-muted-foreground',
+        },
+        running: {
+            label: 'Running',
+            className: 'bg-primary/15 text-primary',
+        },
+        done: {
+            label: 'Done',
+            className: 'bg-emerald-500/15 text-emerald-400',
+        },
+        error: {
+            label: 'Failed',
+            className: 'bg-destructive/15 text-destructive',
+        },
+    }
+    const { label, className } = map[status]
+    return (
+        <span
+            className={cn(
+                'rounded-md px-2 py-0.5 font-mono text-[10px] font-medium tracking-[0.18em] uppercase',
+                className
+            )}
+        >
+            {label}
+        </span>
+    )
 }
 
 function TaskIcon({ status }: { status: TaskStatus }) {
-  switch (status) {
-    case "pending":
-      return <Circle className="h-4 w-4 text-muted-foreground/60" aria-hidden="true" />
-    case "running":
-      return <Loader2 className="h-4 w-4 text-primary animate-spin" aria-hidden="true" />
-    case "done":
-      return <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
-    case "error":
-      return <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />
-  }
+    switch (status) {
+        case 'pending':
+            return (
+                <Circle
+                    className="text-muted-foreground/60 h-4 w-4"
+                    aria-hidden="true"
+                />
+            )
+        case 'running':
+            return (
+                <Loader2
+                    className="text-primary h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                />
+            )
+        case 'done':
+            return (
+                <CheckCircle2
+                    className="h-4 w-4 text-emerald-500"
+                    aria-hidden="true"
+                />
+            )
+        case 'error':
+            return (
+                <XCircle
+                    className="text-destructive h-4 w-4"
+                    aria-hidden="true"
+                />
+            )
+    }
 }

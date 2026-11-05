@@ -1,12 +1,10 @@
-"use client"
+'use client'
 import React, { useEffect, useState, useContext, useRef } from 'react'
 import { toast } from 'sonner'
 
+import { getMasterTokenEnabled, MasterTokenManager } from '../state'
+
 import { MasterTokenContext } from './context'
-import {
-    getMasterTokenEnabled,
-    MasterTokenManager,
-} from '../state'
 
 interface MasterTokenProviderProps {
     refetch: () => void | Promise<void>
@@ -21,11 +19,11 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
         if (typeof window === 'undefined') return false
         return getMasterTokenEnabled()
     })
-    
+
     // Use ref to store refetch so it doesn't trigger useEffect when it changes
     const refetchRef = useRef(refetch)
     refetchRef.current = refetch
-    
+
     // Track previous enabled value to only refetch when it actually changes
     const prevEnabledRef = useRef(enabled)
 
@@ -44,7 +42,7 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
         }
 
         const onCustom = (e: Event) => {
-            const cev = e as CustomEvent<{value?: string}>
+            const cev = e as CustomEvent<{ value?: string }>
             if (typeof cev.detail.value !== 'undefined') {
                 MasterTokenManager.change(Boolean(cev.detail.value))
             }
@@ -69,7 +67,13 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
     useEffect(() => {
         // Only refetch if enabled actually changed value, not on every re-render
         if (prevEnabledRef.current !== enabled) {
-            console.log('enabled changed from', prevEnabledRef.current, 'to', enabled, '- refetching')
+            console.log(
+                'enabled changed from',
+                prevEnabledRef.current,
+                'to',
+                enabled,
+                '- refetching'
+            )
             prevEnabledRef.current = enabled
             void refetchRef.current()
         }
@@ -77,7 +81,10 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
 
     return (
         <MasterTokenContext.Provider
-            value={{ enabled, setEnabled: MasterTokenManager.change.bind(MasterTokenManager) }}
+            value={{
+                enabled,
+                setEnabled: MasterTokenManager.change.bind(MasterTokenManager),
+            }}
         >
             {children}
         </MasterTokenContext.Provider>
@@ -86,7 +93,10 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
 
 export function useMasterToken() {
     const ctx = useContext(MasterTokenContext)
-    if (!ctx) throw new Error('useMasterToken must be used inside MasterTokenProvider')
+    if (!ctx)
+        throw new Error(
+            'useMasterToken must be used inside MasterTokenProvider'
+        )
     return ctx
 }
 

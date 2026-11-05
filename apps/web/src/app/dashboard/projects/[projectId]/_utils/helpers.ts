@@ -10,16 +10,18 @@ import { formatDateTime } from '@/lib/format/date'
 /**
  * Format an ISO date string to a locale date string.
  */
-export function formatDate(value: string | number | Date | null | undefined): string {
-  return formatDateTime(value, '')
+export function formatDate(
+    value: string | number | Date | null | undefined
+): string {
+    return formatDateTime(value, '')
 }
 
 /**
  * Return the first 8 characters of a string (for display IDs).
  */
 export function shortId(value: string | null | undefined): string {
-  if (!value) return ''
-  return value.slice(0, 8)
+    if (!value) return ''
+    return value.slice(0, 8)
 }
 
 /**
@@ -31,37 +33,37 @@ export function shortId(value: string | null | undefined): string {
  * exists only for call sites that need a plain variant string.
  */
 export function statusBadgeVariant(
-  status: string | null | undefined,
+    status: string | null | undefined
 ): StatusBadgeVariant {
-  return statusMeta(status).variant
+    return statusMeta(status).variant
 }
 
 /**
  * Normalize an identifier string to UPPER_SNAKE_CASE.
  */
 export function normalizeIdentifierSegment(input: string): string {
-  return input
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
+    return input
+        .toUpperCase()
+        .replace(/[^A-Z0-9_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
 }
 
 /**
  * Check if a dependency is reachable for a given environment scope.
  */
 export function isDependencyEnabledInScope(
-  _dependency: unknown,
-  _scope: string,
+    _dependency: unknown,
+    _scope: string
 ): boolean {
-  // Placeholder — actual logic depends on service config data
-  return true
+    // Placeholder — actual logic depends on service config data
+    return true
 }
 
 /**
  * Resolve which target scope a dependency routes to.
  */
 export function resolveDependencyTargetScope(_input: unknown): string {
-  // Placeholder — actual logic depends on dependency policy
-  return 'production'
+    // Placeholder — actual logic depends on dependency policy
+    return 'production'
 }

@@ -6,7 +6,9 @@ import type {
 } from '@orpc/client/standard'
 
 /** The only context flag the plugin reads. */
-interface PluginContext { noRedirectOnUnauthorized?: boolean }
+interface PluginContext {
+    noRedirectOnUnauthorized?: boolean
+}
 
 // --- Mocks (all `mock*`-prefixed so vi.mock factories can reference them) ---
 
@@ -32,7 +34,7 @@ const mockAuthSignin = vi.fn(
         const base = '/auth/signin'
         if (!search?.redirectTo) return base
         return `${base}?redirectTo=${encodeURIComponent(search.redirectTo)}`
-    },
+    }
 )
 
 vi.mock('@/actions/redirect', () => ({
@@ -68,9 +70,8 @@ function unauthorizedError(status = 401): Error & { status: number } {
 }
 
 async function getInterceptor(): Promise<Interceptor> {
-    const { RedirectOnUnauthorizedPlugin } = await import(
-        '../redirect-on-unauthorized-plugin'
-    )
+    const { RedirectOnUnauthorizedPlugin } =
+        await import('../redirect-on-unauthorized-plugin')
     const plugin = new RedirectOnUnauthorizedPlugin()
     // oRPC v2 changed `init` from mutating the passed options to RETURNING new
     // options (non-mutating):
@@ -81,12 +82,13 @@ async function getInterceptor(): Promise<Interceptor> {
     const link = { interceptors: [] as Interceptor[] }
     const { interceptors } = plugin.init(link)
     const interceptor = interceptors?.[0]
-    if (!interceptor) throw new Error('expected the interceptor to be registered')
+    if (!interceptor)
+        throw new Error('expected the interceptor to be registered')
     return interceptor
 }
 
 const makeOptions = (
-    overrides: Partial<InterceptorOptions> = {},
+    overrides: Partial<InterceptorOptions> = {}
 ): InterceptorOptions => ({
     // `StandardLinkInterceptorOptions` requires the call path and input; the
     // plugin under test only reads `context` and `next`.
@@ -123,12 +125,14 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
+        await expect(
+            interceptor(makeOptions({ next: () => Promise.reject(error) }))
+        ).rejects.toBe(error)
 
         expect(mockHeaders).toHaveBeenCalled()
         expect(mockRedirect).toHaveBeenCalledWith(
             '/auth/signin?redirectTo=%2Fdashboard%3Ftab%3D2',
-            'replace',
+            'replace'
         )
         expect(mockClientRedirect).not.toHaveBeenCalled()
     })
@@ -143,21 +147,30 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
+        await expect(
+            interceptor(makeOptions({ next: () => Promise.reject(error) }))
+        ).rejects.toBe(error)
 
         expect(mockRedirect).toHaveBeenCalledWith('/auth/signin', 'replace')
-        expect(mockAuthSignin).toHaveBeenCalledWith({}, { redirectTo: undefined })
+        expect(mockAuthSignin).toHaveBeenCalledWith(
+            {},
+            { redirectTo: undefined }
+        )
     })
 
     it('server-side: falls back to plain sign-in URL when headers() throws a non-internal error', async () => {
         vi.stubGlobal('window', undefined)
 
-        mockHeaders.mockRejectedValue(new Error('headers called outside request scope'))
+        mockHeaders.mockRejectedValue(
+            new Error('headers called outside request scope')
+        )
 
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
+        await expect(
+            interceptor(makeOptions({ next: () => Promise.reject(error) }))
+        ).rejects.toBe(error)
 
         expect(mockRedirect).toHaveBeenCalledWith('/auth/signin', 'replace')
     })
@@ -170,10 +183,12 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         const interceptor = await getInterceptor()
         const error = unauthorizedError()
 
-        await expect(interceptor(makeOptions({ next: () => Promise.reject(error) }))).rejects.toBe(error)
+        await expect(
+            interceptor(makeOptions({ next: () => Promise.reject(error) }))
+        ).rejects.toBe(error)
 
         expect(mockClientRedirect).toHaveBeenCalledWith(
-            '/auth/signin?redirectTo=%2Fdashboard%3Ftab%3D2',
+            '/auth/signin?redirectTo=%2Fdashboard%3Ftab%3D2'
         )
         expect(mockRedirect).not.toHaveBeenCalled()
         expect(mockHeaders).not.toHaveBeenCalled()
@@ -190,8 +205,8 @@ describe('RedirectOnUnauthorizedPlugin', () => {
                 makeOptions({
                     context: { noRedirectOnUnauthorized: true },
                     next: () => Promise.reject(error),
-                }),
-            ),
+                })
+            )
         ).rejects.toBe(error)
 
         expect(mockRedirect).not.toHaveBeenCalled()
@@ -202,10 +217,13 @@ describe('RedirectOnUnauthorizedPlugin', () => {
         vi.stubGlobal('window', undefined)
 
         const interceptor = await getInterceptor()
-        const abortError = new DOMException('The operation was aborted.', 'AbortError')
+        const abortError = new DOMException(
+            'The operation was aborted.',
+            'AbortError'
+        )
 
         await expect(
-            interceptor(makeOptions({ next: () => Promise.reject(abortError) })),
+            interceptor(makeOptions({ next: () => Promise.reject(abortError) }))
         ).rejects.toBe(abortError)
 
         expect(mockRedirect).not.toHaveBeenCalled()

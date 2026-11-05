@@ -7,39 +7,43 @@ transport code either.
 
 ## What it does NOT do
 
-This package adds *only* the probing semantics — which urls to ask, in what order, and
+This package adds _only_ the probing semantics — which urls to ask, in what order, and
 how to read an answer. Everything else is reused:
 
-| Concern | Comes from |
-|---|---|
-| Address parsing, origin, IP literal detection | `@deployer/effect-infra` (`hostOf`, `toOrigin`, `isIpAddress`) |
-| IP classification, SSRF policy | `@deployer/effect-infra` (`classifyAddress`, `EgressPolicy`) |
-| Timeouts, redirect limits, size caps, DNS pinning, TLS | `@deployer/effect-infra` (`SafeHttp`) |
-| Latency measurement | `performance.now()` (Web API) |
-| JSON decoding of a peer's identity | `Schema.decodeUnknownOption` (effect) |
-| "try in order, keep the first success" | `Effect.firstSuccessOf` (effect) |
-| Parallel probe variants | `Effect.forEach(..., { concurrency })` (effect) |
+| Concern                                                | Comes from                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| Address parsing, origin, IP literal detection          | `@deployer/effect-infra` (`hostOf`, `toOrigin`, `isIpAddress`) |
+| IP classification, SSRF policy                         | `@deployer/effect-infra` (`classifyAddress`, `EgressPolicy`)   |
+| Timeouts, redirect limits, size caps, DNS pinning, TLS | `@deployer/effect-infra` (`SafeHttp`)                          |
+| Latency measurement                                    | `performance.now()` (Web API)                                  |
+| JSON decoding of a peer's identity                     | `Schema.decodeUnknownOption` (effect)                          |
+| "try in order, keep the first success"                 | `Effect.firstSuccessOf` (effect)                               |
+| Parallel probe variants                                | `Effect.forEach(..., { concurrency })` (effect)                |
 
 The caller supplies the `EgressPolicy`: what a probe may reach is the app's rule.
 
 ## API
 
 ```ts
-import { Effect } from "effect";
-import { EgressPolicy } from "@deployer/effect-infra";
-import { probeAddress, probePeer } from "@deployer/effect-reachability";
+import { Effect } from 'effect'
+import { EgressPolicy } from '@deployer/effect-infra'
+import { probeAddress, probePeer } from '@deployer/effect-reachability'
 
-const valid = yield* probeAddress("node.example.com", {
-  policy: EgressPolicy.userSupplied,
-  paths: ["/mesh/ping", "/health"],
-  tryBothSchemes: true,
-});
+const valid =
+    yield *
+    probeAddress('node.example.com', {
+        policy: EgressPolicy.userSupplied,
+        paths: ['/mesh/ping', '/health'],
+        tryBothSchemes: true,
+    })
 
-const peer = yield* probePeer("https://10.0.0.5:3005", {
-  policy: EgressPolicy.operatorTarget,
-  primaryPath: "/mesh/ping",
-  fallbackPath: "/health",
-});
+const peer =
+    yield *
+    probePeer('https://10.0.0.5:3005', {
+        policy: EgressPolicy.operatorTarget,
+        primaryPath: '/mesh/ping',
+        fallbackPath: '/health',
+    })
 ```
 
 Neither function fails: "not reachable" is a result, and every `SafeHttp` refusal is a

@@ -52,7 +52,10 @@ export type FromCamelToSnake<T extends string> = ToSnake<T>
 export type FromPascalToSnake<T extends string> = ToSnake<T>
 
 export type ObjectToSnake<T> = {
-    [K in keyof T as Lowercase<string & K>]: T[K] extends Record<string, unknown>
+    [K in keyof T as Lowercase<string & K>]: T[K] extends Record<
+        string,
+        unknown
+    >
         ? ObjectToSnake<T[K]>
         : T[K]
 }
@@ -121,7 +124,10 @@ export type PascalToCamel<S extends string> =
 export type ToCamel<S extends string> = PascalToCamel<SnakeToCamel<S>>
 
 export type ObjectFromSnakeToCamel<T> = {
-    [K in keyof T as SnakeToCamel<string & K>]: T[K] extends Record<string, unknown>
+    [K in keyof T as SnakeToCamel<string & K>]: T[K] extends Record<
+        string,
+        unknown
+    >
         ? ObjectFromSnakeToCamel<T[K]>
         : T[K]
 }
@@ -164,12 +170,11 @@ export type OmitNever<T extends object> = {
 export const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 
 // credits goes to https://stackoverflow.com/a/50375286
-export type UnionToIntersection<U> = (
+export type UnionToIntersection<U> =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    U extends any ? (k: U) => void : never
-) extends (k: infer I) => void
-    ? I
-    : never
+    (U extends any ? (k: U) => void : never) extends (k: infer I) => void
+        ? I
+        : never
 
 // Converts union to overloaded function
 export type UnionToOvlds<U> = UnionToIntersection<
@@ -193,8 +198,8 @@ export type IntersectArray<A extends unknown[]> = A extends [
     ...infer R,
 ]
     ? F & IntersectArray<R>
-    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-    : {}
+    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+      {}
 
 export type ArrayContains<
     T extends unknown[],

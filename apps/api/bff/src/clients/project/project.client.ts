@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging -- the interface/class merge below is how the flattened procedures get their types */
 
+import { projectServiceContract } from '@deployer/project-contracts'
+import { BaseClient, type FlatLeaves } from '@deployer/service-client'
 
-import { projectServiceContract } from "@deployer/project-contracts";
-import { BaseClient, type FlatLeaves } from "@deployer/service-client";
+import { ServiceClientRegistry } from '../service-registry'
 
-import { ServiceClientRegistry } from "../service-registry";
-
-import type { ContractRouterClient } from "@orpc/contract";
+import type { ContractRouterClient } from '@orpc/contract'
 
 /**
  * The project service, with its procedure names callable at the ROOT.
@@ -34,14 +33,13 @@ import type { ContractRouterClient } from "@orpc/contract";
 // the flattened procedures reach the class's type. Do not turn it into a `type` alias: the merge
 // breaks with `Duplicate identifier`.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface ProjectClient
-	extends Omit<
-		FlatLeaves<ContractRouterClient<typeof projectServiceContract>>,
-		"crud" | "list" | "findById"
-	> {}
+export interface ProjectClient extends Omit<
+    FlatLeaves<ContractRouterClient<typeof projectServiceContract>>,
+    'crud' | 'list' | 'findById'
+> {}
 
 export class ProjectClient extends BaseClient<typeof projectServiceContract> {
-	constructor(binder: ServiceClientRegistry) {
-		super(binder, { service: "project", contract: projectServiceContract });
-	}
+    constructor(binder: ServiceClientRegistry) {
+        super(binder, { service: 'project', contract: projectServiceContract })
+    }
 }

@@ -1,11 +1,11 @@
 /**
  * Server-side page wrapper utilities
- * 
+ *
  * This file provides the real implementations that:
  * 1. Unwrap params/searchParams promises using async/await (server-only)
  * 2. Validate params/search using Zod schemas
  * 3. Fetch and hydrate session for SessionPage (using injected auth adapter)
- * 
+ *
  * The package.json conditional exports ensure:
  * - Server bundles (react-server condition): Use this file
  * - Client bundles (default condition): Use client.ts which uses React.use()
@@ -16,8 +16,7 @@ import queryString from 'query-string'
 import React from 'react'
 import { z } from 'zod'
 
-import type {
-} from "@deployer/declarative-routing/types";
+import type {} from '@deployer/declarative-routing/types'
 import type {
     Session,
     ServerAuthAdapter,
@@ -31,28 +30,33 @@ import type {
     PageRouteHelpers,
     RouteSearchPatch,
 } from '@deployer/declarative-routing/types'
-import { isObjectLike } from "@deployer/type-guards"
+import { isObjectLike } from '@deployer/type-guards'
 
 // ============================================================================
 // Configuration - Must be set before using session wrappers
 // ============================================================================
 
 let serverAuthAdapter: ServerAuthAdapter | null = null
-let HydrationBoundary: React.ComponentType<{ state: unknown; children: React.ReactNode }> | null = null
-let createQueryClient: (() => { setQueryData: (key: unknown[], data: unknown) => void }) | null = null
+let HydrationBoundary: React.ComponentType<{
+    state: unknown
+    children: React.ReactNode
+}> | null = null
+let createQueryClient:
+    (() => { setQueryData: (key: unknown[], data: unknown) => void }) | null =
+    null
 let dehydrateQueryClient: ((client: unknown) => unknown) | null = null
 
 /**
  * Configure the server-side auth adapter and React Query integration.
  * Must be called before using createSessionPage.
- * 
+ *
  * @example
  * ```tsx
  * // In your app's route setup
  * import { configureServerAuth } from '@deployer/declarative-routing/page-wrappers'
  * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
- * 
+ *
  * configureServerAuth({
  *   getSession: async () => {
  *     const { data } = await getSession()
@@ -68,8 +72,13 @@ let dehydrateQueryClient: ((client: unknown) => unknown) | null = null
 export function configureServerAuth(
     adapter: ServerAuthAdapter,
     reactQuery?: {
-        HydrationBoundary: React.ComponentType<{ state: unknown; children: React.ReactNode }>
-        createQueryClient: () => { setQueryData: (key: unknown[], data: unknown) => void }
+        HydrationBoundary: React.ComponentType<{
+            state: unknown
+            children: React.ReactNode
+        }>
+        createQueryClient: () => {
+            setQueryData: (key: unknown[], data: unknown) => void
+        }
         dehydrate: (client: unknown) => unknown
     }
 ): void {
@@ -113,7 +122,9 @@ type NextPagePropsInternal<
 /**
  * Helper to cast a component to the correct type.
  */
-function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentType<T> {
+function asPageComponent<T>(
+    component: React.ComponentType<T>
+): React.ComponentType<T> {
     return component
 }
 
@@ -174,7 +185,10 @@ function createServerRouteHelpers<
             return runtime.buildUrl(nextParams, nextSearch)
         }
 
-        return buildFallbackUrl(runtime?.routePath ?? '', normalizeRecord(nextSearch))
+        return buildFallbackUrl(
+            runtime?.routePath ?? '',
+            normalizeRecord(nextSearch)
+        )
     }
 
     const navigate = (
@@ -183,8 +197,8 @@ function createServerRouteHelpers<
     ) => {
         // same method surface as client; server implementation only computes URL
         return buildUrl(
-            (input?.params ?? (params as z.input<Params>)),
-            (input?.search ?? (search as z.input<Search>))
+            input?.params ?? (params as z.input<Params>),
+            input?.search ?? (search as z.input<Search>)
         )
     }
 
@@ -193,7 +207,7 @@ function createServerRouteHelpers<
         _options?: RouteNavigationOptions
     ) => {
         // same method surface as client; server implementation only computes URL
-            return navigate(input)
+        return navigate(input)
     }
 
     const setSearch = (value: z.input<Search> | null) => {
@@ -202,12 +216,8 @@ function createServerRouteHelpers<
     }
 
     const searchUpdate = (patch: RouteSearchPatch<Search> | null) => {
-        const currentSearch = isObjectLike(search)
-            ? search
-            : {}
-        const patchRecord = patch && isObjectLike(patch)
-            ? patch
-            : {}
+        const currentSearch = isObjectLike(search) ? search : {}
+        const patchRecord = patch && isObjectLike(patch) ? patch : {}
 
         const nextSearch = {
             ...currentSearch,
@@ -220,11 +230,12 @@ function createServerRouteHelpers<
     const searchReplace = (value: z.input<Search> | null) => setSearch(value)
 
     const searchReset = () =>
-        Promise.resolve(buildUrl(params as z.input<Params>, {} as z.input<Search>))
+        Promise.resolve(
+            buildUrl(params as z.input<Params>, {} as z.input<Search>)
+        )
 
     const setParams = (value: z.input<Params> | null) => {
-        const nextParams =
-            value ?? ({} as z.input<Params>)
+        const nextParams = value ?? ({} as z.input<Params>)
         return Promise.resolve(buildUrl(nextParams, search as z.input<Search>))
     }
 
@@ -259,15 +270,15 @@ function createServerRouteHelpers<
 
 /**
  * Creates a server page wrapper that unwraps and validates params/search.
- * 
+ *
  * On the server, we can use async/await to unwrap the promises from Next.js
  * and validate them with Zod schemas before passing to the component.
- * 
+ *
  * @example
  * ```tsx
  * // page.tsx (Server Component)
  * import { createPage } from '@deployer/declarative-routing/page-wrappers'
- * 
+ *
  * export default createPage(
  *   { params: z.object({ id: z.string() }), search: z.object({}) },
  *   async ({ params, searchParams }) => {
@@ -283,34 +294,44 @@ export function createPage<
     AdditionalProps extends object = object,
 >(
     schemas: SchemasConfig<Params, Search>,
-    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+    Component: React.ComponentType<
+        UnwrappedPageProps<Params, Search> & AdditionalProps
+    >,
     runtime?: RouteRuntimeConfig<Params, Search>
-): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
-    type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
-    
-    async function WrappedComponent(props: WrapperProps): Promise<React.ReactNode> {
+): React.ComponentType<
+    NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
+> {
+    type WrapperProps = NextPagePropsInternal<Params, Search> &
+        BasePageProps &
+        AdditionalProps
+
+    async function WrappedComponent(
+        props: WrapperProps
+    ): Promise<React.ReactNode> {
         const rawParams = await props.params
         const rawSearchParams = await props.searchParams
         const params = schemas.params.parse(rawParams)
         const searchParams = schemas.search.parse(rawSearchParams)
         const route = createServerRouteHelpers(params, searchParams, runtime)
         const additionalProps = extractAdditionalProps(props)
-        
-        const componentProps: UnwrappedPageProps<Params, Search> & AdditionalProps = {
+
+        const componentProps: UnwrappedPageProps<Params, Search> &
+            AdditionalProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams,
             route,
         }
-        
+
         return <Component {...componentProps} />
     }
-    
-    const displayName = (Component as { displayName?: string; name?: string }).displayName 
-        ?? (Component as { name?: string }).name 
-        ?? 'Component'
+
+    const displayName =
+        (Component as { displayName?: string; name?: string }).displayName ??
+        (Component as { name?: string }).name ??
+        'Component'
     WrappedComponent.displayName = `ServerPage(${displayName})`
-    
+
     return asPageComponent<WrapperProps>(WrappedComponent)
 }
 
@@ -318,17 +339,25 @@ export function createPage<
  * Helper to wrap a page component with type-safe params/search unwrapping.
  * This is the HOC pattern version of createPage.
  */
-export function withPage<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
->(
+export function withPage<Params extends z.ZodType, Search extends z.ZodType>(
     paramsSchema: Params,
     searchSchema: Search
 ) {
     return function wrapper<AdditionalProps extends object = object>(
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>
-    ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
-        return createPage({ params: paramsSchema, search: searchSchema }, Component) as React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps>
+        Component: React.ComponentType<
+            UnwrappedPageProps<Params, Search> & AdditionalProps
+        >
+    ): React.ComponentType<
+        NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
+    > {
+        return createPage(
+            { params: paramsSchema, search: searchSchema },
+            Component
+        ) as React.ComponentType<
+            NextPagePropsInternal<Params, Search> &
+                BasePageProps &
+                AdditionalProps
+        >
     }
 }
 
@@ -346,11 +375,11 @@ const DEFAULT_SESSION_COOKIE = 'better-auth.session_token'
  * 2. Hydrates React Query cache (if configured)
  * 3. Unwraps params/searchParams promises
  * 4. Passes session as a prop to the component
- * 
+ *
  * @example
  * ```tsx
  * import { createSessionPage } from '@deployer/declarative-routing/page-wrappers'
- * 
+ *
  * export default createSessionPage(
  *   { params: z.object({ id: z.string() }), search: z.object({}) },
  *   async ({ params, searchParams, session }) => {
@@ -366,7 +395,10 @@ export function createSessionPage<
     S extends Session = Session,
 >(
     schemas: SchemasConfig<Params, Search>,
-    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }>,
+    Component: React.ComponentType<
+        UnwrappedPageProps<Params, Search> &
+            AdditionalProps & { session: S | null }
+    >,
     options?: SessionOptions,
     runtime?: RouteRuntimeConfig<Params, Search>,
     /**
@@ -374,20 +406,31 @@ export function createSessionPage<
      * If not provided, session will always be fetched.
      */
     checkAuthCookie?: () => Promise<boolean>
-): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, 'session'>> {
-    type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, 'session'>
-    
-    const { checkCookie = true, sessionCookie: _sessionCookie = DEFAULT_SESSION_COOKIE } = options ?? {}
-    
-    async function SessionFetchingPage(props: WrapperProps): Promise<React.ReactNode> {
+): React.ComponentType<
+    NextPagePropsInternal<Params, Search> &
+        BasePageProps &
+        Omit<AdditionalProps, 'session'>
+> {
+    type WrapperProps = NextPagePropsInternal<Params, Search> &
+        BasePageProps &
+        Omit<AdditionalProps, 'session'>
+
+    const {
+        checkCookie = true,
+        sessionCookie: _sessionCookie = DEFAULT_SESSION_COOKIE,
+    } = options ?? {}
+
+    async function SessionFetchingPage(
+        props: WrapperProps
+    ): Promise<React.ReactNode> {
         const authAdapter = getServerAuthAdapter()
-        
+
         // Check for auth cookie to avoid unnecessary session fetch
         let hasAuthCookie = true
         if (checkCookie && checkAuthCookie) {
             hasAuthCookie = await checkAuthCookie()
         }
-        
+
         let session: S | null = null
         if (hasAuthCookie) {
             const { data } = await authAdapter.getSession()
@@ -401,14 +444,15 @@ export function createSessionPage<
         const searchParams = schemas.search.parse(rawSearchParams)
         const route = createServerRouteHelpers(params, searchParams, runtime)
         const additionalProps = extractAdditionalProps(props)
-        
+
         const componentProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams,
             route,
             session,
-        } as UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }
+        } as UnwrappedPageProps<Params, Search> &
+            AdditionalProps & { session: S | null }
 
         if (HydrationBoundary && createQueryClient && dehydrateQueryClient) {
             const queryClient = createQueryClient()
@@ -416,18 +460,18 @@ export function createSessionPage<
             // Client distinguishes "not fetched" (undefined) from "fetched but no session" (null)
             queryClient.setQueryData(SESSION_QUERY_KEY, session)
             const dehydratedState = dehydrateQueryClient(queryClient)
-            
+
             return (
                 <HydrationBoundary state={dehydratedState}>
                     <Component {...componentProps} />
                 </HydrationBoundary>
             )
         }
-        
+
         // Without React Query, just render the component
         return <Component {...componentProps} />
     }
-    
+
     // Synchronous wrapper that renders a Suspense boundary around the session
     // fetch. This mirrors createSessionLayout: the session read (cookies())
     // suspends during prerendering, so the page's static shell can commit
@@ -439,14 +483,15 @@ export function createSessionPage<
             </React.Suspense>
         )
     }
-    
-    const displayName = (Component as { displayName?: string; name?: string }).displayName 
-        ?? (Component as { name?: string }).name 
-        ?? 'Component'
+
+    const displayName =
+        (Component as { displayName?: string; name?: string }).displayName ??
+        (Component as { name?: string }).name ??
+        'Component'
     WrappedComponent.displayName = `ServerSessionPage(${displayName})`
-    
+
     // Suppress unused variable warning for sessionCookie
-    
+
     return asPageComponent<WrapperProps>(WrappedComponent)
 }
 
@@ -466,8 +511,13 @@ export type CreatePageWrappersConfig<S extends Session = Session> = {
      * Optional React Query integration for session hydration.
      */
     reactQuery?: {
-        HydrationBoundary: React.ComponentType<{ state: unknown; children: React.ReactNode }>
-        createQueryClient: () => { setQueryData: (key: unknown[], data: unknown) => void }
+        HydrationBoundary: React.ComponentType<{
+            state: unknown
+            children: React.ReactNode
+        }>
+        createQueryClient: () => {
+            setQueryData: (key: unknown[], data: unknown) => void
+        }
         dehydrate: (client: unknown) => unknown
     }
     /**
@@ -483,7 +533,7 @@ export type CreatePageWrappersConfig<S extends Session = Session> = {
 /**
  * Creates pre-configured page wrapper functions with auth already injected.
  * This is the recommended way to set up declarative routing with authentication.
- * 
+ *
  * @example
  * ```tsx
  * // apps/web/src/routes/makeRoute.tsx
@@ -491,7 +541,7 @@ export type CreatePageWrappersConfig<S extends Session = Session> = {
  * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * import { cookies } from 'next/headers'
- * 
+ *
  * export const { createPage, createSessionPage, createClientPage } = createPageWrappers({
  *   auth: { getSession },
  *   reactQuery: {
@@ -511,7 +561,7 @@ export function createPageWrappers<S extends Session = Session>(
 ) {
     // Configure the global auth adapter (for createSessionPage)
     configureServerAuth(config.auth, config.reactQuery)
-    
+
     // Return bound versions of the page wrappers
     return {
         /**
@@ -519,7 +569,7 @@ export function createPageWrappers<S extends Session = Session>(
          * Uses async/await on server, React.use() on client (via conditional exports).
          */
         createPage,
-        
+
         /**
          * Create a session-aware page with auth already configured.
          * On server: fetches session and hydrates React Query cache.
@@ -531,16 +581,20 @@ export function createPageWrappers<S extends Session = Session>(
             AdditionalProps extends object = object,
         >(
             schemas: SchemasConfig<Params, Search>,
-            Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }>,
+            Component: React.ComponentType<
+                UnwrappedPageProps<Params, Search> &
+                    AdditionalProps & { session: S | null }
+            >,
             options?: SessionOptions,
             runtime?: RouteRuntimeConfig<Params, Search>
-        ) => createSessionPage<Params, Search, AdditionalProps, S>(
-            schemas,
-            Component,
-            options,
-            runtime,
-            config.checkAuthCookie
-        ),
+        ) =>
+            createSessionPage<Params, Search, AdditionalProps, S>(
+                schemas,
+                Component,
+                options,
+                runtime,
+                config.checkAuthCookie
+            ),
     }
 }
 
@@ -550,36 +604,41 @@ export function createPageWrappers<S extends Session = Session>(
 
 /**
  * Client-side session injection HOC.
- * 
+ *
  * NOTE: This is a stub for server-side type compatibility.
  * The actual implementation is in client.tsx and will be used via conditional exports.
  * If this function is called on the server, it will throw an error.
- * 
+ *
  * @example Client-side usage (via conditional exports):
  * ```tsx
  * 'use client'
  * import { withClientSession } from '@deployer/declarative-routing/page-wrappers'
- * 
+ *
  * function MyComponent({ session }: { session: Session }) {
  *   return <div>{session.user.name}</div>
  * }
- * 
+ *
  * export default withClientSession(MyComponent)
  * ```
  */
-export function withClientSession<P extends { session: S | null }, S extends Session = Session>(
+export function withClientSession<
+    P extends { session: S | null },
+    S extends Session = Session,
+>(
     WrappedComponent: React.ComponentType<P>
 ): React.ComponentType<Omit<P, 'session'>> {
     // This should never be called on the server
     // The actual implementation is in client.tsx
     throw new Error(
         'withClientSession cannot be used on the server. ' +
-        'Make sure this is only imported in client components ("use client").'
+            'Make sure this is only imported in client components ("use client").'
     )
-    
+
     // TypeScript needs a return for the type signature
-     
-    return WrappedComponent as unknown as React.ComponentType<Omit<P, 'session'>>
+
+    return WrappedComponent as unknown as React.ComponentType<
+        Omit<P, 'session'>
+    >
 }
 
 // Re-export types

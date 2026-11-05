@@ -27,63 +27,63 @@
  * operator correlating a deployment across two nodes needs one clock.
  */
 
-const LOCALE = "en-US";
-const TIME_ZONE = "UTC";
+const LOCALE = 'en-US'
+const TIME_ZONE = 'UTC'
 
 const dateTimeFormatter = new Intl.DateTimeFormat(LOCALE, {
-	year: "numeric",
-	month: "short",
-	day: "numeric",
-	hour: "2-digit",
-	minute: "2-digit",
-	hour12: false,
-	timeZone: TIME_ZONE,
-});
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: TIME_ZONE,
+})
 
 const dateFormatter = new Intl.DateTimeFormat(LOCALE, {
-	year: "numeric",
-	month: "short",
-	day: "numeric",
-	timeZone: TIME_ZONE,
-});
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: TIME_ZONE,
+})
 
 const timeFormatter = new Intl.DateTimeFormat(LOCALE, {
-	hour: "2-digit",
-	minute: "2-digit",
-	hour12: false,
-	timeZone: TIME_ZONE,
-});
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: TIME_ZONE,
+})
 
 /** Returns `null` when the input is absent or unparseable, so callers choose the placeholder. */
 function toDate(value: string | number | Date | null | undefined): Date | null {
-	if (value === null || value === undefined || value === "") return null;
-	const parsed = value instanceof Date ? value : new Date(value);
-	return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (value === null || value === undefined || value === '') return null
+    const parsed = value instanceof Date ? value : new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 /** `"Sep 14, 2026, 14:30 UTC"` — falls back to `fallback` (default `"—"`). */
 export function formatDateTime(
-	value: string | number | Date | null | undefined,
-	fallback = "—",
+    value: string | number | Date | null | undefined,
+    fallback = '—'
 ): string {
-	const date = toDate(value);
-	return date === null ? fallback : `${dateTimeFormatter.format(date)} UTC`;
+    const date = toDate(value)
+    return date === null ? fallback : `${dateTimeFormatter.format(date)} UTC`
 }
 
 /** `"Sep 14, 2026"` — falls back to `fallback` (default `"—"`). */
 export function formatDate(
-	value: string | number | Date | null | undefined,
-	fallback = "—",
+    value: string | number | Date | null | undefined,
+    fallback = '—'
 ): string {
-	const date = toDate(value);
-	return date === null ? fallback : dateFormatter.format(date);
+    const date = toDate(value)
+    return date === null ? fallback : dateFormatter.format(date)
 }
 
 /** `"14:30 UTC"` — falls back to `fallback` (default `"—"`). */
 export function formatTime(
-	value: string | number | Date | null | undefined,
-	fallback = "—",
+    value: string | number | Date | null | undefined,
+    fallback = '—'
 ): string {
-	const date = toDate(value);
-	return date === null ? fallback : `${timeFormatter.format(date)} UTC`;
+    const date = toDate(value)
+    return date === null ? fallback : `${timeFormatter.format(date)} UTC`
 }

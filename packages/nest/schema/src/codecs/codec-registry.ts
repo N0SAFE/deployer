@@ -1,11 +1,16 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import {
+    createCipheriv,
+    createDecipheriv,
+    randomBytes,
+    scryptSync,
+} from 'crypto'
 
-import { Logger } from "@nestjs/common";
-import { customType } from "drizzle-orm/pg-core";
+import { Logger } from '@nestjs/common'
+import { customType } from 'drizzle-orm/pg-core'
 
-import { AppError } from "@deployer/errors";
+import { AppError } from '@deployer/errors'
 
-const logger = new Logger("SchemaCodecs");
+const logger = new Logger('SchemaCodecs')
 
 /**
  * Deferred codec registry — how the APP supplies behaviour the schema needs.
@@ -25,10 +30,10 @@ const logger = new Logger("SchemaCodecs");
  * than silently writing plaintext into an encrypted column.
  */
 
-const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 16;
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 32;
+const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 16
+const SALT_LENGTH = 32
+const KEY_LENGTH = 32
 
 /**
  * Supplies the LEGACY encryption key. The app decides where it comes from.
@@ -37,7 +42,7 @@ const KEY_LENGTH = 32;
  * (`salt:iv:tag:data`); new writes go through {@link EncryptedTextSealer}.
  */
 export type EncryptedTextKeyProvider = {
-	resolveKey(): Buffer;
+    resolveKey(): Buffer
 }
 
 /**
@@ -47,44 +52,44 @@ export type EncryptedTextKeyProvider = {
  * reader.
  */
 export type EncryptedTextSealer = {
-	seal(plaintext: string): string;
-	open(stored: string): string;
+    seal(plaintext: string): string
+    open(stored: string): string
 }
 
 /** Prefix of a value written by a sealer. A legacy value (`salt:iv:tag:data`, hex) never starts with it. */
-export const SEALED_VALUE_PREFIX = "enc:v1:";
+export const SEALED_VALUE_PREFIX = 'enc:v1:'
 
 /** True when `stored` is in the current (sealed) form rather than the legacy one. */
 export function isSealedValue(stored: string): boolean {
-	return stored.startsWith(SEALED_VALUE_PREFIX);
+    return stored.startsWith(SEALED_VALUE_PREFIX)
 }
 
 /** The minimal builder contract the traefik column needs. Supplied by the app. */
 export type TraefikConfigCodec<TBuilder> = {
-	load(value: string | object): TBuilder;
-	empty(): TBuilder;
-	build(builder: TBuilder): object;
+    load(value: string | object): TBuilder
+    empty(): TBuilder
+    build(builder: TBuilder): object
 }
 
 type Registry = {
-	/** Legacy key: used to READ old rows. Never used to write once `sealing` is configured. */
-	encryption?: EncryptedTextKeyProvider;
-	/** Current codec: used for every write, and for every read of a sealed value. */
-	sealing?: EncryptedTextSealer;
-	/** Erased form: the registry is heterogeneous, reads re-apply the type. */
-	traefik?: TraefikConfigCodec<unknown>;
+    /** Legacy key: used to READ old rows. Never used to write once `sealing` is configured. */
+    encryption?: EncryptedTextKeyProvider
+    /** Current codec: used for every write, and for every read of a sealed value. */
+    sealing?: EncryptedTextSealer
+    /** Erased form: the registry is heterogeneous, reads re-apply the type. */
+    traefik?: TraefikConfigCodec<unknown>
 }
 
-const registry: Registry = {};
+const registry: Registry = {}
 
 /** Configure the encryption key. Call once at boot, before the first query. */
 export function configureEncryption(provider: EncryptedTextKeyProvider): void {
-	registry.encryption = provider;
+    registry.encryption = provider
 }
 
 /** Configure the sealing codec. Call once at boot, before the first query. */
 export function configureSealing(sealer: EncryptedTextSealer): void {
-	registry.sealing = sealer;
+    registry.sealing = sealer
 }
 
 /**
@@ -95,26 +100,29 @@ export function configureSealing(sealer: EncryptedTextSealer): void {
  * over — every read afterwards is generic and recovers it, so no call site
  * needs an assertion.
  */
-export function configureTraefikConfigCodec<TBuilder>(codec: TraefikConfigCodec<TBuilder>): void {
-	registry.traefik = codec;
+export function configureTraefikConfigCodec<TBuilder>(
+    codec: TraefikConfigCodec<TBuilder>
+): void {
+    registry.traefik = codec
 }
 
 /** Configure everything the schema needs, in one call. */
 export function configureSchemaCodecs(config: Registry): void {
-	if (config.encryption !== undefined) configureEncryption(config.encryption);
-	if (config.sealing !== undefined) configureSealing(config.sealing);
-	if (config.traefik !== undefined) configureTraefikConfigCodec(config.traefik);
+    if (config.encryption !== undefined) configureEncryption(config.encryption)
+    if (config.sealing !== undefined) configureSealing(config.sealing)
+    if (config.traefik !== undefined)
+        configureTraefikConfigCodec(config.traefik)
 }
 
 function requireEncryption(): EncryptedTextKeyProvider {
-	if (registry.encryption === undefined) {
-		throw new AppError(
-			"encryptedText column used before the encryption key was configured — " +
-				"call configureSchemaCodecs({ encryption }) at boot",
-			"SCHEMA_CODEC_NOT_CONFIGURED",
-		);
-	}
-	return registry.encryption;
+    if (registry.encryption === undefined) {
+        throw new AppError(
+            'encryptedText column used before the encryption key was configured — ' +
+                'call configureSchemaCodecs({ encryption }) at boot',
+            'SCHEMA_CODEC_NOT_CONFIGURED'
+        )
+    }
+    return registry.encryption
 }
 
 /**
@@ -131,37 +139,37 @@ function requireEncryption(): EncryptedTextKeyProvider {
  * blank column never acquires a ciphertext wrapper.
  */
 export function encryptSecret(text: string): string {
-	if (!text) return text;
-	try {
-		// The current form. Only when no sealer is configured (the frozen monolith) does a
-		// write fall back to the legacy form below.
-		if (registry.sealing !== undefined) return registry.sealing.seal(text);
+    if (!text) return text
+    try {
+        // The current form. Only when no sealer is configured (the frozen monolith) does a
+        // write fall back to the legacy form below.
+        if (registry.sealing !== undefined) return registry.sealing.seal(text)
 
-		const key = requireEncryption().resolveKey();
-		const salt = randomBytes(SALT_LENGTH);
-		const derived = scryptSync(key, salt, KEY_LENGTH);
-		const iv = randomBytes(IV_LENGTH);
+        const key = requireEncryption().resolveKey()
+        const salt = randomBytes(SALT_LENGTH)
+        const derived = scryptSync(key, salt, KEY_LENGTH)
+        const iv = randomBytes(IV_LENGTH)
 
-		const cipher = createCipheriv(ALGORITHM, derived, iv);
-		let encrypted = cipher.update(text, "utf8", "hex");
-		encrypted += cipher.final("hex");
+        const cipher = createCipheriv(ALGORITHM, derived, iv)
+        let encrypted = cipher.update(text, 'utf8', 'hex')
+        encrypted += cipher.final('hex')
 
-		return `${salt.toString("hex")}:${iv.toString("hex")}:${cipher.getAuthTag().toString("hex")}:${encrypted}`;
-	} catch (error) {
-		// Preserve the deliberate boot-order error, which names the call to add;
-		// only an UNEXPECTED failure is rewrapped as a generic encrypt error.
-		if (error instanceof AppError) throw error;
-		logger.error("Encryption error:", { error });
-		throw new AppError("Failed to encrypt data", "ENCRYPTION_ERROR");
-	}
+        return `${salt.toString('hex')}:${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`
+    } catch (error) {
+        // Preserve the deliberate boot-order error, which names the call to add;
+        // only an UNEXPECTED failure is rewrapped as a generic encrypt error.
+        if (error instanceof AppError) throw error
+        logger.error('Encryption error:', { error })
+        throw new AppError('Failed to encrypt data', 'ENCRYPTION_ERROR')
+    }
 }
 
 /** The four hex segments of a stored ciphertext. */
 type EncryptedPayload = {
-	saltHex: string;
-	ivHex: string;
-	authTagHex: string;
-	encryptedData: string;
+    saltHex: string
+    ivHex: string
+    authTagHex: string
+    encryptedData: string
 }
 
 /**
@@ -172,20 +180,20 @@ type EncryptedPayload = {
  * established — no assertion is needed to narrow the tuple.
  */
 function parseEncryptedPayload(payload: string): EncryptedPayload {
-	const parts = payload.split(":");
-	const [saltHex, ivHex, authTagHex, encryptedData] = parts;
+    const parts = payload.split(':')
+    const [saltHex, ivHex, authTagHex, encryptedData] = parts
 
-	if (
-		parts.length !== 4 ||
-		saltHex === undefined ||
-		ivHex === undefined ||
-		authTagHex === undefined ||
-		encryptedData === undefined
-	) {
-		throw new AppError("Invalid encrypted data format", "ENCRYPTION_ERROR");
-	}
+    if (
+        parts.length !== 4 ||
+        saltHex === undefined ||
+        ivHex === undefined ||
+        authTagHex === undefined ||
+        encryptedData === undefined
+    ) {
+        throw new AppError('Invalid encrypted data format', 'ENCRYPTION_ERROR')
+    }
 
-	return { saltHex, ivHex, authTagHex, encryptedData };
+    return { saltHex, ivHex, authTagHex, encryptedData }
 }
 
 /**
@@ -195,36 +203,48 @@ function parseEncryptedPayload(payload: string): EncryptedPayload {
  * An empty value is returned unchanged, mirroring {@link encryptSecret}.
  */
 export function decryptSecret(payload: string): string {
-	if (!payload) return payload;
-	try {
-		// A sealed value is routed to the sealer; everything else is the legacy form.
-		if (isSealedValue(payload)) {
-			if (registry.sealing === undefined) {
-				throw new AppError(
-					"sealed value read before the sealing codec was configured — " +
-						"call configureSchemaCodecs({ sealing }) at boot",
-					"SCHEMA_CODEC_NOT_CONFIGURED",
-				);
-			}
-			return registry.sealing.open(payload);
-		}
+    if (!payload) return payload
+    try {
+        // A sealed value is routed to the sealer; everything else is the legacy form.
+        if (isSealedValue(payload)) {
+            if (registry.sealing === undefined) {
+                throw new AppError(
+                    'sealed value read before the sealing codec was configured — ' +
+                        'call configureSchemaCodecs({ sealing }) at boot',
+                    'SCHEMA_CODEC_NOT_CONFIGURED'
+                )
+            }
+            return registry.sealing.open(payload)
+        }
 
-		const { saltHex, ivHex, authTagHex, encryptedData } = parseEncryptedPayload(payload);
+        const { saltHex, ivHex, authTagHex, encryptedData } =
+            parseEncryptedPayload(payload)
 
-		const salt = Buffer.from(saltHex, "hex");
-		const derived = scryptSync(requireEncryption().resolveKey(), salt, KEY_LENGTH);
-		const decipher = createDecipheriv(ALGORITHM, derived, Buffer.from(ivHex, "hex"));
-		decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
+        const salt = Buffer.from(saltHex, 'hex')
+        const derived = scryptSync(
+            requireEncryption().resolveKey(),
+            salt,
+            KEY_LENGTH
+        )
+        const decipher = createDecipheriv(
+            ALGORITHM,
+            derived,
+            Buffer.from(ivHex, 'hex')
+        )
+        decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
 
-		return decipher.update(encryptedData, "hex", "utf8") + decipher.final("utf8");
-	} catch (error) {
-		// Preserve the deliberate AppErrors: a boot-order error names the call to
-		// add, and a malformed payload says it is malformed. Only an UNEXPECTED
-		// failure (crypto/encoding) is rewrapped as a generic decrypt error.
-		if (error instanceof AppError) throw error;
-		logger.error("Decryption error:", { error });
-		throw new AppError("Failed to decrypt data", "ENCRYPTION_ERROR");
-	}
+        return (
+            decipher.update(encryptedData, 'hex', 'utf8') +
+            decipher.final('utf8')
+        )
+    } catch (error) {
+        // Preserve the deliberate AppErrors: a boot-order error names the call to
+        // add, and a malformed payload says it is malformed. Only an UNEXPECTED
+        // failure (crypto/encoding) is rewrapped as a generic decrypt error.
+        if (error instanceof AppError) throw error
+        logger.error('Decryption error:', { error })
+        throw new AppError('Failed to decrypt data', 'ENCRYPTION_ERROR')
+    }
 }
 
 /**
@@ -233,21 +253,21 @@ export function decryptSecret(payload: string): string {
  * whether a missing key is fatal — that is application policy.
  */
 export const encryptedText = customType<{
-	data: string;
-	driverData: string;
-	notNull: boolean;
-	default: false;
+    data: string
+    driverData: string
+    notNull: boolean
+    default: false
 }>({
-	dataType() {
-		return "text";
-	},
-	fromDriver(value: string): string {
-		return decryptSecret(value);
-	},
-	toDriver(value: string): string {
-		return encryptSecret(value);
-	},
-});
+    dataType() {
+        return 'text'
+    },
+    fromDriver(value: string): string {
+        return decryptSecret(value)
+    },
+    toDriver(value: string): string {
+        return encryptSecret(value)
+    },
+})
 
 /**
  * JSONB column holding the app's traefik config builder. The builder comes from
@@ -258,21 +278,21 @@ export const encryptedText = customType<{
  * a bad value must not abort a write. Failures degrade to an empty config.
  */
 export const traefikConfigBuilder = customType<{
-	data: unknown;
-	driverData: string;
-	notNull: boolean;
-	default: false;
+    data: unknown
+    driverData: string
+    notNull: boolean
+    default: false
 }>({
-	dataType() {
-		return "jsonb";
-	},
-	fromDriver(value: string): unknown {
-		return readTraefikConfig<unknown>(value);
-	},
-	toDriver(value: unknown): string {
-		return writeTraefikConfig(value);
-	},
-});
+    dataType() {
+        return 'jsonb'
+    },
+    fromDriver(value: string): unknown {
+        return readTraefikConfig<unknown>(value)
+    },
+    toDriver(value: unknown): string {
+        return writeTraefikConfig(value)
+    },
+})
 
 /**
  * Deserialize a stored traefik config through the app's registered codec.
@@ -285,42 +305,45 @@ export const traefikConfigBuilder = customType<{
  * degrade to an empty config — the behaviour the app relied on before.
  */
 export function readTraefikConfig<TBuilder>(value: string): TBuilder {
-	const codec = requireTraefik<TBuilder>();
-	if (!value) return codec.empty();
-	try {
-		return codec.load(value);
-	} catch (error) {
-		logger.error("Failed to deserialize traefik config from database", { error });
-		return codec.empty();
-	}
+    const codec = requireTraefik<TBuilder>()
+    if (!value) return codec.empty()
+    try {
+        return codec.load(value)
+    } catch (error) {
+        logger.error('Failed to deserialize traefik config from database', {
+            error,
+        })
+        return codec.empty()
+    }
 }
 
 /** Serialize a traefik config through the app's registered codec. */
 function writeTraefikConfig(value: unknown): string {
-	try {
-		return JSON.stringify(requireTraefik<unknown>().build(value));
-	} catch (error) {
-		logger.error("Failed to serialize traefik config to database", { error });
-		return JSON.stringify({});
-	}
+    try {
+        return JSON.stringify(requireTraefik<unknown>().build(value))
+    } catch (error) {
+        logger.error('Failed to serialize traefik config to database', {
+            error,
+        })
+        return JSON.stringify({})
+    }
 }
 
-
 function requireTraefik<TBuilder>(): TraefikConfigCodec<TBuilder> {
-	const codec = registry.traefik;
-	if (codec === undefined) {
-		throw new AppError(
-			"traefikConfigBuilder column used before the codec was configured — " +
-				"call configureSchemaCodecs({ traefik }) at boot",
-			"SCHEMA_CODEC_NOT_CONFIGURED",
-		);
-	}
-	// The registry is erased by construction: it holds whatever the app
-	// registered, and this generic is the caller's claim about its own builder.
-	return codec as TraefikConfigCodec<TBuilder>;
+    const codec = registry.traefik
+    if (codec === undefined) {
+        throw new AppError(
+            'traefikConfigBuilder column used before the codec was configured — ' +
+                'call configureSchemaCodecs({ traefik }) at boot',
+            'SCHEMA_CODEC_NOT_CONFIGURED'
+        )
+    }
+    // The registry is erased by construction: it holds whatever the app
+    // registered, and this generic is the caller's claim about its own builder.
+    return codec as TraefikConfigCodec<TBuilder>
 }
 
 /** Generate 32 bytes of key material as hex — for provisioning a new secret. */
 export function generateEncryptionKey(): string {
-	return randomBytes(32).toString("hex");
+    return randomBytes(32).toString('hex')
 }

@@ -4,16 +4,15 @@ type Hitted<T extends object> = ({ hit: true } & T) | { hit: false }
 type Ret<
     M extends MatcherType,
     T extends
-        | [matcher: M, callback: Callback]
-        | [matcher: M, callback: Callback][],
+        [matcher: M, callback: Callback] | [matcher: M, callback: Callback][],
     Callback extends () => unknown,
-    Options extends T extends [matcher: M, callback: Callback][]
+    Options extends (T extends [matcher: M, callback: Callback][]
         ? {
               multiple: boolean
           }
         : {
               multiple: never
-          },
+          }),
 > = Exclude<
     T extends [matcher: MatcherType, callback: Callback][]
         ? Options['multiple'] extends true
@@ -33,15 +32,14 @@ type Ret<
 export function matcherHandler<
     M extends MatcherType,
     T extends
-        | [matcher: M, callback: Callback]
-        | [matcher: M, callback: Callback][],
-    Options extends T extends [matcher: M, callback: Callback][]
+        [matcher: M, callback: Callback] | [matcher: M, callback: Callback][],
+    Options extends (T extends [matcher: M, callback: Callback][]
         ? {
               multiple: boolean
           }
         : {
               multiple: never
-          },
+          }),
     Callback extends () => T extends [matcher: M, callback: Callback]
         ? ReturnType<T[1]>
         : T extends [matcher: M, callback: Callback][]

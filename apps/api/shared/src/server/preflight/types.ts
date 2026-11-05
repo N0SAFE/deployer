@@ -32,27 +32,28 @@
 
 /** A dependency an app can require before it may serve. */
 export const PreflightDependency = {
-	/** The Postgres the app reads/writes is reachable. */
-	Database: "database",
-	/** The schema has been MIGRATED — reachable is not enough; a table must exist. */
-	Migrations: "migrations",
-	/** The Redis the app coordinates through is reachable. */
-	Redis: "redis",
-} as const;
+    /** The Postgres the app reads/writes is reachable. */
+    Database: 'database',
+    /** The schema has been MIGRATED — reachable is not enough; a table must exist. */
+    Migrations: 'migrations',
+    /** The Redis the app coordinates through is reachable. */
+    Redis: 'redis',
+} as const
 
-export type PreflightDependency = (typeof PreflightDependency)[keyof typeof PreflightDependency];
+export type PreflightDependency =
+    (typeof PreflightDependency)[keyof typeof PreflightDependency]
 
 /** How a single check ended. */
-export type CheckOutcome = "ok" | "failed" | "skipped";
+export type CheckOutcome = 'ok' | 'failed' | 'skipped'
 
 /** The result of one check. Never throws — "not ready" is an answer. */
 export type CheckResult = {
-	readonly dependency: PreflightDependency;
-	readonly outcome: CheckOutcome;
-	/** One line an operator can act on. Present unless `skipped`. */
-	readonly detail: string;
-	/** How long the check took. */
-	readonly durationMs: number;
+    readonly dependency: PreflightDependency
+    readonly outcome: CheckOutcome
+    /** One line an operator can act on. Present unless `skipped`. */
+    readonly detail: string
+    /** How long the check took. */
+    readonly durationMs: number
 }
 
 /**
@@ -63,18 +64,22 @@ export type CheckResult = {
  * container at all.
  */
 export type CheckContext = {
-	/** Read a key. Injected so a check never reaches for global `process.env`. */
-	readonly env: (key: string) => string | undefined;
-	/** Run one SQL statement and return its rows. */
-	readonly query: (sql: string) => Promise<Record<string, unknown>[]>;
-	/** Open and close a TCP connection, throwing when it cannot. */
-	readonly tcp: (host: string, port: number, timeoutMs: number) => Promise<void>;
-	/** Emit one line. Kept tiny on purpose — this runs during boot, pre-logger. */
-	readonly log: (message: string) => void;
+    /** Read a key. Injected so a check never reaches for global `process.env`. */
+    readonly env: (key: string) => string | undefined
+    /** Run one SQL statement and return its rows. */
+    readonly query: (sql: string) => Promise<Record<string, unknown>[]>
+    /** Open and close a TCP connection, throwing when it cannot. */
+    readonly tcp: (
+        host: string,
+        port: number,
+        timeoutMs: number
+    ) => Promise<void>
+    /** Emit one line. Kept tiny on purpose — this runs during boot, pre-logger. */
+    readonly log: (message: string) => void
 }
 
 /** A dependency check. */
-export type PreflightCheck = (context: CheckContext) => Promise<CheckResult>;
+export type PreflightCheck = (context: CheckContext) => Promise<CheckResult>
 
 /**
  * What a caller must be told when preflight fails.
@@ -83,15 +88,20 @@ export type PreflightCheck = (context: CheckContext) => Promise<CheckResult>;
  * them as a list, and a health endpoint returns them as data.
  */
 export type PreflightReport = {
-	readonly ready: boolean;
-	readonly results: readonly CheckResult[];
-	readonly durationMs: number;
+    readonly ready: boolean
+    readonly results: readonly CheckResult[]
+    readonly durationMs: number
 }
 
 /** Render a report as the operator-facing block both callers print. */
 export function formatPreflightReport(report: PreflightReport): string[] {
-	return report.results.map((result) => {
-		const mark = result.outcome === "ok" ? "✓" : result.outcome === "skipped" ? "–" : "✗";
-		return `${mark} ${result.dependency.padEnd(11)} ${result.detail}`;
-	});
+    return report.results.map((result) => {
+        const mark =
+            result.outcome === 'ok'
+                ? '✓'
+                : result.outcome === 'skipped'
+                  ? '–'
+                  : '✗'
+        return `${mark} ${result.dependency.padEnd(11)} ${result.detail}`
+    })
 }

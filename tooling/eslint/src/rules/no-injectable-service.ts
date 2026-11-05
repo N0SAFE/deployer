@@ -13,63 +13,79 @@
  *
  * Syntactic on purpose: it needs no type information, so it runs natively under `bun lint`.
  */
-import type { Rule } from "eslint";
+import type { Rule } from 'eslint'
 
 interface Node {
-	readonly type: string;
-	readonly name?: string;
-	readonly id?: Node;
-	readonly callee?: Node;
-	readonly object?: Node;
-	readonly property?: Node;
-	readonly expression?: Node;
-	readonly decorators?: readonly Node[];
-	readonly superClass?: Node;
+    readonly type: string
+    readonly name?: string
+    readonly id?: Node
+    readonly callee?: Node
+    readonly object?: Node
+    readonly property?: Node
+    readonly expression?: Node
+    readonly decorators?: readonly Node[]
+    readonly superClass?: Node
 }
 
 /** `Injectable`, `Injectable()`, `common.Injectable()` — whichever way the decorator is spelt. */
 function isInjectable(decorator: Node): boolean {
-	const expression = decorator.expression;
-	const target = expression?.type === "CallExpression" ? expression.callee : expression;
-	if (target?.type === "Identifier") return target.name === "Injectable";
-	return target?.type === "MemberExpression" && target.property?.name === "Injectable";
+    const expression = decorator.expression
+    const target =
+        expression?.type === 'CallExpression' ? expression.callee : expression
+    if (target?.type === 'Identifier') return target.name === 'Injectable'
+    return (
+        target?.type === 'MemberExpression' &&
+        target.property?.name === 'Injectable'
+    )
 }
 
 export function createNoInjectableServiceRule(): Rule.RuleModule {
-	return {
-		meta: {
-			type: "problem",
-			docs: {
-				description:
-					"A service is an Effect Context.Service tag with a `live` layer, not a Nest `@Injectable` provider.",
-			},
-			schema: [
-				{
-					type: "object",
-					properties: { allow: { type: "array", items: { type: "string" }, uniqueItems: true } },
-					additionalProperties: false,
-				},
-			],
-			messages: {
-				injectableService:
-					"`{{name}}` is a Nest `@Injectable` service. Make it an Effect service — `class {{name}} extends Context.Service<{{name}}, Shape>()(\"{{name}}\")` with a static `live` layer — and provide it from its module as `{ provide: {{name}}, useValue: {{name}}.live }`, so the Effect runtime owns its construction and lifetime. If it is an RxJS stream hub, keep the Observable and produce it from an Effect service.",
-			},
-		},
+    return {
+        meta: {
+            type: 'problem',
+            docs: {
+                description:
+                    'A service is an Effect Context.Service tag with a `live` layer, not a Nest `@Injectable` provider.',
+            },
+            schema: [
+                {
+                    type: 'object',
+                    properties: {
+                        allow: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            uniqueItems: true,
+                        },
+                    },
+                    additionalProperties: false,
+                },
+            ],
+            messages: {
+                injectableService:
+                    '`{{name}}` is a Nest `@Injectable` service. Make it an Effect service — `class {{name}} extends Context.Service<{{name}}, Shape>()("{{name}}")` with a static `live` layer — and provide it from its module as `{ provide: {{name}}, useValue: {{name}}.live }`, so the Effect runtime owns its construction and lifetime. If it is an RxJS stream hub, keep the Observable and produce it from an Effect service.',
+            },
+        },
 
-		create(context) {
-			const options = (context.options[0] ?? {}) as { readonly allow?: readonly string[] };
-			const allowed = new Set(options.allow ?? []);
+        create(context) {
+            const options = (context.options[0] ?? {}) as {
+                readonly allow?: readonly string[]
+            }
+            const allowed = new Set(options.allow ?? [])
 
-			return {
-				ClassDeclaration(raw) {
-					const node = raw as unknown as Node;
-					const name = node.id?.name;
-					if (name === undefined || allowed.has(name)) return;
-					if (!(node.decorators ?? []).some(isInjectable)) return;
+            return {
+                ClassDeclaration(raw) {
+                    const node = raw as unknown as Node
+                    const name = node.id?.name
+                    if (name === undefined || allowed.has(name)) return
+                    if (!(node.decorators ?? []).some(isInjectable)) return
 
-					context.report({ node: node.id as unknown as Rule.Node, messageId: "injectableService", data: { name } });
-				},
-			};
-		},
-	};
+                    context.report({
+                        node: node.id as unknown as Rule.Node,
+                        messageId: 'injectableService',
+                        data: { name },
+                    })
+                },
+            }
+        },
+    }
 }

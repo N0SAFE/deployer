@@ -114,19 +114,26 @@ function rewriteLine(
     let out = line
 
     for (const pattern of PATTERNS) {
-        out = out.replace(pattern, (match, lead: string, quote: string, spec: string) => {
-            const rel = toRelative(spec, fromFile, ctx)
-            if (rel === null) {
-                // Only report an alias we own; a package-name import is expected
-                // to resolve through `exports` and is left exactly as authored.
-                if (ctx.aliases.some((alias) => spec.startsWith(alias.prefix))) {
-                    unresolved.push(spec)
+        out = out.replace(
+            pattern,
+            (match, lead: string, quote: string, spec: string) => {
+                const rel = toRelative(spec, fromFile, ctx)
+                if (rel === null) {
+                    // Only report an alias we own; a package-name import is expected
+                    // to resolve through `exports` and is left exactly as authored.
+                    if (
+                        ctx.aliases.some((alias) =>
+                            spec.startsWith(alias.prefix)
+                        )
+                    ) {
+                        unresolved.push(spec)
+                    }
+                    return match
                 }
-                return match
+                count += 1
+                return `${lead}${quote}${rel}${quote}`
             }
-            count += 1
-            return `${lead}${quote}${rel}${quote}`
-        })
+        )
     }
 
     return { line: out, count, unresolved }

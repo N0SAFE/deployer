@@ -1,22 +1,25 @@
-import { createDecipheriv, scryptSync } from "node:crypto";
+import { createDecipheriv, scryptSync } from 'node:crypto'
 
-import { Data, Effect } from "effect";
+import { Data, Effect } from 'effect'
 
-import { OpenFailed } from "./errors";
-import { isSealedText } from "./sealed-text";
+import { OpenFailed } from './errors'
+import { isSealedText } from './sealed-text'
 
 /** The stored value does not have the legacy `salt:iv:tag:data` shape. */
-export class LegacyFormatInvalid extends Data.TaggedError("LegacyFormatInvalid")<{
-  readonly message: string;
+export class LegacyFormatInvalid extends Data.TaggedError(
+    'LegacyFormatInvalid'
+)<{
+    readonly message: string
 }> {}
 
-const KEY_LENGTH = 32;
+const KEY_LENGTH = 32
 
 /**
  * True for the pre-`SecretBox` format: four `:`-separated hex segments, `salt:iv:authTag:data`.
  * A sealed value starts with `enc:`, so the two can never be confused.
  */
-export const isLegacyCiphertext = (stored: string): boolean => !isSealedText(stored) && stored.split(":").length === 4;
+export const isLegacyCiphertext = (stored: string): boolean =>
+    !isSealedText(stored) && stored.split(':').length === 4
 
 /**
  * Read a value written by the old codec: `scrypt(key, salt, 32)` per value, AES-256-GCM, a
@@ -30,21 +33,39 @@ export const isLegacyCiphertext = (stored: string): boolean => !isSealedText(sto
  * Fails with `LegacyFormatInvalid` (shape) or `OpenFailed` (wrong key or tampered).
  */
 export const readLegacyCiphertext = (
-  stored: string,
-  key: Uint8Array,
+    stored: string,
+    key: Uint8Array
 ): Effect.Effect<string, LegacyFormatInvalid | OpenFailed> => {
-  const parts = stored.split(":");
-  const [saltHex, ivHex, authTagHex, data] = parts;
-  if (parts.length !== 4 || saltHex === undefined || ivHex === undefined || authTagHex === undefined || data === undefined) {
-    return Effect.fail(new LegacyFormatInvalid({ message: "Invalid encrypted data format" }));
-  }
-  return Effect.try({
-    try: () => {
-      const derived = scryptSync(key, Buffer.from(saltHex, "hex"), KEY_LENGTH);
-      const decipher = createDecipheriv("aes-256-gcm", derived, Buffer.from(ivHex, "hex"));
-      decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
-      return decipher.update(data, "hex", "utf8") + decipher.final("utf8");
-    },
-    catch: () => new OpenFailed({ kid: "legacy" }),
-  });
-};
+    const parts = stored.split(':')
+    const [saltHex, ivHex, authTagHex, data] = parts
+    if (
+        parts.length !== 4 ||
+        saltHex === undefined ||
+        ivHex === undefined ||
+        authTagHex === undefined ||
+        data === undefined
+    ) {
+        return Effect.fail(
+            new LegacyFormatInvalid({
+                message: 'Invalid encrypted data format',
+            })
+        )
+    }
+    return Effect.try({
+        try: () => {
+            const derived = scryptSync(
+                key,
+                Buffer.from(saltHex, 'hex'),
+                KEY_LENGTH
+            )
+            const decipher = createDecipheriv(
+                'aes-256-gcm',
+                derived,
+                Buffer.from(ivHex, 'hex')
+            )
+            decipher.setAuthTag(Buffer.from(authTagHex, 'hex'))
+            return decipher.update(data, 'hex', 'utf8') + decipher.final('utf8')
+        },
+        catch: () => new OpenFailed({ kid: 'legacy' }),
+    })
+}

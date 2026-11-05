@@ -332,7 +332,7 @@ export function toUseQuery<
         TQueryKey,
         TParams,
         TPageParam
-    >(({ params }) => func(...(params))) // add a function withDefault to add default params to this function (toUseQuery().withDefault({queryKey: ['example']})({params: [1]})
+    >(({ params }) => func(...params)) // add a function withDefault to add default params to this function (toUseQuery().withDefault({queryKey: ['example']})({params: [1]})
 }
 
 export function toAdvancedUseSuspenseQuery<
@@ -539,7 +539,7 @@ export function toUseSuspenseQuery<
         TQueryKey,
         TParams,
         TPageParam
-    >(({ params }) => func(...(params))) // add a function withDefault to add default params to this function (toUseQuery().withDefault({queryKey: ['example']})({params: [1]})
+    >(({ params }) => func(...params)) // add a function withDefault to add default params to this function (toUseQuery().withDefault({queryKey: ['example']})({params: [1]})
 }
 
 export function toUseMutation<

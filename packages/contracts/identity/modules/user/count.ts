@@ -1,9 +1,9 @@
-import { access } from "@deployer/auth/authz/meta";
-import { userSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { userSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 // Create standard operations builder for users
-const userOps = standard.zod(userSchema, "user");
+const userOps = standard.zod(userSchema, 'user')
 
 // Count contract using builder.
 //
@@ -15,4 +15,8 @@ const userOps = standard.zod(userSchema, "user");
 // untyped filter until that is fixed properly — see the note on
 // `StandardOperationsZod.count`. An untyped filter that works beats a typed one
 // that does not.
-export const userCountContract = userOps.count().errors((e) => [...standardDomainErrorContracts(e)]).meta(access({ permission: "user:list" })).build();
+export const userCountContract = userOps
+    .count()
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: 'user:list' }))
+    .build()

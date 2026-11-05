@@ -25,7 +25,7 @@ export class MeshBaseDomainError extends Error {
         public readonly code: string,
         message: string,
         public readonly httpStatus = 500,
-        public readonly orpcCode = "INTERNAL_SERVER_ERROR",
+        public readonly orpcCode = 'INTERNAL_SERVER_ERROR'
     ) {
         super(message)
         this.name = this.constructor.name
@@ -38,7 +38,12 @@ export class MeshBaseDomainError extends Error {
      * Used by the HTTP exception filter to build the response body
      * without leaking the stack trace.
      */
-    toJSON(): { code: string; message: string; httpStatus: number; orpcCode: string } {
+    toJSON(): {
+        code: string
+        message: string
+        httpStatus: number
+        orpcCode: string
+    } {
         return {
             code: this.code,
             message: this.message,

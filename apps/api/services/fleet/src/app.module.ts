@@ -1,31 +1,31 @@
 import {
-	createModuleContext,
-	EffectHost,
-	EffectRuntimeModule,
-	EffectHostModule,
-} from "@deployer/nest-effect";
-import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
-import { EnvModule } from "@deployer/shared/config/env/env.module";
-import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
-import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
-import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
-import { SwarmInventoryModule } from "@deployer/shared/core/modules/swarm/swarm-inventory.module";
+    createModuleContext,
+    EffectHost,
+    EffectRuntimeModule,
+    EffectHostModule,
+} from '@deployer/nest-effect'
+import { registerSchemaCodecs } from '@deployer/shared/config/drizzle/schema-codecs'
+import { EnvModule } from '@deployer/shared/config/env/env.module'
+import { RoleCatalogueModule } from '@deployer/shared/core/authz/role-catalogue.module'
+import { AuthModule } from '@deployer/shared/core/modules/auth/auth.module'
+import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
+import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module'
+import { MeshCoreModule } from '@deployer/shared/core/modules/mesh/mesh-core.module'
+import { SwarmInventoryModule } from '@deployer/shared/core/modules/swarm/swarm-inventory.module'
 import {
-	DEPENDENCIES,
-	HealthModule,
-	PreflightModule,
-	ServiceClientModule,
-	ServiceHealthModule,
-	createOrpcModule,
-} from "@deployer/shared/server";
+    DEPENDENCIES,
+    HealthModule,
+    PreflightModule,
+    ServiceClientModule,
+    ServiceHealthModule,
+    createOrpcModule,
+} from '@deployer/shared/server'
 
-import { DatabasePortModule } from "./core/database/database.module";
-import { ClusterModule } from "./modules/cluster/cluster.module";
-import { EnrollmentModule } from "./modules/enrollment/enrollment.module";
-import { FleetModule } from "./modules/fleet/fleet.module";
-import { MeshViewModule } from "./modules/mesh-view/mesh-view.module";
+import { DatabasePortModule } from './core/database/database.module'
+import { ClusterModule } from './modules/cluster/cluster.module'
+import { EnrollmentModule } from './modules/enrollment/enrollment.module'
+import { FleetModule } from './modules/fleet/fleet.module'
+import { MeshViewModule } from './modules/mesh-view/mesh-view.module'
 
 // ── THE NODE INVENTORY: WHAT MAKES `/nodes/servers` NON-EMPTY ──────────────
 // `SwarmInventoryModule` owns `NodeInventoryService`, the only writer of the
@@ -51,14 +51,14 @@ import { MeshViewModule } from "./modules/mesh-view/mesh-view.module";
 // Fleet owns the inventory: it already hosts `MeshCoreModule`, and
 // `clusterNodes` is in its own repository (`FleetRepository`).
 
-import { PlatformModule } from "./modules/platform/platform.module";
-import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
-import { ProvidersModule } from "./modules/providers/providers.module";
-import { ReachabilityModule } from "./modules/reachability/reachability.module";
+import { PlatformModule } from './modules/platform/platform.module'
+import { ProviderSchemaModule } from './modules/provider-schema/provider-schema.module'
+import { ProvidersModule } from './modules/providers/providers.module'
+import { ReachabilityModule } from './modules/reachability/reachability.module'
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.
-registerSchemaCodecs();
+registerSchemaCodecs()
 
 /**
  * The fleet service.
@@ -78,74 +78,77 @@ registerSchemaCodecs();
  *   createOrpcModule()          the transport policy, identical in every app
  */
 export class FleetServiceModule extends createModuleContext({
-	imports: [
-		EnvModule,
-		AppLifecycleModule.forRoot(),
-		DatabaseModule,
-		// The authz gate decides from the `roles` table; without this it falls back to the code table
-		// and would refuse every custom role (`SEC-062`, `SEC-055`).
-		RoleCatalogueModule,
-		// The `DatabasePort` Effect key, global: repositories yield it at call time, so every module's
-		// scoped request context must see it (a root `providers` entry is invisible to child modules).
-		DatabasePortModule,
-		// The `EffectHost` every module forks background work on and the request context is read from.
-		EffectHostModule,
-		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
-		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
-		// populates `context.auth`, so the service it injects has to be in this app's
-		// graph. Without it the boot fails with `Nest can't resolve dependencies of
-		// the Symbol(ORPC_NEST_MODULE_CONFIG) … AuthCoreService at index [1]`, which
-		// names neither this module nor the missing import.
-		//
-		// A service is NOT the session authority — the BFF is — but it must still be
-		// able to RESOLVE a session from the request the BFF forwards, which is what
-		// binding the same plugin everywhere buys. This is the identical wiring the
-		// BFF uses, deliberately: the two sides must agree on what a session is.
-		AuthModule,
-		PreflightModule.forRoot({ dependencies: DEPENDENCIES.database }),
-		ServiceHealthModule,
-		HealthModule.forRoot({ indicators: "database" }),
-		// `.effect()` handlers resolve services from `effect/context`. `contextFor(controller)` — not the flat
-		// `host.context()` — is what makes the requirement gate honest: a handler sees its own module's providers, its
-		// imports' exports and the global modules, which is exactly what `UnmetOf` claimed at compile time. Reading the
-		// whole container here let a handler reach a service its module never imported, and the type audit could not see it.
-		createOrpcModule({
-			boundary: { service: 'svc-fleet', passThroughFailures: true },
-			extraContext: {
-				inject: [EffectHost],
-				resolve: (_executionContext, host) =>
-					({ "effect/context": host.contextFor(_executionContext.getClass()) }),
-			},
-		}),
-		// The Effect services of the modules already migrated (see `app.layers.ts`).
-		EffectRuntimeModule,
-		// Fleet receives the webhooks; runtime owns deployments, so fleet reaches it by contract.
-		ServiceClientModule.forRoot(),
+    imports: [
+        EnvModule,
+        AppLifecycleModule.forRoot(),
+        DatabaseModule,
+        // The authz gate decides from the `roles` table; without this it falls back to the code table
+        // and would refuse every custom role (`SEC-062`, `SEC-055`).
+        RoleCatalogueModule,
+        // The `DatabasePort` Effect key, global: repositories yield it at call time, so every module's
+        // scoped request context must see it (a root `providers` entry is invisible to child modules).
+        DatabasePortModule,
+        // The `EffectHost` every module forks background work on and the request context is read from.
+        EffectHostModule,
+        // ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
+        // `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
+        // populates `context.auth`, so the service it injects has to be in this app's
+        // graph. Without it the boot fails with `Nest can't resolve dependencies of
+        // the Symbol(ORPC_NEST_MODULE_CONFIG) … AuthCoreService at index [1]`, which
+        // names neither this module nor the missing import.
+        //
+        // A service is NOT the session authority — the BFF is — but it must still be
+        // able to RESOLVE a session from the request the BFF forwards, which is what
+        // binding the same plugin everywhere buys. This is the identical wiring the
+        // BFF uses, deliberately: the two sides must agree on what a session is.
+        AuthModule,
+        PreflightModule.forRoot({ dependencies: DEPENDENCIES.database }),
+        ServiceHealthModule,
+        HealthModule.forRoot({ indicators: 'database' }),
+        // `.effect()` handlers resolve services from `effect/context`. `contextFor(controller)` — not the flat
+        // `host.context()` — is what makes the requirement gate honest: a handler sees its own module's providers, its
+        // imports' exports and the global modules, which is exactly what `UnmetOf` claimed at compile time. Reading the
+        // whole container here let a handler reach a service its module never imported, and the type audit could not see it.
+        createOrpcModule({
+            boundary: { service: 'svc-fleet', passThroughFailures: true },
+            extraContext: {
+                inject: [EffectHost],
+                resolve: (_executionContext, host) => ({
+                    'effect/context': host.contextFor(
+                        _executionContext.getClass()
+                    ),
+                }),
+            },
+        }),
+        // The Effect services of the modules already migrated (see `app.layers.ts`).
+        EffectRuntimeModule,
+        // Fleet receives the webhooks; runtime owns deployments, so fleet reaches it by contract.
+        ServiceClientModule.forRoot(),
 
-		ClusterModule,
-		FleetModule,
-		// ── WHY FLEET HOSTS THE MESH, AND RUNTIME MUST NOT ──────────────────────
-		// `meshContract` is owned by `@deployer/fleet-contracts`, and the BFF
-		// delegates the `mesh` namespace to "fleet"
-		// (`clients.for("fleet", meshContract)`). `MeshCoreModule` is what
-		// DECLARES those controllers — so without this import every mesh call
-		// through the BFF 404s, because the delegation target served neither.
-		//
-		// `runtime` also imports it, for the dispatcher its docker stack needs
-		// internally. Both register the controllers in their OWN process, which
-		// is harmless: they are separate deployables, and only the one the BFF
-		// targets is reachable from the public surface.
-		MeshCoreModule,
-		// The mesh as the dashboard sees it, read from the node's agent.
-		MeshViewModule,
-		// Takes a node that holds a join token into the fleet.
-		EnrollmentModule,
-		// Enrolls this node into `cluster_nodes` on boot and keeps the fleet
-		// inventory fresh. See the import comment above for what breaks without it.
-		SwarmInventoryModule,
-		PlatformModule,
-		ProvidersModule,
-		ProviderSchemaModule,
-		ReachabilityModule,
-	],
+        ClusterModule,
+        FleetModule,
+        // ── WHY FLEET HOSTS THE MESH, AND RUNTIME MUST NOT ──────────────────────
+        // `meshContract` is owned by `@deployer/fleet-contracts`, and the BFF
+        // delegates the `mesh` namespace to "fleet"
+        // (`clients.for("fleet", meshContract)`). `MeshCoreModule` is what
+        // DECLARES those controllers — so without this import every mesh call
+        // through the BFF 404s, because the delegation target served neither.
+        //
+        // `runtime` also imports it, for the dispatcher its docker stack needs
+        // internally. Both register the controllers in their OWN process, which
+        // is harmless: they are separate deployables, and only the one the BFF
+        // targets is reachable from the public surface.
+        MeshCoreModule,
+        // The mesh as the dashboard sees it, read from the node's agent.
+        MeshViewModule,
+        // Takes a node that holds a join token into the fleet.
+        EnrollmentModule,
+        // Enrolls this node into `cluster_nodes` on boot and keeps the fleet
+        // inventory fresh. See the import comment above for what breaks without it.
+        SwarmInventoryModule,
+        PlatformModule,
+        ProvidersModule,
+        ProviderSchemaModule,
+        ReachabilityModule,
+    ],
 }) {}

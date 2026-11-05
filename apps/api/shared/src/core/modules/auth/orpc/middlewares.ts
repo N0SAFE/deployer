@@ -2,12 +2,15 @@ import { os } from '@orpc/server'
 import { fromNodeHeaders } from 'better-auth/node'
 
 import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
-import { secretsMatch } from "@deployer/auth/server";
-import { runSyncUnwrapped } from "@deployer/effect-core"
+import { secretsMatch } from '@deployer/auth/server'
+import { runSyncUnwrapped } from '@deployer/effect-core'
 import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
-import { makeLenientEnvironment } from "@deployer/environment"
+import { makeLenientEnvironment } from '@deployer/environment'
 import { logger } from '@deployer/logger'
-import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@deployer/orpc-utils'
+import {
+    standardErrorOptions,
+    STANDARD_DOMAIN_ERROR_DEFS,
+} from '@deployer/orpc-utils'
 
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
 
@@ -20,7 +23,6 @@ import type {
     MeshParcourEntry,
     ORPCContextWithAuthOnly,
     ORPCContextWithAuth,
-    
 } from './types'
 import type { Auth } from '../../../../auth'
 import type { IncomingHttpHeaders } from 'http'
@@ -158,7 +160,7 @@ export function authMiddleware() {
             // converted by oRPC to INTERNAL_SERVER_ERROR; no hand-built
             // ORPCError with an off-contract code is ever thrown.
             throw new Error(
-                'Auth context not available. The AuthPlugin must be registered in ORPCModule.',
+                'Auth context not available. The AuthPlugin must be registered in ORPCModule.'
             )
         }
 
@@ -252,7 +254,10 @@ export function requireAuth() {
                     context.auth.user === null
                 ) {
                     throw errors.UNAUTHORIZED(
-                        standardErrorOptions('unauthorized', 'Authentication required'),
+                        standardErrorOptions(
+                            'unauthorized',
+                            'Authentication required'
+                        )
                     )
                 }
 
@@ -265,10 +270,12 @@ export function requireAuth() {
                 return next({
                     context: {
                         ...context,
-                        auth: makeAuthenticatedAuth(context.auth as ORPCAuthContext<true>),
+                        auth: makeAuthenticatedAuth(
+                            context.auth as ORPCAuthContext<true>
+                        ),
                     },
                 })
-            }),
+            })
     )
 }
 
@@ -293,7 +300,7 @@ export function requireAuth() {
  * is expressed in the type instead of asserted.
  */
 function makeAuthenticatedAuth(
-    auth: ORPCAuthContext<true>,
+    auth: ORPCAuthContext<true>
 ): ORPCAuthContext<true> {
     return {
         isLoggedIn: true,
@@ -432,7 +439,10 @@ export function requireMesh() {
 
             if (!internalKey) {
                 throw errors.FORBIDDEN(
-                    standardErrorOptions('forbidden', 'Mesh endpoint requires internal credentials'),
+                    standardErrorOptions(
+                        'forbidden',
+                        'Mesh endpoint requires internal credentials'
+                    )
                 )
             }
 
@@ -441,7 +451,10 @@ export function requireMesh() {
                 const sharedSecret = resolveSharedSecret()
                 if (!sharedSecret) {
                     throw errors.FORBIDDEN(
-                        standardErrorOptions('forbidden', 'Mesh shared secret is not configured'),
+                        standardErrorOptions(
+                            'forbidden',
+                            'Mesh shared secret is not configured'
+                        )
                     )
                 }
                 const verified = verifyPeerServiceToken(
@@ -450,7 +463,10 @@ export function requireMesh() {
                 )
                 if (!verified) {
                     throw errors.UNAUTHORIZED(
-                        standardErrorOptions('unauthorized', 'Invalid or expired peer service token'),
+                        standardErrorOptions(
+                            'unauthorized',
+                            'Invalid or expired peer service token'
+                        )
                     )
                 }
                 const meshCtx = buildMeshContext(
@@ -470,7 +486,10 @@ export function requireMesh() {
             const sharedSecret = resolveSharedSecret()
             if (!sharedSecret) {
                 throw errors.FORBIDDEN(
-                    standardErrorOptions('forbidden', 'Mesh shared secret is not configured'),
+                    standardErrorOptions(
+                        'forbidden',
+                        'Mesh shared secret is not configured'
+                    )
                 )
             }
             // The bare shared secret is compared in constant time (AUTH-008): `===` leaks the expected prefix, and
@@ -480,7 +499,10 @@ export function requireMesh() {
                 : secretsMatch(internalKey.trim(), sharedSecret)
             if (!ok) {
                 throw errors.FORBIDDEN(
-                    standardErrorOptions('forbidden', 'Mesh endpoint requires internal credentials'),
+                    standardErrorOptions(
+                        'forbidden',
+                        'Mesh endpoint requires internal credentials'
+                    )
                 )
             }
             const meshCtx = buildMeshContext(
@@ -515,26 +537,39 @@ export function requireSystemActor(audience: string) {
         .$context<ORPCContextWithAuth>()
         .errors(STANDARD_DOMAIN_ERROR_DEFS)
         .middleware(async ({ context, next, errors }) => {
-            const token = toWebHeaders(context.request.headers).get(SYSTEM_ACTOR_HEADER)
+            const token = toWebHeaders(context.request.headers).get(
+                SYSTEM_ACTOR_HEADER
+            )
             if (!token) {
                 throw errors.UNAUTHORIZED(
-                    standardErrorOptions('unauthorized', 'System actor claim required'),
+                    standardErrorOptions(
+                        'unauthorized',
+                        'System actor claim required'
+                    )
                 )
             }
 
             const secret = (
                 readEnv('BETTER_AUTH_SECRET') ?? readEnv('AUTH_SECRET')
-            )?.toString().trim()
+            )
+                ?.toString()
+                .trim()
             if (!secret) {
                 throw errors.FORBIDDEN(
-                    standardErrorOptions('forbidden', 'Platform secret is not configured'),
+                    standardErrorOptions(
+                        'forbidden',
+                        'Platform secret is not configured'
+                    )
                 )
             }
 
             const claim = verifySystemActorClaim(token, secret, audience)
             if (!claim) {
                 throw errors.UNAUTHORIZED(
-                    standardErrorOptions('unauthorized', 'Invalid or expired system actor claim'),
+                    standardErrorOptions(
+                        'unauthorized',
+                        'Invalid or expired system actor claim'
+                    )
                 )
             }
 
@@ -574,8 +609,8 @@ export function requirePlatformRole(allowedRoles: string[]) {
                     standardErrorOptions(
                         'forbidden',
                         'Insufficient permissions. Required role: ' +
-                        allowedRoles.join(', '),
-                    ),
+                            allowedRoles.join(', ')
+                    )
                 )
             }
 

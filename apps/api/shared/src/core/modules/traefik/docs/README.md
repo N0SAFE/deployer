@@ -10,69 +10,71 @@ The Traefik module provides a comprehensive system for managing Traefik reverse 
 
 ## Documentation Index
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](./ARCHITECTURE.md) | System architecture, component relationships, data flow |
-| [Config Builders](./CONFIG-BUILDERS.md) | Type-safe Traefik configuration builders |
-| [Virtual Filesystem](./VIRTUAL-FILESYSTEM.md) | Database-backed virtual filesystem |
-| [Sync System](./SYNC-SYSTEM.md) | Configuration synchronization to real filesystem |
-| [Error Handling](./ERROR-HANDLING.md) | Error classes and handling patterns |
-| [Events](./EVENTS.md) | Real-time event system |
-| [Middleware Library](./MIDDLEWARE-LIBRARY.md) | Pre-built middleware configurations |
-| [API Reference](./API-REFERENCE.md) | Service APIs and interfaces |
+| Document                                      | Description                                             |
+| --------------------------------------------- | ------------------------------------------------------- |
+| [Architecture](./ARCHITECTURE.md)             | System architecture, component relationships, data flow |
+| [Config Builders](./CONFIG-BUILDERS.md)       | Type-safe Traefik configuration builders                |
+| [Virtual Filesystem](./VIRTUAL-FILESYSTEM.md) | Database-backed virtual filesystem                      |
+| [Sync System](./SYNC-SYSTEM.md)               | Configuration synchronization to real filesystem        |
+| [Error Handling](./ERROR-HANDLING.md)         | Error classes and handling patterns                     |
+| [Events](./EVENTS.md)                         | Real-time event system                                  |
+| [Middleware Library](./MIDDLEWARE-LIBRARY.md) | Pre-built middleware configurations                     |
+| [API Reference](./API-REFERENCE.md)           | Service APIs and interfaces                             |
 
 ## Quick Start
 
 ### Basic Usage
 
 ```typescript
-import { TraefikService } from '@/core/modules/traefik/services/traefik.service';
+import { TraefikService } from '@/core/modules/traefik/services/traefik.service'
 
 @Injectable()
 export class MyService {
-  constructor(private readonly traefikService: TraefikService) {}
+    constructor(private readonly traefikService: TraefikService) {}
 
-  async deployService() {
-    // Create service configuration
-    await this.traefikService.deployServiceConfiguration('my-service', {
-      domain: 'example.com',
-      subdomain: 'api',
-      port: 3000,
-      sslEnabled: true,
-    });
+    async deployService() {
+        // Create service configuration
+        await this.traefikService.deployServiceConfiguration('my-service', {
+            domain: 'example.com',
+            subdomain: 'api',
+            port: 3000,
+            sslEnabled: true,
+        })
 
-    // Sync to filesystem
-    await this.traefikService.syncServiceConfiguration('my-service');
-  }
+        // Sync to filesystem
+        await this.traefikService.syncServiceConfiguration('my-service')
+    }
 }
 ```
 
 ### Using Config Builders
 
 ```typescript
-import { TraefikConfigBuilder } from '@/core/modules/traefik/config-builder/builders';
+import { TraefikConfigBuilder } from '@/core/modules/traefik/config-builder/builders'
 
 const config = new TraefikConfigBuilder()
-  .addRouter('api-router', r => r
-    .rule('Host(`api.example.com`)')
-    .service('api-service')
-    .entryPoints('websecure')
-    .tls({ certResolver: 'letsencrypt' })
-  )
-  .addService('api-service', s => s
-    .loadBalancer(lb => lb
-      .server('http://api:3000')
-      .healthCheck(hc => hc.path('/health').interval('10s'))
+    .addRouter('api-router', (r) =>
+        r
+            .rule('Host(`api.example.com`)')
+            .service('api-service')
+            .entryPoints('websecure')
+            .tls({ certResolver: 'letsencrypt' })
     )
-  )
-  .addMiddleware('cors', m => m
-    .cors({
-      origins: ['https://example.com'],
-      methods: ['GET', 'POST'],
-      credentials: true,
-    })
-  )
-  .build();
+    .addService('api-service', (s) =>
+        s.loadBalancer((lb) =>
+            lb
+                .server('http://api:3000')
+                .healthCheck((hc) => hc.path('/health').interval('10s'))
+        )
+    )
+    .addMiddleware('cors', (m) =>
+        m.cors({
+            origins: ['https://example.com'],
+            methods: ['GET', 'POST'],
+            credentials: true,
+        })
+    )
+    .build()
 ```
 
 ## Module Structure
@@ -114,20 +116,22 @@ Use the config builder system for compile-time type safety:
 
 ```typescript
 // ✅ Type-safe - caught at compile time
-builder.addRouter('api', r => r.rule('Host(`example.com`)').service('api-svc'));
+builder.addRouter('api', (r) =>
+    r.rule('Host(`example.com`)').service('api-svc')
+)
 
 // ❌ Runtime error - missing required properties
-builder.addRouter('api', r => r.rule('Host(`example.com`)')); // No service!
+builder.addRouter('api', (r) => r.rule('Host(`example.com`)')) // No service!
 ```
 
 ### 3. Variable Resolution
 
 Two variable syntaxes are supported:
 
-| Syntax | Service | Use Case |
-|--------|---------|----------|
-| `~##varName##~` | TraefikTemplateService | Template rendering |
-| `{{varName}}` | Config Builder VariableResolver | Runtime config building |
+| Syntax          | Service                         | Use Case                |
+| --------------- | ------------------------------- | ----------------------- |
+| `~##varName##~` | TraefikTemplateService          | Template rendering      |
+| `{{varName}}`   | Config Builder VariableResolver | Runtime config building |
 
 ### 4. Optimized Sync
 
@@ -135,7 +139,7 @@ Only changed configurations are synced:
 
 ```typescript
 // Only syncs configs where: updatedAt > lastSyncedAt OR lastSyncedAt IS NULL
-await traefikService.syncAllConfigurations();
+await traefikService.syncAllConfigurations()
 ```
 
 ## Architecture Rules
@@ -165,6 +169,7 @@ await traefikService.syncAllConfigurations();
 ## Support
 
 For issues or questions, check:
+
 1. Error handling documentation
 2. API reference
 3. Architecture diagrams

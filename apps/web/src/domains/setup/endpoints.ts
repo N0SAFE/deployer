@@ -1,4 +1,4 @@
-import { orpc } from "@/lib/orpc";
+import { orpc } from '@/lib/orpc'
 
 /**
  * Setup contract endpoints — matches the canonical setupContract from @deployer/bff-contracts.
@@ -12,15 +12,15 @@ import { orpc } from "@/lib/orpc";
  * - getPostSetupVerification → do the API and the dashboard really answer?
  */
 export const setupEndpoints = {
-  getState: orpc.setup.getState,
-  getNodeStatus: orpc.setup.getNodeStatus,
-  probeDatabase: orpc.setup.probeDatabase,
-  triggerInitialize: orpc.setup.triggerInitialize,
-  getInitializeStream: orpc.setup.getInitializeStream,
-  listPostSetupHints: orpc.setup.listPostSetupHints,
-  dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
-  getPostSetupVerification: orpc.setup.getPostSetupVerification,
-  getPostSetupVerificationStream: orpc.setup.getPostSetupVerificationStream,
-} as const;
+    getState: orpc.setup.getState,
+    getNodeStatus: orpc.setup.getNodeStatus,
+    probeDatabase: orpc.setup.probeDatabase,
+    triggerInitialize: orpc.setup.triggerInitialize,
+    getInitializeStream: orpc.setup.getInitializeStream,
+    listPostSetupHints: orpc.setup.listPostSetupHints,
+    dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
+    getPostSetupVerification: orpc.setup.getPostSetupVerification,
+    getPostSetupVerificationStream: orpc.setup.getPostSetupVerificationStream,
+} as const
 
-export type SetupEndpoints = typeof setupEndpoints;
+export type SetupEndpoints = typeof setupEndpoints

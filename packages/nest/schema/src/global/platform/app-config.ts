@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, index } from 'drizzle-orm/pg-core'
 
 /**
  * Application configuration store.
@@ -8,15 +8,15 @@ import { pgTable, text, timestamp, index } from 'drizzle-orm/pg-core';
  * Values are JSON-encoded strings.
  */
 export const appConfig = pgTable(
-  'app_config',
-  {
-    key: text('key').primaryKey(),
-    value: text('value').notNull(),
-    description: text('description'),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-    updatedBy: text('updated_by'),
-  },
-  (table) => [
-    index('app_config_key_idx').on(table.key),
-  ],
-);
+    'app_config',
+    {
+        key: text('key').primaryKey(),
+        value: text('value').notNull(),
+        description: text('description'),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .defaultNow()
+            .notNull(),
+        updatedBy: text('updated_by'),
+    },
+    (table) => [index('app_config_key_idx').on(table.key)]
+)

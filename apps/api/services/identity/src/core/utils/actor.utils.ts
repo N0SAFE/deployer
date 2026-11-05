@@ -1,19 +1,19 @@
-import type { Actor as CurrentActor } from "@deployer/effect-core"
+import type { Actor as CurrentActor } from '@deployer/effect-core'
 
 /** The caller, as resolved by the BFF and forwarded over the service boundary. */
 export type Actor = {
-    readonly userId: string;
-    readonly role: string;
+    readonly userId: string
+    readonly role: string
 }
 
 /** The oRPC context shape `requireAuth()` guarantees. */
 export type AuthenticatedContext = {
     auth: {
         user: {
-            id: string;
-            role?: string | null;
-        };
-    };
+            id: string
+            role?: string | null
+        }
+    }
 }
 
 /**
@@ -25,8 +25,8 @@ export type AuthenticatedContext = {
 export function actorFromContext(context: AuthenticatedContext): Actor {
     return {
         userId: context.auth.user.id,
-        role: context.auth.user.role ?? "user",
-    };
+        role: context.auth.user.role ?? 'user',
+    }
 }
 
 /**
@@ -36,7 +36,7 @@ export function actorFromContext(context: AuthenticatedContext): Actor {
  * administrator: a component that needs to act on users must be granted that explicitly.
  */
 export function actorFromCurrent(actor: CurrentActor): Actor {
-    return actor.kind === "user"
+    return actor.kind === 'user'
         ? { userId: actor.id, role: actor.role }
-        : { userId: actor.id, role: "system" };
+        : { userId: actor.id, role: 'system' }
 }

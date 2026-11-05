@@ -1,22 +1,22 @@
-import { Logger } from "@nestjs/common";
-import { Context } from "effect";
+import { Logger } from '@nestjs/common'
+import { Context } from 'effect'
 import {
-  Observable,
-  Subject,
-  catchError,
-  concatMap,
-  from,
-  of,
-  shareReplay,
-  tap,
-} from "rxjs";
+    Observable,
+    Subject,
+    catchError,
+    concatMap,
+    from,
+    of,
+    shareReplay,
+    tap,
+} from 'rxjs'
 
-import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { SetupPhaseService } from '@/modules/health/setup-phase.service'
+import { OrchestrationStreamService } from '@/modules/progress/services/orchestration-stream.service'
 
-import { SwarmBootstrapService } from "./swarm-bootstrap.service";
+import { SwarmBootstrapService } from './swarm-bootstrap.service'
 
-import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
+import type { ClusterBootstrapResult, ClusterEntryMode } from '../cluster.types'
 
 /**
  * Drives the cluster phase as an RxJS pipeline.
@@ -42,149 +42,176 @@ import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types"
  * one execution.
  */
 export class ClusterOrchestratorServiceImpl {
-  private readonly logger = new Logger("ClusterOrchestratorService");
+    private readonly logger = new Logger('ClusterOrchestratorService')
 
-  /**
-   * Retry trigger. A `Subject` (not a `BehaviorSubject`): an intent to
-   * bootstrap is an EDGE, and replaying it to a late subscriber would start a
-   * duplicate attempt. The RESULT stream below is what carries state.
-   */
-  private readonly attempts$ = new Subject<ClusterEntryMode>();
+    /**
+     * Retry trigger. A `Subject` (not a `BehaviorSubject`): an intent to
+     * bootstrap is an EDGE, and replaying it to a late subscriber would start a
+     * duplicate attempt. The RESULT stream below is what carries state.
+     */
+    private readonly attempts$ = new Subject<ClusterEntryMode>()
 
-  private readonly results$: Observable<ClusterBootstrapResult>;
+    private readonly results$: Observable<ClusterBootstrapResult>
 
-  constructor(
-    private readonly bootstrap: SwarmBootstrapService["Service"],
-    private readonly phase: SetupPhaseService["Service"],
-    private readonly orchestration: OrchestrationStreamService["Service"],
-  ) {
-    this.results$ = this.attempts$.pipe(
-      // Announce BEFORE the work: the wizard needs a phase the moment the
-      // attempt starts, not after the engine answers.
-      tap(() => {
-        this.phase.record("clustering", "Founding or joining the cluster…");
-        // The SAME moment, on the wizard's timeline: the orchestration step is
-        // how the operator sees the swarm being started. The phase drives the
-        // compose gate and `/setup/state`; the step drives the progress view.
-        this.orchestration.snapshot([
-          { id: "initialize_swarm", status: "in_progress" },
-          { id: "start_api", status: "pending" },
-          { id: "await_api_boot", status: "pending" },
-        ]);
-        this.orchestration.log("initialize_swarm", "Founding or joining the swarm…");
-      }),
-      // `concatMap` serialises: see the class note.
-      concatMap((mode) =>
-        from(this.bootstrap.bootstrap(mode)).pipe(
-          catchError((error: unknown) => {
-            // The service already converts throwable failures to data, so
-            // reaching here means an unexpected fault (e.g. a DI failure).
-            // Convert it to the same shape so consumers have ONE contract.
-            const reason = error instanceof Error ? error.message : String(error);
-            this.logger.error(`Cluster attempt faulted outside the service: ${reason}`);
-            return of<ClusterBootstrapResult>({ ok: false, reason });
-          }),
-        ),
-      ),
-      tap((result) => {
-        if (result.ok) {
-          // ── THE GATE OPENS HERE ────────────────────────────────────────────
-          // `launching` means "the platform may start the API", and the swarm
-          // must exist BEFORE it does: the API's own supervisors schedule their
-          // services onto this cluster, and a swarm GLOBAL service cannot be
-          // created on an engine that is not a swarm.
-          //
-          // Reporting `collecting` here (as this did when the cluster converged
-          // at BOOT) would now be wrong: by the time this runs the wizard has
-          // already finished collecting, and the operator is watching a
-          // progress screen, not a form.
-          this.orchestration.log(
-            "initialize_swarm",
-            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s))`,
-          );
-          this.orchestration.snapshot([
-            { id: "initialize_swarm", status: "completed" },
-            { id: "start_api", status: "in_progress" },
-            { id: "await_api_boot", status: "pending" },
-          ]);
+    constructor(
+        private readonly bootstrap: SwarmBootstrapService['Service'],
+        private readonly phase: SetupPhaseService['Service'],
+        private readonly orchestration: OrchestrationStreamService['Service']
+    ) {
+        this.results$ = this.attempts$.pipe(
+            // Announce BEFORE the work: the wizard needs a phase the moment the
+            // attempt starts, not after the engine answers.
+            tap(() => {
+                this.phase.record(
+                    'clustering',
+                    'Founding or joining the cluster…'
+                )
+                // The SAME moment, on the wizard's timeline: the orchestration step is
+                // how the operator sees the swarm being started. The phase drives the
+                // compose gate and `/setup/state`; the step drives the progress view.
+                this.orchestration.snapshot([
+                    { id: 'initialize_swarm', status: 'in_progress' },
+                    { id: 'start_api', status: 'pending' },
+                    { id: 'await_api_boot', status: 'pending' },
+                ])
+                this.orchestration.log(
+                    'initialize_swarm',
+                    'Founding or joining the swarm…'
+                )
+            }),
+            // `concatMap` serialises: see the class note.
+            concatMap((mode) =>
+                from(this.bootstrap.bootstrap(mode)).pipe(
+                    catchError((error: unknown) => {
+                        // The service already converts throwable failures to data, so
+                        // reaching here means an unexpected fault (e.g. a DI failure).
+                        // Convert it to the same shape so consumers have ONE contract.
+                        const reason =
+                            error instanceof Error
+                                ? error.message
+                                : String(error)
+                        this.logger.error(
+                            `Cluster attempt faulted outside the service: ${reason}`
+                        )
+                        return of<ClusterBootstrapResult>({ ok: false, reason })
+                    })
+                )
+            ),
+            tap((result) => {
+                if (result.ok) {
+                    // ── THE GATE OPENS HERE ────────────────────────────────────────────
+                    // `launching` means "the platform may start the API", and the swarm
+                    // must exist BEFORE it does: the API's own supervisors schedule their
+                    // services onto this cluster, and a swarm GLOBAL service cannot be
+                    // created on an engine that is not a swarm.
+                    //
+                    // Reporting `collecting` here (as this did when the cluster converged
+                    // at BOOT) would now be wrong: by the time this runs the wizard has
+                    // already finished collecting, and the operator is watching a
+                    // progress screen, not a form.
+                    this.orchestration.log(
+                        'initialize_swarm',
+                        `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s))`
+                    )
+                    this.orchestration.snapshot([
+                        { id: 'initialize_swarm', status: 'completed' },
+                        { id: 'start_api', status: 'in_progress' },
+                        { id: 'await_api_boot', status: 'pending' },
+                    ])
 
-          this.phase.record(
-            "launching",
-            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — the platform API may start`,
-          );
-        } else {
-          // Sticky failure: the operator must see it until they retry.
-          this.orchestration.log("initialize_swarm", `Failed: ${result.reason}`);
-          this.orchestration.snapshot([
-            { id: "initialize_swarm", status: "failed", error: result.reason },
-            { id: "start_api", status: "pending" },
-            { id: "await_api_boot", status: "pending" },
-          ]);
-          this.phase.fail(`Cluster bootstrap failed: ${result.reason}`);
-        }
-      }),
-      // One execution, replayed to every subscriber (state + wizard).
-      shareReplay({ bufferSize: 1, refCount: false }),
-    );
+                    this.phase.record(
+                        'launching',
+                        `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — the platform API may start`
+                    )
+                } else {
+                    // Sticky failure: the operator must see it until they retry.
+                    this.orchestration.log(
+                        'initialize_swarm',
+                        `Failed: ${result.reason}`
+                    )
+                    this.orchestration.snapshot([
+                        {
+                            id: 'initialize_swarm',
+                            status: 'failed',
+                            error: result.reason,
+                        },
+                        { id: 'start_api', status: 'pending' },
+                        { id: 'await_api_boot', status: 'pending' },
+                    ])
+                    this.phase.fail(
+                        `Cluster bootstrap failed: ${result.reason}`
+                    )
+                }
+            }),
+            // One execution, replayed to every subscriber (state + wizard).
+            shareReplay({ bufferSize: 1, refCount: false })
+        )
 
-    // A pipeline with no subscriber never runs. This subscription is what makes
-    // `attempts$` hot, so the HTTP handler can push and forget.
-    this.results$.subscribe({
-      error: (error: unknown) => {
-        // `catchError` above should make this unreachable; logging it here
-        // means a future refactor that breaks that invariant is visible
-        // instead of silently wedging the pipeline.
-        this.logger.error(`Cluster pipeline terminated: ${String(error)}`);
-      },
-    });
-  }
+        // A pipeline with no subscriber never runs. This subscription is what makes
+        // `attempts$` hot, so the HTTP handler can push and forget.
+        this.results$.subscribe({
+            error: (error: unknown) => {
+                // `catchError` above should make this unreachable; logging it here
+                // means a future refactor that breaks that invariant is visible
+                // instead of silently wedging the pipeline.
+                this.logger.error(
+                    `Cluster pipeline terminated: ${String(error)}`
+                )
+            },
+        })
+    }
 
-  /**
-   * The cluster phase is STARTED BY THE WIZARD, not by app boot.
-   *
-   * ── WHY THIS IS NOT `onApplicationBootstrap` ANY MORE ───────────────────────
-   * The engine must be untouched until the operator has said how this node joins
-   * the cluster. Founding one is not reversible without destroying Raft state,
-   * so a node that is about to JOIN a fleet must not have already invented a
-   * cluster of its own — and auto-founding at boot is exactly how that happened.
-   *
-   * The wizard is the only thing that knows the answer, so it is the only thing
-   * that may start this. `SetupGateService.open()` calls `start(mode)` with the
-   * operator's choice, which is also what keeps the ordering in ONE place:
-   *
-   *   1. swarm (HERE — the engine must exist before anything can be scheduled)
-   *   2. the API, scheduled onto that swarm
-   *   3. the ingress, which the API converges as a swarm service
-   *
-   * The ordering matters mechanically, not cosmetically: a swarm GLOBAL service
-   * cannot be created on an engine that is not a swarm, so doing any of the later
-   * steps first fails.
-   *
-   * ── THE RESTART PATH ────────────────────────────────────────────────────────
-   * `SetupGateService.onApplicationBootstrap()` opens the gate immediately when
-   * `node_config.setupState` is already `setup_done`, and it calls `start()`
-   * itself — so a restart still converges without a wizard. The difference is
-   * that the decision comes from the PERSISTED row, not from a default.
-   */
+    /**
+     * The cluster phase is STARTED BY THE WIZARD, not by app boot.
+     *
+     * ── WHY THIS IS NOT `onApplicationBootstrap` ANY MORE ───────────────────────
+     * The engine must be untouched until the operator has said how this node joins
+     * the cluster. Founding one is not reversible without destroying Raft state,
+     * so a node that is about to JOIN a fleet must not have already invented a
+     * cluster of its own — and auto-founding at boot is exactly how that happened.
+     *
+     * The wizard is the only thing that knows the answer, so it is the only thing
+     * that may start this. `SetupGateService.open()` calls `start(mode)` with the
+     * operator's choice, which is also what keeps the ordering in ONE place:
+     *
+     *   1. swarm (HERE — the engine must exist before anything can be scheduled)
+     *   2. the API, scheduled onto that swarm
+     *   3. the ingress, which the API converges as a swarm service
+     *
+     * The ordering matters mechanically, not cosmetically: a swarm GLOBAL service
+     * cannot be created on an engine that is not a swarm, so doing any of the later
+     * steps first fails.
+     *
+     * ── THE RESTART PATH ────────────────────────────────────────────────────────
+     * `SetupGateService.onApplicationBootstrap()` opens the gate immediately when
+     * `node_config.setupState` is already `setup_done`, and it calls `start()`
+     * itself — so a restart still converges without a wizard. The difference is
+     * that the decision comes from the PERSISTED row, not from a default.
+     */
 
-  /**
-   * Start (or retry) the cluster phase.
-   *
-   * Safe to call while one is running: `concatMap` queues it, so a retry clicked
-   * during an in-flight attempt cannot race the engine.
-   */
-  start(mode: ClusterEntryMode): void {
-    this.attempts$.next(mode);
-  }
+    /**
+     * Start (or retry) the cluster phase.
+     *
+     * Safe to call while one is running: `concatMap` queues it, so a retry clicked
+     * during an in-flight attempt cannot race the engine.
+     */
+    start(mode: ClusterEntryMode): void {
+        this.attempts$.next(mode)
+    }
 
-  /** The result stream, for consumers that want to REACT rather than poll. */
-  get stream$(): Observable<ClusterBootstrapResult> {
-    return this.results$;
-  }
+    /** The result stream, for consumers that want to REACT rather than poll. */
+    get stream$(): Observable<ClusterBootstrapResult> {
+        return this.results$
+    }
 }
 
 /** The tag: what a module provides and a consumer asks for (`ClusterOrchestratorService["Service"]` is its type). */
-export class ClusterOrchestratorService extends Context.Service<ClusterOrchestratorService, ClusterOrchestratorServiceImpl>()("setup/ClusterOrchestratorService") {}
+export class ClusterOrchestratorService extends Context.Service<
+    ClusterOrchestratorService,
+    ClusterOrchestratorServiceImpl
+>()('setup/ClusterOrchestratorService') {}
 
 /** The one way to build it — the module's `useFactory` and a spec both call this. */
-export const makeClusterOrchestratorService = (...args: ConstructorParameters<typeof ClusterOrchestratorServiceImpl>): ClusterOrchestratorServiceImpl => new ClusterOrchestratorServiceImpl(...args);
+export const makeClusterOrchestratorService = (
+    ...args: ConstructorParameters<typeof ClusterOrchestratorServiceImpl>
+): ClusterOrchestratorServiceImpl => new ClusterOrchestratorServiceImpl(...args)

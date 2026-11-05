@@ -52,6 +52,7 @@ bunx vitest run --project '*unit*'               # unit only
 The e2e project starts a real Postgres container from its `globalSetup`. Fourteen apps share `createServiceTestConfig`, so making it unconditional started fourteen containers per run and they outlived killed workers. Set `VITEST_E2E=1` to include it; plain `test` runs only the unit project.
 
 Docker must be reachable. The harness lives in `apps/api/shared/src/e2e-harness`; the full guide (writing a spec, the per-app `@/e2e/runtime` binding, environment flags, troubleshooting) is `apps/api/docs/e2e-testing.md`. The default `E2E_DOCKER_CLEANUP=true` removes only orphaned containers that Testcontainers started and that carry the `deployer.e2e` label; a real stack on the same Docker host is not affected.
+
 </DocCallout>
 
 ## Coverage workflow
@@ -71,16 +72,23 @@ Treat coverage as a signal, not the only target: behavior-critical paths and int
 4. **Shared packages used by multiple apps**
 
 <DocCallout title="High-signal testing rule" tone="info">
-Prefer tests that validate contracts, permission boundaries, and edge behavior over tests tightly coupled to implementation details.
+    Prefer tests that validate contracts, permission boundaries, and edge
+    behavior over tests tightly coupled to implementation details.
 </DocCallout>
 
 ## PR readiness checklist
 
 <DocChecklist
-	items={[
-		{ label: 'New behavior covered by tests in the owning package/app', done: false },
-		{ label: 'Regression path covered for the bug being fixed', done: false },
-		{ label: 'bun run check passes locally', done: false },
-		{ label: 'No skipped tests left without explicit reason', done: false },
-	]}
+    items={[
+        {
+            label: 'New behavior covered by tests in the owning package/app',
+            done: false,
+        },
+        {
+            label: 'Regression path covered for the bug being fixed',
+            done: false,
+        },
+        { label: 'bun run check passes locally', done: false },
+        { label: 'No skipped tests left without explicit reason', done: false },
+    ]}
 />

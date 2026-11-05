@@ -3,7 +3,8 @@ import zod from 'zod/v4'
 /**
  * Helper to trim trailing slash from URLs
  */
-export const trimTrailingSlash = (url: string) => (url.endsWith('/') ? url.slice(0, -1) : url)
+export const trimTrailingSlash = (url: string) =>
+    url.endsWith('/') ? url.slice(0, -1) : url
 
 /**
  * Helper to create URL validators with production guards.
@@ -55,7 +56,10 @@ export const guardedUrl = (name: string, fallback: string) =>
                 return
             }
             if (!zod.url().safeParse(val).success) {
-                ctx.addIssue({ code: 'custom', message: `${name} must be a valid URL` })
+                ctx.addIssue({
+                    code: 'custom',
+                    message: `${name} must be a valid URL`,
+                })
                 return
             }
             ctx.value = val
@@ -72,16 +76,21 @@ export const guardedUrl = (name: string, fallback: string) =>
  * - "*" (match everything)
  * - "middleware/*,auth/test,api/{users,posts}/**" (multiple patterns)
  */
-export const parseDebugScopes = (input: string): { patterns: string[], enableAll: boolean } => {
+export const parseDebugScopes = (
+    input: string
+): { patterns: string[]; enableAll: boolean } => {
     if (!input || input.trim() === '') {
         return { patterns: [], enableAll: false }
     }
-    
-    const scopes = input.split(',').map(s => s.trim()).filter(Boolean)
+
+    const scopes = input
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
     const enableAll = scopes.includes('*')
-    
+
     return {
         patterns: scopes,
-        enableAll
+        enableAll,
     }
 }

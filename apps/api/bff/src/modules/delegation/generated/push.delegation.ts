@@ -26,50 +26,62 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { pushContract } from "@deployer/identity-contracts";
+import { pushContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class PushDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", pushContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', pushContract)
+    }
 
-	@Implement(pushContract.subscribe)
-	subscribe() {
-		return implement(pushContract.subscribe).handler(({ input }) => this.client.subscribe(input));
-	}
+    @Implement(pushContract.subscribe)
+    subscribe() {
+        return implement(pushContract.subscribe).handler(({ input }) =>
+            this.client.subscribe(input)
+        )
+    }
 
-	@Implement(pushContract.unsubscribe)
-	unsubscribe() {
-		return implement(pushContract.unsubscribe).handler(({ input }) => this.client.unsubscribe(input));
-	}
+    @Implement(pushContract.unsubscribe)
+    unsubscribe() {
+        return implement(pushContract.unsubscribe).handler(({ input }) =>
+            this.client.unsubscribe(input)
+        )
+    }
 
-	@Implement(pushContract.getPublicKey)
-	getPublicKey() {
-		return implement(pushContract.getPublicKey).handler(({ input }) => this.client.getPublicKey(input));
-	}
+    @Implement(pushContract.getPublicKey)
+    getPublicKey() {
+        return implement(pushContract.getPublicKey).handler(({ input }) =>
+            this.client.getPublicKey(input)
+        )
+    }
 
-	@Implement(pushContract.getSubscriptions)
-	getSubscriptions() {
-		return implement(pushContract.getSubscriptions).handler(({ input }) => this.client.getSubscriptions(input));
-	}
+    @Implement(pushContract.getSubscriptions)
+    getSubscriptions() {
+        return implement(pushContract.getSubscriptions).handler(({ input }) =>
+            this.client.getSubscriptions(input)
+        )
+    }
 
-	@Implement(pushContract.sendTestNotification)
-	sendTestNotification() {
-		return implement(pushContract.sendTestNotification).handler(({ input }) => this.client.sendTestNotification(input));
-	}
+    @Implement(pushContract.sendTestNotification)
+    sendTestNotification() {
+        return implement(pushContract.sendTestNotification).handler(
+            ({ input }) => this.client.sendTestNotification(input)
+        )
+    }
 
-	@Implement(pushContract.getStats)
-	getStats() {
-		return implement(pushContract.getStats).handler(({ input }) => this.client.getStats(input));
-	}
+    @Implement(pushContract.getStats)
+    getStats() {
+        return implement(pushContract.getStats).handler(({ input }) =>
+            this.client.getStats(input)
+        )
+    }
 }

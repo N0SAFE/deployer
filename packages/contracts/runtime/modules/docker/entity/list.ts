@@ -1,10 +1,9 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { dockerEntityStreamChunkSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { dockerEntityStreamChunkSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-import { dockerEntityListInputSchema } from "./shared";
-
+import { dockerEntityListInputSchema } from './shared'
 
 /**
  * `data` reuses the discriminated `DockerEntityStreamChunk` shape so a
@@ -17,25 +16,27 @@ import { dockerEntityListInputSchema } from "./shared";
  * payload came from the in-memory cache or was freshly computed.
  */
 const dockerEntityListResponseSchema = z.object({
-  kind: z.string().min(1),
-  data: z.array(dockerEntityStreamChunkSchema),
-  etag: z.string().min(1).optional(),
-  hit: z.boolean().optional(),
+    kind: z.string().min(1),
+    data: z.array(dockerEntityStreamChunkSchema),
+    etag: z.string().min(1).optional(),
+    hit: z.boolean().optional(),
 })
-export type DockerEntityListResponse = z.infer<typeof dockerEntityListResponseSchema>
+export type DockerEntityListResponse = z.infer<
+    typeof dockerEntityListResponseSchema
+>
 
 const dockerEntityListOps = standard.zod(
-  dockerEntityListResponseSchema,
-  "dockerEntityList",
+    dockerEntityListResponseSchema,
+    'dockerEntityList'
 )
 
 export const dockerEntityListContract = dockerEntityListOps
-  .list()
-  .path("/list")
-  .input((b) => b.body(dockerEntityListInputSchema))
-  .output((b) => b.body(dockerEntityListResponseSchema))
-  .errors((e) => [
-    // Docker daemon unreachable / permission errors surface here.
-    ...standardDomainErrorContracts(e),
-  ])
-  .build()
+    .list()
+    .path('/list')
+    .input((b) => b.body(dockerEntityListInputSchema))
+    .output((b) => b.body(dockerEntityListResponseSchema))
+    .errors((e) => [
+        // Docker daemon unreachable / permission errors surface here.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build()

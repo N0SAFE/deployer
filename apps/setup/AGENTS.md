@@ -69,15 +69,15 @@ the phase check.
 Every state change is published and every consumer subscribes. There is **zero**
 `setInterval` in this app.
 
-| Service | Primitive | Why |
-|---|---|---|
-| `SetupPhaseService` | `BehaviorSubject` for state, plain `Subject` for edges | a late reader gets the current value, but an EDGE is never replayed (replaying "on failure, recover" would re-fire handled work) |
-| `ClusterOrchestratorService` | `concatMap` over a `Subject` | serialises attempts so a retry cannot race the engine founding a cluster |
+| Service                       | Primitive                                                                             | Why                                                                                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SetupPhaseService`           | `BehaviorSubject` for state, plain `Subject` for edges                                | a late reader gets the current value, but an EDGE is never replayed (replaying "on failure, recover" would re-fire handled work)                                                            |
+| `ClusterOrchestratorService`  | `concatMap` over a `Subject`                                                          | serialises attempts so a retry cannot race the engine founding a cluster                                                                                                                    |
 | `HandoverOrchestratorService` | `concatMap` over a `Subject`, triggered by the **gate edge** (`onEnter("launching")`) | starts the moment the details are collected — so in prod it schedules the API only AFTER a database is known; serialises retries so two handovers cannot race on the same two ingress files |
-| `ApiReadinessWatcherService` | `timer` + `switchMap` | `switchMap` CANCELS an in-flight probe, so a slow API cannot accumulate overlapping polls |
-| `WizardStreamService` | `takeUntil(clientGone)` | one teardown path for both the response and the upstream reader |
-| `SetupExitService` | `onEnter("ready")` | exits on the terminal phase only |
-| `SetupGateService` | `implements OnApplicationBootstrap` + `open()` | the single writer of the gate: persists the choices, then publishes `launching` |
+| `ApiReadinessWatcherService`  | `timer` + `switchMap`                                                                 | `switchMap` CANCELS an in-flight probe, so a slow API cannot accumulate overlapping polls                                                                                                   |
+| `WizardStreamService`         | `takeUntil(clientGone)`                                                               | one teardown path for both the response and the upstream reader                                                                                                                             |
+| `SetupExitService`            | `onEnter("ready")`                                                                    | exits on the terminal phase only                                                                                                                                                            |
+| `SetupGateService`            | `implements OnApplicationBootstrap` + `open()`                                        | the single writer of the gate: persists the choices, then publishes `launching`                                                                                                             |
 
 Rules when adding state:
 
@@ -120,16 +120,16 @@ no surface to recover from.
 
 ## The final step: the stream crosses the swap, and the button is gated on proof
 
-The wizard reaches this app *through* the bootstrap Traefik, so `promote_ingress`
+The wizard reaches this app _through_ the bootstrap Traefik, so `promote_ingress`
 (which removes that Traefik) **tears the wizard's connection down**. Everything
 below follows from that:
 
-- **`completed` is not the end.** The API's `completed` arrives *before* the swap.
+- **`completed` is not the end.** The API's `completed` arrives _before_ the swap.
   The client treats the stream as finished only when the run failed or the whole
   pipeline is done (`isSetupRunFinished` in `@deployer/ui`), so a dropped connection
   is retried instead of freezing the timeline.
 - **A reconnect is a re-sync.** `orchestratedStream` sends the step definitions,
-  the *current* snapshot, then the live tail — history is skipped. A terminal
+  the _current_ snapshot, then the live tail — history is skipped. A terminal
   event is a fact about the run, not a delta, so `OrchestrationStreamService`
   remembers it (`terminalEvent()`) and replays it with the snapshot.
 - **A failed handover is reported on the stream**, not only on the phase:

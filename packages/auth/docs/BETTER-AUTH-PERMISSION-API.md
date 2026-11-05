@@ -17,9 +17,9 @@ This document provides a comprehensive guide to the Better Auth permission check
 
 Better Auth provides two main plugins for permission management:
 
-| Plugin | Purpose | Scope |
-|--------|---------|-------|
-| **Admin Plugin** | Global user role management | Application-wide permissions |
+| Plugin                  | Purpose                              | Scope                           |
+| ----------------------- | ------------------------------------ | ------------------------------- |
+| **Admin Plugin**        | Global user role management          | Application-wide permissions    |
 | **Organization Plugin** | Multi-tenant organization management | Organization-scoped permissions |
 
 Both plugins share a similar permission-checking API but operate in different contexts.
@@ -33,16 +33,16 @@ Both plugins share a similar permission-checking API but operate in different co
 Both plugins use the same `createAccessControl` function to define permissions:
 
 ```typescript
-import { createAccessControl } from "better-auth/plugins/access";
+import { createAccessControl } from 'better-auth/plugins/access'
 
 // Define your permission statements
 const statement = {
-    project: ["create", "share", "update", "delete"],
-    user: ["create", "read", "update", "delete", "ban"],
-    session: ["revoke", "list"]
-} as const;  // ⚠️ IMPORTANT: Use `as const` for TypeScript inference
+    project: ['create', 'share', 'update', 'delete'],
+    user: ['create', 'read', 'update', 'delete', 'ban'],
+    session: ['revoke', 'list'],
+} as const // ⚠️ IMPORTANT: Use `as const` for TypeScript inference
 
-const ac = createAccessControl(statement);
+const ac = createAccessControl(statement)
 ```
 
 ### Defining Roles
@@ -50,38 +50,38 @@ const ac = createAccessControl(statement);
 ```typescript
 // Create roles using the access controller
 export const user = ac.newRole({
-    project: ["create", "read"]
-});
+    project: ['create', 'read'],
+})
 
 export const admin = ac.newRole({
-    project: ["create", "read", "update", "delete"],
-    user: ["read", "update", "ban"]
-});
+    project: ['create', 'read', 'update', 'delete'],
+    user: ['read', 'update', 'ban'],
+})
 
 export const superadmin = ac.newRole({
-    project: ["create", "read", "update", "delete"],
-    user: ["create", "read", "update", "delete", "ban"],
-    session: ["revoke", "list"]
-});
+    project: ['create', 'read', 'update', 'delete'],
+    user: ['create', 'read', 'update', 'delete', 'ban'],
+    session: ['revoke', 'list'],
+})
 ```
 
 ### Extending Default Permissions
 
 ```typescript
-import { defaultStatements, adminAc } from "better-auth/plugins/admin/access";
+import { defaultStatements, adminAc } from 'better-auth/plugins/admin/access'
 
 const statement = {
-    ...defaultStatements,  // Include default admin statements
-    project: ["create", "share", "update", "delete"]
-} as const;
+    ...defaultStatements, // Include default admin statements
+    project: ['create', 'share', 'update', 'delete'],
+} as const
 
-const ac = createAccessControl(statement);
+const ac = createAccessControl(statement)
 
 // Extend existing role with custom permissions
 const admin = ac.newRole({
-    project: ["create", "update"],
-    ...adminAc.statements  // Include default admin permissions
-});
+    project: ['create', 'update'],
+    ...adminAc.statements, // Include default admin permissions
+})
 ```
 
 ---
@@ -91,23 +91,24 @@ const admin = ac.newRole({
 ### Plugin Setup
 
 ```typescript
-import { betterAuth } from "better-auth";
-import { admin as adminPlugin } from "better-auth/plugins";
-import { ac, admin, user } from "@/auth/permissions";
+import { betterAuth } from 'better-auth'
+import { admin as adminPlugin } from 'better-auth/plugins'
+import { ac, admin, user } from '@/auth/permissions'
 
 export const auth = betterAuth({
     plugins: [
         adminPlugin({
-            ac,                    // Access controller
-            roles: {               // Role definitions
+            ac, // Access controller
+            roles: {
+                // Role definitions
                 admin,
                 user,
             },
-            defaultRole: "user",   // Default role for new users
-            adminRoles: ["admin", "superadmin"]  // Roles considered "admin"
-        })
-    ]
-});
+            defaultRole: 'user', // Default role for new users
+            adminRoles: ['admin', 'superadmin'], // Roles considered "admin"
+        }),
+    ],
+})
 ```
 
 ### Permission Checking Methods
@@ -120,17 +121,17 @@ Checks if the **current logged-in user** has specific permissions. Makes a serve
 // Client-side usage
 const canCreateProject = await authClient.admin.hasPermission({
     permissions: {
-        project: ["create"],
+        project: ['create'],
     },
-});
+})
 
 // Check multiple permissions
 const canManageUsers = await authClient.admin.hasPermission({
     permissions: {
-        user: ["create", "delete"],
-        session: ["revoke"]
+        user: ['create', 'delete'],
+        session: ['revoke'],
     },
-});
+})
 ```
 
 #### 2. `checkRolePermission` (Client-Side - Sync)
@@ -141,19 +142,19 @@ Checks if a **specific role** has permissions. Runs synchronously without server
 // Synchronous - no await needed
 const adminCanDeleteUser = authClient.admin.checkRolePermission({
     permissions: {
-        user: ["delete"],
+        user: ['delete'],
     },
-    role: "admin",
-});
+    role: 'admin',
+})
 
 // Check multiple permissions for a role
 const roleCanManage = authClient.admin.checkRolePermission({
     permissions: {
-        user: ["delete"],
-        session: ["revoke"]
+        user: ['delete'],
+        session: ['revoke'],
     },
-    role: "admin",
-});
+    role: 'admin',
+})
 ```
 
 **⚠️ Note:** `checkRolePermission` does NOT check dynamic roles - use `hasPermission` for dynamic role checks.
@@ -163,28 +164,28 @@ const roleCanManage = authClient.admin.checkRolePermission({
 Server-side API to check permissions for any user or role.
 
 ```typescript
-import { auth } from "@/auth";
+import { auth } from '@/auth'
 
 // Check by user ID
 await auth.api.userHasPermission({
     body: {
         userId: 'user-id-here',
         permissions: {
-            project: ["create"],
+            project: ['create'],
         },
     },
-});
+})
 
 // Check by role directly
 await auth.api.userHasPermission({
     body: {
-        role: "admin",
+        role: 'admin',
         permissions: {
-            project: ["create"],
-            user: ["delete"]
+            project: ['create'],
+            user: ['delete'],
         },
     },
-});
+})
 ```
 
 #### 4. REST API Endpoint
@@ -212,9 +213,9 @@ Response: true | false
 ### Plugin Setup
 
 ```typescript
-import { betterAuth } from "better-auth";
-import { organization } from "better-auth/plugins";
-import { ac, owner, admin, member } from "@/auth/permissions";
+import { betterAuth } from 'better-auth'
+import { organization } from 'better-auth/plugins'
+import { ac, owner, admin, member } from '@/auth/permissions'
 
 export const auth = betterAuth({
     plugins: [
@@ -231,16 +232,16 @@ export const auth = betterAuth({
             },
         }),
     ],
-});
+})
 ```
 
 ### Default Organization Roles
 
-| Role | organization | member | invitation |
-|------|:------------:|:------:|:----------:|
-| **Owner** | update, delete | create, update, delete | create, cancel |
-| **Admin** | update | create, update, delete | create, cancel |
-| **Member** | - | - | - |
+| Role       |  organization  |         member         |   invitation   |
+| ---------- | :------------: | :--------------------: | :------------: |
+| **Owner**  | update, delete | create, update, delete | create, cancel |
+| **Admin**  |     update     | create, update, delete | create, cancel |
+| **Member** |       -        |           -            |       -        |
 
 ### Permission Checking Methods
 
@@ -252,17 +253,17 @@ Checks permissions for the current user **within their active organization**.
 // Client-side usage
 const canCreateProject = await authClient.organization.hasPermission({
     permissions: {
-        project: ["create"],
+        project: ['create'],
     },
-});
+})
 
 // Check multiple permissions
 const canManageOrg = await authClient.organization.hasPermission({
     permissions: {
-        organization: ["update", "delete"],
-        member: ["create", "delete"],
+        organization: ['update', 'delete'],
+        member: ['create', 'delete'],
     },
-});
+})
 ```
 
 #### 2. `checkRolePermission` (Client-Side - Sync)
@@ -272,19 +273,19 @@ Synchronous role permission check (no dynamic roles).
 ```typescript
 const adminCanDelete = authClient.organization.checkRolePermission({
     permissions: {
-        organization: ["delete"],
+        organization: ['delete'],
     },
-    role: "admin",
-});
+    role: 'admin',
+})
 
 // Multiple resources
 const canManage = authClient.organization.checkRolePermission({
     permissions: {
-        organization: ["delete"],
-        member: ["delete"],
+        organization: ['delete'],
+        member: ['delete'],
     },
-    role: "owner",
-});
+    role: 'owner',
+})
 ```
 
 #### 3. `hasPermission` (Server-Side API)
@@ -292,32 +293,32 @@ const canManage = authClient.organization.checkRolePermission({
 Server-side permission check within organization context.
 
 ```typescript
-import { auth } from "@/auth";
-import { headers } from "next/headers";
+import { auth } from '@/auth'
+import { headers } from 'next/headers'
 
 await auth.api.hasPermission({
-    headers: await headers(),  // ⚠️ Requires headers for session context
+    headers: await headers(), // ⚠️ Requires headers for session context
     body: {
         permissions: {
-            project: ["create"],
+            project: ['create'],
         },
     },
-});
+})
 ```
 
 ---
 
 ## Key Differences
 
-| Feature | Admin Plugin | Organization Plugin |
-|---------|-------------|---------------------|
-| **Scope** | Application-wide | Organization-scoped |
-| **Context** | User role in app | User role in organization |
-| **Server API** | `auth.api.userHasPermission()` | `auth.api.hasPermission()` |
-| **Can check any user** | ✅ Yes (by userId) | ❌ No (current user only) |
-| **Dynamic roles** | Via database | Via `dynamicAccessControl` |
-| **Default roles** | `user`, `admin` | `owner`, `admin`, `member` |
-| **Headers required** | No (for userHasPermission) | Yes (for hasPermission) |
+| Feature                | Admin Plugin                   | Organization Plugin        |
+| ---------------------- | ------------------------------ | -------------------------- |
+| **Scope**              | Application-wide               | Organization-scoped        |
+| **Context**            | User role in app               | User role in organization  |
+| **Server API**         | `auth.api.userHasPermission()` | `auth.api.hasPermission()` |
+| **Can check any user** | ✅ Yes (by userId)             | ❌ No (current user only)  |
+| **Dynamic roles**      | Via database                   | Via `dynamicAccessControl` |
+| **Default roles**      | `user`, `admin`                | `owner`, `admin`, `member` |
+| **Headers required**   | No (for userHasPermission)     | Yes (for hasPermission)    |
 
 ---
 
@@ -327,24 +328,30 @@ Our permission plugin wrapper maps these Better Auth APIs to provide a unified i
 
 ### AdminPermissionsPlugin Methods
 
-| Our Method | Better Auth API | Description |
-|-----------|-----------------|-------------|
-| `checkPermission(permissions)` | `auth.api.userHasPermission({ userId, permissions })` | Check current user's permissions |
-| `checkRolePermission(role, permissions)` | `auth.api.userHasPermission({ role, permissions })` | Check if a role has permissions (static) |
+| Our Method                               | Better Auth API                                       | Description                              |
+| ---------------------------------------- | ----------------------------------------------------- | ---------------------------------------- |
+| `checkPermission(permissions)`           | `auth.api.userHasPermission({ userId, permissions })` | Check current user's permissions         |
+| `checkRolePermission(role, permissions)` | `auth.api.userHasPermission({ role, permissions })`   | Check if a role has permissions (static) |
 
 ### OrganizationsPermissionsPlugin Methods
 
-| Our Method | Better Auth API | Description |
-|-----------|-----------------|-------------|
+| Our Method                     | Better Auth API                             | Description                     |
+| ------------------------------ | ------------------------------------------- | ------------------------------- |
 | `checkPermission(permissions)` | `auth.api.hasPermission({ headers, body })` | Check permissions in active org |
 
 ### Usage Examples
 
 ```typescript
 // Direct permission checking
-const hasPermission = await adminPlugin.checkPermission({ user: ['create', 'delete'] });
-const roleHasPermission = await adminPlugin.checkRolePermission('admin', { user: ['delete'] });
-const orgHasPermission = await orgPlugin.checkPermission({ project: ['create'] });
+const hasPermission = await adminPlugin.checkPermission({
+    user: ['create', 'delete'],
+})
+const roleHasPermission = await adminPlugin.checkRolePermission('admin', {
+    user: ['delete'],
+})
+const orgHasPermission = await orgPlugin.checkPermission({
+    project: ['create'],
+})
 
 // For NestJS decorators and ORPC middlewares, use the plugin-factory utilities:
 // See: apps/api/src/core/modules/auth/plugin-utils/plugin-factory.ts

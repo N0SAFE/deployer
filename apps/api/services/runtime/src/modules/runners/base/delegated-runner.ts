@@ -1,10 +1,10 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
 import type {
     DeploymentRuntimeRunner,
     DeploymentRuntimeRunnerType,
     RuntimeExecutionInput,
-} from "../runtime-runner.interface";
+} from '../runtime-runner.interface'
 
 /**
  * A runner that is the docker runner behind its own input preparation: it validates its options,
@@ -15,13 +15,16 @@ import type {
 export function makeDelegatedRunner<R>(
     runnerType: DeploymentRuntimeRunnerType,
     docker: DeploymentRuntimeRunner<R>,
-    prepare: (input: RuntimeExecutionInput) => RuntimeExecutionInput,
+    prepare: (input: RuntimeExecutionInput) => RuntimeExecutionInput
 ): DeploymentRuntimeRunner<R> {
     return {
         runnerType,
         executeRuntime: (input) =>
-            Effect.try({ try: () => prepare(input), catch: (cause) => cause }).pipe(
-                Effect.flatMap((prepared) => docker.executeRuntime(prepared)),
+            Effect.try({
+                try: () => prepare(input),
+                catch: (cause) => cause,
+            }).pipe(
+                Effect.flatMap((prepared) => docker.executeRuntime(prepared))
             ),
-    };
+    }
 }

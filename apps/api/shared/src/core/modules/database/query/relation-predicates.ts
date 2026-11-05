@@ -1,6 +1,14 @@
-import { and, eq, exists, getTableName, notExists, type SQL, type SQLWrapper } from "drizzle-orm";
+import {
+    and,
+    eq,
+    exists,
+    getTableName,
+    notExists,
+    type SQL,
+    type SQLWrapper,
+} from 'drizzle-orm'
 
-import type { AnyColumn, Table } from "drizzle-orm";
+import type { AnyColumn, Table } from 'drizzle-orm'
 
 /**
  * Any Drizzle table.
@@ -13,7 +21,7 @@ import type { AnyColumn, Table } from "drizzle-orm";
  * nobody cares about at the call site.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyTable = Table<any>;
+type AnyTable = Table<any>
 
 /**
  * Predicates over RELATED tables — the "…where its deployments are running" half of a
@@ -65,53 +73,68 @@ type AnyTable = Table<any>;
 
 /** The slice of a Drizzle instance this module needs — nothing more. */
 export type RelationQueryable = {
-	select(): {
-		from(table: AnyTable): {
-			where(condition: SQL | undefined): SQLWrapper;
-		};
-	};
-};
+    select(): {
+        from(table: AnyTable): {
+            where(condition: SQL | undefined): SQLWrapper
+        }
+    }
+}
 
 export type RelationPredicates = {
-	/** At least one row of `inner` satisfies `correlate` and the extra conditions. */
-	existsIn(inner: AnyTable, correlate: SQL | undefined, ...conditions: (SQL | undefined)[]): SQL;
-	/** No row of `inner` satisfies `correlate` and the extra conditions. */
-	notExistsIn(inner: AnyTable, correlate: SQL | undefined, ...conditions: (SQL | undefined)[]): SQL;
-	/** A related row's column equals a value — the common single-condition case. */
-	relatedIs(inner: AnyTable, correlate: SQL | undefined, column: AnyColumn, value: unknown): SQL;
-};
+    /** At least one row of `inner` satisfies `correlate` and the extra conditions. */
+    existsIn(
+        inner: AnyTable,
+        correlate: SQL | undefined,
+        ...conditions: (SQL | undefined)[]
+    ): SQL
+    /** No row of `inner` satisfies `correlate` and the extra conditions. */
+    notExistsIn(
+        inner: AnyTable,
+        correlate: SQL | undefined,
+        ...conditions: (SQL | undefined)[]
+    ): SQL
+    /** A related row's column equals a value — the common single-condition case. */
+    relatedIs(
+        inner: AnyTable,
+        correlate: SQL | undefined,
+        column: AnyColumn,
+        value: unknown
+    ): SQL
+}
 
 export function relationPredicates(db: RelationQueryable): RelationPredicates {
-	return {
-		/**
-		 * `correlate` is REQUIRED. An uncorrelated `EXISTS` is true whenever the inner
-		 * table has any matching row at all, so the filter silently degrades to "…and that
-		 * table is non-empty" — a predicate that looks like it works and quietly returns
-		 * everything. A required parameter is the only thing that stops a caller omitting
-		 * the half that gives it meaning.
-		 */
-		existsIn(inner, correlate, ...conditions) {
-			return exists(subqueryFor(db, inner, correlate, conditions));
-		},
+    return {
+        /**
+         * `correlate` is REQUIRED. An uncorrelated `EXISTS` is true whenever the inner
+         * table has any matching row at all, so the filter silently degrades to "…and that
+         * table is non-empty" — a predicate that looks like it works and quietly returns
+         * everything. A required parameter is the only thing that stops a caller omitting
+         * the half that gives it meaning.
+         */
+        existsIn(inner, correlate, ...conditions) {
+            return exists(subqueryFor(db, inner, correlate, conditions))
+        },
 
-		/**
-		 * The "clean" filter — projects with nothing deployed, services with no dependents
-		 * — which is what people reach for `LEFT JOIN … WHERE IS NULL` to write.
-		 * `NOT EXISTS` says it directly and cannot be broken by a second matching row.
-		 */
-		notExistsIn(inner, correlate, ...conditions) {
-			return notExists(subqueryFor(db, inner, correlate, conditions));
-		},
+        /**
+         * The "clean" filter — projects with nothing deployed, services with no dependents
+         * — which is what people reach for `LEFT JOIN … WHERE IS NULL` to write.
+         * `NOT EXISTS` says it directly and cannot be broken by a second matching row.
+         */
+        notExistsIn(inner, correlate, ...conditions) {
+            return notExists(subqueryFor(db, inner, correlate, conditions))
+        },
 
-		/**
-		 * Exists because this is the overwhelmingly common shape, and the two-argument form
-		 * is where the correlation clause gets dropped. Naming the table once here removes
-		 * that opportunity.
-		 */
-		relatedIs(inner, correlate, column, value) {
-			return exists(subqueryFor(db, inner, correlate, [eq(column, value)]));
-		},
-	};
+        /**
+         * Exists because this is the overwhelmingly common shape, and the two-argument form
+         * is where the correlation clause gets dropped. Naming the table once here removes
+         * that opportunity.
+         */
+        relatedIs(inner, correlate, column, value) {
+            return exists(
+                subqueryFor(db, inner, correlate, [eq(column, value)])
+            )
+        },
+    }
 }
 
 /**
@@ -134,30 +157,32 @@ export function relationPredicates(db: RelationQueryable): RelationPredicates {
  * filtered, so its absence is fatal regardless of how many conditions were supplied.
  */
 export function correlated(
-	inner: AnyTable,
-	correlate: SQL | undefined,
-	...conditions: (SQL | undefined)[]
+    inner: AnyTable,
+    correlate: SQL | undefined,
+    ...conditions: (SQL | undefined)[]
 ): SQL {
-	if (correlate === undefined) {
-		// Correlate the subquery to the outer row, or fail loudly. Returning a filter that
-		// silently matches everything is the one outcome that must not happen, because it
-		// looks like it worked.
-		throw new Error(
-			`relation predicate over "${tableName(inner)}" given no correlation: an UNCORRELATED ` +
-				`EXISTS is true whenever any matching inner row exists, so the predicate would match ` +
-				`every outer row. Pass the join condition, e.g. eq(services.projectId, projects.id).`,
-		);
-	}
+    if (correlate === undefined) {
+        // Correlate the subquery to the outer row, or fail loudly. Returning a filter that
+        // silently matches everything is the one outcome that must not happen, because it
+        // looks like it worked.
+        throw new Error(
+            `relation predicate over "${tableName(inner)}" given no correlation: an UNCORRELATED ` +
+                `EXISTS is true whenever any matching inner row exists, so the predicate would match ` +
+                `every outer row. Pass the join condition, e.g. eq(services.projectId, projects.id).`
+        )
+    }
 
-	// `allOf` is called with a non-undefined `correlate`, so it cannot return undefined —
-	// but the compiler only knows `and(...)`'s declared type, not that reasoning. The
-	// narrowed local `predicate` proves it: if this were reachable, the guard above would
-	// have returned.
-	const predicate = allOf(correlate, ...conditions);
-	if (predicate === undefined) {
-		throw new Error(`relation predicate over "${tableName(inner)}" produced no condition`);
-	}
-	return predicate;
+    // `allOf` is called with a non-undefined `correlate`, so it cannot return undefined —
+    // but the compiler only knows `and(...)`'s declared type, not that reasoning. The
+    // narrowed local `predicate` proves it: if this were reachable, the guard above would
+    // have returned.
+    const predicate = allOf(correlate, ...conditions)
+    if (predicate === undefined) {
+        throw new Error(
+            `relation predicate over "${tableName(inner)}" produced no condition`
+        )
+    }
+    return predicate
 }
 
 /**
@@ -168,10 +193,10 @@ export function correlated(
  * `getTableName` is the supported accessor.
  */
 function tableName(table: AnyTable): string {
-	// `getTableName` is typed loosely (it returns `any`), so the result is narrowed
-	// here rather than at every call site.
-	const name: unknown = getTableName(table);
-	return typeof name === "string" ? name : "<unknown table>";
+    // `getTableName` is typed loosely (it returns `any`), so the result is narrowed
+    // here rather than at every call site.
+    const name: unknown = getTableName(table)
+    return typeof name === 'string' ? name : '<unknown table>'
 }
 
 /**
@@ -184,21 +209,26 @@ function tableName(table: AnyTable): string {
  * special-case the empty case.
  */
 export function allOf(...conditions: (SQL | undefined)[]): SQL | undefined {
-	const present = presentConditions(conditions);
-	return present.length === 0 ? undefined : and(...present);
+    const present = presentConditions(conditions)
+    return present.length === 0 ? undefined : and(...present)
 }
 
 /** Build the subquery `exists()`/`notExists()` expects, using the caller's handle. */
 function subqueryFor(
-	db: RelationQueryable,
-	inner: AnyTable,
-	correlate: SQL | undefined,
-	conditions: (SQL | undefined)[],
+    db: RelationQueryable,
+    inner: AnyTable,
+    correlate: SQL | undefined,
+    conditions: (SQL | undefined)[]
 ): SQLWrapper {
-	return db.select().from(inner).where(correlated(inner, correlate, ...conditions));
+    return db
+        .select()
+        .from(inner)
+        .where(correlated(inner, correlate, ...conditions))
 }
 
 /** Drop the `undefined` entries a caller produced conditionally. */
 function presentConditions(conditions: (SQL | undefined)[]): SQL[] {
-	return conditions.filter((condition): condition is SQL => condition !== undefined);
+    return conditions.filter(
+        (condition): condition is SQL => condition !== undefined
+    )
 }

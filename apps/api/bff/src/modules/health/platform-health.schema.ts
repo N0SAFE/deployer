@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 /**
  * One service's contribution to the platform roll-up.
@@ -8,14 +8,14 @@ import z from "zod/v4";
  * different operator responses.
  */
 export const serviceHealthSchema = z.object({
-	name: z.string(),
-	healthy: z.boolean(),
-	url: z.string(),
-	/** Why it is unhealthy, when it is. One line the operator can act on. */
-	reason: z.string().optional(),
-	/** Round trip of the probe, when it answered. */
-	latencyMs: z.number().optional(),
-});
+    name: z.string(),
+    healthy: z.boolean(),
+    url: z.string(),
+    /** Why it is unhealthy, when it is. One line the operator can act on. */
+    reason: z.string().optional(),
+    /** Round trip of the probe, when it answered. */
+    latencyMs: z.number().optional(),
+})
 
 /**
  * The platform verdict.
@@ -26,10 +26,10 @@ export const serviceHealthSchema = z.object({
  * them loses the distinction at the one moment it matters.
  */
 export const platformHealthSchema = z.object({
-	state: z.enum(["healthy", "degraded", "unreachable"]),
-	services: z.array(serviceHealthSchema),
-	checkedAt: z.string(),
-});
+    state: z.enum(['healthy', 'degraded', 'unreachable']),
+    services: z.array(serviceHealthSchema),
+    checkedAt: z.string(),
+})
 
-export type ServiceHealth = z.output<typeof serviceHealthSchema>;
-export type PlatformHealth = z.output<typeof platformHealthSchema>;
+export type ServiceHealth = z.output<typeof serviceHealthSchema>
+export type PlatformHealth = z.output<typeof platformHealthSchema>

@@ -1,4 +1,13 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+    boolean,
+    integer,
+    jsonb,
+    pgTable,
+    text,
+    timestamp,
+    uniqueIndex,
+    uuid,
+} from 'drizzle-orm/pg-core'
 
 /**
  * Roles as rows.
@@ -11,22 +20,25 @@ import { boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } 
  * a display name.
  */
 export const roles = pgTable(
-	"roles",
-	{
-		id: uuid("id").primaryKey().defaultRandom(),
-		name: text("name").notNull(),
-		/** `platform`, `project`, `environment`, `service` or `node`. */
-		scope: text("scope").notNull(),
-		rank: integer("rank").notNull(),
-		label: text("label").notNull(),
-		description: text("description"),
-		color: text("color"),
-		/** A role the product ships with: editable only by re-seeding, never deleted from the UI. */
-		isSystem: boolean("is_system").notNull().default(false),
-		/** Catalog permission strings (`"service:deploy"`). Validated against the vocabulary where they are written. */
-		permissions: jsonb("permissions").$type<readonly string[]>().notNull().default([]),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	},
-	(table) => [uniqueIndex("roles_scope_name_idx").on(table.scope, table.name)],
-);
+    'roles',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        name: text('name').notNull(),
+        /** `platform`, `project`, `environment`, `service` or `node`. */
+        scope: text('scope').notNull(),
+        rank: integer('rank').notNull(),
+        label: text('label').notNull(),
+        description: text('description'),
+        color: text('color'),
+        /** A role the product ships with: editable only by re-seeding, never deleted from the UI. */
+        isSystem: boolean('is_system').notNull().default(false),
+        /** Catalog permission strings (`"service:deploy"`). Validated against the vocabulary where they are written. */
+        permissions: jsonb('permissions')
+            .$type<readonly string[]>()
+            .notNull()
+            .default([]),
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+        updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    },
+    (table) => [uniqueIndex('roles_scope_name_idx').on(table.scope, table.name)]
+)

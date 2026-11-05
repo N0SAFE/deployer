@@ -5,7 +5,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import { toUseQuery, toUseMutation } from '../tanstack-query'
 
-
 // Create a wrapper component for QueryClient
 const createWrapper = () => {
     const queryClient = new QueryClient({

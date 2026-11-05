@@ -1,29 +1,36 @@
-import { Cause, Effect, Exit } from "effect";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Cause, Effect, Exit } from 'effect'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-import { provideTo } from "@deployer/effect-core";
+import { provideTo } from '@deployer/effect-core'
 
-import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
+import { FleetInvalid, FleetNotFound } from '@/core/fleet.errors'
 
-import { FleetRepository, FleetDatabasePort, type FleetRepositoryShape } from "../repositories/fleet.repository";
+import {
+    FleetRepository,
+    FleetDatabasePort,
+    type FleetRepositoryShape,
+} from '../repositories/fleet.repository'
 
-import { FleetService } from "./fleet.service";
+import { FleetService } from './fleet.service'
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
-    const exit = await Effect.runPromiseExit(effect);
-    if (Exit.isSuccess(exit)) return exit.value;
-    throw Cause.squash(exit.cause);
+    const exit = await Effect.runPromiseExit(effect)
+    if (Exit.isSuccess(exit)) return exit.value
+    throw Cause.squash(exit.cause)
 }
 
 /** The promise-returning fakes below, lifted the way the real repository lifts its queries. */
 function asEffects(fakes: object): FleetRepositoryShape {
     return Object.fromEntries(
-        Object.entries(fakes as Record<string, (...args: unknown[]) => unknown>).map(([name, fake]) => [
+        Object.entries(
+            fakes as Record<string, (...args: unknown[]) => unknown>
+        ).map(([name, fake]) => [
             name,
-            (...args: unknown[]) => Effect.tryPromise(() => Promise.resolve(fake(...args))),
-        ]),
-    ) as unknown as FleetRepositoryShape;
+            (...args: unknown[]) =>
+                Effect.tryPromise(() => Promise.resolve(fake(...args))),
+        ])
+    ) as unknown as FleetRepositoryShape
 }
 
 /**
@@ -36,62 +43,62 @@ function asEffects(fakes: object): FleetRepositoryShape {
  * would only add indirection.
  */
 
-const iso = (value: string) => new Date(value);
+const iso = (value: string) => new Date(value)
 
 function mkServerRow(overrides: Record<string, unknown> = {}) {
     return {
-        nodeId: "node-1",
-        serverUrl: "http://node-1:3012",
-        displayName: "Node One",
-        status: "active",
+        nodeId: 'node-1',
+        serverUrl: 'http://node-1:3012',
+        displayName: 'Node One',
+        status: 'active',
         healthy: true,
-        lastSeenAt: iso("2026-09-17T10:00:00.000Z"),
-        swarmNodeId: "swarm-1",
+        lastSeenAt: iso('2026-09-17T10:00:00.000Z'),
+        swarmNodeId: 'swarm-1',
         maxCpuMillicores: 4000,
         maxMemoryMb: 8192,
         cpuUsage: null,
         reportedAt: null,
         ...overrides,
-    };
+    }
 }
 
 function mkAllocationRow(overrides: Record<string, unknown> = {}) {
     return {
-        nodeId: "node-1",
-        serverUrl: "http://node-1:3012",
+        nodeId: 'node-1',
+        serverUrl: 'http://node-1:3012',
         maxCpuMillicores: 4000,
         maxMemoryMb: 8192,
         allocation: {
-            id: "alloc-1",
-            serverNodeId: "node-1",
-            allocationMode: "shared",
+            id: 'alloc-1',
+            serverNodeId: 'node-1',
+            allocationMode: 'shared',
             cpuMillicores: 1000,
             memoryMb: 2048,
             maxServices: 10,
             isEnabled: true,
-            updatedAt: iso("2026-09-17T10:00:00.000Z"),
+            updatedAt: iso('2026-09-17T10:00:00.000Z'),
         },
         ...overrides,
-    };
+    }
 }
 
-describe("FleetService", () => {
-    let service: ReturnType<typeof provideTo<typeof FleetService.live>>;
+describe('FleetService', () => {
+    let service: ReturnType<typeof provideTo<typeof FleetService.live>>
     let repo: {
-        listServersWithMetrics: ReturnType<typeof vi.fn>;
-        listEnabledAllocations: ReturnType<typeof vi.fn>;
-        updateServerCapacity: ReturnType<typeof vi.fn>;
-        listAllocationsWithNames: ReturnType<typeof vi.fn>;
-        listAllocations: ReturnType<typeof vi.fn>;
-        findEnabledAllocations: ReturnType<typeof vi.fn>;
-        insertAdmissionRequest: ReturnType<typeof vi.fn>;
-        listAdmissionRequests: ReturnType<typeof vi.fn>;
-        updateAdmissionRequestDecision: ReturnType<typeof vi.fn>;
-        findAllocation: ReturnType<typeof vi.fn>;
-        updateAllocation: ReturnType<typeof vi.fn>;
-        insertAllocation: ReturnType<typeof vi.fn>;
-        deleteAllocation: ReturnType<typeof vi.fn>;
-    };
+        listServersWithMetrics: ReturnType<typeof vi.fn>
+        listEnabledAllocations: ReturnType<typeof vi.fn>
+        updateServerCapacity: ReturnType<typeof vi.fn>
+        listAllocationsWithNames: ReturnType<typeof vi.fn>
+        listAllocations: ReturnType<typeof vi.fn>
+        findEnabledAllocations: ReturnType<typeof vi.fn>
+        insertAdmissionRequest: ReturnType<typeof vi.fn>
+        listAdmissionRequests: ReturnType<typeof vi.fn>
+        updateAdmissionRequestDecision: ReturnType<typeof vi.fn>
+        findAllocation: ReturnType<typeof vi.fn>
+        updateAllocation: ReturnType<typeof vi.fn>
+        insertAllocation: ReturnType<typeof vi.fn>
+        deleteAllocation: ReturnType<typeof vi.fn>
+    }
 
     beforeEach(() => {
         repo = {
@@ -108,102 +115,125 @@ describe("FleetService", () => {
             updateAllocation: vi.fn().mockResolvedValue([]),
             insertAllocation: vi.fn().mockResolvedValue([]),
             deleteAllocation: vi.fn().mockResolvedValue({ rowCount: 0 }),
-        };
+        }
         service = provideTo(FleetService.live, (effect) =>
             effect.pipe(
                 Effect.provideService(FleetRepository, asEffects(repo)),
                 // The fake repository never reaches the database; the port is discharged so the run stays `R = never`.
-                Effect.provideService(FleetDatabasePort, {} as never),
-            ),
-        );
-    });
+                Effect.provideService(FleetDatabasePort, {} as never)
+            )
+        )
+    })
 
-    describe("listServers — allocation aggregation", () => {
-        it("sums enabled allocations per server instead of reporting zeros", async () => {
-            repo.listServersWithMetrics.mockResolvedValue([mkServerRow()]);
+    describe('listServers — allocation aggregation', () => {
+        it('sums enabled allocations per server instead of reporting zeros', async () => {
+            repo.listServersWithMetrics.mockResolvedValue([mkServerRow()])
             repo.listEnabledAllocations.mockResolvedValue([
-                { serverNodeId: "node-1", cpuMillicores: 500, memoryMb: 256 },
-                { serverNodeId: "node-1", cpuMillicores: 250, memoryMb: 128 },
-            ]);
+                { serverNodeId: 'node-1', cpuMillicores: 500, memoryMb: 256 },
+                { serverNodeId: 'node-1', cpuMillicores: 250, memoryMb: 128 },
+            ])
 
-            const { items } = await run(service.listServers());
+            const { items } = await run(service.listServers())
 
-            expect(items).toHaveLength(1);
+            expect(items).toHaveLength(1)
             expect(items[0]?.allocationSummary).toEqual({
                 services: 2,
                 cpuMillicores: 750,
                 memoryMb: 384,
-            });
-        });
+            })
+        })
 
-        it("attributes allocations only to their own server", async () => {
+        it('attributes allocations only to their own server', async () => {
             repo.listServersWithMetrics.mockResolvedValue([
-                mkServerRow({ nodeId: "node-1" }),
-                mkServerRow({ nodeId: "node-2" }),
-            ]);
+                mkServerRow({ nodeId: 'node-1' }),
+                mkServerRow({ nodeId: 'node-2' }),
+            ])
             repo.listEnabledAllocations.mockResolvedValue([
-                { serverNodeId: "node-2", cpuMillicores: 900, memoryMb: 512 },
-            ]);
+                { serverNodeId: 'node-2', cpuMillicores: 900, memoryMb: 512 },
+            ])
 
-            const { items } = await run(service.listServers());
+            const { items } = await run(service.listServers())
 
-            const one = items.find((i: { nodeId: string }) => i.nodeId === "node-1");
-            const two = items.find((i: { nodeId: string }) => i.nodeId === "node-2");
-            expect(one?.allocationSummary).toEqual({ services: 0, cpuMillicores: 0, memoryMb: 0 });
-            expect(two?.allocationSummary).toEqual({ services: 1, cpuMillicores: 900, memoryMb: 512 });
-        });
+            const one = items.find(
+                (i: { nodeId: string }) => i.nodeId === 'node-1'
+            )
+            const two = items.find(
+                (i: { nodeId: string }) => i.nodeId === 'node-2'
+            )
+            expect(one?.allocationSummary).toEqual({
+                services: 0,
+                cpuMillicores: 0,
+                memoryMb: 0,
+            })
+            expect(two?.allocationSummary).toEqual({
+                services: 1,
+                cpuMillicores: 900,
+                memoryMb: 512,
+            })
+        })
 
-        it("treats null allocation amounts as zero", async () => {
-            repo.listServersWithMetrics.mockResolvedValue([mkServerRow()]);
+        it('treats null allocation amounts as zero', async () => {
+            repo.listServersWithMetrics.mockResolvedValue([mkServerRow()])
             repo.listEnabledAllocations.mockResolvedValue([
-                { serverNodeId: "node-1", cpuMillicores: null, memoryMb: null },
-            ]);
+                { serverNodeId: 'node-1', cpuMillicores: null, memoryMb: null },
+            ])
 
-            const { items } = await run(service.listServers());
+            const { items } = await run(service.listServers())
 
-            expect(items[0]?.allocationSummary).toEqual({ services: 1, cpuMillicores: 0, memoryMb: 0 });
-        });
+            expect(items[0]?.allocationSummary).toEqual({
+                services: 1,
+                cpuMillicores: 0,
+                memoryMb: 0,
+            })
+        })
 
-        it("reports metrics as null when none were reported", async () => {
-            repo.listServersWithMetrics.mockResolvedValue([mkServerRow({ cpuUsage: null })]);
-
-            const { items } = await run(service.listServers());
-
-            expect(items[0]?.metrics).toBeNull();
-            expect(items[0]?.lastSeenAt).toBe("2026-09-17T10:00:00.000Z");
-        });
-
-        it("defaults missing metric fields to zero rather than undefined", async () => {
+        it('reports metrics as null when none were reported', async () => {
             repo.listServersWithMetrics.mockResolvedValue([
-                mkServerRow({ cpuUsage: { cpuUsage: 12 }, reportedAt: iso("2026-09-17T11:00:00.000Z") }),
-            ]);
+                mkServerRow({ cpuUsage: null }),
+            ])
 
-            const { items } = await run(service.listServers());
+            const { items } = await run(service.listServers())
+
+            expect(items[0]?.metrics).toBeNull()
+            expect(items[0]?.lastSeenAt).toBe('2026-09-17T10:00:00.000Z')
+        })
+
+        it('defaults missing metric fields to zero rather than undefined', async () => {
+            repo.listServersWithMetrics.mockResolvedValue([
+                mkServerRow({
+                    cpuUsage: { cpuUsage: 12 },
+                    reportedAt: iso('2026-09-17T11:00:00.000Z'),
+                }),
+            ])
+
+            const { items } = await run(service.listServers())
 
             expect(items[0]?.metrics).toEqual({
                 cpuUsage: 12,
                 memoryUsage: 0,
                 activeStreams: 0,
                 queueDepth: 0,
-                reportedAt: "2026-09-17T11:00:00.000Z",
-            });
-        });
-    });
+                reportedAt: '2026-09-17T11:00:00.000Z',
+            })
+        })
+    })
 
-    describe("setServerCapacity — P1-7 regression", () => {
-        it("returns the aggregated allocation summary, not zeros", async () => {
-            repo.updateServerCapacity.mockResolvedValue(mkServerRow());
+    describe('setServerCapacity — P1-7 regression', () => {
+        it('returns the aggregated allocation summary, not zeros', async () => {
+            repo.updateServerCapacity.mockResolvedValue(mkServerRow())
             repo.listEnabledAllocations.mockResolvedValue([
-                { serverNodeId: "node-1", cpuMillicores: 400, memoryMb: 256 },
-                { serverNodeId: "node-1", cpuMillicores: 600, memoryMb: 512 },
-                { serverNodeId: "other", cpuMillicores: 9999, memoryMb: 9999 },
-            ]);
+                { serverNodeId: 'node-1', cpuMillicores: 400, memoryMb: 256 },
+                { serverNodeId: 'node-1', cpuMillicores: 600, memoryMb: 512 },
+                { serverNodeId: 'other', cpuMillicores: 9999, memoryMb: 9999 },
+            ])
 
-            const summary = await run(service.setServerCapacity({
-                serverNodeId: "node-1",
-                maxCpuMillicores: 8000,
-                maxMemoryMb: 16384,
-            }));
+            const summary = await run(
+                service.setServerCapacity({
+                    serverNodeId: 'node-1',
+                    maxCpuMillicores: 8000,
+                    maxMemoryMb: 16384,
+                })
+            )
 
             // The other server's allocation must not leak into this summary —
             // the pre-P1-7 code returned a hardcoded zero object here.
@@ -211,222 +241,290 @@ describe("FleetService", () => {
                 services: 2,
                 cpuMillicores: 1000,
                 memoryMb: 768,
-            });
-            expect(summary.nodeId).toBe("node-1");
-        });
+            })
+            expect(summary.nodeId).toBe('node-1')
+        })
 
-        it("throws NotFound when the server does not exist", async () => {
-            repo.updateServerCapacity.mockResolvedValue(null);
+        it('throws NotFound when the server does not exist', async () => {
+            repo.updateServerCapacity.mockResolvedValue(null)
 
             await expect(
-                run(service.setServerCapacity({ serverNodeId: "ghost", maxCpuMillicores: 1, maxMemoryMb: 1 })),
-            ).rejects.toBeInstanceOf(FleetNotFound);
-        });
-    });
+                run(
+                    service.setServerCapacity({
+                        serverNodeId: 'ghost',
+                        maxCpuMillicores: 1,
+                        maxMemoryMb: 1,
+                    })
+                )
+            ).rejects.toBeInstanceOf(FleetNotFound)
+        })
+    })
 
-    describe("checkMyAdmission — feasibility", () => {
-        const request = { requestedCpuMillicores: 500, requestedMemoryMb: 512, requestedServices: 1 };
+    describe('checkMyAdmission — feasibility', () => {
+        const request = {
+            requestedCpuMillicores: 500,
+            requestedMemoryMb: 512,
+            requestedServices: 1,
+        }
 
-        it("allows when an allocation has room", async () => {
-            repo.findEnabledAllocations.mockResolvedValue([mkAllocationRow()]);
+        it('allows when an allocation has room', async () => {
+            repo.findEnabledAllocations.mockResolvedValue([mkAllocationRow()])
 
-            const result = await run(service.checkMyAdmission("user-1", request));
+            const result = await run(
+                service.checkMyAdmission('user-1', request)
+            )
 
-            expect(result.allowed).toBe(true);
-            expect(result.reason).toBeNull();
-        });
+            expect(result.allowed).toBe(true)
+            expect(result.reason).toBeNull()
+        })
 
-        it("denies with a node-specific reason when there are no enabled allocations", async () => {
-            repo.findEnabledAllocations.mockResolvedValue([]);
+        it('denies with a node-specific reason when there are no enabled allocations', async () => {
+            repo.findEnabledAllocations.mockResolvedValue([])
 
-            const result = await run(service.checkMyAdmission("user-1", request));
+            const result = await run(
+                service.checkMyAdmission('user-1', request)
+            )
 
-            expect(result.allowed).toBe(false);
-            expect(result.reason).toBe("No enabled allocation for the requested node");
-        });
-
-        it("denies with a capacity-specific reason when allocations exist but are full", async () => {
-            repo.findEnabledAllocations.mockResolvedValue([
-                mkAllocationRow({
-                    maxCpuMillicores: 1000,
-                    maxMemoryMb: 2048,
-                    allocation: { ...mkAllocationRow().allocation, cpuMillicores: 1000, memoryMb: 2048 },
-                }),
-            ]);
-
-            const result = await run(service.checkMyAdmission("user-1", request));
-
-            expect(result.allowed).toBe(false);
+            expect(result.allowed).toBe(false)
             expect(result.reason).toBe(
-                "No allocation has enough remaining capacity for the requested resources",
-            );
-        });
+                'No enabled allocation for the requested node'
+            )
+        })
 
-        it("clamps negative availability to zero rather than going negative", async () => {
+        it('denies with a capacity-specific reason when allocations exist but are full', async () => {
             repo.findEnabledAllocations.mockResolvedValue([
                 mkAllocationRow({
                     maxCpuMillicores: 1000,
                     maxMemoryMb: 2048,
-                    allocation: { ...mkAllocationRow().allocation, cpuMillicores: 9999, memoryMb: 9999 },
+                    allocation: {
+                        ...mkAllocationRow().allocation,
+                        cpuMillicores: 1000,
+                        memoryMb: 2048,
+                    },
                 }),
-            ]);
+            ])
 
-            const result = await run(service.checkMyAdmission("user-1", request));
+            const result = await run(
+                service.checkMyAdmission('user-1', request)
+            )
 
-            expect(result.candidates[0]?.availableCpuMillicores).toBe(0);
-            expect(result.candidates[0]?.availableMemoryMb).toBe(0);
-        });
+            expect(result.allowed).toBe(false)
+            expect(result.reason).toBe(
+                'No allocation has enough remaining capacity for the requested resources'
+            )
+        })
 
-        it("ignores the services limit when the request asks for none", async () => {
+        it('clamps negative availability to zero rather than going negative', async () => {
             repo.findEnabledAllocations.mockResolvedValue([
-                mkAllocationRow({ allocation: { ...mkAllocationRow().allocation, maxServices: 0 } }),
-            ]);
+                mkAllocationRow({
+                    maxCpuMillicores: 1000,
+                    maxMemoryMb: 2048,
+                    allocation: {
+                        ...mkAllocationRow().allocation,
+                        cpuMillicores: 9999,
+                        memoryMb: 9999,
+                    },
+                }),
+            ])
 
-            const result = await run(service.checkMyAdmission("user-1", {
-                ...request,
-                requestedServices: 0,
-            }));
+            const result = await run(
+                service.checkMyAdmission('user-1', request)
+            )
 
-            expect(result.allowed).toBe(true);
-        });
+            expect(result.candidates[0]?.availableCpuMillicores).toBe(0)
+            expect(result.candidates[0]?.availableMemoryMb).toBe(0)
+        })
 
-        it("enforces the services limit when the request asks for several", async () => {
+        it('ignores the services limit when the request asks for none', async () => {
             repo.findEnabledAllocations.mockResolvedValue([
-                mkAllocationRow({ allocation: { ...mkAllocationRow().allocation, maxServices: 2 } }),
-            ]);
+                mkAllocationRow({
+                    allocation: {
+                        ...mkAllocationRow().allocation,
+                        maxServices: 0,
+                    },
+                }),
+            ])
 
-            const result = await run(service.checkMyAdmission("user-1", {
-                ...request,
-                requestedServices: 5,
-            }));
+            const result = await run(
+                service.checkMyAdmission('user-1', {
+                    ...request,
+                    requestedServices: 0,
+                })
+            )
 
-            expect(result.allowed).toBe(false);
-        });
+            expect(result.allowed).toBe(true)
+        })
 
-        it("treats an unlimited allocation as satisfying any service count", async () => {
+        it('enforces the services limit when the request asks for several', async () => {
             repo.findEnabledAllocations.mockResolvedValue([
-                mkAllocationRow({ allocation: { ...mkAllocationRow().allocation, maxServices: null } }),
-            ]);
+                mkAllocationRow({
+                    allocation: {
+                        ...mkAllocationRow().allocation,
+                        maxServices: 2,
+                    },
+                }),
+            ])
 
-            const result = await run(service.checkMyAdmission("user-1", {
-                ...request,
-                requestedServices: 999,
-            }));
+            const result = await run(
+                service.checkMyAdmission('user-1', {
+                    ...request,
+                    requestedServices: 5,
+                })
+            )
 
-            expect(result.allowed).toBe(true);
-        });
-    });
+            expect(result.allowed).toBe(false)
+        })
 
-    describe("admission request writes", () => {
-        it("throws BadRequest when the insert returns no row", async () => {
-            repo.insertAdmissionRequest.mockResolvedValue([]);
+        it('treats an unlimited allocation as satisfying any service count', async () => {
+            repo.findEnabledAllocations.mockResolvedValue([
+                mkAllocationRow({
+                    allocation: {
+                        ...mkAllocationRow().allocation,
+                        maxServices: null,
+                    },
+                }),
+            ])
+
+            const result = await run(
+                service.checkMyAdmission('user-1', {
+                    ...request,
+                    requestedServices: 999,
+                })
+            )
+
+            expect(result.allowed).toBe(true)
+        })
+    })
+
+    describe('admission request writes', () => {
+        it('throws BadRequest when the insert returns no row', async () => {
+            repo.insertAdmissionRequest.mockResolvedValue([])
 
             await expect(
-                run(service.createMyAdmissionRequest("user-1", {
-                    requestedCpuMillicores: 1,
-                    requestedMemoryMb: 1,
-                    requestedServices: 1,
-                })),
-            ).rejects.toBeInstanceOf(FleetInvalid);
-        });
+                run(
+                    service.createMyAdmissionRequest('user-1', {
+                        requestedCpuMillicores: 1,
+                        requestedMemoryMb: 1,
+                        requestedServices: 1,
+                    })
+                )
+            ).rejects.toBeInstanceOf(FleetInvalid)
+        })
 
-        it("throws NotFound when resolving an unknown request", async () => {
-            repo.updateAdmissionRequestDecision.mockResolvedValue(null);
+        it('throws NotFound when resolving an unknown request', async () => {
+            repo.updateAdmissionRequestDecision.mockResolvedValue(null)
 
             await expect(
-                run(service.resolveAdmissionRequest({ requestId: "missing", decision: "approved" })),
-            ).rejects.toBeInstanceOf(FleetNotFound);
-        });
-    });
+                run(
+                    service.resolveAdmissionRequest({
+                        requestId: 'missing',
+                        decision: 'approved',
+                    })
+                )
+            ).rejects.toBeInstanceOf(FleetNotFound)
+        })
+    })
 
-    describe("upsertAllocation", () => {
-        it("updates the existing allocation instead of inserting a duplicate", async () => {
-            repo.findAllocation.mockResolvedValue([{ id: "alloc-1" }]);
+    describe('upsertAllocation', () => {
+        it('updates the existing allocation instead of inserting a duplicate', async () => {
+            repo.findAllocation.mockResolvedValue([{ id: 'alloc-1' }])
             repo.updateAllocation.mockResolvedValue([
                 {
-                    id: "alloc-1",
-                    serverNodeId: "node-1",
-                    allocationMode: "dedicated",
+                    id: 'alloc-1',
+                    serverNodeId: 'node-1',
+                    allocationMode: 'dedicated',
                     cpuMillicores: 2000,
                     memoryMb: 4096,
                     maxServices: 5,
                     isEnabled: true,
-                    updatedAt: iso("2026-09-17T12:00:00.000Z"),
+                    updatedAt: iso('2026-09-17T12:00:00.000Z'),
                 },
-            ]);
+            ])
 
-            const result = await run(service.upsertAllocation({
-                serverNodeId: "node-1",
-                allocationMode: "dedicated",
-                cpuMillicores: 2000,
-                memoryMb: 4096,
-                maxServices: 5,
-            }));
+            const result = await run(
+                service.upsertAllocation({
+                    serverNodeId: 'node-1',
+                    allocationMode: 'dedicated',
+                    cpuMillicores: 2000,
+                    memoryMb: 4096,
+                    maxServices: 5,
+                })
+            )
 
-            expect(repo.insertAllocation).not.toHaveBeenCalled();
-            expect(result.cpuMillicores).toBe(2000);
-        });
+            expect(repo.insertAllocation).not.toHaveBeenCalled()
+            expect(result.cpuMillicores).toBe(2000)
+        })
 
-        it("inserts when no allocation exists yet", async () => {
-            repo.findAllocation.mockResolvedValue([]);
+        it('inserts when no allocation exists yet', async () => {
+            repo.findAllocation.mockResolvedValue([])
             repo.insertAllocation.mockResolvedValue([
                 {
-                    id: "alloc-new",
-                    serverNodeId: "node-1",
-                    allocationMode: "shared",
+                    id: 'alloc-new',
+                    serverNodeId: 'node-1',
+                    allocationMode: 'shared',
                     cpuMillicores: 100,
                     memoryMb: 100,
                     maxServices: null,
                     isEnabled: true,
-                    updatedAt: iso("2026-09-17T12:00:00.000Z"),
+                    updatedAt: iso('2026-09-17T12:00:00.000Z'),
                 },
-            ]);
+            ])
 
-            await run(service.upsertAllocation({
-                serverNodeId: "node-1",
-                allocationMode: "shared",
-                cpuMillicores: 100,
-                memoryMb: 100,
-            }));
+            await run(
+                service.upsertAllocation({
+                    serverNodeId: 'node-1',
+                    allocationMode: 'shared',
+                    cpuMillicores: 100,
+                    memoryMb: 100,
+                })
+            )
 
-            expect(repo.updateAllocation).not.toHaveBeenCalled();
-            expect(repo.insertAllocation).toHaveBeenCalledOnce();
-        });
+            expect(repo.updateAllocation).not.toHaveBeenCalled()
+            expect(repo.insertAllocation).toHaveBeenCalledOnce()
+        })
 
-        it("throws BadRequest when neither update nor insert returns a row", async () => {
-            repo.findAllocation.mockResolvedValue([]);
-            repo.insertAllocation.mockResolvedValue([]);
+        it('throws BadRequest when neither update nor insert returns a row', async () => {
+            repo.findAllocation.mockResolvedValue([])
+            repo.insertAllocation.mockResolvedValue([])
 
             await expect(
-                run(service.upsertAllocation({
-                    serverNodeId: "node-1",
-                    allocationMode: "shared",
-                    cpuMillicores: 1,
-                    memoryMb: 1,
-                })),
-            ).rejects.toBeInstanceOf(FleetInvalid);
-        });
-    });
+                run(
+                    service.upsertAllocation({
+                        serverNodeId: 'node-1',
+                        allocationMode: 'shared',
+                        cpuMillicores: 1,
+                        memoryMb: 1,
+                    })
+                )
+            ).rejects.toBeInstanceOf(FleetInvalid)
+        })
+    })
 
-    describe("deleteAllocation", () => {
-        it("reports deleted=true only when a row was removed", async () => {
-            repo.deleteAllocation.mockResolvedValue({ rowCount: 1 });
-            await expect(run(service.deleteAllocation({ serverNodeId: "node-1" }))).resolves.toEqual({
+    describe('deleteAllocation', () => {
+        it('reports deleted=true only when a row was removed', async () => {
+            repo.deleteAllocation.mockResolvedValue({ rowCount: 1 })
+            await expect(
+                run(service.deleteAllocation({ serverNodeId: 'node-1' }))
+            ).resolves.toEqual({
                 deleted: true,
-            });
+            })
 
-            repo.deleteAllocation.mockResolvedValue({ rowCount: 0 });
-            await expect(run(service.deleteAllocation({ serverNodeId: "node-1" }))).resolves.toEqual({
+            repo.deleteAllocation.mockResolvedValue({ rowCount: 0 })
+            await expect(
+                run(service.deleteAllocation({ serverNodeId: 'node-1' }))
+            ).resolves.toEqual({
                 deleted: false,
-            });
-        });
+            })
+        })
 
-        it("treats a null rowCount as not deleted", async () => {
-            repo.deleteAllocation.mockResolvedValue({ rowCount: null });
+        it('treats a null rowCount as not deleted', async () => {
+            repo.deleteAllocation.mockResolvedValue({ rowCount: null })
 
-            await expect(run(service.deleteAllocation({ serverNodeId: "node-1" }))).resolves.toEqual({
+            await expect(
+                run(service.deleteAllocation({ serverNodeId: 'node-1' }))
+            ).resolves.toEqual({
                 deleted: false,
-            });
-        });
-    });
-});
+            })
+        })
+    })
+})

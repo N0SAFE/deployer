@@ -1,72 +1,98 @@
-import { Duration, Effect, type Scope } from "effect";
+import { Duration, Effect, type Scope } from 'effect'
 
-import { scrubWith, unwrapEnv } from "./environment";
-import { SpawnFailed } from "./errors";
-import { Command } from "./types";
+import { scrubWith, unwrapEnv } from './environment'
+import { SpawnFailed } from './errors'
+import { Command } from './types'
 
-export type Proc = Bun.Subprocess<"ignore" | "pipe", "pipe", "pipe">;
+export type Proc = Bun.Subprocess<'ignore' | 'pipe', 'pipe', 'pipe'>
 
 /**
  * `Bun.spawn` throws synchronously for a missing binary (ENOENT) or a bad cwd.
  * `detached: true` gives the child its own process group so the whole tree can be signalled.
  */
-export const spawnChild = (command: Command, env: Record<string, string>): Effect.Effect<Proc, SpawnFailed> =>
-  Effect.try({
-    try: () =>
-      Bun.spawn([command.exe, ...command.args], {
-        cwd: command.cwd,
-        env,
-        stdin: command.stdin === undefined ? "ignore" : typeof command.stdin === "string" ? new TextEncoder().encode(command.stdin) : command.stdin,
-        stdout: "pipe",
-        stderr: "pipe",
-        detached: true,
-      }) as Proc,
-    catch: (cause) => new SpawnFailed({ exe: command.exe, message: cause instanceof Error ? cause.message : String(cause) }),
-  });
+export const spawnChild = (
+    command: Command,
+    env: Record<string, string>
+): Effect.Effect<Proc, SpawnFailed> =>
+    Effect.try({
+        try: () =>
+            Bun.spawn([command.exe, ...command.args], {
+                cwd: command.cwd,
+                env,
+                stdin:
+                    command.stdin === undefined
+                        ? 'ignore'
+                        : typeof command.stdin === 'string'
+                          ? new TextEncoder().encode(command.stdin)
+                          : command.stdin,
+                stdout: 'pipe',
+                stderr: 'pipe',
+                detached: true,
+            }) as Proc,
+        catch: (cause) =>
+            new SpawnFailed({
+                exe: command.exe,
+                message: cause instanceof Error ? cause.message : String(cause),
+            }),
+    })
 
 /**
  * Signal the process group (`-pid`), falling back to the child alone. `process.kill` is the only way
  * to signal a group: `Subprocess#kill` targets just the direct child, which would leak grandchildren.
  */
 export const signalGroup = (proc: Proc, signal: NodeJS.Signals): void => {
-  try {
-    process.kill(-proc.pid, signal);
-  } catch {
     try {
-      proc.kill(signal);
+        process.kill(-proc.pid, signal)
     } catch {
-      /* already gone */
+        try {
+            proc.kill(signal)
+        } catch {
+            /* already gone */
+        }
     }
-  }
-};
+}
 
-export const hasExited = (proc: Proc): boolean => proc.exitCode !== null || proc.signalCode !== null;
+export const hasExited = (proc: Proc): boolean =>
+    proc.exitCode !== null || proc.signalCode !== null
 
 /** SIGTERM the group, wait `grace`, then SIGKILL. Always reaps (waits for exit). Never fails. */
-export const terminate = (proc: Proc, grace: Duration.Input): Effect.Effect<void> => {
-  const exited = Effect.promise(() => proc.exited).pipe(Effect.asVoid);
-  return Effect.gen(function* () {
-    if (hasExited(proc)) return yield* exited;
-    signalGroup(proc, "SIGTERM");
-    const outcome = yield* exited.pipe(
-      Effect.as("exited" as const),
-      Effect.timeoutOrElse({ duration: grace, orElse: () => Effect.succeed("timed-out" as const) }),
-    );
-    if (outcome === "timed-out") {
-      signalGroup(proc, "SIGKILL");
-      yield* exited;
-    }
-  });
-};
+export const terminate = (
+    proc: Proc,
+    grace: Duration.Input
+): Effect.Effect<void> => {
+    const exited = Effect.promise(() => proc.exited).pipe(Effect.asVoid)
+    return Effect.gen(function* () {
+        if (hasExited(proc)) return yield* exited
+        signalGroup(proc, 'SIGTERM')
+        const outcome = yield* exited.pipe(
+            Effect.as('exited' as const),
+            Effect.timeoutOrElse({
+                duration: grace,
+                orElse: () => Effect.succeed('timed-out' as const),
+            })
+        )
+        if (outcome === 'timed-out') {
+            signalGroup(proc, 'SIGKILL')
+            yield* exited
+        }
+    })
+}
 
 /** Scoped process: killed (and reaped) when the scope closes, whether by success, failure or interruption. */
 export const acquire = (
-  command: Command,
-  inheritEnv: boolean,
-  grace: Duration.Input,
-): Effect.Effect<{ readonly proc: Proc; readonly scrub: (text: string) => string }, SpawnFailed, Scope.Scope> =>
-  Effect.gen(function* () {
-    const { env, secrets } = unwrapEnv(command.env, inheritEnv);
-    const proc = yield* Effect.acquireRelease(spawnChild(command, env), (p) => terminate(p, grace));
-    return { proc, scrub: scrubWith(secrets) };
-  });
+    command: Command,
+    inheritEnv: boolean,
+    grace: Duration.Input
+): Effect.Effect<
+    { readonly proc: Proc; readonly scrub: (text: string) => string },
+    SpawnFailed,
+    Scope.Scope
+> =>
+    Effect.gen(function* () {
+        const { env, secrets } = unwrapEnv(command.env, inheritEnv)
+        const proc = yield* Effect.acquireRelease(
+            spawnChild(command, env),
+            (p) => terminate(p, grace)
+        )
+        return { proc, scrub: scrubWith(secrets) }
+    })

@@ -1,6 +1,6 @@
-import { Controller, Get, Header } from "@nestjs/common";
+import { Controller, Get, Header } from '@nestjs/common'
 
-import { generateOpenApiSpec } from "@/orpc/openapi";
+import { generateOpenApiSpec } from '@/orpc/openapi'
 
 /**
  * Publishes this API's OpenAPI document and a browser for it.
@@ -34,63 +34,68 @@ import { generateOpenApiSpec } from "@/orpc/openapi";
  */
 @Controller()
 export class OpenApiDocsController {
-	/**
-	 * Generated once per process.
-	 *
-	 * `OpenAPIGenerator.generate` walks the whole contract; doing it per request
-	 * would make a documentation endpoint the most expensive route on the
-	 * platform. The contract is static for the lifetime of the process, so one
-	 * build is exactly right.
-	 */
-	private specPromise: Promise<unknown> | null = null;
+    /**
+     * Generated once per process.
+     *
+     * `OpenAPIGenerator.generate` walks the whole contract; doing it per request
+     * would make a documentation endpoint the most expensive route on the
+     * platform. The contract is static for the lifetime of the process, so one
+     * build is exactly right.
+     */
+    private specPromise: Promise<unknown> | null = null
 
-	private spec(): Promise<unknown> {
-		this.specPromise ??= generateOpenApiSpec();
-		return this.specPromise;
-	}
+    private spec(): Promise<unknown> {
+        this.specPromise ??= generateOpenApiSpec()
+        return this.specPromise
+    }
 
-	/** The machine-readable document. */
-	@Get("openapi.json")
-	@Header("content-type", "application/json; charset=utf-8")
-	async document(): Promise<unknown> {
-		return this.spec();
-	}
+    /** The machine-readable document. */
+    @Get('openapi.json')
+    @Header('content-type', 'application/json; charset=utf-8')
+    async document(): Promise<unknown> {
+        return this.spec()
+    }
 
-	/**
-	 * A readable page for the same document.
-	 *
-	 * ── WHY HTML AND NOT A BUNDLED UI (Scalar/Swagger) ──────────────────────
-	 * The installed oRPC (`2.0.0-beta.40`) ships no reference plugin — measured:
-	 * `dist/plugins/` contains only the handler plugins, and
-	 * `OpenAPIReferencePlugin` is not exported. Rendering a client-side UI would
-	 * therefore add a dependency for decoration.
-	 *
-	 * Instead the page fetches `/openapi.json` and lists every operation, which is
-	 * what the iframe is for: confirming the surface exists and is addressable.
-	 * Anything richer can be layered on later without moving this route.
-	 */
-	@Get("reference")
-	@Header("content-type", "text/html; charset=utf-8")
-	async reference(): Promise<string> {
-		const spec = (await this.spec()) as {
-			paths?: Record<string, Record<string, { summary?: string; tags?: string[] }>>;
-		};
-		const paths = spec.paths ?? {};
+    /**
+     * A readable page for the same document.
+     *
+     * ── WHY HTML AND NOT A BUNDLED UI (Scalar/Swagger) ──────────────────────
+     * The installed oRPC (`2.0.0-beta.40`) ships no reference plugin — measured:
+     * `dist/plugins/` contains only the handler plugins, and
+     * `OpenAPIReferencePlugin` is not exported. Rendering a client-side UI would
+     * therefore add a dependency for decoration.
+     *
+     * Instead the page fetches `/openapi.json` and lists every operation, which is
+     * what the iframe is for: confirming the surface exists and is addressable.
+     * Anything richer can be layered on later without moving this route.
+     */
+    @Get('reference')
+    @Header('content-type', 'text/html; charset=utf-8')
+    async reference(): Promise<string> {
+        const spec = (await this.spec()) as {
+            paths?: Record<
+                string,
+                Record<string, { summary?: string; tags?: string[] }>
+            >
+        }
+        const paths = spec.paths ?? {}
 
-		const rows: string[] = [];
-		for (const [path, operations] of Object.entries(paths).sort(([a], [b]) => a.localeCompare(b))) {
-			for (const [method, operation] of Object.entries(operations)) {
-				const upper = method.toUpperCase();
-				const tag = operation.tags?.[0] ?? "";
-				rows.push(
-					`<tr><td class="m">${upper}</td><td class="p">${escapeHtml(path)}</td>` +
-						`<td>${escapeHtml(operation.summary ?? "")}</td>` +
-						`<td class="t">${escapeHtml(tag)}</td></tr>`,
-				);
-			}
-		}
+        const rows: string[] = []
+        for (const [path, operations] of Object.entries(paths).sort(
+            ([a], [b]) => a.localeCompare(b)
+        )) {
+            for (const [method, operation] of Object.entries(operations)) {
+                const upper = method.toUpperCase()
+                const tag = operation.tags?.[0] ?? ''
+                rows.push(
+                    `<tr><td class="m">${upper}</td><td class="p">${escapeHtml(path)}</td>` +
+                        `<td>${escapeHtml(operation.summary ?? '')}</td>` +
+                        `<td class="t">${escapeHtml(tag)}</td></tr>`
+                )
+            }
+        }
 
-		return `<!doctype html>
+        return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>Deployer API reference</title>
 <style>
@@ -114,17 +119,17 @@ export class OpenApiDocsController {
   </p>
   <table>
     <thead><tr><th>Method</th><th>Path</th><th>Summary</th><th>Tag</th></tr></thead>
-    <tbody>${rows.join("")}</tbody>
+    <tbody>${rows.join('')}</tbody>
   </table>
-</body></html>`;
-	}
+</body></html>`
+    }
 }
 
 /** Contract text is HTML-escaped: a summary containing `<` must not break the page. */
 function escapeHtml(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
 }

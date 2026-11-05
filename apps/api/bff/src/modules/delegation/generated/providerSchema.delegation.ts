@@ -26,60 +26,76 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { providerSchemaContract } from "@deployer/fleet-contracts";
+import { providerSchemaContract } from '@deployer/fleet-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class ProviderSchemaDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("fleet", providerSchemaContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('fleet', providerSchemaContract)
+    }
 
-	@Implement(providerSchemaContract.getAllProviders)
-	getAllProviders() {
-		return implement(providerSchemaContract.getAllProviders).handler(({ input }) => this.client.getAllProviders(input));
-	}
+    @Implement(providerSchemaContract.getAllProviders)
+    getAllProviders() {
+        return implement(providerSchemaContract.getAllProviders).handler(
+            ({ input }) => this.client.getAllProviders(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.getProviderSchema)
-	getProviderSchema() {
-		return implement(providerSchemaContract.getProviderSchema).handler(({ input }) => this.client.getProviderSchema(input));
-	}
+    @Implement(providerSchemaContract.getProviderSchema)
+    getProviderSchema() {
+        return implement(providerSchemaContract.getProviderSchema).handler(
+            ({ input }) => this.client.getProviderSchema(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.getCompatibleBuilders)
-	getCompatibleBuilders() {
-		return implement(providerSchemaContract.getCompatibleBuilders).handler(({ input }) => this.client.getCompatibleBuilders(input));
-	}
+    @Implement(providerSchemaContract.getCompatibleBuilders)
+    getCompatibleBuilders() {
+        return implement(providerSchemaContract.getCompatibleBuilders).handler(
+            ({ input }) => this.client.getCompatibleBuilders(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.getAllBuilders)
-	getAllBuilders() {
-		return implement(providerSchemaContract.getAllBuilders).handler(({ input }) => this.client.getAllBuilders(input));
-	}
+    @Implement(providerSchemaContract.getAllBuilders)
+    getAllBuilders() {
+        return implement(providerSchemaContract.getAllBuilders).handler(
+            ({ input }) => this.client.getAllBuilders(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.getBuilderSchema)
-	getBuilderSchema() {
-		return implement(providerSchemaContract.getBuilderSchema).handler(({ input }) => this.client.getBuilderSchema(input));
-	}
+    @Implement(providerSchemaContract.getBuilderSchema)
+    getBuilderSchema() {
+        return implement(providerSchemaContract.getBuilderSchema).handler(
+            ({ input }) => this.client.getBuilderSchema(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.getCompatibleProviders)
-	getCompatibleProviders() {
-		return implement(providerSchemaContract.getCompatibleProviders).handler(({ input }) => this.client.getCompatibleProviders(input));
-	}
+    @Implement(providerSchemaContract.getCompatibleProviders)
+    getCompatibleProviders() {
+        return implement(providerSchemaContract.getCompatibleProviders).handler(
+            ({ input }) => this.client.getCompatibleProviders(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.validateProviderConfig)
-	validateProviderConfig() {
-		return implement(providerSchemaContract.validateProviderConfig).handler(({ input }) => this.client.validateProviderConfig(input));
-	}
+    @Implement(providerSchemaContract.validateProviderConfig)
+    validateProviderConfig() {
+        return implement(providerSchemaContract.validateProviderConfig).handler(
+            ({ input }) => this.client.validateProviderConfig(input)
+        )
+    }
 
-	@Implement(providerSchemaContract.validateBuilderConfig)
-	validateBuilderConfig() {
-		return implement(providerSchemaContract.validateBuilderConfig).handler(({ input }) => this.client.validateBuilderConfig(input));
-	}
+    @Implement(providerSchemaContract.validateBuilderConfig)
+    validateBuilderConfig() {
+        return implement(providerSchemaContract.validateBuilderConfig).handler(
+            ({ input }) => this.client.validateBuilderConfig(input)
+        )
+    }
 }

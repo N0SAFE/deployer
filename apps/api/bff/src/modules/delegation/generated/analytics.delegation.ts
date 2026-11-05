@@ -26,160 +26,216 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { analyticsContract } from "@deployer/identity-contracts";
+import { analyticsContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class AnalyticsDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", analyticsContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', analyticsContract)
+    }
 
-	@Implement(analyticsContract.getResourceMetrics)
-	getResourceMetrics() {
-		return implement(analyticsContract.getResourceMetrics).handler(({ input }) => this.client.getResourceMetrics(input));
-	}
+    @Implement(analyticsContract.getResourceMetrics)
+    getResourceMetrics() {
+        return implement(analyticsContract.getResourceMetrics).handler(
+            ({ input }) => this.client.getResourceMetrics(input)
+        )
+    }
 
-	@Implement(analyticsContract.getApplicationMetrics)
-	getApplicationMetrics() {
-		return implement(analyticsContract.getApplicationMetrics).handler(({ input }) => this.client.getApplicationMetrics(input));
-	}
+    @Implement(analyticsContract.getApplicationMetrics)
+    getApplicationMetrics() {
+        return implement(analyticsContract.getApplicationMetrics).handler(
+            ({ input }) => this.client.getApplicationMetrics(input)
+        )
+    }
 
-	@Implement(analyticsContract.getDatabaseMetrics)
-	getDatabaseMetrics() {
-		return implement(analyticsContract.getDatabaseMetrics).handler(({ input }) => this.client.getDatabaseMetrics(input));
-	}
+    @Implement(analyticsContract.getDatabaseMetrics)
+    getDatabaseMetrics() {
+        return implement(analyticsContract.getDatabaseMetrics).handler(
+            ({ input }) => this.client.getDatabaseMetrics(input)
+        )
+    }
 
-	@Implement(analyticsContract.getDeploymentMetrics)
-	getDeploymentMetrics() {
-		return implement(analyticsContract.getDeploymentMetrics).handler(({ input }) => this.client.getDeploymentMetrics(input));
-	}
+    @Implement(analyticsContract.getDeploymentMetrics)
+    getDeploymentMetrics() {
+        return implement(analyticsContract.getDeploymentMetrics).handler(
+            ({ input }) => this.client.getDeploymentMetrics(input)
+        )
+    }
 
-	@Implement(analyticsContract.getServiceHealth)
-	getServiceHealth() {
-		return implement(analyticsContract.getServiceHealth).handler(({ input }) => this.client.getServiceHealth(input));
-	}
+    @Implement(analyticsContract.getServiceHealth)
+    getServiceHealth() {
+        return implement(analyticsContract.getServiceHealth).handler(
+            ({ input }) => this.client.getServiceHealth(input)
+        )
+    }
 
-	@Implement(analyticsContract.getRealTimeMetrics)
-	getRealTimeMetrics() {
-		return implement(analyticsContract.getRealTimeMetrics).handler(({ input }) => this.client.getRealTimeMetrics(input));
-	}
+    @Implement(analyticsContract.getRealTimeMetrics)
+    getRealTimeMetrics() {
+        return implement(analyticsContract.getRealTimeMetrics).handler(
+            ({ input }) => this.client.getRealTimeMetrics(input)
+        )
+    }
 
-	@Implement(analyticsContract.getResourceMetricsStream)
-	getResourceMetricsStream() {
-		return implement(analyticsContract.getResourceMetricsStream).handler(({ input }) => this.client.getResourceMetricsStream(input));
-	}
+    @Implement(analyticsContract.getResourceMetricsStream)
+    getResourceMetricsStream() {
+        return implement(analyticsContract.getResourceMetricsStream).handler(
+            ({ input }) => this.client.getResourceMetricsStream(input)
+        )
+    }
 
-	@Implement(analyticsContract.getDeploymentMetricsStream)
-	getDeploymentMetricsStream() {
-		return implement(analyticsContract.getDeploymentMetricsStream).handler(({ input }) => this.client.getDeploymentMetricsStream(input));
-	}
+    @Implement(analyticsContract.getDeploymentMetricsStream)
+    getDeploymentMetricsStream() {
+        return implement(analyticsContract.getDeploymentMetricsStream).handler(
+            ({ input }) => this.client.getDeploymentMetricsStream(input)
+        )
+    }
 
-	@Implement(analyticsContract.getServiceHealthStream)
-	getServiceHealthStream() {
-		return implement(analyticsContract.getServiceHealthStream).handler(({ input }) => this.client.getServiceHealthStream(input));
-	}
+    @Implement(analyticsContract.getServiceHealthStream)
+    getServiceHealthStream() {
+        return implement(analyticsContract.getServiceHealthStream).handler(
+            ({ input }) => this.client.getServiceHealthStream(input)
+        )
+    }
 
-	@Implement(analyticsContract.getRealTimeMetricsStream)
-	getRealTimeMetricsStream() {
-		return implement(analyticsContract.getRealTimeMetricsStream).handler(({ input }) => this.client.getRealTimeMetricsStream(input));
-	}
+    @Implement(analyticsContract.getRealTimeMetricsStream)
+    getRealTimeMetricsStream() {
+        return implement(analyticsContract.getRealTimeMetricsStream).handler(
+            ({ input }) => this.client.getRealTimeMetricsStream(input)
+        )
+    }
 
-	@Implement(analyticsContract.getResourceUsage)
-	getResourceUsage() {
-		return implement(analyticsContract.getResourceUsage).handler(({ input }) => this.client.getResourceUsage(input));
-	}
+    @Implement(analyticsContract.getResourceUsage)
+    getResourceUsage() {
+        return implement(analyticsContract.getResourceUsage).handler(
+            ({ input }) => this.client.getResourceUsage(input)
+        )
+    }
 
-	@Implement(analyticsContract.getUserActivity)
-	getUserActivity() {
-		return implement(analyticsContract.getUserActivity).handler(({ input }) => this.client.getUserActivity(input));
-	}
+    @Implement(analyticsContract.getUserActivity)
+    getUserActivity() {
+        return implement(analyticsContract.getUserActivity).handler(
+            ({ input }) => this.client.getUserActivity(input)
+        )
+    }
 
-	@Implement(analyticsContract.getActivitySummary)
-	getActivitySummary() {
-		return implement(analyticsContract.getActivitySummary).handler(({ input }) => this.client.getActivitySummary(input));
-	}
+    @Implement(analyticsContract.getActivitySummary)
+    getActivitySummary() {
+        return implement(analyticsContract.getActivitySummary).handler(
+            ({ input }) => this.client.getActivitySummary(input)
+        )
+    }
 
-	@Implement(analyticsContract.getApiUsage)
-	getApiUsage() {
-		return implement(analyticsContract.getApiUsage).handler(({ input }) => this.client.getApiUsage(input));
-	}
+    @Implement(analyticsContract.getApiUsage)
+    getApiUsage() {
+        return implement(analyticsContract.getApiUsage).handler(({ input }) =>
+            this.client.getApiUsage(input)
+        )
+    }
 
-	@Implement(analyticsContract.getDeploymentUsage)
-	getDeploymentUsage() {
-		return implement(analyticsContract.getDeploymentUsage).handler(({ input }) => this.client.getDeploymentUsage(input));
-	}
+    @Implement(analyticsContract.getDeploymentUsage)
+    getDeploymentUsage() {
+        return implement(analyticsContract.getDeploymentUsage).handler(
+            ({ input }) => this.client.getDeploymentUsage(input)
+        )
+    }
 
-	@Implement(analyticsContract.getStorageUsage)
-	getStorageUsage() {
-		return implement(analyticsContract.getStorageUsage).handler(({ input }) => this.client.getStorageUsage(input));
-	}
+    @Implement(analyticsContract.getStorageUsage)
+    getStorageUsage() {
+        return implement(analyticsContract.getStorageUsage).handler(
+            ({ input }) => this.client.getStorageUsage(input)
+        )
+    }
 
-	@Implement(analyticsContract.getResourceUsageStream)
-	getResourceUsageStream() {
-		return implement(analyticsContract.getResourceUsageStream).handler(({ input }) => this.client.getResourceUsageStream(input));
-	}
+    @Implement(analyticsContract.getResourceUsageStream)
+    getResourceUsageStream() {
+        return implement(analyticsContract.getResourceUsageStream).handler(
+            ({ input }) => this.client.getResourceUsageStream(input)
+        )
+    }
 
-	@Implement(analyticsContract.getDeploymentUsageStream)
-	getDeploymentUsageStream() {
-		return implement(analyticsContract.getDeploymentUsageStream).handler(({ input }) => this.client.getDeploymentUsageStream(input));
-	}
+    @Implement(analyticsContract.getDeploymentUsageStream)
+    getDeploymentUsageStream() {
+        return implement(analyticsContract.getDeploymentUsageStream).handler(
+            ({ input }) => this.client.getDeploymentUsageStream(input)
+        )
+    }
 
-	@Implement(analyticsContract.generateReport)
-	generateReport() {
-		return implement(analyticsContract.generateReport).handler(({ input }) => this.client.generateReport(input));
-	}
+    @Implement(analyticsContract.generateReport)
+    generateReport() {
+        return implement(analyticsContract.generateReport).handler(
+            ({ input }) => this.client.generateReport(input)
+        )
+    }
 
-	@Implement(analyticsContract.getReport)
-	getReport() {
-		return implement(analyticsContract.getReport).handler(({ input }) => this.client.getReport(input));
-	}
+    @Implement(analyticsContract.getReport)
+    getReport() {
+        return implement(analyticsContract.getReport).handler(({ input }) =>
+            this.client.getReport(input)
+        )
+    }
 
-	@Implement(analyticsContract.listReports)
-	listReports() {
-		return implement(analyticsContract.listReports).handler(({ input }) => this.client.listReports(input));
-	}
+    @Implement(analyticsContract.listReports)
+    listReports() {
+        return implement(analyticsContract.listReports).handler(({ input }) =>
+            this.client.listReports(input)
+        )
+    }
 
-	@Implement(analyticsContract.deleteReport)
-	deleteReport() {
-		return implement(analyticsContract.deleteReport).handler(({ input }) => this.client.deleteReport(input));
-	}
+    @Implement(analyticsContract.deleteReport)
+    deleteReport() {
+        return implement(analyticsContract.deleteReport).handler(({ input }) =>
+            this.client.deleteReport(input)
+        )
+    }
 
-	@Implement(analyticsContract.downloadReport)
-	downloadReport() {
-		return implement(analyticsContract.downloadReport).handler(({ input }) => this.client.downloadReport(input));
-	}
+    @Implement(analyticsContract.downloadReport)
+    downloadReport() {
+        return implement(analyticsContract.downloadReport).handler(
+            ({ input }) => this.client.downloadReport(input)
+        )
+    }
 
-	@Implement(analyticsContract.getReportContent)
-	getReportContent() {
-		return implement(analyticsContract.getReportContent).handler(({ input }) => this.client.getReportContent(input));
-	}
+    @Implement(analyticsContract.getReportContent)
+    getReportContent() {
+        return implement(analyticsContract.getReportContent).handler(
+            ({ input }) => this.client.getReportContent(input)
+        )
+    }
 
-	@Implement(analyticsContract.createReportConfig)
-	createReportConfig() {
-		return implement(analyticsContract.createReportConfig).handler(({ input }) => this.client.createReportConfig(input));
-	}
+    @Implement(analyticsContract.createReportConfig)
+    createReportConfig() {
+        return implement(analyticsContract.createReportConfig).handler(
+            ({ input }) => this.client.createReportConfig(input)
+        )
+    }
 
-	@Implement(analyticsContract.listReportConfigs)
-	listReportConfigs() {
-		return implement(analyticsContract.listReportConfigs).handler(({ input }) => this.client.listReportConfigs(input));
-	}
+    @Implement(analyticsContract.listReportConfigs)
+    listReportConfigs() {
+        return implement(analyticsContract.listReportConfigs).handler(
+            ({ input }) => this.client.listReportConfigs(input)
+        )
+    }
 
-	@Implement(analyticsContract.updateReportConfig)
-	updateReportConfig() {
-		return implement(analyticsContract.updateReportConfig).handler(({ input }) => this.client.updateReportConfig(input));
-	}
+    @Implement(analyticsContract.updateReportConfig)
+    updateReportConfig() {
+        return implement(analyticsContract.updateReportConfig).handler(
+            ({ input }) => this.client.updateReportConfig(input)
+        )
+    }
 
-	@Implement(analyticsContract.deleteReportConfig)
-	deleteReportConfig() {
-		return implement(analyticsContract.deleteReportConfig).handler(({ input }) => this.client.deleteReportConfig(input));
-	}
+    @Implement(analyticsContract.deleteReportConfig)
+    deleteReportConfig() {
+        return implement(analyticsContract.deleteReportConfig).handler(
+            ({ input }) => this.client.deleteReportConfig(input)
+        )
+    }
 }

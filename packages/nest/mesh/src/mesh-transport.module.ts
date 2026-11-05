@@ -1,10 +1,13 @@
-import { Module } from "@nestjs/common";
-import { DiscoveryModule, DiscoveryService } from "@nestjs/core";
+import { Module } from '@nestjs/common'
+import { DiscoveryModule, DiscoveryService } from '@nestjs/core'
 
-import { declareModule } from "@deployer/nest-effect";
+import { declareModule } from '@deployer/nest-effect'
 
-import { MeshRouterResolver } from "./mesh-router.resolver";
-import { MESH_TRANSPORT_OPTIONS, type MeshTransportOptions } from "./mesh-transport.options";
+import { MeshRouterResolver } from './mesh-router.resolver'
+import {
+    MESH_TRANSPORT_OPTIONS,
+    type MeshTransportOptions,
+} from './mesh-transport.options'
 
 /**
  * The routers the app declares, as a module.
@@ -18,27 +21,28 @@ import { MESH_TRANSPORT_OPTIONS, type MeshTransportOptions } from "./mesh-transp
  * `forRoot` result.
  */
 export const MeshTransportModule = {
-	forRoot(options: MeshTransportOptions) {
-		@Module({})
-		class MeshTransportDynamicModule {}
+    forRoot(options: MeshTransportOptions) {
+        @Module({})
+        class MeshTransportDynamicModule {}
 
-		return declareModule(
-			{
-				module: MeshTransportDynamicModule,
-				imports: [DiscoveryModule],
-				providers: [
-					{ provide: MESH_TRANSPORT_OPTIONS, useValue: options },
-					{
-						// The tag is the service; `live` is its implementation, built once from the two Nest providers.
-						provide: MeshRouterResolver,
-						useFactory: (discovery: DiscoveryService) => MeshRouterResolver.live({ discovery, options }),
-						inject: [DiscoveryService],
-					},
-				],
-				exports: [MeshRouterResolver, MESH_TRANSPORT_OPTIONS],
-			},
-			// The resolver is the one tag this module hands up: the transport injects it, importers may yield it.
-			{ provides: [MeshRouterResolver], exports: [MeshRouterResolver] },
-		);
-	},
-} as const;
+        return declareModule(
+            {
+                module: MeshTransportDynamicModule,
+                imports: [DiscoveryModule],
+                providers: [
+                    { provide: MESH_TRANSPORT_OPTIONS, useValue: options },
+                    {
+                        // The tag is the service; `live` is its implementation, built once from the two Nest providers.
+                        provide: MeshRouterResolver,
+                        useFactory: (discovery: DiscoveryService) =>
+                            MeshRouterResolver.live({ discovery, options }),
+                        inject: [DiscoveryService],
+                    },
+                ],
+                exports: [MeshRouterResolver, MESH_TRANSPORT_OPTIONS],
+            },
+            // The resolver is the one tag this module hands up: the transport injects it, importers may yield it.
+            { provides: [MeshRouterResolver], exports: [MeshRouterResolver] }
+        )
+    },
+} as const

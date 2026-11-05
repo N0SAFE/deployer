@@ -13,7 +13,7 @@
  * Heartbeat keeps the instance "active"; an expired/revoked token transparently
  * re-registers when credentials are available.
  */
-import "server-only";
+import 'server-only'
 
 /**
  * File access uses Bun's file APIs (Bun.file / Bun.write), not node:fs.
@@ -27,78 +27,97 @@ import "server-only";
  * global is always available because `next` runs under `bun --bun`.
  */
 
-const DEFAULT_TOKEN_FILE = "/app/.deployer/app-instance-token";
+const DEFAULT_TOKEN_FILE = '/app/.deployer/app-instance-token'
 
 interface RegisterResponse {
-	instanceId: string;
-	appToken: string;
-	heartbeatIntervalMs: number;
+    instanceId: string
+    appToken: string
+    heartbeatIntervalMs: number
 }
 
-let cachedTokenPromise: Promise<string> | null = null;
+let cachedTokenPromise: Promise<string> | null = null
 
 function apiUrl(): string {
-	const raw = process.env.API_URL ?? "";
-	if (raw.length === 0) throw new Error("API_URL is required for app-instance registration");
-	return raw.replace(/\/$/, "");
+    const raw = process.env.API_URL ?? ''
+    if (raw.length === 0)
+        throw new Error('API_URL is required for app-instance registration')
+    return raw.replace(/\/$/, '')
 }
 
 function tokenFilePath(): string {
-	return process.env.APP_INSTANCE_TOKEN_PATH ?? DEFAULT_TOKEN_FILE;
+    return process.env.APP_INSTANCE_TOKEN_PATH ?? DEFAULT_TOKEN_FILE
 }
 
 async function readPersistedToken(): Promise<string | null> {
-	try {
-		const file = Bun.file(tokenFilePath());
-		if (!(await file.exists())) return null;
-		const token = (await file.text()).trim();
-		return token.length > 0 ? token : null;
-	} catch {
-		return null;
-	}
+    try {
+        const file = Bun.file(tokenFilePath())
+        if (!(await file.exists())) return null
+        const token = (await file.text()).trim()
+        return token.length > 0 ? token : null
+    } catch {
+        return null
+    }
 }
 
 async function persistToken(token: string): Promise<void> {
-	// createPath (default true) creates missing parent directories; mode
-	// preserves the previous 0600 hardening on the persisted token.
-	await Bun.write(tokenFilePath(), token, { mode: 0o600, createPath: true });
+    // createPath (default true) creates missing parent directories; mode
+    // preserves the previous 0600 hardening on the persisted token.
+    await Bun.write(tokenFilePath(), token, { mode: 0o600, createPath: true })
 }
 
 async function registerWithCredentials(): Promise<string> {
-	const email = process.env.DEPLOYER_INSTANCE_EMAIL;
-	const password = process.env.DEPLOYER_INSTANCE_PASSWORD;
-	if (email === undefined || password === undefined || email.length === 0 || password.length === 0) {
-		throw new Error(
-			"App-instance bootstrap failed: no APP_INSTANCE_TOKEN, no persisted token, and DEPLOYER_INSTANCE_EMAIL/PASSWORD are not set",
-		);
-	}
-	const label = process.env.DEPLOYER_INSTANCE_LABEL ?? `web-${process.env.HOSTNAME ?? "local"}`;
+    const email = process.env.DEPLOYER_INSTANCE_EMAIL
+    const password = process.env.DEPLOYER_INSTANCE_PASSWORD
+    if (
+        email === undefined ||
+        password === undefined ||
+        email.length === 0 ||
+        password.length === 0
+    ) {
+        throw new Error(
+            'App-instance bootstrap failed: no APP_INSTANCE_TOKEN, no persisted token, and DEPLOYER_INSTANCE_EMAIL/PASSWORD are not set'
+        )
+    }
+    const label =
+        process.env.DEPLOYER_INSTANCE_LABEL ??
+        `web-${process.env.HOSTNAME ?? 'local'}`
 
-	const response = await fetch(`${apiUrl()}/platform/app-instances/register`, {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ email, password, instanceLabel: label }),
-	});
-	if (!response.ok) {
-		throw new Error(`App-instance registration failed: HTTP ${String(response.status)}`);
-	}
-	const data = (await response.json()) as RegisterResponse;
-	await persistToken(data.appToken);
-	return data.appToken;
+    const response = await fetch(
+        `${apiUrl()}/platform/app-instances/register`,
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email, password, instanceLabel: label }),
+        }
+    )
+    if (!response.ok) {
+        throw new Error(
+            `App-instance registration failed: HTTP ${String(response.status)}`
+        )
+    }
+    const data = (await response.json()) as RegisterResponse
+    await persistToken(data.appToken)
+    return data.appToken
 }
 
 /** True when the API acknowledges the token (active or revived stale). */
 async function heartbeatOk(token: string): Promise<boolean> {
-	try {
-		const response = await fetch(`${apiUrl()}/platform/app-instances/heartbeat`, {
-			method: "POST",
-			headers: { "content-type": "application/json", "x-app-instance-token": token },
-			body: JSON.stringify({}),
-		});
-		return response.ok;
-	} catch {
-		return false;
-	}
+    try {
+        const response = await fetch(
+            `${apiUrl()}/platform/app-instances/heartbeat`,
+            {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    'x-app-instance-token': token,
+                },
+                body: JSON.stringify({}),
+            }
+        )
+        return response.ok
+    } catch {
+        return false
+    }
 }
 
 /**
@@ -107,15 +126,15 @@ async function heartbeatOk(token: string): Promise<boolean> {
  * with a heartbeat; failures fall through to credential registration.
  */
 export function getAppInstanceToken(): Promise<string> {
-	cachedTokenPromise ??= (async () => {
-		const envToken = process.env.APP_INSTANCE_TOKEN;
-		if (envToken !== undefined && envToken.length > 0) return envToken;
+    cachedTokenPromise ??= (async () => {
+        const envToken = process.env.APP_INSTANCE_TOKEN
+        if (envToken !== undefined && envToken.length > 0) return envToken
 
-		const persisted = await readPersistedToken();
-		if (persisted !== null && (await heartbeatOk(persisted))) return persisted;
+        const persisted = await readPersistedToken()
+        if (persisted !== null && (await heartbeatOk(persisted)))
+            return persisted
 
-		return await registerWithCredentials();
-	})();
-	return cachedTokenPromise;
+        return await registerWithCredentials()
+    })()
+    return cachedTokenPromise
 }
-

@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 /**
  * Swarm participation — how THIS node takes part in the Docker Swarm cluster
@@ -25,11 +25,13 @@ import z from "zod/v4";
  *                elsewhere. Only meaningful with mode="join".
  */
 
-export const swarmNodePolicySchema = z.enum(["auto", "manager", "worker"]);
-export type SwarmNodePolicy = z.infer<typeof swarmNodePolicySchema>;
+export const swarmNodePolicySchema = z.enum(['auto', 'manager', 'worker'])
+export type SwarmNodePolicy = z.infer<typeof swarmNodePolicySchema>
 
-export const swarmParticipationModeSchema = z.enum(["create", "join"]);
-export type SwarmParticipationMode = z.infer<typeof swarmParticipationModeSchema>;
+export const swarmParticipationModeSchema = z.enum(['create', 'join'])
+export type SwarmParticipationMode = z.infer<
+    typeof swarmParticipationModeSchema
+>
 
 /**
  * Coherence invariants of a participation config — the SINGLE definition,
@@ -44,25 +46,26 @@ export type SwarmParticipationMode = z.infer<typeof swarmParticipationModeSchema
  *    the node cannot reach the cluster to join it.
  */
 export function swarmParticipationIssues(input: {
-    mode: SwarmParticipationMode;
-    policy: SwarmNodePolicy;
-    joinAddrs?: readonly string[] | undefined;
+    mode: SwarmParticipationMode
+    policy: SwarmNodePolicy
+    joinAddrs?: readonly string[] | undefined
 }): Array<{ path: string; message: string }> {
-    const issues: Array<{ path: string; message: string }> = [];
-    if (input.mode === "create" && input.policy === "worker") {
+    const issues: Array<{ path: string; message: string }> = []
+    if (input.mode === 'create' && input.policy === 'worker') {
         issues.push({
-            path: "policy",
+            path: 'policy',
             message:
-                "A founding node must be a manager (auto or manager) — it creates the cluster, so it cannot be worker-only.",
-        });
+                'A founding node must be a manager (auto or manager) — it creates the cluster, so it cannot be worker-only.',
+        })
     }
-    if (input.mode === "join" && (input.joinAddrs ?? []).length === 0) {
+    if (input.mode === 'join' && (input.joinAddrs ?? []).length === 0) {
         issues.push({
-            path: "joinAddrs",
-            message: "Joining a cluster requires at least one control-plane address (host:port).",
-        });
+            path: 'joinAddrs',
+            message:
+                'Joining a cluster requires at least one control-plane address (host:port).',
+        })
     }
-    return issues;
+    return issues
 }
 
 /** Shared shape of all participation fields (mode/policy/addresses/token). */
@@ -72,7 +75,7 @@ const swarmParticipationFields = {
     joinToken: z.string().trim().optional().nullable(),
     /** Control-plane reachable addresses, "host:port" each (mode="join"). */
     joinAddrs: z.array(z.string().min(1)).optional().default([]),
-} as const;
+} as const
 
 /**
  * Selection for a node that FOUNDS a cluster. The mode is implied (this node
@@ -82,16 +85,22 @@ const swarmParticipationFields = {
  */
 export const swarmFoundingSelectionSchema = z
     .object({
-        mode: z.literal("create").default("create"),
+        mode: z.literal('create').default('create'),
         policy: swarmNodePolicySchema,
         ...swarmParticipationFields,
     })
     .superRefine((data, ctx) => {
         for (const issue of swarmParticipationIssues(data)) {
-            ctx.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+            ctx.addIssue({
+                code: 'custom',
+                path: [issue.path],
+                message: issue.message,
+            })
         }
-    });
-export type SwarmFoundingSelection = z.infer<typeof swarmFoundingSelectionSchema>;
+    })
+export type SwarmFoundingSelection = z.infer<
+    typeof swarmFoundingSelectionSchema
+>
 
 /**
  * Selection for a node that JOINS an existing cluster. The mode is implied by
@@ -100,28 +109,30 @@ export type SwarmFoundingSelection = z.infer<typeof swarmFoundingSelectionSchema
  * manager (dedicated control plane).
  */
 export const swarmJoinSelectionSchema = z.object({
-    policy: swarmNodePolicySchema.default("worker"),
+    policy: swarmNodePolicySchema.default('worker'),
     joinToken: z.string().trim().optional().nullable(),
-});
-export type SwarmJoinSelection = z.infer<typeof swarmJoinSelectionSchema>;
+})
+export type SwarmJoinSelection = z.infer<typeof swarmJoinSelectionSchema>
 
 /** Operator-facing PARTIAL input (cluster config UI updates). */
 export const swarmParticipationInputSchema = z.object({
     mode: swarmParticipationModeSchema.optional(),
     policy: swarmNodePolicySchema.optional(),
     ...swarmParticipationFields,
-});
-export type SwarmParticipationInput = z.infer<typeof swarmParticipationInputSchema>;
+})
+export type SwarmParticipationInput = z.infer<
+    typeof swarmParticipationInputSchema
+>
 
 /** Persisted shape (node_config.swarmConfig). */
 export const swarmParticipationSchema = z.object({
-    mode: swarmParticipationModeSchema.default("create"),
-    policy: swarmNodePolicySchema.default("auto"),
+    mode: swarmParticipationModeSchema.default('create'),
+    policy: swarmNodePolicySchema.default('auto'),
     advertiseAddr: z.string().nullable().default(null),
     joinToken: z.string().nullable().default(null),
     joinAddrs: z.array(z.string().min(1)).default([]),
-});
-export type SwarmParticipationConfig = z.infer<typeof swarmParticipationSchema>;
+})
+export type SwarmParticipationConfig = z.infer<typeof swarmParticipationSchema>
 
 /** Describe one policy for the UI (why/when to pick it). */
 export const swarmPolicyDocumentSchema = z.object({
@@ -129,11 +140,11 @@ export const swarmPolicyDocumentSchema = z.object({
     name: z.string().min(1),
     description: z.string().min(1),
     bestFor: z.string().min(1),
-    role: z.enum(["manager", "worker"]),
+    role: z.enum(['manager', 'worker']),
     schedulesWorkloads: z.boolean(),
     recommended: z.boolean().default(false),
-});
-export type SwarmPolicyDocument = z.infer<typeof swarmPolicyDocumentSchema>;
+})
+export type SwarmPolicyDocument = z.infer<typeof swarmPolicyDocumentSchema>
 
 /** Live engine state + effective participation — what the UI shows. */
 export const swarmConfigViewSchema = z.object({
@@ -154,5 +165,5 @@ export const swarmConfigViewSchema = z.object({
     resolveNote: z.string(),
     /** Policy documents for the configuration UI. */
     policies: z.array(swarmPolicyDocumentSchema).default([]),
-});
-export type SwarmConfigView = z.infer<typeof swarmConfigViewSchema>;
+})
+export type SwarmConfigView = z.infer<typeof swarmConfigViewSchema>

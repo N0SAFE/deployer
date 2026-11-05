@@ -1,13 +1,14 @@
-import { Context } from "effect";
+import { Context } from 'effect'
 
-import type { GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
+import type { GlobalDatabaseServiceShape } from '@deployer/shared/core/modules/database/services/global-database.service'
 
 /** Effect-facing database capability; aliased to the Nest `GlobalDatabaseService`. */
 export type DatabaseShape = {
-	readonly db: GlobalDatabaseServiceShape["db"];
+    readonly db: GlobalDatabaseServiceShape['db']
 }
 
 /** Effect key = NestJS token, provided once by the root module. */
-export class DatabasePort extends Context.Service<DatabasePort, DatabaseShape>()(
-	"identity/DatabasePort",
-) {}
+export class DatabasePort extends Context.Service<
+    DatabasePort,
+    DatabaseShape
+>()('identity/DatabasePort') {}

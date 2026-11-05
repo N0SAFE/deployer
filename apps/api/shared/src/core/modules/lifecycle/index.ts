@@ -1,1 +1,1 @@
-export { AppLifecycleModule } from "./lifecycle.module";
+export { AppLifecycleModule } from './lifecycle.module'

@@ -1,7 +1,7 @@
-import { deploymentTemplateSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { deploymentTemplateSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const templateOps = standard.zod(deploymentTemplateSchema, "deploymentTemplate");
+const templateOps = standard.zod(deploymentTemplateSchema, 'deploymentTemplate')
 
 export const templateFindByIdContract = templateOps
     .read()
@@ -9,4 +9,4 @@ export const templateFindByIdContract = templateOps
         // 404 for unknown template id.
         ...standardDomainErrorContracts(e),
     ])
-    .build();
+    .build()

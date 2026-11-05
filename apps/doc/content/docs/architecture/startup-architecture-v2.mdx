@@ -4,7 +4,10 @@ description: Complete rethinking of the application startup model. Each core con
 order: 12
 ---
 
-<DocMeta source="docs/architecture/startup-architecture-v2.mdx" scope="canonical" />
+<DocMeta
+    source="docs/architecture/startup-architecture-v2.mdx"
+    scope="canonical"
+/>
 
 <DocCallout title="Superseded — kept as a design record" tone="danger">
 **This document describes a design that has since been REPLACED.** The sub-app
@@ -19,8 +22,7 @@ see:
 - [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
 - [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
 - `docs/setup-app-refactor-plan.md` — the refactor that replaced it
-</DocCallout>
-
+    </DocCallout>
 
 # Startup Architecture v2 — Sub-App Trigger Chain
 
@@ -49,14 +51,14 @@ see:
 
 ### Problems with v1 (Current)
 
-| Problem | Symptom | Root Cause |
-|---------|---------|------------|
-| **Linear startup order** | Adding a new startup service means editing the orchestrator's constructor array | `StartupOrchestratorService` hard-codes an ordered array of `CoreStartupService` implementations |
-| **Startup providers pollute DI** | `DatabaseStartupService`, `SetupStartupService`, etc. remain in the container forever | They're registered in the same `StartupModule` that lives in the main app |
-| **Setup wizard lives in main app** | Setup endpoints run in the same Express instance as production endpoints | `SetupModule` is imported directly in `AppModule` |
-| **No clean teardown** | Setup-related services, subjects, subscriptions persist in memory | No mechanism to destroy the startup context |
-| **Eager deadlock-breaking code** | `checkConfigAndEmit()` is called from two places to avoid a deadlock | Pool factory and orchestrator are in the same DI container, racing each other |
-| **Monolithic orchestration** | All startup logic is in one `StartupModule` that imports everything | No separation of concerns per startup phase |
+| Problem                            | Symptom                                                                               | Root Cause                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Linear startup order**           | Adding a new startup service means editing the orchestrator's constructor array       | `StartupOrchestratorService` hard-codes an ordered array of `CoreStartupService` implementations |
+| **Startup providers pollute DI**   | `DatabaseStartupService`, `SetupStartupService`, etc. remain in the container forever | They're registered in the same `StartupModule` that lives in the main app                        |
+| **Setup wizard lives in main app** | Setup endpoints run in the same Express instance as production endpoints              | `SetupModule` is imported directly in `AppModule`                                                |
+| **No clean teardown**              | Setup-related services, subjects, subscriptions persist in memory                     | No mechanism to destroy the startup context                                                      |
+| **Eager deadlock-breaking code**   | `checkConfigAndEmit()` is called from two places to avoid a deadlock                  | Pool factory and orchestrator are in the same DI container, racing each other                    |
+| **Monolithic orchestration**       | All startup logic is in one `StartupModule` that imports everything                   | No separation of concerns per startup phase                                                      |
 
 ### Design Goals for v2
 
@@ -195,52 +197,52 @@ The foundation of the architecture is the **trigger** — a typed signal that tr
 
 ```typescript
 // core/modules/triggers/trigger.ts
-import { Subject, firstValueFrom, type Observable } from 'rxjs';
+import { Subject, firstValueFrom, type Observable } from 'rxjs'
 
 export class Trigger<T extends object = object> {
-  private readonly subject = new Subject<T>();
-  private _resolved = false;
-  private _value: T | null = null;
+    private readonly subject = new Subject<T>()
+    private _resolved = false
+    private _value: T | null = null
 
-  /** Whether this trigger has been fired */
-  get resolved(): boolean {
-    return this._resolved;
-  }
-
-  /** The value that was passed when fired. Throws if not yet resolved. */
-  get value(): T {
-    if (!this._resolved || !this._value) {
-      throw new Error('Trigger not yet resolved');
+    /** Whether this trigger has been fired */
+    get resolved(): boolean {
+        return this._resolved
     }
-    return this._value;
-  }
 
-  /** Observable that emits once when the trigger fires. */
-  get asObservable(): Observable<T> {
-    return this.subject.asObservable();
-  }
+    /** The value that was passed when fired. Throws if not yet resolved. */
+    get value(): T {
+        if (!this._resolved || !this._value) {
+            throw new Error('Trigger not yet resolved')
+        }
+        return this._value
+    }
 
-  /**
-   * Returns a Promise that resolves when the trigger fires.
-   * If already resolved, returns immediately with the value.
-   * This is the primary API for `forRootAsync` factories.
-   */
-  async waitFor(): Promise<T> {
-    if (this._resolved && this._value) return this._value;
-    return firstValueFrom(this.subject);
-  }
+    /** Observable that emits once when the trigger fires. */
+    get asObservable(): Observable<T> {
+        return this.subject.asObservable()
+    }
 
-  /**
-   * Fire the trigger with a value.
-   * Can only be called once — subsequent calls are no-ops.
-   */
-  fire(value: T): void {
-    if (this._resolved) return;
-    this._value = value;
-    this._resolved = true;
-    this.subject.next(value);
-    this.subject.complete();
-  }
+    /**
+     * Returns a Promise that resolves when the trigger fires.
+     * If already resolved, returns immediately with the value.
+     * This is the primary API for `forRootAsync` factories.
+     */
+    async waitFor(): Promise<T> {
+        if (this._resolved && this._value) return this._value
+        return firstValueFrom(this.subject)
+    }
+
+    /**
+     * Fire the trigger with a value.
+     * Can only be called once — subsequent calls are no-ops.
+     */
+    fire(value: T): void {
+        if (this._resolved) return
+        this._value = value
+        this._resolved = true
+        this.subject.next(value)
+        this.subject.complete()
+    }
 }
 ```
 
@@ -250,42 +252,42 @@ All triggers are registered in a single place and accessible via dependency inje
 
 ```typescript
 // core/modules/triggers/trigger-registry.ts
-import { Injectable } from '@nestjs/common';
-import { Trigger } from './trigger';
-import type { ConfigService } from '@/config/env/config.service';
-import type { Pool } from 'pg';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as globalSchema from '@/config/drizzle/global/schema';
+import { Injectable } from '@nestjs/common'
+import { Trigger } from './trigger'
+import type { ConfigService } from '@/config/env/config.service'
+import type { Pool } from 'pg'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type * as globalSchema from '@/config/drizzle/global/schema'
 
 /** Payload types for each trigger */
 export interface ConfigTriggerPayload {
-  config: ConfigService;
+    config: ConfigService
 }
 
 export interface DatabaseTriggerPayload {
-  pool: Pool;
-  drizzle: NodePgDatabase<typeof globalSchema>;
-  isMigrated: boolean;
+    pool: Pool
+    drizzle: NodePgDatabase<typeof globalSchema>
+    isMigrated: boolean
 }
 
 export interface AuthTriggerPayload {
-  authInstance: any;
-  authCoreService: any;
-  adminCreated: boolean;
+    authInstance: any
+    authCoreService: any
+    adminCreated: boolean
 }
 
 export interface MeshTriggerPayload {
-  meshClient: any;
-  nodeId: string;
+    meshClient: any
+    nodeId: string
 }
 
 export interface EventsTriggerPayload {
-  eventBus: any;
+    eventBus: any
 }
 
 export interface DockerTriggerPayload {
-  dockerode: any;
-  socketAvailable: boolean;
+    dockerode: any
+    socketAvailable: boolean
 }
 
 /**
@@ -295,12 +297,12 @@ export interface DockerTriggerPayload {
  */
 @Injectable()
 export class TriggerRegistry {
-  readonly config = new Trigger<ConfigTriggerPayload>();
-  readonly database = new Trigger<DatabaseTriggerPayload>();
-  readonly auth = new Trigger<AuthTriggerPayload>();
-  readonly mesh = new Trigger<MeshTriggerPayload>();
-  readonly events = new Trigger<EventsTriggerPayload>();
-  readonly docker = new Trigger<DockerTriggerPayload>();
+    readonly config = new Trigger<ConfigTriggerPayload>()
+    readonly database = new Trigger<DatabaseTriggerPayload>()
+    readonly auth = new Trigger<AuthTriggerPayload>()
+    readonly mesh = new Trigger<MeshTriggerPayload>()
+    readonly events = new Trigger<EventsTriggerPayload>()
+    readonly docker = new Trigger<DockerTriggerPayload>()
 }
 ```
 
@@ -311,8 +313,8 @@ The `SubAppRunner` gives the sub-app access to the trigger it needs to fire:
 ```typescript
 // core/modules/sub-app-runner/sub-app-runner.ts
 export interface SubAppContext<TTriggerPayload extends object> {
-  /** The trigger this sub-app must fire when its work is done */
-  trigger: Trigger<TTriggerPayload>;
+    /** The trigger this sub-app must fire when its work is done */
+    trigger: Trigger<TTriggerPayload>
 }
 ```
 
@@ -343,51 +345,51 @@ stateDiagram-v2
 
 ### States
 
-| State | What Happens |
-|-------|-------------|
-| **Created** | `SubAppOrchestrator` instantiates the sub-app module class |
-| **Initializing** | `NestFactory.createApplicationContext(SubAppModule)` — NestJS creates the DI container, resolves providers, runs `OnModuleInit` |
-| **Running** | Sub-app's main service is executing. It can serve HTTP (setup wizard), connect to databases, validate connections, etc. |
-| **Triggered** | Sub-app calls `context.trigger.fire(payload)`. The main app's `forRootAsync` factory receives the payload and resolves the module |
-| **Extracting** | Main app reads providers from the sub-app's DI container (the pool, drizzle instance, etc.) |
-| **Destroying** | `app.close()` — all providers run `OnModuleDestroy`, DI container is released |
-| **Collected** | All references are nulled out, GC reclaims memory |
+| State            | What Happens                                                                                                                      |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Created**      | `SubAppOrchestrator` instantiates the sub-app module class                                                                        |
+| **Initializing** | `NestFactory.createApplicationContext(SubAppModule)` — NestJS creates the DI container, resolves providers, runs `OnModuleInit`   |
+| **Running**      | Sub-app's main service is executing. It can serve HTTP (setup wizard), connect to databases, validate connections, etc.           |
+| **Triggered**    | Sub-app calls `context.trigger.fire(payload)`. The main app's `forRootAsync` factory receives the payload and resolves the module |
+| **Extracting**   | Main app reads providers from the sub-app's DI container (the pool, drizzle instance, etc.)                                       |
+| **Destroying**   | `app.close()` — all providers run `OnModuleDestroy`, DI container is released                                                     |
+| **Collected**    | All references are nulled out, GC reclaims memory                                                                                 |
 
 ### The SubApp Interface
 
 ```typescript
 // core/modules/sub-app-runner/sub-app.interface.ts
-import type { Type } from '@nestjs/common';
-import type { Trigger } from '@/core/modules/triggers/trigger';
+import type { Type } from '@nestjs/common'
+import type { Trigger } from '@/core/modules/triggers/trigger'
 
 export interface SubApp<TTriggerPayload extends object = object> {
-  /** Unique name for this sub-app (used in logs and error messages) */
-  readonly name: string;
+    /** Unique name for this sub-app (used in logs and error messages) */
+    readonly name: string
 
-  /**
-   * The NestJS module class to load as the sub-app root.
-   * This module will be passed to NestFactory.createApplicationContext().
-   */
-  readonly module: Type<any>;
+    /**
+     * The NestJS module class to load as the sub-app root.
+     * This module will be passed to NestFactory.createApplicationContext().
+     */
+    readonly module: Type<any>
 
-  /**
-   * Optional: names of triggers that must resolve before this sub-app starts.
-   * If empty, the sub-app starts immediately.
-   */
-  readonly dependsOn?: string[];
+    /**
+     * Optional: names of triggers that must resolve before this sub-app starts.
+     * If empty, the sub-app starts immediately.
+     */
+    readonly dependsOn?: string[]
 
-  /**
-   * The trigger this sub-app must fire when initialization completes.
-   * The sub-app accesses this trigger via its own DI container.
-   */
-  readonly trigger: Trigger<TTriggerPayload>;
+    /**
+     * The trigger this sub-app must fire when initialization completes.
+     * The sub-app accesses this trigger via its own DI container.
+     */
+    readonly trigger: Trigger<TTriggerPayload>
 
-  /**
-   * Optional timeout in milliseconds.
-   * If the sub-app doesn't fire its trigger within this time, it's
-   * considered failed and the orchestrator handles the error.
-   */
-  readonly timeoutMs?: number;
+    /**
+     * Optional timeout in milliseconds.
+     * If the sub-app doesn't fire its trigger within this time, it's
+     * considered failed and the orchestrator handles the error.
+     */
+    readonly timeoutMs?: number
 }
 ```
 
@@ -411,122 +413,125 @@ The `SubAppOrchestrator` lives in the **main app**. It:
 
 ```typescript
 // core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import type { INestApplicationContext } from '@nestjs/common';
-import { TriggerRegistry } from '@/core/modules/triggers/trigger-registry';
-import type { SubApp } from '@/core/modules/sub-app-runner/sub-app.interface';
+import { Injectable, Logger } from '@nestjs/common'
+import { NestFactory } from '@nestjs/core'
+import type { INestApplicationContext } from '@nestjs/common'
+import { TriggerRegistry } from '@/core/modules/triggers/trigger-registry'
+import type { SubApp } from '@/core/modules/sub-app-runner/sub-app.interface'
 
 @Injectable()
 export class SubAppOrchestrator {
-  private readonly logger = new Logger(SubAppOrchestrator.name);
-  private readonly activeSubApps = new Map<string, INestApplicationContext>();
+    private readonly logger = new Logger(SubAppOrchestrator.name)
+    private readonly activeSubApps = new Map<string, INestApplicationContext>()
 
-  constructor(private readonly triggers: TriggerRegistry) {}
+    constructor(private readonly triggers: TriggerRegistry) {}
 
-  /**
-   * Run all registered sub-apps in dependency order.
-   * Each sub-app is created, runs, fires its trigger, and is destroyed
-   * before the next one starts.
-   */
-  async runAll(subApps: SubApp[]): Promise<void> {
-    const ordered = this.topologicalSort(subApps);
+    /**
+     * Run all registered sub-apps in dependency order.
+     * Each sub-app is created, runs, fires its trigger, and is destroyed
+     * before the next one starts.
+     */
+    async runAll(subApps: SubApp[]): Promise<void> {
+        const ordered = this.topologicalSort(subApps)
 
-    for (const subApp of ordered) {
-      await this.runOne(subApp);
+        for (const subApp of ordered) {
+            await this.runOne(subApp)
+        }
+
+        this.logger.log('✅ All sub-apps completed')
     }
 
-    this.logger.log('✅ All sub-apps completed');
-  }
+    /**
+     * Run a single sub-app: create, initialize, wait for trigger, destroy.
+     */
+    async runOne(subApp: SubApp): Promise<void> {
+        this.logger.log(`▶ Starting sub-app: ${subApp.name}`)
 
-  /**
-   * Run a single sub-app: create, initialize, wait for trigger, destroy.
-   */
-  async runOne(subApp: SubApp): Promise<void> {
-    this.logger.log(`▶ Starting sub-app: ${subApp.name}`);
+        // 1. Create the sub-app as a standalone NestJS context
+        const app = await NestFactory.createApplicationContext(subApp.module, {
+            abortOnError: false,
+            snapshot: process.env.NODE_ENV !== 'production',
+        })
 
-    // 1. Create the sub-app as a standalone NestJS context
-    const app = await NestFactory.createApplicationContext(subApp.module, {
-      abortOnError: false,
-      snapshot: process.env.NODE_ENV !== 'production',
-    });
+        // Store reference for potential cleanup
+        this.activeSubApps.set(subApp.name, app)
 
-    // Store reference for potential cleanup
-    this.activeSubApps.set(subApp.name, app);
+        // 2. The sub-app module imports SubAppContextModule.forRoot()
+        //    which provides SUB_APP_CONTEXT with the trigger.
+        //    The sub-app's services inject SUB_APP_CONTEXT and call
+        //    context.trigger.fire(payload) when ready.
 
-    // 2. The sub-app module imports SubAppContextModule.forRoot()
-    //    which provides SUB_APP_CONTEXT with the trigger.
-    //    The sub-app's services inject SUB_APP_CONTEXT and call
-    //    context.trigger.fire(payload) when ready.
+        // 3. Wait for the trigger to fire (with optional timeout)
+        this.logger.log(`⏳ Waiting for ${subApp.name} trigger...`)
 
-    // 3. Wait for the trigger to fire (with optional timeout)
-    this.logger.log(`⏳ Waiting for ${subApp.name} trigger...`);
+        const timeout = subApp.timeoutMs ?? 30_000
+        const payload = await this.waitForTrigger(subApp.trigger, timeout)
 
-    const timeout = subApp.timeoutMs ?? 30_000;
-    const payload = await this.waitForTrigger(subApp.trigger, timeout);
+        this.logger.log(`✅ ${subApp.name} trigger fired`)
 
-    this.logger.log(`✅ ${subApp.name} trigger fired`);
+        // 4. Sub-app has fired its trigger — destroy it
+        await app.close()
+        this.activeSubApps.delete(subApp.name)
 
-    // 4. Sub-app has fired its trigger — destroy it
-    await app.close();
-    this.activeSubApps.delete(subApp.name);
-
-    this.logger.log(`🧹 ${subApp.name} destroyed`);
-  }
-
-  private async waitForTrigger<T extends object>(
-    trigger: Trigger<T>,
-    timeoutMs: number,
-  ): Promise<T> {
-    return Promise.race([
-      trigger.waitFor(),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Trigger timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        ),
-      ),
-    ]);
-  }
-
-  private topologicalSort(subApps: SubApp[]): SubApp[] {
-    // Build dependency graph and sort using Kahn's algorithm
-    const nameMap = new Map(subApps.map((s) => [s.name, s]));
-    const inDegree = new Map<string, number>();
-    const adjacency = new Map<string, string[]>();
-
-    for (const app of subApps) {
-      inDegree.set(app.name, 0);
-      adjacency.set(app.name, []);
+        this.logger.log(`🧹 ${subApp.name} destroyed`)
     }
 
-    for (const app of subApps) {
-      for (const dep of app.dependsOn ?? []) {
-        adjacency.get(dep)?.push(app.name);
-        inDegree.set(app.name, (inDegree.get(app.name) ?? 0) + 1);
-      }
+    private async waitForTrigger<T extends object>(
+        trigger: Trigger<T>,
+        timeoutMs: number
+    ): Promise<T> {
+        return Promise.race([
+            trigger.waitFor(),
+            new Promise<never>((_, reject) =>
+                setTimeout(
+                    () =>
+                        reject(
+                            new Error(`Trigger timed out after ${timeoutMs}ms`)
+                        ),
+                    timeoutMs
+                )
+            ),
+        ])
     }
 
-    const queue: string[] = [];
-    for (const [name, degree] of inDegree) {
-      if (degree === 0) queue.push(name);
+    private topologicalSort(subApps: SubApp[]): SubApp[] {
+        // Build dependency graph and sort using Kahn's algorithm
+        const nameMap = new Map(subApps.map((s) => [s.name, s]))
+        const inDegree = new Map<string, number>()
+        const adjacency = new Map<string, string[]>()
+
+        for (const app of subApps) {
+            inDegree.set(app.name, 0)
+            adjacency.set(app.name, [])
+        }
+
+        for (const app of subApps) {
+            for (const dep of app.dependsOn ?? []) {
+                adjacency.get(dep)?.push(app.name)
+                inDegree.set(app.name, (inDegree.get(app.name) ?? 0) + 1)
+            }
+        }
+
+        const queue: string[] = []
+        for (const [name, degree] of inDegree) {
+            if (degree === 0) queue.push(name)
+        }
+
+        const sorted: SubApp[] = []
+        while (queue.length > 0) {
+            const name = queue.shift()!
+            const app = nameMap.get(name)
+            if (app) sorted.push(app)
+
+            for (const neighbor of adjacency.get(name) ?? []) {
+                const newDegree = (inDegree.get(neighbor) ?? 1) - 1
+                inDegree.set(neighbor, newDegree)
+                if (newDegree === 0) queue.push(neighbor)
+            }
+        }
+
+        return sorted
     }
-
-    const sorted: SubApp[] = [];
-    while (queue.length > 0) {
-      const name = queue.shift()!;
-      const app = nameMap.get(name);
-      if (app) sorted.push(app);
-
-      for (const neighbor of adjacency.get(name) ?? []) {
-        const newDegree = (inDegree.get(neighbor) ?? 1) - 1;
-        inDegree.set(neighbor, newDegree);
-        if (newDegree === 0) queue.push(neighbor);
-      }
-    }
-
-    return sorted;
-  }
 }
 ```
 
@@ -536,24 +541,26 @@ Each sub-app imports a `SubAppContextModule` that provides its trigger:
 
 ```typescript
 // core/modules/sub-app-runner/sub-app-context.module.ts
-import { DynamicModule, Module } from '@nestjs/common';
-import { SUB_APP_CONTEXT } from './tokens';
+import { DynamicModule, Module } from '@nestjs/common'
+import { SUB_APP_CONTEXT } from './tokens'
 
 @Module({})
 export class SubAppContextModule {
-  static forRoot<T extends object>(context: { trigger: Trigger<T> }): DynamicModule {
-    return {
-      module: SubAppContextModule,
-      providers: [
-        {
-          provide: SUB_APP_CONTEXT,
-          useValue: context,
-        },
-      ],
-      exports: [SUB_APP_CONTEXT],
-      global: true,
-    };
-  }
+    static forRoot<T extends object>(context: {
+        trigger: Trigger<T>
+    }): DynamicModule {
+        return {
+            module: SubAppContextModule,
+            providers: [
+                {
+                    provide: SUB_APP_CONTEXT,
+                    useValue: context,
+                },
+            ],
+            exports: [SUB_APP_CONTEXT],
+            global: true,
+        }
+    }
 }
 ```
 
@@ -561,7 +568,7 @@ export class SubAppContextModule {
 
 ```typescript
 // core/modules/sub-app-runner/tokens.ts
-export const SUB_APP_CONTEXT = Symbol('SUB_APP_CONTEXT');
+export const SUB_APP_CONTEXT = Symbol('SUB_APP_CONTEXT')
 ```
 
 ---
@@ -569,6 +576,7 @@ export const SUB_APP_CONTEXT = Symbol('SUB_APP_CONTEXT');
 ## Sub-App Definitions
 
 Each sub-app is:
+
 1. A NestJS module (e.g., `DatabaseSubAppModule`)
 2. A root service that injects `SUB_APP_CONTEXT` and fires the trigger when ready
 3. All providers needed for initialization
@@ -579,19 +587,19 @@ Each sub-app is:
 ```typescript
 // sub-apps/config/config.sub-app.ts
 export const configSubApp: SubApp<ConfigTriggerPayload> = {
-  name: 'config',
-  module: ConfigSubAppModule,
-  dependsOn: [],           // starts immediately
-  trigger: triggers.config,
-  timeoutMs: 5_000,
-};
+    name: 'config',
+    module: ConfigSubAppModule,
+    dependsOn: [], // starts immediately
+    trigger: triggers.config,
+    timeoutMs: 5_000,
+}
 ```
 
 ```typescript
 // sub-apps/config/config.sub-app.module.ts
 @Module({
-  imports: [SubAppContextModule.forRoot(configSubAppContext)],
-  providers: [ConfigSubAppService, EnvService],
+    imports: [SubAppContextModule.forRoot(configSubAppContext)],
+    providers: [ConfigSubAppService, EnvService],
 })
 export class ConfigSubAppModule {}
 ```
@@ -600,24 +608,24 @@ export class ConfigSubAppModule {}
 // sub-apps/config/config.sub-app.service.ts
 @Injectable()
 export class ConfigSubAppService implements OnModuleInit {
-  constructor(
-    @Inject(SUB_APP_CONTEXT)
-    private readonly ctx: SubAppContext<ConfigTriggerPayload>,
-    private readonly envService: EnvService,
-  ) {}
+    constructor(
+        @Inject(SUB_APP_CONTEXT)
+        private readonly ctx: SubAppContext<ConfigTriggerPayload>,
+        private readonly envService: EnvService
+    ) {}
 
-  async onModuleInit(): Promise<void> {
-    // Validate all required env vars
-    const required = ['NODE_ENV', 'API_PORT', 'DATABASE_URL'] as const;
-    for (const key of required) {
-      if (!this.envService.get(key)) {
-        throw new Error(`Required env var '${key}' is not set`);
-      }
+    async onModuleInit(): Promise<void> {
+        // Validate all required env vars
+        const required = ['NODE_ENV', 'API_PORT', 'DATABASE_URL'] as const
+        for (const key of required) {
+            if (!this.envService.get(key)) {
+                throw new Error(`Required env var '${key}' is not set`)
+            }
+        }
+
+        // Fire the trigger — this resolves ConfigModule in the main app
+        this.ctx.trigger.fire({ config: this.envService })
     }
-
-    // Fire the trigger — this resolves ConfigModule in the main app
-    this.ctx.trigger.fire({ config: this.envService });
-  }
 }
 ```
 
@@ -626,35 +634,35 @@ export class ConfigSubAppService implements OnModuleInit {
 ```typescript
 // sub-apps/database/database.sub-app.ts
 export const databaseSubApp: SubApp<DatabaseTriggerPayload> = {
-  name: 'database',
-  module: DatabaseSubAppModule,
-  dependsOn: ['config'],
-  trigger: triggers.database,
-  timeoutMs: 60_000,
-};
+    name: 'database',
+    module: DatabaseSubAppModule,
+    dependsOn: ['config'],
+    trigger: triggers.database,
+    timeoutMs: 60_000,
+}
 ```
 
 ```typescript
 // sub-apps/database/database.sub-app.module.ts
 @Module({
-  imports: [
-    SubAppContextModule.forRoot(databaseSubAppContext),
-    CoreInitializationModule,
-  ],
-  providers: [
-    DatabaseSubAppService,
-    {
-      provide: GLOBAL_DATABASE_POOL,
-      useFactory: (svc: DatabaseSubAppService) => svc.pool,
-      inject: [DatabaseSubAppService],
-    },
-    {
-      provide: GLOBAL_DATABASE_CONNECTION,
-      useFactory: (svc: DatabaseSubAppService) => svc.drizzle,
-      inject: [DatabaseSubAppService],
-    },
-  ],
-  exports: [GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION],
+    imports: [
+        SubAppContextModule.forRoot(databaseSubAppContext),
+        CoreInitializationModule,
+    ],
+    providers: [
+        DatabaseSubAppService,
+        {
+            provide: GLOBAL_DATABASE_POOL,
+            useFactory: (svc: DatabaseSubAppService) => svc.pool,
+            inject: [DatabaseSubAppService],
+        },
+        {
+            provide: GLOBAL_DATABASE_CONNECTION,
+            useFactory: (svc: DatabaseSubAppService) => svc.drizzle,
+            inject: [DatabaseSubAppService],
+        },
+    ],
+    exports: [GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION],
 })
 export class DatabaseSubAppModule {}
 ```
@@ -663,40 +671,40 @@ export class DatabaseSubAppModule {}
 // sub-apps/database/database.sub-app.service.ts
 @Injectable()
 export class DatabaseSubAppService implements OnModuleDestroy {
-  private _pool: Pool | null = null;
-  private _drizzle: DrizzleClient | null = null;
+    private _pool: Pool | null = null
+    private _drizzle: DrizzleClient | null = null
 
-  constructor(
-    @Inject(SUB_APP_CONTEXT)
-    private readonly ctx: SubAppContext<DatabaseTriggerPayload>,
-    private readonly initializationService: InitializationService,
-  ) {}
+    constructor(
+        @Inject(SUB_APP_CONTEXT)
+        private readonly ctx: SubAppContext<DatabaseTriggerPayload>,
+        private readonly initializationService: InitializationService
+    ) {}
 
-  async onModuleInit(): Promise<void> {
-    this.initializationService.checkConfigAndEmit();
-    const { databaseUrl, strategy } =
-      await this.initializationService.waitForSetup();
+    async onModuleInit(): Promise<void> {
+        this.initializationService.checkConfigAndEmit()
+        const { databaseUrl, strategy } =
+            await this.initializationService.waitForSetup()
 
-    if (!databaseUrl) {
-      throw new Error('Database URL could not be resolved');
+        if (!databaseUrl) {
+            throw new Error('Database URL could not be resolved')
+        }
+
+        this._pool = new Pool({ connectionString: databaseUrl })
+        this._drizzle = drizzle(this._pool, { schema: globalSchema })
+
+        // Fire trigger — resolves DatabaseModule in the main app
+        this.ctx.trigger.fire({
+            pool: this._pool,
+            drizzle: this._drizzle,
+            isMigrated: false,
+        })
     }
 
-    this._pool = new Pool({ connectionString: databaseUrl });
-    this._drizzle = drizzle(this._pool, { schema: globalSchema });
-
-    // Fire trigger — resolves DatabaseModule in the main app
-    this.ctx.trigger.fire({
-      pool: this._pool,
-      drizzle: this._drizzle,
-      isMigrated: false,
-    });
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this._pool?.end();
-    this._pool = null;
-    this._drizzle = null;
-  }
+    async onModuleDestroy(): Promise<void> {
+        await this._pool?.end()
+        this._pool = null
+        this._drizzle = null
+    }
 }
 ```
 
@@ -705,35 +713,35 @@ export class DatabaseSubAppService implements OnModuleDestroy {
 ```typescript
 // sub-apps/auth/auth.sub-app.ts
 export const authSubApp: SubApp<AuthTriggerPayload> = {
-  name: 'auth',
-  module: AuthSubAppModule,
-  dependsOn: ['config', 'database'],
-  trigger: triggers.auth,
-  timeoutMs: 30_000,
-};
+    name: 'auth',
+    module: AuthSubAppModule,
+    dependsOn: ['config', 'database'],
+    trigger: triggers.auth,
+    timeoutMs: 30_000,
+}
 ```
 
 ```typescript
 // sub-apps/auth/auth.sub-app.service.ts
 @Injectable()
 export class AuthSubAppService implements OnModuleInit {
-  constructor(
-    @Inject(SUB_APP_CONTEXT)
-    private readonly ctx: SubAppContext<AuthTriggerPayload>,
-    private readonly authCoreService: AuthCoreService,
-  ) {}
+    constructor(
+        @Inject(SUB_APP_CONTEXT)
+        private readonly ctx: SubAppContext<AuthTriggerPayload>,
+        private readonly authCoreService: AuthCoreService
+    ) {}
 
-  async onModuleInit(): Promise<void> {
-    if (!this.authCoreService.instance) {
-      throw new Error('Auth instance not initialized');
+    async onModuleInit(): Promise<void> {
+        if (!this.authCoreService.instance) {
+            throw new Error('Auth instance not initialized')
+        }
+
+        this.ctx.trigger.fire({
+            authInstance: this.authCoreService.instance,
+            authCoreService: this.authCoreService,
+            adminCreated: true,
+        })
     }
-
-    this.ctx.trigger.fire({
-      authInstance: this.authCoreService.instance,
-      authCoreService: this.authCoreService,
-      adminCreated: true,
-    });
-  }
 }
 ```
 
@@ -742,12 +750,12 @@ export class AuthSubAppService implements OnModuleInit {
 ```typescript
 // sub-apps/mesh/mesh.sub-app.ts
 export const meshSubApp: SubApp<MeshTriggerPayload> = {
-  name: 'mesh',
-  module: MeshSubAppModule,
-  dependsOn: ['config', 'database', 'auth'],
-  trigger: triggers.mesh,
-  timeoutMs: 30_000,
-};
+    name: 'mesh',
+    module: MeshSubAppModule,
+    dependsOn: ['config', 'database', 'auth'],
+    trigger: triggers.mesh,
+    timeoutMs: 30_000,
+}
 ```
 
 ### Sub-App 5: Events SubApp
@@ -755,12 +763,12 @@ export const meshSubApp: SubApp<MeshTriggerPayload> = {
 ```typescript
 // sub-apps/events/events.sub-app.ts
 export const eventsSubApp: SubApp<EventsTriggerPayload> = {
-  name: 'events',
-  module: EventsSubAppModule,
-  dependsOn: ['config', 'database', 'auth', 'mesh'],
-  trigger: triggers.events,
-  timeoutMs: 10_000,
-};
+    name: 'events',
+    module: EventsSubAppModule,
+    dependsOn: ['config', 'database', 'auth', 'mesh'],
+    trigger: triggers.events,
+    timeoutMs: 10_000,
+}
 ```
 
 ### Sub-App 6: Docker SubApp
@@ -768,12 +776,12 @@ export const eventsSubApp: SubApp<EventsTriggerPayload> = {
 ```typescript
 // sub-apps/docker/docker.sub-app.ts
 export const dockerSubApp: SubApp<DockerTriggerPayload> = {
-  name: 'docker',
-  module: DockerSubAppModule,
-  dependsOn: ['config', 'database', 'auth', 'mesh'],
-  trigger: triggers.docker,
-  timeoutMs: 10_000,
-};
+    name: 'docker',
+    module: DockerSubAppModule,
+    dependsOn: ['config', 'database', 'auth', 'mesh'],
+    trigger: triggers.docker,
+    timeoutMs: 10_000,
+}
 ```
 
 ### The Full Sub-App List
@@ -781,13 +789,13 @@ export const dockerSubApp: SubApp<DockerTriggerPayload> = {
 ```typescript
 // sub-apps/registry.ts
 export const ALL_SUB_APPS = [
-  configSubApp,
-  databaseSubApp,
-  authSubApp,
-  meshSubApp,
-  eventsSubApp,
-  dockerSubApp,
-];
+    configSubApp,
+    databaseSubApp,
+    authSubApp,
+    meshSubApp,
+    eventsSubApp,
+    dockerSubApp,
+]
 ```
 
 ### Dependency Graph
@@ -819,72 +827,79 @@ Each module in the main app uses `forRootAsync` with a factory that **awaits a t
 
 ```typescript
 @Module({
-  imports: [
-    // Config module waits for the config trigger
-    ConfigModule.forRootAsync({
-      inject: [TriggerRegistry],
-      useFactory: async (triggers: TriggerRegistry) => {
-        const payload = await triggers.config.waitFor();
-        return { config: payload.config };
-      },
-    }),
+    imports: [
+        // Config module waits for the config trigger
+        ConfigModule.forRootAsync({
+            inject: [TriggerRegistry],
+            useFactory: async (triggers: TriggerRegistry) => {
+                const payload = await triggers.config.waitFor()
+                return { config: payload.config }
+            },
+        }),
 
-    // Database module waits for the database trigger
-    DatabaseModule.forRootAsync({
-      inject: [TriggerRegistry],
-      useFactory: async (triggers: TriggerRegistry) => {
-        const payload = await triggers.database.waitFor();
-        return { pool: payload.pool, drizzle: payload.drizzle };
-      },
-    }),
+        // Database module waits for the database trigger
+        DatabaseModule.forRootAsync({
+            inject: [TriggerRegistry],
+            useFactory: async (triggers: TriggerRegistry) => {
+                const payload = await triggers.database.waitFor()
+                return { pool: payload.pool, drizzle: payload.drizzle }
+            },
+        }),
 
-    // Auth module waits for the auth trigger
-    AuthModule.forRootAsync({
-      inject: [TriggerRegistry],
-      useFactory: async (triggers: TriggerRegistry) => {
-        const payload = await triggers.auth.waitFor();
-        return { instance: payload.authInstance, coreService: payload.authCoreService };
-      },
-    }),
+        // Auth module waits for the auth trigger
+        AuthModule.forRootAsync({
+            inject: [TriggerRegistry],
+            useFactory: async (triggers: TriggerRegistry) => {
+                const payload = await triggers.auth.waitFor()
+                return {
+                    instance: payload.authInstance,
+                    coreService: payload.authCoreService,
+                }
+            },
+        }),
 
-    // Feature modules await multiple triggers
-    DockerModule.forRootAsync({
-      inject: [TriggerRegistry],
-      useFactory: async (triggers: TriggerRegistry) => {
-        const [db, docker] = await Promise.all([
-          triggers.database.waitFor(),
-          triggers.docker.waitFor(),
-        ]);
-        return { pool: db.pool, drizzle: db.drizzle, dockerode: docker.dockerode };
-      },
-    }),
+        // Feature modules await multiple triggers
+        DockerModule.forRootAsync({
+            inject: [TriggerRegistry],
+            useFactory: async (triggers: TriggerRegistry) => {
+                const [db, docker] = await Promise.all([
+                    triggers.database.waitFor(),
+                    triggers.docker.waitFor(),
+                ])
+                return {
+                    pool: db.pool,
+                    drizzle: db.drizzle,
+                    dockerode: docker.dockerode,
+                }
+            },
+        }),
 
-    // ORPC
-    ORPCModule.forRootAsync({
-      inject: [TriggerRegistry],
-      useFactory: async (triggers: TriggerRegistry) => {
-        const [db, auth] = await Promise.all([
-          triggers.database.waitFor(),
-          triggers.auth.waitFor(),
-        ]);
-        return {
-          context: { auth: auth.coreService.createEmptyAuthUtils() },
-        };
-      },
-    }),
-  ],
-  providers: [
-    SubAppOrchestrator,
-    TriggerRegistry,
-    {
-      provide: APP_BOOTSTRAP,
-      useFactory: async (orchestrator: SubAppOrchestrator) => {
-        await orchestrator.runAll(ALL_SUB_APPS);
-        return true;
-      },
-      inject: [SubAppOrchestrator],
-    },
-  ],
+        // ORPC
+        ORPCModule.forRootAsync({
+            inject: [TriggerRegistry],
+            useFactory: async (triggers: TriggerRegistry) => {
+                const [db, auth] = await Promise.all([
+                    triggers.database.waitFor(),
+                    triggers.auth.waitFor(),
+                ])
+                return {
+                    context: { auth: auth.coreService.createEmptyAuthUtils() },
+                }
+            },
+        }),
+    ],
+    providers: [
+        SubAppOrchestrator,
+        TriggerRegistry,
+        {
+            provide: APP_BOOTSTRAP,
+            useFactory: async (orchestrator: SubAppOrchestrator) => {
+                await orchestrator.runAll(ALL_SUB_APPS)
+                return true
+            },
+            inject: [SubAppOrchestrator],
+        },
+    ],
 })
 export class AppModule {}
 ```
@@ -977,26 +992,26 @@ sequenceDiagram
 
 ### What Gets Destroyed Per Sub-App
 
-| Sub-App | Providers Destroyed | Connections Closed |
-|---------|-------------------|-------------------|
-| Config | `ConfigSubAppService`, `EnvService` | None |
-| Database | `DatabaseSubAppService`, pool factory | Postgres pool connections |
-| Auth | `AuthSubAppService`, `AuthCoreService` | Auth instance |
-| Mesh | `MeshSubAppService`, `MeshClient` | Mesh socket/disconnect |
-| Events | `EventsSubAppService`, `EventBus` | Event bus connection |
-| Docker | `DockerSubAppService`, `DockerClientFactory` | Docker socket (if any) |
+| Sub-App  | Providers Destroyed                          | Connections Closed        |
+| -------- | -------------------------------------------- | ------------------------- |
+| Config   | `ConfigSubAppService`, `EnvService`          | None                      |
+| Database | `DatabaseSubAppService`, pool factory        | Postgres pool connections |
+| Auth     | `AuthSubAppService`, `AuthCoreService`       | Auth instance             |
+| Mesh     | `MeshSubAppService`, `MeshClient`            | Mesh socket/disconnect    |
+| Events   | `EventsSubAppService`, `EventBus`            | Event bus connection      |
+| Docker   | `DockerSubAppService`, `DockerClientFactory` | Docker socket (if any)    |
 
 ### What Survives (Extracted by Triggers)
 
-| Object | Created By | Extracted Via | Lives In |
-|--------|-----------|---------------|----------|
-| `Pool` (pg) | DatabaseSubAppService | `database` trigger payload | Main app DI |
-| `DrizzleClient` | DatabaseSubAppService | `database` trigger payload | Main app DI |
-| `BetterAuthInstance` | AuthSubAppService | `auth` trigger payload | Main app DI |
-| `AuthCoreService` | AuthSubAppService | `auth` trigger payload | Main app DI |
-| `MeshClient` | MeshSubAppService | `mesh` trigger payload | Main app DI |
-| `EventBus` | EventsSubAppService | `events` trigger payload | Main app DI |
-| `DockerodeInstance` | DockerSubAppService | `docker` trigger payload | Main app DI |
+| Object               | Created By            | Extracted Via              | Lives In    |
+| -------------------- | --------------------- | -------------------------- | ----------- |
+| `Pool` (pg)          | DatabaseSubAppService | `database` trigger payload | Main app DI |
+| `DrizzleClient`      | DatabaseSubAppService | `database` trigger payload | Main app DI |
+| `BetterAuthInstance` | AuthSubAppService     | `auth` trigger payload     | Main app DI |
+| `AuthCoreService`    | AuthSubAppService     | `auth` trigger payload     | Main app DI |
+| `MeshClient`         | MeshSubAppService     | `mesh` trigger payload     | Main app DI |
+| `EventBus`           | EventsSubAppService   | `events` trigger payload   | Main app DI |
+| `DockerodeInstance`  | DockerSubAppService   | `docker` trigger payload   | Main app DI |
 
 These survive because they are **standalone runtime objects** — they don't depend on the sub-app's DI container.
 
@@ -1006,28 +1021,28 @@ These survive because they are **standalone runtime objects** — they don't dep
 
 ### Per-Sub-App Error Handling
 
-| Scenario | Behavior |
-|----------|----------|
-| **Sub-app fails to create** | Orchestrator throws `FatalStartupError` |
+| Scenario                                     | Behavior                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Sub-app fails to create**                  | Orchestrator throws `FatalStartupError`                                        |
 | **Sub-app service throws** on `onModuleInit` | NestJS `abortOnError: false` catches it. Orchestrator sees trigger never fired |
-| **Trigger times out** | Orchestrator throws `SubAppTimeoutError`, then force-destroys the sub-app |
-| **Non-critical sub-app fails** | Orchestrator can skip and continue (degraded mode) |
+| **Trigger times out**                        | Orchestrator throws `SubAppTimeoutError`, then force-destroys the sub-app      |
+| **Non-critical sub-app fails**               | Orchestrator can skip and continue (degraded mode)                             |
 
 ### Degraded Mode
 
 ```typescript
 export interface SubAppFailurePolicy {
-  [subAppName: string]: 'fatal' | 'skip';
+    [subAppName: string]: 'fatal' | 'skip'
 }
 
 export const DEFAULT_FAILURE_POLICY: SubAppFailurePolicy = {
-  config: 'fatal',
-  database: 'fatal',
-  auth: 'fatal',
-  mesh: 'skip',
-  events: 'skip',
-  docker: 'skip',
-};
+    config: 'fatal',
+    database: 'fatal',
+    auth: 'fatal',
+    mesh: 'skip',
+    events: 'skip',
+    docker: 'skip',
+}
 ```
 
 ---
@@ -1040,56 +1055,56 @@ The setup wizard is itself a **sub-app** that runs an internal Express server. I
 
 ```typescript
 export const setupWizardSubApp: SubApp<SetupWizardTriggerPayload> = {
-  name: 'setup-wizard',
-  module: SetupWizardSubAppModule,
-  dependsOn: ['config'],
-  trigger: triggers.setupWizard,
-  timeoutMs: 300_000, // 5 min — user interaction
-};
+    name: 'setup-wizard',
+    module: SetupWizardSubAppModule,
+    dependsOn: ['config'],
+    trigger: triggers.setupWizard,
+    timeoutMs: 300_000, // 5 min — user interaction
+}
 ```
 
 ```typescript
 @Injectable()
 export class SetupWizardSubAppService implements OnModuleInit, OnModuleDestroy {
-  constructor(
-    @Inject(SUB_APP_CONTEXT)
-    private readonly ctx: SubAppContext<SetupWizardTriggerPayload>,
-    private readonly initializationService: InitializationService,
-    private readonly httpServer: EphemeralHttpServer,
-  ) {}
+    constructor(
+        @Inject(SUB_APP_CONTEXT)
+        private readonly ctx: SubAppContext<SetupWizardTriggerPayload>,
+        private readonly initializationService: InitializationService,
+        private readonly httpServer: EphemeralHttpServer
+    ) {}
 
-  async onModuleInit(): Promise<void> {
-    const config = this.initializationService.getCurrentState();
+    async onModuleInit(): Promise<void> {
+        const config = this.initializationService.getCurrentState()
 
-    if (config.configuredAt) {
-      // Already configured — fire immediately
-      this.ctx.trigger.fire({
-        databaseUrl: config.databaseUrl!,
-        strategy: config.strategy!,
-      });
-      return;
+        if (config.configuredAt) {
+            // Already configured — fire immediately
+            this.ctx.trigger.fire({
+                databaseUrl: config.databaseUrl!,
+                strategy: config.strategy!,
+            })
+            return
+        }
+
+        // Start HTTP server for setup wizard
+        const port = await this.httpServer.start()
+        await this.registerProxy(port)
+
+        // Wait for setup completion
+        const completion = await firstValueFrom(
+            this.initializationService.getInitializeStream().pipe(
+                filter((e) => e.type === 'complete'),
+                take(1)
+            )
+        )
+
+        await this.httpServer.stop()
+        await this.removeProxy()
+
+        this.ctx.trigger.fire({
+            databaseUrl: completion.databaseUrl!,
+            strategy: completion.strategy!,
+        })
     }
-
-    // Start HTTP server for setup wizard
-    const port = await this.httpServer.start();
-    await this.registerProxy(port);
-
-    // Wait for setup completion
-    const completion = await firstValueFrom(
-      this.initializationService.getInitializeStream().pipe(
-        filter((e) => e.type === 'complete'),
-        take(1),
-      ),
-    );
-
-    await this.httpServer.stop();
-    await this.removeProxy();
-
-    this.ctx.trigger.fire({
-      databaseUrl: completion.databaseUrl!,
-      strategy: completion.strategy!,
-    });
-  }
 }
 ```
 
@@ -1114,36 +1129,36 @@ flowchart TD
 
 ### Key Principles
 
-| Principle | How the Sub-App Trigger Chain Enforces It |
-|-----------|------------------------------------------|
-| **Complete isolation** | Each sub-app is a separate `INestApplicationContext` with its own DI container |
-| **One trigger = one module** | Each sub-app fires exactly one trigger, which resolves exactly one module |
-| **Sequential, not monolithic** | Sub-apps run one at a time in dependency order |
-| **Zero leftovers** | Each sub-app is destroyed after firing its trigger |
-| **Clean, typed contract** | `Trigger&lt;T&gt;` with generic payload types |
-| **Degraded operation** | Non-critical sub-apps can fail without crashing the process |
-| **No deadlocks** | Each sub-app has its own DI context — no racing factories vs lifecycle hooks |
+| Principle                      | How the Sub-App Trigger Chain Enforces It                                      |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| **Complete isolation**         | Each sub-app is a separate `INestApplicationContext` with its own DI container |
+| **One trigger = one module**   | Each sub-app fires exactly one trigger, which resolves exactly one module      |
+| **Sequential, not monolithic** | Sub-apps run one at a time in dependency order                                 |
+| **Zero leftovers**             | Each sub-app is destroyed after firing its trigger                             |
+| **Clean, typed contract**      | `Trigger&lt;T&gt;` with generic payload types                                  |
+| **Degraded operation**         | Non-critical sub-apps can fail without crashing the process                    |
+| **No deadlocks**               | Each sub-app has its own DI context — no racing factories vs lifecycle hooks   |
 
 ### File Manifest
 
-| File | Purpose |
-|------|---------|
-| `src/core/modules/triggers/trigger.ts` | `Trigger&lt;T&gt;` class |
-| `src/core/modules/triggers/trigger-registry.ts` | `TriggerRegistry` with all trigger instances |
-| `src/core/modules/triggers/triggers.module.ts` | NestJS module providing `TriggerRegistry` |
-| `src/core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp&lt;T&gt;`, `SubAppContext&lt;T&gt;` interfaces |
-| `src/core/modules/sub-app-runner/sub-app-context.module.ts` | `SubAppContextModule.forRoot()` |
-| `src/core/modules/sub-app-runner/tokens.ts` | `SUB_APP_CONTEXT` token |
-| `src/core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | `SubAppOrchestrator` |
-| `src/sub-apps/registry.ts` | `ALL_SUB_APPS` list |
-| `src/sub-apps/config/*.ts` | Config sub-app |
-| `src/sub-apps/database/*.ts` | Database sub-app |
-| `src/sub-apps/auth/*.ts` | Auth sub-app |
-| `src/sub-apps/mesh/*.ts` | Mesh sub-app |
-| `src/sub-apps/events/*.ts` | Events sub-app |
-| `src/sub-apps/docker/*.ts` | Docker sub-app |
-| `src/sub-apps/setup-wizard/*.ts` | Setup wizard sub-app |
+| File                                                                    | Purpose                                                |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| `src/core/modules/triggers/trigger.ts`                                  | `Trigger&lt;T&gt;` class                               |
+| `src/core/modules/triggers/trigger-registry.ts`                         | `TriggerRegistry` with all trigger instances           |
+| `src/core/modules/triggers/triggers.module.ts`                          | NestJS module providing `TriggerRegistry`              |
+| `src/core/modules/sub-app-runner/sub-app.interface.ts`                  | `SubApp&lt;T&gt;`, `SubAppContext&lt;T&gt;` interfaces |
+| `src/core/modules/sub-app-runner/sub-app-context.module.ts`             | `SubAppContextModule.forRoot()`                        |
+| `src/core/modules/sub-app-runner/tokens.ts`                             | `SUB_APP_CONTEXT` token                                |
+| `src/core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | `SubAppOrchestrator`                                   |
+| `src/sub-apps/registry.ts`                                              | `ALL_SUB_APPS` list                                    |
+| `src/sub-apps/config/*.ts`                                              | Config sub-app                                         |
+| `src/sub-apps/database/*.ts`                                            | Database sub-app                                       |
+| `src/sub-apps/auth/*.ts`                                                | Auth sub-app                                           |
+| `src/sub-apps/mesh/*.ts`                                                | Mesh sub-app                                           |
+| `src/sub-apps/events/*.ts`                                              | Events sub-app                                         |
+| `src/sub-apps/docker/*.ts`                                              | Docker sub-app                                         |
+| `src/sub-apps/setup-wizard/*.ts`                                        | Setup wizard sub-app                                   |
 
 ---
 
-*This document is the authoritative specification for v2 startup architecture using the Sub-App Trigger Chain model. All implementation work must follow this design.*
+_This document is the authoritative specification for v2 startup architecture using the Sub-App Trigger Chain model. All implementation work must follow this design._

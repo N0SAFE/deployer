@@ -7,14 +7,22 @@ import { DockerNodeBadge } from './docker-node-context'
 import type { ReactNode } from 'react'
 
 /** Standard header for every Node engine page: eyebrow, title, description, node indicator. */
-export function DockerPageHeader({ title, description, actions }: { title: string; description: ReactNode; actions?: ReactNode }) {
-  return (
-    <PageHeader
-      eyebrow="Node engine"
-      title={title}
-      badge={<DockerNodeBadge />}
-      description={description}
-      actions={actions}
-    />
-  )
+export function DockerPageHeader({
+    title,
+    description,
+    actions,
+}: {
+    title: string
+    description: ReactNode
+    actions?: ReactNode
+}) {
+    return (
+        <PageHeader
+            eyebrow="Node engine"
+            title={title}
+            badge={<DockerNodeBadge />}
+            description={description}
+            actions={actions}
+        />
+    )
 }

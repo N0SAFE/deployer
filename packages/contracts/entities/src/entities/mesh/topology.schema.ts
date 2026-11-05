@@ -1,27 +1,41 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-export const meshNodeRoleSchema = z.enum(["edge", "relay", "partition-owner", "observer"]);
-export type MeshNodeRole = z.infer<typeof meshNodeRoleSchema>;
+export const meshNodeRoleSchema = z.enum([
+    'edge',
+    'relay',
+    'partition-owner',
+    'observer',
+])
+export type MeshNodeRole = z.infer<typeof meshNodeRoleSchema>
 
 export const meshNodeLifecycleStateSchema = z.enum([
-    "discovering",
-    "connecting",
-    "healthy",
-    "degraded",
-    "suspect",
-    "isolated",
-    "leaving",
-]);
-export type MeshNodeLifecycleState = z.infer<typeof meshNodeLifecycleStateSchema>;
+    'discovering',
+    'connecting',
+    'healthy',
+    'degraded',
+    'suspect',
+    'isolated',
+    'leaving',
+])
+export type MeshNodeLifecycleState = z.infer<
+    typeof meshNodeLifecycleStateSchema
+>
 
-export const meshLinkStateSchema = z.enum(["up", "degraded", "down"]);
-export type MeshLinkState = z.infer<typeof meshLinkStateSchema>;
+export const meshLinkStateSchema = z.enum(['up', 'degraded', 'down'])
+export type MeshLinkState = z.infer<typeof meshLinkStateSchema>
 
-export const meshRoutingModeSchema = z.enum(["latency", "balanced", "throughput", "resilience"]);
-export type MeshRoutingMode = z.infer<typeof meshRoutingModeSchema>;
+export const meshRoutingModeSchema = z.enum([
+    'latency',
+    'balanced',
+    'throughput',
+    'resilience',
+])
+export type MeshRoutingMode = z.infer<typeof meshRoutingModeSchema>
 
-export const meshPartitionConsistencyModeSchema = z.enum(["ap", "cp", "hybrid"]);
-export type MeshPartitionConsistencyMode = z.infer<typeof meshPartitionConsistencyModeSchema>;
+export const meshPartitionConsistencyModeSchema = z.enum(['ap', 'cp', 'hybrid'])
+export type MeshPartitionConsistencyMode = z.infer<
+    typeof meshPartitionConsistencyModeSchema
+>
 
 export const meshPeerLinkMetricsSchema = z.object({
     latencyMs: z.number().min(0),
@@ -31,8 +45,8 @@ export const meshPeerLinkMetricsSchema = z.object({
     reliabilityScore: z.number().min(0).max(1),
     weight: z.number().min(0),
     measuredAt: z.string(),
-});
-export type MeshPeerLinkMetrics = z.infer<typeof meshPeerLinkMetricsSchema>;
+})
+export type MeshPeerLinkMetrics = z.infer<typeof meshPeerLinkMetricsSchema>
 
 export const systemMetricsSnapshotSchema = z.object({
     capturedAt: z.string(),
@@ -53,7 +67,7 @@ export const systemMetricsSnapshotSchema = z.object({
                     loadUser: z.number(),
                     loadSystem: z.number(),
                     loadIdle: z.number(),
-                }),
+                })
             ),
         }),
     }),
@@ -85,7 +99,7 @@ export const systemMetricsSnapshotSchema = z.object({
                 use: z.number(),
                 mount: z.string(),
                 rw: z.boolean().nullable(),
-            }),
+            })
         ),
     }),
     network: z.object({
@@ -109,7 +123,7 @@ export const systemMetricsSnapshotSchema = z.object({
                 txErrors: z.number(),
                 rxSec: z.number(),
                 txSec: z.number(),
-            }),
+            })
         ),
     }),
     process: z
@@ -142,11 +156,11 @@ export const systemMetricsSnapshotSchema = z.object({
                 powerLimit: z.number().optional(),
                 clockCore: z.number().optional(),
                 clockMemory: z.number().optional(),
-            }),
+            })
         ),
     }),
-});
-export type SystemMetricsSnapshot = z.infer<typeof systemMetricsSnapshotSchema>;
+})
+export type SystemMetricsSnapshot = z.infer<typeof systemMetricsSnapshotSchema>
 
 export const meshNodeStateSchema = z.object({
     nodeId: z.uuid(),
@@ -160,8 +174,8 @@ export const meshNodeStateSchema = z.object({
     startedAt: z.string(),
     lastSeenAt: z.string(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-});
-export type MeshNodeState = z.infer<typeof meshNodeStateSchema>;
+})
+export type MeshNodeState = z.infer<typeof meshNodeStateSchema>
 
 /**
  * Public, unauthenticated ping response.
@@ -189,8 +203,8 @@ export const meshPingResultSchema = z.object({
     ok: z.literal(true),
     version: z.string().min(1),
     advertisedHost: z.string().min(1).nullable(),
-});
-export type MeshPingResult = z.infer<typeof meshPingResultSchema>;
+})
+export type MeshPingResult = z.infer<typeof meshPingResultSchema>
 
 export const meshPeerConnectionSchema = z.object({
     connectionId: z.uuid(),
@@ -201,16 +215,20 @@ export const meshPeerConnectionSchema = z.object({
     activePathRank: z.number().int().min(1),
     lastHeartbeatAt: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-});
-export type MeshPeerConnection = z.infer<typeof meshPeerConnectionSchema>;
+})
+export type MeshPeerConnection = z.infer<typeof meshPeerConnectionSchema>
 
 export const meshPeersListResultSchema = z.object({
     items: z.array(meshPeerConnectionSchema),
-});
-export type MeshPeersListResult = z.infer<typeof meshPeersListResultSchema>;
+})
+export type MeshPeersListResult = z.infer<typeof meshPeersListResultSchema>
 
-export const meshPeerSessionStateSchema = z.enum(["connected", "reconnecting", "closed"]);
-export type MeshPeerSessionState = z.infer<typeof meshPeerSessionStateSchema>;
+export const meshPeerSessionStateSchema = z.enum([
+    'connected',
+    'reconnecting',
+    'closed',
+])
+export type MeshPeerSessionState = z.infer<typeof meshPeerSessionStateSchema>
 
 export const meshPeerSessionSchema = z.object({
     sessionId: z.uuid(),
@@ -226,13 +244,15 @@ export const meshPeerSessionSchema = z.object({
     disconnectedAt: z.string().nullable(),
     lastHeartbeatAt: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-});
-export type MeshPeerSession = z.infer<typeof meshPeerSessionSchema>;
+})
+export type MeshPeerSession = z.infer<typeof meshPeerSessionSchema>
 
 export const meshPeerSessionsListResultSchema = z.object({
     items: z.array(meshPeerSessionSchema),
-});
-export type MeshPeerSessionsListResult = z.infer<typeof meshPeerSessionsListResultSchema>;
+})
+export type MeshPeerSessionsListResult = z.infer<
+    typeof meshPeerSessionsListResultSchema
+>
 
 export const meshRemoteAuthSessionSchema = z.object({
     serverUrl: z.string().url(),
@@ -242,8 +262,8 @@ export const meshRemoteAuthSessionSchema = z.object({
     expiresAt: z.string().optional(),
     retrievedAt: z.string(),
     raw: z.record(z.string(), z.unknown()).nullable().default(null),
-});
-export type MeshRemoteAuthSession = z.infer<typeof meshRemoteAuthSessionSchema>;
+})
+export type MeshRemoteAuthSession = z.infer<typeof meshRemoteAuthSessionSchema>
 
 export const meshPeerConnectInputSchema = z.object({
     serverUrl: z.string().url().optional(),
@@ -251,28 +271,32 @@ export const meshPeerConnectInputSchema = z.object({
     resumeToken: z.string().min(1).optional(),
     remoteAuthSession: meshRemoteAuthSessionSchema.optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
-});
-export type MeshPeerConnectInput = z.infer<typeof meshPeerConnectInputSchema>;
+})
+export type MeshPeerConnectInput = z.infer<typeof meshPeerConnectInputSchema>
 
 export const meshPeerConnectResultSchema = z.object({
     connected: z.boolean(),
     deduplicated: z.boolean(),
     resumed: z.boolean(),
     session: meshPeerSessionSchema,
-});
-export type MeshPeerConnectResult = z.infer<typeof meshPeerConnectResultSchema>;
+})
+export type MeshPeerConnectResult = z.infer<typeof meshPeerConnectResultSchema>
 
 export const meshPeerDisconnectInputSchema = z.object({
     reason: z.string().min(1).optional(),
     allowReconnect: z.boolean().default(true),
-});
-export type MeshPeerDisconnectInput = z.infer<typeof meshPeerDisconnectInputSchema>;
+})
+export type MeshPeerDisconnectInput = z.infer<
+    typeof meshPeerDisconnectInputSchema
+>
 
 export const meshPeerDisconnectResultSchema = z.object({
     disconnected: z.boolean(),
     session: meshPeerSessionSchema,
-});
-export type MeshPeerDisconnectResult = z.infer<typeof meshPeerDisconnectResultSchema>;
+})
+export type MeshPeerDisconnectResult = z.infer<
+    typeof meshPeerDisconnectResultSchema
+>
 
 export const meshPeerHeartbeatInputSchema = z.object({
     peerNodeId: z.uuid().optional(),
@@ -281,15 +305,19 @@ export const meshPeerHeartbeatInputSchema = z.object({
     packetLossRatio: z.number().min(0).max(1),
     throughputMbps: z.number().min(0),
     reliabilityScore: z.number().min(0).max(1),
-});
-export type MeshPeerHeartbeatInput = z.infer<typeof meshPeerHeartbeatInputSchema>;
+})
+export type MeshPeerHeartbeatInput = z.infer<
+    typeof meshPeerHeartbeatInputSchema
+>
 
 export const meshPeerHeartbeatResultSchema = z.object({
     acknowledged: z.boolean(),
     session: meshPeerSessionSchema,
     connection: meshPeerConnectionSchema,
-});
-export type MeshPeerHeartbeatResult = z.infer<typeof meshPeerHeartbeatResultSchema>;
+})
+export type MeshPeerHeartbeatResult = z.infer<
+    typeof meshPeerHeartbeatResultSchema
+>
 
 export const meshMembershipSnapshotSchema = z.object({
     version: z.number().int().min(0),
@@ -298,48 +326,52 @@ export const meshMembershipSnapshotSchema = z.object({
     nodes: z.array(meshNodeStateSchema),
     connections: z.array(meshPeerConnectionSchema),
     sessions: z.array(meshPeerSessionSchema),
-});
-export type MeshMembershipSnapshot = z.infer<typeof meshMembershipSnapshotSchema>;
+})
+export type MeshMembershipSnapshot = z.infer<
+    typeof meshMembershipSnapshotSchema
+>
 
-export const meshTopologyEventSchema = z.discriminatedUnion("type", [
+export const meshTopologyEventSchema = z.discriminatedUnion('type', [
     z.object({
-        type: z.literal("node_upserted"),
+        type: z.literal('node_upserted'),
         node: meshNodeStateSchema,
         timestamp: z.string(),
     }),
     z.object({
-        type: z.literal("node_removed"),
+        type: z.literal('node_removed'),
         nodeId: z.uuid(),
         timestamp: z.string(),
     }),
     z.object({
-        type: z.literal("edge_upserted"),
+        type: z.literal('edge_upserted'),
         edge: meshPeerConnectionSchema,
         timestamp: z.string(),
     }),
     z.object({
-        type: z.literal("edge_removed"),
+        type: z.literal('edge_removed'),
         connectionId: z.uuid(),
         sourceNodeId: z.uuid(),
         targetNodeId: z.uuid(),
         timestamp: z.string(),
     }),
-]);
-export type MeshTopologyEvent = z.infer<typeof meshTopologyEventSchema>;
+])
+export type MeshTopologyEvent = z.infer<typeof meshTopologyEventSchema>
 
 export const meshRuntimeEventReasonSchema = z.enum([
-    "bootstrap",
-    "session_connected",
-    "session_disconnected",
-    "session_heartbeat",
-    "membership_reconciled",
-    "topology_event",
-    "control_envelope",
-]);
-export type MeshRuntimeEventReason = z.infer<typeof meshRuntimeEventReasonSchema>;
+    'bootstrap',
+    'session_connected',
+    'session_disconnected',
+    'session_heartbeat',
+    'membership_reconciled',
+    'topology_event',
+    'control_envelope',
+])
+export type MeshRuntimeEventReason = z.infer<
+    typeof meshRuntimeEventReasonSchema
+>
 
 export const meshRuntimeEventSchema = z.object({
-    type: z.literal("mesh_state"),
+    type: z.literal('mesh_state'),
     reason: meshRuntimeEventReasonSchema,
     localNode: meshNodeStateSchema,
     peers: z.array(meshPeerConnectionSchema),
@@ -348,5 +380,5 @@ export const meshRuntimeEventSchema = z.object({
     topologyEvent: meshTopologyEventSchema.nullable(),
     emittedAt: z.string(),
     revision: z.number().int().min(0),
-});
-export type MeshRuntimeEvent = z.infer<typeof meshRuntimeEventSchema>;
+})
+export type MeshRuntimeEvent = z.infer<typeof meshRuntimeEventSchema>

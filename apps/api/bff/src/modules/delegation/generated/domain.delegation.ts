@@ -26,85 +26,111 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { domainContract } from "@deployer/project-contracts";
+import { domainContract } from '@deployer/project-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class DomainDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("project", domainContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('project', domainContract)
+    }
 
-	@Implement(domainContract.listProjectDomains)
-	listProjectDomains() {
-		return implement(domainContract.listProjectDomains).handler(({ input }) => this.client.listProjectDomains(input));
-	}
+    @Implement(domainContract.listProjectDomains)
+    listProjectDomains() {
+        return implement(domainContract.listProjectDomains).handler(
+            ({ input }) => this.client.listProjectDomains(input)
+        )
+    }
 
-	@Implement(domainContract.getAvailableDomains)
-	getAvailableDomains() {
-		return implement(domainContract.getAvailableDomains).handler(({ input }) => this.client.getAvailableDomains(input));
-	}
+    @Implement(domainContract.getAvailableDomains)
+    getAvailableDomains() {
+        return implement(domainContract.getAvailableDomains).handler(
+            ({ input }) => this.client.getAvailableDomains(input)
+        )
+    }
 
-	@Implement(domainContract.getAvailableDomainsForService)
-	getAvailableDomainsForService() {
-		return implement(domainContract.getAvailableDomainsForService).handler(({ input }) => this.client.getAvailableDomainsForService(input));
-	}
+    @Implement(domainContract.getAvailableDomainsForService)
+    getAvailableDomainsForService() {
+        return implement(domainContract.getAvailableDomainsForService).handler(
+            ({ input }) => this.client.getAvailableDomainsForService(input)
+        )
+    }
 
-	@Implement(domainContract.addProjectDomain)
-	addProjectDomain() {
-		return implement(domainContract.addProjectDomain).handler(({ input }) => this.client.addProjectDomain(input));
-	}
+    @Implement(domainContract.addProjectDomain)
+    addProjectDomain() {
+        return implement(domainContract.addProjectDomain).handler(({ input }) =>
+            this.client.addProjectDomain(input)
+        )
+    }
 
-	@Implement(domainContract.updateProjectDomain)
-	updateProjectDomain() {
-		return implement(domainContract.updateProjectDomain).handler(({ input }) => this.client.updateProjectDomain(input));
-	}
+    @Implement(domainContract.updateProjectDomain)
+    updateProjectDomain() {
+        return implement(domainContract.updateProjectDomain).handler(
+            ({ input }) => this.client.updateProjectDomain(input)
+        )
+    }
 
-	@Implement(domainContract.removeProjectDomain)
-	removeProjectDomain() {
-		return implement(domainContract.removeProjectDomain).handler(({ input }) => this.client.removeProjectDomain(input));
-	}
+    @Implement(domainContract.removeProjectDomain)
+    removeProjectDomain() {
+        return implement(domainContract.removeProjectDomain).handler(
+            ({ input }) => this.client.removeProjectDomain(input)
+        )
+    }
 
-	@Implement(domainContract.verifyProjectDomain)
-	verifyProjectDomain() {
-		return implement(domainContract.verifyProjectDomain).handler(({ input }) => this.client.verifyProjectDomain(input));
-	}
+    @Implement(domainContract.verifyProjectDomain)
+    verifyProjectDomain() {
+        return implement(domainContract.verifyProjectDomain).handler(
+            ({ input }) => this.client.verifyProjectDomain(input)
+        )
+    }
 
-	@Implement(domainContract.checkSubdomainAvailability)
-	checkSubdomainAvailability() {
-		return implement(domainContract.checkSubdomainAvailability).handler(({ input }) => this.client.checkSubdomainAvailability(input));
-	}
+    @Implement(domainContract.checkSubdomainAvailability)
+    checkSubdomainAvailability() {
+        return implement(domainContract.checkSubdomainAvailability).handler(
+            ({ input }) => this.client.checkSubdomainAvailability(input)
+        )
+    }
 
-	@Implement(domainContract.listServiceDomains)
-	listServiceDomains() {
-		return implement(domainContract.listServiceDomains).handler(({ input }) => this.client.listServiceDomains(input));
-	}
+    @Implement(domainContract.listServiceDomains)
+    listServiceDomains() {
+        return implement(domainContract.listServiceDomains).handler(
+            ({ input }) => this.client.listServiceDomains(input)
+        )
+    }
 
-	@Implement(domainContract.addServiceDomain)
-	addServiceDomain() {
-		return implement(domainContract.addServiceDomain).handler(({ input }) => this.client.addServiceDomain(input));
-	}
+    @Implement(domainContract.addServiceDomain)
+    addServiceDomain() {
+        return implement(domainContract.addServiceDomain).handler(({ input }) =>
+            this.client.addServiceDomain(input)
+        )
+    }
 
-	@Implement(domainContract.updateServiceDomain)
-	updateServiceDomain() {
-		return implement(domainContract.updateServiceDomain).handler(({ input }) => this.client.updateServiceDomain(input));
-	}
+    @Implement(domainContract.updateServiceDomain)
+    updateServiceDomain() {
+        return implement(domainContract.updateServiceDomain).handler(
+            ({ input }) => this.client.updateServiceDomain(input)
+        )
+    }
 
-	@Implement(domainContract.setPrimaryServiceDomain)
-	setPrimaryServiceDomain() {
-		return implement(domainContract.setPrimaryServiceDomain).handler(({ input }) => this.client.setPrimaryServiceDomain(input));
-	}
+    @Implement(domainContract.setPrimaryServiceDomain)
+    setPrimaryServiceDomain() {
+        return implement(domainContract.setPrimaryServiceDomain).handler(
+            ({ input }) => this.client.setPrimaryServiceDomain(input)
+        )
+    }
 
-	@Implement(domainContract.removeServiceDomain)
-	removeServiceDomain() {
-		return implement(domainContract.removeServiceDomain).handler(({ input }) => this.client.removeServiceDomain(input));
-	}
+    @Implement(domainContract.removeServiceDomain)
+    removeServiceDomain() {
+        return implement(domainContract.removeServiceDomain).handler(
+            ({ input }) => this.client.removeServiceDomain(input)
+        )
+    }
 }

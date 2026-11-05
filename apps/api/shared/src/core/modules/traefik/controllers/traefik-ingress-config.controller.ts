@@ -6,59 +6,77 @@
  * `IngressTokenInvalid` (kind `unauthorized`), answered here as the plain 401 the HTTP provider expects.
  */
 
-import { Controller, Get, Headers, Inject, Res } from "@nestjs/common";
-import { ApiOkResponse, ApiUnauthorizedResponse } from "@nestjs/swagger";
-import { Effect } from "effect";
+import { Controller, Get, Headers, Inject, Res } from '@nestjs/common'
+import { ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger'
+import { Effect } from 'effect'
 
-import { domainError } from "@deployer/effect-core";
-import { EffectHost, type EffectHostShape } from "@deployer/nest-effect";
+import { domainError } from '@deployer/effect-core'
+import { EffectHost, type EffectHostShape } from '@deployer/nest-effect'
 
-import { EnvService } from "../../../../config/env/env.module";
+import { EnvService } from '../../../../config/env/env.module'
 import {
-	INGRESS_TOKEN_HEADER,
-	ingressTokenMatches,
-	requireIngressSecret,
-	TRAEFIK_CONFIG_PATH,
-} from "../../platform-ingress/services/ingress-provider-token";
-import { TraefikIngressConfigService, type TraefikIngressConfigServiceShape } from "../services/traefik-ingress-config.service";
+    INGRESS_TOKEN_HEADER,
+    ingressTokenMatches,
+    requireIngressSecret,
+    TRAEFIK_CONFIG_PATH,
+} from '../../platform-ingress/services/ingress-provider-token'
+import {
+    TraefikIngressConfigService,
+    type TraefikIngressConfigServiceShape,
+} from '../services/traefik-ingress-config.service'
 
-import type { IngressLanesUnavailable } from "../../platform-ingress/platform-ingress.errors";
-import type { LaneTraefikConfig } from "../../platform-ingress/services/lane-traefik-config";
-import type { Response } from "express";
+import type { IngressLanesUnavailable } from '../../platform-ingress/platform-ingress.errors'
+import type { LaneTraefikConfig } from '../../platform-ingress/services/lane-traefik-config'
+import type { Response } from 'express'
 
 /** The ingress token is missing or wrong. */
-export class IngressTokenInvalid extends domainError("IngressTokenInvalid", "unauthorized")() {
-	override publicMessage() { return "invalid ingress token"; }
+export class IngressTokenInvalid extends domainError(
+    'IngressTokenInvalid',
+    'unauthorized'
+)() {
+    override publicMessage() {
+        return 'invalid ingress token'
+    }
 }
 
 @Controller()
 export class TraefikIngressConfigController {
-	constructor(
-		@Inject(TraefikIngressConfigService) private readonly config: TraefikIngressConfigServiceShape,
-		private readonly env: EnvService,
-		@Inject(EffectHost) private readonly host: EffectHostShape,
-	) {}
+    constructor(
+        @Inject(TraefikIngressConfigService)
+        private readonly config: TraefikIngressConfigServiceShape,
+        private readonly env: EnvService,
+        @Inject(EffectHost) private readonly host: EffectHostShape
+    ) {}
 
-	@Get(TRAEFIK_CONFIG_PATH)
-	@ApiOkResponse({ description: "Traefik dynamic configuration, in the HTTP provider's format" })
-	@ApiUnauthorizedResponse({ description: "Missing or wrong ingress token" })
-	async dynamicConfig(
-		@Headers(INGRESS_TOKEN_HEADER.toLowerCase()) token: string | undefined,
-		@Res({ passthrough: true }) response: Pick<Response, "status">,
-	): Promise<LaneTraefikConfig | { error: string }> {
-		const secret = requireIngressSecret(this.env.get("AUTH_SECRET"), this.env.get("BETTER_AUTH_SECRET"));
-		const program: Effect.Effect<LaneTraefikConfig, IngressTokenInvalid | IngressLanesUnavailable> = ingressTokenMatches(token, secret)
-			? this.config.buildDynamicConfig()
-			: Effect.fail(new IngressTokenInvalid({}));
-		return this.host.runUnwrapped(
-			program.pipe(
-				Effect.catchTag("IngressTokenInvalid", (error) =>
-					Effect.sync(() => {
-						response.status(401);
-						return { error: error.publicMessage() };
-					}),
-				),
-			),
-		);
-	}
+    @Get(TRAEFIK_CONFIG_PATH)
+    @ApiOkResponse({
+        description:
+            "Traefik dynamic configuration, in the HTTP provider's format",
+    })
+    @ApiUnauthorizedResponse({ description: 'Missing or wrong ingress token' })
+    async dynamicConfig(
+        @Headers(INGRESS_TOKEN_HEADER.toLowerCase()) token: string | undefined,
+        @Res({ passthrough: true }) response: Pick<Response, 'status'>
+    ): Promise<LaneTraefikConfig | { error: string }> {
+        const secret = requireIngressSecret(
+            this.env.get('AUTH_SECRET'),
+            this.env.get('BETTER_AUTH_SECRET')
+        )
+        const program: Effect.Effect<
+            LaneTraefikConfig,
+            IngressTokenInvalid | IngressLanesUnavailable
+        > = ingressTokenMatches(token, secret)
+            ? this.config.buildDynamicConfig()
+            : Effect.fail(new IngressTokenInvalid({}))
+        return this.host.runUnwrapped(
+            program.pipe(
+                Effect.catchTag('IngressTokenInvalid', (error) =>
+                    Effect.sync(() => {
+                        response.status(401)
+                        return { error: error.publicMessage() }
+                    })
+                )
+            )
+        )
+    }
 }

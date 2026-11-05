@@ -284,7 +284,9 @@ export class PkgConfigService {
      * An explicit `minify` in the config wins for every pair.
      */
     minifyFor(mode: BuildMode, variant: Variant): boolean {
-        return this.config.minify ?? (mode === 'prod' && variant === 'production')
+        return (
+            this.config.minify ?? (mode === 'prod' && variant === 'production')
+        )
     }
 
     /**
@@ -478,8 +480,7 @@ export class PkgConfigService {
             if (typeof compilerOptions !== 'object' || compilerOptions === null)
                 return []
             paths = (compilerOptions as Record<string, unknown>)['paths'] as
-                | Record<string, unknown>
-                | undefined
+                Record<string, unknown> | undefined
         } catch {
             // A malformed tsconfig is `type-check`'s problem, not the build's.
             return []
@@ -509,7 +510,10 @@ export class PkgConfigService {
                 if (relToRoot.startsWith('..') || path.isAbsolute(relToRoot))
                     continue
 
-                aliases.push({ prefix: pattern.slice(0, star), target: targetDir })
+                aliases.push({
+                    prefix: pattern.slice(0, star),
+                    target: targetDir,
+                })
             }
         }
         return aliases

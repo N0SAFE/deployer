@@ -22,53 +22,54 @@ The invite plugin is already included in the `@deployer/auth` package.
 ### 1. Server-Side Configuration
 
 ```typescript
-import { betterAuth } from "better-auth";
-import { useAdmin, useInvite } from "@deployer/auth/server/plugins";
+import { betterAuth } from 'better-auth'
+import { useAdmin, useInvite } from '@deployer/auth/server/plugins'
 
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: "pg" }),
-  plugins: [
-    // Configure admin plugin with default role
-    useAdmin({
-      defaultRole: "sarah", // Users without invite get this role
-    }),
-    
-    // Configure invite plugin with type-safe roles
-    useInvite({
-      inviteDurationSeconds: 3600, // Invites valid for 1 hour
-      roleForSignupWithoutInvite: "sarah", // Must match defaultRole above
-      
-      // Optional: Custom invite code generation
-      generateCode: () => generateRandomString(8),
-      
-      // Optional: Control who can create invites
-      canCreateInvite: (user) => user.role === "admin",
-      
-      // Optional: For testing
-      getDate: () => new Date(),
-    }),
-  ],
-});
+    database: drizzleAdapter(db, { provider: 'pg' }),
+    plugins: [
+        // Configure admin plugin with default role
+        useAdmin({
+            defaultRole: 'sarah', // Users without invite get this role
+        }),
+
+        // Configure invite plugin with type-safe roles
+        useInvite({
+            inviteDurationSeconds: 3600, // Invites valid for 1 hour
+            roleForSignupWithoutInvite: 'sarah', // Must match defaultRole above
+
+            // Optional: Custom invite code generation
+            generateCode: () => generateRandomString(8),
+
+            // Optional: Control who can create invites
+            canCreateInvite: (user) => user.role === 'admin',
+
+            // Optional: For testing
+            getDate: () => new Date(),
+        }),
+    ],
+})
 ```
 
 ### 2. Client-Side Configuration
 
 ```typescript
-import { createAuthClient } from "better-auth/react";
-import { useInviteClient } from "@deployer/auth/client/plugins";
+import { createAuthClient } from 'better-auth/react'
+import { useInviteClient } from '@deployer/auth/client/plugins'
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  plugins: [
-    useInviteClient(),
-    // ... other plugins
-  ],
-});
+    baseURL: process.env.NEXT_PUBLIC_API_URL,
+    plugins: [
+        useInviteClient(),
+        // ... other plugins
+    ],
+})
 ```
 
 ### 3. Run Database Migrations
 
 The plugin automatically creates these tables:
+
 - `invite` - Stores invitation codes and metadata
 - `invite_use` - Tracks invitation usage
 
@@ -79,28 +80,29 @@ Ensure migrations are run when the server starts.
 ### Creating Invitations
 
 Only authorized users can create invitations. Authorization is determined by:
+
 1. Custom `canCreateInvite` function (if provided)
 2. Default: users with `roleForSignupWithoutInvite` cannot create invites
 
 ```typescript
-import { authClient } from "@/lib/auth-client";
+import { authClient } from '@/lib/auth-client'
 
 // Create a single-use invite for "admin" role
 const { data, error } = await authClient.invite.create({
-  role: "admin", // Type-safe! Must be one of your defined roles
-});
+    role: 'admin', // Type-safe! Must be one of your defined roles
+})
 
 if (data) {
-  const inviteLink = `${window.location.origin}/invite/${data.code}`;
-  // Share this link with the invitee
-  console.log("Invite created:", inviteLink);
+    const inviteLink = `${window.location.origin}/invite/${data.code}`
+    // Share this link with the invitee
+    console.log('Invite created:', inviteLink)
 }
 
 // Create a multi-use invite
 const { data: multiUse } = await authClient.invite.create({
-  role: "sarah",
-  maxUses: 10, // Can be used 10 times
-});
+    role: 'sarah',
+    maxUses: 10, // Can be used 10 times
+})
 ```
 
 ### Activating Invitations
@@ -109,24 +111,25 @@ When a user receives an invite link, they need to activate it before signing up:
 
 ```typescript
 // In your invite page component (e.g., app/invite/[code]/page.tsx)
-import { authClient } from "@/lib/auth-client";
+import { authClient } from '@/lib/auth-client'
 
 async function activateInvite(code: string) {
-  const { error } = await authClient.invite.activate({ code });
+    const { error } = await authClient.invite.activate({ code })
 
-  if (error) {
-    // Handle errors: invalid code, expired, already used, etc.
-    console.error("Failed to activate invite:", error);
-    return false;
-  }
+    if (error) {
+        // Handle errors: invalid code, expired, already used, etc.
+        console.error('Failed to activate invite:', error)
+        return false
+    }
 
-  // Success! Cookie is set, redirect to sign-up
-  window.location.href = "/sign-up";
-  return true;
+    // Success! Cookie is set, redirect to sign-up
+    window.location.href = '/sign-up'
+    return true
 }
 ```
 
 The `activate` method:
+
 - Validates the invite code
 - Checks expiration and usage limits
 - Stores the invite code in a secure, http-only cookie
@@ -135,6 +138,7 @@ The `activate` method:
 ### Signing Up with an Invite
 
 After activating an invite, users sign up normally. The plugin automatically:
+
 1. Detects the invite cookie
 2. Validates the invite
 3. Assigns the role specified in the invite
@@ -144,14 +148,14 @@ After activating an invite, users sign up normally. The plugin automatically:
 ```typescript
 // Standard sign-up - the invite system works automatically
 const { data, error } = await authClient.signUp.email({
-  email: "user@example.com",
-  password: "securePassword",
-  name: "New User",
-});
+    email: 'user@example.com',
+    password: 'securePassword',
+    name: 'New User',
+})
 
 if (data) {
-  // User is created with the role from the invite
-  console.log("User role:", data.user.role); // e.g., "admin"
+    // User is created with the role from the invite
+    console.log('User role:', data.user.role) // e.g., "admin"
 }
 ```
 
@@ -161,14 +165,14 @@ Users can also sign up without an invite (useful for waitlists):
 
 ```typescript
 const { data, error } = await authClient.signUp.email({
-  email: "user@example.com",
-  password: "securePassword",
-  name: "Guest User",
-});
+    email: 'user@example.com',
+    password: 'securePassword',
+    name: 'Guest User',
+})
 
 if (data) {
-  // User gets the roleForSignupWithoutInvite
-  console.log("User role:", data.user.role); // e.g., "sarah"
+    // User gets the roleForSignupWithoutInvite
+    console.log('User role:', data.user.role) // e.g., "sarah"
 }
 ```
 
@@ -179,20 +183,20 @@ if (data) {
 ```typescript
 // Admin dashboard
 async function createUserInvite() {
-  const { data, error } = await authClient.invite.create({
-    role: "admin",
-  });
+    const { data, error } = await authClient.invite.create({
+        role: 'admin',
+    })
 
-  if (error) {
-    toast.error("Failed to create invite");
-    return;
-  }
+    if (error) {
+        toast.error('Failed to create invite')
+        return
+    }
 
-  const inviteUrl = `${window.location.origin}/invite/${data.code}`;
-  
-  // Copy to clipboard or send via email/SMS
-  navigator.clipboard.writeText(inviteUrl);
-  toast.success("Invite link copied!");
+    const inviteUrl = `${window.location.origin}/invite/${data.code}`
+
+    // Copy to clipboard or send via email/SMS
+    navigator.clipboard.writeText(inviteUrl)
+    toast.success('Invite link copied!')
 }
 ```
 
@@ -273,43 +277,43 @@ export default function SignUpPage() {
 
 ### `invite` Table
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | string | Primary key |
-| `code` | string (unique) | The invite code |
-| `role` | string | Role to assign when used |
-| `createdByUserId` | string | ID of user who created invite |
-| `createdAt` | date | When invite was created |
-| `expiresAt` | date | When invite expires |
-| `maxUses` | number | Maximum times invite can be used |
+| Column            | Type            | Description                      |
+| ----------------- | --------------- | -------------------------------- |
+| `id`              | string          | Primary key                      |
+| `code`            | string (unique) | The invite code                  |
+| `role`            | string          | Role to assign when used         |
+| `createdByUserId` | string          | ID of user who created invite    |
+| `createdAt`       | date            | When invite was created          |
+| `expiresAt`       | date            | When invite expires              |
+| `maxUses`         | number          | Maximum times invite can be used |
 
 ### `invite_use` Table
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | string | Primary key |
-| `inviteId` | string | Reference to invite |
+| Column         | Type   | Description                |
+| -------------- | ------ | -------------------------- |
+| `id`           | string | Primary key                |
+| `inviteId`     | string | Reference to invite        |
 | `usedByUserId` | string | ID of user who used invite |
-| `usedAt` | date | When invite was used |
+| `usedAt`       | date   | When invite was used       |
 
 ## Type Safety
 
 The plugin provides full type safety for roles:
 
 ```typescript
-import type { AllRoleNames } from "@deployer/auth";
+import type { AllRoleNames } from '@deployer/auth'
 
 // Roles are typed based on your permission configuration
-type Role = AllRoleNames; // "admin" | "sarah" | ...
+type Role = AllRoleNames // "admin" | "sarah" | ...
 
 // Creating an invite with invalid role will error
 authClient.invite.create({
-  role: "invalid", // ❌ TypeScript error
-});
+    role: 'invalid', // ❌ TypeScript error
+})
 
 authClient.invite.create({
-  role: "admin", // ✅ Valid role
-});
+    role: 'admin', // ✅ Valid role
+})
 ```
 
 ## Error Codes
@@ -333,22 +337,22 @@ The plugin provides descriptive error codes:
 ## Testing
 
 ```typescript
-import { invitePlugin } from "@deployer/auth/server";
-import { vi } from "vitest";
+import { invitePlugin } from '@deployer/auth/server'
+import { vi } from 'vitest'
 
 // Mock date for testing expiration
-const getDate = vi.fn().mockReturnValue(new Date("2025-01-01T10:00:00Z"));
+const getDate = vi.fn().mockReturnValue(new Date('2025-01-01T10:00:00Z'))
 
 const auth = betterAuth({
-  plugins: [
-    invitePlugin({
-      inviteDurationSeconds: 3600,
-      roleForSignupWithoutInvite: "guest",
-      getDate, // Use mocked date
-      generateCode: () => "test-code-123", // Predictable codes
-    }),
-  ],
-});
+    plugins: [
+        invitePlugin({
+            inviteDurationSeconds: 3600,
+            roleForSignupWithoutInvite: 'guest',
+            getDate, // Use mocked date
+            generateCode: () => 'test-code-123', // Predictable codes
+        }),
+    ],
+})
 ```
 
 ## Comparison with Database-Based Invitation
@@ -356,6 +360,7 @@ const auth = betterAuth({
 The new Better Auth plugin approach differs from the previous database-integrated solution:
 
 ### Old Approach (Database Repository)
+
 - ❌ Tightly coupled to database schema
 - ❌ Requires manual integration with auth flow
 - ❌ No automatic role upgrade
@@ -363,6 +368,7 @@ The new Better Auth plugin approach differs from the previous database-integrate
 - ❌ Separate from auth system
 
 ### New Approach (Better Auth Plugin)
+
 - ✅ Plugin-based architecture
 - ✅ Automatic integration with Better Auth
 - ✅ Automatic role upgrades during sign-up
@@ -389,50 +395,53 @@ See the examples above for the new usage patterns.
 
 ```typescript
 useInvite({
-  inviteDurationSeconds: 3600,
-  roleForSignupWithoutInvite: "sarah",
-  
-  // Only admins and managers can create invites
-  canCreateInvite: (user) => {
-    return user.role === "admin" || user.role === "manager";
-  },
-  
-  // Custom code generation (e.g., readable codes)
-  generateCode: () => {
-    const words = ["alpha", "bravo", "charlie"];
-    return words[Math.floor(Math.random() * words.length)] +
-           Math.floor(Math.random() * 1000);
-  },
-});
+    inviteDurationSeconds: 3600,
+    roleForSignupWithoutInvite: 'sarah',
+
+    // Only admins and managers can create invites
+    canCreateInvite: (user) => {
+        return user.role === 'admin' || user.role === 'manager'
+    },
+
+    // Custom code generation (e.g., readable codes)
+    generateCode: () => {
+        const words = ['alpha', 'bravo', 'charlie']
+        return (
+            words[Math.floor(Math.random() * words.length)] +
+            Math.floor(Math.random() * 1000)
+        )
+    },
+})
 ```
 
 ### Integration with Email Service
 
 ```typescript
 async function sendInviteEmail(email: string, role: string) {
-  // Create invite
-  const { data } = await authClient.invite.create({ role });
-  
-  if (!data) return;
-  
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${data.code}`;
-  
-  // Send email with invite link
-  await emailService.send({
-    to: email,
-    subject: "You're invited!",
-    html: `
+    // Create invite
+    const { data } = await authClient.invite.create({ role })
+
+    if (!data) return
+
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${data.code}`
+
+    // Send email with invite link
+    await emailService.send({
+        to: email,
+        subject: "You're invited!",
+        html: `
       <h1>You've been invited</h1>
       <p>Click the link below to join as ${role}:</p>
       <a href="${inviteUrl}">${inviteUrl}</a>
     `,
-  });
+    })
 }
 ```
 
 ## Support
 
 For issues or questions:
+
 - Check the Better Auth documentation: https://better-auth.com
 - Review the plugin source code in `packages/auth/src/server/plugins/invite.ts`
 - Reference implementation: https://github.com/bard/better-auth-invite

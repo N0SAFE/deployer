@@ -1,12 +1,12 @@
-import * as z from "zod";
+import * as z from 'zod'
 
 import {
     deploymentStatusSchema,
     deploymentPhaseSchema,
     deploymentLogSchema,
     deploymentSchema,
-} from "@deployer/contracts-entities";
-import { contractBuilder } from "@deployer/events";
+} from '@deployer/contracts-entities'
+import { contractBuilder } from '@deployer/events'
 
 export const deploymentEventContracts = {
     deploymentTriggered: contractBuilder()
@@ -16,7 +16,7 @@ export const deploymentEventContracts = {
                 serviceId: z.string(),
                 deployment: deploymentSchema,
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -28,7 +28,7 @@ export const deploymentEventContracts = {
                 deploymentId: z.string(),
                 status: deploymentStatusSchema,
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -41,7 +41,7 @@ export const deploymentEventContracts = {
                 previousStatus: deploymentStatusSchema.nullable(),
                 phase: deploymentPhaseSchema.nullable().optional(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -53,7 +53,7 @@ export const deploymentEventContracts = {
                 phase: deploymentPhaseSchema,
                 progress: z.number().int().min(0).max(100),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -70,7 +70,7 @@ export const deploymentEventContracts = {
                 fromDeploymentId: z.string(),
                 toDeploymentId: z.string(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -83,7 +83,7 @@ export const deploymentEventContracts = {
                 toDeploymentId: z.string(),
                 success: z.boolean(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -96,7 +96,7 @@ export const deploymentEventContracts = {
                 toPhase: deploymentPhaseSchema,
                 progress: z.number().int().min(0).max(100),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -106,10 +106,10 @@ export const deploymentEventContracts = {
             z.object({
                 serviceId: z.string(),
                 deploymentId: z.string().optional(),
-                status: z.enum(["healthy", "degraded", "unhealthy"]),
+                status: z.enum(['healthy', 'degraded', 'unhealthy']),
                 message: z.string().optional(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -120,9 +120,9 @@ export const deploymentEventContracts = {
                 serviceId: z.string(),
                 projectId: z.string().optional(),
                 domain: z.string(),
-                action: z.enum(["created", "updated", "deleted", "synced"]),
+                action: z.enum(['created', 'updated', 'deleted', 'synced']),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -136,7 +136,7 @@ export const deploymentEventContracts = {
                 networkRxBytes: z.number().nonnegative().optional(),
                 networkTxBytes: z.number().nonnegative().optional(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
 
@@ -148,9 +148,9 @@ export const deploymentEventContracts = {
                 deploymentId: z.string(),
                 reason: z.string().optional(),
                 timestamp: z.string(),
-            }),
+            })
         )
         .build(),
-} as const;
+} as const
 
-export type DeploymentEventContracts = typeof deploymentEventContracts;
+export type DeploymentEventContracts = typeof deploymentEventContracts

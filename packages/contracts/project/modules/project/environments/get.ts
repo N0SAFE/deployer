@@ -1,22 +1,27 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-import { projectEnvironmentOps } from "./shared";
+import { projectEnvironmentOps } from './shared'
 
 export const projectGetEnvironmentContract = projectEnvironmentOps
-    .read({ idFieldName: "environmentId", idSchema: z.uuid() })
+    .read({ idFieldName: 'environmentId', idSchema: z.uuid() })
     .input((b) =>
         b.params(
             (p) =>
-                p`/${p("id", b.entitySchema.shape.projectId)}/environments/${p("environmentId", b.entitySchema.shape.id)}`,
-        ),
+                p`/${p('id', b.entitySchema.shape.projectId)}/environments/${p('environmentId', b.entitySchema.shape.id)}`
+        )
     )
     .output((b) => b.entitySchema)
     .errors((e) => [
         // 404 for unknown env.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'project:read',
+            scope: { by: 'input', path: 'params.id', kind: 'project' },
+        })
+    )
+    .build()

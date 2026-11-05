@@ -8,11 +8,11 @@ the way, and the **platform** schedules and supervises everything else.
 
 ## What compose does, and what it does not
 
-| Compose does | Compose does NOT do |
-|---|---|
-| Build the seven app images (`build-svc-*`) | Run the BFF |
-| Run `setup-dev` — the only long-lived service | Run any `svc-*` |
-| Exit each producer with `restart: "no"` | Run the global database, Redis or Traefik |
+| Compose does                                  | Compose does NOT do                       |
+| --------------------------------------------- | ----------------------------------------- |
+| Build the seven app images (`build-svc-*`)    | Run the BFF                               |
+| Run `setup-dev` — the only long-lived service | Run any `svc-*`                           |
+| Exit each producer with `restart: "no"`       | Run the global database, Redis or Traefik |
 
 Everything in the right-hand column is a **swarm service** created during
 onboarding. Confirmed on a live run:
@@ -32,7 +32,7 @@ svc-runtime      1/1   deployer-svc-runtime:dev
 
 A compose container belongs to no cluster: no placement, no restart policy
 across nodes, no `docker service ls` visibility. Letting compose run `svc-*`
-would produce a stack that *looks* supervised while exercising none of it.
+would produce a stack that _looks_ supervised while exercising none of it.
 
 ## The handover, in order
 
@@ -52,10 +52,10 @@ Steps 4–6 are one-shot; step 6 is what "supervised" means over time.
 
 One variable decides it:
 
-| `DEPLOYER_BFF_IMAGE` | Scheduled |
-|---|---|
-| unset | the monolith, from `DEPLOYER_API_IMAGE` |
-| set | the BFF plus the five services, each from `DEPLOYER_SVC_<NAME>_IMAGE` |
+| `DEPLOYER_BFF_IMAGE` | Scheduled                                                             |
+| -------------------- | --------------------------------------------------------------------- |
+| unset                | the monolith, from `DEPLOYER_API_IMAGE`                               |
+| set                  | the BFF plus the five services, each from `DEPLOYER_SVC_<NAME>_IMAGE` |
 
 Setting the BFF tag is the switch because the BFF is what replaced the monolith
 as the public surface — scheduling `DEPLOYER_API_IMAGE` on a microservices node
@@ -65,7 +65,7 @@ would put the wrong application behind `api.<host>`.
 
 Each of these was a real failure on a live run.
 
-**Setup must join the overlay.** A swarm service's name resolves *only* on a
+**Setup must join the overlay.** A swarm service's name resolves _only_ on a
 swarm-scoped network. Setup creates the tier and then could not dial it:
 
 ```text
@@ -78,7 +78,7 @@ network that does not exist yet.
 
 **The address comes from config, not a hardcoded name.** `resolveApiBaseUrl`
 used to replace the host with `deployer-api`, which is only correct when the
-public app *is* the monolith. It now keeps the configured host
+public app _is_ the monolith. It now keeps the configured host
 (`http://svc-bff:3005` here), so "where setup dials" and "where the ingress
 routes" are one value.
 
@@ -92,7 +92,7 @@ database_url          = postgresql://deployer:***@nextjs-nestjs-global-db:5432/d
 database_provisioning = external
 ```
 
-`nextjs-nestjs-global-db` is the *compose* database from the other profile.
+`nextjs-nestjs-global-db` is the _compose_ database from the other profile.
 Nothing runs it here, so the BFF crash-looped:
 
 ```text
@@ -101,8 +101,8 @@ task: non-zero exit (1)     → svc-bff 0/N, restarting
 ```
 
 `nextjs-nestjs_supervised_local_db` makes the two profiles independent. On a
-fresh volume setup correctly reports *"No previous setup found — the wizard will
-collect the details"*.
+fresh volume setup correctly reports _"No previous setup found — the wizard will
+collect the details"_.
 
 **`MANAGED_GLOBAL_DB_ENABLED=false`** — the opposite of the compose-owned
 profile. There, compose ran the database and every app derived its URL from env.
@@ -146,11 +146,11 @@ error: script "dev:vite" exited with code 127
 error: script "dev" exited with code 127 (restarting)
 ```
 
-127 is *command not found*, and nothing in the log says "vite is missing" — the
+127 is _command not found_, and nothing in the log says "vite is missing" — the
 failure reads like a setup bug rather than a packaging one. `setup-dev` therefore
 passes `APP_INSTALL_PRODUCTION=0`.
 
-**`SETUP_MODE=prod` is not a build mode.** It describes *ownership* (who
+**`SETUP_MODE=prod` is not a build mode.** It describes _ownership_ (who
 schedules the apps), not how the app is built. Treating it as licence to strip
 the wizard's toolchain is what produced the 127 loop above.
 
@@ -165,7 +165,7 @@ error: Module not found "scripts/compose.ts"
 error: script "dev" exited with code 1        (deployer-managed-web 0/1, forever)
 ```
 
-The exit code named a missing *module*, not a missing *workdir*, so the crash
+The exit code named a missing _module_, not a missing _workdir_, so the crash
 read as a broken script. `APP_INSTALL_PRODUCTION=1` compounded it: Next.js is a
 runtime dependency of this image (its CMD is `bun run dev`), unlike the `svc-*`
 images that start with `bun --bun src/main.ts`. Both flags now match setup's.
@@ -188,7 +188,7 @@ type-checks.
 **The ingress is HTTP-provider-based, not file-based.** Traefik polls
 `http://svc-bff:3005/internal/ingress/traefik-config` every 5s and pulls routes
 from there (`--providers.http.endpoint`). The `deployer-traefik-config` volume is
-what *setup* writes its bootstrap routes into; once the BFF owns the ingress, the
+what _setup_ writes its bootstrap routes into; once the BFF owns the ingress, the
 authoritative config is the HTTP response. Checking the volume for
 `dynamic-web.yml` therefore proves nothing about whether `web.<host>` is routed —
 query the endpoint instead.
@@ -300,29 +300,57 @@ GET http://127.0.0.1/       Host: setup.deployer.localhost   → 301 (→ /manag
 `/health/platform` — the roll-up the readiness gate reads:
 
 ```json
-{"state":"healthy","services":[
-  {"name":"health",  "healthy":true,"url":"http://svc-health:3101",  "latencyMs":13},
-  {"name":"identity","healthy":true,"url":"http://svc-identity:3102","latencyMs":15},
-  {"name":"project", "healthy":true,"url":"http://svc-project:3103", "latencyMs":15},
-  {"name":"fleet",   "healthy":true,"url":"http://svc-fleet:3104",   "latencyMs":12},
-  {"name":"runtime", "healthy":true,"url":"http://svc-runtime:3105", "latencyMs":10}
-]}
+{
+    "state": "healthy",
+    "services": [
+        {
+            "name": "health",
+            "healthy": true,
+            "url": "http://svc-health:3101",
+            "latencyMs": 13
+        },
+        {
+            "name": "identity",
+            "healthy": true,
+            "url": "http://svc-identity:3102",
+            "latencyMs": 15
+        },
+        {
+            "name": "project",
+            "healthy": true,
+            "url": "http://svc-project:3103",
+            "latencyMs": 15
+        },
+        {
+            "name": "fleet",
+            "healthy": true,
+            "url": "http://svc-fleet:3104",
+            "latencyMs": 12
+        },
+        {
+            "name": "runtime",
+            "healthy": true,
+            "url": "http://svc-runtime:3105",
+            "latencyMs": 10
+        }
+    ]
+}
 ```
 
 Through the ingress, on `api.deployer.localhost`:
 
-| Request | Result |
-|---|---|
-| `/health` | 200 |
-| `/health/ready` | 200 |
-| `/openapi.json` | 200 |
-| `/reference` | 200 |
+| Request                        | Result                     |
+| ------------------------------ | -------------------------- |
+| `/health`                      | 200                        |
+| `/health/ready`                | 200                        |
+| `/openapi.json`                | 200                        |
+| `/reference`                   | 200                        |
 | `POST /api/auth/sign-in/email` | 200, session cookie issued |
-| `/gitlab/apps` | 200 |
-| `/nodes/servers` | 200, node enrolled |
-| `/analytics/metrics/realtime` | 200 |
-| `/analytics/overview` | 200, families populated |
-| any of the above, no cookie | 401 |
+| `/gitlab/apps`                 | 200                        |
+| `/nodes/servers`               | 200, node enrolled         |
+| `/analytics/metrics/realtime`  | 200                        |
+| `/analytics/overview`          | 200, families populated    |
+| any of the above, no cookie    | 401                        |
 
 Measured image sizes on that run (`APP_INSTALL_PRODUCTION=1` for the `svc-*`
 image only — setup and web keep their toolchain, see above):
@@ -362,11 +390,11 @@ bun run dev:services:supervised:reset
 
 It removes the three things compose does not own or does not remove:
 
-| Resource | Why compose misses it |
-|---|---|
-| `svc-*`, `deployer-*` services | scheduled by SETUP, so compose has no record |
-| the runtime overlay | created at runtime, invisible to `compose down` |
-| `…_supervised_local_db` | `down -v` reports `Resource is still in use` **and still exits 0** |
+| Resource                       | Why compose misses it                                              |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `svc-*`, `deployer-*` services | scheduled by SETUP, so compose has no record                       |
+| the runtime overlay            | created at runtime, invisible to `compose down`                    |
+| `…_supervised_local_db`        | `down -v` reports `Resource is still in use` **and still exits 0** |
 
 That last row is why the script VERIFIES instead of trusting the exit code: a
 surviving volume keeps `setup_done` and the wizard is skipped again. It exits

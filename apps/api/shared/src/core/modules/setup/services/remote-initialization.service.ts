@@ -7,24 +7,36 @@ import {
     type SetupInitializeRemoteInput,
 } from '@deployer/contracts-entities'
 import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { AppError } from "@deployer/errors";
+import { runPromiseUnwrapped } from '@deployer/effect-core'
+import { AppError } from '@deployer/errors'
 import { meshEnrollmentContract } from '@deployer/fleet-contracts'
-import { nodeAgentLink, nodeDoorFromEnv, serviceLink, type NodeDoorClient } from '@deployer/mesh-client'
-import type { NodeConfigRepositoryShape } from "@deployer/node-state"
-import type { SwarmBootstrapShape, SwarmClusterShape } from "@deployer/swarm"
+import {
+    nodeAgentLink,
+    nodeDoorFromEnv,
+    serviceLink,
+    type NodeDoorClient,
+} from '@deployer/mesh-client'
+import type { NodeConfigRepositoryShape } from '@deployer/node-state'
+import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
 
-import type { EnvService } from "../../../../config/env/env.module"
-import { DEPLOYER_VERSION, semverCompare } from '../../../utils/deployer-version'
+import {
+    DEPLOYER_VERSION,
+    semverCompare,
+} from '../../../utils/deployer-version'
 import { SetupInitializationFailed } from '../setup.errors'
-import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
+import {
+    runStep,
+    type EmitEvent,
+    SetupStepTracker,
+} from '../utils/setup-runner.utils'
 
+import type { EnvService } from '../../../../config/env/env.module'
 import type { ClientContext, ClientLink } from '@orpc/client'
 
-
-
 /** What `door.view()` must carry for a join to continue: the node's own identity. */
-const nodeViewSchema = z.object({ self: z.object({ nodeId: z.string().min(1) }) })
+const nodeViewSchema = z.object({
+    self: z.object({ nodeId: z.string().min(1) }),
+})
 
 /** How long a joining node waits for its agent to find the fleet, and how often it asks again. */
 const FLEET_WAIT_MS = 60_000
@@ -43,8 +55,11 @@ export type RemoteInitializationServiceShape = {
     readonly initialize: (
         input: SetupInitializeRemoteInput,
         tracker: SetupStepTracker,
-        emit: EmitEvent,
-    ) => Effect.Effect<{ nodeId: string; databaseUrl: string }, SetupInitializationFailed>
+        emit: EmitEvent
+    ) => Effect.Effect<
+        { nodeId: string; databaseUrl: string },
+        SetupInitializationFailed
+    >
 }
 
 type Ports = {
@@ -60,15 +75,18 @@ type Ports = {
     readonly agentLink?: () => ClientLink<ClientContext> | undefined
 }
 
-export function makeRemoteInitializationService(ports: Ports): RemoteInitializationServiceShape {
-    const { nodeConfigRepository, envService, swarmBootstrap, swarmCluster } = ports
+export function makeRemoteInitializationService(
+    ports: Ports
+): RemoteInitializationServiceShape {
+    const { nodeConfigRepository, envService, swarmBootstrap, swarmCluster } =
+        ports
     const nodeDoor = ports.nodeDoor ?? (() => nodeDoorFromEnv(envService))
     const agentLink = ports.agentLink ?? (() => nodeAgentLink())
 
     async function initialize(
         input: SetupInitializeRemoteInput,
         tracker: SetupStepTracker,
-        emit: EmitEvent,
+        emit: EmitEvent
     ): Promise<{ nodeId: string; databaseUrl: string }> {
         let nodeId = ''
         let databaseUrl = ''
@@ -86,185 +104,289 @@ export function makeRemoteInitializationService(ports: Ports): RemoteInitializat
          * explicit field wins and `token` remains its fallback.
          */
         const joinToken = input.meshJoinToken ?? input.token
-        const call = (link: ClientLink<ClientContext>, path: string[], body: unknown): Promise<unknown> =>
-            link.call(path, body, { context: {} })
+        const call = (
+            link: ClientLink<ClientContext>,
+            path: string[],
+            body: unknown
+        ): Promise<unknown> => link.call(path, body, { context: {} })
 
-        await runStep(tracker, emit, 'agent_join', 'Join the swarm', async (stepLog) => {
-            stepLog('Redeeming the join token with this node\'s agent…')
-            // The agent joins by token over its own door: it adopts the credential the token carries and merges what it
-            // knows. Null means there is no agent on this node to join with.
-            const redeemed = await door.joinWithToken(joinToken)
-            if (redeemed === null) {
-                throw new AppError(
-                    'This node has no mesh agent, so it cannot join a fleet. Start the node with its agent and try again.',
-                    'INTERNAL_ERROR',
+        await runStep(
+            tracker,
+            emit,
+            'agent_join',
+            'Join the swarm',
+            async (stepLog) => {
+                stepLog("Redeeming the join token with this node's agent…")
+                // The agent joins by token over its own door: it adopts the credential the token carries and merges what it
+                // knows. Null means there is no agent on this node to join with.
+                const redeemed = await door.joinWithToken(joinToken)
+                if (redeemed === null) {
+                    throw new AppError(
+                        'This node has no mesh agent, so it cannot join a fleet. Start the node with its agent and try again.',
+                        'INTERNAL_ERROR'
+                    )
+                }
+                meshJoined = true
+                stepLog(
+                    `✅ The agent joined the swarm and knows ${String(redeemed.agents.length)} other agent(s)`
                 )
-            }
-            meshJoined = true
-            stepLog(`✅ The agent joined the swarm and knows ${String(redeemed.agents.length)} other agent(s)`)
 
-            // The agent's own view says which node this is. It arrives over the wire, so it is PARSED rather than
-            // trusted: a missing identity is the one answer a join cannot continue from.
-            const view = nodeViewSchema.safeParse(await door.view())
-            if (!view.success) {
-                throw new AppError('This node\'s agent did not report its identity. Check that the agent is running.', 'INTERNAL_ERROR')
+                // The agent's own view says which node this is. It arrives over the wire, so it is PARSED rather than
+                // trusted: a missing identity is the one answer a join cannot continue from.
+                const view = nodeViewSchema.safeParse(await door.view())
+                if (!view.success) {
+                    throw new AppError(
+                        "This node's agent did not report its identity. Check that the agent is running.",
+                        'INTERNAL_ERROR'
+                    )
+                }
+                nodeId = view.data.self.nodeId
+                stepLog(`This node is ${nodeId}`)
             }
-            nodeId = view.data.self.nodeId
-            stepLog(`This node is ${nodeId}`)
-        })
+        )
 
         // The fleet is reached like any service: through the agent, which finds a replica as gossip teaches it where they are.
-        const fleet = agent === undefined ? undefined : serviceLink<ClientContext>({ agent, service: 'fleet', contract: meshEnrollmentContract })
-        const askFleet = async (path: string[], body: unknown, stepLog: (line: string) => void): Promise<unknown> => {
-            if (fleet === undefined) throw new AppError('This node has no mesh agent', 'INTERNAL_ERROR')
+        const fleet =
+            agent === undefined
+                ? undefined
+                : serviceLink<ClientContext>({
+                      agent,
+                      service: 'fleet',
+                      contract: meshEnrollmentContract,
+                  })
+        const askFleet = async (
+            path: string[],
+            body: unknown,
+            stepLog: (line: string) => void
+        ): Promise<unknown> => {
+            if (fleet === undefined)
+                throw new AppError(
+                    'This node has no mesh agent',
+                    'INTERNAL_ERROR'
+                )
             const deadline = Date.now() + FLEET_WAIT_MS
             for (;;) {
                 try {
                     return await call(fleet, path, body)
                 } catch (error) {
-                    const code = typeof error === 'object' && error !== null && 'code' in error ? String((error).code) : ''
+                    const code =
+                        typeof error === 'object' &&
+                        error !== null &&
+                        'code' in error
+                            ? String(error.code)
+                            : ''
                     // The agent has not learned where the fleet is yet: it will, so wait. Anything else is an answer.
-                    if (code !== 'NOT_FOUND' && code !== 'SERVICE_UNAVAILABLE' && code !== 'INTERNAL_SERVER_ERROR') throw error
+                    if (
+                        code !== 'NOT_FOUND' &&
+                        code !== 'SERVICE_UNAVAILABLE' &&
+                        code !== 'INTERNAL_SERVER_ERROR'
+                    )
+                        throw error
                     if (Date.now() >= deadline) {
-                        throw new AppError('The fleet did not answer through the mesh in time. Check that a node of the fleet is reachable.', 'INTERNAL_ERROR')
+                        throw new AppError(
+                            'The fleet did not answer through the mesh in time. Check that a node of the fleet is reachable.',
+                            'INTERNAL_ERROR'
+                        )
                     }
                     stepLog('Waiting for the agent to find the fleet…')
-                    await new Promise((resolve) => setTimeout(resolve, FLEET_POLL_MS))
+                    await new Promise((resolve) =>
+                        setTimeout(resolve, FLEET_POLL_MS)
+                    )
                 }
             }
         }
 
         let fleetVersion = ''
 
-        await runStep(tracker, emit, 'mesh_handshake', 'Connect to the fleet', async (stepLog) => {
-            stepLog('Asking the fleet to describe itself…')
-            const described = meshEnrollmentDescribeResultSchema.parse(await askFleet(['describe'], { token: joinToken }, stepLog))
-            fleetVersion = described.version
-            stepLog(`✅ Reached the fleet, running ${fleetVersion}`)
-        })
+        await runStep(
+            tracker,
+            emit,
+            'mesh_handshake',
+            'Connect to the fleet',
+            async (stepLog) => {
+                stepLog('Asking the fleet to describe itself…')
+                const described = meshEnrollmentDescribeResultSchema.parse(
+                    await askFleet(['describe'], { token: joinToken }, stepLog)
+                )
+                fleetVersion = described.version
+                stepLog(`✅ Reached the fleet, running ${fleetVersion}`)
+            }
+        )
 
         // ── Version Check ──────────────────────────────────────────────
         // A node cannot join a fleet running a higher version: it must be upgraded first. A node ahead of the fleet may
         // join, and the fleet's upgrade is for a super admin to trigger.
-        await runStep(tracker, emit, 'version_check', 'Version compatibility check', (stepLog) => {
-            stepLog(`Local deployer version: ${DEPLOYER_VERSION}`)
-            stepLog(`Fleet version: ${fleetVersion}`)
-            const comparison = semverCompare(DEPLOYER_VERSION, fleetVersion)
-            if (comparison === 0) {
-                stepLog(`✅ Version match: both on ${DEPLOYER_VERSION}. Proceeding with join.`)
-                return
-            }
-            if (comparison < 0) {
-                throw new AppError(
-                    `⛔ Version mismatch: this node is at ${DEPLOYER_VERSION} but the fleet is at ${fleetVersion}. ` +
-                        `A node cannot join a fleet running a higher version. Please upgrade this node to ${fleetVersion} before joining.`,
-                    'INTERNAL_ERROR',
+        await runStep(
+            tracker,
+            emit,
+            'version_check',
+            'Version compatibility check',
+            (stepLog) => {
+                stepLog(`Local deployer version: ${DEPLOYER_VERSION}`)
+                stepLog(`Fleet version: ${fleetVersion}`)
+                const comparison = semverCompare(DEPLOYER_VERSION, fleetVersion)
+                if (comparison === 0) {
+                    stepLog(
+                        `✅ Version match: both on ${DEPLOYER_VERSION}. Proceeding with join.`
+                    )
+                    return
+                }
+                if (comparison < 0) {
+                    throw new AppError(
+                        `⛔ Version mismatch: this node is at ${DEPLOYER_VERSION} but the fleet is at ${fleetVersion}. ` +
+                            `A node cannot join a fleet running a higher version. Please upgrade this node to ${fleetVersion} before joining.`,
+                        'INTERNAL_ERROR'
+                    )
+                }
+                stepLog(
+                    `⚠️  This node (${DEPLOYER_VERSION}) is ahead of the fleet (${fleetVersion}). ` +
+                        `The fleet should be upgraded to ${DEPLOYER_VERSION}. Proceeding with join.`
                 )
             }
-            stepLog(
-                `⚠️  This node (${DEPLOYER_VERSION}) is ahead of the fleet (${fleetVersion}). ` +
-                    `The fleet should be upgraded to ${DEPLOYER_VERSION}. Proceeding with join.`,
-            )
-        })
+        )
 
-        await runStep(tracker, emit, 'register_node', 'Register this node', async (stepLog) => {
-            stepLog(`Advertising server URL: ${serverUrl}`)
-            const enrolled = meshEnrollmentEnrollResultSchema.parse(
-                await askFleet(
-                    ['enroll'],
-                    {
-                        token: joinToken,
+        await runStep(
+            tracker,
+            emit,
+            'register_node',
+            'Register this node',
+            async (stepLog) => {
+                stepLog(`Advertising server URL: ${serverUrl}`)
+                const enrolled = meshEnrollmentEnrollResultSchema.parse(
+                    await askFleet(
+                        ['enroll'],
+                        {
+                            token: joinToken,
+                            nodeId,
+                            serverUrl,
+                            // The role THIS node asked for. The fleet replies with what it actually grants: asking for
+                            // "auto" makes the node a candidate for master, not a manager by right.
+                            requestedSwarmPolicy: input.swarm?.policy,
+                        },
+                        stepLog
+                    )
+                )
+                databaseUrl = enrolled.databaseUrl
+                swarmGrant = enrolled.swarmGrant
+                stepLog(`✅ Enrolled in the fleet as ${enrolled.nodeId}`)
+                stepLog(
+                    '✅ Joined the swarm by token — the agent brings up the WireGuard links'
+                )
+                if (swarmGrant === null) {
+                    stepLog(
+                        '⚠️  The fleet has no Swarm cluster to hand over — swarm convergence deferred'
+                    )
+                } else {
+                    stepLog(
+                        `✅ Swarm role granted by the fleet: ${swarmGrant.role}`
+                    )
+                    stepLog(`  reason  = ${swarmGrant.reason}`)
+                    stepLog(
+                        `  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`
+                    )
+                }
+            }
+        )
+
+        await runStep(
+            tracker,
+            emit,
+            'finalize',
+            'Finalize',
+            async (stepLog) => {
+                stepLog('Persisting node config…')
+                const now = new Date().toISOString()
+                // The repository mirrors the row into the node's agent itself while it answers; the local file remains the
+                // fallback.
+                await runPromiseUnwrapped(
+                    nodeConfigRepository.upsert({
                         nodeId,
-                        serverUrl,
-                        // The role THIS node asked for. The fleet replies with what it actually grants: asking for
-                        // "auto" makes the node a candidate for master, not a manager by right.
-                        requestedSwarmPolicy: input.swarm?.policy,
-                    },
-                    stepLog,
-                ),
-            )
-            databaseUrl = enrolled.databaseUrl
-            swarmGrant = enrolled.swarmGrant
-            stepLog(`✅ Enrolled in the fleet as ${enrolled.nodeId}`)
-            stepLog('✅ Joined the swarm by token — the agent brings up the WireGuard links')
-            if (swarmGrant === null) {
-                stepLog('⚠️  The fleet has no Swarm cluster to hand over — swarm convergence deferred')
-            } else {
-                stepLog(`✅ Swarm role granted by the fleet: ${swarmGrant.role}`)
-                stepLog(`  reason  = ${swarmGrant.reason}`)
-                stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`)
-            }
-        })
+                        strategy: 'remote',
+                        setupState: 'setup_done',
+                        deployerVersion: DEPLOYER_VERSION,
+                        meshUrlsSnapshot: [],
+                        databaseUrl,
+                        // Remote-join shares the mesh owner's database — externally
+                        // managed, never supervised by this node's GlobalDbSupervisorService.
+                        databaseProvisioning: 'external' as const,
+                        configuredAt: now,
+                        // The FLEET's role decision, persisted so a restart re-converges
+                        // from the same answer instead of re-asking the mesh.
+                        swarmConfig:
+                            swarmGrant === null
+                                ? undefined
+                                : {
+                                      mode: 'join' as const,
+                                      // "auto" = MAY be master. The mesh already answered
+                                      // whether this node actually is (swarmGrant.role),
+                                      // so a granted manager keeps the mixed policy.
+                                      policy:
+                                          swarmGrant.role === 'manager'
+                                              ? ('auto' as const)
+                                              : ('worker' as const),
+                                      advertiseAddr: null,
+                                      joinToken:
+                                          swarmGrant.role === 'manager'
+                                              ? (swarmGrant.managerToken ??
+                                                swarmGrant.workerToken)
+                                              : swarmGrant.workerToken,
+                                      joinAddrs: swarmGrant.controlPlaneAddrs,
+                                  },
+                        updatedAt: now,
+                    })
+                )
+                stepLog('✅ Node config persisted')
 
-        await runStep(tracker, emit, 'finalize', 'Finalize', async (stepLog) => {
-            stepLog('Persisting node config…')
-            const now = new Date().toISOString()
-            // The repository mirrors the row into the node's agent itself while it answers; the local file remains the
-            // fallback.
-            await runPromiseUnwrapped(nodeConfigRepository.upsert({
-                nodeId,
-                strategy: 'remote',
-                setupState: 'setup_done',
-                deployerVersion: DEPLOYER_VERSION,
-                meshUrlsSnapshot: [],
-                databaseUrl,
-                // Remote-join shares the mesh owner's database — externally
-                // managed, never supervised by this node's GlobalDbSupervisorService.
-                databaseProvisioning: 'external' as const,
-                configuredAt: now,
-                // The FLEET's role decision, persisted so a restart re-converges
-                // from the same answer instead of re-asking the mesh.
-                swarmConfig:
-                    swarmGrant === null
-                        ? undefined
-                        : {
-                              mode: 'join' as const,
-                              // "auto" = MAY be master. The mesh already answered
-                              // whether this node actually is (swarmGrant.role),
-                              // so a granted manager keeps the mixed policy.
-                              policy: swarmGrant.role === 'manager' ? ('auto' as const) : ('worker' as const),
-                              advertiseAddr: null,
-                              joinToken:
-                                  swarmGrant.role === 'manager'
-                                      ? (swarmGrant.managerToken ?? swarmGrant.workerToken)
-                                      : swarmGrant.workerToken,
-                              joinAddrs: swarmGrant.controlPlaneAddrs,
-                          },
-                updatedAt: now,
-            }))
-            stepLog('✅ Node config persisted')
+                // ── Join the FLEET's swarm ─────────────────────────────────────
+                // The role comes from the mesh, never from this node's own ambition:
+                // the manager join token is withheld unless the fleet admitted this
+                // node to quorum. Deferred (not fatal) when the mesh offered no
+                // cluster — a node whose fleet has no swarm yet must still complete
+                // setup and can converge later from the Cluster page.
+                if (swarmGrant === null) {
+                    stepLog(
+                        '⚠️  No Swarm cluster offered by the mesh — convergence deferred'
+                    )
+                    return
+                }
 
-            // ── Join the FLEET's swarm ─────────────────────────────────────
-            // The role comes from the mesh, never from this node's own ambition:
-            // the manager join token is withheld unless the fleet admitted this
-            // node to quorum. Deferred (not fatal) when the mesh offered no
-            // cluster — a node whose fleet has no swarm yet must still complete
-            // setup and can converge later from the Cluster page.
-            if (swarmGrant === null) {
-                stepLog('⚠️  No Swarm cluster offered by the mesh — convergence deferred')
-                return
-            }
+                stepLog(
+                    `▸ Joining the mesh Swarm cluster as ${swarmGrant.role}…`
+                )
+                stepLog(
+                    `  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`
+                )
+                // The managers advertise MESH addresses, so the join can only succeed
+                // once a WireGuard link is up — wait for it rather than racing it.
+                if (meshJoined) {
+                    const linked = await waitForLink(door)
+                    stepLog(
+                        linked
+                            ? '✅ Mesh link established'
+                            : '⚠️  No mesh link yet — attempting the join anyway'
+                    )
+                }
+                await runPromiseUnwrapped(swarmBootstrap.converge('setup'))
+                const snapshot = await runPromiseUnwrapped(
+                    swarmCluster.getLocalClusterSnapshot()
+                )
 
-            stepLog(`▸ Joining the mesh Swarm cluster as ${swarmGrant.role}…`)
-            stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`)
-            // The managers advertise MESH addresses, so the join can only succeed
-            // once a WireGuard link is up — wait for it rather than racing it.
-            if (meshJoined) {
-                const linked = await waitForLink(door)
-                stepLog(linked ? '✅ Mesh link established' : '⚠️  No mesh link yet — attempting the join anyway')
+                if (snapshot.localNodeState === 'active') {
+                    stepLog('✅ Joined the Swarm cluster')
+                    stepLog(`  role   = ${snapshot.localNode.swarmRole}`)
+                    stepLog(
+                        `  master = ${snapshot.master?.nodeId ?? 'elected elsewhere'}`
+                    )
+                    stepLog(
+                        `  nodes  = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`
+                    )
+                } else {
+                    stepLog(
+                        `⚠️  Swarm join not active (state=${snapshot.localNodeState}) — retry from the Cluster page`
+                    )
+                }
             }
-            await runPromiseUnwrapped(swarmBootstrap.converge('setup'))
-            const snapshot = await runPromiseUnwrapped(swarmCluster.getLocalClusterSnapshot())
-
-            if (snapshot.localNodeState === 'active') {
-                stepLog('✅ Joined the Swarm cluster')
-                stepLog(`  role   = ${snapshot.localNode.swarmRole}`)
-                stepLog(`  master = ${snapshot.master?.nodeId ?? 'elected elsewhere'}`)
-                stepLog(`  nodes  = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`)
-            } else {
-                stepLog(`⚠️  Swarm join not active (state=${snapshot.localNodeState}) — retry from the Cluster page`)
-            }
-        })
+        )
 
         return { nodeId, databaseUrl }
     }
@@ -273,11 +395,19 @@ export function makeRemoteInitializationService(ports: Ports): RemoteInitializat
      * Wait until the agent has completed a WireGuard handshake with some member — the moment Swarm can reach a manager's
      * mesh address. Returns false on timeout (the caller proceeds and lets Swarm's own join retry report the outcome).
      */
-    async function waitForLink(door: NodeDoorClient, timeoutMs = 60_000, pollMs = 2_000): Promise<boolean> {
+    async function waitForLink(
+        door: NodeDoorClient,
+        timeoutMs = 60_000,
+        pollMs = 2_000
+    ): Promise<boolean> {
         const deadline = Date.now() + timeoutMs
         while (Date.now() < deadline) {
             const status = await door.status()
-            if (status?.interfaceUp === true && status.peers.some((peer) => peer.latestHandshakeAt !== null)) return true
+            if (
+                status?.interfaceUp === true &&
+                status.peers.some((peer) => peer.latestHandshakeAt !== null)
+            )
+                return true
             await new Promise((resolve) => setTimeout(resolve, pollMs))
         }
         return false
@@ -297,13 +427,18 @@ export function makeRemoteInitializationService(ports: Ports): RemoteInitializat
      * A value for a key `EnvService` types as `string`, which an unset key still answers `undefined` for at runtime.
      * Reading through a method keeps the optional chain honest instead of a crash on `undefined.trim`.
      */
-    function optionalEnv(key: 'APP_URL' | 'NEXT_PUBLIC_APP_URL'): string | undefined {
+    function optionalEnv(
+        key: 'APP_URL' | 'NEXT_PUBLIC_APP_URL'
+    ): string | undefined {
         return envService.get(key)
     }
 
     function resolveServerUrl(): string | null {
         const appUrl = optionalEnv('APP_URL')?.trim() ?? ''
-        const candidate = appUrl.length > 0 ? appUrl : (optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
+        const candidate =
+            appUrl.length > 0
+                ? appUrl
+                : (optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
         if (!candidate) {
             return null
         }
@@ -319,11 +454,19 @@ export function makeRemoteInitializationService(ports: Ports): RemoteInitializat
         initialize: (input, tracker, emit) =>
             Effect.tryPromise({
                 try: () => initialize(input, tracker, emit),
-                catch: (cause) => new SetupInitializationFailed({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+                catch: (cause) =>
+                    new SetupInitializationFailed({
+                        reason:
+                            cause instanceof Error
+                                ? cause.message
+                                : String(cause),
+                        cause,
+                    }),
             }),
     }
 }
 
-export class RemoteInitializationService extends Context.Service<RemoteInitializationService, RemoteInitializationServiceShape>()(
-    'shared/RemoteInitializationService',
-) {}
+export class RemoteInitializationService extends Context.Service<
+    RemoteInitializationService,
+    RemoteInitializationServiceShape
+>()('shared/RemoteInitializationService') {}

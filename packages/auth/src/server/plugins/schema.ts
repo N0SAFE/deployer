@@ -11,29 +11,59 @@
  * Declaring it on `user` made Better Auth refuse to boot ("field does not exist in the user Drizzle schema").
  */
 export const deployerUserSchemaPlugin = () => ({
-	id: "deployer-user-schema" as const,
-	schema: {
-		user: {
-			// `as const` is load-bearing: without it `required: false` / `input: false` widen to `boolean`, and Better
-			// Auth's `InferFieldsInputClient` then reads every field as writable, making a nullable column a REQUIRED
-			// field of `signUp.email`'s input type.
-			fields: {
-				role: { type: "string", required: true, defaultValue: "user", input: false },
-				banned: { type: "boolean", required: false, defaultValue: false, input: false },
-				banReason: { type: "string", required: false, input: false, defaultValue: null },
-				banExpires: { type: "date", required: false, input: false, defaultValue: null },
-			} as const,
-		},
-		session: {
-			fields: {
-				/** The admin a request is impersonating on behalf of; null for a normal session. */
-				impersonatedBy: { type: "string", required: false, input: false, defaultValue: null },
-				/**
-				 * Whether an impersonated session may WRITE (`DEC-AUTH-25`). Read-only until the admin re-proves a
-				 * passkey from inside the impersonation; never client-writable.
-				 */
-				impersonationWrites: { type: "boolean", required: false, input: false, defaultValue: false },
-			} as const,
-		},
-	},
-});
+    id: 'deployer-user-schema' as const,
+    schema: {
+        user: {
+            // `as const` is load-bearing: without it `required: false` / `input: false` widen to `boolean`, and Better
+            // Auth's `InferFieldsInputClient` then reads every field as writable, making a nullable column a REQUIRED
+            // field of `signUp.email`'s input type.
+            fields: {
+                role: {
+                    type: 'string',
+                    required: true,
+                    defaultValue: 'user',
+                    input: false,
+                },
+                banned: {
+                    type: 'boolean',
+                    required: false,
+                    defaultValue: false,
+                    input: false,
+                },
+                banReason: {
+                    type: 'string',
+                    required: false,
+                    input: false,
+                    defaultValue: null,
+                },
+                banExpires: {
+                    type: 'date',
+                    required: false,
+                    input: false,
+                    defaultValue: null,
+                },
+            } as const,
+        },
+        session: {
+            fields: {
+                /** The admin a request is impersonating on behalf of; null for a normal session. */
+                impersonatedBy: {
+                    type: 'string',
+                    required: false,
+                    input: false,
+                    defaultValue: null,
+                },
+                /**
+                 * Whether an impersonated session may WRITE (`DEC-AUTH-25`). Read-only until the admin re-proves a
+                 * passkey from inside the impersonation; never client-writable.
+                 */
+                impersonationWrites: {
+                    type: 'boolean',
+                    required: false,
+                    input: false,
+                    defaultValue: false,
+                },
+            } as const,
+        },
+    },
+})

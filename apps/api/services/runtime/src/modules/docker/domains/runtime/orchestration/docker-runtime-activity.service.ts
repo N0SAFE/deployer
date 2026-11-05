@@ -1,13 +1,17 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from "@deployer/effect-core";
+import { serviceOver, type Over } from '@deployer/effect-core'
 
-import { DockerCatalog, type DockerCatalogPorts, type DockerCatalogShape } from "../../../catalog/docker-catalog";
 import {
-  DockerRuntimeActivities,
-  type DockerRuntimeActivitiesRequirements,
-  type DockerRuntimeActivitiesShape,
-} from "../../../repositories/runtime/docker-runtime-activities";
+    DockerCatalog,
+    type DockerCatalogPorts,
+    type DockerCatalogShape,
+} from '../../../catalog/docker-catalog'
+import {
+    DockerRuntimeActivities,
+    type DockerRuntimeActivitiesRequirements,
+    type DockerRuntimeActivitiesShape,
+} from '../../../repositories/runtime/docker-runtime-activities'
 
 /**
  * The runtime's own reads: the mesh catalog snapshot and the persisted activity rows.
@@ -20,31 +24,39 @@ import {
  * Streams are NOT here: they stay RxJS in `DockerRuntimeActivityDomainService`, which is the documented boundary.
  */
 type DockerRuntimeActivityReads = {
-  readonly snapshot: DockerCatalogShape["resolve"];
-  readonly list: DockerRuntimeActivitiesShape["list"];
-  readonly getById: DockerRuntimeActivitiesShape["getById"];
-};
+    readonly snapshot: DockerCatalogShape['resolve']
+    readonly list: DockerRuntimeActivitiesShape['list']
+    readonly getById: DockerRuntimeActivitiesShape['getById']
+}
 
-type DockerRuntimeActivityCollaborators = DockerCatalog | DockerRuntimeActivities;
+type DockerRuntimeActivityCollaborators =
+    DockerCatalog | DockerRuntimeActivities
 
-export type DockerRuntimeActivityShape = Over<DockerRuntimeActivityReads, DockerRuntimeActivityCollaborators>;
+export type DockerRuntimeActivityShape = Over<
+    DockerRuntimeActivityReads,
+    DockerRuntimeActivityCollaborators
+>
 
 /** Everything a caller must be able to see for these reads to run. */
 export type DockerRuntimeActivityPorts =
-  | DockerCatalogPorts
-  | DockerRuntimeActivitiesRequirements
-  | DockerRuntimeActivityCollaborators;
+    | DockerCatalogPorts
+    | DockerRuntimeActivitiesRequirements
+    | DockerRuntimeActivityCollaborators
 
-export class DockerRuntimeActivity extends Context.Service<DockerRuntimeActivity, DockerRuntimeActivityShape>()(
-  "runtime/DockerRuntimeActivity",
-) {
-  /** Stateless: `serviceOver` reads the collaborators from the context on every call. */
-  static readonly live: DockerRuntimeActivityShape = serviceOver(
-    Effect.all({ catalog: DockerCatalog, activities: DockerRuntimeActivities }),
-    ({ catalog, activities }): DockerRuntimeActivityReads => ({
-      snapshot: () => catalog.resolve(),
-      list: (input) => activities.list(input),
-      getById: (input) => activities.getById(input),
-    }),
-  );
+export class DockerRuntimeActivity extends Context.Service<
+    DockerRuntimeActivity,
+    DockerRuntimeActivityShape
+>()('runtime/DockerRuntimeActivity') {
+    /** Stateless: `serviceOver` reads the collaborators from the context on every call. */
+    static readonly live: DockerRuntimeActivityShape = serviceOver(
+        Effect.all({
+            catalog: DockerCatalog,
+            activities: DockerRuntimeActivities,
+        }),
+        ({ catalog, activities }): DockerRuntimeActivityReads => ({
+            snapshot: () => catalog.resolve(),
+            list: (input) => activities.list(input),
+            getById: (input) => activities.getById(input),
+        })
+    )
 }

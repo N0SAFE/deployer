@@ -17,23 +17,32 @@ export type Lifted<T, Streams extends keyof T = never> = {
         ? T[K]
         : T[K] extends (...args: infer A) => infer R
           ? (...args: A) => Effect.Effect<Awaited<R>, unknown>
-          : T[K];
-};
+          : T[K]
+}
 
 /**
  * Lift a record of Promise-bodied (or throwing) methods to Effect-returning ones; the failure stays as thrown, which is
  * how the `Runtime*` refusals reach the `.effect()` boundary. `streams` names the methods that return an RxJS Observable synchronously:
  * streaming is RxJS's surface, so those pass through untouched.
  */
-export function lift<T extends { readonly [K in keyof T]: (...args: never[]) => unknown }, S extends keyof T = never>(
-    impl: T,
-    streams: readonly S[] = [],
-): Lifted<T, S> {
-    const out: Record<string, unknown> = {};
-    for (const [name, fn] of Object.entries(impl) as [string, (...args: unknown[]) => unknown][]) {
+export function lift<
+    T extends { readonly [K in keyof T]: (...args: never[]) => unknown },
+    S extends keyof T = never,
+>(impl: T, streams: readonly S[] = []): Lifted<T, S> {
+    const out: Record<string, unknown> = {}
+    for (const [name, fn] of Object.entries(impl) as [
+        string,
+        (...args: unknown[]) => unknown,
+    ][]) {
         out[name] = (streams as readonly string[]).includes(name)
             ? fn
-            : (...args: unknown[]) => attempt(() => new Promise<unknown>((resolve) => { resolve(fn(...args)); }));
+            : (...args: unknown[]) =>
+                  attempt(
+                      () =>
+                          new Promise<unknown>((resolve) => {
+                              resolve(fn(...args))
+                          })
+                  )
     }
-    return out as Lifted<T, S>;
+    return out as Lifted<T, S>
 }

@@ -1,40 +1,43 @@
-import { PageContextProvider, NavigationProvider } from '@nestjs-ssr/react/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
-import { renderToString, renderToPipeableStream } from 'react-dom/server';
+import {
+    PageContextProvider,
+    NavigationProvider,
+} from '@nestjs-ssr/react/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import React from 'react'
+import { renderToString, renderToPipeableStream } from 'react-dom/server'
 
-import ThemeProvider from '@deployer/ui/components/theme-provider';
+import ThemeProvider from '@deployer/ui/components/theme-provider'
 
 /** What a page component receives: the controller's payload, already validated. */
-export type SsrPageProps = Record<string, unknown>;
+export type SsrPageProps = Record<string, unknown>
 
 /** A component this entry can render: a page or a layout. */
-export type SsrViewComponent = React.ComponentType<SsrPageProps>;
+export type SsrViewComponent = React.ComponentType<SsrPageProps>
 
 /** One layout plus the props its decorator carried. */
 export interface SsrLayoutEntry {
-  readonly layout: SsrViewComponent;
-  readonly props?: Record<string, unknown>;
+    readonly layout: SsrViewComponent
+    readonly props?: Record<string, unknown>
 }
 
 /** The payload the render interceptor hands to this entry. */
 export interface SsrRenderPayload {
-  readonly data?: SsrPageProps;
-  readonly __context?: unknown;
-  readonly __layouts?: readonly SsrLayoutEntry[];
+    readonly data?: SsrPageProps
+    readonly __context?: unknown
+    readonly __layouts?: readonly SsrLayoutEntry[]
 }
 
 /** Fresh React Query client per SSR render (no cross-request cache). */
 function createSsrQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30_000,
-        retry: 0,
-        gcTime: 0,
-      },
-    },
-  });
+    return new QueryClient({
+        defaultOptions: {
+            queries: {
+                staleTime: 30_000,
+                retry: 0,
+                gcTime: 0,
+            },
+        },
+    })
 }
 
 /**
@@ -45,19 +48,22 @@ function createSsrQueryClient(): QueryClient {
  * `any`.
  */
 interface ViteImportMeta extends ImportMeta {
-  readonly glob: (pattern: string, options: { readonly eager: true }) => Record<string, { readonly default: SsrViewComponent }>;
+    readonly glob: (
+        pattern: string,
+        options: { readonly eager: true }
+    ) => Record<string, { readonly default: SsrViewComponent }>
 }
 
-const { glob } = import.meta as ViteImportMeta;
-const layoutModules = glob('@/views/layout.tsx', { eager: true });
-const RootLayout = Object.values(layoutModules)[0]?.default ?? null;
+const { glob } = import.meta as ViteImportMeta
+const layoutModules = glob('@/views/layout.tsx', { eager: true })
+const RootLayout = Object.values(layoutModules)[0]?.default ?? null
 
 /**
  * Get the root layout component.
  * Used by RenderService in production when dynamic import isn't available.
  */
 export function getRootLayout(): SsrViewComponent | null {
-  return RootLayout;
+    return RootLayout
 }
 
 /**
@@ -74,31 +80,31 @@ export function getRootLayout(): SsrViewComponent | null {
  * - Finally wrap with RootLayout (outermost)
  */
 function composeWithLayouts(
-  ViewComponent: SsrViewComponent,
-  props: SsrPageProps,
-  layouts: readonly SsrLayoutEntry[] = [],
-  context?: unknown,
+    ViewComponent: SsrViewComponent,
+    props: SsrPageProps,
+    layouts: readonly SsrLayoutEntry[] = [],
+    context?: unknown
 ): React.ReactElement {
-  // Start with the page component
-  let result = <ViewComponent {...props} />;
+    // Start with the page component
+    let result = <ViewComponent {...props} />
 
-  // Wrap with each layout in REVERSE order (innermost to outermost)
-  // This produces the correct nesting: RootLayout > ControllerLayout > Page
-  // Pass context to layouts so they can access path, params, etc. for navigation
-  // Each layout gets data-layout attribute and children are wrapped in data-outlet
-  for (const entry of [...layouts].reverse()) {
-    const { layout: Layout, props: layoutProps } = entry;
-    const layoutName = Layout.displayName ?? Layout.name;
-    result = (
-      <div data-layout={layoutName}>
-        <Layout context={context} layoutProps={layoutProps}>
-          <div data-outlet={layoutName}>{result}</div>
-        </Layout>
-      </div>
-    );
-  }
+    // Wrap with each layout in REVERSE order (innermost to outermost)
+    // This produces the correct nesting: RootLayout > ControllerLayout > Page
+    // Pass context to layouts so they can access path, params, etc. for navigation
+    // Each layout gets data-layout attribute and children are wrapped in data-outlet
+    for (const entry of [...layouts].reverse()) {
+        const { layout: Layout, props: layoutProps } = entry
+        const layoutName = Layout.displayName ?? Layout.name
+        result = (
+            <div data-layout={layoutName}>
+                <Layout context={context} layoutProps={layoutProps}>
+                    <div data-outlet={layoutName}>{result}</div>
+                </Layout>
+            </div>
+        )
+    }
 
-  return result;
+    return result
 }
 
 /**
@@ -119,30 +125,30 @@ function composeWithLayouts(
  * component is the only place that should ever change.
  */
 function ProviderStack({
-  client,
-  context,
-  children,
+    client,
+    context,
+    children,
 }: {
-  client: QueryClient;
-  context: unknown;
-  children: React.ReactNode;
+    client: QueryClient
+    context: unknown
+    children: React.ReactNode
 }): React.ReactElement {
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <QueryClientProvider client={client}>
-        <NavigationProvider>
-          <PageContextProvider context={context}>
-            {children}
-          </PageContextProvider>
-        </NavigationProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
-  );
+    return (
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+        >
+            <QueryClientProvider client={client}>
+                <NavigationProvider>
+                    <PageContextProvider context={context}>
+                        {children}
+                    </PageContextProvider>
+                </NavigationProvider>
+            </QueryClientProvider>
+        </ThemeProvider>
+    )
 }
 
 /**
@@ -150,25 +156,25 @@ function ProviderStack({
  * Simple, synchronous rendering
  */
 export function renderComponent(
-  ViewComponent: SsrViewComponent,
-  data: SsrRenderPayload,
+    ViewComponent: SsrViewComponent,
+    data: SsrRenderPayload
 ) {
-  const { data: pageData, __context: context, __layouts: layouts } = data;
-  const composedElement = composeWithLayouts(
-    ViewComponent,
-    pageData,
-    layouts,
-    context,
-  );
+    const { data: pageData, __context: context, __layouts: layouts } = data
+    const composedElement = composeWithLayouts(
+        ViewComponent,
+        pageData,
+        layouts,
+        context
+    )
 
-  // Wrap with PageContextProvider to make context available via hooks
-  const wrappedElement = (
-    <ProviderStack client={createSsrQueryClient()} context={context}>
-      {composedElement}
-    </ProviderStack>
-  );
+    // Wrap with PageContextProvider to make context available via hooks
+    const wrappedElement = (
+        <ProviderStack client={createSsrQueryClient()} context={context}>
+            {composedElement}
+        </ProviderStack>
+    )
 
-  return renderToString(wrappedElement);
+    return renderToString(wrappedElement)
 }
 
 /**
@@ -177,27 +183,27 @@ export function renderComponent(
  * The swap target's outlet will receive this rendered content.
  */
 export function renderSegment(
-  ViewComponent: SsrViewComponent,
-  data: SsrRenderPayload,
+    ViewComponent: SsrViewComponent,
+    data: SsrRenderPayload
 ) {
-  const { data: pageData, __context: context, __layouts: layouts } = data;
+    const { data: pageData, __context: context, __layouts: layouts } = data
 
-  // Compose with filtered layouts (layouts below the swap target)
-  const composedElement = composeWithLayouts(
-    ViewComponent,
-    pageData,
-    layouts,
-    context,
-  );
+    // Compose with filtered layouts (layouts below the swap target)
+    const composedElement = composeWithLayouts(
+        ViewComponent,
+        pageData,
+        layouts,
+        context
+    )
 
-  // Wrap with PageContextProvider to make context available via hooks
-  const element = (
-    <ProviderStack client={createSsrQueryClient()} context={context}>
-      {composedElement}
-    </ProviderStack>
-  );
+    // Wrap with PageContextProvider to make context available via hooks
+    const element = (
+        <ProviderStack client={createSsrQueryClient()} context={context}>
+            {composedElement}
+        </ProviderStack>
+    )
 
-  return renderToString(element);
+    return renderToString(element)
 }
 
 /**
@@ -205,30 +211,30 @@ export function renderSegment(
  * Modern approach with progressive rendering and Suspense support
  */
 export function renderComponentStream(
-  ViewComponent: SsrViewComponent,
-  data: SsrRenderPayload,
-  callbacks?: {
-    nonce?: string;
-    onShellReady?: () => void;
-    onShellError?: (error: unknown) => void;
-    onError?: (error: unknown) => void;
-    onAllReady?: () => void;
-  },
+    ViewComponent: SsrViewComponent,
+    data: SsrRenderPayload,
+    callbacks?: {
+        nonce?: string
+        onShellReady?: () => void
+        onShellError?: (error: unknown) => void
+        onError?: (error: unknown) => void
+        onAllReady?: () => void
+    }
 ) {
-  const { data: pageData, __context: context, __layouts: layouts } = data;
-  const composedElement = composeWithLayouts(
-    ViewComponent,
-    pageData,
-    layouts,
-    context,
-  );
+    const { data: pageData, __context: context, __layouts: layouts } = data
+    const composedElement = composeWithLayouts(
+        ViewComponent,
+        pageData,
+        layouts,
+        context
+    )
 
-  // Wrap with PageContextProvider to make context available via hooks
-  const wrappedElement = (
-    <ProviderStack client={createSsrQueryClient()} context={context}>
-      {composedElement}
-    </ProviderStack>
-  );
+    // Wrap with PageContextProvider to make context available via hooks
+    const wrappedElement = (
+        <ProviderStack client={createSsrQueryClient()} context={context}>
+            {composedElement}
+        </ProviderStack>
+    )
 
-  return renderToPipeableStream(wrappedElement, callbacks);
+    return renderToPipeableStream(wrappedElement, callbacks)
 }

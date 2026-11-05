@@ -1,10 +1,10 @@
-import { Database as BunSqliteDatabase } from "bun:sqlite";
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { describe, it, expect } from "vitest";
+import { Database as BunSqliteDatabase } from 'bun:sqlite'
+import { drizzle } from 'drizzle-orm/bun-sqlite'
+import { describe, it, expect } from 'vitest'
 
-import * as localSchema from "@deployer/nest-schema/local";
+import * as localSchema from '@deployer/nest-schema/local'
 
-import { resetLocal } from "./local";
+import { resetLocal } from './local'
 
 /**
  * The reset drops every table — including the migration STATE table.
@@ -20,62 +20,66 @@ import { resetLocal } from "./local";
  * A table the state table does NOT cover is included deliberately: a hardcoded
  * list would have missed it, `sqlite_master` cannot.
  */
-describe("resetLocal", () => {
+describe('resetLocal', () => {
     function createDatabase() {
-        const sqlite = new BunSqliteDatabase(":memory:");
-        return { sqlite, db: drizzle(sqlite, { schema: localSchema }) };
+        const sqlite = new BunSqliteDatabase(':memory:')
+        return { sqlite, db: drizzle(sqlite, { schema: localSchema }) }
     }
 
     function tables(sqlite: BunSqliteDatabase): string[] {
         return (
-            sqlite.query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {
-                name: string;
+            sqlite
+                .query("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .all() as {
+                name: string
             }[]
-        ).map((row) => row.name);
+        ).map((row) => row.name)
     }
 
-    it("drops the migration state table along with every schema table", () => {
-        const { sqlite, db } = createDatabase();
-        sqlite.run("CREATE TABLE node_config (id integer PRIMARY KEY)");
-        sqlite.run("CREATE TABLE cluster_nodes (node_id text PRIMARY KEY)");
+    it('drops the migration state table along with every schema table', () => {
+        const { sqlite, db } = createDatabase()
+        sqlite.run('CREATE TABLE node_config (id integer PRIMARY KEY)')
+        sqlite.run('CREATE TABLE cluster_nodes (node_id text PRIMARY KEY)')
         // The real state table, under the name the module actually uses.
-        sqlite.run("CREATE TABLE local_migrations (id integer PRIMARY KEY, name text NOT NULL UNIQUE)");
-        sqlite.run("INSERT INTO local_migrations (name) VALUES ('0000_a.sql')");
+        sqlite.run(
+            'CREATE TABLE local_migrations (id integer PRIMARY KEY, name text NOT NULL UNIQUE)'
+        )
+        sqlite.run("INSERT INTO local_migrations (name) VALUES ('0000_a.sql')")
 
-        resetLocal(db);
+        resetLocal(db)
 
-        expect(tables(sqlite)).toEqual([]);
-        sqlite.close();
-    });
+        expect(tables(sqlite)).toEqual([])
+        sqlite.close()
+    })
 
-    it("leaves an empty database usable (no throw, nothing to drop)", () => {
-        const { sqlite, db } = createDatabase();
-        sqlite.run("CREATE TABLE node_config (id integer PRIMARY KEY)");
-        resetLocal(db);
+    it('leaves an empty database usable (no throw, nothing to drop)', () => {
+        const { sqlite, db } = createDatabase()
+        sqlite.run('CREATE TABLE node_config (id integer PRIMARY KEY)')
+        resetLocal(db)
 
         // Idempotent: the second call has nothing left to drop.
         expect(() => {
-            resetLocal(db);
-        }).not.toThrow();
-        expect(tables(sqlite)).toEqual([]);
-        sqlite.close();
-    });
+            resetLocal(db)
+        }).not.toThrow()
+        expect(tables(sqlite)).toEqual([])
+        sqlite.close()
+    })
 
-    it("drops tables that reference each other regardless of order", () => {
-        const { sqlite, db } = createDatabase();
+    it('drops tables that reference each other regardless of order', () => {
+        const { sqlite, db } = createDatabase()
         // `node_config` is created FIRST but referenced BY `cluster_node`, so a
         // drop in `sqlite_master` order would fail with foreign keys enforced.
-        db.run("PRAGMA foreign_keys=ON");
-        sqlite.run("CREATE TABLE node_config (id integer PRIMARY KEY)");
+        db.run('PRAGMA foreign_keys=ON')
+        sqlite.run('CREATE TABLE node_config (id integer PRIMARY KEY)')
         sqlite.run(
-            "CREATE TABLE cluster_node (id integer PRIMARY KEY, node_config_id integer REFERENCES node_config(id))",
-        );
+            'CREATE TABLE cluster_node (id integer PRIMARY KEY, node_config_id integer REFERENCES node_config(id))'
+        )
 
         expect(() => {
-            resetLocal(db);
-        }).not.toThrow();
+            resetLocal(db)
+        }).not.toThrow()
 
-        expect(tables(sqlite)).toEqual([]);
-        sqlite.close();
-    });
-});
+        expect(tables(sqlite)).toEqual([])
+        sqlite.close()
+    })
+})

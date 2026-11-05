@@ -1,4 +1,7 @@
-import type { Service, ServiceEffectiveConfig } from "@deployer/contracts-entities";
+import type {
+    Service,
+    ServiceEffectiveConfig,
+} from '@deployer/contracts-entities'
 
 /**
  * Effective-config resolution for the sub-services (hierarchy) system.
@@ -20,11 +23,11 @@ import type { Service, ServiceEffectiveConfig } from "@deployer/contracts-entiti
 
 /** Health-check defaults applied at creation (mirror of the repository). */
 export const DEFAULT_HEALTH_CHECK = {
-    path: "/health",
+    path: '/health',
     interval: 30,
     timeout: 10,
     retries: 3,
-} as const;
+} as const
 
 /** Empty effective-config base — nothing inherited yet. */
 export function emptyEffectiveConfig(): ServiceEffectiveConfig {
@@ -32,20 +35,25 @@ export function emptyEffectiveConfig(): ServiceEffectiveConfig {
         port: null,
         resourceLimits: {},
         environmentVariables: {},
-        healthCheck: { path: null, interval: null, timeout: null, retries: null },
+        healthCheck: {
+            path: null,
+            interval: null,
+            timeout: null,
+            retries: null,
+        },
         deploymentRetention: {},
         providerConfig: null,
         customDomains: null,
         network: null,
         implementsContract: null,
-    };
+    }
 }
 
 function isDefaultHealthCheckValue(
     field: keyof typeof DEFAULT_HEALTH_CHECK,
-    value: number | string | null,
+    value: number | string | null
 ): boolean {
-    return value === null || value === DEFAULT_HEALTH_CHECK[field];
+    return value === null || value === DEFAULT_HEALTH_CHECK[field]
 }
 
 /**
@@ -56,19 +64,19 @@ export function mergeServiceConfig(
     base: ServiceEffectiveConfig,
     own: Pick<
         Service,
-        | "port"
-        | "resourceLimits"
-        | "environmentVariables"
-        | "healthCheckPath"
-        | "healthCheckInterval"
-        | "healthCheckTimeout"
-        | "healthCheckRetries"
-        | "deploymentRetention"
-        | "providerConfig"
-        | "customDomains"
-        | "network"
-        | "implementsContract"
-    >,
+        | 'port'
+        | 'resourceLimits'
+        | 'environmentVariables'
+        | 'healthCheckPath'
+        | 'healthCheckInterval'
+        | 'healthCheckTimeout'
+        | 'healthCheckRetries'
+        | 'deploymentRetention'
+        | 'providerConfig'
+        | 'customDomains'
+        | 'network'
+        | 'implementsContract'
+    >
 ): ServiceEffectiveConfig {
     return {
         port: own.port ?? base.port,
@@ -76,7 +84,8 @@ export function mergeServiceConfig(
         resourceLimits: {
             memory: own.resourceLimits?.memory ?? base.resourceLimits?.memory,
             cpu: own.resourceLimits?.cpu ?? base.resourceLimits?.cpu,
-            storage: own.resourceLimits?.storage ?? base.resourceLimits?.storage,
+            storage:
+                own.resourceLimits?.storage ?? base.resourceLimits?.storage,
         },
 
         environmentVariables: {
@@ -85,19 +94,41 @@ export function mergeServiceConfig(
         },
 
         healthCheck: {
-            path: pickHealth("path", own.healthCheckPath, base.healthCheck?.path ?? null),
-            interval: pickHealth("interval", own.healthCheckInterval, base.healthCheck?.interval ?? null),
-            timeout: pickHealth("timeout", own.healthCheckTimeout, base.healthCheck?.timeout ?? null),
-            retries: pickHealth("retries", own.healthCheckRetries, base.healthCheck?.retries ?? null),
+            path: pickHealth(
+                'path',
+                own.healthCheckPath,
+                base.healthCheck?.path ?? null
+            ),
+            interval: pickHealth(
+                'interval',
+                own.healthCheckInterval,
+                base.healthCheck?.interval ?? null
+            ),
+            timeout: pickHealth(
+                'timeout',
+                own.healthCheckTimeout,
+                base.healthCheck?.timeout ?? null
+            ),
+            retries: pickHealth(
+                'retries',
+                own.healthCheckRetries,
+                base.healthCheck?.retries ?? null
+            ),
         },
 
         deploymentRetention: {
             maxSuccessfulDeployments:
                 own.deploymentRetention?.maxSuccessfulDeployments ??
                 base.deploymentRetention?.maxSuccessfulDeployments,
-            keepArtifacts: own.deploymentRetention?.keepArtifacts ?? base.deploymentRetention?.keepArtifacts,
-            autoCleanup: own.deploymentRetention?.autoCleanup ?? base.deploymentRetention?.autoCleanup,
-            cleanupSchedule: own.deploymentRetention?.cleanupSchedule ?? base.deploymentRetention?.cleanupSchedule,
+            keepArtifacts:
+                own.deploymentRetention?.keepArtifacts ??
+                base.deploymentRetention?.keepArtifacts,
+            autoCleanup:
+                own.deploymentRetention?.autoCleanup ??
+                base.deploymentRetention?.autoCleanup,
+            cleanupSchedule:
+                own.deploymentRetention?.cleanupSchedule ??
+                base.deploymentRetention?.cleanupSchedule,
         },
 
         providerConfig: own.providerConfig ?? base.providerConfig,
@@ -111,31 +142,34 @@ export function mergeServiceConfig(
         // Contract identity flows down the chain too — a sub-service that
         // implements a contract inherits it unless it declares its own.
         implementsContract: own.implementsContract ?? base.implementsContract,
-    };
+    }
 }
 
 function pickHealth<T extends number | string | null>(
     field: keyof typeof DEFAULT_HEALTH_CHECK,
     ownValue: T,
-    inherited: T,
+    inherited: T
 ): T {
     // Own value is null or the baked-in default → "not explicitly set". Prefer
     // the inherited value, but KEEP the default when there is nothing to
     // inherit — a root service (no parent) must still show its actual defaults.
     if (isDefaultHealthCheckValue(field, ownValue)) {
-        return inherited !== null ? inherited : ownValue;
+        return inherited !== null ? inherited : ownValue
     }
-    return ownValue;
+    return ownValue
 }
 
 /**
  * Fold a chain of services (root-first) into a single effective config.
  * `chain` must NOT include `self` — it is merged last.
  */
-export function foldServiceChain(chain: Service[], self: Service): ServiceEffectiveConfig {
-    let effective = emptyEffectiveConfig();
+export function foldServiceChain(
+    chain: Service[],
+    self: Service
+): ServiceEffectiveConfig {
+    let effective = emptyEffectiveConfig()
     for (const ancestor of chain) {
-        effective = mergeServiceConfig(effective, ancestor);
+        effective = mergeServiceConfig(effective, ancestor)
     }
-    return mergeServiceConfig(effective, self);
+    return mergeServiceConfig(effective, self)
 }

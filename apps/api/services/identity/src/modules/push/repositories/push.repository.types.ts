@@ -1,4 +1,4 @@
-import type { PushSubscription } from "../domain/push.types";
+import type { PushSubscription } from '../domain/push.types'
 
 /**
  * A stored subscription plus the columns the contract deliberately hides.
@@ -7,26 +7,26 @@ import type { PushSubscription } from "../domain/push.types";
  * keys a delivery seals its payload with — none of them belongs in an API response.
  */
 export type StoredSubscription = PushSubscription & {
-	readonly userId: string;
-	readonly p256dh: string;
-	readonly auth: string;
-	readonly updatedAt: Date;
-};
+    readonly userId: string
+    readonly p256dh: string
+    readonly auth: string
+    readonly updatedAt: Date
+}
 
 /** What `subscribe` persists. */
 export type NewSubscription = {
-	readonly userId: string;
-	readonly endpoint: string;
-	readonly p256dh: string;
-	readonly auth: string;
-	readonly deviceName?: string | undefined;
-	readonly userAgent?: string | undefined;
-};
+    readonly userId: string
+    readonly endpoint: string
+    readonly p256dh: string
+    readonly auth: string
+    readonly deviceName?: string | undefined
+    readonly userAgent?: string | undefined
+}
 
 /** VAPID keys, as `getPublicKey` needs them. */
 export type VapidKeys = {
-	readonly userId: string;
-	readonly publicKey: string;
-	readonly privateKey: string;
-	readonly subject: string;
-};
+    readonly userId: string
+    readonly publicKey: string
+    readonly privateKey: string
+    readonly subject: string
+}

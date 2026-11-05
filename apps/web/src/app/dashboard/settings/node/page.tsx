@@ -2,7 +2,11 @@
 
 import { ShieldAlert } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 
 import { PageHeader, ScopeLabel } from '@/components/dashboard'
 import { NodeNetworkConfig } from '@/components/dashboard/system/NodeNetworkConfig'
@@ -16,54 +20,60 @@ import { NodeConfigCard } from './_components/node-config-card'
 
 /**
  * Settings → This node. The identity, address, database and persisted
- * configuration of the node serving this dashboard. 
+ * configuration of the node serving this dashboard.
  */
 export default function SettingsNodePage() {
-  const isAdmin = useIsPlatformAdmin()
+    const isAdmin = useIsPlatformAdmin()
 
-  if (!isAdmin) {
+    if (!isAdmin) {
+        return (
+            <Alert>
+                <ShieldAlert className="size-4" />
+                <AlertTitle>Administrators only</AlertTitle>
+                <AlertDescription>
+                    Only platform administrators can view or change this
+                    node&apos;s configuration.
+                </AlertDescription>
+            </Alert>
+        )
+    }
+
     return (
-      <Alert>
-        <ShieldAlert className="size-4" />
-        <AlertTitle>Administrators only</AlertTitle>
-        <AlertDescription>Only platform administrators can view or change this node&apos;s configuration.</AlertDescription>
-      </Alert>
+        <div className="space-y-8">
+            <PageHeader
+                eyebrow="Settings"
+                title="This node"
+                badge={<ScopeLabel scope="node" />}
+                description="The node serving this dashboard: who it is, how it is reached and which database it uses. Most changes are written to the node's configuration and apply on the next service restart."
+            />
+
+            <SettingsSection
+                title="Identity & address"
+                description="The address other nodes and clients use to reach this node, and whether it is reachable. The tunnel is a stack-wide setting and lives under Network."
+            >
+                <NodeNetworkConfig />
+            </SettingsSection>
+
+            <SettingsSection
+                title="Configuration file"
+                description="Identity, region, roles and routing defaults persisted for this node. Editing does not restart anything; restart the service to apply."
+            >
+                <NodeConfigCard />
+            </SettingsSection>
+
+            <SettingsSection
+                title="Database"
+                description="Verify a database before you commit it to the configuration file."
+            >
+                <DatabaseTestCard />
+            </SettingsSection>
+
+            <SettingsSection
+                title="Danger zone"
+                description="Actions that cut peers off from this node."
+            >
+                <MeshSecretCard />
+            </SettingsSection>
+        </div>
     )
-  }
-
-  return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Settings"
-        title="This node"
-        badge={<ScopeLabel scope="node" />}
-        description="The node serving this dashboard: who it is, how it is reached and which database it uses. Most changes are written to the node's configuration and apply on the next service restart."
-      />
-
-      <SettingsSection
-        title="Identity & address"
-        description="The address other nodes and clients use to reach this node, and whether it is reachable. The tunnel is a stack-wide setting and lives under Network."
-      >
-        <NodeNetworkConfig />
-      </SettingsSection>
-
-      <SettingsSection
-        title="Configuration file"
-        description="Identity, region, roles and routing defaults persisted for this node. Editing does not restart anything; restart the service to apply."
-      >
-        <NodeConfigCard />
-      </SettingsSection>
-
-      <SettingsSection title="Database" description="Verify a database before you commit it to the configuration file.">
-        <DatabaseTestCard />
-      </SettingsSection>
-
-      <SettingsSection
-        title="Danger zone"
-        description="Actions that cut peers off from this node."
-      >
-        <MeshSecretCard />
-      </SettingsSection>
-    </div>
-  )
 }

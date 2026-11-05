@@ -1,4 +1,4 @@
-import type { ORPCAuthContext } from "../modules/auth/orpc/types";
+import type { ORPCAuthContext } from '../modules/auth/orpc/types'
 
 /**
  * The oRPC context every API app's handlers and middlewares see.
@@ -26,22 +26,22 @@ import type { ORPCAuthContext } from "../modules/auth/orpc/types";
  * The index signatures (string and symbol) are required for compatibility with
  * oRPC's internal `MergedInitialContext` types.
  */
-declare module "@orpc/server" {
-	// ── MUST BE `interface`, NOT `type` ─────────────────────────────────────
-	// A `type` alias is a fresh declaration, so redeclaring `DefaultInitialContext`
-	// as a type in a module augmentation is `TS2300: Duplicate identifier`, and
-	// TypeScript then DISCARDS the augmentation — leaving every `context.auth`
-	// access typed against the un-augmented default.
-	//
-	// `interface` MERGES with the existing declaration instead, which is the only
-	// form module augmentation supports for a type. The monolith
-	// (`apps/api/src/core/orpc/context.ts`) always used `interface`; this copy
-	// drifted to `type`, which is why the BFF reported 30+ type errors in files
-	// that are byte-identical to monolith ones that type-check cleanly.
-	interface DefaultInitialContext {
-		request: Request;
-		auth: ORPCAuthContext;
-		[key: string]: unknown;
-		[key: symbol]: unknown;
-	}
+declare module '@orpc/server' {
+    // ── MUST BE `interface`, NOT `type` ─────────────────────────────────────
+    // A `type` alias is a fresh declaration, so redeclaring `DefaultInitialContext`
+    // as a type in a module augmentation is `TS2300: Duplicate identifier`, and
+    // TypeScript then DISCARDS the augmentation — leaving every `context.auth`
+    // access typed against the un-augmented default.
+    //
+    // `interface` MERGES with the existing declaration instead, which is the only
+    // form module augmentation supports for a type. The monolith
+    // (`apps/api/src/core/orpc/context.ts`) always used `interface`; this copy
+    // drifted to `type`, which is why the BFF reported 30+ type errors in files
+    // that are byte-identical to monolith ones that type-check cleanly.
+    interface DefaultInitialContext {
+        request: Request
+        auth: ORPCAuthContext
+        [key: string]: unknown
+        [key: symbol]: unknown
+    }
 }

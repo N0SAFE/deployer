@@ -1,15 +1,21 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@deployer/ui/components/shadcn/card'
 import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 
 import { ChangeEmailCard } from '@/components/account/change-email-card'
 import { DangerZoneCard } from '@/components/account/danger-zone-card'
 import { DataExportCard } from '@/components/account/data-export-card'
 import {
-  ActiveSessionsCard,
-  ApiKeysCard,
-  ConnectedAccountsCard,
-  PasskeysCard,
-  SecurityPostureCard,
+    ActiveSessionsCard,
+    ApiKeysCard,
+    ConnectedAccountsCard,
+    PasskeysCard,
+    SecurityPostureCard,
 } from '@/components/account/security-cards'
 import { StepUpCard } from '@/components/account/step-up-card'
 import { PageHeader } from '@/components/dashboard'
@@ -18,16 +24,14 @@ import { AuthDashboardSettingsAccount } from '@/routes'
 
 import { ProfileForm } from './profile-form'
 
-
-
 /**
  * Settings > Account page using SessionRoute pattern
- * 
+ *
  * Uses AuthDashboardSettingsAccount.SessionRoute to:
  * 1. Fetch session ONCE on the server
  * 2. Pass it as a prop AND hydrate to React Query cache
  * 3. ProfileForm client component reads from cache instantly
- * 
+ *
  * No loading states needed - session data is immediately available.
  *
  * Beyond the profile form, this page is the account's security surface: the
@@ -36,63 +40,65 @@ import { ProfileForm } from './profile-form'
  * through `@/domains/account/hooks` so no plugin's transport leaks here.
  */
 export default AuthDashboardSettingsAccount.SessionRoute(({ session }) => {
-  // Declared on the user by the two-factor plugin (see the auth factory's
-  // additionalFields). Absent means "not enrolled".
-  const twoFactorEnabled = Boolean(
-    (session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled,
-  )
+    // Declared on the user by the two-factor plugin (see the auth factory's
+    // additionalFields). Absent means "not enrolled".
+    const twoFactorEnabled = Boolean(
+        (session?.user as { twoFactorEnabled?: boolean } | undefined)
+            ?.twoFactorEnabled
+    )
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <PageHeader
-        eyebrow="Settings"
-        title="Account"
-        description="Your profile, how the dashboard looks for you, and the ways you sign in and stay signed in."
-      />
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <PageHeader
+                eyebrow="Settings"
+                title="Account"
+                description="Your profile, how the dashboard looks for you, and the ways you sign in and stay signed in."
+            />
 
-      {/* Profile form - client component for interactivity */}
-      <ProfileForm initialSession={session} />
+            {/* Profile form - client component for interactivity */}
+            <ProfileForm initialSession={session} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Preferences</CardTitle>
-          <CardDescription>
-            Personal display settings. They only apply to you, in this browser.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">Appearance</p>
-            <p className="text-sm text-muted-foreground">
-              Choose a light or dark theme, or follow your system.
-            </p>
-          </div>
-          <ModeToggle />
-        </CardContent>
-      </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Preferences</CardTitle>
+                    <CardDescription>
+                        Personal display settings. They only apply to you, in
+                        this browser.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-medium">Appearance</p>
+                        <p className="text-muted-foreground text-sm">
+                            Choose a light or dark theme, or follow your system.
+                        </p>
+                    </div>
+                    <ModeToggle />
+                </CardContent>
+            </Card>
 
-      {/* Security posture at a glance, before the detail cards */}
-      <SecurityPostureCard enabled={twoFactorEnabled} />
+            {/* Security posture at a glance, before the detail cards */}
+            <SecurityPostureCard enabled={twoFactorEnabled} />
 
-      <ChangeEmailCard />
+            <ChangeEmailCard />
 
-      <StepUpCard />
+            <StepUpCard />
 
-      <PasskeysCard />
+            <PasskeysCard />
 
-      <ActiveSessionsCard />
+            <ActiveSessionsCard />
 
-      <ApiKeysCard />
+            <ApiKeysCard />
 
-      <ConnectedAccountsCard />
+            <ConnectedAccountsCard />
 
-      <DataExportCard />
+            <DataExportCard />
 
-      <DangerZoneCard />
+            <DangerZoneCard />
 
-      {/* Timing Logger */}
-      <PageTimingLogger pageName="Settings Account" />
-    </div>
-  )
+            {/* Timing Logger */}
+            <PageTimingLogger pageName="Settings Account" />
+        </div>
+    )
 })

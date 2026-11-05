@@ -1,4 +1,4 @@
-import type { ClusterSwarmRole } from "@deployer/contracts-entities";
+import type { ClusterSwarmRole } from '@deployer/contracts-entities'
 
 /**
  * What the cluster bootstrap reports back.
@@ -10,14 +10,14 @@ import type { ClusterSwarmRole } from "@deployer/contracts-entities";
  * instead of silently `undefined`.
  */
 export type ClusterBootstrapResult =
-  | {
-      ok: true;
-      nodeId: string;
-      swarmRole: ClusterSwarmRole;
-      nodeCount: number;
-      managerCount: number;
-    }
-  | { ok: false; reason: string };
+    | {
+          ok: true
+          nodeId: string
+          swarmRole: ClusterSwarmRole
+          nodeCount: number
+          managerCount: number
+      }
+    | { ok: false; reason: string }
 
 /**
  * How this node should enter the cluster.
@@ -28,5 +28,5 @@ export type ClusterBootstrapResult =
  * not have to overload an environment variable.
  */
 export type ClusterEntryMode =
-  | { kind: "found" }
-  | { kind: "join"; joinToken: string; remoteAddrs: string[] };
+    | { kind: 'found' }
+    | { kind: 'join'; joinToken: string; remoteAddrs: string[] }

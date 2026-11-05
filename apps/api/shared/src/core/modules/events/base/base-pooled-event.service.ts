@@ -1,110 +1,110 @@
 import {
-  type EventContracts,
-  type EventInput,
-  type EventOutput,
-} from "@deployer/events";
-import { isRecord } from "@deployer/type-guards"
+    type EventContracts,
+    type EventInput,
+    type EventOutput,
+} from '@deployer/events'
+import { isRecord } from '@deployer/type-guards'
 
-import { BaseEventService } from "./base-event.service";
+import { BaseEventService } from './base-event.service'
 
-import type { CoreEventStreamPoolServiceShape } from "./core-event-stream-pool.service";
-import type { Observable } from "rxjs";
+import type { CoreEventStreamPoolServiceShape } from './core-event-stream-pool.service'
+import type { Observable } from 'rxjs'
 
 export type PooledEventObserveOptions = {
-  replayLimit?: number;
-  includePersisted?: boolean;
-  afterSequence?: number;
-  pool?: boolean;
-  bufferSize?: number;
+    replayLimit?: number
+    includePersisted?: boolean
+    afterSequence?: number
+    pool?: boolean
+    bufferSize?: number
 }
 
 export abstract class BasePooledEventService<
-  TContracts extends EventContracts = EventContracts,
-  TNamespace extends string = string,
+    TContracts extends EventContracts = EventContracts,
+    TNamespace extends string = string,
 > extends BaseEventService<TContracts, TNamespace> {
-  constructor(
-    eventPrefix: TNamespace,
-    contracts: TContracts,
-    private readonly streamPool?: CoreEventStreamPoolServiceShape,
-  ) {
-    super(eventPrefix, contracts);
-  }
-
-  protected observePooledEvent$<K extends keyof TContracts>(
-    eventName: K,
-    input: EventInput<TContracts[K]>,
-    options?: PooledEventObserveOptions,
-  ): Observable<EventOutput<TContracts[K]>> {
-
-
-const replayLimit = options?.replayLimit;
-    const includePersisted = options?.includePersisted ?? true;
-    const afterSequence = options?.afterSequence;
-
-    const createSource = () =>
-      super.subscribe$(eventName, input, {
-        replayLimit,
-        includePersisted,
-        afterSequence,
-      });
-
-    const shouldPool = options?.pool ?? (!includePersisted && afterSequence == null);
-
-    if (!shouldPool || !this.streamPool) {
-      return createSource();
+    constructor(
+        eventPrefix: TNamespace,
+        contracts: TContracts,
+        private readonly streamPool?: CoreEventStreamPoolServiceShape
+    ) {
+        super(eventPrefix, contracts)
     }
 
-    const streamKey = this.buildPooledStreamKey({
-      eventName: String(eventName),
-      input,
-      replayLimit,
-      includePersisted,
-      afterSequence,
-    });
+    protected observePooledEvent$<K extends keyof TContracts>(
+        eventName: K,
+        input: EventInput<TContracts[K]>,
+        options?: PooledEventObserveOptions
+    ): Observable<EventOutput<TContracts[K]>> {
+        const replayLimit = options?.replayLimit
+        const includePersisted = options?.includePersisted ?? true
+        const afterSequence = options?.afterSequence
 
-    return this.streamPool.observePooledStream(streamKey, createSource, {
-      bufferSize: options?.bufferSize,
-      onError: (error) => (error instanceof Error ? error.message : String(error)),
-    });
-  }
+        const createSource = () =>
+            super.subscribe$(eventName, input, {
+                replayLimit,
+                includePersisted,
+                afterSequence,
+            })
 
-  private buildPooledStreamKey(input: {
-    eventName: string;
-    input: Record<string, unknown>;
-    replayLimit?: number;
-    includePersisted: boolean;
-    afterSequence?: number;
-  }): string {
-    const stableInput = this.stableSerialize(input.input);
+        const shouldPool =
+            options?.pool ?? (!includePersisted && afterSequence == null)
 
-    return [
-      "event-service",
-      this.namespace,
-      input.eventName,
-      `input:${stableInput}`,
-      `replay:${input.includePersisted ? "1" : "0"}`,
-      `limit:${String(input.replayLimit ?? "")}`,
-      `after:${String(input.afterSequence ?? "")}`,
-    ].join("|");
-  }
+        if (!shouldPool || !this.streamPool) {
+            return createSource()
+        }
 
-  private stableSerialize(value: unknown): string {
-    return JSON.stringify(this.toStableValue(value));
-  }
+        const streamKey = this.buildPooledStreamKey({
+            eventName: String(eventName),
+            input,
+            replayLimit,
+            includePersisted,
+            afterSequence,
+        })
 
-  private toStableValue(value: unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map((item) => this.toStableValue(item));
+        return this.streamPool.observePooledStream(streamKey, createSource, {
+            bufferSize: options?.bufferSize,
+            onError: (error) =>
+                error instanceof Error ? error.message : String(error),
+        })
     }
 
-    if (isRecord(value)) {
-      return Object.fromEntries(
-        Object.entries(value)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([key, nested]) => [key, this.toStableValue(nested)]),
-      );
+    private buildPooledStreamKey(input: {
+        eventName: string
+        input: Record<string, unknown>
+        replayLimit?: number
+        includePersisted: boolean
+        afterSequence?: number
+    }): string {
+        const stableInput = this.stableSerialize(input.input)
+
+        return [
+            'event-service',
+            this.namespace,
+            input.eventName,
+            `input:${stableInput}`,
+            `replay:${input.includePersisted ? '1' : '0'}`,
+            `limit:${String(input.replayLimit ?? '')}`,
+            `after:${String(input.afterSequence ?? '')}`,
+        ].join('|')
     }
 
-    return value;
-  }
+    private stableSerialize(value: unknown): string {
+        return JSON.stringify(this.toStableValue(value))
+    }
+
+    private toStableValue(value: unknown): unknown {
+        if (Array.isArray(value)) {
+            return value.map((item) => this.toStableValue(item))
+        }
+
+        if (isRecord(value)) {
+            return Object.fromEntries(
+                Object.entries(value)
+                    .sort(([left], [right]) => left.localeCompare(right))
+                    .map(([key, nested]) => [key, this.toStableValue(nested)])
+            )
+        }
+
+        return value
+    }
 }

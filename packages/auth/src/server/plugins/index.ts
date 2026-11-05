@@ -1,16 +1,16 @@
 /**
  * Server-side Better Auth plugins
- * 
+ *
  * This module exports all server plugins and their wrapper functions.
  * Use the `use*` functions for plugins that require access control configuration.
  */
 
-import { apiKey } from "@better-auth/api-key";
+import { apiKey } from '@better-auth/api-key'
 
-import { isPlatformAdministrator, refuseRoleGrant } from "../../authz/hierarchy";
-import { platformSchemas } from "../../adapters/better-auth/config";
+import { platformSchemas } from '../../adapters/better-auth/config'
+import { isPlatformAdministrator, refuseRoleGrant } from '../../authz/hierarchy'
 
-import { invitePlugin, type InvitePluginOptions } from "./invite";
+import { invitePlugin, type InvitePluginOptions } from './invite'
 
 // ============================================================================
 // Re-export existing plugins
@@ -61,45 +61,47 @@ export * from './securityPlugins'
  * `Authorization: Bearer dk_…`, which is what this platform's ORPC link, CLI and devtools send. Without the second
  * one, a minted key authenticated nowhere — the audit's "keys are unusable" finding.
  */
-export function apiKeyFromHeaders(headers: { get(name: string): string | null } | undefined): string | null {
-  if (headers === undefined) return null
+export function apiKeyFromHeaders(
+    headers: { get(name: string): string | null } | undefined
+): string | null {
+    if (headers === undefined) return null
 
-  const direct = headers.get('x-api-key')
-  if (direct !== null && direct.length > 0) return direct
+    const direct = headers.get('x-api-key')
+    if (direct !== null && direct.length > 0) return direct
 
-  const authorization = headers.get('authorization')
-  if (authorization === null) return null
+    const authorization = headers.get('authorization')
+    if (authorization === null) return null
 
-  const [scheme, ...rest] = authorization.trim().split(/\s+/u)
-  if (scheme?.toLowerCase() !== 'bearer') return null
+    const [scheme, ...rest] = authorization.trim().split(/\s+/u)
+    if (scheme?.toLowerCase() !== 'bearer') return null
 
-  const token = rest.join(' ')
-  return token.startsWith(API_KEY_PREFIX) ? token : null
+    const token = rest.join(' ')
+    return token.startsWith(API_KEY_PREFIX) ? token : null
 }
 
 /** The prefix `apiKey({ defaultPrefix })` puts in front of every issued key. */
 export const API_KEY_PREFIX = 'dk'
 
 export function useApiKey(): ReturnType<typeof apiKey> {
-  return apiKey({
-    // A key resolves to a session, so every existing guard keeps working.
-    enableSessionForAPIKeys: true,
-    // Keys carry context (purpose / label), which is what distinguishes a
-    // short-lived devtools key from one bound to a deployment.
-    enableMetadata: true,
-    // Keys are prefixed so they are recognisable in logs and secret scanners.
-    defaultPrefix: API_KEY_PREFIX,
-    rateLimit: {
-      enabled: true,
-      timeWindow: 60 * 60 * 1000, // 1 hour
-      maxRequests: 1000,
-    },
-    // Read the key from whichever header the caller used; the plugin's default reads `x-api-key` only.
-    customAPIKeyGetter: (ctx) => apiKeyFromHeaders(ctx.headers),
-  });
+    return apiKey({
+        // A key resolves to a session, so every existing guard keeps working.
+        enableSessionForAPIKeys: true,
+        // Keys carry context (purpose / label), which is what distinguishes a
+        // short-lived devtools key from one bound to a deployment.
+        enableMetadata: true,
+        // Keys are prefixed so they are recognisable in logs and secret scanners.
+        defaultPrefix: API_KEY_PREFIX,
+        rateLimit: {
+            enabled: true,
+            timeWindow: 60 * 60 * 1000, // 1 hour
+            maxRequests: 1000,
+        },
+        // Read the key from whichever header the caller used; the plugin's default reads `x-api-key` only.
+        customAPIKeyGetter: (ctx) => apiKeyFromHeaders(ctx.headers),
+    })
 }
 
-export type ApiKeyPlugin = ReturnType<typeof useApiKey>;
+export type ApiKeyPlugin = ReturnType<typeof useApiKey>
 
 // ============================================================================
 // Invite Plugin
@@ -108,11 +110,11 @@ export type ApiKeyPlugin = ReturnType<typeof useApiKey>;
 /**
  * Type-safe helper to configure the invite plugin with your role system
  * Uses the generated role schema for validation
- * 
+ *
  * @example
  * ```typescript
  * import { useInvite } from './index'
- * 
+ *
  * betterAuth({
  *   plugins: [
  *     useAdmin({ defaultRole: 'guest' }),
@@ -129,30 +131,38 @@ export type ApiKeyPlugin = ReturnType<typeof useApiKey>;
  * Administrators only, and never a role at or above the inviter's own: an invitation is a grant, so it obeys the same
  * hierarchy as `admin/set-role` — otherwise inviting is the way around it.
  */
-export function mayInvite(actorRole: string | null | undefined, invitedRole: string): boolean {
-  if (!isPlatformAdministrator(actorRole)) return false
-  return refuseRoleGrant({ actorRole, grantedRole: invitedRole }) === null
+export function mayInvite(
+    actorRole: string | null | undefined,
+    invitedRole: string
+): boolean {
+    if (!isPlatformAdministrator(actorRole)) return false
+    return refuseRoleGrant({ actorRole, grantedRole: invitedRole }) === null
 }
 
 export function useInvite(
-  options?: Omit<InvitePluginOptions, "roleSchema" | "canCreateInvite" | "canInviteRole">
+    options?: Omit<
+        InvitePluginOptions,
+        'roleSchema' | 'canCreateInvite' | 'canInviteRole'
+    >
 ) {
-  return invitePlugin({
-    inviteDurationDays: options?.inviteDurationDays ?? 7,
-    
-    // Type assertion is safe here - platformSchemas.roleNames will always be compatible
-    // with the RoleSchemaType that invitePlugin expects
-    roleSchema: platformSchemas.roleNames,
+    return invitePlugin({
+        inviteDurationDays: options?.inviteDurationDays ?? 7,
 
-    // ── WHO MAY INVITE, AND WHAT THEY MAY HAND OUT ────────────────────────
-    // Both hooks used to be dropped, so `canCreateInvite` stayed undefined and
-    // ANY session could mint an invite — including one for `superAdmin`, with the
-    // token returned in the response. The hierarchy that governs the admin
-    // endpoints governs invitations now: administrators only, and never a role at
-    // or above the inviter's own.
-    canCreateInvite: (user) => isPlatformAdministrator((user as { role?: string | null }).role),
-    canInviteRole: (user, role) => mayInvite((user as { role?: string | null }).role, role),
-  });
+        // Type assertion is safe here - platformSchemas.roleNames will always be compatible
+        // with the RoleSchemaType that invitePlugin expects
+        roleSchema: platformSchemas.roleNames,
+
+        // ── WHO MAY INVITE, AND WHAT THEY MAY HAND OUT ────────────────────────
+        // Both hooks used to be dropped, so `canCreateInvite` stayed undefined and
+        // ANY session could mint an invite — including one for `superAdmin`, with the
+        // token returned in the response. The hierarchy that governs the admin
+        // endpoints governs invitations now: administrators only, and never a role at
+        // or above the inviter's own.
+        canCreateInvite: (user) =>
+            isPlatformAdministrator((user as { role?: string | null }).role),
+        canInviteRole: (user, role) =>
+            mayInvite((user as { role?: string | null }).role, role),
+    })
 }
 
-export type InvitePlugin = ReturnType<typeof useInvite>;
+export type InvitePlugin = ReturnType<typeof useInvite>

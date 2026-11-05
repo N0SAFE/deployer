@@ -1,17 +1,22 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
-import { previewTopologyResolveContract } from "./resolve";
+import { previewTopologyResolveContract } from './resolve'
 
 /**
  * Standalone router (NOT nested inside `serviceContract`) — keeps the service
  * router's recursive contracts (subtree, deps) within tsgo's inference depth.
  * URL stays `/services/:serviceId/preview-topology`.
  */
-export const servicePreviewTopologyContract = oc.meta(openapi({ tags: ["Service Preview Topology"], prefix: "/services" })).router({
+export const servicePreviewTopologyContract = oc
+    .meta(openapi({ tags: ['Service Preview Topology'], prefix: '/services' }))
+    .router({
         resolve: previewTopologyResolveContract,
-    });
+    })
 
-export { previewTopologyResolveContract };
-export type { ResolvedPreviewNode, PreviewResolutionKind } from "./resolve";
-export { resolvedPreviewNodeSchema, previewResolutionKindSchema } from "./resolve";
+export { previewTopologyResolveContract }
+export type { ResolvedPreviewNode, PreviewResolutionKind } from './resolve'
+export {
+    resolvedPreviewNodeSchema,
+    previewResolutionKindSchema,
+} from './resolve'

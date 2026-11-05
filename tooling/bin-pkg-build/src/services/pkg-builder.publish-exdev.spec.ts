@@ -92,6 +92,8 @@ describe('publish on a filesystem that refuses directory renames', () => {
 
         host().publish(staging, target)
 
-        expect(fs.readFileSync(path.join(target, 'same.txt'), 'utf8')).toBe('NEW')
+        expect(fs.readFileSync(path.join(target, 'same.txt'), 'utf8')).toBe(
+            'NEW'
+        )
     })
 })

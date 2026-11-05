@@ -28,14 +28,14 @@ This page focuses on adaptation, not copy.
 
 ## Adaptation matrix
 
-| Benchmark pattern | Observed value | Deployer adaptation | Task mapping |
-|---|---|---|---|
-| Change-scoped Git deploys (directory/path awareness) | Avoids noisy redeploys in monorepos | Extend trigger rule engine with deterministic path-diff filters + policy preview | `T191`, `T229` |
-| Rich role/permission surfaces | Enables least-privilege ops at scale | Expand custom role matrix for deploy/registry/backup/audit domains with environment scope | `T146`, `T230` |
-| One-click service/catalog templates | Fast onboarding and consistency | Signed internal template catalog (`Template Packs`) with compatibility metadata and risk labels | `T085`, `T227` |
-| Secure remote host connectivity modes | Better usability across LAN/NAT/VPS | Standardize remote control-plane connectivity profiles (`direct`, `edge`) with explicit trust diagnostics | `T125`, `T228` |
-| Security-aware auto-update workflows | Safe updates with vulnerability checks | Unify Trust Gate + rollout policy so update paths can block on signature/provenance/security criteria | `T222`, `T231` |
-| Async operations with script-friendly sync mode | Better UX + automation interoperability | Add typed async job contract and optional synchronous response mode for long operations | `T232` |
+| Benchmark pattern                                    | Observed value                          | Deployer adaptation                                                                                       | Task mapping   |
+| ---------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------- |
+| Change-scoped Git deploys (directory/path awareness) | Avoids noisy redeploys in monorepos     | Extend trigger rule engine with deterministic path-diff filters + policy preview                          | `T191`, `T229` |
+| Rich role/permission surfaces                        | Enables least-privilege ops at scale    | Expand custom role matrix for deploy/registry/backup/audit domains with environment scope                 | `T146`, `T230` |
+| One-click service/catalog templates                  | Fast onboarding and consistency         | Signed internal template catalog (`Template Packs`) with compatibility metadata and risk labels           | `T085`, `T227` |
+| Secure remote host connectivity modes                | Better usability across LAN/NAT/VPS     | Standardize remote control-plane connectivity profiles (`direct`, `edge`) with explicit trust diagnostics | `T125`, `T228` |
+| Security-aware auto-update workflows                 | Safe updates with vulnerability checks  | Unify Trust Gate + rollout policy so update paths can block on signature/provenance/security criteria     | `T222`, `T231` |
+| Async operations with script-friendly sync mode      | Better UX + automation interoperability | Add typed async job contract and optional synchronous response mode for long operations                   | `T232`         |
 
 ---
 
@@ -69,11 +69,11 @@ If one link is missing, the feature is considered under-documented.
 ## Next expansion candidates
 
 1. **Template Pack Risk Scoring**
-   - classify templates (`safe`, `review-required`, `experimental`)
+    - classify templates (`safe`, `review-required`, `experimental`)
 2. **Deployment Change Impact Report**
-   - summarize affected services/routes before apply
+    - summarize affected services/routes before apply
 3. **Policy Conflict Linter**
-   - detect contradictory trust/cost/rollout constraints before runtime
+    - detect contradictory trust/cost/rollout constraints before runtime
 
 ---
 

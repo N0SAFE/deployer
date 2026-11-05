@@ -8,14 +8,20 @@ import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@deployer/ui/components/shadcn/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
-
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@deployer/ui/components/shadcn/table'
 
 import { StatusBadge } from '@/components/dashboard'
 import { dockerEndpoints } from '@/domains/docker/endpoints'
@@ -47,184 +53,242 @@ import { formatDateTime as formatDate } from '@/lib/format/date'
 const SWARM_SOURCES = ['service', 'node', 'task'] as const
 
 export function SwarmEventFeedPanel() {
-  const [sourceFilter, setSourceFilter] = useState<string>('all')
-  const [liveActivitiesByKey, setLiveActivitiesByKey] = useState<Record<string, DockerRuntimeActivityEntity>>({})
-  const liveBufferRef = useRef<DockerRuntimeActivityEntity[]>([])
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [sourceFilter, setSourceFilter] = useState<string>('all')
+    const [liveActivitiesByKey, setLiveActivitiesByKey] = useState<
+        Record<string, DockerRuntimeActivityEntity>
+    >({})
+    const liveBufferRef = useRef<DockerRuntimeActivityEntity[]>([])
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // One stream per source keeps the server-side filter cheap, and switching the
-  // filter does not tear down a subscription that is still useful.
-  const streamQuery = useQuery(
-    dockerEndpoints.runtime.activity.stream.experimental_liveObservableOptions({
-      input: { query: sourceFilter === 'all' ? undefined : { source: sourceFilter } },
-    }),
-  )
+    // One stream per source keeps the server-side filter cheap, and switching the
+    // filter does not tear down a subscription that is still useful.
+    const streamQuery = useQuery(
+        dockerEndpoints.runtime.activity.stream.experimental_liveObservableOptions(
+            {
+                input: {
+                    query:
+                        sourceFilter === 'all'
+                            ? undefined
+                            : { source: sourceFilter },
+                },
+            }
+        )
+    )
 
-  const streamStatus = streamQuery.isError
-    ? 'error'
-    : streamQuery.fetchStatus === 'fetching'
-      ? streamQuery.data
-        ? 'connected'
-        : 'connecting'
-      : streamQuery.data
-        ? 'connected'
-        : 'disconnected'
+    const streamStatus = streamQuery.isError
+        ? 'error'
+        : streamQuery.fetchStatus === 'fetching'
+          ? streamQuery.data
+              ? 'connected'
+              : 'connecting'
+          : streamQuery.data
+            ? 'connected'
+            : 'disconnected'
 
-  const flushLiveBuffer = () => {
-    const items = liveBufferRef.current
-    liveBufferRef.current = []
-    if (items.length === 0) return
-    setLiveActivitiesByKey((previous) => {
-      const next = { ...previous }
-      for (const activity of items) {
-        next[activity.eventId ?? activity.id] = activity
-      }
-      // Keep the feed bounded — this stream is unbounded by nature.
-      const ordered = Object.values(next)
-        .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
-        .map((item) => item.eventId ?? item.id)
-      if (ordered.length > 300) {
-        const keep = new Set(ordered.slice(0, 300))
-        return Object.fromEntries(Object.entries(next).filter(([key]) => keep.has(key)))
-      }
-      return next
-    })
-  }
-
-  useEffect(() => {
-    if (!streamQuery.data) return
-    liveBufferRef.current.push(streamQuery.data)
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    // Debounced like the activity page: swarm events arrive in bursts (create +
-    // several updates per replica), and re-rendering per event is wasted work.
-    debounceTimerRef.current = setTimeout(flushLiveBuffer, 150)
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-        debounceTimerRef.current = null
-      }
-    }
-  }, [streamQuery.data])
-
-  const activities = useMemo<DockerRuntimeActivityEntity[]>(
-    () =>
-      Object.values(liveActivitiesByKey).sort(
-        (left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
-      ),
-    [liveActivitiesByKey],
-  )
-
-  const failingTasks = activities.flatMap((activity) =>
-    activity.swarmTasks
-      .flatMap((task) => (task.error !== null ? [task.error] : [])),
-  )
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Radio className="h-4 w-4" />
-              Swarm event feed
-            </CardTitle>
-            <CardDescription>
-              Live orchestrator events. Task failure reasons are read from live task state — the engine
-              emits swarm events with no state and no task events at all.
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={streamStatus === 'connected' ? 'default' : 'outline'}>{streamStatus}</Badge>
-            {failingTasks.length > 0 ? (
-              <Badge variant="destructive">{failingTasks.length} task errors</Badge>
-            ) : null}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {(['all', ...SWARM_SOURCES] as const).map((source) => (
-            <Button
-              key={source}
-              size="sm"
-              variant={sourceFilter === source ? 'default' : 'outline'}
-              onClick={() => { setSourceFilter(source) }}
-              aria-pressed={sourceFilter === source}
-            >
-              {source === 'all' ? 'All swarm' : source}
-            </Button>
-          ))}
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Event</TableHead>
-              <TableHead>Resource</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Occurred</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {activities.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                  No swarm events yet. Services, tasks and nodes emit here as the orchestrator acts.
-                </TableCell>
-              </TableRow>
-            ) : (
-              activities.map((activity) => {
-                const taskErrors = activity.swarmTasks
-                  .map((task) => task.error)
-                  .filter((error): error is string => error !== null && error.trim().length > 0)
-                const service = activity.swarmService
-                const resource = service?.serviceName
-                  ?? activity.actorAttributes.name
-                  ?? activity.actorId?.slice(0, 12)
-                  ?? '—'
-
-                return (
-                  <TableRow key={activity.id}>
-                    <TableCell className="font-medium">
-                      {activity.source}.{activity.action}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="space-y-0.5">
-                        <p className="font-mono">{resource}</p>
-                        {service ? (
-                          <p className="text-muted-foreground">
-                            {String(service.runningTasks)}/{String(service.desiredTasks)} tasks · {service.mode}
-                          </p>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={activity.status} />
-                    </TableCell>
-                    <TableCell className="max-w-100">
-                      {/* Task error first: on a failure this is the ONLY text
-                          that tells the operator what to change. */}
-                      {taskErrors.length > 0 ? (
-                        <p className="truncate text-xs font-medium text-destructive" title={taskErrors[0]}>
-                          {taskErrors[0]}
-                        </p>
-                      ) : (
-                        <p className="truncate text-xs text-muted-foreground">
-                          {activity.message ?? service?.updateMessage ?? '—'}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(activity.occurredAt)}
-                    </TableCell>
-                  </TableRow>
+    const flushLiveBuffer = () => {
+        const items = liveBufferRef.current
+        liveBufferRef.current = []
+        if (items.length === 0) return
+        setLiveActivitiesByKey((previous) => {
+            const next = { ...previous }
+            for (const activity of items) {
+                next[activity.eventId ?? activity.id] = activity
+            }
+            // Keep the feed bounded — this stream is unbounded by nature.
+            const ordered = Object.values(next)
+                .sort(
+                    (left, right) =>
+                        new Date(right.occurredAt).getTime() -
+                        new Date(left.occurredAt).getTime()
                 )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  )
+                .map((item) => item.eventId ?? item.id)
+            if (ordered.length > 300) {
+                const keep = new Set(ordered.slice(0, 300))
+                return Object.fromEntries(
+                    Object.entries(next).filter(([key]) => keep.has(key))
+                )
+            }
+            return next
+        })
+    }
+
+    useEffect(() => {
+        if (!streamQuery.data) return
+        liveBufferRef.current.push(streamQuery.data)
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+        // Debounced like the activity page: swarm events arrive in bursts (create +
+        // several updates per replica), and re-rendering per event is wasted work.
+        debounceTimerRef.current = setTimeout(flushLiveBuffer, 150)
+        return () => {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current)
+                debounceTimerRef.current = null
+            }
+        }
+    }, [streamQuery.data])
+
+    const activities = useMemo<DockerRuntimeActivityEntity[]>(
+        () =>
+            Object.values(liveActivitiesByKey).sort(
+                (left, right) =>
+                    new Date(right.occurredAt).getTime() -
+                    new Date(left.occurredAt).getTime()
+            ),
+        [liveActivitiesByKey]
+    )
+
+    const failingTasks = activities.flatMap((activity) =>
+        activity.swarmTasks.flatMap((task) =>
+            task.error !== null ? [task.error] : []
+        )
+    )
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <Radio className="h-4 w-4" />
+                            Swarm event feed
+                        </CardTitle>
+                        <CardDescription>
+                            Live orchestrator events. Task failure reasons are
+                            read from live task state — the engine emits swarm
+                            events with no state and no task events at all.
+                        </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Badge
+                            variant={
+                                streamStatus === 'connected'
+                                    ? 'default'
+                                    : 'outline'
+                            }
+                        >
+                            {streamStatus}
+                        </Badge>
+                        {failingTasks.length > 0 ? (
+                            <Badge variant="destructive">
+                                {failingTasks.length} task errors
+                            </Badge>
+                        ) : null}
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    {(['all', ...SWARM_SOURCES] as const).map((source) => (
+                        <Button
+                            key={source}
+                            size="sm"
+                            variant={
+                                sourceFilter === source ? 'default' : 'outline'
+                            }
+                            onClick={() => {
+                                setSourceFilter(source)
+                            }}
+                            aria-pressed={sourceFilter === source}
+                        >
+                            {source === 'all' ? 'All swarm' : source}
+                        </Button>
+                    ))}
+                </div>
+
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Event</TableHead>
+                            <TableHead>Resource</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Reason</TableHead>
+                            <TableHead>Occurred</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {activities.length === 0 ? (
+                            <TableRow>
+                                <TableCell
+                                    colSpan={5}
+                                    className="text-muted-foreground py-10 text-center text-sm"
+                                >
+                                    No swarm events yet. Services, tasks and
+                                    nodes emit here as the orchestrator acts.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            activities.map((activity) => {
+                                const taskErrors = activity.swarmTasks
+                                    .map((task) => task.error)
+                                    .filter(
+                                        (error): error is string =>
+                                            error !== null &&
+                                            error.trim().length > 0
+                                    )
+                                const service = activity.swarmService
+                                const resource =
+                                    service?.serviceName ??
+                                    activity.actorAttributes.name ??
+                                    activity.actorId?.slice(0, 12) ??
+                                    '—'
+
+                                return (
+                                    <TableRow key={activity.id}>
+                                        <TableCell className="font-medium">
+                                            {activity.source}.{activity.action}
+                                        </TableCell>
+                                        <TableCell className="text-xs">
+                                            <div className="space-y-0.5">
+                                                <p className="font-mono">
+                                                    {resource}
+                                                </p>
+                                                {service ? (
+                                                    <p className="text-muted-foreground">
+                                                        {String(
+                                                            service.runningTasks
+                                                        )}
+                                                        /
+                                                        {String(
+                                                            service.desiredTasks
+                                                        )}{' '}
+                                                        tasks · {service.mode}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <StatusBadge
+                                                status={activity.status}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="max-w-100">
+                                            {/* Task error first: on a failure this is the ONLY text
+                          that tells the operator what to change. */}
+                                            {taskErrors.length > 0 ? (
+                                                <p
+                                                    className="text-destructive truncate text-xs font-medium"
+                                                    title={taskErrors[0]}
+                                                >
+                                                    {taskErrors[0]}
+                                                </p>
+                                            ) : (
+                                                <p className="text-muted-foreground truncate text-xs">
+                                                    {activity.message ??
+                                                        service?.updateMessage ??
+                                                        '—'}
+                                                </p>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground text-xs">
+                                            {formatDate(activity.occurredAt)}
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    )
 }

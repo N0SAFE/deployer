@@ -1,4 +1,11 @@
-import { bigserial, index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+    bigserial,
+    index,
+    jsonb,
+    pgTable,
+    text,
+    timestamp,
+} from 'drizzle-orm/pg-core'
 
 /**
  * Auth audit trail — append-only.
@@ -12,27 +19,30 @@ import { bigserial, index, jsonb, pgTable, text, timestamp } from "drizzle-orm/p
  * describes replay cursors, not an audit question. An auth event is produced once, by the auth boundary, and only read.
  */
 export const authAuditEvents = pgTable(
-	"auth_audit_events",
-	{
-		/** Insertion order. An audit read is chronological, so the sequence is the id. */
-		id: bigserial("id", { mode: "number" }).primaryKey(),
-		/** The action, from the catalog in `@deployer/auth/audit` (`sign-in`, `role-change`, …). */
-		action: text("action").notNull(),
-		/** Who caused it, when the request was authenticated. */
-		actorId: text("actor_id"),
-		/** Who it happened to, when the action names a subject (the user a role was granted to). */
-		targetId: text("target_id"),
-		/** Forwarded client address, as the session itself records it. */
-		ip: text("ip"),
-		userAgent: text("user_agent"),
-		/** Action-specific facts: the previous and new role, the key id, the refusal reason. Never a secret. */
-		detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-	},
-	(table) => [
-		index("auth_audit_events_action_idx").on(table.action),
-		index("auth_audit_events_actor_idx").on(table.actorId),
-		index("auth_audit_events_target_idx").on(table.targetId),
-		index("auth_audit_events_created_at_idx").on(table.createdAt),
-	],
-);
+    'auth_audit_events',
+    {
+        /** Insertion order. An audit read is chronological, so the sequence is the id. */
+        id: bigserial('id', { mode: 'number' }).primaryKey(),
+        /** The action, from the catalog in `@deployer/auth/audit` (`sign-in`, `role-change`, …). */
+        action: text('action').notNull(),
+        /** Who caused it, when the request was authenticated. */
+        actorId: text('actor_id'),
+        /** Who it happened to, when the action names a subject (the user a role was granted to). */
+        targetId: text('target_id'),
+        /** Forwarded client address, as the session itself records it. */
+        ip: text('ip'),
+        userAgent: text('user_agent'),
+        /** Action-specific facts: the previous and new role, the key id, the refusal reason. Never a secret. */
+        detail: jsonb('detail')
+            .$type<Record<string, unknown>>()
+            .notNull()
+            .default({}),
+        createdAt: timestamp('created_at').defaultNow().notNull(),
+    },
+    (table) => [
+        index('auth_audit_events_action_idx').on(table.action),
+        index('auth_audit_events_actor_idx').on(table.actorId),
+        index('auth_audit_events_target_idx').on(table.targetId),
+        index('auth_audit_events_created_at_idx').on(table.createdAt),
+    ]
+)

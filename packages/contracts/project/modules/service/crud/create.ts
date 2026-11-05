@@ -1,13 +1,13 @@
-import * as z from "zod";
+import * as z from 'zod'
 
+import { access } from '@deployer/auth/authz/meta'
 import {
-  serviceProviderConfigUnionSchema,
-  serviceRunnerConfigUnionSchema,
-} from "@deployer/contracts-entities";
-import { access } from "@deployer/auth/authz/meta";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+    serviceProviderConfigUnionSchema,
+    serviceRunnerConfigUnionSchema,
+} from '@deployer/contracts-entities'
+import { standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-import { serviceOps, serviceObjectSchema } from "./shared";
+import { serviceOps, serviceObjectSchema } from './shared'
 
 /**
  * Recursive create input: a service may carry its own children (sub-services),
@@ -16,35 +16,35 @@ import { serviceOps, serviceObjectSchema } from "./shared";
  * `get` accessor (no `z.lazy()`).
  */
 const serviceCreateInputBaseSchema = serviceObjectSchema
-  .omit({ id: true, isActive: true, createdAt: true, updatedAt: true })
-  .partial({
-    description: true,
-    providerConfig: true,
-    builderConfig: true,
-    port: true,
-    environmentVariables: true,
-    resourceLimits: true,
-    deploymentRetention: true,
-    healthCheckPath: true,
-    healthCheckInterval: true,
-    healthCheckTimeout: true,
-    healthCheckRetries: true,
-    traefikConfig: true,
-    customDomains: true,
-    metadata: true,
-    implementsContract: true,
-    preview: true,
-    network: true, // inherit project's DNS-provider network config by default
-  })
-  .extend({
-    // Hierarchy: attach under an existing parent, and/or define children.
-    parentId: z.uuid().nullable().optional(),
-    parentPath: z.string().nullable().optional(),
-    depth: z.number().int().nonnegative().optional(),
-  });
+    .omit({ id: true, isActive: true, createdAt: true, updatedAt: true })
+    .partial({
+        description: true,
+        providerConfig: true,
+        builderConfig: true,
+        port: true,
+        environmentVariables: true,
+        resourceLimits: true,
+        deploymentRetention: true,
+        healthCheckPath: true,
+        healthCheckInterval: true,
+        healthCheckTimeout: true,
+        healthCheckRetries: true,
+        traefikConfig: true,
+        customDomains: true,
+        metadata: true,
+        implementsContract: true,
+        preview: true,
+        network: true, // inherit project's DNS-provider network config by default
+    })
+    .extend({
+        // Hierarchy: attach under an existing parent, and/or define children.
+        parentId: z.uuid().nullable().optional(),
+        parentPath: z.string().nullable().optional(),
+        depth: z.number().int().nonnegative().optional(),
+    })
 
-type ServiceCreateInputBase = z.infer<typeof serviceCreateInputBaseSchema>;
-type ServiceCreateInputBaseInput = z.input<typeof serviceCreateInputBaseSchema>;
+type ServiceCreateInputBase = z.infer<typeof serviceCreateInputBaseSchema>
+type ServiceCreateInputBaseInput = z.input<typeof serviceCreateInputBaseSchema>
 
 /**
  * Input for creating a service, including nested sub-services.
@@ -58,39 +58,44 @@ type ServiceCreateInputBaseInput = z.input<typeof serviceCreateInputBaseSchema>;
  * recursion exact — see the zod "recursive types" guidance.
  */
 export interface ServiceCreateInput extends ServiceCreateInputBase {
-  children?: ServiceCreateInput[];
+    children?: ServiceCreateInput[]
 }
 
 /** Input shape of {@link ServiceCreateInput} (pre-validation, before defaults). */
 export interface ServiceCreateInputInput extends ServiceCreateInputBaseInput {
-  children?: ServiceCreateInputInput[];
+    children?: ServiceCreateInputInput[]
 }
 
 export const serviceCreateInputSchema: z.ZodType<
-  ServiceCreateInput,
-  ServiceCreateInputInput
+    ServiceCreateInput,
+    ServiceCreateInputInput
 > = serviceCreateInputBaseSchema.extend({
-  get children() {
-    return z.array(serviceCreateInputSchema).optional();
-  },
-});
+    get children() {
+        return z.array(serviceCreateInputSchema).optional()
+    },
+})
 
 // Output schema: serviceObjectShape (strips superRefine) with nullable configs.
 // On creation, providerConfig/builderConfig are null — the superRefine on
 // serviceSchema would reject those, so we use a plain object without it.
 const serviceCreateOutputSchema = serviceObjectSchema.extend({
-  providerConfig: serviceProviderConfigUnionSchema.nullable(),
-  builderConfig: serviceRunnerConfigUnionSchema.nullable(),
-});
+    providerConfig: serviceProviderConfigUnionSchema.nullable(),
+    builderConfig: serviceRunnerConfigUnionSchema.nullable(),
+})
 
 export const serviceCreateContract = serviceOps
-  .create()
-  .input(serviceCreateInputSchema)
-  .output((b) => b.body(serviceCreateOutputSchema))
-  .errors((e) => [
-    // Project not found, provider/runner validation, name collisions,
-    // sub-service recursion depth limits → typed client catch path.
-    ...standardDomainErrorContracts(e),
-  ])
-  .meta(access({ permission: "service:create", scope: { by: "input", path: "projectId", kind: "project" } }))
-  .build();
+    .create()
+    .input(serviceCreateInputSchema)
+    .output((b) => b.body(serviceCreateOutputSchema))
+    .errors((e) => [
+        // Project not found, provider/runner validation, name collisions,
+        // sub-service recursion depth limits → typed client catch path.
+        ...standardDomainErrorContracts(e),
+    ])
+    .meta(
+        access({
+            permission: 'service:create',
+            scope: { by: 'input', path: 'projectId', kind: 'project' },
+        })
+    )
+    .build()

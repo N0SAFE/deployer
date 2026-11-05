@@ -13,7 +13,7 @@ import {
     railpackRuntimeRunnerOptionsSchema,
     runtimeRunnerOptionsSchema,
     type RuntimeRunnerOptions,
-} from "@deployer/contracts-entities";
+} from '@deployer/contracts-entities'
 
 export {
     dockerRuntimeRunnerOptionsSchema,
@@ -24,18 +24,20 @@ export {
     railpackRuntimeRunnerOptionsSchema,
     runtimeRunnerOptionsSchema,
     type RuntimeRunnerOptions,
-};
+}
 
-export type DockerfileRunnerOptions = RuntimeRunnerOptions;
-export type DockerComposeRunnerOptions = RuntimeRunnerOptions;
-export type NixpacksRunnerOptions = RuntimeRunnerOptions;
-export type BuildpackRunnerOptions = RuntimeRunnerOptions;
-export type RailpackRunnerOptions = RuntimeRunnerOptions;
+export type DockerfileRunnerOptions = RuntimeRunnerOptions
+export type DockerComposeRunnerOptions = RuntimeRunnerOptions
+export type NixpacksRunnerOptions = RuntimeRunnerOptions
+export type BuildpackRunnerOptions = RuntimeRunnerOptions
+export type RailpackRunnerOptions = RuntimeRunnerOptions
 
 // Backward-friendly aliases used by the runner services' per-runner validation.
-export const dockerRunnerOptionsSchema = dockerRuntimeRunnerOptionsSchema;
-export const dockerfileRunnerOptionsSchema = dockerfileRuntimeRunnerOptionsSchema;
-export const dockerComposeRunnerOptionsSchema = dockerComposeRuntimeRunnerOptionsSchema;
-export const nixpacksRunnerOptionsSchema = nixpacksRuntimeRunnerOptionsSchema;
-export const buildpackRunnerOptionsSchema = buildpackRuntimeRunnerOptionsSchema;
-export const railpackRunnerOptionsSchema = railpackRuntimeRunnerOptionsSchema;
+export const dockerRunnerOptionsSchema = dockerRuntimeRunnerOptionsSchema
+export const dockerfileRunnerOptionsSchema =
+    dockerfileRuntimeRunnerOptionsSchema
+export const dockerComposeRunnerOptionsSchema =
+    dockerComposeRuntimeRunnerOptionsSchema
+export const nixpacksRunnerOptionsSchema = nixpacksRuntimeRunnerOptionsSchema
+export const buildpackRunnerOptionsSchema = buildpackRuntimeRunnerOptionsSchema
+export const railpackRunnerOptionsSchema = railpackRuntimeRunnerOptionsSchema

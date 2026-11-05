@@ -1,9 +1,9 @@
 /**
  * Traefik Module Error Classes
- * 
+ *
  * This module exports all Traefik-specific error classes.
  * Use these errors for Traefik-related operations throughout the module.
- * 
+ *
  * Error Hierarchy:
  * - TraefikError (base) extends AppError
  *   - ConfigBuildError
@@ -34,54 +34,54 @@
 
 // Base Traefik error and config errors
 export {
-  TraefikError,
-  ConfigBuildError,
-  ConfigSyncError,
-  ConfigValidationError,
-  ConfigNotFoundError,
-  ConfigFileWriteFailure,
-  ConfigSyncFailure,
-} from './config.error';
+    TraefikError,
+    ConfigBuildError,
+    ConfigSyncError,
+    ConfigValidationError,
+    ConfigNotFoundError,
+    ConfigFileWriteFailure,
+    ConfigSyncFailure,
+} from './config.error'
 
 // File system errors
 export {
-  FileSystemError,
-  FileNotFoundError,
-  FileExistsError,
-  InvalidPathError,
-  DirectoryError,
-  FileWriteError,
-  FileReadError,
-  FileDeleteError,
-  TraefikFileNotFound,
-  TraefikFileWriteRefused,
-} from './file-system.error';
+    FileSystemError,
+    FileNotFoundError,
+    FileExistsError,
+    InvalidPathError,
+    DirectoryError,
+    FileWriteError,
+    FileReadError,
+    FileDeleteError,
+    TraefikFileNotFound,
+    TraefikFileWriteRefused,
+} from './file-system.error'
 
 // Template errors
 export {
-  TemplateError,
-  TemplateSyntaxError,
-  TemplateVariableError,
-  TemplateNotFoundError,
-  TemplateRenderError,
-  TraefikTemplateNotFound,
-  TraefikTemplateCreateFailure,
-  TraefikTemplateVariablesMissing,
-} from './template.error';
+    TemplateError,
+    TemplateSyntaxError,
+    TemplateVariableError,
+    TemplateNotFoundError,
+    TemplateRenderError,
+    TraefikTemplateNotFound,
+    TraefikTemplateCreateFailure,
+    TraefikTemplateVariablesMissing,
+} from './template.error'
 
 // Middleware errors
 export {
-  MiddlewareError,
-  MiddlewareNotFoundError,
-  MiddlewareConfigurationError,
-  MiddlewareOptionsInvalid,
-  MiddlewareConfigurationInvalid,
-} from './middleware.error';
+    MiddlewareError,
+    MiddlewareNotFoundError,
+    MiddlewareConfigurationError,
+    MiddlewareOptionsInvalid,
+    MiddlewareConfigurationInvalid,
+} from './middleware.error'
 
 // SSL/TLS errors
 export {
-  SSLCertificateError,
-  SSLCertificateNotFoundError,
-  SSLCertificateExpiredError,
-  SSLCertificateValidationError,
-} from './ssl.error';
+    SSLCertificateError,
+    SSLCertificateNotFoundError,
+    SSLCertificateExpiredError,
+    SSLCertificateValidationError,
+} from './ssl.error'

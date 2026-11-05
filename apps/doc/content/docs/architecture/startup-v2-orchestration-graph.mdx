@@ -4,7 +4,10 @@ description: The NestJS DI graph IS the orchestrator. Every module, every forRoo
 order: 14
 ---
 
-<DocMeta source="docs/architecture/startup-v2-orchestration-graph.mdx" scope="canonical" />
+<DocMeta
+    source="docs/architecture/startup-v2-orchestration-graph.mdx"
+    scope="canonical"
+/>
 
 <DocCallout title="Superseded — kept as a design record" tone="danger">
 **This document describes a design that has since been REPLACED.** The sub-app
@@ -19,8 +22,7 @@ see:
 - [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
 - [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
 - `docs/setup-app-refactor-plan.md` — the refactor that replaced it
-</DocCallout>
-
+    </DocCallout>
 
 # Startup v2 — Complete NestJS DI Orchestration Graph
 
@@ -966,46 +968,46 @@ sequenceDiagram
 
 ### @Global() Modules (Resolved First)
 
-| Module | Token | Dependencies | Resolves |
-|--------|-------|-------------|----------|
-| `EnvModule` | `EnvService` | None | Env vars, ConfigService |
-| `DatabaseModule` | — | None (facade) | LocalModule + GlobalModule |
-| `TriggersModule` | `TriggerRegistry` | None | All Trigger&lt;T&gt; instances |
-| `SubAppContextModule.forRoot()` | `SUB_APP_CONTEXT` | Varies | Trigger for this sub-app |
+| Module                          | Token             | Dependencies  | Resolves                       |
+| ------------------------------- | ----------------- | ------------- | ------------------------------ |
+| `EnvModule`                     | `EnvService`      | None          | Env vars, ConfigService        |
+| `DatabaseModule`                | —                 | None (facade) | LocalModule + GlobalModule     |
+| `TriggersModule`                | `TriggerRegistry` | None          | All Trigger&lt;T&gt; instances |
+| `SubAppContextModule.forRoot()` | `SUB_APP_CONTEXT` | Varies        | Trigger for this sub-app       |
 
 ### Core forRootAsync Chain (Sequential via Imports)
 
-| Module | Imports | Factory Awaits | Provides |
-|--------|---------|---------------|----------|
-| `ConfigModule.forRootAsync()` | `TriggersModule` | `triggers.config.waitFor()` | EnvService, ConfigService |
-| `DatabaseModule.forRootAsync()` | `ConfigModule` | `triggers.database.waitFor()` | Pool, Drizzle, GlobalDbService |
-| `AuthModule.forRootAsync()` | `DatabaseModule` | `triggers.auth.waitFor()` | BetterAuth, AuthCoreService |
-| `MeshModule.forRootAsync()` | `AuthModule` | `triggers.mesh.waitFor()` | MeshClient, NodeId |
-| `EventsModule.forRootAsync()` | `MeshModule` | `triggers.events.waitFor()` | EventBus |
-| `DockerModule.forRootAsync()` | `MeshModule` | `triggers.docker.waitFor()` | Dockerode |
+| Module                          | Imports          | Factory Awaits                | Provides                       |
+| ------------------------------- | ---------------- | ----------------------------- | ------------------------------ |
+| `ConfigModule.forRootAsync()`   | `TriggersModule` | `triggers.config.waitFor()`   | EnvService, ConfigService      |
+| `DatabaseModule.forRootAsync()` | `ConfigModule`   | `triggers.database.waitFor()` | Pool, Drizzle, GlobalDbService |
+| `AuthModule.forRootAsync()`     | `DatabaseModule` | `triggers.auth.waitFor()`     | BetterAuth, AuthCoreService    |
+| `MeshModule.forRootAsync()`     | `AuthModule`     | `triggers.mesh.waitFor()`     | MeshClient, NodeId             |
+| `EventsModule.forRootAsync()`   | `MeshModule`     | `triggers.events.waitFor()`   | EventBus                       |
+| `DockerModule.forRootAsync()`   | `MeshModule`     | `triggers.docker.waitFor()`   | Dockerode                      |
 
 ### Feature Modules (Resolve After Core)
 
-| Module | Imports | Depends On |
-|--------|---------|------------|
-| `ORPCModule.forRootAsync()` | `AuthModule`, `DatabaseModule` | Auth + Database |
-| `DockerModule` (feature) | `DockerModule.forRootAsync()`, `DatabaseModule` | Docker + Database |
-| `DeploymentModule` | `DatabaseModule`, `AuthModule`, `MeshModule` | DB + Auth + Mesh |
-| `FleetModule` | `DatabaseModule`, `AuthModule`, `MeshModule` | DB + Auth + Mesh |
-| `UserModule` | `DatabaseModule`, `AuthModule` | DB + Auth |
-| Others... | Various | Various |
+| Module                      | Imports                                         | Depends On        |
+| --------------------------- | ----------------------------------------------- | ----------------- |
+| `ORPCModule.forRootAsync()` | `AuthModule`, `DatabaseModule`                  | Auth + Database   |
+| `DockerModule` (feature)    | `DockerModule.forRootAsync()`, `DatabaseModule` | Docker + Database |
+| `DeploymentModule`          | `DatabaseModule`, `AuthModule`, `MeshModule`    | DB + Auth + Mesh  |
+| `FleetModule`               | `DatabaseModule`, `AuthModule`, `MeshModule`    | DB + Auth + Mesh  |
+| `UserModule`                | `DatabaseModule`, `AuthModule`                  | DB + Auth         |
+| Others...                   | Various                                         | Various           |
 
 ### Sub-App Definitions
 
-| Sub-App | Module | Depends On | Timeout | Creates | Fires Trigger |
-|---------|--------|------------|---------|---------|---------------|
-| Config | `ConfigSubAppModule` | — | 5s | EnvService | `config` |
-| Database | `DatabaseSubAppModule` | config | 60s | Pool, Drizzle | `database` |
-| Auth | `AuthSubAppModule` | config, database | 30s | BetterAuth | `auth` |
-| Mesh | `MeshSubAppModule` | config, database, auth | 30s | MeshClient | `mesh` |
-| Events | `EventsSubAppModule` | mesh | 10s | EventBus | `events` |
-| Docker | `DockerSubAppModule` | mesh | 10s | Dockerode | `docker` |
-| Setup Wizard | `SetupWizardSubAppModule` | config | 300s | EphemeralHttpServer | `setupWizard` |
+| Sub-App      | Module                    | Depends On             | Timeout | Creates             | Fires Trigger |
+| ------------ | ------------------------- | ---------------------- | ------- | ------------------- | ------------- |
+| Config       | `ConfigSubAppModule`      | —                      | 5s      | EnvService          | `config`      |
+| Database     | `DatabaseSubAppModule`    | config                 | 60s     | Pool, Drizzle       | `database`    |
+| Auth         | `AuthSubAppModule`        | config, database       | 30s     | BetterAuth          | `auth`        |
+| Mesh         | `MeshSubAppModule`        | config, database, auth | 30s     | MeshClient          | `mesh`        |
+| Events       | `EventsSubAppModule`      | mesh                   | 10s     | EventBus            | `events`      |
+| Docker       | `DockerSubAppModule`      | mesh                   | 10s     | Dockerode           | `docker`      |
+| Setup Wizard | `SetupWizardSubAppModule` | config                 | 300s    | EphemeralHttpServer | `setupWizard` |
 
 ---
 

@@ -1,11 +1,11 @@
-import { startSharedPostgresContainer } from "./shared-postgres";
+import { startSharedPostgresContainer } from './shared-postgres'
 // Vitest has no separate global-teardown hook — the ONLY mechanism is a
 // teardown closure returned from this default export. The previous
 // `globalTeardown` config key was silently ignored, so containers leaked on
 // every run; delegating to vitest.teardown.e2e.ts here makes it actually run.
-import globalTeardown from "./teardown";
+import globalTeardown from './teardown'
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
-  await startSharedPostgresContainer();
-  return globalTeardown;
+    await startSharedPostgresContainer()
+    return globalTeardown
 }

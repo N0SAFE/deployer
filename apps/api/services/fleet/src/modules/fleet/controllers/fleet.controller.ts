@@ -1,11 +1,14 @@
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
 
-import { nodesContract } from "@deployer/fleet-contracts";
-import { procedure } from "@deployer/nest-effect";
-import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { nodesContract } from '@deployer/fleet-contracts'
+import { procedure } from '@deployer/nest-effect'
+import {
+    requireAuth,
+    requirePlatformRole,
+} from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-import { FleetService } from "../services/fleet.service";
+import { FleetService } from '../services/fleet.service'
 
 /**
  * Fleet Controller — implements the `nodes.*` ORPC contract.
@@ -19,7 +22,7 @@ import { FleetService } from "../services/fleet.service";
  */
 
 /** Capacity, allocations and admission decisions are operational acts; self-service stays per-user. */
-const FLEET_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
+const FLEET_OPERATOR_ROLES = ['superAdmin', 'admin', 'operator']
 
 @Controller()
 export class FleetController {
@@ -28,9 +31,9 @@ export class FleetController {
         return procedure(nodesContract.listServers)
             .use(requireAuth())
             .effect(function* () {
-                const fleet = yield* FleetService;
-                return yield* fleet.listServers();
-            });
+                const fleet = yield* FleetService
+                return yield* fleet.listServers()
+            })
     }
 
     @Implement(nodesContract.setServerCapacity)
@@ -39,10 +42,10 @@ export class FleetController {
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input }) {
-                const fleet = yield* FleetService;
-                const result = yield* fleet.setServerCapacity(input);
-                return { status: 201 as const, body: result };
-            });
+                const fleet = yield* FleetService
+                const result = yield* fleet.setServerCapacity(input)
+                return { status: 201 as const, body: result }
+            })
     }
 
     @Implement(nodesContract.listAllocations)
@@ -50,9 +53,9 @@ export class FleetController {
         return procedure(nodesContract.listAllocations)
             .use(requireAuth())
             .effect(function* ({ input }) {
-                const fleet = yield* FleetService;
-                return yield* fleet.listAllocations(input.query ?? {});
-            });
+                const fleet = yield* FleetService
+                return yield* fleet.listAllocations(input.query ?? {})
+            })
     }
 
     @Implement(nodesContract.listMyAllocations)
@@ -60,9 +63,9 @@ export class FleetController {
         return procedure(nodesContract.listMyAllocations)
             .use(requireAuth())
             .effect(function* () {
-                const fleet = yield* FleetService;
-                return yield* fleet.listMyAllocations();
-            });
+                const fleet = yield* FleetService
+                return yield* fleet.listMyAllocations()
+            })
     }
 
     @Implement(nodesContract.checkMyAdmission)
@@ -70,10 +73,13 @@ export class FleetController {
         return procedure(nodesContract.checkMyAdmission)
             .use(requireAuth())
             .effect(function* ({ input, context }) {
-                const fleet = yield* FleetService;
-                const result = yield* fleet.checkMyAdmission(context.auth.user.id, input);
-                return { status: 201 as const, headers: {}, body: result };
-            });
+                const fleet = yield* FleetService
+                const result = yield* fleet.checkMyAdmission(
+                    context.auth.user.id,
+                    input
+                )
+                return { status: 201 as const, headers: {}, body: result }
+            })
     }
 
     @Implement(nodesContract.createMyAdmissionRequest)
@@ -81,10 +87,13 @@ export class FleetController {
         return procedure(nodesContract.createMyAdmissionRequest)
             .use(requireAuth())
             .effect(function* ({ input, context }) {
-                const fleet = yield* FleetService;
-                const result = yield* fleet.createMyAdmissionRequest(context.auth.user.id, input);
-                return { status: 201 as const, headers: {}, body: result };
-            });
+                const fleet = yield* FleetService
+                const result = yield* fleet.createMyAdmissionRequest(
+                    context.auth.user.id,
+                    input
+                )
+                return { status: 201 as const, headers: {}, body: result }
+            })
     }
 
     @Implement(nodesContract.listMyAdmissionRequests)
@@ -92,9 +101,12 @@ export class FleetController {
         return procedure(nodesContract.listMyAdmissionRequests)
             .use(requireAuth())
             .effect(function* ({ input, context }) {
-                const fleet = yield* FleetService;
-                return yield* fleet.listMyAdmissionRequests(context.auth.user.id, input.query ?? {});
-            });
+                const fleet = yield* FleetService
+                return yield* fleet.listMyAdmissionRequests(
+                    context.auth.user.id,
+                    input.query ?? {}
+                )
+            })
     }
 
     @Implement(nodesContract.upsertAllocation)
@@ -103,10 +115,10 @@ export class FleetController {
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input }) {
-                const fleet = yield* FleetService;
-                const result = yield* fleet.upsertAllocation(input);
-                return { status: 201 as const, headers: {}, body: result };
-            });
+                const fleet = yield* FleetService
+                const result = yield* fleet.upsertAllocation(input)
+                return { status: 201 as const, headers: {}, body: result }
+            })
     }
 
     @Implement(nodesContract.deleteAllocation)
@@ -115,10 +127,10 @@ export class FleetController {
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input }) {
-                const fleet = yield* FleetService;
-                const result = yield* fleet.deleteAllocation(input);
-                return { status: 201 as const, headers: {}, body: result };
-            });
+                const fleet = yield* FleetService
+                const result = yield* fleet.deleteAllocation(input)
+                return { status: 201 as const, headers: {}, body: result }
+            })
     }
 
     @Implement(nodesContract.listAdmissionRequests)
@@ -126,9 +138,9 @@ export class FleetController {
         return procedure(nodesContract.listAdmissionRequests)
             .use(requireAuth())
             .effect(function* ({ input }) {
-                const fleet = yield* FleetService;
-                return yield* fleet.listAdmissionRequests(input.query ?? {});
-            });
+                const fleet = yield* FleetService
+                return yield* fleet.listAdmissionRequests(input.query ?? {})
+            })
     }
 
     @Implement(nodesContract.resolveAdmissionRequest)
@@ -137,9 +149,9 @@ export class FleetController {
             .use(requireAuth())
             .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input }) {
-                const fleet = yield* FleetService;
-                const result = yield* fleet.resolveAdmissionRequest(input);
-                return { status: 201 as const, headers: {}, body: result };
-            });
+                const fleet = yield* FleetService
+                const result = yield* fleet.resolveAdmissionRequest(input)
+                return { status: 201 as const, headers: {}, body: result }
+            })
     }
 }

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 /**
  * E2E — App-instance lifecycle (api-centric deployment, BYO flow).
  *
@@ -14,181 +14,192 @@ import { Effect } from "effect";
  * Operator-side assertions use serviceMapper (direct service handles) — the
  * HTTP auth surface for admin routes is covered by module-http-guards.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // The app-local harness wrapper, which binds THIS service's root module. The
 // previous `../utils/shared-api-runtime` path does not exist in a service — the
 // harness lives in `shared`, where `@/app.module` resolves to nothing, so it must be
 // reached through the wrapper that supplies `nest.rootModuleLoader`.
-import { AppInstanceService, type AppInstanceServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
+import {
+    AppInstanceService,
+    type AppInstanceServiceShape,
+} from '@deployer/shared/core/modules/platform-ingress/services/app-instance.service'
 
 import {
-	getSharedApiRuntimeContext,
-	stopSharedApiRuntime,
-	type SharedApiRuntimeContext,
-} from "@/e2e/runtime";
+    getSharedApiRuntimeContext,
+    stopSharedApiRuntime,
+    type SharedApiRuntimeContext,
+} from '@/e2e/runtime'
 
-const INSTANCE_LABEL = "e2e-byo-web";
+const INSTANCE_LABEL = 'e2e-byo-web'
 
-describe("Platform: app-instance lifecycle (BYO)", () => {
-	let context: SharedApiRuntimeContext;
-	let instances: AppInstanceServiceShape;
-	const account = {
-		email: `byo-web-${Date.now()}@e2e.deployer.test`,
-		password: "e2e-byo-pass-123",
-		name: "BYO Web Instance",
-	};
-	let appToken = "";
-	let instanceId = "";
+describe('Platform: app-instance lifecycle (BYO)', () => {
+    let context: SharedApiRuntimeContext
+    let instances: AppInstanceServiceShape
+    const account = {
+        email: `byo-web-${Date.now()}@e2e.deployer.test`,
+        password: 'e2e-byo-pass-123',
+        name: 'BYO Web Instance',
+    }
+    let appToken = ''
+    let instanceId = ''
 
-	beforeAll(async () => {
-		context = await getSharedApiRuntimeContext({ instanceKey: "platform-app-instance" });
-		instances = context.serviceMapper.get(AppInstanceService) as unknown as AppInstanceServiceShape;
+    beforeAll(async () => {
+        context = await getSharedApiRuntimeContext({
+            instanceKey: 'platform-app-instance',
+        })
+        instances = context.serviceMapper.get(
+            AppInstanceService
+        ) as unknown as AppInstanceServiceShape
 
-		// Consumer account on THIS API — the anti-abuse boundary for registration.
-		// Fail LOUDLY with the provider's own error body — silent signup
-		// failures otherwise surface as confusing 401s in the register test.
-		// Public sign-up is disabled (AUTH-001), so the account is provisioned through Better Auth's internal adapter —
-		// the same path the admin bootstrap uses — and the spec keeps asserting the real provisioning rules.
-		let signUpResult: unknown;
-		try {
-			const { provisionUserAccount } = await import("@deployer/auth/server");
-			const userId = await provisionUserAccount(context.betterAuth, {
-				email: account.email,
-				password: account.password,
-				name: account.name,
-			});
-			signUpResult = { user: { id: userId } };
-		} catch (error) {
-			const detail = (error as { message?: string }).message ?? String(error);
-			throw new Error(`provisioning the e2e account failed: ${JSON.stringify(detail)}`);
-		}
-		if (
-			signUpResult === null ||
-			typeof signUpResult !== "object" ||
-			!("user" in signUpResult)
-		) {
-			throw new Error(
-				`signUpEmail did not create a user: ${JSON.stringify(signUpResult)}`,
-			);
-		}
+        // Consumer account on THIS API — the anti-abuse boundary for registration.
+        // Fail LOUDLY with the provider's own error body — silent signup
+        // failures otherwise surface as confusing 401s in the register test.
+        // Public sign-up is disabled (AUTH-001), so the account is provisioned through Better Auth's internal adapter —
+        // the same path the admin bootstrap uses — and the spec keeps asserting the real provisioning rules.
+        let signUpResult: unknown
+        try {
+            const { provisionUserAccount } =
+                await import('@deployer/auth/server')
+            const userId = await provisionUserAccount(context.betterAuth, {
+                email: account.email,
+                password: account.password,
+                name: account.name,
+            })
+            signUpResult = { user: { id: userId } }
+        } catch (error) {
+            const detail =
+                (error as { message?: string }).message ?? String(error)
+            throw new Error(
+                `provisioning the e2e account failed: ${JSON.stringify(detail)}`
+            )
+        }
+        if (
+            signUpResult === null ||
+            typeof signUpResult !== 'object' ||
+            !('user' in signUpResult)
+        ) {
+            throw new Error(
+                `signUpEmail did not create a user: ${JSON.stringify(signUpResult)}`
+            )
+        }
 
-		// Prove the credentials actually authenticate before the register tests.
-		await context.betterAuth.api.signInEmail({
-			body: { email: account.email, password: account.password },
-		});
-	}, 180_000);
+        // Prove the credentials actually authenticate before the register tests.
+        await context.betterAuth.api.signInEmail({
+            body: { email: account.email, password: account.password },
+        })
+    }, 180_000)
 
-	afterAll(async () => {
-		await stopSharedApiRuntime({ instanceKey: "platform-app-instance" });
-	});
+    afterAll(async () => {
+        await stopSharedApiRuntime({ instanceKey: 'platform-app-instance' })
+    })
 
-	it("rejects registration with invalid credentials (401 surface)", async () => {
-		const response = await context.http
-			.post("/platform/app-instances/register")
-			.set("content-type", "application/json")
-			.send({
-				email: account.email,
-				password: "definitely-wrong-password",
-				instanceLabel: INSTANCE_LABEL,
-			})
-			.expect(401);
+    it('rejects registration with invalid credentials (401 surface)', async () => {
+        const response = await context.http
+            .post('/platform/app-instances/register')
+            .set('content-type', 'application/json')
+            .send({
+                email: account.email,
+                password: 'definitely-wrong-password',
+                instanceLabel: INSTANCE_LABEL,
+            })
+            .expect(401)
 
-		expect(response.body).toBeDefined();
-	});
+        expect(response.body).toBeDefined()
+    })
 
-	it("registers a web instance and returns its own (non-user) token", async () => {
-		const response = await context.http
-			.post("/platform/app-instances/register")
-			.set("content-type", "application/json")
-			.send({
-				email: account.email,
-				password: account.password,
-				instanceLabel: INSTANCE_LABEL,
-			});
+    it('registers a web instance and returns its own (non-user) token', async () => {
+        const response = await context.http
+            .post('/platform/app-instances/register')
+            .set('content-type', 'application/json')
+            .send({
+                email: account.email,
+                password: account.password,
+                instanceLabel: INSTANCE_LABEL,
+            })
 
-		// Surface the error body directly — 401s here must be explainable.
-		if (response.status !== 201) {
-			console.error(
-				`[e2e] register failed ${String(response.status)}: ${JSON.stringify(response.body)}`,
-			);
-		}
-		expect(response.status).toBe(201);
+        // Surface the error body directly — 401s here must be explainable.
+        if (response.status !== 201) {
+            console.error(
+                `[e2e] register failed ${String(response.status)}: ${JSON.stringify(response.body)}`
+            )
+        }
+        expect(response.status).toBe(201)
 
-		const body = response.body as {
-			instanceId: string;
-			appToken: string;
-			heartbeatIntervalMs: number;
-		};
+        const body = response.body as {
+            instanceId: string
+            appToken: string
+            heartbeatIntervalMs: number
+        }
 
-		expect(body.instanceId).toBeTruthy();
-		// Opaque 32-byte base64url token — 43 chars.
-		expect(body.appToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
-		expect(body.heartbeatIntervalMs).toBeGreaterThan(0);
+        expect(body.instanceId).toBeTruthy()
+        // Opaque 32-byte base64url token — 43 chars.
+        expect(body.appToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
+        expect(body.heartbeatIntervalMs).toBeGreaterThan(0)
 
-		appToken = body.appToken;
-		instanceId = body.instanceId;
+        appToken = body.appToken
+        instanceId = body.instanceId
 
-		// The instance exists server-side in active state.
-		const stored = await Effect.runPromise(instances.list());
-		const mine = stored.find((row) => row.id === instanceId);
-		expect(mine?.status).toBe("active");
-		expect(mine?.kind).toBe("external");
-		expect(mine?.label).toBe(INSTANCE_LABEL);
-	});
+        // The instance exists server-side in active state.
+        const stored = await Effect.runPromise(instances.list())
+        const mine = stored.find((row) => row.id === instanceId)
+        expect(mine?.status).toBe('active')
+        expect(mine?.kind).toBe('external')
+        expect(mine?.label).toBe(INSTANCE_LABEL)
+    })
 
-	it("accepts heartbeats carrying the instance token", async () => {
-		const response = await context.http
-			.post("/platform/app-instances/heartbeat")
-			.set("content-type", "application/json")
-			.set("x-app-instance-token", appToken)
-			.send({});
+    it('accepts heartbeats carrying the instance token', async () => {
+        const response = await context.http
+            .post('/platform/app-instances/heartbeat')
+            .set('content-type', 'application/json')
+            .set('x-app-instance-token', appToken)
+            .send({})
 
-		if (response.status !== 201) {
-			console.error(
-				`[e2e] heartbeat failed ${String(response.status)}: ${JSON.stringify(response.body)}`,
-			);
-		}
-		expect(response.status).toBe(201);
+        if (response.status !== 201) {
+            console.error(
+                `[e2e] heartbeat failed ${String(response.status)}: ${JSON.stringify(response.body)}`
+            )
+        }
+        expect(response.status).toBe(201)
 
-		const body = response.body as { renewUntil: string };
-		expect(new Date(body.renewUntil).getTime()).toBeGreaterThan(Date.now());
-	});
+        const body = response.body as { renewUntil: string }
+        expect(new Date(body.renewUntil).getTime()).toBeGreaterThan(Date.now())
+    })
 
-	it("rejects heartbeats without or with garbage tokens", async () => {
-		await context.http
-			.post("/platform/app-instances/heartbeat")
-			.set("content-type", "application/json")
-			.send({})
-			.expect(401);
+    it('rejects heartbeats without or with garbage tokens', async () => {
+        await context.http
+            .post('/platform/app-instances/heartbeat')
+            .set('content-type', 'application/json')
+            .send({})
+            .expect(401)
 
-		await context.http
-			.post("/platform/app-instances/heartbeat")
-			.set("content-type", "application/json")
-			.set("x-app-instance-token", "totally-made-up-token")
-			.send({})
-			.expect(401);
-	});
+        await context.http
+            .post('/platform/app-instances/heartbeat')
+            .set('content-type', 'application/json')
+            .set('x-app-instance-token', 'totally-made-up-token')
+            .send({})
+            .expect(401)
+    })
 
-	it("revocation is immediate: heartbeat dies after operator revoke", async () => {
-		const revoked = await Effect.runPromise(instances.revoke(instanceId));
-		expect(revoked).toBe(true);
+    it('revocation is immediate: heartbeat dies after operator revoke', async () => {
+        const revoked = await Effect.runPromise(instances.revoke(instanceId))
+        expect(revoked).toBe(true)
 
-		await context.http
-			.post("/platform/app-instances/heartbeat")
-			.set("content-type", "application/json")
-			.set("x-app-instance-token", appToken)
-			.send({})
-			.expect(401);
-	});
+        await context.http
+            .post('/platform/app-instances/heartbeat')
+            .set('content-type', 'application/json')
+            .set('x-app-instance-token', appToken)
+            .send({})
+            .expect(401)
+    })
 
-	it("revoking twice is idempotent", async () => {
-		const second = await Effect.runPromise(instances.revoke(instanceId));
-		// Second call finds no live (non-revoked) row to transition — either a
-		// false or a no-op true is acceptable, but the store must stay revoked.
-		second;
-		const stored = await Effect.runPromise(instances.list());
-		const mine = stored.find((row) => row.id === instanceId);
-		expect(mine?.status).toBe("revoked");
-	});
-});
+    it('revoking twice is idempotent', async () => {
+        const second = await Effect.runPromise(instances.revoke(instanceId))
+        // Second call finds no live (non-revoked) row to transition — either a
+        // false or a no-op true is acceptable, but the store must stay revoked.
+        second
+        const stored = await Effect.runPromise(instances.list())
+        const mine = stored.find((row) => row.id === instanceId)
+        expect(mine?.status).toBe('revoked')
+    })
+})

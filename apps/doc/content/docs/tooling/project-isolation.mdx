@@ -48,16 +48,24 @@ When another stack already uses your ports/resources:
 - restart only the affected service stack.
 
 <DocCallout title="Tip" tone="info">
-Project isolation prevents most container/network name collisions, but host port collisions can still occur if multiple stacks expose the same host port.
+    Project isolation prevents most container/network name collisions, but host
+    port collisions can still occur if multiple stacks expose the same host
+    port.
 </DocCallout>
 
 <DocChecklist
-	items={[
-		{ label: 'COMPOSE_PROJECT_NAME set before starting stack', done: false },
-		{ label: 'Ports verified to avoid host conflicts', done: false },
-		{ label: 'Logs inspected per isolated stack', done: false },
-		{ label: 'Only needed stack restarted after conflict fix', done: false },
-	]}
+    items={[
+        {
+            label: 'COMPOSE_PROJECT_NAME set before starting stack',
+            done: false,
+        },
+        { label: 'Ports verified to avoid host conflicts', done: false },
+        { label: 'Logs inspected per isolated stack', done: false },
+        {
+            label: 'Only needed stack restarted after conflict fix',
+            done: false,
+        },
+    ]}
 />
 
 ## Related docs

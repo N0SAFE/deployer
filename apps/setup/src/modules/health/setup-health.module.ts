@@ -1,10 +1,17 @@
-import { HealthIndicatorService, TerminusModule } from "@nestjs/terminus";
+import { HealthIndicatorService, TerminusModule } from '@nestjs/terminus'
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { SetupHealthController } from "./setup-health.controller";
-import { makeSetupPhase, SetupPhaseService, type SetupPhaseShape } from "./setup-phase.service";
-import { makeSetupReadinessIndicator, SetupReadinessIndicator } from "./setup-readiness.indicator";
+import { SetupHealthController } from './setup-health.controller'
+import {
+    makeSetupPhase,
+    SetupPhaseService,
+    type SetupPhaseShape,
+} from './setup-phase.service'
+import {
+    makeSetupReadinessIndicator,
+    SetupReadinessIndicator,
+} from './setup-readiness.indicator'
 
 /**
  * Health and lifecycle-phase ownership for the setup app.
@@ -28,15 +35,18 @@ import { makeSetupReadinessIndicator, SetupReadinessIndicator } from "./setup-re
  * phase changes remain visible without the per-probe repetition.
  */
 export class SetupHealthModule extends createModuleContext({
-  imports: [TerminusModule.forRoot({ logger: false })],
-  controllers: [SetupHealthController],
-  providers: [
-    { provide: SetupPhaseService, useFactory: makeSetupPhase },
-    {
-      provide: SetupReadinessIndicator,
-      useFactory: (health: HealthIndicatorService, phases: SetupPhaseShape) => makeSetupReadinessIndicator(health, phases),
-      inject: [HealthIndicatorService, SetupPhaseService],
-    },
-  ],
-  exports: [SetupPhaseService],
+    imports: [TerminusModule.forRoot({ logger: false })],
+    controllers: [SetupHealthController],
+    providers: [
+        { provide: SetupPhaseService, useFactory: makeSetupPhase },
+        {
+            provide: SetupReadinessIndicator,
+            useFactory: (
+                health: HealthIndicatorService,
+                phases: SetupPhaseShape
+            ) => makeSetupReadinessIndicator(health, phases),
+            inject: [HealthIndicatorService, SetupPhaseService],
+        },
+    ],
+    exports: [SetupPhaseService],
 }) {}

@@ -1,11 +1,11 @@
-import type { BetterAuthFactoryResult } from "./auth";
+import type { BetterAuthFactoryResult } from './auth'
 
 export interface ProvisionUserInput {
-    email: string;
-    name: string;
-    password: string;
+    email: string
+    name: string
+    password: string
     /** Platform role. Granted server-side only; never read from a request body. */
-    role?: string;
+    role?: string
 }
 
 /**
@@ -28,11 +28,11 @@ export interface ProvisionUserInput {
  *   follow-up `UPDATE` and no window where the account exists unprivileged.
  */
 export async function provisionUserAccount(
-    auth: BetterAuthFactoryResult["auth"],
-    input: ProvisionUserInput,
+    auth: BetterAuthFactoryResult['auth'],
+    input: ProvisionUserInput
 ): Promise<string> {
-    const context = await auth.$context;
-    const password = await context.password.hash(input.password);
+    const context = await auth.$context
+    const password = await context.password.hash(input.password)
 
     const created = await context.internalAdapter.createUser(
         {
@@ -41,15 +41,15 @@ export async function provisionUserAccount(
             emailVerified: true,
             ...(input.role === undefined ? {} : { role: input.role }),
         },
-        { method: "admin" },
-    );
+        { method: 'admin' }
+    )
 
     await context.internalAdapter.createAccount({
         userId: created.id,
         accountId: created.id,
-        providerId: "credential",
+        providerId: 'credential',
         password,
-    });
+    })
 
-    return created.id;
+    return created.id
 }

@@ -1,14 +1,21 @@
-import { eq } from "drizzle-orm";
-import { Context, Effect } from "effect";
+import { eq } from 'drizzle-orm'
+import { Context, Effect } from 'effect'
 
-import { coreEventStreamDefinitionSchema, type CoreEventStreamDefinition } from "@deployer/contracts-entities";
-import type { CoreEventStreamListInput } from "@deployer/fleet-contracts";
-import { coreEventStreams } from "@deployer/nest-schema/global/platform/events";
+import {
+    coreEventStreamDefinitionSchema,
+    type CoreEventStreamDefinition,
+} from '@deployer/contracts-entities'
+import type { CoreEventStreamListInput } from '@deployer/fleet-contracts'
+import { coreEventStreams } from '@deployer/nest-schema/global/platform/events'
 
-import { listBuilder } from "../../../utils/drizzle-filter.utils";
-import { storage, type DatabasePort, type StorageFailure } from "../../database/storage";
+import { listBuilder } from '../../../utils/drizzle-filter.utils'
+import {
+    storage,
+    type DatabasePort,
+    type StorageFailure,
+} from '../../database/storage'
 
-type CoreEventStreamRow = typeof coreEventStreams.$inferSelect;
+type CoreEventStreamRow = typeof coreEventStreams.$inferSelect
 
 function toDto(row: CoreEventStreamRow): CoreEventStreamDefinition {
     return coreEventStreamDefinitionSchema.parse({
@@ -19,58 +26,80 @@ function toDto(row: CoreEventStreamRow): CoreEventStreamDefinition {
         createdBy: row.createdBy ?? null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
-    });
+    })
 }
 
 export type CoreEventStreamPage = {
-    data: CoreEventStreamDefinition[];
+    data: CoreEventStreamDefinition[]
     meta: {
-        total: number;
-        limit: number;
-        offset: number;
-        hasMore: boolean;
-    };
-};
+        total: number
+        limit: number
+        offset: number
+        hasMore: boolean
+    }
+}
 
 export type CoreEventStreamRepositoryShape = {
-    readonly findMany: (input: CoreEventStreamListInput | undefined) => Effect.Effect<CoreEventStreamPage, StorageFailure>;
-    readonly findById: (id: string) => Effect.Effect<CoreEventStreamDefinition | null, StorageFailure>;
-};
+    readonly findMany: (
+        input: CoreEventStreamListInput | undefined
+    ) => Effect.Effect<CoreEventStreamPage, StorageFailure>
+    readonly findById: (
+        id: string
+    ) => Effect.Effect<CoreEventStreamDefinition | null, StorageFailure>
+}
 
-export function makeCoreEventStreamRepository(database: Context.Service.Shape<typeof DatabasePort>): CoreEventStreamRepositoryShape {
+export function makeCoreEventStreamRepository(
+    database: Context.Service.Shape<typeof DatabasePort>
+): CoreEventStreamRepositoryShape {
     return {
         findMany: (input) =>
             storage(database, async (db) => {
-                const filter = input?.filter ?? {};
-                const sort = input?.sortBy ?? "createdAt";
-                const direction = input?.sortDirection ?? "desc";
+                const filter = input?.filter ?? {}
+                const sort = input?.sortBy ?? 'createdAt'
+                const direction = input?.sortDirection ?? 'desc'
 
                 return listBuilder(filter)
                     .filter({
                         name: (entry) => {
                             switch (entry.operator) {
-                                case "eq":
-                                    return entry.common.eq(coreEventStreams.name);
-                                case "like":
-                                    return entry.common.like(coreEventStreams.name);
-                                case "ilike":
-                                    return entry.common.ilike(coreEventStreams.name);
+                                case 'eq':
+                                    return entry.common.eq(
+                                        coreEventStreams.name
+                                    )
+                                case 'like':
+                                    return entry.common.like(
+                                        coreEventStreams.name
+                                    )
+                                case 'ilike':
+                                    return entry.common.ilike(
+                                        coreEventStreams.name
+                                    )
                             }
                         },
                         namespace: (entry) => {
                             switch (entry.operator) {
-                                case "eq":
-                                    return entry.common.eq(coreEventStreams.namespace);
-                                case "like":
-                                    return entry.common.like(coreEventStreams.namespace);
-                                case "ilike":
-                                    return entry.common.ilike(coreEventStreams.namespace);
+                                case 'eq':
+                                    return entry.common.eq(
+                                        coreEventStreams.namespace
+                                    )
+                                case 'like':
+                                    return entry.common.like(
+                                        coreEventStreams.namespace
+                                    )
+                                case 'ilike':
+                                    return entry.common.ilike(
+                                        coreEventStreams.namespace
+                                    )
                             }
                         },
-                        isActive: (entry) => entry.common.eq(coreEventStreams.isActive),
-                        scope: (entry) => entry.common.eq(coreEventStreams.scope),
-                        scopeId: (entry) => entry.common.eq(coreEventStreams.scopeId),
-                        createdBy: (entry) => entry.common.eq(coreEventStreams.createdBy),
+                        isActive: (entry) =>
+                            entry.common.eq(coreEventStreams.isActive),
+                        scope: (entry) =>
+                            entry.common.eq(coreEventStreams.scope),
+                        scopeId: (entry) =>
+                            entry.common.eq(coreEventStreams.scopeId),
+                        createdBy: (entry) =>
+                            entry.common.eq(coreEventStreams.createdBy),
                     })
                     .order(
                         sort,
@@ -81,19 +110,32 @@ export function makeCoreEventStreamRepository(database: Context.Service.Shape<ty
                             name: coreEventStreams.name,
                             namespace: coreEventStreams.namespace,
                         },
-                        coreEventStreams.createdAt,
+                        coreEventStreams.createdAt
                     )
-                    .pagination({ limit: input?.limit ?? 20, offset: input?.offset ?? 0 })
-                    .execute(db, coreEventStreams);
-            }).pipe(Effect.map((result) => ({ data: result.data.map(toDto), meta: result.meta }))),
+                    .pagination({
+                        limit: input?.limit ?? 20,
+                        offset: input?.offset ?? 0,
+                    })
+                    .execute(db, coreEventStreams)
+            }).pipe(
+                Effect.map((result) => ({
+                    data: result.data.map(toDto),
+                    meta: result.meta,
+                }))
+            ),
 
         findById: (id) =>
-            storage(database, (db) => db.select().from(coreEventStreams).where(eq(coreEventStreams.id, id)).limit(1)).pipe(
-                Effect.map(([row]) => (row ? toDto(row) : null)),
-            ),
-    };
+            storage(database, (db) =>
+                db
+                    .select()
+                    .from(coreEventStreams)
+                    .where(eq(coreEventStreams.id, id))
+                    .limit(1)
+            ).pipe(Effect.map(([row]) => (row ? toDto(row) : null))),
+    }
 }
 
-export class CoreEventStreamRepository extends Context.Service<CoreEventStreamRepository, CoreEventStreamRepositoryShape>()(
-    "shared/CoreEventStreamRepository",
-) {}
+export class CoreEventStreamRepository extends Context.Service<
+    CoreEventStreamRepository,
+    CoreEventStreamRepositoryShape
+>()('shared/CoreEventStreamRepository') {}

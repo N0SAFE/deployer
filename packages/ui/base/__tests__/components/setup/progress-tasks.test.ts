@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from 'vitest'
 
-import type { SetupStreamEvent } from "@deployer/contracts-entities"
+import type { SetupStreamEvent } from '@deployer/contracts-entities'
 import {
-	buildTasksFromEvents,
-	isPipelineComplete,
-	isSetupRunFinished,
-	type ProgressTask,
-} from "@deployer/ui/components/setup/progress-tasks"
+    buildTasksFromEvents,
+    isPipelineComplete,
+    isSetupRunFinished,
+    type ProgressTask,
+} from '@deployer/ui/components/setup/progress-tasks'
 
 /**
  * `buildTasksFromEvents` merges TWO producers into one timeline: the setup app
@@ -19,30 +19,32 @@ import {
 
 /** A `step_detail` event, which is how a producer announces a step it will run. */
 function stepDetail(stepId: string, title = stepId): SetupStreamEvent {
-	return {
-		type: "step_detail",
-		stepId,
-		title,
-		description: title,
-		seq: 1,
-		ts: "2026-01-01T00:00:00Z",
-	}
+    return {
+        type: 'step_detail',
+        stepId,
+        title,
+        description: title,
+        seq: 1,
+        ts: '2026-01-01T00:00:00Z',
+    }
 }
 
 /** A `snapshot` event carrying the authoritative state of the steps it names. */
-function snapshot(steps: Array<{ id: string; status: string }>): SetupStreamEvent {
-	return {
-		type: "snapshot",
-		seq: 2,
-		ts: "2026-01-01T00:00:00Z",
-		steps: steps.map((step) => ({
-			id: step.id,
-			title: step.id,
-			description: step.id,
-			status: step.status,
-			logs: [],
-		})),
-	} as unknown as SetupStreamEvent
+function snapshot(
+    steps: Array<{ id: string; status: string }>
+): SetupStreamEvent {
+    return {
+        type: 'snapshot',
+        seq: 2,
+        ts: '2026-01-01T00:00:00Z',
+        steps: steps.map((step) => ({
+            id: step.id,
+            title: step.id,
+            description: step.id,
+            status: step.status,
+            logs: [],
+        })),
+    } as unknown as SetupStreamEvent
 }
 
 /**
@@ -53,294 +55,308 @@ function snapshot(steps: Array<{ id: string; status: string }>): SetupStreamEven
  * socket apart from a dead one.
  */
 function heartbeat(): SetupStreamEvent {
-	return {
-		type: "heartbeat",
-		seq: 0,
-		ts: "2026-01-01T00:00:00Z",
-	} as unknown as SetupStreamEvent
+    return {
+        type: 'heartbeat',
+        seq: 0,
+        ts: '2026-01-01T00:00:00Z',
+    } as unknown as SetupStreamEvent
 }
 
-describe("buildTasksFromEvents — render order", () => {
-	/**
-	 * THE ORDER THE OPERATOR READS MUST BE THE EXECUTION ORDER.
-	 *
-	 * Setup appends its steps to the list first, so pure insertion order put the
-	 * ingress swap in the MIDDLE of the pipeline — above the API's provisioning
-	 * steps, which had not been announced yet. The operator then saw the ingress
-	 * marked done with provisioning still pending below it.
-	 */
-	it("renders the ingress swap LAST even though setup announces it first", () => {
-		const events: SetupStreamEvent[] = [
-			stepDetail("initialize_swarm"),
-			stepDetail("start_api"),
-			stepDetail("await_api_boot"),
-			stepDetail("promote_ingress"),
-			// The API's steps arrive afterwards — and must render ABOVE it.
-			stepDetail("provision_database"),
-			stepDetail("run_migrations"),
-			stepDetail("finalize"),
-		]
+describe('buildTasksFromEvents — render order', () => {
+    /**
+     * THE ORDER THE OPERATOR READS MUST BE THE EXECUTION ORDER.
+     *
+     * Setup appends its steps to the list first, so pure insertion order put the
+     * ingress swap in the MIDDLE of the pipeline — above the API's provisioning
+     * steps, which had not been announced yet. The operator then saw the ingress
+     * marked done with provisioning still pending below it.
+     */
+    it('renders the ingress swap LAST even though setup announces it first', () => {
+        const events: SetupStreamEvent[] = [
+            stepDetail('initialize_swarm'),
+            stepDetail('start_api'),
+            stepDetail('await_api_boot'),
+            stepDetail('promote_ingress'),
+            // The API's steps arrive afterwards — and must render ABOVE it.
+            stepDetail('provision_database'),
+            stepDetail('run_migrations'),
+            stepDetail('finalize'),
+        ]
 
-		const ids = buildTasksFromEvents(events).map((task) => task.id)
+        const ids = buildTasksFromEvents(events).map((task) => task.id)
 
-		expect(ids).toEqual([
-			"initialize_swarm",
-			"start_api",
-			"await_api_boot",
-			"provision_database",
-			"run_migrations",
-			"finalize",
-			"promote_ingress",
-		])
-	})
+        expect(ids).toEqual([
+            'initialize_swarm',
+            'start_api',
+            'await_api_boot',
+            'provision_database',
+            'run_migrations',
+            'finalize',
+            'promote_ingress',
+        ])
+    })
 
-	it("keeps an unknown step visible, sorted after the known ones", () => {
-		const events: SetupStreamEvent[] = [stepDetail("promote_ingress"), stepDetail("a_future_step")]
+    it('keeps an unknown step visible, sorted after the known ones', () => {
+        const events: SetupStreamEvent[] = [
+            stepDetail('promote_ingress'),
+            stepDetail('a_future_step'),
+        ]
 
-		const ids = buildTasksFromEvents(events).map((task) => task.id)
+        const ids = buildTasksFromEvents(events).map((task) => task.id)
 
-		// Not dropped, and not allowed to displace a step whose position is known.
-		expect(ids).toEqual(["promote_ingress", "a_future_step"])
-	})
+        // Not dropped, and not allowed to displace a step whose position is known.
+        expect(ids).toEqual(['promote_ingress', 'a_future_step'])
+    })
 
-	it("carries a snapshot's status into the sorted order", () => {
-		const events: SetupStreamEvent[] = [
-			stepDetail("promote_ingress"),
-			stepDetail("finalize"),
-			snapshot([
-				{ id: "promote_ingress", status: "in_progress" },
-				{ id: "finalize", status: "completed" },
-			]),
-		]
+    it("carries a snapshot's status into the sorted order", () => {
+        const events: SetupStreamEvent[] = [
+            stepDetail('promote_ingress'),
+            stepDetail('finalize'),
+            snapshot([
+                { id: 'promote_ingress', status: 'in_progress' },
+                { id: 'finalize', status: 'completed' },
+            ]),
+        ]
 
-		const tasks = buildTasksFromEvents(events)
+        const tasks = buildTasksFromEvents(events)
 
-		// `finalize` renders first (it executes first) even though the snapshot
-		// named `promote_ingress` first — and `promote_ingress` is already DONE,
-		// because the API announcing its own step proves the handover finished.
-		// See the retirement test below.
-		expect(tasks.map((task) => [task.id, task.status])).toEqual([
-			["finalize", "done"],
-			["promote_ingress", "done"],
-		])
-	})
+        // `finalize` renders first (it executes first) even though the snapshot
+        // named `promote_ingress` first — and `promote_ingress` is already DONE,
+        // because the API announcing its own step proves the handover finished.
+        // See the retirement test below.
+        expect(tasks.map((task) => [task.id, task.status])).toEqual([
+            ['finalize', 'done'],
+            ['promote_ingress', 'done'],
+        ])
+    })
 })
 
-describe("buildTasksFromEvents — retiring setup-owned steps", () => {
-	/**
-	 * THE STUCK STEP THE OPERATOR SAW.
-	 *
-	 * Setup reports `promote_ingress` and then EXITS. A reconnect lands on the
-	 * API, whose stream starts at `provision_database` and knows nothing about
-	 * that step — so it kept its last status forever:
-	 *
-	 *   "Releasing the entry port so the cluster's ingress can bind it"  ← stuck
-	 *
-	 * and `isPipelineComplete` stayed false, hiding the Continue button even
-	 * though the API reported the run complete underneath.
-	 */
-	it("marks a setup step done once the API starts reporting", () => {
-		const events: SetupStreamEvent[] = [
-			stepDetail("promote_ingress"),
-			// The drop happens HERE: the step is left mid-flight.
-			snapshot([{ id: "promote_ingress", status: "in_progress" }]),
-			// The API takes over the same URL after the handover.
-			stepDetail("provision_database"),
-			snapshot([{ id: "provision_database", status: "completed" }]),
-		]
+describe('buildTasksFromEvents — retiring setup-owned steps', () => {
+    /**
+     * THE STUCK STEP THE OPERATOR SAW.
+     *
+     * Setup reports `promote_ingress` and then EXITS. A reconnect lands on the
+     * API, whose stream starts at `provision_database` and knows nothing about
+     * that step — so it kept its last status forever:
+     *
+     *   "Releasing the entry port so the cluster's ingress can bind it"  ← stuck
+     *
+     * and `isPipelineComplete` stayed false, hiding the Continue button even
+     * though the API reported the run complete underneath.
+     */
+    it('marks a setup step done once the API starts reporting', () => {
+        const events: SetupStreamEvent[] = [
+            stepDetail('promote_ingress'),
+            // The drop happens HERE: the step is left mid-flight.
+            snapshot([{ id: 'promote_ingress', status: 'in_progress' }]),
+            // The API takes over the same URL after the handover.
+            stepDetail('provision_database'),
+            snapshot([{ id: 'provision_database', status: 'completed' }]),
+        ]
 
-		const tasks = buildTasksFromEvents(events)
-		const ingress = tasks.find((task) => task.id === "promote_ingress")
+        const tasks = buildTasksFromEvents(events)
+        const ingress = tasks.find((task) => task.id === 'promote_ingress')
 
-		// The API answering on this URL IS the proof: it only serves here after
-		// the handover repointed the hostname, which is the last act of the swap.
-		expect(ingress?.status).toBe("done")
-		expect(isPipelineComplete(tasks)).toBe(true)
-	})
+        // The API answering on this URL IS the proof: it only serves here after
+        // the handover repointed the hostname, which is the last act of the swap.
+        expect(ingress?.status).toBe('done')
+        expect(isPipelineComplete(tasks)).toBe(true)
+    })
 
-	it("leaves a setup step running while the API has not reported yet", () => {
-		const events: SetupStreamEvent[] = [
-			stepDetail("promote_ingress"),
-			snapshot([{ id: "promote_ingress", status: "in_progress" }]),
-		]
+    it('leaves a setup step running while the API has not reported yet', () => {
+        const events: SetupStreamEvent[] = [
+            stepDetail('promote_ingress'),
+            snapshot([{ id: 'promote_ingress', status: 'in_progress' }]),
+        ]
 
-		const tasks = buildTasksFromEvents(events)
+        const tasks = buildTasksFromEvents(events)
 
-		// Nothing has taken over, so the step is genuinely still working and the
-		// gate must stay closed rather than guessing that it finished.
-		expect(tasks.find((task) => task.id === "promote_ingress")?.status).toBe("running")
-		expect(isPipelineComplete(tasks)).toBe(false)
-	})
+        // Nothing has taken over, so the step is genuinely still working and the
+        // gate must stay closed rather than guessing that it finished.
+        expect(
+            tasks.find((task) => task.id === 'promote_ingress')?.status
+        ).toBe('running')
+        expect(isPipelineComplete(tasks)).toBe(false)
+    })
 
-	it("does not resurrect a failed setup step", () => {
-		const events: SetupStreamEvent[] = [
-			stepDetail("promote_ingress"),
-			snapshot([{ id: "promote_ingress", status: "failed" }]),
-			stepDetail("provision_database"),
-		]
+    it('does not resurrect a failed setup step', () => {
+        const events: SetupStreamEvent[] = [
+            stepDetail('promote_ingress'),
+            snapshot([{ id: 'promote_ingress', status: 'failed' }]),
+            stepDetail('provision_database'),
+        ]
 
-		const tasks = buildTasksFromEvents(events)
+        const tasks = buildTasksFromEvents(events)
 
-		// A failure is a real outcome, not an unfinished step to be retired.
-		expect(tasks.find((task) => task.id === "promote_ingress")?.status).toBe("error")
-	})
+        // A failure is a real outcome, not an unfinished step to be retired.
+        expect(
+            tasks.find((task) => task.id === 'promote_ingress')?.status
+        ).toBe('error')
+    })
 })
 
-describe("buildTasksFromEvents — heartbeats", () => {
-	/**
-	 * A heartbeat proves the socket is ALIVE; it is not a step.
-	 *
-	 * The server sends one every few seconds while a step waits on something slow
-	 * (Docker scheduling a service, an ingress loading its router table), so that
-	 * a SHORT client timeout can safely distinguish a quiet socket from a dead
-	 * one. Rendering it would invent a step that does not exist and shift the
-	 * pipeline the operator is reading.
-	 */
-	it("ignores heartbeats when building the step list", () => {
-		const withHeartbeats: SetupStreamEvent[] = [
-			stepDetail("provision_database"),
-			snapshot([{ id: "provision_database", status: "in_progress" }]),
-			heartbeat(),
-			heartbeat(),
-			snapshot([{ id: "provision_database", status: "completed" }]),
-			heartbeat(),
-		]
+describe('buildTasksFromEvents — heartbeats', () => {
+    /**
+     * A heartbeat proves the socket is ALIVE; it is not a step.
+     *
+     * The server sends one every few seconds while a step waits on something slow
+     * (Docker scheduling a service, an ingress loading its router table), so that
+     * a SHORT client timeout can safely distinguish a quiet socket from a dead
+     * one. Rendering it would invent a step that does not exist and shift the
+     * pipeline the operator is reading.
+     */
+    it('ignores heartbeats when building the step list', () => {
+        const withHeartbeats: SetupStreamEvent[] = [
+            stepDetail('provision_database'),
+            snapshot([{ id: 'provision_database', status: 'in_progress' }]),
+            heartbeat(),
+            heartbeat(),
+            snapshot([{ id: 'provision_database', status: 'completed' }]),
+            heartbeat(),
+        ]
 
-		const tasks = buildTasksFromEvents(withHeartbeats)
+        const tasks = buildTasksFromEvents(withHeartbeats)
 
-		expect(tasks.map((task) => task.id)).toEqual(["provision_database"])
-		expect(tasks[0]?.status).toBe("done")
-	})
+        expect(tasks.map((task) => task.id)).toEqual(['provision_database'])
+        expect(tasks[0]?.status).toBe('done')
+    })
 
-	it("does not let a heartbeat look like a terminal event", () => {
-		// A heartbeat arriving after the work finished must not change the gate,
-		// and one arriving alone must not open it — only a real terminal does.
-		const onlyHeartbeat = buildTasksFromEvents([heartbeat()])
-		expect(isPipelineComplete(onlyHeartbeat)).toBe(false)
+    it('does not let a heartbeat look like a terminal event', () => {
+        // A heartbeat arriving after the work finished must not change the gate,
+        // and one arriving alone must not open it — only a real terminal does.
+        const onlyHeartbeat = buildTasksFromEvents([heartbeat()])
+        expect(isPipelineComplete(onlyHeartbeat)).toBe(false)
 
-		const finished = buildTasksFromEvents([
-			stepDetail("promote_ingress"),
-			snapshot([{ id: "promote_ingress", status: "completed" }]),
-			heartbeat(),
-		])
-		expect(isPipelineComplete(finished)).toBe(true)
-	})
+        const finished = buildTasksFromEvents([
+            stepDetail('promote_ingress'),
+            snapshot([{ id: 'promote_ingress', status: 'completed' }]),
+            heartbeat(),
+        ])
+        expect(isPipelineComplete(finished)).toBe(true)
+    })
 })
 
-describe("isPipelineComplete — the Continue gate", () => {
-	function tasks(statuses: Array<[string, ProgressTask["status"]]>): ProgressTask[] {
-		return statuses.map(([id, status]) => ({
-			id,
-			label: id,
-			description: id,
-			status,
-			logs: [],
-		}))
-	}
+describe('isPipelineComplete — the Continue gate', () => {
+    function tasks(
+        statuses: Array<[string, ProgressTask['status']]>
+    ): ProgressTask[] {
+        return statuses.map(([id, status]) => ({
+            id,
+            label: id,
+            description: id,
+            status,
+            logs: [],
+        }))
+    }
 
-	/**
-	 * The terminal `completed` event reports PROVISIONING success, which lands
-	 * BEFORE the ingress swap. Gating on that alone let the operator press
-	 * Continue through an ingress that was mid-handover — the "Failed to fetch"
-	 * they actually saw.
-	 */
-	it("is NOT complete while the ingress swap is still running", () => {
-		const gate = tasks([
-			["provision_database", "done"],
-			["finalize", "done"],
-			["promote_ingress", "running"],
-		])
+    /**
+     * The terminal `completed` event reports PROVISIONING success, which lands
+     * BEFORE the ingress swap. Gating on that alone let the operator press
+     * Continue through an ingress that was mid-handover — the "Failed to fetch"
+     * they actually saw.
+     */
+    it('is NOT complete while the ingress swap is still running', () => {
+        const gate = tasks([
+            ['provision_database', 'done'],
+            ['finalize', 'done'],
+            ['promote_ingress', 'running'],
+        ])
 
-		expect(isPipelineComplete(gate)).toBe(false)
-	})
+        expect(isPipelineComplete(gate)).toBe(false)
+    })
 
-	it("is NOT complete while any announced step is still pending", () => {
-		const gate = tasks([
-			["finalize", "done"],
-			["promote_ingress", "pending"],
-		])
+    it('is NOT complete while any announced step is still pending', () => {
+        const gate = tasks([
+            ['finalize', 'done'],
+            ['promote_ingress', 'pending'],
+        ])
 
-		expect(isPipelineComplete(gate)).toBe(false)
-	})
+        expect(isPipelineComplete(gate)).toBe(false)
+    })
 
-	it("is complete only when every announced step is done", () => {
-		const gate = tasks([
-			["finalize", "done"],
-			["promote_ingress", "done"],
-		])
+    it('is complete only when every announced step is done', () => {
+        const gate = tasks([
+            ['finalize', 'done'],
+            ['promote_ingress', 'done'],
+        ])
 
-		expect(isPipelineComplete(gate)).toBe(true)
-	})
+        expect(isPipelineComplete(gate)).toBe(true)
+    })
 
-	it("treats an empty pipeline as NOT complete", () => {
-		// No steps announced yet means nothing has been proven, not everything.
-		expect(isPipelineComplete([])).toBe(false)
-	})
+    it('treats an empty pipeline as NOT complete', () => {
+        // No steps announced yet means nothing has been proven, not everything.
+        expect(isPipelineComplete([])).toBe(false)
+    })
 
-	it("is NOT complete when a step failed", () => {
-		const gate = tasks([
-			["finalize", "done"],
-			["promote_ingress", "error"],
-		])
+    it('is NOT complete when a step failed', () => {
+        const gate = tasks([
+            ['finalize', 'done'],
+            ['promote_ingress', 'error'],
+        ])
 
-		expect(isPipelineComplete(gate)).toBe(false)
-	})
+        expect(isPipelineComplete(gate)).toBe(false)
+    })
 })
 
-describe("isSetupRunFinished — when a dropped connection stops being retried", () => {
-	const completed = {
-		type: "completed",
-		result: { nodeId: "n", strategy: "local", databaseUrl: "x", completedAt: "2026-01-01T00:00:00Z" },
-	} as unknown as SetupStreamEvent
-	const error = { type: "error", message: "boom" } as SetupStreamEvent
+describe('isSetupRunFinished — when a dropped connection stops being retried', () => {
+    const completed = {
+        type: 'completed',
+        result: {
+            nodeId: 'n',
+            strategy: 'local',
+            databaseUrl: 'x',
+            completedAt: '2026-01-01T00:00:00Z',
+        },
+    } as unknown as SetupStreamEvent
+    const error = { type: 'error', message: 'boom' } as SetupStreamEvent
 
-	it("is NOT finished at the API's `completed` while the ingress swap is still running", () => {
-		// The API's `completed` arrives BEFORE promote_ingress, and the swap is what
-		// tears the connection down. Treating it as the end meant nothing
-		// reconnected and the timeline froze mid-swap.
-		const events = [
-			stepDetail("start_api"),
-			stepDetail("promote_ingress"),
-			snapshot([
-				{ id: "start_api", status: "completed" },
-				{ id: "promote_ingress", status: "in_progress" },
-			]),
-			completed,
-		]
-		expect(isSetupRunFinished(events)).toBe(false)
-	})
+    it("is NOT finished at the API's `completed` while the ingress swap is still running", () => {
+        // The API's `completed` arrives BEFORE promote_ingress, and the swap is what
+        // tears the connection down. Treating it as the end meant nothing
+        // reconnected and the timeline froze mid-swap.
+        const events = [
+            stepDetail('start_api'),
+            stepDetail('promote_ingress'),
+            snapshot([
+                { id: 'start_api', status: 'completed' },
+                { id: 'promote_ingress', status: 'in_progress' },
+            ]),
+            completed,
+        ]
+        expect(isSetupRunFinished(events)).toBe(false)
+    })
 
-	it("is finished once it completed AND every step is done", () => {
-		const events = [
-			stepDetail("start_api"),
-			stepDetail("promote_ingress"),
-			snapshot([
-				{ id: "start_api", status: "completed" },
-				{ id: "promote_ingress", status: "completed" },
-			]),
-			completed,
-		]
-		expect(isSetupRunFinished(events)).toBe(true)
-	})
+    it('is finished once it completed AND every step is done', () => {
+        const events = [
+            stepDetail('start_api'),
+            stepDetail('promote_ingress'),
+            snapshot([
+                { id: 'start_api', status: 'completed' },
+                { id: 'promote_ingress', status: 'completed' },
+            ]),
+            completed,
+        ]
+        expect(isSetupRunFinished(events)).toBe(true)
+    })
 
-	it("is finished on a failure, whatever else is pending — there is nothing to wait for", () => {
-		expect(isSetupRunFinished([stepDetail("start_api"), error])).toBe(true)
-	})
+    it('is finished on a failure, whatever else is pending — there is nothing to wait for', () => {
+        expect(isSetupRunFinished([stepDetail('start_api'), error])).toBe(true)
+    })
 
-	it("is not finished before any terminal event", () => {
-		expect(isSetupRunFinished([stepDetail("start_api")])).toBe(false)
-		expect(isSetupRunFinished([])).toBe(false)
-	})
+    it('is not finished before any terminal event', () => {
+        expect(isSetupRunFinished([stepDetail('start_api')])).toBe(false)
+        expect(isSetupRunFinished([])).toBe(false)
+    })
 
-	it("is finished when the API took over, which retires setup's own steps", () => {
-		// Setup exits after the handover; its in-flight steps can never be updated
-		// again, so the API speaking is what ends the wait.
-		const events = [
-			stepDetail("promote_ingress"),
-			snapshot([{ id: "promote_ingress", status: "in_progress" }]),
-			snapshot([{ id: "run_migrations", status: "completed" }]),
-			completed,
-		]
-		expect(isSetupRunFinished(events)).toBe(true)
-	})
+    it("is finished when the API took over, which retires setup's own steps", () => {
+        // Setup exits after the handover; its in-flight steps can never be updated
+        // again, so the API speaking is what ends the wait.
+        const events = [
+            stepDetail('promote_ingress'),
+            snapshot([{ id: 'promote_ingress', status: 'in_progress' }]),
+            snapshot([{ id: 'run_migrations', status: 'completed' }]),
+            completed,
+        ]
+        expect(isSetupRunFinished(events)).toBe(true)
+    })
 })

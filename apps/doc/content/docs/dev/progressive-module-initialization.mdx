@@ -10,11 +10,11 @@ order: 9
 
 The API has **three tiers**. The critical rule: **the global database is NOT available or initialized until all checks pass.**
 
-| Tier | What happens | Global DB state | Feature traffic |
-|------|-------------|-----------------|-----------------|
-| **Tier 0 — Bootstrap** | DI container created, local SQLite available, pre-flight checks run, URL resolved | ❌ **Not available** — no pool exists yet (or pool is still being resolved) | ❌ Blocked |
-| **Tier 1 — Initializing** | Pool created (URL resolved), then phases 3-11 use it for validation. Migrations, guard, peer check, registration all run. | ⚠️ **Pool exists but DB NOT ready** — transport only, still validating | ❌ Blocked |
-| **Tier 2 — Ready** | Phase 12 signals `isStartupComplete() = true`. All checks passed. | ✅ **Fully available and initialized** | ✅ Serving |
+| Tier                      | What happens                                                                                                              | Global DB state                                                             | Feature traffic |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------- |
+| **Tier 0 — Bootstrap**    | DI container created, local SQLite available, pre-flight checks run, URL resolved                                         | ❌ **Not available** — no pool exists yet (or pool is still being resolved) | ❌ Blocked      |
+| **Tier 1 — Initializing** | Pool created (URL resolved), then phases 3-11 use it for validation. Migrations, guard, peer check, registration all run. | ⚠️ **Pool exists but DB NOT ready** — transport only, still validating      | ❌ Blocked      |
+| **Tier 2 — Ready**        | Phase 12 signals `isStartupComplete() = true`. All checks passed.                                                         | ✅ **Fully available and initialized**                                      | ✅ Serving      |
 
 ### The Fundamental Rule
 
@@ -22,6 +22,7 @@ The API has **three tiers**. The critical rule: **the global database is NOT ava
 > Before that, the pool may exist as a transport, but nothing should treat the global DB as ready.
 
 This means:
+
 - ❌ At Tier 0: No pool. No global DB access at all.
 - ❌ At Tier 1: Pool exists (URL was resolved), but the DB is NOT "available" — it's being validated (migrations, guard, peer check).
 - ✅ At Tier 2: Everything checked, DB is finally available.
@@ -30,14 +31,14 @@ This means:
 
 Even though the pool object exists at Tier 1, the global DB is NOT considered "available" because:
 
-| Check | Runs at | Why it matters |
-|-------|---------|----------------|
-| URL resolution | Tier 0 (before pool) | Validates we CAN connect |
-| `SELECT 1` | Tier 1 Phase 3 | Validates the DB is REACHABLE |
-| Migrations (Phase 4) | Tier 1 | Validates schema is CURRENT |
-| Registration guard (Phase 6) | Tier 1 | Validates code vs DB compatibility |
-| Peer check (Phase 7) | Tier 1 | Validates cluster consensus |
-| Readiness signal (Phase 12) | Tier 1→2 boundary | ALL checks passed |
+| Check                        | Runs at              | Why it matters                     |
+| ---------------------------- | -------------------- | ---------------------------------- |
+| URL resolution               | Tier 0 (before pool) | Validates we CAN connect           |
+| `SELECT 1`                   | Tier 1 Phase 3       | Validates the DB is REACHABLE      |
+| Migrations (Phase 4)         | Tier 1               | Validates schema is CURRENT        |
+| Registration guard (Phase 6) | Tier 1               | Validates code vs DB compatibility |
+| Peer check (Phase 7)         | Tier 1               | Validates cluster consensus        |
+| Readiness signal (Phase 12)  | Tier 1→2 boundary    | ALL checks passed                  |
 
 The pool is created AFTER URL resolution (an initial check), but BEFORE all the other checks. **The pool is never the indicator that the DB is ready.**
 
@@ -132,22 +133,22 @@ flowchart TB
 
 ### What Is Available at Tier 0
 
-| Service/Module | Status | Why |
-|---------------|--------|-----|
-| `EnvModule` | ✅ Operational | No DB needed |
-| `LocalModule` (SQLite) | ✅ Operational | Local file, no global DB |
-| `NodeConfigRepository` | ✅ Operational | Reads/writes local SQLite |
-| `MeshInitializationService` | ✅ Operational | Can reach mesh peers |
-| `MeshVersionService` | ✅ Operational | Can query mesh versions |
-| `InitializationService` | ✅ Operational | Orchestrates setup |
-| `SetupModule` (wizard) | ✅ Operational | HTTP endpoints for setup |
-| `HealthModule` | ⚠️ Degraded | Returns `{ status: "degraded" }` |
-| `StartupOrchestratorService` | ⏳ Registered, not running | Runs in `onModuleInit()` |
-| `MigrationJournalService` | ✅ Operational | Reads local `_journal.json` |
-| `GLOBAL_DATABASE_POOL` | ⏳ Being resolved OR blocked | Async factory |
-| `GlobalDatabaseService` | ❌ Not available | Depends on pool |
-| `AuthModule` | ❌ Locked | Depends on global DB |
-| All feature modules | ❌ Locked | Depends on `isStartupComplete()` |
+| Service/Module               | Status                       | Why                              |
+| ---------------------------- | ---------------------------- | -------------------------------- |
+| `EnvModule`                  | ✅ Operational               | No DB needed                     |
+| `LocalModule` (SQLite)       | ✅ Operational               | Local file, no global DB         |
+| `NodeConfigRepository`       | ✅ Operational               | Reads/writes local SQLite        |
+| `MeshInitializationService`  | ✅ Operational               | Can reach mesh peers             |
+| `MeshVersionService`         | ✅ Operational               | Can query mesh versions          |
+| `InitializationService`      | ✅ Operational               | Orchestrates setup               |
+| `SetupModule` (wizard)       | ✅ Operational               | HTTP endpoints for setup         |
+| `HealthModule`               | ⚠️ Degraded                  | Returns `{ status: "degraded" }` |
+| `StartupOrchestratorService` | ⏳ Registered, not running   | Runs in `onModuleInit()`         |
+| `MigrationJournalService`    | ✅ Operational               | Reads local `_journal.json`      |
+| `GLOBAL_DATABASE_POOL`       | ⏳ Being resolved OR blocked | Async factory                    |
+| `GlobalDatabaseService`      | ❌ Not available             | Depends on pool                  |
+| `AuthModule`                 | ❌ Locked                    | Depends on global DB             |
+| All feature modules          | ❌ Locked                    | Depends on `isStartupComplete()` |
 
 ---
 
@@ -231,10 +232,10 @@ sequenceDiagram
 
 It is crucial to distinguish two categories of checks:
 
-| Category | What they validate | When they run | Pool needed? |
-|----------|-------------------|---------------|--------------|
-| **Pre-pool checks** | Is there a viable database URL (from mesh or cache)? Is the mesh compatible? | Inside the async factory (Tier 0) | ❌ No |
-| **Post-pool checks** | Is the database schema compatible? Is the cluster healthy? | Phases 3-11 in `onModuleInit()` (Tier 1) | ✅ Yes |
+| Category             | What they validate                                                           | When they run                            | Pool needed? |
+| -------------------- | ---------------------------------------------------------------------------- | ---------------------------------------- | ------------ |
+| **Pre-pool checks**  | Is there a viable database URL (from mesh or cache)? Is the mesh compatible? | Inside the async factory (Tier 0)        | ❌ No        |
+| **Post-pool checks** | Is the database schema compatible? Is the cluster healthy?                   | Phases 3-11 in `onModuleInit()` (Tier 1) | ✅ Yes       |
 
 **The pool exists ONLY because pre-pool checks passed.** The post-pool checks then validate deeper compatibility:
 
@@ -309,14 +310,14 @@ flowchart TB
 
 ### What the Pool Is (and Isn't) at Tier 1
 
-| Aspect | Truth | Why |
-|--------|-------|-----|
-| **Pool object exists** | ✅ Yes | URL was resolved → `new Pool(connectionString)` |
-| **Can execute queries** | ✅ Yes | Pool is a valid Postgres connection |
-| **Global DB is "available"** | ❌ **No** | Migrations may not have run, guard hasn't passed, peer check hasn't completed |
-| **Feature modules can use it** | ❌ **No** | All feature modules are locked until Phase 12 |
-| **AuthModule is active** | ❌ **No** | Locked until Phase 12 |
-| **Health endpoint returns OK** | ❌ **No** | Returns `{ status: "degraded" }` until Phase 12 |
+| Aspect                         | Truth     | Why                                                                           |
+| ------------------------------ | --------- | ----------------------------------------------------------------------------- |
+| **Pool object exists**         | ✅ Yes    | URL was resolved → `new Pool(connectionString)`                               |
+| **Can execute queries**        | ✅ Yes    | Pool is a valid Postgres connection                                           |
+| **Global DB is "available"**   | ❌ **No** | Migrations may not have run, guard hasn't passed, peer check hasn't completed |
+| **Feature modules can use it** | ❌ **No** | All feature modules are locked until Phase 12                                 |
+| **AuthModule is active**       | ❌ **No** | Locked until Phase 12                                                         |
+| **Health endpoint returns OK** | ❌ **No** | Returns `{ status: "degraded" }` until Phase 12                               |
 
 ### What Happens If a Post-Pool Check Fails
 
@@ -354,27 +355,28 @@ Even though the pool exists, a check failure at Phase 6 or 7 will cause the proc
 
 ### Module Readiness Truth Table
 
-| Service / Module | Tier 0 (Bootstrap, no pool) | Tier 1 (Initializing, pool exists) | Tier 2 (Ready) |
-|---|---|---|---|
-| **EnvModule** | ✅ Operational | ✅ | ✅ |
-| **LocalModule** (SQLite) | ✅ Operational | ✅ | ✅ |
-| **NodeConfigRepository** | ✅ Operational | ✅ | ✅ |
-| **MeshInitializationService** | ✅ Operational | ✅ | ✅ |
-| **MeshVersionService** | ✅ Operational | ✅ | ✅ |
-| **MigrationJournalService** | ✅ Operational | ✅ | ✅ |
-| **SetupModule** (wizard) | ✅ Operational | ✅ | ✅ |
-| **HealthModule** | ⚠️ degraded | ⚠️ degraded | ✅ full |
-| **GLOBAL_DATABASE_POOL** | ⏳ Resolving or blocked | ✅ Created | ✅ |
-| **GlobalDatabaseService** | ❌ Not available | ⚠️ Used by orchestrator, NOT available to features | ✅ Available to all |
-| **Drizzle Migrations** | ❌ Not run | 🔄 Running Phase 4 | ✅ Done |
-| **Registration Guard** | ❌ Not run | 🔄 Running Phase 6 | ✅ Passed |
-| **Peer Version Check** | ❌ Not run | 🔄 Running Phase 7 | ✅ Done |
-| **Mesh Registration** | ❌ Not run | 🔄 Running Phase 8 | ✅ Done |
-| **Schema Reporting** | ❌ Not run | 🔄 Running Phase 9 | ✅ Done (60s periodic) |
-| **AuthModule** | ❌ Locked | ❌ Locked | ✅ Operational |
-| **All Feature Modules** | ❌ Locked | ❌ Locked | ✅ Operational |
+| Service / Module              | Tier 0 (Bootstrap, no pool) | Tier 1 (Initializing, pool exists)                 | Tier 2 (Ready)         |
+| ----------------------------- | --------------------------- | -------------------------------------------------- | ---------------------- |
+| **EnvModule**                 | ✅ Operational              | ✅                                                 | ✅                     |
+| **LocalModule** (SQLite)      | ✅ Operational              | ✅                                                 | ✅                     |
+| **NodeConfigRepository**      | ✅ Operational              | ✅                                                 | ✅                     |
+| **MeshInitializationService** | ✅ Operational              | ✅                                                 | ✅                     |
+| **MeshVersionService**        | ✅ Operational              | ✅                                                 | ✅                     |
+| **MigrationJournalService**   | ✅ Operational              | ✅                                                 | ✅                     |
+| **SetupModule** (wizard)      | ✅ Operational              | ✅                                                 | ✅                     |
+| **HealthModule**              | ⚠️ degraded                 | ⚠️ degraded                                        | ✅ full                |
+| **GLOBAL_DATABASE_POOL**      | ⏳ Resolving or blocked     | ✅ Created                                         | ✅                     |
+| **GlobalDatabaseService**     | ❌ Not available            | ⚠️ Used by orchestrator, NOT available to features | ✅ Available to all    |
+| **Drizzle Migrations**        | ❌ Not run                  | 🔄 Running Phase 4                                 | ✅ Done                |
+| **Registration Guard**        | ❌ Not run                  | 🔄 Running Phase 6                                 | ✅ Passed              |
+| **Peer Version Check**        | ❌ Not run                  | 🔄 Running Phase 7                                 | ✅ Done                |
+| **Mesh Registration**         | ❌ Not run                  | 🔄 Running Phase 8                                 | ✅ Done                |
+| **Schema Reporting**          | ❌ Not run                  | 🔄 Running Phase 9                                 | ✅ Done (60s periodic) |
+| **AuthModule**                | ❌ Locked                   | ❌ Locked                                          | ✅ Operational         |
+| **All Feature Modules**       | ❌ Locked                   | ❌ Locked                                          | ✅ Operational         |
 
 Key distinction in Tier 1:
+
 - ❌ **GlobalDatabaseService** is listed as "Not available to features" — the orchestrator uses it internally, but it's NOT a public resource yet
 - ⚠️ The pool is marked as existing but the DB is NOT ready
 
@@ -510,19 +512,19 @@ For remote strategy nodes, the DB URL **always comes from the mesh first**. The 
 
 1. Node starts → DI bootstrap → pool factory invoked
 2. `checkConfigAndEmit()` reads `node_config` cache:
-   - **Cached URL exists** → query mesh for latest URL first
-     - Mesh responds → **use mesh URL** (source of truth), update cache
-     - Mesh can't resolve → **use cached URL** (last-known-good fallback)
-   - **No cached URL** → query mesh for URL
-     - Mesh responds → **use mesh URL**, persist as cache
-     - Mesh can't resolve → **blocks**. Needs setup wizard.
+    - **Cached URL exists** → query mesh for latest URL first
+        - Mesh responds → **use mesh URL** (source of truth), update cache
+        - Mesh can't resolve → **use cached URL** (last-known-good fallback)
+    - **No cached URL** → query mesh for URL
+        - Mesh responds → **use mesh URL**, persist as cache
+        - Mesh can't resolve → **blocks**. Needs setup wizard.
 3. Setup wizard (`POST /api/setup/initialize`, for first-time setup):
-   - `issueRemoteJoinGrant(meshUrl, authToken)` → creates a one-time grant on the remote mesh
-   - `bootstrap(meshUrl, grantToken, serverUrl)` → consumes the grant → receives `{ databaseUrl, nodeId, ... }`
-   - `getRemoteMeshVersion(meshUrl)` → queries the remote mesh's deployer version
-   - `semverCompare(localVersion, remoteVersion)` → blocks join if local is behind
-   - `register_node` → registers node on the mesh
-   - `finalize` → caches URL and config to `node_config`
+    - `issueRemoteJoinGrant(meshUrl, authToken)` → creates a one-time grant on the remote mesh
+    - `bootstrap(meshUrl, grantToken, serverUrl)` → consumes the grant → receives `{ databaseUrl, nodeId, ... }`
+    - `getRemoteMeshVersion(meshUrl)` → queries the remote mesh's deployer version
+    - `semverCompare(localVersion, remoteVersion)` → blocks join if local is behind
+    - `register_node` → registers node on the mesh
+    - `finalize` → caches URL and config to `node_config`
 4. `emitCompleted({ databaseUrl })` → `waitForSetup()` resolves → **pool created**
 
 ```mermaid
@@ -574,6 +576,7 @@ flowchart TB
 ```
 
 > **For a restart with cached config**: The node first queries the mesh for the latest URL. If the mesh responds, the mesh's URL is used (and the cache is updated). If the mesh cannot resolve, the cached URL from the previous session is used as a fallback. The registration guard (Phase 6) then re-verifies schema compatibility after the pool exists. This is safe because:
+>
 > - The mesh is the source of truth for the URL (when it can respond)
 > - The local cache holds the last-known-good URL (when mesh can't resolve)
 > - Phase 6 re-validates that the local code is still compatible with the stored schema
@@ -582,15 +585,15 @@ flowchart TB
 
 ## Dev Mode Differences
 
-| Aspect | Production | Development |
-|--------|-----------|-------------|
-| **Registration guard** (Phase 6) | Exits with `process.exit(5)` | Warns only, continues |
-| **Peer version check** (Phase 7) | Full consensus protocol, can block | Skipped entirely |
-| **Mesh registration** (Phase 8) | Required for cluster join | Optional |
-| **Fatal startup errors** | `process.exit(1)` | Logged, app continues |
-| **DB URL acquisition** | Mesh-first (primary), local SQLite cache (fallback), setup wizard (first-time) | `DEV_AUTO_SETUP=true` bypasses wizard |
-| **Database provision** | User provides existing Postgres | Auto-provisions Docker Postgres 16 |
-| **Health endpoint** | Returns readiness only | Returns full debug info |
+| Aspect                           | Production                                                                     | Development                           |
+| -------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------- |
+| **Registration guard** (Phase 6) | Exits with `process.exit(5)`                                                   | Warns only, continues                 |
+| **Peer version check** (Phase 7) | Full consensus protocol, can block                                             | Skipped entirely                      |
+| **Mesh registration** (Phase 8)  | Required for cluster join                                                      | Optional                              |
+| **Fatal startup errors**         | `process.exit(1)`                                                              | Logged, app continues                 |
+| **DB URL acquisition**           | Mesh-first (primary), local SQLite cache (fallback), setup wizard (first-time) | `DEV_AUTO_SETUP=true` bypasses wizard |
+| **Database provision**           | User provides existing Postgres                                                | Auto-provisions Docker Postgres 16    |
+| **Health endpoint**              | Returns readiness only                                                         | Returns full debug info               |
 
 ---
 
@@ -624,17 +627,17 @@ flowchart LR
 
 The setup wizard is exposed via ORPC endpoints under `/api/setup/`:
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/state` | GET | Current wizard state (`not_started` → `completed`) |
-| `/node-status` | GET | Persisted node configuration status |
-| `/state-machine` | GET | Canonical state machine definition (states, transitions) |
-| `/probe/database` | POST | Test a PostgreSQL URL before submitting |
-| `/probe/mesh` | POST | Test a mesh URL before submitting |
-| `/remote/auth` | POST | Authenticate against a remote mesh node |
-| `/trigger` | POST | Start initialization in background (returns `{ accepted }`) |
-| `/initialize` | POST | Start initialization AND return SSE event stream |
-| `/stream` | GET | Subscribe to initialization SSE events |
+| Endpoint          | Method | Purpose                                                     |
+| ----------------- | ------ | ----------------------------------------------------------- |
+| `/state`          | GET    | Current wizard state (`not_started` → `completed`)          |
+| `/node-status`    | GET    | Persisted node configuration status                         |
+| `/state-machine`  | GET    | Canonical state machine definition (states, transitions)    |
+| `/probe/database` | POST   | Test a PostgreSQL URL before submitting                     |
+| `/probe/mesh`     | POST   | Test a mesh URL before submitting                           |
+| `/remote/auth`    | POST   | Authenticate against a remote mesh node                     |
+| `/trigger`        | POST   | Start initialization in background (returns `{ accepted }`) |
+| `/initialize`     | POST   | Start initialization AND return SSE event stream            |
+| `/stream`         | GET    | Subscribe to initialization SSE events                      |
 
 ### `initialize` Endpoint
 
@@ -642,12 +645,12 @@ The `POST /setup/initialize` endpoint composes `triggerInitialize` + `getInitial
 
 ```javascript
 const stream = await client.initialize({
-  strategy: 'local',
-  name: 'My Node',
-  email: 'admin@example.com',
-  password: '••••••••',
-  organizationName: 'My Org',
-  serverUrl: 'https://node.example.com'
+    strategy: 'local',
+    name: 'My Node',
+    email: 'admin@example.com',
+    password: '••••••••',
+    organizationName: 'My Org',
+    serverUrl: 'https://node.example.com',
 })
 // stream emits: step_detail → snapshot → log → completed
 ```
@@ -658,18 +661,48 @@ Returns a `SetupStateMachine` object defining the valid states and transitions:
 
 ```json
 {
-  "initialState": "not_started",
-  "terminalStates": ["completed"],
-  "states": ["not_started", "awaiting_strategy", "awaiting_credentials",
-             "awaiting_remote_auth", "provisioning", "completed"],
-  "transitions": [
-    { "from": "not_started", "to": "awaiting_strategy", "event": "start_setup" },
-    { "from": "awaiting_strategy", "to": "awaiting_credentials", "event": "choose_local" },
-    { "from": "awaiting_strategy", "to": "awaiting_remote_auth", "event": "choose_remote" },
-    { "from": "awaiting_credentials", "to": "provisioning", "event": "start_initialize" },
-    { "from": "awaiting_remote_auth", "to": "provisioning", "event": "start_initialize" },
-    { "from": "provisioning", "to": "completed", "event": "provisioning_complete" }
-  ]
+    "initialState": "not_started",
+    "terminalStates": ["completed"],
+    "states": [
+        "not_started",
+        "awaiting_strategy",
+        "awaiting_credentials",
+        "awaiting_remote_auth",
+        "provisioning",
+        "completed"
+    ],
+    "transitions": [
+        {
+            "from": "not_started",
+            "to": "awaiting_strategy",
+            "event": "start_setup"
+        },
+        {
+            "from": "awaiting_strategy",
+            "to": "awaiting_credentials",
+            "event": "choose_local"
+        },
+        {
+            "from": "awaiting_strategy",
+            "to": "awaiting_remote_auth",
+            "event": "choose_remote"
+        },
+        {
+            "from": "awaiting_credentials",
+            "to": "provisioning",
+            "event": "start_initialize"
+        },
+        {
+            "from": "awaiting_remote_auth",
+            "to": "provisioning",
+            "event": "start_initialize"
+        },
+        {
+            "from": "provisioning",
+            "to": "completed",
+            "event": "provisioning_complete"
+        }
+    ]
 }
 ```
 

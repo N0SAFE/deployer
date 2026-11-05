@@ -1,10 +1,10 @@
 {
-	"$schema": "https://json.schemastore.org/tsconfig",
-	"extends": "../../../tooling/typescript/config/nestjs.json",
-	"include": ["pkg-build.config.ts", "src/**/*"],
-	"compilerOptions": {
-		"paths": {
-			"@deployer/nest-mesh/*": ["./src/*"]
-		}
-	}
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "../../../tooling/typescript/config/nestjs.json",
+    "include": ["pkg-build.config.ts", "src/**/*"],
+    "compilerOptions": {
+        "paths": {
+            "@deployer/nest-mesh/*": ["./src/*"]
+        }
+    }
 }

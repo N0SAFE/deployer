@@ -45,29 +45,29 @@ The platform already has typed configuration and deployment policy surfaces. Wha
 ## Core model
 
 ```ts
-type TemplatePackRisk = "safe" | "review_required" | "experimental";
+type TemplatePackRisk = 'safe' | 'review_required' | 'experimental'
 
 type TemplatePackVersion = {
-  packId: string;
-  version: string; // semver
-  signature: string;
-  publisher: string;
-  risk: TemplatePackRisk;
-  compatibility: {
-    providers: string[];
-    runners: string[];
-    requiresFeatures?: string[];
-    minPlatformVersion?: string;
-  };
-  templates: {
-    providerTemplateId?: string;
-    buildTemplateId?: string;
-    deployTemplateId?: string;
-    routeTemplateId?: string;
-    previewTemplateId?: string;
-    dependencyTemplateId?: string;
-  };
-};
+    packId: string
+    version: string // semver
+    signature: string
+    publisher: string
+    risk: TemplatePackRisk
+    compatibility: {
+        providers: string[]
+        runners: string[]
+        requiresFeatures?: string[]
+        minPlatformVersion?: string
+    }
+    templates: {
+        providerTemplateId?: string
+        buildTemplateId?: string
+        deployTemplateId?: string
+        routeTemplateId?: string
+        previewTemplateId?: string
+        dependencyTemplateId?: string
+    }
+}
 ```
 
 ---
@@ -131,10 +131,10 @@ Default install policy baseline:
 
 - Catalog list with filters: risk, provider compatibility, last update
 - Pack detail page with:
-  - signed publisher metadata,
-  - compatibility matrix,
-  - template graph preview,
-  - change log between versions
+    - signed publisher metadata,
+    - compatibility matrix,
+    - template graph preview,
+    - change log between versions
 - Install/upgrade dry-run report before apply
 - Org policy panel for allow/deny + risk-level defaults
 

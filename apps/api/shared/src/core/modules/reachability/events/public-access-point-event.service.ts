@@ -10,33 +10,45 @@
  * The contract output is a ZOD DISCRIMINATED UNION on `kind` — one perfectly
  * structured schema for the whole flow.
  */
-import { Observable } from "rxjs";
+import { Observable } from 'rxjs'
 
-import { BasePooledEventService } from "../../events/base/index";
-import { type CoreEventStreamPoolServiceShape } from "../../events/base/index";
+import { BasePooledEventService } from '../../events/base/index'
+import { type CoreEventStreamPoolServiceShape } from '../../events/base/index'
 
 import {
     publicAccessPointEventContracts,
     type PublicAccessPointEventContracts,
     type PublicAccessPointEvent,
-} from "./public-access-point-event.contracts";
+} from './public-access-point-event.contracts'
 
-export const ACCESS_POINT_EVENT_SCOPE = "node";
+export const ACCESS_POINT_EVENT_SCOPE = 'node'
 
 export class PublicAccessPointEventService extends BasePooledEventService<PublicAccessPointEventContracts> {
     constructor(streamPool?: CoreEventStreamPoolServiceShape) {
-        super("public-access-point", publicAccessPointEventContracts, streamPool);
+        super(
+            'public-access-point',
+            publicAccessPointEventContracts,
+            streamPool
+        )
     }
 
     /** Broadcast a fresh access-point state over the global relay. */
     emitAccessPointUpdated(state: PublicAccessPointEvent): void {
-        this.emit("accessPointUpdated", { scope: ACCESS_POINT_EVENT_SCOPE }, state);
+        this.emit(
+            'accessPointUpdated',
+            { scope: ACCESS_POINT_EVENT_SCOPE },
+            state
+        )
     }
 
     /** Observe the global access-point stream (scoped to the node). */
     watchAccessPoint$(): Observable<PublicAccessPointEvent> {
-        return this.observePooledEvent$("accessPointUpdated", { scope: ACCESS_POINT_EVENT_SCOPE }, {
-            includePersisted: false,
-        });
+        return this.observePooledEvent$(
+            'accessPointUpdated',
+            { scope: ACCESS_POINT_EVENT_SCOPE },
+            {
+                includePersisted: false,
+            }
+        )
     }
 }

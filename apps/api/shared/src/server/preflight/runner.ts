@@ -1,12 +1,12 @@
-import { PREFLIGHT_CHECKS } from "./checks";
+import { PREFLIGHT_CHECKS } from './checks'
 
 import type {
-	CheckContext,
-	CheckResult,
-	PreflightCheck,
-	PreflightDependency,
-	PreflightReport,
-} from "./types";
+    CheckContext,
+    CheckResult,
+    PreflightCheck,
+    PreflightDependency,
+    PreflightReport,
+} from './types'
 
 /**
  * How a failed run should behave.
@@ -21,14 +21,14 @@ import type {
  *     NOW, not after a minute of retrying.
  */
 export type PreflightPolicy = {
-	/** Total time to keep retrying the whole suite before giving up. */
-	readonly waitMs: number;
-	/** Pause between attempts. */
-	readonly retryEveryMs: number;
+    /** Total time to keep retrying the whole suite before giving up. */
+    readonly waitMs: number
+    /** Pause between attempts. */
+    readonly retryEveryMs: number
 }
 
 /** Never wait: run once and report. */
-export const REPORT_ONLY: PreflightPolicy = { waitMs: 0, retryEveryMs: 0 };
+export const REPORT_ONLY: PreflightPolicy = { waitMs: 0, retryEveryMs: 0 }
 
 /**
  * How long a boot waits before it gives up on a dependency.
@@ -57,17 +57,17 @@ export const REPORT_ONLY: PreflightPolicy = { waitMs: 0, retryEveryMs: 0 };
  * attempt would let the deadline move while it is being waited on.
  */
 function bootWaitMs(): number {
-	const configured = Number(process.env.PREFLIGHT_WAIT_MS);
-	// `Number.isFinite` also rejects NaN and `""` → 0, which would turn a
-	// misconfigured variable into "never wait" and resurrect the exit-5 loop.
-	return Number.isFinite(configured) && configured > 0 ? configured : 60_000;
+    const configured = Number(process.env.PREFLIGHT_WAIT_MS)
+    // `Number.isFinite` also rejects NaN and `""` → 0, which would turn a
+    // misconfigured variable into "never wait" and resurrect the exit-5 loop.
+    return Number.isFinite(configured) && configured > 0 ? configured : 60_000
 }
 
 /** Boot default: generous enough to cover a swarm task being placed. */
 export const WAIT_FOR_DEPENDENCIES: PreflightPolicy = {
-	waitMs: bootWaitMs(),
-	retryEveryMs: 2_000,
-};
+    waitMs: bootWaitMs(),
+    retryEveryMs: 2_000,
+}
 
 /**
  * Run every check, optionally retrying the whole suite until it passes.
@@ -78,55 +78,55 @@ export const WAIT_FOR_DEPENDENCIES: PreflightPolicy = {
  * inconsistent between attempts.
  */
 export async function runPreflight(options: {
-	readonly context: CheckContext;
-	readonly dependencies: readonly PreflightDependency[];
-	readonly policy: PreflightPolicy;
-	/** Resolve a dependency to its check. Defaults to the standard set. */
-	readonly checks?: Readonly<Record<PreflightDependency, PreflightCheck>>;
+    readonly context: CheckContext
+    readonly dependencies: readonly PreflightDependency[]
+    readonly policy: PreflightPolicy
+    /** Resolve a dependency to its check. Defaults to the standard set. */
+    readonly checks?: Readonly<Record<PreflightDependency, PreflightCheck>>
 }): Promise<PreflightReport> {
-	const checks = options.checks ?? PREFLIGHT_CHECKS;
-	const start = Date.now();
-	const deadline = start + options.policy.waitMs;
-	let results = await attempt(options.context, options.dependencies, checks);
-	let attemptNumber = 1;
+    const checks = options.checks ?? PREFLIGHT_CHECKS
+    const start = Date.now()
+    const deadline = start + options.policy.waitMs
+    let results = await attempt(options.context, options.dependencies, checks)
+    let attemptNumber = 1
 
-	while (!results.every(isPassing) && Date.now() < deadline) {
-		options.context.log(
-			`preflight attempt ${String(attemptNumber)} not ready — retrying in ${String(options.policy.retryEveryMs)}ms`,
-		);
-		await sleep(options.policy.retryEveryMs);
-		results = await attempt(options.context, options.dependencies, checks);
-		attemptNumber += 1;
-	}
+    while (!results.every(isPassing) && Date.now() < deadline) {
+        options.context.log(
+            `preflight attempt ${String(attemptNumber)} not ready — retrying in ${String(options.policy.retryEveryMs)}ms`
+        )
+        await sleep(options.policy.retryEveryMs)
+        results = await attempt(options.context, options.dependencies, checks)
+        attemptNumber += 1
+    }
 
-	return {
-		ready: results.every(isPassing),
-		results,
-		durationMs: Date.now() - start,
-	};
+    return {
+        ready: results.every(isPassing),
+        results,
+        durationMs: Date.now() - start,
+    }
 }
 
 async function attempt(
-	context: CheckContext,
-	dependencies: readonly PreflightDependency[],
-	checks: Readonly<Record<PreflightDependency, PreflightCheck>>,
+    context: CheckContext,
+    dependencies: readonly PreflightDependency[],
+    checks: Readonly<Record<PreflightDependency, PreflightCheck>>
 ): Promise<CheckResult[]> {
-	// Sequential, not `Promise.all`: the report reads as a checklist, and a
-	// database that is down should be reported BEFORE the schema check that
-	// depends on it rather than racing it. The cost is negligible against a
-	// connect timeout.
-	const results: CheckResult[] = [];
-	for (const dependency of dependencies) {
-		results.push(await checks[dependency](context));
-	}
-	return results;
+    // Sequential, not `Promise.all`: the report reads as a checklist, and a
+    // database that is down should be reported BEFORE the schema check that
+    // depends on it rather than racing it. The cost is negligible against a
+    // connect timeout.
+    const results: CheckResult[] = []
+    for (const dependency of dependencies) {
+        results.push(await checks[dependency](context))
+    }
+    return results
 }
 
 /** A skipped check is not a failure — it is a dependency the app does not need. */
 function isPassing(result: CheckResult): boolean {
-	return result.outcome !== "failed";
+    return result.outcome !== 'failed'
 }
 
 function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms))
 }

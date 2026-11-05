@@ -1,11 +1,11 @@
-import { Cause, Effect, Exit } from "effect";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { Cause, Effect, Exit } from 'effect'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-import { DockerEngine, DockerNotFound } from "@deployer/docker";
+import { DockerEngine, DockerNotFound } from '@deployer/docker'
 
-import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { RuntimeInvalid } from '../../../core/runtime.errors'
 
-import { SwarmComposeRealizer } from "./swarm-compose-realizer.service";
+import { SwarmComposeRealizer } from './swarm-compose-realizer.service'
 
 const FULL_COMPOSE = `
 services:
@@ -47,14 +47,14 @@ networks:
     driver: overlay
 volumes:
   db-data: {}
-`;
+`
 
 const BUILD_ONLY = `
 services:
   worker:
     build: .
     restart: always
-`;
+`
 
 const BIND_VOLUME = `
 services:
@@ -62,203 +62,314 @@ services:
     image: nginx:alpine
     volumes:
       - /host/path:/data
-`;
+`
 
-describe("SwarmComposeRealizer", () => {
-    const realizer = new SwarmComposeRealizer.live();
-    let engine: unknown;
-    const parse = (yaml: string) => Effect.runSync(realizer.parseComposeYaml(yaml));
-    const validate = (model: ReturnType<typeof parse>) => Effect.runSync(realizer.validateCompatibility(model));
-    const realize = (model: ReturnType<typeof parse>, context: { projectId: string; deploymentId: string }) =>
-        Effect.runSync(realizer.realizeCompose(model, context));
+describe('SwarmComposeRealizer', () => {
+    const realizer = new SwarmComposeRealizer.live()
+    let engine: unknown
+    const parse = (yaml: string) =>
+        Effect.runSync(realizer.parseComposeYaml(yaml))
+    const validate = (model: ReturnType<typeof parse>) =>
+        Effect.runSync(realizer.validateCompatibility(model))
+    const realize = (
+        model: ReturnType<typeof parse>,
+        context: { projectId: string; deploymentId: string }
+    ) => Effect.runSync(realizer.realizeCompose(model, context))
     const execute = (plan: ReturnType<typeof realize>) =>
-        Effect.runPromise(realizer.executeComposePlan(plan).pipe(Effect.provideService(DockerEngine, engine as never)));
+        Effect.runPromise(
+            realizer
+                .executeComposePlan(plan)
+                .pipe(Effect.provideService(DockerEngine, engine as never))
+        )
     const invalid = (yaml: string) => {
-        const exit = Effect.runSyncExit(realizer.parseComposeYaml(yaml));
-        return Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
-    };
+        const exit = Effect.runSyncExit(realizer.parseComposeYaml(yaml))
+        return Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
+    }
     let dockerService: {
-        ensureOverlayNetwork: ReturnType<typeof vi.fn>;
-        listSwarmSecrets: ReturnType<typeof vi.fn>;
-        listSwarmConfigs: ReturnType<typeof vi.fn>;
-        createSwarmSecret: ReturnType<typeof vi.fn>;
-        createSwarmConfig: ReturnType<typeof vi.fn>;
-        inspectSwarmService: ReturnType<typeof vi.fn>;
-        createSwarmService: ReturnType<typeof vi.fn>;
-        updateSwarmService: ReturnType<typeof vi.fn>;
-    };
+        ensureOverlayNetwork: ReturnType<typeof vi.fn>
+        listSwarmSecrets: ReturnType<typeof vi.fn>
+        listSwarmConfigs: ReturnType<typeof vi.fn>
+        createSwarmSecret: ReturnType<typeof vi.fn>
+        createSwarmConfig: ReturnType<typeof vi.fn>
+        inspectSwarmService: ReturnType<typeof vi.fn>
+        createSwarmService: ReturnType<typeof vi.fn>
+        updateSwarmService: ReturnType<typeof vi.fn>
+    }
 
     beforeEach(() => {
         dockerService = {
             ensureOverlayNetwork: vi.fn().mockResolvedValue(undefined),
             listSwarmSecrets: vi.fn().mockResolvedValue([]),
             listSwarmConfigs: vi.fn().mockResolvedValue([]),
-            createSwarmSecret: vi.fn().mockResolvedValue({ ID: "s1", Spec: { Name: "x" } }),
-            createSwarmConfig: vi.fn().mockResolvedValue({ ID: "c1", Spec: { Name: "x" } }),
-            inspectSwarmService: vi.fn().mockRejectedValue(new Error("service not found")),
-            createSwarmService: vi.fn().mockResolvedValue({ ID: "svc-1" }),
+            createSwarmSecret: vi
+                .fn()
+                .mockResolvedValue({ ID: 's1', Spec: { Name: 'x' } }),
+            createSwarmConfig: vi
+                .fn()
+                .mockResolvedValue({ ID: 'c1', Spec: { Name: 'x' } }),
+            inspectSwarmService: vi
+                .fn()
+                .mockRejectedValue(new Error('service not found')),
+            createSwarmService: vi.fn().mockResolvedValue({ ID: 'svc-1' }),
             updateSwarmService: vi.fn().mockResolvedValue(undefined),
-        };
+        }
         // The realizer reaches Docker through the engine; the mocks above stay the spec's handles on what was
         // asked of it, and read at call time so a test can replace one.
-        const ds = dockerService;
-        const lift = (fn: unknown, ...args: unknown[]) => Effect.promise(() => (fn as (...a: unknown[]) => Promise<unknown>)(...args));
+        const ds = dockerService
+        const lift = (fn: unknown, ...args: unknown[]) =>
+            Effect.promise(() =>
+                (fn as (...a: unknown[]) => Promise<unknown>)(...args)
+            )
         engine = {
-            networks: { ensureOverlay: (request: unknown) => lift(ds.ensureOverlayNetwork, request) },
-            swarmSecrets: { list: () => lift(ds.listSwarmSecrets), create: (options: unknown) => lift(ds.createSwarmSecret, options) },
-            swarmConfigs: { list: () => lift(ds.listSwarmConfigs), create: (options: unknown) => lift(ds.createSwarmConfig, options) },
+            networks: {
+                ensureOverlay: (request: unknown) =>
+                    lift(ds.ensureOverlayNetwork, request),
+            },
+            swarmSecrets: {
+                list: () => lift(ds.listSwarmSecrets),
+                create: (options: unknown) =>
+                    lift(ds.createSwarmSecret, options),
+            },
+            swarmConfigs: {
+                list: () => lift(ds.listSwarmConfigs),
+                create: (options: unknown) =>
+                    lift(ds.createSwarmConfig, options),
+            },
             swarmServices: {
                 // A refused inspect is the engine's "no such service".
                 inspect: (name: string) =>
-                    Effect.tryPromise({ try: () => (ds.inspectSwarmService as unknown as (n: string) => Promise<unknown>)(name), catch: () => new DockerNotFound({ resource: name }) }),
-                update: (...args: unknown[]) => lift(ds.updateSwarmService, ...args),
+                    Effect.tryPromise({
+                        try: () =>
+                            (
+                                ds.inspectSwarmService as unknown as (
+                                    n: string
+                                ) => Promise<unknown>
+                            )(name),
+                        catch: () => new DockerNotFound({ resource: name }),
+                    }),
+                update: (...args: unknown[]) =>
+                    lift(ds.updateSwarmService, ...args),
                 create: (spec: unknown) => lift(ds.createSwarmService, spec),
             },
-        };
-    });
+        }
+    })
 
-    describe("parseComposeYaml", () => {
-        it("parses a full compose file with normalization", () => {
-            const model = parse(FULL_COMPOSE);
-            expect(model.services.length).toBe(2);
-            const db = model.services.find((service) => service.name === "db");
-            expect(db?.env).toEqual(["POSTGRES_PASSWORD=secret"]);
-            expect(db?.healthcheck).toMatchObject({ intervalMs: 10_000, retries: 5 });
-            expect(db?.deploy.memoryLimitBytes).toBe(512 * 1024 * 1024);
-            expect(db?.deploy.cpuLimit).toBe(1);
-            expect(db?.mounts).toContainEqual({ type: "volume", source: "db-data", target: "/var/lib/postgresql/data", readOnly: false });
+    describe('parseComposeYaml', () => {
+        it('parses a full compose file with normalization', () => {
+            const model = parse(FULL_COMPOSE)
+            expect(model.services.length).toBe(2)
+            const db = model.services.find((service) => service.name === 'db')
+            expect(db?.env).toEqual(['POSTGRES_PASSWORD=secret'])
+            expect(db?.healthcheck).toMatchObject({
+                intervalMs: 10_000,
+                retries: 5,
+            })
+            expect(db?.deploy.memoryLimitBytes).toBe(512 * 1024 * 1024)
+            expect(db?.deploy.cpuLimit).toBe(1)
+            expect(db?.mounts).toContainEqual({
+                type: 'volume',
+                source: 'db-data',
+                target: '/var/lib/postgresql/data',
+                readOnly: false,
+            })
 
-            const api = model.services.find((service) => service.name === "api");
-            expect(api?.dependsOn).toEqual(["db"]);
-            expect(api?.args).toEqual(["node", "server.js"]); // compose command → Args
-            expect(api?.ports).toEqual([{ targetPort: 3000, publishedPort: 8080, protocol: "tcp" }]);
-            expect(api?.networks).toEqual(["private"]);
-            expect(api?.deploy.replicas).toBe(2);
-            expect(api?.deploy.restartCondition).toBe("on-failure");
+            const api = model.services.find((service) => service.name === 'api')
+            expect(api?.dependsOn).toEqual(['db'])
+            expect(api?.args).toEqual(['node', 'server.js']) // compose command → Args
+            expect(api?.ports).toEqual([
+                { targetPort: 3000, publishedPort: 8080, protocol: 'tcp' },
+            ])
+            expect(api?.networks).toEqual(['private'])
+            expect(api?.deploy.replicas).toBe(2)
+            expect(api?.deploy.restartCondition).toBe('on-failure')
 
-            expect(model.secrets).toEqual({ api_key: "./keys/api.key" });
-            expect(model.networks.private?.driver).toBe("overlay");
-            expect(model.volumes["db-data"]).toEqual({});
-        });
+            expect(model.secrets).toEqual({ api_key: './keys/api.key' })
+            expect(model.networks.private?.driver).toBe('overlay')
+            expect(model.volumes['db-data']).toEqual({})
+        })
 
-        it("fails with RuntimeInvalid on non-compose YAML", () => {
-            const error = invalid("foo: bar");
-            expect(error).toBeInstanceOf(RuntimeInvalid);
-            expect((error as RuntimeInvalid).reason).toMatch(/services/);
-        });
+        it('fails with RuntimeInvalid on non-compose YAML', () => {
+            const error = invalid('foo: bar')
+            expect(error).toBeInstanceOf(RuntimeInvalid)
+            expect((error as RuntimeInvalid).reason).toMatch(/services/)
+        })
 
-        it("fails with RuntimeInvalid on invalid YAML", () => {
-            const error = invalid("a: [unclosed");
-            expect(error).toBeInstanceOf(RuntimeInvalid);
-            expect((error as RuntimeInvalid).reason).toMatch(/Invalid compose YAML/);
-        });
-    });
+        it('fails with RuntimeInvalid on invalid YAML', () => {
+            const error = invalid('a: [unclosed')
+            expect(error).toBeInstanceOf(RuntimeInvalid)
+            expect((error as RuntimeInvalid).reason).toMatch(
+                /Invalid compose YAML/
+            )
+        })
+    })
 
-    describe("validateCompatibility", () => {
-        it("flags build-only services as errors", () => {
-            const model = parse(BUILD_ONLY);
-            const report = validate(model);
-            expect(report.issues.some((issue) => issue.severity === "error" && issue.path === "services.worker.image")).toBe(true);
-        });
+    describe('validateCompatibility', () => {
+        it('flags build-only services as errors', () => {
+            const model = parse(BUILD_ONLY)
+            const report = validate(model)
+            expect(
+                report.issues.some(
+                    (issue) =>
+                        issue.severity === 'error' &&
+                        issue.path === 'services.worker.image'
+                )
+            ).toBe(true)
+        })
 
-        it("flags bind mounts as errors", () => {
-            const model = parse(BIND_VOLUME);
-            const report = validate(model);
-            expect(report.issues.some((issue) => issue.severity === "error" && issue.message.includes("Bind mounts"))).toBe(true);
-        });
+        it('flags bind mounts as errors', () => {
+            const model = parse(BIND_VOLUME)
+            const report = validate(model)
+            expect(
+                report.issues.some(
+                    (issue) =>
+                        issue.severity === 'error' &&
+                        issue.message.includes('Bind mounts')
+                )
+            ).toBe(true)
+        })
 
-        it("supports the full compose without errors", () => {
-            const model = parse(FULL_COMPOSE);
-            const report = validate(model);
-            expect(report.issues.filter((issue) => issue.severity === "error")).toEqual([]);
-        });
+        it('supports the full compose without errors', () => {
+            const model = parse(FULL_COMPOSE)
+            const report = validate(model)
+            expect(
+                report.issues.filter((issue) => issue.severity === 'error')
+            ).toEqual([])
+        })
 
-        it("tells the operator that declared host ports are not published", () => {
-            const report = validate(parse(FULL_COMPOSE));
+        it('tells the operator that declared host ports are not published', () => {
+            const report = validate(parse(FULL_COMPOSE))
             expect(report.issues).toContainEqual(
-                expect.objectContaining({ path: "services.api.ports", severity: "warn", message: expect.stringContaining("not published") }),
-            );
-        });
-    });
+                expect.objectContaining({
+                    path: 'services.api.ports',
+                    severity: 'warn',
+                    message: expect.stringContaining('not published'),
+                })
+            )
+        })
+    })
 
-    describe("realizeCompose", () => {
-        it("builds a dependency-ordered plan with typed specs", () => {
-            const model = parse(FULL_COMPOSE);
-            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
+    describe('realizeCompose', () => {
+        it('builds a dependency-ordered plan with typed specs', () => {
+            const model = parse(FULL_COMPOSE)
+            const plan = realize(model, {
+                projectId: 'proj-1',
+                deploymentId: 'dep-1',
+            })
 
             // db before api (depends_on ordering)
-            expect(plan.services.map((entry) => entry.serviceName)).toEqual(["db", "api"]);
+            expect(plan.services.map((entry) => entry.serviceName)).toEqual([
+                'db',
+                'api',
+            ])
 
-            const dbSpec = plan.services.find((entry) => entry.serviceName === "db")?.spec;
-            expect(dbSpec?.image).toBe("postgres:16-alpine");
+            const dbSpec = plan.services.find(
+                (entry) => entry.serviceName === 'db'
+            )?.spec
+            expect(dbSpec?.image).toBe('postgres:16-alpine')
             expect(dbSpec?.mounts).toEqual([
-                { type: "volume", source: "deployer-proj-1-db-data", target: "/var/lib/postgresql/data", readOnly: false },
-            ]);
-            expect(dbSpec?.healthcheck?.intervalMs).toBe(10_000);
+                {
+                    type: 'volume',
+                    source: 'deployer-proj-1-db-data',
+                    target: '/var/lib/postgresql/data',
+                    readOnly: false,
+                },
+            ])
+            expect(dbSpec?.healthcheck?.intervalMs).toBe(10_000)
 
-            const apiSpec = plan.services.find((entry) => entry.serviceName === "api")?.spec;
+            const apiSpec = plan.services.find(
+                (entry) => entry.serviceName === 'api'
+            )?.spec
             // Nothing is published on the host — a swarm publish opens every node.
-            expect(apiSpec?.endpointPorts).toEqual([]);
+            expect(apiSpec?.endpointPorts).toEqual([])
             expect(apiSpec?.networks).toEqual([
-                { target: "deployer-proj-1-private", aliases: [] },
-            ]);
-            expect(apiSpec?.labels["deployer.compose_service"]).toBe("api");
+                { target: 'deployer-proj-1-private', aliases: [] },
+            ])
+            expect(apiSpec?.labels['deployer.compose_service']).toBe('api')
 
             expect(plan.networks).toEqual([
-                { name: "deployer-proj-1-private", driver: "overlay", attachable: true, labels: expect.objectContaining({ "deployer.project_id": "proj-1" }) },
-            ]);
-            expect(plan.secrets).toEqual([{ name: "deployer-proj-1-secret-api_key", data: "./keys/api.key" }]);
-        });
-    });
+                {
+                    name: 'deployer-proj-1-private',
+                    driver: 'overlay',
+                    attachable: true,
+                    labels: expect.objectContaining({
+                        'deployer.project_id': 'proj-1',
+                    }),
+                },
+            ])
+            expect(plan.secrets).toEqual([
+                {
+                    name: 'deployer-proj-1-secret-api_key',
+                    data: './keys/api.key',
+                },
+            ])
+        })
+    })
 
-    describe("executeComposePlan", () => {
-        it("creates networks, secrets, configs and services idempotently", async () => {
-            const model = parse(FULL_COMPOSE);
-            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
+    describe('executeComposePlan', () => {
+        it('creates networks, secrets, configs and services idempotently', async () => {
+            const model = parse(FULL_COMPOSE)
+            const plan = realize(model, {
+                projectId: 'proj-1',
+                deploymentId: 'dep-1',
+            })
 
-            const summary = await execute(plan);
+            const summary = await execute(plan)
 
-            expect(dockerService.ensureOverlayNetwork).toHaveBeenCalledTimes(1);
+            expect(dockerService.ensureOverlayNetwork).toHaveBeenCalledTimes(1)
             expect(dockerService.ensureOverlayNetwork).toHaveBeenCalledWith(
-                expect.objectContaining({ name: "deployer-proj-1-private", driver: "overlay" }),
-            );
-            expect(dockerService.createSwarmSecret).toHaveBeenCalledTimes(1);
-            expect(dockerService.createSwarmConfig).not.toHaveBeenCalled();
+                expect.objectContaining({
+                    name: 'deployer-proj-1-private',
+                    driver: 'overlay',
+                })
+            )
+            expect(dockerService.createSwarmSecret).toHaveBeenCalledTimes(1)
+            expect(dockerService.createSwarmConfig).not.toHaveBeenCalled()
             // Two services, both missing → create (not update)
-            expect(dockerService.createSwarmService).toHaveBeenCalledTimes(2);
-            expect(dockerService.updateSwarmService).not.toHaveBeenCalled();
-            expect(summary.createdServices.length).toBe(2);
-            expect(summary.secrets).toEqual(["deployer-proj-1-secret-api_key"]);
-        });
+            expect(dockerService.createSwarmService).toHaveBeenCalledTimes(2)
+            expect(dockerService.updateSwarmService).not.toHaveBeenCalled()
+            expect(summary.createdServices.length).toBe(2)
+            expect(summary.secrets).toEqual(['deployer-proj-1-secret-api_key'])
+        })
 
-        it("skips existing secrets/configs (idempotent)", async () => {
+        it('skips existing secrets/configs (idempotent)', async () => {
             dockerService.listSwarmSecrets.mockResolvedValue([
-                { ID: "s1", Spec: { Name: "deployer-proj-1-secret-api_key" } },
-            ]);
-            const model = parse(FULL_COMPOSE);
-            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
+                { ID: 's1', Spec: { Name: 'deployer-proj-1-secret-api_key' } },
+            ])
+            const model = parse(FULL_COMPOSE)
+            const plan = realize(model, {
+                projectId: 'proj-1',
+                deploymentId: 'dep-1',
+            })
 
-            await execute(plan);
+            await execute(plan)
 
-            expect(dockerService.createSwarmSecret).not.toHaveBeenCalled();
-        });
+            expect(dockerService.createSwarmSecret).not.toHaveBeenCalled()
+        })
 
-        it("updates an existing service instead of creating it", async () => {
-            dockerService.inspectSwarmService.mockResolvedValue({ ID: "existing", Version: { Index: 3 } });
-            const model = parse(FULL_COMPOSE);
-            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
+        it('updates an existing service instead of creating it', async () => {
+            dockerService.inspectSwarmService.mockResolvedValue({
+                ID: 'existing',
+                Version: { Index: 3 },
+            })
+            const model = parse(FULL_COMPOSE)
+            const plan = realize(model, {
+                projectId: 'proj-1',
+                deploymentId: 'dep-1',
+            })
 
-            const summary = await execute(plan);
+            const summary = await execute(plan)
 
-            expect(dockerService.updateSwarmService).toHaveBeenCalledTimes(2);
+            expect(dockerService.updateSwarmService).toHaveBeenCalledTimes(2)
             expect(dockerService.updateSwarmService).toHaveBeenCalledWith(
                 expect.any(String),
                 3,
-                expect.objectContaining({ Name: expect.stringContaining("deployer-proj-1-") }),
-                false,
-            );
-            expect(dockerService.createSwarmService).not.toHaveBeenCalled();
-            expect(summary.updatedServices.length).toBe(2);
-        });
-    });
-});
+                expect.objectContaining({
+                    Name: expect.stringContaining('deployer-proj-1-'),
+                }),
+                false
+            )
+            expect(dockerService.createSwarmService).not.toHaveBeenCalled()
+            expect(summary.updatedServices.length).toBe(2)
+        })
+    })
+})

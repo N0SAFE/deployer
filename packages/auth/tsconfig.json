@@ -7,12 +7,8 @@
         "skipLibCheck": true,
         "target": "ES2020",
         "paths": {
-            "@deployer/auth/*": [
-                "./src/*"
-            ]
+            "@deployer/auth/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ]
+    "include": ["pkg-build.config.ts", "src/**/*"]
 }

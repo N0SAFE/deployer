@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { z } from 'zod'
 
-export const page = true;
-export const layout = false;
+export const page = true
+export const layout = false
 export const Route = {
-  name: "AuthDashboardAdminProvidersDnsGoogleDns",
-  params: z.object({}),
-};
+    name: 'AuthDashboardAdminProvidersDnsGoogleDns',
+    params: z.object({}),
+}

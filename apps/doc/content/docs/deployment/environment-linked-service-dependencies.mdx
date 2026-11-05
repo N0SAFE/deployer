@@ -34,17 +34,17 @@ Cross-environment target validation is enforced in:
 Per environment (for each service override):
 
 - `dependencyBehavior`: attachment + startup/health requirements
-  - `targetSelection.strategy` (`filter-first` | `direct-only` | `preferred-then-filter`)
-  - `targetSelection.filter` (builder condition tree)
+    - `targetSelection.strategy` (`filter-first` | `direct-only` | `preferred-then-filter`)
+    - `targetSelection.filter` (builder condition tree)
 - `dependencyLinkPolicy.target`:
-  - `same-environment`
-  - `fixed-environment` (`targetEnvironment` required)
-  - `derived-environment` (`fromInputKey`, `fallbackEnvironment`)
+    - `same-environment`
+    - `fixed-environment` (`targetEnvironment` required)
+    - `derived-environment` (`fromInputKey`, `fallbackEnvironment`)
 - `dependencyLinkPolicy.provisioning`:
-  - `shared-service` (`sharingScope`, `reuseKey`)
-  - `per-source-instance` (`instanceNameTemplate`, optional caps)
-  - `on-demand-pool` (`poolRef`, warm/scale-to-zero knobs)
-  - every mode includes `noMatchPolicy` (default: `create-new-instance`)
+    - `shared-service` (`sharingScope`, `reuseKey`)
+    - `per-source-instance` (`instanceNameTemplate`, optional caps)
+    - `on-demand-pool` (`poolRef`, warm/scale-to-zero knobs)
+    - every mode includes `noMatchPolicy` (default: `create-new-instance`)
 
 ## Complete target filtering (builder shape)
 

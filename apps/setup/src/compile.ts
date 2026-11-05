@@ -1,4 +1,4 @@
-import "reflect-metadata";
+import 'reflect-metadata'
 
 /**
  * Boot check for the setup app — assemble the whole Nest graph, then exit.
@@ -27,7 +27,7 @@ import "reflect-metadata";
  * exactly that class of failure. `NODE_ENV` is forced to `test` so the app does
  * not attempt production-only work (migrations, supervisor convergence).
  */
-process.env.NODE_ENV = "test";
+process.env.NODE_ENV = 'test'
 
 /**
  * Redirect the local SQLite file away from the container path.
@@ -44,30 +44,30 @@ process.env.NODE_ENV = "test";
  * `??` so an explicit value in the environment still wins.
  */
 process.env.NODE_LOCAL_DB_PATH =
-  process.env.NODE_LOCAL_DB_PATH ?? "/tmp/deployer-setup-compile-local.db";
+    process.env.NODE_LOCAL_DB_PATH ?? '/tmp/deployer-setup-compile-local.db'
 
 async function main(): Promise<void> {
-  // Imported AFTER NODE_ENV is set: the env schema is parsed at module load, so
-  // the order here decides which environment the check runs as.
-  const { createCompileContext } = await import("./app.config");
+    // Imported AFTER NODE_ENV is set: the env schema is parsed at module load, so
+    // the order here decides which environment the check runs as.
+    const { createCompileContext } = await import('./app.config')
 
-  const app = await createCompileContext();
+    const app = await createCompileContext()
 
-  // `close()` runs the shutdown hooks, so a provider that failed to register a
-  // cleanup is caught here too.
-  await app.close();
+    // `close()` runs the shutdown hooks, so a provider that failed to register a
+    // cleanup is caught here too.
+    await app.close()
 
-  console.log("✅ compile: setup app assembled and closed cleanly");
+    console.log('✅ compile: setup app assembled and closed cleanly')
 }
 
 main().catch((error: unknown) => {
-  // A non-zero exit is the whole signal. The message is printed plainly because
-  // Nest's own boot errors are already descriptive — wrapping them would hide
-  // the "Is X part of the relevant providers?" hint that names the fix.
-  console.error("❌ compile: setup app FAILED to assemble");
-  console.error(error instanceof Error ? error.message : String(error));
-  if (error instanceof Error && error.stack !== undefined) {
-    console.error(error.stack);
-  }
-  process.exit(1);
-});
+    // A non-zero exit is the whole signal. The message is printed plainly because
+    // Nest's own boot errors are already descriptive — wrapping them would hide
+    // the "Is X part of the relevant providers?" hint that names the fix.
+    console.error('❌ compile: setup app FAILED to assemble')
+    console.error(error instanceof Error ? error.message : String(error))
+    if (error instanceof Error && error.stack !== undefined) {
+        console.error(error.stack)
+    }
+    process.exit(1)
+})

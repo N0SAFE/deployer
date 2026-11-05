@@ -1,7 +1,7 @@
-import path from "node:path";
-import { createServiceTestConfig } from "@deployer/config-vitest/service";
+import path from 'node:path'
+import { createServiceTestConfig } from '@deployer/config-vitest/service'
 
-const sharedSrc = path.resolve(import.meta.dirname, "../shared/src");
+const sharedSrc = path.resolve(import.meta.dirname, '../shared/src')
 
 /**
  * The BFF's test config. Everything shared — the SWC decorator transform, the unit/e2e
@@ -16,11 +16,11 @@ const sharedSrc = path.resolve(import.meta.dirname, "../shared/src");
  * (all of the e2e) failed at import. They mirror the tsconfig entries one for one.
  */
 export default createServiceTestConfig({
-  service: "bff",
-  extraAliases: [
-    { find: /^@\/auth$/, replacement: path.join(sharedSrc, "auth.ts") },
-    { find: /^@\/config\//, replacement: `${sharedSrc}/config/` },
-    { find: /^@\/core\//, replacement: `${sharedSrc}/core/` },
-    { find: /^@\/e2e-harness\//, replacement: `${sharedSrc}/e2e-harness/` },
-  ],
-});
+    service: 'bff',
+    extraAliases: [
+        { find: /^@\/auth$/, replacement: path.join(sharedSrc, 'auth.ts') },
+        { find: /^@\/config\//, replacement: `${sharedSrc}/config/` },
+        { find: /^@\/core\//, replacement: `${sharedSrc}/core/` },
+        { find: /^@\/e2e-harness\//, replacement: `${sharedSrc}/e2e-harness/` },
+    ],
+})

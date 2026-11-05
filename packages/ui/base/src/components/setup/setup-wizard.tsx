@@ -1,475 +1,560 @@
-"use client"
+'use client'
 
-import { QueryClientProvider } from "@tanstack/react-query"
-import { Boxes } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { toast } from "sonner"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { Boxes } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
-import type { SetupStreamEvent } from "@deployer/contracts-entities"
-import { setupQueryClient } from "@deployer/ui/components/setup/query-client"
-import { markSetupComplete } from "@deployer/ui/components/setup/setup-storage"
-import { StepIndicator } from "@deployer/ui/components/setup/step-indicator"
-import { ClusterStep } from "@deployer/ui/components/setup/steps/cluster-step"
-import { JoinClusterStep } from "@deployer/ui/components/setup/steps/join-cluster-step"
-import { LocalAccountStep } from "@deployer/ui/components/setup/steps/local-account-step"
-import { LocalDatabaseStep } from "@deployer/ui/components/setup/steps/local-database-step"
-import { MeshStep } from "@deployer/ui/components/setup/steps/mesh-step"
-import { ModeStep } from "@deployer/ui/components/setup/steps/mode-step"
-import { ProgressStep, type ProgressStepContext } from "@deployer/ui/components/setup/steps/progress-step"
-import { RemoteTokenStep } from "@deployer/ui/components/setup/steps/remote-token-step"
+import type { SetupStreamEvent } from '@deployer/contracts-entities'
+import { setupQueryClient } from '@deployer/ui/components/setup/query-client'
+import { markSetupComplete } from '@deployer/ui/components/setup/setup-storage'
+import { StepIndicator } from '@deployer/ui/components/setup/step-indicator'
+import { ClusterStep } from '@deployer/ui/components/setup/steps/cluster-step'
+import { JoinClusterStep } from '@deployer/ui/components/setup/steps/join-cluster-step'
+import { LocalAccountStep } from '@deployer/ui/components/setup/steps/local-account-step'
+import { LocalDatabaseStep } from '@deployer/ui/components/setup/steps/local-database-step'
+import { MeshStep } from '@deployer/ui/components/setup/steps/mesh-step'
+import { ModeStep } from '@deployer/ui/components/setup/steps/mode-step'
 import {
-  foundingDraftToSelection,
-  joinDraftToSelection,
-  type SwarmParticipationDraft,
-} from "@deployer/ui/components/setup/swarm-participation-form"
-import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
-import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert"
-import { Button } from "@deployer/ui/components/shadcn/button"
-import ModeToggle from "@deployer/ui/components/shadcn/mode-toggle"
-import { cn } from "@deployer/ui/lib/utils"
+    ProgressStep,
+    type ProgressStepContext,
+} from '@deployer/ui/components/setup/steps/progress-step'
+import { RemoteTokenStep } from '@deployer/ui/components/setup/steps/remote-token-step'
+import {
+    foundingDraftToSelection,
+    joinDraftToSelection,
+    type SwarmParticipationDraft,
+} from '@deployer/ui/components/setup/swarm-participation-form'
+import type { SetupWizardApi } from '@deployer/ui/components/setup/types'
+import { Alert, AlertDescription } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
+import { cn } from '@deployer/ui/lib/utils'
 
 type WizardStep =
-  | "mode"
-  | "remote-token"
-  | "join-cluster"
-  | "remote-progress"
-  | "cluster"
-  | "local-account"
-  | "local-database"
-  | "local-progress"
-  | "complete"
+    | 'mode'
+    | 'remote-token'
+    | 'join-cluster'
+    | 'remote-progress'
+    | 'cluster'
+    | 'local-account'
+    | 'local-database'
+    | 'local-progress'
+    | 'complete'
 
 interface WizardState {
-  step: WizardStep
-  mode: "local" | "remote" | null
-  remote: {
-    /** The join token issued on a node of the fleet. */
-    token: string
-  }
-  local: {
-    username: string
-    email: string
-    password: string
-    dbMode: "managed" | "existing"
-    dbUrl: string
-  }
-  swarm: SwarmParticipationDraft
-  /**
-   * Whether the platform runs its OWN dashboard (the managed web app) or serves
-   * the API alone. `null` until the operator answers, so an unanswered choice is
-   * never sent as an invented default.
-   */
-  managedWeb: "managed" | "api-only" | null
-  recovery: boolean // true when we auto-navigated from existing stream events
+    step: WizardStep
+    mode: 'local' | 'remote' | null
+    remote: {
+        /** The join token issued on a node of the fleet. */
+        token: string
+    }
+    local: {
+        username: string
+        email: string
+        password: string
+        dbMode: 'managed' | 'existing'
+        dbUrl: string
+    }
+    swarm: SwarmParticipationDraft
+    /**
+     * Whether the platform runs its OWN dashboard (the managed web app) or serves
+     * the API alone. `null` until the operator answers, so an unanswered choice is
+     * never sent as an invented default.
+     */
+    managedWeb: 'managed' | 'api-only' | null
+    recovery: boolean // true when we auto-navigated from existing stream events
 }
 
 const initialState: WizardState = {
-  step: "mode",
-  mode: null,
-  remote: { token: "" },
-  local: { username: "", email: "", password: "", dbMode: "managed", dbUrl: "" },
-  // Swarm is always on: a founding node starts a cluster, so `create` is the
-  // default entry mode (the mode itself is implied per wizard branch).
-  swarm: { mode: "create", policy: "auto", advertiseAddr: "", joinToken: "", joinAddrs: "" },
-  // Pre-selected to `managed` because the platform ships its own dashboard and
-  // most operators want it; the choice is explicit and changeable rather than a
-  // hidden env default, which is what it was before.
-  managedWeb: "managed",
-  recovery: false,
+    step: 'mode',
+    mode: null,
+    remote: { token: '' },
+    local: {
+        username: '',
+        email: '',
+        password: '',
+        dbMode: 'managed',
+        dbUrl: '',
+    },
+    // Swarm is always on: a founding node starts a cluster, so `create` is the
+    // default entry mode (the mode itself is implied per wizard branch).
+    swarm: {
+        mode: 'create',
+        policy: 'auto',
+        advertiseAddr: '',
+        joinToken: '',
+        joinAddrs: '',
+    },
+    // Pre-selected to `managed` because the platform ships its own dashboard and
+    // most operators want it; the choice is explicit and changeable rather than a
+    // hidden env default, which is what it was before.
+    managedWeb: 'managed',
+    recovery: false,
 }
 
-const remoteLabels = ["Mode", "Join token", "Cluster", "Setup", "Done"]
-const localLabels = ["Mode", "Cluster", "Database", "Account", "Setup", "Done"]
-const defaultLabels = ["Mode", "Configure", "Verify", "Setup", "Done"]
+const remoteLabels = ['Mode', 'Join token', 'Cluster', 'Setup', 'Done']
+const localLabels = ['Mode', 'Cluster', 'Database', 'Account', 'Setup', 'Done']
+const defaultLabels = ['Mode', 'Configure', 'Verify', 'Setup', 'Done']
 
 export interface SetupWizardProps {
-  /**
-   * Host-supplied data access. The API and the web app reach the platform
-   * through different ORPC clients, so the shared wizard receives behaviour
-   * instead of importing a client — that is what makes one implementation
-   * serve both apps.
-   */
-  api: SetupWizardApi
+    /**
+     * Host-supplied data access. The API and the web app reach the platform
+     * through different ORPC clients, so the shared wizard receives behaviour
+     * instead of importing a client — that is what makes one implementation
+     * serve both apps.
+     */
+    api: SetupWizardApi
 }
 
 export function SetupWizard({ api }: SetupWizardProps) {
-  // Own the React Query context HERE rather than relying on an ancestor: the
-  // wizard is mounted from several SSR entry paths, and a missing (or
-  // duplicated) provider is fatal at render time — "No QueryClient set, use
-  // QueryClientProvider" is exactly how this page failed. Owning it makes the
-  // wizard self-contained regardless of how the host composes providers.
-  return (
-    <QueryClientProvider client={setupQueryClient}>
-      <SetupWizardContent api={api} />
-    </QueryClientProvider>
-  )
+    // Own the React Query context HERE rather than relying on an ancestor: the
+    // wizard is mounted from several SSR entry paths, and a missing (or
+    // duplicated) provider is fatal at render time — "No QueryClient set, use
+    // QueryClientProvider" is exactly how this page failed. Owning it makes the
+    // wizard self-contained regardless of how the host composes providers.
+    return (
+        <QueryClientProvider client={setupQueryClient}>
+            <SetupWizardContent api={api} />
+        </QueryClientProvider>
+    )
 }
 
 function SetupWizardContent({ api }: SetupWizardProps) {
-  const { useSetupState, useTriggerInitialize, useInitializeStream, getErrorMessage, apiBaseUrl, signInWithEmail, postSetupRedirectUrl } = api
-  const [state, setState] = useState<WizardState>(initialState)
-  const { data: setupState } = useSetupState()
+    const {
+        useSetupState,
+        useTriggerInitialize,
+        useInitializeStream,
+        getErrorMessage,
+        apiBaseUrl,
+        signInWithEmail,
+        postSetupRedirectUrl,
+    } = api
+    const [state, setState] = useState<WizardState>(initialState)
+    const { data: setupState } = useSetupState()
 
-  // ── Stream enable ────────────────────────────────────────────────
-  // A reload while the server is mid-provision must subscribe too, or the
-  // progress view would sit empty on an init this client never started.
-  const [streamRequested, setStreamRequested] = useState(false)
-  const streamEnabled = streamRequested || setupState?.state === "provisioning"
+    // ── Stream enable ────────────────────────────────────────────────
+    // A reload while the server is mid-provision must subscribe too, or the
+    // progress view would sit empty on an init this client never started.
+    const [streamRequested, setStreamRequested] = useState(false)
+    const streamEnabled =
+        streamRequested || setupState?.state === 'provisioning'
 
-  // ── Trigger initialization (POST) ──────────────────────────────────────────
-  const triggerInit = useTriggerInitialize()
+    // ── Trigger initialization (POST) ──────────────────────────────────────────
+    const triggerInit = useTriggerInitialize()
 
-  // ── Stream initialization events via TanStack Query (observable) ───────────
-  // Only enabled when we know init is actually happening (server state or trigger).
-  // This avoids stale cached events from a previous session.
-  const initializeStream = useInitializeStream({ enabled: streamEnabled })
-  // Memoised so `events` keeps its identity between renders: it is a dependency
-  // of the completion effect below, and a fresh `[]` on every render would make
-  // that effect re-run forever.
-  const events: SetupStreamEvent[] = useMemo(
-    () => initializeStream.data ?? [],
-    [initializeStream.data],
-  )
+    // ── Stream initialization events via TanStack Query (observable) ───────────
+    // Only enabled when we know init is actually happening (server state or trigger).
+    // This avoids stale cached events from a previous session.
+    const initializeStream = useInitializeStream({ enabled: streamEnabled })
+    // Memoised so `events` keeps its identity between renders: it is a dependency
+    // of the completion effect below, and a fresh `[]` on every render would make
+    // that effect re-run forever.
+    const events: SetupStreamEvent[] = useMemo(
+        () => initializeStream.data ?? [],
+        [initializeStream.data]
+    )
 
-  // ── Recovery: adopt an init the server is already running ──
-  // Adjusted during render rather than from an effect — React's documented
-  // pattern for state derived from incoming data. An effect would first commit
-  // the un-recovered step, flashing the configuration form for a frame before
-  // the progress view replaced it.
-  const [recoveryAdopted, setRecoveryAdopted] = useState(false)
-  if (!recoveryAdopted && setupState?.state === "provisioning") {
-    setRecoveryAdopted(true)
-    // Narrow to the two strategies the wizard models; anything else is treated
-    // as the local flow (the only alternative the bootstrap supports).
-    const strategy: "local" | "remote" =
-      setupState.bootstrapStrategy === "remote" ? "remote" : "local"
-    setState((prev) => ({
-      ...prev,
-      step: "local-progress",
-      mode: strategy,
-      recovery: true,
-    }))
-  }
+    // ── Recovery: adopt an init the server is already running ──
+    // Adjusted during render rather than from an effect — React's documented
+    // pattern for state derived from incoming data. An effect would first commit
+    // the un-recovered step, flashing the configuration form for a frame before
+    // the progress view replaced it.
+    const [recoveryAdopted, setRecoveryAdopted] = useState(false)
+    if (!recoveryAdopted && setupState?.state === 'provisioning') {
+        setRecoveryAdopted(true)
+        // Narrow to the two strategies the wizard models; anything else is treated
+        // as the local flow (the only alternative the bootstrap supports).
+        const strategy: 'local' | 'remote' =
+            setupState.bootstrapStrategy === 'remote' ? 'remote' : 'local'
+        setState((prev) => ({
+            ...prev,
+            step: 'local-progress',
+            mode: strategy,
+            recovery: true,
+        }))
+    }
 
-  // Announce completion once. `announced` guards the toast because the stream
-  // can push more events after `completed`, which re-runs this effect.
-  const announced = useRef(false)
-  useEffect(() => {
-    if (announced.current) return
-    if (state.step !== "local-progress" && state.step !== "remote-progress") return
-    if (!events.some((e) => e.type === "completed")) return
-    announced.current = true
-    toast.success("Initial setup completed successfully")
-    markSetupComplete()
-  }, [events, state.step])
+    // Announce completion once. `announced` guards the toast because the stream
+    // can push more events after `completed`, which re-runs this effect.
+    const announced = useRef(false)
+    useEffect(() => {
+        if (announced.current) return
+        if (state.step !== 'local-progress' && state.step !== 'remote-progress')
+            return
+        if (!events.some((e) => e.type === 'completed')) return
+        announced.current = true
+        toast.success('Initial setup completed successfully')
+        markSetupComplete()
+    }, [events, state.step])
 
-  const labels = state.mode === "remote" ? remoteLabels : state.mode === "local" ? localLabels : defaultLabels
-  const { current, total } = useMemo(() => getStepIndex(state), [state])
+    const labels =
+        state.mode === 'remote'
+            ? remoteLabels
+            : state.mode === 'local'
+              ? localLabels
+              : defaultLabels
+    const { current, total } = useMemo(() => getStepIndex(state), [state])
 
-  // The mesh card is SETUP-ONLY: a host without the node door (the dashboard's
-  // wizard) has no agent to ask, so the section simply does not render there.
-  const meshApi =
-    api.useMeshStatus && api.joinMesh && api.issueMeshToken
-      ? { useMeshStatus: api.useMeshStatus, joinMesh: api.joinMesh, issueMeshToken: api.issueMeshToken }
-      : null
+    // The mesh card is SETUP-ONLY: a host without the node door (the dashboard's
+    // wizard) has no agent to ask, so the section simply does not render there.
+    const meshApi =
+        api.useMeshStatus && api.joinMesh && api.issueMeshToken
+            ? {
+                  useMeshStatus: api.useMeshStatus,
+                  joinMesh: api.joinMesh,
+                  issueMeshToken: api.issueMeshToken,
+              }
+            : null
 
-  const handleModeContinue = useCallback((mode: "local" | "remote") => {
-    setState((s) => ({
-      ...s,
-      mode,
-      step: mode === "remote" ? "remote-token" : "cluster",
-    }))
-  }, [])
+    const handleModeContinue = useCallback((mode: 'local' | 'remote') => {
+        setState((s) => ({
+            ...s,
+            mode,
+            step: mode === 'remote' ? 'remote-token' : 'cluster',
+        }))
+    }, [])
 
-  const handleClusterContinue = useCallback((draft: SwarmParticipationDraft) => {
-    setState((s) => ({
-      ...s,
-      step: "local-database",
-      swarm: draft,
-    }))
-  }, [])
+    const handleClusterContinue = useCallback(
+        (draft: SwarmParticipationDraft) => {
+            setState((s) => ({
+                ...s,
+                step: 'local-database',
+                swarm: draft,
+            }))
+        },
+        []
+    )
 
-  // The token is in hand → ask which ROLE this node takes in the cluster before
-  // starting (the join itself is triggered from that step).
-  const handleRemoteToken = useCallback((data: { token: string }) => {
-    setState((s) => ({
-      ...s,
-      step: "join-cluster",
-      remote: { token: data.token },
-    }))
-  }, [])
+    // The token is in hand → ask which ROLE this node takes in the cluster before
+    // starting (the join itself is triggered from that step).
+    const handleRemoteToken = useCallback((data: { token: string }) => {
+        setState((s) => ({
+            ...s,
+            step: 'join-cluster',
+            remote: { token: data.token },
+        }))
+    }, [])
 
-  const handleJoinClusterContinue = useCallback(
-    (draft: SwarmParticipationDraft) => {
-      setState((s) => ({
-        ...s,
-        step: "remote-progress",
-        swarm: draft,
-      }))
-      setStreamRequested(true)
-      const { token } = state.remote
-      if (token) {
-        triggerInit.mutate({
-          strategy: "remote",
-          token,
-          serverUrl: apiBaseUrl(),
-          swarm: joinDraftToSelection(draft),
-          ...(state.managedWeb === null ? {} : { managedWeb: state.managedWeb }),
-        })
-      }
-    },
-    [state.remote, state.managedWeb, triggerInit, apiBaseUrl],
-  )
+    const handleJoinClusterContinue = useCallback(
+        (draft: SwarmParticipationDraft) => {
+            setState((s) => ({
+                ...s,
+                step: 'remote-progress',
+                swarm: draft,
+            }))
+            setStreamRequested(true)
+            const { token } = state.remote
+            if (token) {
+                triggerInit.mutate({
+                    strategy: 'remote',
+                    token,
+                    serverUrl: apiBaseUrl(),
+                    swarm: joinDraftToSelection(draft),
+                    ...(state.managedWeb === null
+                        ? {}
+                        : { managedWeb: state.managedWeb }),
+                })
+            }
+        },
+        [state.remote, state.managedWeb, triggerInit, apiBaseUrl]
+    )
 
-  const handleLocalAccountContinue = useCallback(
-    (data: { username: string; email: string; password: string }) => {
-      const merged = { ...state.local, ...data }
-      setState((s) => ({
-        ...s,
-        step: "local-progress",
-        local: merged,
-      }))
-      setStreamRequested(true)
-      triggerInit.mutate({
-        strategy: "local",
-        name: merged.username,
-        email: merged.email,
-        password: merged.password,
-        serverUrl: apiBaseUrl(),
-        existingDatabaseUrl: merged.dbMode === "existing" ? merged.dbUrl : undefined,
-        // This branch FOUNDS the cluster, so the swarm selection is a
-        // founding one (mode is implied: this node starts the swarm).
-        swarm: foundingDraftToSelection(state.swarm),
-        // The dashboard decision, forwarded to the API as its
-        // `MANAGED_WEB_APP_ENABLED` seed so it applies to THIS fresh instance.
-        ...(state.managedWeb === null ? {} : { managedWeb: state.managedWeb }),
-      })
-    },
-    [state.local, state.swarm, state.managedWeb, triggerInit, apiBaseUrl],
-  )
+    const handleLocalAccountContinue = useCallback(
+        (data: { username: string; email: string; password: string }) => {
+            const merged = { ...state.local, ...data }
+            setState((s) => ({
+                ...s,
+                step: 'local-progress',
+                local: merged,
+            }))
+            setStreamRequested(true)
+            triggerInit.mutate({
+                strategy: 'local',
+                name: merged.username,
+                email: merged.email,
+                password: merged.password,
+                serverUrl: apiBaseUrl(),
+                existingDatabaseUrl:
+                    merged.dbMode === 'existing' ? merged.dbUrl : undefined,
+                // This branch FOUNDS the cluster, so the swarm selection is a
+                // founding one (mode is implied: this node starts the swarm).
+                swarm: foundingDraftToSelection(state.swarm),
+                // The dashboard decision, forwarded to the API as its
+                // `MANAGED_WEB_APP_ENABLED` seed so it applies to THIS fresh instance.
+                ...(state.managedWeb === null
+                    ? {}
+                    : { managedWeb: state.managedWeb }),
+            })
+        },
+        [state.local, state.swarm, state.managedWeb, triggerInit, apiBaseUrl]
+    )
 
-  const handleLocalDatabaseContinue = useCallback(
-    (data: {
-      dbMode: "managed" | "existing"
-      dbUrl: string
-      managedWeb: "managed" | "api-only"
-    }) => {
-      setState((s) => ({
-        ...s,
-        step: "local-account",
-        local: { ...s.local, dbMode: data.dbMode, dbUrl: data.dbUrl },
-        managedWeb: data.managedWeb,
-      }))
-    },
-    [],
-  )
+    const handleLocalDatabaseContinue = useCallback(
+        (data: {
+            dbMode: 'managed' | 'existing'
+            dbUrl: string
+            managedWeb: 'managed' | 'api-only'
+        }) => {
+            setState((s) => ({
+                ...s,
+                step: 'local-account',
+                local: { ...s.local, dbMode: data.dbMode, dbUrl: data.dbUrl },
+                managedWeb: data.managedWeb,
+            }))
+        },
+        []
+    )
 
-  const handleReset = useCallback(() => {
-    setState({ ...initialState })
-    setStreamRequested(false)
-    // Allow recovery adoption to run again — the operator explicitly asked to
-    // start over, so an in-flight server init should be re-adopted.
-    setRecoveryAdopted(false)
-    triggerInit.reset()
-  }, [triggerInit])
+    const handleReset = useCallback(() => {
+        setState({ ...initialState })
+        setStreamRequested(false)
+        // Allow recovery adoption to run again — the operator explicitly asked to
+        // start over, so an in-flight server init should be re-adopted.
+        setRecoveryAdopted(false)
+        triggerInit.reset()
+    }, [triggerInit])
 
-  const error = triggerInit.error ?? initializeStream.error
+    const error = triggerInit.error ?? initializeStream.error
 
-  // While the run streams, the page is a fixed-height column: header and step
-  // indicator keep their size, the card takes the rest, and ONLY the step list
-  // inside it scrolls. Every ancestor is a flex column with `min-h-0` — one
-  // missing link and the page itself grows a scrollbar instead.
-  const inProgress = state.step === "local-progress" || state.step === "remote-progress"
+    // While the run streams, the page is a fixed-height column: header and step
+    // indicator keep their size, the card takes the rest, and ONLY the step list
+    // inside it scrolls. Every ancestor is a flex column with `min-h-0` — one
+    // missing link and the page itself grows a scrollbar instead.
+    const inProgress =
+        state.step === 'local-progress' || state.step === 'remote-progress'
 
-  return (
-    <div className={cn("flex min-h-0 flex-col gap-8", inProgress ? "h-full" : "max-h-full")}>
-      <header className="flex shrink-0 items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-background">
-            <Boxes className="h-4 w-4" aria-hidden="true" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Mesh node
-            </span>
-            <span className="text-sm font-semibold leading-tight">First-time setup</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Light/dark picker. Reuses the platform's shared ModeToggle so the
+    return (
+        <div
+            className={cn(
+                'flex min-h-0 flex-col gap-8',
+                inProgress ? 'h-full' : 'max-h-full'
+            )}
+        >
+            <header className="flex shrink-0 items-center justify-between gap-4">
+                <div className="flex items-center gap-2.5">
+                    <div className="bg-foreground text-background flex h-8 w-8 items-center justify-center rounded-md">
+                        <Boxes className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+                            Mesh node
+                        </span>
+                        <span className="text-sm leading-tight font-semibold">
+                            First-time setup
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    {/* Light/dark picker. Reuses the platform's shared ModeToggle so the
               wizard and the app expose exactly the same control. The default
               comes from the ThemeProvider (next-themes `system`), so a fresh
               install follows the OS preference until the operator chooses. */}
-          <ModeToggle />
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">v1.0.0</span>
-        </div>
-      </header>
+                    <ModeToggle />
+                    <span className="text-muted-foreground font-mono text-[10px] tracking-widest uppercase">
+                        v1.0.0
+                    </span>
+                </div>
+            </header>
 
-      <div className="shrink-0">
-        <StepIndicator current={current} total={total} labels={labels} />
-      </div>
+            <div className="shrink-0">
+                <StepIndicator
+                    current={current}
+                    total={total}
+                    labels={labels}
+                />
+            </div>
 
-      <div
-        className={cn(
-          "flex min-h-0 flex-col rounded-xl border border-border bg-card p-6 md:p-8 shadow-sm",
-          inProgress ? "flex-1 overflow-hidden" : "overflow-y-auto",
-        )}
-      >
-        {state.step === "mode" ? (
-          <>
-            <ModeStep initialMode={state.mode} onContinue={handleModeContinue} />
-            {/* An EXPANDABLE section rather than a step: joining a swarm is
+            <div
+                className={cn(
+                    'border-border bg-card flex min-h-0 flex-col rounded-xl border p-6 shadow-sm md:p-8',
+                    inProgress ? 'flex-1 overflow-hidden' : 'overflow-y-auto'
+                )}
+            >
+                {state.step === 'mode' ? (
+                    <>
+                        <ModeStep
+                            initialMode={state.mode}
+                            onContinue={handleModeContinue}
+                        />
+                        {/* An EXPANDABLE section rather than a step: joining a swarm is
                 optional — a standalone node is a legitimate install — and a
                 step would force every operator through it and shift the
                 indicator on both branches. */}
-            {meshApi ? (
-              <details className="mt-7 border-t border-border/60 pt-5">
-                <summary className="cursor-pointer text-sm text-muted-foreground transition-colors hover:text-foreground">
-                  Mesh network — view this node&apos;s mesh state or join a swarm
-                </summary>
-                <div className="mt-4">
-                  <MeshStep api={meshApi} />
-                </div>
-              </details>
-            ) : null}
-          </>
-        ) : null}
+                        {meshApi ? (
+                            <details className="border-border/60 mt-7 border-t pt-5">
+                                <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm transition-colors">
+                                    Mesh network — view this node&apos;s mesh
+                                    state or join a swarm
+                                </summary>
+                                <div className="mt-4">
+                                    <MeshStep api={meshApi} />
+                                </div>
+                            </details>
+                        ) : null}
+                    </>
+                ) : null}
 
-        {state.step === "remote-token" ? (
-          <RemoteTokenStep
-            initialToken={state.remote.token}
-            onBack={() => {
-              setState((s) => ({ ...s, step: "mode" }))
-            }}
-            onContinue={handleRemoteToken}
-          />
-        ) : null}
+                {state.step === 'remote-token' ? (
+                    <RemoteTokenStep
+                        initialToken={state.remote.token}
+                        onBack={() => {
+                            setState((s) => ({ ...s, step: 'mode' }))
+                        }}
+                        onContinue={handleRemoteToken}
+                    />
+                ) : null}
 
-        {state.step === "join-cluster" ? (
-          <JoinClusterStep
-            initial={state.swarm}
-            onBack={() => {
-              setState((s) => ({ ...s, step: "remote-token" }))
-            }}
-            onContinue={handleJoinClusterContinue}
-          />
-        ) : null}
+                {state.step === 'join-cluster' ? (
+                    <JoinClusterStep
+                        initial={state.swarm}
+                        onBack={() => {
+                            setState((s) => ({ ...s, step: 'remote-token' }))
+                        }}
+                        onContinue={handleJoinClusterContinue}
+                    />
+                ) : null}
 
-        {state.step === "remote-progress" ? (
-          <>
-            <ProgressStep
-              api={api}
-              events={events}
-              reconnecting={initializeStream.reconnecting}
-              context={{ mode: "remote" } satisfies ProgressStepContext}
-            />
-            {error ? (
-              <Alert variant="destructive" className="mt-4">
-                <AlertDescription className="flex items-center justify-between gap-2">
-                  <span>{getErrorMessage(error)}</span>
-                  <Button variant="outline" size="sm" onClick={handleReset}>
-                    Retry
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </>
-        ) : null}
+                {state.step === 'remote-progress' ? (
+                    <>
+                        <ProgressStep
+                            api={api}
+                            events={events}
+                            reconnecting={initializeStream.reconnecting}
+                            context={
+                                { mode: 'remote' } satisfies ProgressStepContext
+                            }
+                        />
+                        {error ? (
+                            <Alert variant="destructive" className="mt-4">
+                                <AlertDescription className="flex items-center justify-between gap-2">
+                                    <span>{getErrorMessage(error)}</span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleReset}
+                                    >
+                                        Retry
+                                    </Button>
+                                </AlertDescription>
+                            </Alert>
+                        ) : null}
+                    </>
+                ) : null}
 
-        {state.step === "local-account" ? (
-          <LocalAccountStep
-            initial={{
-              username: state.local.username,
-              email: state.local.email,
-              password: state.local.password,
-            }}
-            onBack={() => {
-              setState((s) => ({ ...s, step: "local-database" }))
-            }}
-            onContinue={handleLocalAccountContinue}
-          />
-        ) : null}
-        {state.step === "cluster" ? (
-          <ClusterStep
-            initial={state.swarm}
-            onBack={() => {
-              setState((s) => ({ ...s, step: "mode" }))
-            }}
-            onContinue={handleClusterContinue}
-          />
-        ) : null}
-        {state.step === "local-database" ? (
-          <LocalDatabaseStep
-            api={api}
-            initial={{ dbMode: state.local.dbMode, dbUrl: state.local.dbUrl }}
-            initialManagedWeb={state.managedWeb}
-            onBack={() => {
-              setState((s) => ({ ...s, step: "cluster" }))
-            }}
-            onContinue={handleLocalDatabaseContinue}
-          />
-        ) : null}
+                {state.step === 'local-account' ? (
+                    <LocalAccountStep
+                        initial={{
+                            username: state.local.username,
+                            email: state.local.email,
+                            password: state.local.password,
+                        }}
+                        onBack={() => {
+                            setState((s) => ({ ...s, step: 'local-database' }))
+                        }}
+                        onContinue={handleLocalAccountContinue}
+                    />
+                ) : null}
+                {state.step === 'cluster' ? (
+                    <ClusterStep
+                        initial={state.swarm}
+                        onBack={() => {
+                            setState((s) => ({ ...s, step: 'mode' }))
+                        }}
+                        onContinue={handleClusterContinue}
+                    />
+                ) : null}
+                {state.step === 'local-database' ? (
+                    <LocalDatabaseStep
+                        api={api}
+                        initial={{
+                            dbMode: state.local.dbMode,
+                            dbUrl: state.local.dbUrl,
+                        }}
+                        initialManagedWeb={state.managedWeb}
+                        onBack={() => {
+                            setState((s) => ({ ...s, step: 'cluster' }))
+                        }}
+                        onContinue={handleLocalDatabaseContinue}
+                    />
+                ) : null}
 
-        {state.step === "local-progress" ? (
-          <>
-            <ProgressStep
-              api={api}
-              events={events}
-              reconnecting={initializeStream.reconnecting}
-              context={{
-                mode: "local",
-                username: state.local.username,
-                email: state.local.email,
-                password: state.local.password,
-                dbMode: state.local.dbMode,
-                dbUrl: state.local.dbUrl,
-                recovery: state.recovery,
-              } satisfies ProgressStepContext}
-            />
-            {error ? (
-              <Alert variant="destructive" className="mt-4">
-                <AlertDescription className="flex items-center justify-between gap-2">
-                  <span>{getErrorMessage(error)}</span>
-                  <Button variant="outline" size="sm" onClick={handleReset}>
-                    Retry
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-          </>
-        ) : null}
-      </div>
+                {state.step === 'local-progress' ? (
+                    <>
+                        <ProgressStep
+                            api={api}
+                            events={events}
+                            reconnecting={initializeStream.reconnecting}
+                            context={
+                                {
+                                    mode: 'local',
+                                    username: state.local.username,
+                                    email: state.local.email,
+                                    password: state.local.password,
+                                    dbMode: state.local.dbMode,
+                                    dbUrl: state.local.dbUrl,
+                                    recovery: state.recovery,
+                                } satisfies ProgressStepContext
+                            }
+                        />
+                        {error ? (
+                            <Alert variant="destructive" className="mt-4">
+                                <AlertDescription className="flex items-center justify-between gap-2">
+                                    <span>{getErrorMessage(error)}</span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleReset}
+                                    >
+                                        Retry
+                                    </Button>
+                                </AlertDescription>
+                            </Alert>
+                        ) : null}
+                    </>
+                ) : null}
+            </div>
 
-      <footer className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Node identity persists to the local SQLite registry on this machine.</span>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="hover:text-foreground transition-colors"
-        >
-          Start over
-        </button>
-      </footer>
-    </div>
-  )
+            <footer className="text-muted-foreground flex items-center justify-between text-xs">
+                <span>
+                    Node identity persists to the local SQLite registry on this
+                    machine.
+                </span>
+                <button
+                    type="button"
+                    onClick={handleReset}
+                    className="hover:text-foreground transition-colors"
+                >
+                    Start over
+                </button>
+            </footer>
+        </div>
+    )
 }
 
 function getStepIndex(state: WizardState): { current: number; total: number } {
-  if (state.mode === "remote") {
-    const order: WizardStep[] = [
-      "mode",
-      "remote-token",
-      "join-cluster",
-      "remote-progress",
-      "complete",
-    ]
-    const idx = order.indexOf(state.step)
-    return { current: idx === -1 ? 0 : idx, total: order.length }
-  }
-  if (state.mode === "local") {
-    const order: WizardStep[] = ["mode", "cluster", "local-database", "local-account", "local-progress", "complete"]
-    const idx = order.indexOf(state.step)
-    return { current: idx === -1 ? 0 : idx, total: order.length }
-  }
-  return { current: 0, total: 5 }
+    if (state.mode === 'remote') {
+        const order: WizardStep[] = [
+            'mode',
+            'remote-token',
+            'join-cluster',
+            'remote-progress',
+            'complete',
+        ]
+        const idx = order.indexOf(state.step)
+        return { current: idx === -1 ? 0 : idx, total: order.length }
+    }
+    if (state.mode === 'local') {
+        const order: WizardStep[] = [
+            'mode',
+            'cluster',
+            'local-database',
+            'local-account',
+            'local-progress',
+            'complete',
+        ]
+        const idx = order.indexOf(state.step)
+        return { current: idx === -1 ? 0 : idx, total: order.length }
+    }
+    return { current: 0, total: 5 }
 }

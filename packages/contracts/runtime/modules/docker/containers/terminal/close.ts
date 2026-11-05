@@ -1,19 +1,20 @@
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 import {
-  dockerContainerTerminalCloseBodySchema,
-  dockerContainerTerminalMutationAckSchema,
-} from "../shared";
+    dockerContainerTerminalCloseBodySchema,
+    dockerContainerTerminalMutationAckSchema,
+} from '../shared'
 
 const dockerContainerTerminalCloseOps = standard.zod(
-  dockerContainerTerminalMutationAckSchema,
-  "dockerContainerTerminalClose",
-);
+    dockerContainerTerminalMutationAckSchema,
+    'dockerContainerTerminalClose'
+)
 
-export const dockerContainerTerminalCloseContract = dockerContainerTerminalCloseOps
-  .create()
-  .path("/close")
-  .input((b) => b.body(dockerContainerTerminalCloseBodySchema))
-  .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+export const dockerContainerTerminalCloseContract =
+    dockerContainerTerminalCloseOps
+        .create()
+        .path('/close')
+        .input((b) => b.body(dockerContainerTerminalCloseBodySchema))
+        .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()

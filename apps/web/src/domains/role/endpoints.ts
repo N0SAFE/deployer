@@ -7,5 +7,5 @@ import { orpc } from '@/lib/orpc'
  * second copy of the role list in the browser.
  */
 export const roleEndpoints = {
-  list: orpc.role.list,
+    list: orpc.role.list,
 } as const

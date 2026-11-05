@@ -25,31 +25,31 @@
  */
 
 import {
-	clusterContract,
-	meshContract,
-	nodesContract,
-	platformContract,
-	providerSchemaContract,
-	providersContract,
-	reachabilityContract,
-} from "@deployer/fleet-contracts";
-import { healthContract } from "@deployer/health-contracts";
+    clusterContract,
+    meshContract,
+    nodesContract,
+    platformContract,
+    providerSchemaContract,
+    providersContract,
+    reachabilityContract,
+} from '@deployer/fleet-contracts'
+import { healthContract } from '@deployer/health-contracts'
 import {
-	analyticsContract,
-	approvalContract,
-	auditContract,
-	pushContract,
-	roleContract,
-	stepUpContract,
-	userContract,
-} from "@deployer/identity-contracts";
+    analyticsContract,
+    approvalContract,
+    auditContract,
+    pushContract,
+    roleContract,
+    stepUpContract,
+    userContract,
+} from '@deployer/identity-contracts'
 import {
-	domainContract,
-	projectContract,
-	serviceContract,
-	servicePreviewTopologyContract,
-} from "@deployer/project-contracts";
-import { deploymentContract, dockerContract } from "@deployer/runtime-contracts";
+    domainContract,
+    projectContract,
+    serviceContract,
+    servicePreviewTopologyContract,
+} from '@deployer/project-contracts'
+import { deploymentContract, dockerContract } from '@deployer/runtime-contracts'
 
 /**
  * The SERVICE namespaces the API surface carries, in one place.
@@ -76,36 +76,36 @@ import { deploymentContract, dockerContract } from "@deployer/runtime-contracts"
  * carries the resource surface, that carries the screen surface.
  */
 export function serviceSurface() {
-	return {
-		// identity
-		user: userContract,
-		push: pushContract,
-		analytics: analyticsContract,
-		approval: approvalContract,
-		audit: auditContract,
-		role: roleContract,
-		stepUp: stepUpContract,
+    return {
+        // identity
+        user: userContract,
+        push: pushContract,
+        analytics: analyticsContract,
+        approval: approvalContract,
+        audit: auditContract,
+        role: roleContract,
+        stepUp: stepUpContract,
 
-		// project
-		project: projectContract,
-		service: serviceContract,
-		servicePreviewTopology: servicePreviewTopologyContract,
-		domain: domainContract,
+        // project
+        project: projectContract,
+        service: serviceContract,
+        servicePreviewTopology: servicePreviewTopologyContract,
+        domain: domainContract,
 
-		// runtime
-		deployment: deploymentContract,
-		docker: dockerContract,
+        // runtime
+        deployment: deploymentContract,
+        docker: dockerContract,
 
-		// fleet
-		cluster: clusterContract,
-		nodes: nodesContract,
-		providers: providersContract,
-		providerSchema: providerSchemaContract,
-		reachability: reachabilityContract,
-		mesh: meshContract,
-		platform: platformContract,
+        // fleet
+        cluster: clusterContract,
+        nodes: nodesContract,
+        providers: providersContract,
+        providerSchema: providerSchemaContract,
+        reachability: reachabilityContract,
+        mesh: meshContract,
+        platform: platformContract,
 
-		// health
-		health: healthContract,
-	};
+        // health
+        health: healthContract,
+    }
 }

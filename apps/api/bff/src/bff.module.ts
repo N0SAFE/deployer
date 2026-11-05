@@ -1,38 +1,41 @@
-
-import { createModuleContext, EffectHost, EffectHostModule, EffectRuntimeModule } from "@deployer/nest-effect";
-import { RoleCatalogueModule } from "@deployer/shared/core/authz/role-catalogue.module";
-import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
-import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
 import {
-	createOrpcModule,
-	PreflightModule,
-	DEPENDENCIES,
-	ServiceHealthModule,
-} from "@deployer/shared/server";
+    createModuleContext,
+    EffectHost,
+    EffectHostModule,
+    EffectRuntimeModule,
+} from '@deployer/nest-effect'
+import { RoleCatalogueModule } from '@deployer/shared/core/authz/role-catalogue.module'
+import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module'
+import { SupervisorsModule } from '@deployer/shared/core/modules/supervision/index'
+import {
+    createOrpcModule,
+    PreflightModule,
+    DEPENDENCIES,
+    ServiceHealthModule,
+} from '@deployer/shared/server'
 
-import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
-import { EnvModule } from "@/config/env/env.module";
-import { AuthModule } from "@/core/modules/auth/auth.module";
-import { BootstrapModule } from "@/core/modules/bootstrap/bootstrap.module";
-import { DatabaseModule } from "@/core/modules/database/database.module";
-import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
-import { SupervisorsDatabaseModule } from "@/core/modules/supervisors/database/database-supervisors.module";
-import { SupervisorsPlatformModule } from "@/core/modules/supervisors/platform/platform-supervisors.module";
-import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
-import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
+import { registerSchemaCodecs } from '@/config/drizzle/schema-codecs'
+import { EnvModule } from '@/config/env/env.module'
+import { AuthModule } from '@/core/modules/auth/auth.module'
+import { BootstrapModule } from '@/core/modules/bootstrap/bootstrap.module'
+import { DatabaseModule } from '@/core/modules/database/database.module'
+import { CorePlatformIngressModule } from '@/core/modules/platform-ingress/platform-ingress.module'
+import { SupervisorsDatabaseModule } from '@/core/modules/supervisors/database/database-supervisors.module'
+import { SupervisorsPlatformModule } from '@/core/modules/supervisors/platform/platform-supervisors.module'
+import { SwarmCoreModule } from '@/core/modules/swarm/swarm.module'
+import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module'
 
-import { ServiceClientModule } from "./clients/service-client.module";
-import { SetupDomainModule } from "./domains/setup/setup.module";
-import { PlatformConsoleModule } from "./modules/console/platform-console.module";
-import { OrchestrationModule } from "./modules/dashboard/orchestration.module";
-import { DelegationModule } from "./modules/delegation/delegation.module";
-import { DocsModule } from "./modules/docs/docs.module";
-import { PlatformHealthModule } from "./modules/health/platform-health.module";
+import { ServiceClientModule } from './clients/service-client.module'
+import { SetupDomainModule } from './domains/setup/setup.module'
+import { PlatformConsoleModule } from './modules/console/platform-console.module'
+import { OrchestrationModule } from './modules/dashboard/orchestration.module'
+import { DelegationModule } from './modules/delegation/delegation.module'
+import { DocsModule } from './modules/docs/docs.module'
+import { PlatformHealthModule } from './modules/health/platform-health.module'
 
 // The boot coordinator (migrations, default admin). See the import note in
 // `BootstrapModule`'s entry in the module list — without it nothing applies the
 // global migrations on boot and no service can ever pass its `migrations` check.
-
 
 // ── THE PLATFORM SUPERVISORS, WHICH THE BFF IS THE ONLY APP TO RUN ────────
 // In a supervised stack NOTHING but the platform runs the database, Redis or the
@@ -61,7 +64,7 @@ import { PlatformHealthModule } from "./modules/health/platform-health.module";
 // Registered at MODULE LOAD, not in a lifecycle hook: the column codecs run at
 // QUERY time and the first query can happen during bootstrap — before any
 // `onModuleInit`. Doing it here means it cannot be ordered wrong.
-registerSchemaCodecs();
+registerSchemaCodecs()
 
 /**
  * The Backend For Frontend.
@@ -85,120 +88,122 @@ registerSchemaCodecs();
  * forward traffic into services that are about to fail it.
  */
 export class BffModule extends createModuleContext({
-	imports: [
-		EnvModule,
-		// `forRoot()` IS REQUIRED: the class is `@Module({})`, so importing it bare
-		// registers no providers and every consumer of the `AppLifecycle` tag fails
-		// to resolve at boot.
-		AppLifecycleModule.forRoot(),
-		DatabaseModule,
-		// The authz gate decides from the `roles` table; without this it falls back to the code table and would refuse
-		// every custom role (`SEC-062`, `SEC-055`).
-		RoleCatalogueModule,
-		AuthModule,
-		// The dependency gate. Binds `SERVICE_READINESS`, so `/health/ready` and
-		// the boot check are the same answer by construction.
-		PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
-		// The TRANSPORT for that verdict. `PreflightModule` binds the port but
-		// registers no route, so without this the BFF answers 404 on
-		// `/health/ready` — while compose probes every app in
-		// `docker-compose.config.services.yml` on that exact path. The BFF would
-		// then be permanently unhealthy and any `depends_on: service_healthy` on
-		// it unsatisfiable. Every service imports this; the BFF is the one app
-		// that answers for the platform, so it needs it most.
-		ServiceHealthModule,
-		// `.effect()` handlers (the setup wizard, the mesh controller) resolve services from `effect/context`: the host
-		// contributes the context of the module that owns the controller, per request.
-		EffectHostModule,
-		createOrpcModule({
-			boundary: { service: "bff" },
-			extraContext: {
-				inject: [EffectHost],
-				resolve: (executionContext, host) => ({
-					"effect/context": host.contextFor(executionContext.getClass()),
-				}),
-			},
-		}),
-		EffectRuntimeModule,
+    imports: [
+        EnvModule,
+        // `forRoot()` IS REQUIRED: the class is `@Module({})`, so importing it bare
+        // registers no providers and every consumer of the `AppLifecycle` tag fails
+        // to resolve at boot.
+        AppLifecycleModule.forRoot(),
+        DatabaseModule,
+        // The authz gate decides from the `roles` table; without this it falls back to the code table and would refuse
+        // every custom role (`SEC-062`, `SEC-055`).
+        RoleCatalogueModule,
+        AuthModule,
+        // The dependency gate. Binds `SERVICE_READINESS`, so `/health/ready` and
+        // the boot check are the same answer by construction.
+        PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
+        // The TRANSPORT for that verdict. `PreflightModule` binds the port but
+        // registers no route, so without this the BFF answers 404 on
+        // `/health/ready` — while compose probes every app in
+        // `docker-compose.config.services.yml` on that exact path. The BFF would
+        // then be permanently unhealthy and any `depends_on: service_healthy` on
+        // it unsatisfiable. Every service imports this; the BFF is the one app
+        // that answers for the platform, so it needs it most.
+        ServiceHealthModule,
+        // `.effect()` handlers (the setup wizard, the mesh controller) resolve services from `effect/context`: the host
+        // contributes the context of the module that owns the controller, per request.
+        EffectHostModule,
+        createOrpcModule({
+            boundary: { service: 'bff' },
+            extraContext: {
+                inject: [EffectHost],
+                resolve: (executionContext, host) => ({
+                    'effect/context': host.contextFor(
+                        executionContext.getClass()
+                    ),
+                }),
+            },
+        }),
+        EffectRuntimeModule,
 
-		// ── THE PLATFORM SUPERVISORS (WHAT "SUPERVISED" MEANS) ──────────────
-		// Ordered ahead of the feature modules by INTENT; Nest resolves the graph
-		// independently of this list, so the note records why they belong here rather
-		// than in a service.
-		//
-		//   SupervisorsModule          the registry + event bus (lean: no Docker/Env)
-		//   SupervisorsDatabaseModule  global Postgres, local databases
-		//   SupervisorsPlatformModule  Traefik, Redis, managed web, app wiring
-		//   SwarmCoreModule            the engine the supervisors schedule ONTO
-		//   TraefikCoreModule          the routes Traefik POLLS from this app
-		//   CorePlatformIngressModule  hostname/lane helpers the supervisors read
-		//
-		// The BFF is the only app in this tier with a public role, so it is the only
-		// one that both SERVES the ingress config and RUNS the supervisors. A service
-		// importing them would create a second registry in a process Traefik never
-		// talks to.
-		SupervisorsModule.forRoot(),
-		SupervisorsDatabaseModule,
-		SupervisorsPlatformModule,
-		SwarmCoreModule,
-		TraefikCoreModule,
-		CorePlatformIngressModule,
+        // ── THE PLATFORM SUPERVISORS (WHAT "SUPERVISED" MEANS) ──────────────
+        // Ordered ahead of the feature modules by INTENT; Nest resolves the graph
+        // independently of this list, so the note records why they belong here rather
+        // than in a service.
+        //
+        //   SupervisorsModule          the registry + event bus (lean: no Docker/Env)
+        //   SupervisorsDatabaseModule  global Postgres, local databases
+        //   SupervisorsPlatformModule  Traefik, Redis, managed web, app wiring
+        //   SwarmCoreModule            the engine the supervisors schedule ONTO
+        //   TraefikCoreModule          the routes Traefik POLLS from this app
+        //   CorePlatformIngressModule  hostname/lane helpers the supervisors read
+        //
+        // The BFF is the only app in this tier with a public role, so it is the only
+        // one that both SERVES the ingress config and RUNS the supervisors. A service
+        // importing them would create a second registry in a process Traefik never
+        // talks to.
+        SupervisorsModule.forRoot(),
+        SupervisorsDatabaseModule,
+        SupervisorsPlatformModule,
+        SwarmCoreModule,
+        TraefikCoreModule,
+        CorePlatformIngressModule,
 
-		// ── THE SERVICE CLIENT REGISTRY ──────────────────────────────────────
-		// Imported (not declared as a provider below) because the modules that
-		// CONSUME it — every screen that composes a service — are imported BY this
-		// module. A provider declared here would be visible only here, and Nest
-		// resolves providers UPWARD, not downward: declaring it on `BffModule`
-		// cannot satisfy a dependency in a module `BffModule` imports.
-		ServiceClientModule,
+        // ── THE SERVICE CLIENT REGISTRY ──────────────────────────────────────
+        // Imported (not declared as a provider below) because the modules that
+        // CONSUME it — every screen that composes a service — are imported BY this
+        // module. A provider declared here would be visible only here, and Nest
+        // resolves providers UPWARD, not downward: declaring it on `BffModule`
+        // cannot satisfy a dependency in a module `BffModule` imports.
+        ServiceClientModule,
 
-		// ── THE RESOURCE SURFACE ──────────────────────────────────────
-		// The service namespaces, owned by the BFF and served through typed clients.
-		// A screen calls these when it wants the RESOURCE rather than a join; the
-		// modules below serve the JOINED, screen-shaped procedures.
-		DelegationModule,
+        // ── THE RESOURCE SURFACE ──────────────────────────────────────
+        // The service namespaces, owned by the BFF and served through typed clients.
+        // A screen calls these when it wants the RESOURCE rather than a join; the
+        // modules below serve the JOINED, screen-shaped procedures.
+        DelegationModule,
 
-		// Front-facing composition. Each screen module owns the shape the front
-		// consumes and calls whatever services it needs.
-		OrchestrationModule,
-		PlatformHealthModule,
-		PlatformConsoleModule,
+        // Front-facing composition. Each screen module owns the shape the front
+        // consumes and calls whatever services it needs.
+        OrchestrationModule,
+        PlatformHealthModule,
+        PlatformConsoleModule,
 
-		// ── Domains the BFF owns OUTRIGHT ────────────────────────────────
-		// implements: the wizard must answer BEFORE auth and ORPC come up, and the test surface
-		// exists to probe the transport itself. Both are therefore the BFF's, and this is the
-		// only place they are served.
-		SetupDomainModule,
-		// ── THE PUBLISHED API DOCUMENT ───────────────────────────────────
-		// Serves `/openapi.json` and `/reference`. Nothing in this tier served a
-		// spec (blocker 7 in the cutover status), and the monolith only ever wrote
-		// one to stdout — so the web devtools iframe's `/reference` src 404'd.
-		DocsModule,
+        // ── Domains the BFF owns OUTRIGHT ────────────────────────────────
+        // implements: the wizard must answer BEFORE auth and ORPC come up, and the test surface
+        // exists to probe the transport itself. Both are therefore the BFF's, and this is the
+        // only place they are served.
+        SetupDomainModule,
+        // ── THE PUBLISHED API DOCUMENT ───────────────────────────────────
+        // Serves `/openapi.json` and `/reference`. Nothing in this tier served a
+        // spec (blocker 7 in the cutover status), and the monolith only ever wrote
+        // one to stdout — so the web devtools iframe's `/reference` src 404'd.
+        DocsModule,
 
-		// ── THE BOOT PIPELINE ────────────────────────────────────────────────
-		// `BootstrapOrchestratorService` is the RESTART path: swarm overlay → DB
-		// probe → PENDING GLOBAL MIGRATIONS → default admin. The monolith imports
-		// it (`apps/api/src/app.module.ts`); the BFF did not, and nothing else in
-		// this tier did either — `docs/API-CUTOVER-STATUS.md` lists
-		// this as open blocker #5, "`BootstrapModule` … imported by nothing".
-		//
-		// The consequence was not a missing feature, it was a platform that could
-		// never become ready. A node whose wizard had written `setupState =
-		// "setup_done"` still had an EMPTY database, because the only code that
-		// applies the global migrations on boot was not in this graph:
-		//
-		//   relation "drizzle.__drizzle_migrations" does not exist
-		//   relation "local_event_outbox" does not exist
-		//   [preflight] preflight attempt 364 not ready — retrying in 2000ms
-		//   docker compose up → "container nextjs-nestjs-bff-dev is unhealthy"
-		//
-		// Every `svc-*` declares `DEPENDENCIES.database` (reachable AND migrated),
-		// so none of them could ever pass their own preflight. The stack had no
-		// converging state at all — not "slow", not "waiting on setup", but
-		// permanently un-ready — and `up -d` exited 1.
-		//
-		// `BootstrapModule` is `@Global()`, so importing it here makes the
-		// orchestrator reachable without further wiring.
-		BootstrapModule,
-	],
+        // ── THE BOOT PIPELINE ────────────────────────────────────────────────
+        // `BootstrapOrchestratorService` is the RESTART path: swarm overlay → DB
+        // probe → PENDING GLOBAL MIGRATIONS → default admin. The monolith imports
+        // it (`apps/api/src/app.module.ts`); the BFF did not, and nothing else in
+        // this tier did either — `docs/API-CUTOVER-STATUS.md` lists
+        // this as open blocker #5, "`BootstrapModule` … imported by nothing".
+        //
+        // The consequence was not a missing feature, it was a platform that could
+        // never become ready. A node whose wizard had written `setupState =
+        // "setup_done"` still had an EMPTY database, because the only code that
+        // applies the global migrations on boot was not in this graph:
+        //
+        //   relation "drizzle.__drizzle_migrations" does not exist
+        //   relation "local_event_outbox" does not exist
+        //   [preflight] preflight attempt 364 not ready — retrying in 2000ms
+        //   docker compose up → "container nextjs-nestjs-bff-dev is unhealthy"
+        //
+        // Every `svc-*` declares `DEPENDENCIES.database` (reachable AND migrated),
+        // so none of them could ever pass their own preflight. The stack had no
+        // converging state at all — not "slow", not "waiting on setup", but
+        // permanently un-ready — and `up -d` exited 1.
+        //
+        // `BootstrapModule` is `@Global()`, so importing it here makes the
+        // orchestrator reachable without further wiring.
+        BootstrapModule,
+    ],
 }) {}

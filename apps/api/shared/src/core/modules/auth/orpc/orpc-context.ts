@@ -11,7 +11,7 @@
  * import from here, so there is exactly one name for "the API's oRPC context"
  * and a future framework rename has one place to change.
  */
-import type { DefaultInitialContext } from "@orpc/server";
+import type { DefaultInitialContext } from '@orpc/server'
 
 /** The API's oRPC initial context (augmented in `app.module.ts`). */
-export type ORPCGlobalContext = DefaultInitialContext;
+export type ORPCGlobalContext = DefaultInitialContext

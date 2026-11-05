@@ -15,12 +15,20 @@ Primary compose sets live under `infra/infra/docker/compose/`:
 - Full stack: `docker-compose.prod.yml`
 - Prod-like local workflow: `docker-compose.prod-like.yml`
 - Split services:
-	- API: `api/docker-compose.api.prod.yml`, `api/docker-compose.api.prod-like.yml`
-	- Web: `web/docker-compose.web.prod.yml`, `web/docker-compose.web.prod-like.yml`
-	- Docs: `doc/docker-compose.doc.prod.yml`, `doc/docker-compose.doc.prod-like.yml`
+    - API: `api/docker-compose.api.prod.yml`, `api/docker-compose.api.prod-like.yml`
+    - Web: `web/docker-compose.web.prod.yml`, `web/docker-compose.web.prod-like.yml`
+    - Docs: `doc/docker-compose.doc.prod.yml`, `doc/docker-compose.doc.prod-like.yml`
 
 <DocCallout title="Production model for v3" tone="success">
-The production model is Docker Swarm (manager + worker nodes), implemented behind the dockerode SDK — no independent per-node compose islands in the fleet runtime, and NO `docker stack deploy` / CLI scripts: the API converges the engine into swarm mode (SwarmBootstrapService). **Layering:** Swarm schedules the workload Deployer owns (user deployments/projects/services via the `runners/swarm` backend); Deployer's own platform services (`api`, `web`, `traefik`, DB) stay under supervisor / compose ownership — never scheduled on Swarm. Compose files remain useful for local/dev/prod-like flows. See `docs/swarm-orchestration/`.
+    The production model is Docker Swarm (manager + worker nodes), implemented
+    behind the dockerode SDK — no independent per-node compose islands in the
+    fleet runtime, and NO `docker stack deploy` / CLI scripts: the API converges
+    the engine into swarm mode (SwarmBootstrapService). **Layering:** Swarm
+    schedules the workload Deployer owns (user deployments/projects/services via
+    the `runners/swarm` backend); Deployer's own platform services (`api`,
+    `web`, `traefik`, DB) stay under supervisor / compose ownership — never
+    scheduled on Swarm. Compose files remain useful for local/dev/prod-like
+    flows. See `docs/swarm-orchestration/`.
 </DocCallout>
 
 ## Production topology (Swarm manager + worker nodes) — implemented
@@ -67,17 +75,17 @@ cleanly, listens on its entrypoint, and every request hangs until it times out
 There is **no configuration workaround**. Both of these were tested and do
 not work:
 
-| Attempt | Result |
-|---|---|
+| Attempt                              | Result                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------- |
 | `--providers.docker.apiVersion=1.40` | **Invalid flag** in Traefik v3 — `field not found, node: apiVersion`, container crash-loops |
-| `DOCKER_API_VERSION=1.40` env var | Ignored; the provider still sends 1.24 |
+| `DOCKER_API_VERSION=1.40` env var    | Ignored; the provider still sends 1.24                                                      |
 
 Upgrading the image is the only fix. Verified against this engine:
 
-| Traefik | Provider errors |
-|---|---|
+| Traefik            | Provider errors           |
+| ------------------ | ------------------------- |
 | v3.3 / v3.4 / v3.5 | persistent `too old` loop |
-| **v3.6** | none |
+| **v3.6**           | none                      |
 
 Both ingress images therefore default to ≥ 3.6: `DEPLOYER_TRAEFIK_IMAGE` (the
 API-supervised ingress) and `MANAGED_TRAEFIK_IMAGE` (operator-managed ingress),
@@ -95,13 +103,13 @@ explicitly if you supply your own ingress image.
 ## Current repository scripts (compose/prod-like)
 
 - Full stack production compose:
-	- `bun run start`
+    - `bun run start`
 - Prod-like local stack:
-	- `bun run prod`
-	- `bun run prod:down`
+    - `bun run prod`
+    - `bun run prod:down`
 - Split prod-like:
-	- `bun run prod:api`, `bun run prod:api:down`, `bun run prod:logs:api`
-	- `bun run prod:web`, `bun run prod:web:down`, `bun run prod:logs:web`
+    - `bun run prod:api`, `bun run prod:api:down`, `bun run prod:logs:api`
+    - `bun run prod:web`, `bun run prod:web:down`, `bun run prod:logs:web`
 
 ## Environment and readiness checks
 
@@ -121,7 +129,8 @@ bun run check
 ```
 
 <DocCallout title="Release safety" tone="warning">
-Never treat a successful container start as a complete release check. Always validate API health, web routing, auth flow, and core critical paths.
+    Never treat a successful container start as a complete release check. Always
+    validate API health, web routing, auth flow, and core critical paths.
 </DocCallout>
 
 ## Rollback posture

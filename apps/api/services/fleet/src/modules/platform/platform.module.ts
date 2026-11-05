@@ -5,28 +5,27 @@
  * provides the ORPC controllers + HTML management console.
  */
 
-import { createModuleContext } from "@deployer/nest-effect";
-import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
-import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
-import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
-import { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
-import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { SupervisorOrchestrator } from "@deployer/supervision";
+import { createModuleContext } from '@deployer/nest-effect'
+import { EnvModule, EnvService } from '@deployer/shared/config/env/env.module'
+import { CorePlatformIngressModule } from '@deployer/shared/core/modules/platform-ingress/platform-ingress.module'
+import { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
+import { PlatformConfigService } from '@deployer/shared/core/modules/platform-ingress/services/platform-config.service'
+import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
+import { TraefikCoreModule } from '@deployer/shared/core/modules/traefik/traefik.module'
+import { SupervisorOrchestrator } from '@deployer/supervision'
 
-import { ProvidersModule } from "@/modules/providers/providers.module";
+import { ProvidersModule } from '@/modules/providers/providers.module'
 
-
-import { PlatformManagedWebController } from "./controllers/platform-managed-web.controller";
-import { PlatformController } from "./controllers/platform.controller";
+import { PlatformManagedWebController } from './controllers/platform-managed-web.controller'
+import { PlatformController } from './controllers/platform.controller'
 import {
     PlatformConfigPort,
     PlatformEnvPort,
     PlatformHostnamesPort,
     PlatformRefresherPort,
     SupervisorsPort,
-} from "./platform.ports";
-import { PlatformManagedWebService } from "./services/platform-managed-web.service";
+} from './platform.ports'
+import { PlatformManagedWebService } from './services/platform-managed-web.service'
 
 /**
  * `PlatformManagedWebService` is a Layer (see `platform.layers.ts`) built by the app's Effect
@@ -34,20 +33,26 @@ import { PlatformManagedWebService } from "./services/platform-managed-web.servi
  * (anonymous registration behind a rate limit and Better Auth, heartbeat, instance admin) keeps
  * its Promise-based handlers: its middlewares take the app-instance store as a constructor argument.
  */
-export class PlatformModule extends createModuleContext(
-    {
-        // `EnvService` is aliased by the env port and used by the console controllers, so the module
-        // providing them must import it: the app's `EnvService` is a SUBCLASS provided by this
-        // wrapper, and the package's `@Global` decorator covers only the base class.
-        imports: [CorePlatformIngressModule, TraefikCoreModule, ProvidersModule, EnvModule],
-        controllers: [PlatformController, PlatformManagedWebController],
-        providers: [
-            { provide: PlatformEnvPort, useExisting: EnvService },
-            { provide: PlatformHostnamesPort, useExisting: HostnameService },
-            { provide: PlatformConfigPort, useExisting: PlatformConfigService },
-            { provide: SupervisorsPort, useExisting: SupervisorOrchestrator },
-            { provide: PlatformRefresherPort, useExisting: TraefikConfigRefresher },
-            { provide: PlatformManagedWebService, useValue: PlatformManagedWebService.live },
-        ],
-    },
-) {}
+export class PlatformModule extends createModuleContext({
+    // `EnvService` is aliased by the env port and used by the console controllers, so the module
+    // providing them must import it: the app's `EnvService` is a SUBCLASS provided by this
+    // wrapper, and the package's `@Global` decorator covers only the base class.
+    imports: [
+        CorePlatformIngressModule,
+        TraefikCoreModule,
+        ProvidersModule,
+        EnvModule,
+    ],
+    controllers: [PlatformController, PlatformManagedWebController],
+    providers: [
+        { provide: PlatformEnvPort, useExisting: EnvService },
+        { provide: PlatformHostnamesPort, useExisting: HostnameService },
+        { provide: PlatformConfigPort, useExisting: PlatformConfigService },
+        { provide: SupervisorsPort, useExisting: SupervisorOrchestrator },
+        { provide: PlatformRefresherPort, useExisting: TraefikConfigRefresher },
+        {
+            provide: PlatformManagedWebService,
+            useValue: PlatformManagedWebService.live,
+        },
+    ],
+}) {}

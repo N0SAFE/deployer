@@ -1,10 +1,10 @@
 {
-  "noInjectableService": [
-    "src/modules/audit/denial-audit.installer.ts",
-    "src/modules/role/role.seed.ts"
-  ],
-  "noNestLifecycleHook": [
-    "src/modules/audit/denial-audit.installer.ts",
-    "src/modules/role/role.seed.ts"
-  ]
+    "noInjectableService": [
+        "src/modules/audit/denial-audit.installer.ts",
+        "src/modules/role/role.seed.ts"
+    ],
+    "noNestLifecycleHook": [
+        "src/modules/audit/denial-audit.installer.ts",
+        "src/modules/role/role.seed.ts"
+    ]
 }

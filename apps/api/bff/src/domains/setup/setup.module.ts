@@ -1,15 +1,23 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { EnvModule, EnvService } from "@/config/env/env.module";
-import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
-import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
-import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
+import { EnvModule, EnvService } from '@/config/env/env.module'
+import { HostnameService } from '@/core/modules/platform-ingress/services/hostname.service'
+import { PlatformConfigService } from '@/core/modules/platform-ingress/services/platform-config.service'
+import { CoreReachabilityModule } from '@/core/modules/reachability/core-reachability.module'
+import { CoreInitializationModule } from '@/core/modules/setup/initialization.module'
 
-import { SetupController } from "./controllers/setup.controller";
-import { PostSetupDestinationService } from "./services/post-setup-destination.service";
-import { nodeTransport, PostSetupVerificationService } from "./services/post-setup-verification.service";
-import { SetupEnvPort, SetupHostnamePort, SetupPlatformConfigPort, SetupTransportPort } from "./setup.ports";
+import { SetupController } from './controllers/setup.controller'
+import { PostSetupDestinationService } from './services/post-setup-destination.service'
+import {
+    nodeTransport,
+    PostSetupVerificationService,
+} from './services/post-setup-verification.service'
+import {
+    SetupEnvPort,
+    SetupHostnamePort,
+    SetupPlatformConfigPort,
+    SetupTransportPort,
+} from './setup.ports'
 
 /**
  * Public Setup Module
@@ -48,10 +56,23 @@ export class SetupDomainModule extends createModuleContext({
     providers: [
         { provide: SetupEnvPort, useExisting: EnvService },
         { provide: SetupHostnamePort, useExisting: HostnameService },
-        { provide: SetupPlatformConfigPort, useExisting: PlatformConfigService },
+        {
+            provide: SetupPlatformConfigPort,
+            useExisting: PlatformConfigService,
+        },
         { provide: SetupTransportPort, useValue: nodeTransport },
-        { provide: PostSetupDestinationService, useValue: PostSetupDestinationService.live },
-        { provide: PostSetupVerificationService, useValue: PostSetupVerificationService.live },
+        {
+            provide: PostSetupDestinationService,
+            useValue: PostSetupDestinationService.live,
+        },
+        {
+            provide: PostSetupVerificationService,
+            useValue: PostSetupVerificationService.live,
+        },
     ],
-    exports: [CoreInitializationModule, PostSetupDestinationService, PostSetupVerificationService],
+    exports: [
+        CoreInitializationModule,
+        PostSetupDestinationService,
+        PostSetupVerificationService,
+    ],
 }) {}

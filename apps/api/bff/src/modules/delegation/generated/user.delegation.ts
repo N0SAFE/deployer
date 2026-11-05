@@ -26,95 +26,125 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { userContract } from "@deployer/identity-contracts";
+import { userContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class UserDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", userContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', userContract)
+    }
 
-	@Implement(userContract.list)
-	list() {
-		return implement(userContract.list).handler(({ input }) => this.client.list(input));
-	}
+    @Implement(userContract.list)
+    list() {
+        return implement(userContract.list).handler(({ input }) =>
+            this.client.list(input)
+        )
+    }
 
-	@Implement(userContract.findById)
-	findById() {
-		return implement(userContract.findById).handler(({ input }) => this.client.findById(input));
-	}
+    @Implement(userContract.findById)
+    findById() {
+        return implement(userContract.findById).handler(({ input }) =>
+            this.client.findById(input)
+        )
+    }
 
-	@Implement(userContract.create)
-	create() {
-		return implement(userContract.create).handler(({ input }) => this.client.create(input));
-	}
+    @Implement(userContract.create)
+    create() {
+        return implement(userContract.create).handler(({ input }) =>
+            this.client.create(input)
+        )
+    }
 
-	@Implement(userContract.update)
-	update() {
-		return implement(userContract.update).handler(({ input }) => this.client.update(input));
-	}
+    @Implement(userContract.update)
+    update() {
+        return implement(userContract.update).handler(({ input }) =>
+            this.client.update(input)
+        )
+    }
 
-	@Implement(userContract.delete)
-	delete() {
-		return implement(userContract.delete).handler(({ input }) => this.client.delete(input));
-	}
+    @Implement(userContract.delete)
+    delete() {
+        return implement(userContract.delete).handler(({ input }) =>
+            this.client.delete(input)
+        )
+    }
 
-	@Implement(userContract.checkEmail)
-	checkEmail() {
-		return implement(userContract.checkEmail).handler(({ input }) => this.client.checkEmail(input));
-	}
+    @Implement(userContract.checkEmail)
+    checkEmail() {
+        return implement(userContract.checkEmail).handler(({ input }) =>
+            this.client.checkEmail(input)
+        )
+    }
 
-	@Implement(userContract.count)
-	count() {
-		return implement(userContract.count).handler(({ input }) => this.client.count(input));
-	}
+    @Implement(userContract.count)
+    count() {
+        return implement(userContract.count).handler(({ input }) =>
+            this.client.count(input)
+        )
+    }
 
-	@Implement(userContract.setRole)
-	setRole() {
-		return implement(userContract.setRole).handler(({ input }) => this.client.setRole(input));
-	}
+    @Implement(userContract.setRole)
+    setRole() {
+        return implement(userContract.setRole).handler(({ input }) =>
+            this.client.setRole(input)
+        )
+    }
 
-	@Implement(userContract.setBanned)
-	setBanned() {
-		return implement(userContract.setBanned).handler(({ input }) => this.client.setBanned(input));
-	}
+    @Implement(userContract.setBanned)
+    setBanned() {
+        return implement(userContract.setBanned).handler(({ input }) =>
+            this.client.setBanned(input)
+        )
+    }
 
-	@Implement(userContract.revokeSessions)
-	revokeSessions() {
-		return implement(userContract.revokeSessions).handler(({ input }) => this.client.revokeSessions(input));
-	}
+    @Implement(userContract.revokeSessions)
+    revokeSessions() {
+        return implement(userContract.revokeSessions).handler(({ input }) =>
+            this.client.revokeSessions(input)
+        )
+    }
 
-	@Implement(userContract.setPassword)
-	setPassword() {
-		return implement(userContract.setPassword).handler(({ input }) => this.client.setPassword(input));
-	}
+    @Implement(userContract.setPassword)
+    setPassword() {
+        return implement(userContract.setPassword).handler(({ input }) =>
+            this.client.setPassword(input)
+        )
+    }
 
-	@Implement(userContract.listSessions)
-	listSessions() {
-		return implement(userContract.listSessions).handler(({ input }) => this.client.listSessions(input));
-	}
+    @Implement(userContract.listSessions)
+    listSessions() {
+        return implement(userContract.listSessions).handler(({ input }) =>
+            this.client.listSessions(input)
+        )
+    }
 
-	@Implement(userContract.revokeSession)
-	revokeSession() {
-		return implement(userContract.revokeSession).handler(({ input }) => this.client.revokeSession(input));
-	}
+    @Implement(userContract.revokeSession)
+    revokeSession() {
+        return implement(userContract.revokeSession).handler(({ input }) =>
+            this.client.revokeSession(input)
+        )
+    }
 
-	@Implement(userContract.exportSelf)
-	exportSelf() {
-		return implement(userContract.exportSelf).handler(({ input }) => this.client.exportSelf(input));
-	}
+    @Implement(userContract.exportSelf)
+    exportSelf() {
+        return implement(userContract.exportSelf).handler(({ input }) =>
+            this.client.exportSelf(input)
+        )
+    }
 
-	@Implement(userContract.deleteSelf)
-	deleteSelf() {
-		return implement(userContract.deleteSelf).handler(({ input }) => this.client.deleteSelf(input));
-	}
+    @Implement(userContract.deleteSelf)
+    deleteSelf() {
+        return implement(userContract.deleteSelf).handler(({ input }) =>
+            this.client.deleteSelf(input)
+        )
+    }
 }

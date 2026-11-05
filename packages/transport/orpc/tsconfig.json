@@ -7,16 +7,10 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "moduleResolution": "bundler",
-        "types": [
-            "vitest/globals"
-        ],
+        "types": ["vitest/globals"],
         "paths": {
-            "@deployer/orpc-utils/*": [
-                "./src/*"
-            ]
+            "@deployer/orpc-utils/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ]
+    "include": ["pkg-build.config.ts", "src/**/*"]
 }

@@ -12,16 +12,16 @@
  *  - Exactly one operator key per DFilterOperator.
  */
 
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { MAX_FILTER_DEPTH } from "./filter-matcher";
-import { Variable } from "./types";
-import type { ProjectResource, ResourceRule } from "./types";
+import { MAX_FILTER_DEPTH } from './filter-matcher'
+import { Variable } from './types'
+
+import type { ProjectResource, ResourceRule } from './types'
 
 // ---------------------------------------------------------------------------
 // Resource & action schemas
 // ---------------------------------------------------------------------------
-
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
@@ -29,20 +29,26 @@ import type { ProjectResource, ResourceRule } from "./types";
  * to avoid the runtime lie.
  */
 const PROJECT_RESOURCES_LIST = [
-    "project",
-    "service",
-    "deployment",
-    "logs",
-    "webhook",
-    "apiKey",
-    "environment",
-] as const satisfies [ProjectResource, ...ProjectResource[]];
+    'project',
+    'service',
+    'deployment',
+    'logs',
+    'webhook',
+    'apiKey',
+    'environment',
+] as const satisfies [ProjectResource, ...ProjectResource[]]
 
-export const projectResourceSchema = z.enum(PROJECT_RESOURCES_LIST);
+export const projectResourceSchema = z.enum(PROJECT_RESOURCES_LIST)
 
-export const resourceOrWildcardSchema = z.union([projectResourceSchema, z.literal("*")]);
+export const resourceOrWildcardSchema = z.union([
+    projectResourceSchema,
+    z.literal('*'),
+])
 
-export const actionsSchema = z.union([z.array(z.string().min(1)).min(1), z.literal("*")]);
+export const actionsSchema = z.union([
+    z.array(z.string().min(1)).min(1),
+    z.literal('*'),
+])
 
 // ---------------------------------------------------------------------------
 // DFilterOperator schema
@@ -50,10 +56,34 @@ export const actionsSchema = z.union([z.array(z.string().min(1)).min(1), z.liter
 
 export const dFilterOperatorSchema = z
     .object({
-        _eq: z.union([z.string(), z.number(), z.boolean(), z.instanceof(Variable)]).optional(),
-        _neq: z.union([z.string(), z.number(), z.boolean(), z.instanceof(Variable)]).optional(),
-        _in: z.union([z.array(z.union([z.string(), z.number()])), z.instanceof(Variable)]).optional(),
-        _nin: z.union([z.array(z.union([z.string(), z.number()])), z.instanceof(Variable)]).optional(),
+        _eq: z
+            .union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.instanceof(Variable),
+            ])
+            .optional(),
+        _neq: z
+            .union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.instanceof(Variable),
+            ])
+            .optional(),
+        _in: z
+            .union([
+                z.array(z.union([z.string(), z.number()])),
+                z.instanceof(Variable),
+            ])
+            .optional(),
+        _nin: z
+            .union([
+                z.array(z.union([z.string(), z.number()])),
+                z.instanceof(Variable),
+            ])
+            .optional(),
         _null: z.boolean().optional(),
         _nnull: z.boolean().optional(),
         _contains: z.union([z.string(), z.instanceof(Variable)]).optional(),
@@ -69,8 +99,8 @@ export const dFilterOperatorSchema = z
         (op) =>
             // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
             Object.values(op).filter((v) => v !== undefined).length === 1,
-        { message: "DFilterOperator must contain exactly one operator key" },
-    );
+        { message: 'DFilterOperator must contain exactly one operator key' }
+    )
 
 // ---------------------------------------------------------------------------
 // DFilter schema (recursive with lazy reference + depth guard)
@@ -85,66 +115,75 @@ export const dFilterOperatorSchema = z
 const dFilterSchema: z.ZodType<any> = z.lazy(() =>
     z.record(
         z.string(),
-        z.union([dFilterOperatorSchema, z.array(dFilterSchema), z.undefined()]),
-    ),
-);
+        z.union([dFilterOperatorSchema, z.array(dFilterSchema), z.undefined()])
+    )
+)
 
 /**
  * Recursively counts the maximum nesting depth of a DFilter.
  * Used to enforce MAX_FILTER_DEPTH at storage time.
  */
 function filterDepth(filter: Record<string, unknown>, current = 0): number {
-    if (current > MAX_FILTER_DEPTH) return current; // short-circuit
-    let max = current;
+    if (current > MAX_FILTER_DEPTH) return current // short-circuit
+    let max = current
 
     for (const value of Object.values(filter)) {
         if (Array.isArray(value)) {
             for (const sub of value) {
-                if (sub !== null && typeof sub === "object" && !Array.isArray(sub)) {
-                    const d = filterDepth(sub as Record<string, unknown>, current + 1);
-                    if (d > max) max = d;
+                if (
+                    sub !== null &&
+                    typeof sub === 'object' &&
+                    !Array.isArray(sub)
+                ) {
+                    const d = filterDepth(
+                        sub as Record<string, unknown>,
+                        current + 1
+                    )
+                    if (d > max) max = d
                 }
             }
         }
     }
 
-    return max;
+    return max
 }
 
 export const validatedDFilterSchema = dFilterSchema.refine(
     (f: Record<string, unknown>) => filterDepth(f) <= MAX_FILTER_DEPTH,
-    { message: `DFilter nesting exceeds MAX_FILTER_DEPTH (${String(MAX_FILTER_DEPTH)})` },
-);
+    {
+        message: `DFilter nesting exceeds MAX_FILTER_DEPTH (${String(MAX_FILTER_DEPTH)})`,
+    }
+)
 
 // ---------------------------------------------------------------------------
 // ResourceScope schemas
 // ---------------------------------------------------------------------------
 
 export const resourceScopeAllSchema = z.object({
-    type: z.literal("all"),
-});
+    type: z.literal('all'),
+})
 
 export const resourceScopeIdsSchema = z.object({
-    type: z.literal("ids"),
+    type: z.literal('ids'),
     values: z.array(z.uuid()).min(1),
-});
+})
 
 export const resourceScopeCascadeSchema = z.object({
-    type: z.literal("cascade"),
+    type: z.literal('cascade'),
     from: projectResourceSchema,
-});
+})
 
 export const resourceScopeFilterSchema = z.object({
-    type: z.literal("filter"),
+    type: z.literal('filter'),
     condition: validatedDFilterSchema,
-});
+})
 
-export const resourceScopeSchema = z.discriminatedUnion("type", [
+export const resourceScopeSchema = z.discriminatedUnion('type', [
     resourceScopeAllSchema,
     resourceScopeIdsSchema,
     resourceScopeCascadeSchema,
     resourceScopeFilterSchema,
-]);
+])
 
 // ---------------------------------------------------------------------------
 // ResourceRule schema
@@ -156,9 +195,9 @@ export const resourceRuleSchema = z.object({
     scope: resourceScopeSchema,
     deny: z.boolean().optional(),
     priority: z.number().int().min(0).optional(),
-});
+})
 
-export const resourceRulesSchema = z.array(resourceRuleSchema).max(500);
+export const resourceRulesSchema = z.array(resourceRuleSchema).max(500)
 
 // ---------------------------------------------------------------------------
 // Parse helpers
@@ -169,17 +208,19 @@ export const resourceRulesSchema = z.array(resourceRuleSchema).max(500);
  * Throws ZodError on failure.
  */
 export function parseResourceRules(raw: unknown): ResourceRule[] {
-    return resourceRulesSchema.parse(raw);
+    return resourceRulesSchema.parse(raw)
 }
 
 /** The return type of a safeParse call on resourceRulesSchema. */
 export type ResourceRulesSafeParseResult = ReturnType<
     typeof resourceRulesSchema.safeParse
->;
+>
 
 /**
  * Safe-parse variant — returns a success/failure result without throwing.
  */
-export function safeParseResourceRules(raw: unknown): ResourceRulesSafeParseResult {
-    return resourceRulesSchema.safeParse(raw);
+export function safeParseResourceRules(
+    raw: unknown
+): ResourceRulesSafeParseResult {
+    return resourceRulesSchema.safeParse(raw)
 }

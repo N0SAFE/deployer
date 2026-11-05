@@ -1,63 +1,68 @@
-import z from "zod/v4";
-import { swarmFoundingSelectionSchema, swarmJoinSelectionSchema } from "../swarm/swarm-config.schema";
+import z from 'zod/v4'
+import {
+    swarmFoundingSelectionSchema,
+    swarmJoinSelectionSchema,
+} from '../swarm/swarm-config.schema'
 
 // ─── States ───────────────────────────────────────────────────────────────────
 
 export const setupStateSchema = z.enum([
-    "not_started",
-    "awaiting_strategy",
-    "awaiting_credentials",
-    "awaiting_remote_auth",
-    "provisioning",
-    "completed",
-]);
-export type SetupState = z.infer<typeof setupStateSchema>;
+    'not_started',
+    'awaiting_strategy',
+    'awaiting_credentials',
+    'awaiting_remote_auth',
+    'provisioning',
+    'completed',
+])
+export type SetupState = z.infer<typeof setupStateSchema>
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
 export const setupStepIdSchema = z.enum([
-    "choose_strategy",
-    "reachability_check",
-    "configure_account",
-    "agent_join",
-    "version_check",
+    'choose_strategy',
+    'reachability_check',
+    'configure_account',
+    'agent_join',
+    'version_check',
     // Founds the cluster BEFORE provisioning: the locally-managed global
     // Postgres is a swarm service, so the engine must already be a cluster.
-    "initialize_swarm",
+    'initialize_swarm',
     // ── The two steps the SETUP APP drives, not the API ─────────────────────
     // The API's stream cannot report these: it is the process being started.
     // Setup emits them on the SAME stream and in the same event shape, so the
     // wizard renders one continuous timeline. See
     // `SetupOrchestrationStreamService` in apps/setup.
-    "start_api",
-    "await_api_boot",
+    'start_api',
+    'await_api_boot',
     // Hands the entry port to the SWARM ingress and waits until that incarnation
     // is the one answering. It is a step of its own because the operator must not
     // be told setup is finished while the ingress they are about to browse through
     // is still being replaced — the window shows up as a red "failed to fetch" on
     // the last screen, and as a 502 on any immediate reload.
-    "promote_ingress",
-    "provision_database",
-    "ensure_empty",
-    "run_migrations",
-    "seed_initial_data",
-    "mesh_handshake",
-    "register_node",
-    "finalize",
-]);
-export type SetupStepId = z.infer<typeof setupStepIdSchema>;
+    'promote_ingress',
+    'provision_database',
+    'ensure_empty',
+    'run_migrations',
+    'seed_initial_data',
+    'mesh_handshake',
+    'register_node',
+    'finalize',
+])
+export type SetupStepId = z.infer<typeof setupStepIdSchema>
 
-export const setupBootstrapStrategySchema = z.enum(["local", "remote"]);
-export type SetupBootstrapStrategy = z.infer<typeof setupBootstrapStrategySchema>;
+export const setupBootstrapStrategySchema = z.enum(['local', 'remote'])
+export type SetupBootstrapStrategy = z.infer<
+    typeof setupBootstrapStrategySchema
+>
 
 export const setupStepStatusSchema = z.enum([
-    "pending",
-    "in_progress",
-    "completed",
-    "failed",
-    "skipped",
-]);
-export type SetupStepStatus = z.infer<typeof setupStepStatusSchema>;
+    'pending',
+    'in_progress',
+    'completed',
+    'failed',
+    'skipped',
+])
+export type SetupStepStatus = z.infer<typeof setupStepStatusSchema>
 
 export const setupStepSchema = z.object({
     id: setupStepIdSchema,
@@ -66,8 +71,8 @@ export const setupStepSchema = z.object({
     description: z.string().optional(),
     logs: z.array(z.string()).optional(),
     durationMs: z.number().optional(),
-});
-export type SetupStep = z.infer<typeof setupStepSchema>;
+})
+export type SetupStep = z.infer<typeof setupStepSchema>
 
 export const setupStateSnapshotSchema = z.object({
     state: setupStateSchema,
@@ -79,8 +84,8 @@ export const setupStateSnapshotSchema = z.object({
     progressPercent: z.number().int().min(0).max(100),
     steps: z.array(setupStepSchema),
     completedAt: z.date().nullable(),
-});
-export type SetupStateSnapshot = z.infer<typeof setupStateSnapshotSchema>;
+})
+export type SetupStateSnapshot = z.infer<typeof setupStateSnapshotSchema>
 
 // ─── Initialize input ─────────────────────────────────────────────────────────
 
@@ -102,16 +107,20 @@ export type SetupStateSnapshot = z.infer<typeof setupStateSnapshotSchema>;
  * env seed on every later read — so this choice is durable and changeable from
  * the platform console afterwards.
  */
-export const setupManagedWebSelectionSchema = z.enum(["managed", "api-only"]);
-export type SetupManagedWebSelection = z.infer<typeof setupManagedWebSelectionSchema>;
+export const setupManagedWebSelectionSchema = z.enum(['managed', 'api-only'])
+export type SetupManagedWebSelection = z.infer<
+    typeof setupManagedWebSelectionSchema
+>
 
 /** True when the platform should spawn and supervise its own dashboard. */
-export function managedWebEnabledFromSelection(selection: SetupManagedWebSelection): boolean {
-    return selection === "managed";
+export function managedWebEnabledFromSelection(
+    selection: SetupManagedWebSelection
+): boolean {
+    return selection === 'managed'
 }
 
 export const setupInitializeLocalInputSchema = z.object({
-    strategy: z.literal("local"),
+    strategy: z.literal('local'),
     name: z.string().min(1),
     email: z.email(),
     password: z.string().min(8),
@@ -131,11 +140,13 @@ export const setupInitializeLocalInputSchema = z.object({
      * "leave the deployment-managed default alone".
      */
     managedWeb: setupManagedWebSelectionSchema.optional(),
-});
-export type SetupInitializeLocalInput = z.infer<typeof setupInitializeLocalInputSchema>;
+})
+export type SetupInitializeLocalInput = z.infer<
+    typeof setupInitializeLocalInputSchema
+>
 
 export const setupInitializeRemoteInputSchema = z.object({
-    strategy: z.literal("remote"),
+    strategy: z.literal('remote'),
     /**
      * The join token issued on a node of the fleet (Nodes → Add a node). It carries where to find the swarm and the
      * credential that proves membership, so it is the only thing the operator brings.
@@ -159,21 +170,23 @@ export const setupInitializeRemoteInputSchema = z.object({
      * on the founding node — but it is a real choice, not an assumption.
      */
     managedWeb: setupManagedWebSelectionSchema.optional(),
-});
-export type SetupInitializeRemoteInput = z.infer<typeof setupInitializeRemoteInputSchema>;
+})
+export type SetupInitializeRemoteInput = z.infer<
+    typeof setupInitializeRemoteInputSchema
+>
 
-export const setupInitializeInputSchema = z.discriminatedUnion("strategy", [
+export const setupInitializeInputSchema = z.discriminatedUnion('strategy', [
     setupInitializeLocalInputSchema,
     setupInitializeRemoteInputSchema,
-]);
-export type SetupInitializeInput = z.infer<typeof setupInitializeInputSchema>;
+])
+export type SetupInitializeInput = z.infer<typeof setupInitializeInputSchema>
 
 // ─── SSE stream events ────────────────────────────────────────────────────────
 
 export const setupProgressEventTypeSchema = z.enum([
-    "step_detail",
-    "snapshot",
-    "log",
+    'step_detail',
+    'snapshot',
+    'log',
     // ── LIVENESS, NOT PROGRESS ───────────────────────────────────────────────
     // Sent on a timer while a step is WAITING on something slow (scheduling a
     // swarm service, waiting for an ingress to load its router table). The
@@ -187,9 +200,11 @@ export const setupProgressEventTypeSchema = z.enum([
     // detected and retried in seconds rather than minutes.
     //
     // Carries no state: consumers MUST ignore it beyond resetting liveness.
-    "heartbeat",
-]);
-export type SetupProgressEventType = z.infer<typeof setupProgressEventTypeSchema>;
+    'heartbeat',
+])
+export type SetupProgressEventType = z.infer<
+    typeof setupProgressEventTypeSchema
+>
 
 /**
  * One step's full state as carried on a `snapshot` event. The `logs`
@@ -198,17 +213,17 @@ export type SetupProgressEventType = z.infer<typeof setupProgressEventTypeSchema
  * object without any client-side correlation.
  */
 export const setupStreamStepStateSchema = z.object({
-    id:          setupStepIdSchema,
-    title:       z.string(),
+    id: setupStepIdSchema,
+    title: z.string(),
     description: z.string().optional(),
-    status:      setupStepStatusSchema,
-    logs:        z.array(z.string()).default([]),
-    durationMs:  z.number().optional(),
-    error:       z.string().optional(),
-    startedAt:   z.string().datetime().optional(),
+    status: setupStepStatusSchema,
+    logs: z.array(z.string()).default([]),
+    durationMs: z.number().optional(),
+    error: z.string().optional(),
+    startedAt: z.string().datetime().optional(),
     completedAt: z.string().datetime().optional(),
-});
-export type SetupStreamStepState = z.infer<typeof setupStreamStepStateSchema>;
+})
+export type SetupStreamStepState = z.infer<typeof setupStreamStepStateSchema>
 
 /**
  * One new log line for one step. Consumers append it to the matching
@@ -217,13 +232,13 @@ export type SetupStreamStepState = z.infer<typeof setupStreamStepStateSchema>;
  * detect dropped / reordered events and stitch snapshots together.
  */
 export const setupStreamLogEventSchema = z.object({
-    type:    z.literal("log"),
-    stepId:  setupStepIdSchema,
-    line:    z.string(),
-    seq:     z.number().int().nonnegative(),
-    ts:      z.string().datetime(),
-});
-export type SetupStreamLogEvent = z.infer<typeof setupStreamLogEventSchema>;
+    type: z.literal('log'),
+    stepId: setupStepIdSchema,
+    line: z.string(),
+    seq: z.number().int().nonnegative(),
+    ts: z.string().datetime(),
+})
+export type SetupStreamLogEvent = z.infer<typeof setupStreamLogEventSchema>
 
 /**
  * Server-driven step definition. Emitted before the first snapshot
@@ -237,14 +252,16 @@ export type SetupStreamLogEvent = z.infer<typeof setupStreamLogEventSchema>;
  * means creating a new flow file — no frontend changes needed.
  */
 export const setupStreamStepDetailEventSchema = z.object({
-    type:        z.literal("step_detail"),
-    stepId:      z.string(),
-    title:       z.string(),
+    type: z.literal('step_detail'),
+    stepId: z.string(),
+    title: z.string(),
     description: z.string(),
-    seq:         z.number().int().nonnegative(),
-    ts:          z.string().datetime(),
-});
-export type SetupStreamStepDetailEvent = z.infer<typeof setupStreamStepDetailEventSchema>;
+    seq: z.number().int().nonnegative(),
+    ts: z.string().datetime(),
+})
+export type SetupStreamStepDetailEvent = z.infer<
+    typeof setupStreamStepDetailEventSchema
+>
 
 /**
  * Full snapshot of every step's state at one point in time. Emitted
@@ -254,12 +271,14 @@ export type SetupStreamStepDetailEvent = z.infer<typeof setupStreamStepDetailEve
  * deltas against it.
  */
 export const setupStreamSnapshotEventSchema = z.object({
-    type:  z.literal("snapshot"),
-    seq:   z.number().int().nonnegative(),
-    ts:    z.string().datetime(),
+    type: z.literal('snapshot'),
+    seq: z.number().int().nonnegative(),
+    ts: z.string().datetime(),
     steps: z.array(setupStreamStepStateSchema),
-});
-export type SetupStreamSnapshotEvent = z.infer<typeof setupStreamSnapshotEventSchema>;
+})
+export type SetupStreamSnapshotEvent = z.infer<
+    typeof setupStreamSnapshotEventSchema
+>
 
 /**
  * Each event yielded over the SSE stream.
@@ -293,85 +312,96 @@ export type SetupStreamSnapshotEvent = z.infer<typeof setupStreamSnapshotEventSc
  * what makes a short client-side inactivity timeout safe to use.
  */
 export const setupStreamHeartbeatEventSchema = z.object({
-    type: z.literal("heartbeat"),
-    seq:  z.number().int().nonnegative(),
-    ts:   z.string().datetime(),
-});
-export type SetupStreamHeartbeatEvent = z.infer<typeof setupStreamHeartbeatEventSchema>;
+    type: z.literal('heartbeat'),
+    seq: z.number().int().nonnegative(),
+    ts: z.string().datetime(),
+})
+export type SetupStreamHeartbeatEvent = z.infer<
+    typeof setupStreamHeartbeatEventSchema
+>
 
-export const setupStreamEventSchema = z.discriminatedUnion("type", [
+export const setupStreamEventSchema = z.discriminatedUnion('type', [
     setupStreamStepDetailEventSchema,
     setupStreamSnapshotEventSchema,
     setupStreamLogEventSchema,
     setupStreamHeartbeatEventSchema,
     z.object({
-        type:   z.literal("completed"),
+        type: z.literal('completed'),
         result: z.object({
-            nodeId:       z.uuid(),
-            strategy:     setupBootstrapStrategySchema,
-            databaseUrl:  z.string(),
-            completedAt:  z.string().datetime(),
+            nodeId: z.uuid(),
+            strategy: setupBootstrapStrategySchema,
+            databaseUrl: z.string(),
+            completedAt: z.string().datetime(),
         }),
     }),
     z.object({
-        type:    z.literal("error"),
+        type: z.literal('error'),
         message: z.string(),
     }),
-]);
-export type SetupStreamEvent = z.infer<typeof setupStreamEventSchema>;
+])
+export type SetupStreamEvent = z.infer<typeof setupStreamEventSchema>
 
 // ─── Initialize result (final value after stream) ─────────────────────────────
 
 export const setupInitializeLocalResultSchema = z.object({
-    strategy:     z.literal("local"),
-    nodeId:       z.uuid(),
-    databaseUrl:  z.string(),
-    user:         z.object({ id: z.string(), name: z.string(), email: z.string() }),
-});
-export type SetupInitializeLocalResult = z.infer<typeof setupInitializeLocalResultSchema>;
+    strategy: z.literal('local'),
+    nodeId: z.uuid(),
+    databaseUrl: z.string(),
+    user: z.object({ id: z.string(), name: z.string(), email: z.string() }),
+})
+export type SetupInitializeLocalResult = z.infer<
+    typeof setupInitializeLocalResultSchema
+>
 
 export const setupInitializeRemoteResultSchema = z.object({
-    strategy:    z.literal("remote"),
-    nodeId:      z.uuid(),
-    meshUrl:     z.string(),
+    strategy: z.literal('remote'),
+    nodeId: z.uuid(),
+    meshUrl: z.string(),
     databaseUrl: z.string(),
-});
-export type SetupInitializeRemoteResult = z.infer<typeof setupInitializeRemoteResultSchema>;
+})
+export type SetupInitializeRemoteResult = z.infer<
+    typeof setupInitializeRemoteResultSchema
+>
 
-export const setupInitializeResultSchema = z.discriminatedUnion("strategy", [
+export const setupInitializeResultSchema = z.discriminatedUnion('strategy', [
     setupInitializeLocalResultSchema,
     setupInitializeRemoteResultSchema,
-]);
-export type SetupInitializeResult = z.infer<typeof setupInitializeResultSchema>;
+])
+export type SetupInitializeResult = z.infer<typeof setupInitializeResultSchema>
 
 // ─── Probe schemas ────────────────────────────────────────────────────────────
 
 export const setupProbeDbInputSchema = z.object({
     databaseUrl: z.string().min(1),
-});
-export type SetupProbeDbInput = z.infer<typeof setupProbeDbInputSchema>;
+})
+export type SetupProbeDbInput = z.infer<typeof setupProbeDbInputSchema>
 
 export const setupProbeDbResultSchema = z.object({
-    reachable:  z.boolean(),
-    latencyMs:  z.number().optional(),
-    error:      z.string().optional(),
-});
-export type SetupProbeDbResult = z.infer<typeof setupProbeDbResultSchema>;
+    reachable: z.boolean(),
+    latencyMs: z.number().optional(),
+    error: z.string().optional(),
+})
+export type SetupProbeDbResult = z.infer<typeof setupProbeDbResultSchema>
 
 // ─── Post-setup hints ─────────────────────────────────────────────────────────
 
-export const setupHintIdSchema = z.enum(["scanning", "notifications", "domain", "fleet"]);
-export type SetupHintId = z.infer<typeof setupHintIdSchema>;
+export const setupHintIdSchema = z.enum([
+    'scanning',
+    'notifications',
+    'domain',
+    'fleet',
+])
+export type SetupHintId = z.infer<typeof setupHintIdSchema>
 
 export const dismissHintInputSchema = z.object({
     hintId: setupHintIdSchema,
-});
-export type DismissHintInput = z.infer<typeof dismissHintInputSchema>;
+})
+export type DismissHintInput = z.infer<typeof dismissHintInputSchema>
 
 export const listHintsResultSchema = z.object({
     hintIds: z.array(setupHintIdSchema),
-});
-export type ListHintsResult = z.infer<typeof listHintsResultSchema>;
+})
+export type ListHintsResult = z.infer<typeof listHintsResultSchema>
 
 // ─── Where the operator goes after setup ──────────────────────────────────────
 
@@ -392,15 +422,17 @@ export type ListHintsResult = z.infer<typeof listHintsResultSchema>;
  */
 export const setupPostSetupDestinationKindSchema = z.enum([
     /** The platform's own dashboard — the managed web app is enabled and reachable. */
-    "dashboard",
+    'dashboard',
     /**
      * The API's own console page (`/manage/web-app`), which offers to enable a
      * dashboard. This is the honest destination when none is running: the API
      * serves it itself, so it cannot 404 the way a web hostname would.
      */
-    "api-console",
-]);
-export type SetupPostSetupDestinationKind = z.infer<typeof setupPostSetupDestinationKindSchema>;
+    'api-console',
+])
+export type SetupPostSetupDestinationKind = z.infer<
+    typeof setupPostSetupDestinationKindSchema
+>
 
 export const setupPostSetupDestinationSchema = z.object({
     kind: setupPostSetupDestinationKindSchema,
@@ -413,8 +445,10 @@ export const setupPostSetupDestinationSchema = z.object({
     url: z.url(),
     /** Whether the managed web app is enabled — what `kind` was derived from. */
     managedWebEnabled: z.boolean(),
-});
-export type SetupPostSetupDestination = z.infer<typeof setupPostSetupDestinationSchema>;
+})
+export type SetupPostSetupDestination = z.infer<
+    typeof setupPostSetupDestinationSchema
+>
 
 // ─── Post-setup verification ──────────────────────────────────────────────────
 
@@ -437,8 +471,10 @@ export type SetupPostSetupDestination = z.infer<typeof setupPostSetupDestination
  *                 the browser can know that DNS, the port and the network path
  *                 work from where the operator sits.
  */
-export const setupVerificationTargetIdSchema = z.enum(["api", "web"]);
-export type SetupVerificationTargetId = z.infer<typeof setupVerificationTargetIdSchema>;
+export const setupVerificationTargetIdSchema = z.enum(['api', 'web'])
+export type SetupVerificationTargetId = z.infer<
+    typeof setupVerificationTargetIdSchema
+>
 
 export const setupVerificationTargetSchema = z.object({
     id: setupVerificationTargetIdSchema,
@@ -459,25 +495,29 @@ export const setupVerificationTargetSchema = z.object({
         /** Human reason — always set, so the UI never has to invent one. */
         detail: z.string(),
     }),
-});
-export type SetupVerificationTarget = z.infer<typeof setupVerificationTargetSchema>;
+})
+export type SetupVerificationTarget = z.infer<
+    typeof setupVerificationTargetSchema
+>
 
 export const setupPostSetupVerificationSchema = z.object({
     checkedAt: z.string().datetime(),
     targets: z.array(setupVerificationTargetSchema),
-});
-export type SetupPostSetupVerification = z.infer<typeof setupPostSetupVerificationSchema>;
+})
+export type SetupPostSetupVerification = z.infer<
+    typeof setupPostSetupVerificationSchema
+>
 
 // ─── Node config status ───────────────────────────────────────────────────────
 
 export const nodeConfigStatusSchema = z.object({
-    isConfigured:       z.boolean(),
-    nodeId:             z.uuid().nullable(),
-    strategy:           setupBootstrapStrategySchema.nullable(),
-    meshUrlsSnapshot:   z.array(z.string()),
-    configuredAt:       z.date().nullable(),
-});
-export type NodeConfigStatus = z.infer<typeof nodeConfigStatusSchema>;
+    isConfigured: z.boolean(),
+    nodeId: z.uuid().nullable(),
+    strategy: setupBootstrapStrategySchema.nullable(),
+    meshUrlsSnapshot: z.array(z.string()),
+    configuredAt: z.date().nullable(),
+})
+export type NodeConfigStatus = z.infer<typeof nodeConfigStatusSchema>
 
 // ─── Mesh onboarding ──────────────────────────────────────────────────────────
 
@@ -495,8 +535,8 @@ export const setupMeshPeerSchema = z.object({
     meshAddress: z.string().nullable(),
     /** False until WireGuard has completed a handshake with this peer. */
     handshake: z.boolean(),
-});
-export type SetupMeshPeer = z.infer<typeof setupMeshPeerSchema>;
+})
+export type SetupMeshPeer = z.infer<typeof setupMeshPeerSchema>
 
 export const setupMeshStatusSchema = z.object({
     /** The node door answered. */
@@ -507,23 +547,25 @@ export const setupMeshStatusSchema = z.object({
     /** The platform node id, when the API has labelled this agent's roster entry. */
     nodeId: z.string().nullable(),
     /** `null` means "not in a swarm". `nodes` counts this node plus its peers. */
-    swarm: z.object({
-        nodes: z.number().int().nonnegative(),
-        peers: z.array(setupMeshPeerSchema),
-    }).nullable(),
-});
-export type SetupMeshStatus = z.infer<typeof setupMeshStatusSchema>;
+    swarm: z
+        .object({
+            nodes: z.number().int().nonnegative(),
+            peers: z.array(setupMeshPeerSchema),
+        })
+        .nullable(),
+})
+export type SetupMeshStatus = z.infer<typeof setupMeshStatusSchema>
 
 export const setupMeshJoinInputSchema = z.object({
     token: z.string().min(1),
-});
-export type SetupMeshJoinInput = z.infer<typeof setupMeshJoinInputSchema>;
+})
+export type SetupMeshJoinInput = z.infer<typeof setupMeshJoinInputSchema>
 
 export const setupMeshJoinAgentSchema = z.object({
     nodeId: z.string(),
     address: z.string(),
-});
-export type SetupMeshJoinAgent = z.infer<typeof setupMeshJoinAgentSchema>;
+})
+export type SetupMeshJoinAgent = z.infer<typeof setupMeshJoinAgentSchema>
 
 export const setupMeshJoinResultSchema = z.object({
     joined: z.boolean(),
@@ -535,16 +577,16 @@ export const setupMeshJoinResultSchema = z.object({
     agents: z.array(setupMeshJoinAgentSchema),
     /** Why a join did NOT happen (absent door, refused/expired/malformed token). */
     reason: z.string().nullable(),
-});
-export type SetupMeshJoinResult = z.infer<typeof setupMeshJoinResultSchema>;
+})
+export type SetupMeshJoinResult = z.infer<typeof setupMeshJoinResultSchema>
 
 export const setupMeshTokenInputSchema = z.object({
     /** Agent default TTL when omitted. */
     ttlMs: z.number().int().positive().optional(),
-});
-export type SetupMeshTokenInput = z.infer<typeof setupMeshTokenInputSchema>;
+})
+export type SetupMeshTokenInput = z.infer<typeof setupMeshTokenInputSchema>
 
 export const setupMeshTokenResultSchema = z.object({
     token: z.string().nullable(),
-});
-export type SetupMeshTokenResult = z.infer<typeof setupMeshTokenResultSchema>;
+})
+export type SetupMeshTokenResult = z.infer<typeof setupMeshTokenResultSchema>

@@ -1,49 +1,45 @@
-export {
-  dockerImageSchema,
-} from './base.schema'
+export { dockerImageSchema } from './base.schema'
 
-export type {
-  DockerImage,
-} from './base.schema'
+export type { DockerImage } from './base.schema'
 
 export {
-  dockerImageLayerEntrySchema,
-  dockerImageRuntimeConfigSchema,
-  dockerImageInspectDetailSchema,
-  dockerImageSummarySchema,
+    dockerImageLayerEntrySchema,
+    dockerImageRuntimeConfigSchema,
+    dockerImageInspectDetailSchema,
+    dockerImageSummarySchema,
 } from './details.schema'
 
 export type {
-  DockerImageLayerEntry,
-  DockerImageRuntimeConfig,
-  DockerImageInspectDetail,
-  DockerImageSummary,
+    DockerImageLayerEntry,
+    DockerImageRuntimeConfig,
+    DockerImageInspectDetail,
+    DockerImageSummary,
 } from './details.schema'
 
 export {
-  dockerImageListSchema,
-  dockerImageRelationsSchema,
-  dockerImageEntitySchema,
-  dockerImageEntityListSchema,
+    dockerImageListSchema,
+    dockerImageRelationsSchema,
+    dockerImageEntitySchema,
+    dockerImageEntityListSchema,
 } from './relations.schema'
 
 export type {
-  DockerImageList,
-  DockerImageRelations,
-  DockerImageEntity,
-  DockerImageEntityList,
+    DockerImageList,
+    DockerImageRelations,
+    DockerImageEntity,
+    DockerImageEntityList,
 } from './relations.schema'
 
 export {
-  dockerImageRuntimeActionSchema,
-  dockerImageRuntimeEventPayloadSchema,
-  dockerImageRuntimeEventSchema,
+    dockerImageRuntimeActionSchema,
+    dockerImageRuntimeEventPayloadSchema,
+    dockerImageRuntimeEventSchema,
 } from './runtime-events.schema'
 
 export type {
-  DockerImageRuntimeAction,
-  DockerImageRuntimeEventPayload,
-  DockerImageRuntimeEvent,
+    DockerImageRuntimeAction,
+    DockerImageRuntimeEventPayload,
+    DockerImageRuntimeEvent,
 } from './runtime-events.schema'
 
 export * from '../security/scanning/images/scan.schema'

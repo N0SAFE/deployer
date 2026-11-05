@@ -58,12 +58,12 @@ the builder stores a pending path and RouteBuilder applies it. Prefer this for p
 ### 3.1) Path customization rule (important)
 
 - For **static paths** (no dynamic segment), direct path methods are fine:
-  - `.path("/users")`
-  - `.path("/orgs/users/search")`
+    - `.path("/users")`
+    - `.path("/orgs/users/search")`
 
 - For any path with **dynamic params**, use `input.params(...)` **always**:
-  - ✅ `.input((b) => b.params((p) => p`/orgs/${p("orgId", z.uuid())}/users`))`
-  - ❌ Avoid raw dynamic path strings like `.path("/orgs/:orgId/users")` or `.path("/orgs/{orgId}/users")` without typed params wiring.
+    - ✅ `.input((b) => b.params((p) => p`/orgs/${p("orgId", z.uuid())}/users`))`
+    - ❌ Avoid raw dynamic path strings like `.path("/orgs/:orgId/users")` or `.path("/orgs/{orgId}/users")` without typed params wiring.
 
 Reason: `input.params(...)` keeps route path and param schema synchronized, with strong typing and safer refactors.
 
@@ -177,23 +177,23 @@ Use this sequence for new contracts:
 Canonical template:
 
 ```ts
-const userOps = standard.zod(userSchema, "user");
+const userOps = standard.zod(userSchema, 'user')
 
 export const orgUserCreateContract = userOps
-  .create()
-  .input((b) =>
-    b
-      .body((s) => s.omit({ id: true, createdAt: true, updatedAt: true }))
-      .params((p) => p`/orgs/${p("orgId", z.uuid())}/users`)
-      .headers({ "x-request-id": z.string().optional() })
-  )
-  .output((b) =>
-    b.union([
-      b.status(201).body(userSchema),
-      b.status(409).body(z.object({ message: z.string() })),
-    ])
-  )
-  .build();
+    .create()
+    .input((b) =>
+        b
+            .body((s) => s.omit({ id: true, createdAt: true, updatedAt: true }))
+            .params((p) => p`/orgs/${p('orgId', z.uuid())}/users`)
+            .headers({ 'x-request-id': z.string().optional() })
+    )
+    .output((b) =>
+        b.union([
+            b.status(201).body(userSchema),
+            b.status(409).body(z.object({ message: z.string() })),
+        ])
+    )
+    .build()
 ```
 
 ---
@@ -210,7 +210,7 @@ export const orgUserCreateContract = userOps
    Keep the standard operation as baseline and refine it through builder callbacks.
 
 4. **Path/params drift**  
-  For static paths, direct `.path(...)` is fine. For dynamic segments, always use `input.params(...)` template params (`p => p\`...\``) so path and param schemas stay in sync.
+   For static paths, direct `.path(...)` is fine. For dynamic segments, always use `input.params(...)` template params (`p => p\`...\``) so path and param schemas stay in sync.
 
 ---
 

@@ -1,22 +1,22 @@
-import { oc } from "@orpc/contract";
-import z from "zod/v4";
+import { oc } from '@orpc/contract'
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /** The factors a step-up can be proved with. */
-export const stepUpMethodSchema = z.enum(["passkey", "totp"]);
+export const stepUpMethodSchema = z.enum(['passkey', 'totp'])
 
 const stepUpStatusSchema = z.object({
-	steppedUp: z.boolean(),
-	critical: z.boolean(),
-	method: stepUpMethodSchema.nullable(),
-	verifiedAt: z.coerce.date().nullable(),
-	expiresAt: z.coerce.date().nullable(),
-	windowSeconds: z.number().int(),
-});
+    steppedUp: z.boolean(),
+    critical: z.boolean(),
+    method: stepUpMethodSchema.nullable(),
+    verifiedAt: z.coerce.date().nullable(),
+    expiresAt: z.coerce.date().nullable(),
+    windowSeconds: z.number().int(),
+})
 
-const stepUpOps = standard.zod(stepUpStatusSchema, "stepUpStatus");
+const stepUpOps = standard.zod(stepUpStatusSchema, 'stepUpStatus')
 
 /**
  * Whether the CALLER'S SESSION has stepped up recently (`AUTH-062`).
@@ -26,17 +26,23 @@ const stepUpOps = standard.zod(stepUpStatusSchema, "stepUpStatus");
  * call: this is a read, never the gate.
  */
 export const stepUpStatusContract = stepUpOps
-	.read()
-	.path("/authz/step-up")
-	.input(z.object({}))
-	.output(stepUpStatusSchema)
-	.tags("Step-up")
-	.errors((e) => [...standardDomainErrorContracts(e)])
-	.meta(access({ self: true, reason: "the caller reads their own step-up state" })).build();
+    .read()
+    .path('/authz/step-up')
+    .input(z.object({}))
+    .output(stepUpStatusSchema)
+    .tags('Step-up')
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(
+        access({
+            self: true,
+            reason: 'the caller reads their own step-up state',
+        })
+    )
+    .build()
 
 /** The step-up namespace the service exposes. */
 export const stepUpContract = oc.router({
-	status: stepUpStatusContract,
-});
+    status: stepUpStatusContract,
+})
 
-export type StepUpContract = typeof stepUpContract;
+export type StepUpContract = typeof stepUpContract

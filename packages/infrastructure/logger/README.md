@@ -36,17 +36,17 @@ logger.fatal('Fatal error - process should terminate')
 
 // With structured data
 logger.info('User logged in', {
-  userId: '123',
-  email: 'user@example.com',
-  timestamp: Date.now()
+    userId: '123',
+    email: 'user@example.com',
+    timestamp: Date.now(),
 })
 
 // Error logging
 try {
-  throw new Error('Something went wrong')
+    throw new Error('Something went wrong')
 } catch (err) {
-  logger.error('Operation failed', err)
-  // Automatically serializes error with stack trace
+    logger.error('Operation failed', err)
+    // Automatically serializes error with stack trace
 }
 ```
 
@@ -81,9 +81,9 @@ import { logger } from '@deployer/logger'
 
 // Create a child logger with request context
 const requestLogger = logger.child({
-  requestId: 'abc-123',
-  userId: '456',
-  method: 'POST'
+    requestId: 'abc-123',
+    userId: '456',
+    method: 'POST',
 })
 
 requestLogger.info('Processing request')
@@ -100,49 +100,43 @@ import { createLogger } from '@deployer/logger'
 
 // Custom log level
 const apiLogger = createLogger({
-  scope: 'API',
-  level: 'debug'
+    scope: 'API',
+    level: 'debug',
 })
 
 // With base context (appears in all logs)
 const appLogger = createLogger({
-  scope: 'App',
-  base: {
-    version: '1.0.0',
-    env: process.env.NODE_ENV
-  }
+    scope: 'App',
+    base: {
+        version: '1.0.0',
+        env: process.env.NODE_ENV,
+    },
 })
 
 // Custom redaction paths
 const secureLogger = createLogger({
-  scope: 'Security',
-  redact: [
-    'password',
-    'creditCard',
-    'ssn',
-    '*.sensitive',
-    'user.*.secret'
-  ]
+    scope: 'Security',
+    redact: ['password', 'creditCard', 'ssn', '*.sensitive', 'user.*.secret'],
 })
 
 secureLogger.info('User data', {
-  username: 'john',
-  password: 'secret123', // Will be [REDACTED]
-  email: 'john@example.com'
+    username: 'john',
+    password: 'secret123', // Will be [REDACTED]
+    email: 'john@example.com',
 })
 ```
 
 ## Log Levels
 
-| Level | Usage | Description |
-|-------|-------|-------------|
-| `trace` | Development | Most verbose, for detailed debugging |
-| `debug` | Development | Debug information |
-| `info` | Production | General informational messages |
-| `warn` | Production | Warning messages (not errors) |
-| `error` | Production | Error messages with stack traces |
-| `fatal` | Production | Fatal errors (should terminate process) |
-| `silent` | Testing | Disable all logging |
+| Level    | Usage       | Description                             |
+| -------- | ----------- | --------------------------------------- |
+| `trace`  | Development | Most verbose, for detailed debugging    |
+| `debug`  | Development | Debug information                       |
+| `info`   | Production  | General informational messages          |
+| `warn`   | Production  | Warning messages (not errors)           |
+| `error`  | Production  | Error messages with stack traces        |
+| `fatal`  | Production  | Fatal errors (should terminate process) |
+| `silent` | Testing     | Disable all logging                     |
 
 Default level: `debug` in development, `info` in production
 
@@ -161,9 +155,9 @@ By default, the following fields are automatically redacted:
 
 ```typescript
 logger.info('User credentials', {
-  username: 'john',
-  password: 'super-secret', // [REDACTED]
-  token: 'abc-123' // [REDACTED]
+    username: 'john',
+    password: 'super-secret', // [REDACTED]
+    token: 'abc-123', // [REDACTED]
 })
 ```
 
@@ -173,9 +167,9 @@ Errors are automatically serialized with full stack traces:
 
 ```typescript
 try {
-  throw new Error('Database connection failed')
+    throw new Error('Database connection failed')
 } catch (err) {
-  logger.error('Failed to connect', err)
+    logger.error('Failed to connect', err)
 }
 
 // Output includes:
@@ -202,10 +196,10 @@ import { logger } from '@deployer/logger'
 const userLogger = logger.scope('UserService')
 
 export class UserService {
-  async createUser(data) {
-    userLogger.info('Creating user', { email: data.email })
-    // ...
-  }
+    async createUser(data) {
+        userLogger.info('Creating user', { email: data.email })
+        // ...
+    }
 }
 ```
 
@@ -216,20 +210,20 @@ export class UserService {
 import { logger } from '@deployer/logger'
 
 export function requestLogger(req, res, next) {
-  const requestLogger = logger.child({
-    requestId: req.id,
-    method: req.method,
-    path: req.path
-  })
-  
-  req.logger = requestLogger
-  requestLogger.info('Request started')
-  next()
+    const requestLogger = logger.child({
+        requestId: req.id,
+        method: req.method,
+        path: req.path,
+    })
+
+    req.logger = requestLogger
+    requestLogger.info('Request started')
+    next()
 }
 
 // Later in your route
 app.get('/users', (req, res) => {
-  req.logger.info('Fetching users') // Includes requestId, method, path
+    req.logger.info('Fetching users') // Includes requestId, method, path
 })
 ```
 
@@ -249,11 +243,11 @@ logger.info('User logged in', { userId, timestamp: Date.now() })
 
 ```typescript
 logger.trace('Function called with args:', args) // Only in dev
-logger.debug('Cache miss', { key })              // Debug info
-logger.info('User action', { userId, action })    // Important events
-logger.warn('Deprecated API used', { endpoint })  // Warnings
-logger.error('Operation failed', error)           // Errors
-logger.fatal('Unable to start server', error)    // Critical failures
+logger.debug('Cache miss', { key }) // Debug info
+logger.info('User action', { userId, action }) // Important events
+logger.warn('Deprecated API used', { endpoint }) // Warnings
+logger.error('Operation failed', error) // Errors
+logger.fatal('Unable to start server', error) // Critical failures
 ```
 
 ## Environment Configuration
@@ -261,11 +255,13 @@ logger.fatal('Unable to start server', error)    // Critical failures
 The logger automatically adjusts based on `NODE_ENV`:
 
 ### Development (`NODE_ENV=development`)
+
 - Log level: `debug`
 - Pretty printing: **enabled** (colorized, human-readable)
 - Timestamp format: `HH:MM:ss Z`
 
 ### Production (`NODE_ENV=production`)
+
 - Log level: `info`
 - Pretty printing: **disabled** (JSON format)
 - Structured logging for log aggregation
@@ -278,9 +274,9 @@ Full TypeScript support with proper types:
 import { logger, Logger, LogLevel, LoggerOptions } from '@deployer/logger'
 
 const config: LoggerOptions = {
-  level: 'debug',
-  scope: 'MyModule',
-  redact: ['sensitive']
+    level: 'debug',
+    scope: 'MyModule',
+    redact: ['sensitive'],
 }
 
 const myLogger: Logger = createLogger(config)

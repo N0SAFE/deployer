@@ -1,29 +1,27 @@
-import { Context, Effect } from "effect";
-import z from "zod/v4";
+import { Context, Effect } from 'effect'
+import z from 'zod/v4'
 
-import { serviceOver, type Over } from "@deployer/effect-core";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import { serviceOver, type Over } from '@deployer/effect-core'
+import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
+import { attemptSync } from '@/core/effects'
+import { FleetInvalid } from '@/core/fleet.errors'
 
-import { attemptSync } from "@/core/effects";
-import { FleetInvalid } from "@/core/fleet.errors";
+import { runtimeRunnerOptionsSchema } from '../../../base/runtime-runner-options.schema'
+import { resolveRuntimeRunnerKind } from '../../../base/runtime-runner-options.schema'
+import { uploadSourceCheckoutContextSchema } from '../../../base/source-provider.interface'
 
-import { runtimeRunnerOptionsSchema } from "../../../base/runtime-runner-options.schema";
-import { resolveRuntimeRunnerKind } from "../../../base/runtime-runner-options.schema";
 import {
-    uploadSourceCheckoutContextSchema,
-} from "../../../base/source-provider.interface";
+    UploadBundleRegistryService,
+    type UploadBundleRegistryServiceShape,
+} from './upload-bundle-registry.service'
 
-import { UploadBundleRegistryService, type UploadBundleRegistryServiceShape } from "./upload-bundle-registry.service";
-
-import type { RuntimeRunnerOptions } from "../../../base/runtime-runner-options.schema";
-import type {
-    DeploymentSourceCheckoutContext,
-} from "../../../base/source-provider.interface";
-import type { CodeProvider } from "../../shared/code-provider.interface";
+import type { RuntimeRunnerOptions } from '../../../base/runtime-runner-options.schema'
+import type { DeploymentSourceCheckoutContext } from '../../../base/source-provider.interface'
+import type { CodeProvider } from '../../shared/code-provider.interface'
 
 const uploadSourceContextSchema = z.object({
-    sourceType: z.literal("upload"),
+    sourceType: z.literal('upload'),
     uploadId: z.string().min(1),
     uploadPath: z.string().min(1).optional(),
     fileName: z.string().min(1).optional(),
@@ -43,51 +41,59 @@ const uploadSourceContextSchema = z.object({
             runtimeRunnerOptions: runtimeRunnerOptionsSchema.optional(),
         })
         .loose(),
-});
+})
 
 function buildRuntimeRunnerOptionsFallback(input: {
-    runtimeRunnerOptions?: RuntimeRunnerOptions;
-    runtimeRunner?: string;
-    containerName?: string;
-    networkMode?: string;
-    cpuShares?: number;
-    memoryLimitBytes?: number;
-    healthCheckMaxRetries?: number;
-    healthCheckRetryIntervalMs?: number;
+    runtimeRunnerOptions?: RuntimeRunnerOptions
+    runtimeRunner?: string
+    containerName?: string
+    networkMode?: string
+    cpuShares?: number
+    memoryLimitBytes?: number
+    healthCheckMaxRetries?: number
+    healthCheckRetryIntervalMs?: number
 }): RuntimeRunnerOptions | null {
     if (input.runtimeRunnerOptions) {
-        return input.runtimeRunnerOptions;
+        return input.runtimeRunnerOptions
     }
 
-    const runner = resolveRuntimeRunnerKind(input.runtimeRunner);
+    const runner = resolveRuntimeRunnerKind(input.runtimeRunner)
     const options: Record<string, unknown> = {
         runner,
         ...(input.containerName ? { containerName: input.containerName } : {}),
         ...(input.networkMode ? { networkMode: input.networkMode } : {}),
-        ...(typeof input.cpuShares === "number" ? { cpuShares: input.cpuShares } : {}),
-        ...(typeof input.memoryLimitBytes === "number" ? { memoryLimitBytes: input.memoryLimitBytes } : {}),
-        ...(typeof input.healthCheckMaxRetries === "number"
+        ...(typeof input.cpuShares === 'number'
+            ? { cpuShares: input.cpuShares }
+            : {}),
+        ...(typeof input.memoryLimitBytes === 'number'
+            ? { memoryLimitBytes: input.memoryLimitBytes }
+            : {}),
+        ...(typeof input.healthCheckMaxRetries === 'number'
             ? { healthCheckMaxRetries: input.healthCheckMaxRetries }
             : {}),
-        ...(typeof input.healthCheckRetryIntervalMs === "number"
+        ...(typeof input.healthCheckRetryIntervalMs === 'number'
             ? { healthCheckRetryIntervalMs: input.healthCheckRetryIntervalMs }
             : {}),
-    };
+    }
 
-    const parsed = runtimeRunnerOptionsSchema.safeParse(options);
-    return parsed.success ? parsed.data : null;
+    const parsed = runtimeRunnerOptionsSchema.safeParse(options)
+    return parsed.success ? parsed.data : null
 }
 
 /** The provider for an uploaded archive: the bundle is on disk, the trigger names it. */
-function makeUploadSourceProviderService(uploadBundleRegistryService: UploadBundleRegistryServiceShape) {
+function makeUploadSourceProviderService(
+    uploadBundleRegistryService: UploadBundleRegistryServiceShape
+) {
     return {
         resolveSourceCheckout: (input: DeploymentTriggerInput) =>
             Effect.gen(function* () {
-                if (input.source.sourceType !== "upload") return null;
+                if (input.source.sourceType !== 'upload') return null
 
-                const parsed = uploadSourceContextSchema.safeParse(input.source);
+                const parsed = uploadSourceContextSchema.safeParse(input.source)
                 if (!parsed.success) {
-                    return yield* new FleetInvalid({ reason: "Upload source requires valid source with customData.uploadId" });
+                    return yield* new FleetInvalid({
+                        reason: 'Upload source requires valid source with customData.uploadId',
+                    })
                 }
 
                 // `uploadId`/`uploadPath` are declared BOTH at the root of the source and
@@ -96,21 +102,34 @@ function makeUploadSourceProviderService(uploadBundleRegistryService: UploadBund
                 // shape this source type validates — was then told its bundle
                 // "was not found", naming a field it had in fact supplied. Prefer the
                 // nested value (the more specific one) and fall back to the root.
-                const { customData, fileName, fileSize } = parsed.data;
-                const uploadId = customData.uploadId;
-                const declaredUploadPath = customData.uploadPath ?? parsed.data.uploadPath;
-                const registryRecord = declaredUploadPath ? null : yield* uploadBundleRegistryService.findByUploadId(uploadId);
+                const { customData, fileName, fileSize } = parsed.data
+                const uploadId = customData.uploadId
+                const declaredUploadPath =
+                    customData.uploadPath ?? parsed.data.uploadPath
+                const registryRecord = declaredUploadPath
+                    ? null
+                    : yield* uploadBundleRegistryService.findByUploadId(
+                          uploadId
+                      )
 
                 if (!declaredUploadPath && !registryRecord) {
-                    return yield* new FleetInvalid({ reason: `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.` });
+                    return yield* new FleetInvalid({
+                        reason: `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.`,
+                    })
                 }
 
-                const resolvedUploadPath = declaredUploadPath ?? registryRecord?.uploadPath;
-                const resolvedFileName = fileName ?? registryRecord?.fileName;
-                const resolvedFileSize = typeof fileSize === "number" ? fileSize : registryRecord?.fileSize;
+                const resolvedUploadPath =
+                    declaredUploadPath ?? registryRecord?.uploadPath
+                const resolvedFileName = fileName ?? registryRecord?.fileName
+                const resolvedFileSize =
+                    typeof fileSize === 'number'
+                        ? fileSize
+                        : registryRecord?.fileSize
 
                 if (!resolvedUploadPath) {
-                    return yield* new FleetInvalid({ reason: `Upload source with id '${uploadId}' is missing a resolved upload path` });
+                    return yield* new FleetInvalid({
+                        reason: `Upload source with id '${uploadId}' is missing a resolved upload path`,
+                    })
                 }
 
                 const runtimeRunnerOptions = buildRuntimeRunnerOptionsFallback({
@@ -121,45 +140,76 @@ function makeUploadSourceProviderService(uploadBundleRegistryService: UploadBund
                     cpuShares: customData.cpuShares,
                     memoryLimitBytes: customData.memoryLimitBytes,
                     healthCheckMaxRetries: customData.healthCheckMaxRetries,
-                    healthCheckRetryIntervalMs: customData.healthCheckRetryIntervalMs,
-                });
+                    healthCheckRetryIntervalMs:
+                        customData.healthCheckRetryIntervalMs,
+                })
 
                 return yield* attemptSync(() =>
                     uploadSourceCheckoutContextSchema.parse({
-                        provider: "upload",
+                        provider: 'upload',
                         uploadId,
                         uploadPath: resolvedUploadPath,
-                        ...(resolvedFileName ? { fileName: resolvedFileName } : {}),
-                        ...(typeof resolvedFileSize === "number" ? { fileSize: resolvedFileSize } : {}),
+                        ...(resolvedFileName
+                            ? { fileName: resolvedFileName }
+                            : {}),
+                        ...(typeof resolvedFileSize === 'number'
+                            ? { fileSize: resolvedFileSize }
+                            : {}),
                         // Backward compatibility only: runtime/build concerns should be sent via
                         // trigger input execution config (execution.builder / execution.runner / execution.healthChecks).
-                        ...(customData.containerImage ? { containerImage: customData.containerImage } : {}),
-                        ...(customData.containerName ? { containerName: customData.containerName } : {}),
-                        ...(customData.runtimeRunner ? { runtimeRunner: customData.runtimeRunner } : {}),
-                        ...(customData.networkMode ? { networkMode: customData.networkMode } : {}),
-                        ...(typeof customData.cpuShares === "number" ? { cpuShares: customData.cpuShares } : {}),
-                        ...(typeof customData.memoryLimitBytes === "number"
+                        ...(customData.containerImage
+                            ? { containerImage: customData.containerImage }
+                            : {}),
+                        ...(customData.containerName
+                            ? { containerName: customData.containerName }
+                            : {}),
+                        ...(customData.runtimeRunner
+                            ? { runtimeRunner: customData.runtimeRunner }
+                            : {}),
+                        ...(customData.networkMode
+                            ? { networkMode: customData.networkMode }
+                            : {}),
+                        ...(typeof customData.cpuShares === 'number'
+                            ? { cpuShares: customData.cpuShares }
+                            : {}),
+                        ...(typeof customData.memoryLimitBytes === 'number'
                             ? { memoryLimitBytes: customData.memoryLimitBytes }
                             : {}),
-                        ...(typeof customData.healthCheckMaxRetries === "number"
-                            ? { healthCheckMaxRetries: customData.healthCheckMaxRetries }
+                        ...(typeof customData.healthCheckMaxRetries === 'number'
+                            ? {
+                                  healthCheckMaxRetries:
+                                      customData.healthCheckMaxRetries,
+                              }
                             : {}),
-                        ...(typeof customData.healthCheckRetryIntervalMs === "number"
-                            ? { healthCheckRetryIntervalMs: customData.healthCheckRetryIntervalMs }
+                        ...(typeof customData.healthCheckRetryIntervalMs ===
+                        'number'
+                            ? {
+                                  healthCheckRetryIntervalMs:
+                                      customData.healthCheckRetryIntervalMs,
+                              }
                             : {}),
-                        ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
-                    }),
-                );
+                        ...(runtimeRunnerOptions
+                            ? { runtimeRunnerOptions }
+                            : {}),
+                    })
+                )
             }),
-    } satisfies CodeProvider;
+    } satisfies CodeProvider
 }
 
-export type UploadSourceProviderServiceShape = Over<ReturnType<typeof makeUploadSourceProviderService>, UploadBundleRegistryService>;
+export type UploadSourceProviderServiceShape = Over<
+    ReturnType<typeof makeUploadSourceProviderService>,
+    UploadBundleRegistryService
+>
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class UploadSourceProviderService extends Context.Service<UploadSourceProviderService, UploadSourceProviderServiceShape>()(
-    "fleet/UploadSourceProviderService",
-) {
+export class UploadSourceProviderService extends Context.Service<
+    UploadSourceProviderService,
+    UploadSourceProviderServiceShape
+>()('fleet/UploadSourceProviderService') {
     /** The bundle registry is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: UploadSourceProviderServiceShape = serviceOver(UploadBundleRegistryService, makeUploadSourceProviderService);
+    static readonly live: UploadSourceProviderServiceShape = serviceOver(
+        UploadBundleRegistryService,
+        makeUploadSourceProviderService
+    )
 }

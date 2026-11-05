@@ -25,46 +25,48 @@ import type { ClientContext } from '@orpc/client'
  *
  * @template TContext - The base context type
  */
-export class MasterTokenPlugin<T extends ClientContext> implements StandardLinkPlugin<T> {
-  /** Unique plugin name — oRPC v2 requires it for ordering identification. */
-  public readonly name = 'master-token'
+export class MasterTokenPlugin<
+    T extends ClientContext,
+> implements StandardLinkPlugin<T> {
+    /** Unique plugin name — oRPC v2 requires it for ordering identification. */
+    public readonly name = 'master-token'
 
-  init(link: StandardLinkOptions<T>): StandardLinkOptions<T> {
-    const transportInterceptors = link.transportInterceptors ?? []
+    init(link: StandardLinkOptions<T>): StandardLinkOptions<T> {
+        const transportInterceptors = link.transportInterceptors ?? []
 
-    return {
-      ...link,
-      transportInterceptors: [
-        ...transportInterceptors,
-        async (options) => {
-      // Only in development — matches the server plugin's own gating.
-      if (process.env.NODE_ENV !== 'development') {
-        return options.next(options)
-      }
+        return {
+            ...link,
+            transportInterceptors: [
+                ...transportInterceptors,
+                async (options) => {
+                    // Only in development — matches the server plugin's own gating.
+                    if (process.env.NODE_ENV !== 'development') {
+                        return options.next(options)
+                    }
 
-      // Only proceed if the auth client carries the devtools plugin.
-      if (!hasMasterTokenPlugin(authClient)) {
-        return options.next(options)
-      }
+                    // Only proceed if the auth client carries the devtools plugin.
+                    if (!hasMasterTokenPlugin(authClient)) {
+                        return options.next(options)
+                    }
 
-      // Single source of truth for the token, shared with the devtools panel.
-      // Returns null unless the toggle is on AND a key has been minted, so a
-      // disabled or un-minted devtools session leaves requests untouched.
-      const token = readDevtoolsApiKey()
-      if (!token) {
-        return options.next(options)
-      }
+                    // Single source of truth for the token, shared with the devtools panel.
+                    // Returns null unless the toggle is on AND a key has been minted, so a
+                    // disabled or un-minted devtools session leaves requests untouched.
+                    const token = readDevtoolsApiKey()
+                    if (!token) {
+                        return options.next(options)
+                    }
 
-      // `request.headers` is a plain object on the ORPC link (see
-      // cookie-headers-plugin.ts), not a `Headers` instance — assign directly.
-      options.request.headers = {
-        ...options.request.headers,
-        Authorization: `Bearer ${token}`,
-      }
+                    // `request.headers` is a plain object on the ORPC link (see
+                    // cookie-headers-plugin.ts), not a `Headers` instance — assign directly.
+                    options.request.headers = {
+                        ...options.request.headers,
+                        Authorization: `Bearer ${token}`,
+                    }
 
-      return options.next(options)
-        },
-      ],
+                    return options.next(options)
+                },
+            ],
+        }
     }
-  }
 }

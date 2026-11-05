@@ -52,7 +52,15 @@ const service = new Proxy({} as ActingService, {
     get:
         (_target, key: keyof PushServiceShape) =>
         (actor: Acting, ...args: unknown[]) =>
-            (PushService.live[key] as (...a: unknown[]) => Effect.Effect<unknown, PushFailure, PushRepository | CurrentActor | Correlation>)(...args).pipe(
+            (
+                PushService.live[key] as (
+                    ...a: unknown[]
+                ) => Effect.Effect<
+                    unknown,
+                    PushFailure,
+                    PushRepository | CurrentActor | Correlation
+                >
+            )(...args).pipe(
                 Effect.provideService(
                     CurrentActor,
                     Actor.user(actor.userId, actor.role)
@@ -119,9 +127,7 @@ function run<A, E>(
     repository: PushRepositoryShape
 ): Promise<A> {
     return Effect.runPromise(
-        effect.pipe(
-            Effect.provideService(PushRepository, repository)
-        )
+        effect.pipe(Effect.provideService(PushRepository, repository))
     )
 }
 

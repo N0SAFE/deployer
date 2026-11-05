@@ -4,26 +4,26 @@
 // nothing else, so the contract cannot drift from the implementation. The BFF
 // composes this into its public router.
 
-export * from "./modules/analytics";
-export * from "./modules/approval";
-export * from "./modules/audit";
-export * from "./modules/role";
-export * from "./modules/step-up";
-export * from "./modules/push";
-export * from "./modules/user";
+export * from './modules/analytics'
+export * from './modules/approval'
+export * from './modules/audit'
+export * from './modules/role'
+export * from './modules/step-up'
+export * from './modules/push'
+export * from './modules/user'
 
 // Convenience input/output aliases derived from the user contracts.
-export * from "./types";
+export * from './types'
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { analyticsContract } from "./modules/analytics";
-import { approvalContract } from "./modules/approval";
-import { auditContract } from "./modules/audit";
-import { pushContract } from "./modules/push";
-import { roleContract } from "./modules/role";
-import { stepUpContract } from "./modules/step-up";
-import { userContract } from "./modules/user";
+import { analyticsContract } from './modules/analytics'
+import { approvalContract } from './modules/approval'
+import { auditContract } from './modules/audit'
+import { pushContract } from './modules/push'
+import { roleContract } from './modules/role'
+import { stepUpContract } from './modules/step-up'
+import { userContract } from './modules/user'
 
 /**
  * The WHOLE identity service, as one contract.
@@ -38,13 +38,13 @@ import { userContract } from "./modules/user";
  * (`identity.user.findById`) stays valid and matches the HTTP route.
  */
 export const identityContract = oc.router({
-	analytics: analyticsContract,
-	approval: approvalContract,
-	audit: auditContract,
-	role: roleContract,
-	stepUp: stepUpContract,
-	push: pushContract,
-	user: userContract,
-});
+    analytics: analyticsContract,
+    approval: approvalContract,
+    audit: auditContract,
+    role: roleContract,
+    stepUp: stepUpContract,
+    push: pushContract,
+    user: userContract,
+})
 
-export type IdentityContract = typeof identityContract;
+export type IdentityContract = typeof identityContract

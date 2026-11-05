@@ -1,12 +1,16 @@
-import { createModuleContext, EffectHostModule, EffectRuntimeModule } from "@deployer/nest-effect";
+import {
+    createModuleContext,
+    EffectHostModule,
+    EffectRuntimeModule,
+} from '@deployer/nest-effect'
 
-import { EnvModule } from "./config/env/env.module";
-import { SetupClusterModule } from "./modules/cluster/cluster.module";
-import { HandoverModule } from "./modules/handover/handover.module";
-import { SetupHealthModule } from "./modules/health/setup-health.module";
-import { SetupIngressModule } from "./modules/ingress/setup-ingress.module";
-import { SetupProgressModule } from "./modules/progress/progress.module";
-import { WizardModule } from "./modules/wizard/wizard.module";
+import { EnvModule } from './config/env/env.module'
+import { SetupClusterModule } from './modules/cluster/cluster.module'
+import { HandoverModule } from './modules/handover/handover.module'
+import { SetupHealthModule } from './modules/health/setup-health.module'
+import { SetupIngressModule } from './modules/ingress/setup-ingress.module'
+import { SetupProgressModule } from './modules/progress/progress.module'
+import { WizardModule } from './modules/wizard/wizard.module'
 
 /**
  * Root module of the setup app.
@@ -30,16 +34,16 @@ import { WizardModule } from "./modules/wizard/wizard.module";
  * validated env and starts work on `onApplicationBootstrap`.
  */
 export class SetupAppModule extends createModuleContext({
-  imports: [
-    // The Effect runtime and the process-wide host the lifecycle runners (`serviceLifecycle`) fork their loops on.
-    EffectRuntimeModule,
-    EffectHostModule,
-    EnvModule,
-    SetupIngressModule,
-    SetupHealthModule,
-    SetupClusterModule,
-    SetupProgressModule,
-    WizardModule,
-    HandoverModule,
-  ],
+    imports: [
+        // The Effect runtime and the process-wide host the lifecycle runners (`serviceLifecycle`) fork their loops on.
+        EffectRuntimeModule,
+        EffectHostModule,
+        EnvModule,
+        SetupIngressModule,
+        SetupHealthModule,
+        SetupClusterModule,
+        SetupProgressModule,
+        WizardModule,
+        HandoverModule,
+    ],
 }) {}

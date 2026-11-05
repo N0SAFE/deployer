@@ -1,1 +1,1 @@
-export * from "./auth.plugin";
+export * from './auth.plugin'

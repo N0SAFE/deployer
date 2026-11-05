@@ -4,7 +4,10 @@ description: Authentication, role/permission enforcement, and plugin utility usa
 order: 9
 ---
 
-<DocMeta source=".docs/core-concepts/07-BETTER-AUTH-INTEGRATION.md, .docs/features/BETTER-AUTH-PLUGIN-UTILITIES.md" scope="canonical" />
+<DocMeta
+    source=".docs/core-concepts/07-BETTER-AUTH-INTEGRATION.md, .docs/features/BETTER-AUTH-PLUGIN-UTILITIES.md"
+    scope="canonical"
+/>
 
 ## Core rule
 
@@ -44,18 +47,31 @@ Expected benefits:
 - role/permission logic duplicated in controllers.
 
 <DocCallout title="Important" tone="warning">
-When you need user/org/admin auth mutations, route them through Better Auth APIs and plugin wrappers; never handcraft DB writes for auth tables.
+    When you need user/org/admin auth mutations, route them through Better Auth
+    APIs and plugin wrappers; never handcraft DB writes for auth tables.
 </DocCallout>
 
 ## Suggested endpoint checklist
 
 <DocChecklist
-	items={[
-		{ label: 'Route has explicit auth intent (public/optional/restricted)', done: false },
-		{ label: 'Session/user extracted via decorators, not raw request parsing', done: false },
-		{ label: 'Authorization uses role/permission decorators or middleware', done: false },
-		{ label: 'Auth mutations go through AuthService.api or plugin utilities', done: false },
-	]}
+    items={[
+        {
+            label: 'Route has explicit auth intent (public/optional/restricted)',
+            done: false,
+        },
+        {
+            label: 'Session/user extracted via decorators, not raw request parsing',
+            done: false,
+        },
+        {
+            label: 'Authorization uses role/permission decorators or middleware',
+            done: false,
+        },
+        {
+            label: 'Auth mutations go through AuthService.api or plugin utilities',
+            done: false,
+        },
+    ]}
 />
 
 ## Related docs

@@ -35,17 +35,17 @@
  */
 
 /** Deadline for an ordinary oRPC call. Generous: a cold route can take seconds. */
-export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 
 /** Headers whose presence means "this connection is meant to stay open". */
 function isStreamingRequest(init: RequestInit | undefined): boolean {
-  // The oRPC streaming plugin supplies its own signal. Respecting it as the
-  // ownership marker is exact — a caller passing a signal for an ordinary call is
-  // already opting into manual lifecycle management, so imposing a second
-  // deadline on top would fight it.
-  if (init?.signal !== undefined && init.signal !== null) return true;
-  const accept = new Headers(init?.headers).get("accept");
-  return accept !== null && accept.includes("text/event-stream");
+    // The oRPC streaming plugin supplies its own signal. Respecting it as the
+    // ownership marker is exact — a caller passing a signal for an ordinary call is
+    // already opting into manual lifecycle management, so imposing a second
+    // deadline on top would fight it.
+    if (init?.signal !== undefined && init.signal !== null) return true
+    const accept = new Headers(init?.headers).get('accept')
+    return accept !== null && accept.includes('text/event-stream')
 }
 
 /**
@@ -68,7 +68,7 @@ function isStreamingRequest(init: RequestInit | undefined): boolean {
  * a hint about a future connection, not a request, so bounding it would be
  * meaningless; forwarding the real one is the honest answer.
  */
-export type FetchLike = typeof fetch;
+export type FetchLike = typeof fetch
 
 /**
  * The call signature only — what a caller can actually hand over.
@@ -79,22 +79,34 @@ export type FetchLike = typeof fetch;
  * oRPC's `typeof fetch`. Using one type for both made every caller fail to
  * compile; splitting them is what makes the wrapper usable and the result honest.
  */
-export type FetchCall = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+export type FetchCall = (
+    input: RequestInfo | URL,
+    init?: RequestInit
+) => Promise<Response>
 
-export function fetchWithTimeout(fetchImpl: FetchCall, timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): FetchLike {
-  const bounded = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    if (isStreamingRequest(init)) return fetchImpl(input, init);
+export function fetchWithTimeout(
+    fetchImpl: FetchCall,
+    timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS
+): FetchLike {
+    const bounded = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit
+    ): Promise<Response> => {
+        if (isStreamingRequest(init)) return fetchImpl(input, init)
 
-    const deadline = AbortSignal.timeout(timeoutMs);
-    return fetchImpl(input, {
-      ...init,
-      signal: init?.signal !== undefined && init.signal !== null ? AbortSignal.any([init.signal, deadline]) : deadline,
-    });
-  }) as FetchLike;
+        const deadline = AbortSignal.timeout(timeoutMs)
+        return fetchImpl(input, {
+            ...init,
+            signal:
+                init?.signal !== undefined && init.signal !== null
+                    ? AbortSignal.any([init.signal, deadline])
+                    : deadline,
+        })
+    }) as FetchLike
 
-  // Carries `preconnect` (and any future static member) through unchanged when the
-  // input has one, so the result genuinely satisfies `typeof fetch` instead of
-  // merely being asserted to. An arrow wrapper has none, which is fine: nothing in
-  // the oRPC call path reads it.
-  return Object.assign(bounded, fetchImpl);
+    // Carries `preconnect` (and any future static member) through unchanged when the
+    // input has one, so the result genuinely satisfies `typeof fetch` instead of
+    // merely being asserted to. An arrow wrapper has none, which is fine: nothing in
+    // the oRPC call path reads it.
+    return Object.assign(bounded, fetchImpl)
 }

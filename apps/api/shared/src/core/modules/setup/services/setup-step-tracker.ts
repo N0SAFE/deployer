@@ -3,7 +3,7 @@ import type {
     SetupStreamEvent,
     SetupStreamSnapshotEvent,
     SetupStreamStepState,
-} from "@deployer/contracts-entities";
+} from '@deployer/contracts-entities'
 
 /**
  * Pure state holder for the steps of a single setup run.
@@ -31,9 +31,9 @@ import type {
  * `progress` channel.
  */
 export class SetupStepTracker {
-    private readonly steps = new Map<SetupStepId, SetupStreamStepState>();
-    private readonly stepStartTimes = new Map<SetupStepId, number>();
-    private seq = 0;
+    private readonly steps = new Map<SetupStepId, SetupStreamStepState>()
+    private readonly stepStartTimes = new Map<SetupStepId, number>()
+    private seq = 0
 
     /**
      * Push a step into the running state.
@@ -43,22 +43,22 @@ export class SetupStepTracker {
      * were missing on the first call.
      */
     start(stepId: SetupStepId, title: string, description?: string): void {
-        const existing = this.steps.get(stepId);
+        const existing = this.steps.get(stepId)
         if (existing) {
-            existing.title = title;
-            if (description) existing.description = description;
-            return;
+            existing.title = title
+            if (description) existing.description = description
+            return
         }
-        const now = new Date();
+        const now = new Date()
         this.steps.set(stepId, {
             id: stepId,
             title,
             description,
-            status: "in_progress",
+            status: 'in_progress',
             logs: [],
             startedAt: now.toISOString(),
-        });
-        this.stepStartTimes.set(stepId, now.getTime());
+        })
+        this.stepStartTimes.set(stepId, now.getTime())
     }
 
     /**
@@ -67,21 +67,22 @@ export class SetupStepTracker {
      * first.
      */
     log(stepId: SetupStepId, line: string): void {
-        const step = this.steps.get(stepId);
-        if (!step) return;
-        step.logs.push(line);
+        const step = this.steps.get(stepId)
+        if (!step) return
+        step.logs.push(line)
     }
 
     /**
      * Mark a step as completed with its measured duration.
      */
     complete(stepId: SetupStepId): void {
-        const step = this.steps.get(stepId);
-        if (!step) return;
-        const startTime = this.stepStartTimes.get(stepId);
-        step.status = "completed";
-        step.durationMs = typeof startTime === "number" ? Date.now() - startTime : 0;
-        step.completedAt = new Date().toISOString();
+        const step = this.steps.get(stepId)
+        if (!step) return
+        const startTime = this.stepStartTimes.get(stepId)
+        step.status = 'completed'
+        step.durationMs =
+            typeof startTime === 'number' ? Date.now() - startTime : 0
+        step.completedAt = new Date().toISOString()
     }
 
     /**
@@ -89,13 +90,14 @@ export class SetupStepTracker {
      * duration.
      */
     fail(stepId: SetupStepId, error: string): void {
-        const step = this.steps.get(stepId);
-        if (!step) return;
-        const startTime = this.stepStartTimes.get(stepId);
-        step.status = "failed";
-        step.error = error;
-        step.durationMs = typeof startTime === "number" ? Date.now() - startTime : 0;
-        step.completedAt = new Date().toISOString();
+        const step = this.steps.get(stepId)
+        if (!step) return
+        const startTime = this.stepStartTimes.get(stepId)
+        step.status = 'failed'
+        step.error = error
+        step.durationMs =
+            typeof startTime === 'number' ? Date.now() - startTime : 0
+        step.completedAt = new Date().toISOString()
     }
 
     /**
@@ -108,13 +110,16 @@ export class SetupStepTracker {
      * ```
      */
     snapshot(): SetupStreamSnapshotEvent {
-        this.seq += 1;
+        this.seq += 1
         return {
-            type: "snapshot",
+            type: 'snapshot',
             seq: this.seq,
             ts: new Date().toISOString(),
-            steps: Array.from(this.steps.values()).map((s) => ({ ...s, logs: [...s.logs] })),
-        };
+            steps: Array.from(this.steps.values()).map((s) => ({
+                ...s,
+                logs: [...s.logs],
+            })),
+        }
     }
 
     /**
@@ -129,16 +134,16 @@ export class SetupStepTracker {
      * consistent.
      */
     logEvent(stepId: SetupStepId, line: string): SetupStreamEvent | null {
-        const step = this.steps.get(stepId);
-        if (!step) return null;
-        this.seq += 1;
+        const step = this.steps.get(stepId)
+        if (!step) return null
+        this.seq += 1
         return {
-            type: "log",
+            type: 'log',
             stepId,
             line,
             seq: this.seq,
             ts: new Date().toISOString(),
-        };
+        }
     }
 
     /**
@@ -149,40 +154,40 @@ export class SetupStepTracker {
     stepDetailEvent(
         stepId: string,
         title: string,
-        description: string,
+        description: string
     ): SetupStreamEvent {
-        this.seq += 1;
+        this.seq += 1
         return {
-            type: "step_detail",
+            type: 'step_detail',
             stepId,
             title,
             description,
             seq: this.seq,
             ts: new Date().toISOString(),
-        };
+        }
     }
 
     /**
      * Build the terminal `completed` event for the run.
      */
     finishEvent(result: {
-        nodeId: string;
-        strategy: "local" | "remote";
-        databaseUrl: string;
+        nodeId: string
+        strategy: 'local' | 'remote'
+        databaseUrl: string
     }): SetupStreamEvent {
         return {
-            type: "completed",
+            type: 'completed',
             result: {
                 ...result,
                 completedAt: new Date().toISOString(),
             },
-        };
+        }
     }
 
     /**
      * Build the terminal `error` event for the run.
      */
     abortEvent(message: string): SetupStreamEvent {
-        return { type: "error", message };
+        return { type: 'error', message }
     }
 }

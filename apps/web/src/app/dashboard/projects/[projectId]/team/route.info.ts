@@ -4,8 +4,8 @@ import { z } from 'zod'
 export const page = true
 export const layout = false
 export const Route = {
-  name: 'AuthDashboardProjectsProjectIdTeam',
-  params: z.object({
-    projectId: z.string(),
-  }),
+    name: 'AuthDashboardProjectsProjectIdTeam',
+    params: z.object({
+        projectId: z.string(),
+    }),
 }

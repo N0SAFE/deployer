@@ -1,6 +1,6 @@
 /**
  * @deployer/declarative-routing - Types and Interfaces
- * 
+ *
  * This file defines all the types used by the declarative routing system,
  * including the auth adapter interfaces for dependency injection.
  */
@@ -18,7 +18,7 @@ import type { Session } from '@deployer/auth'
 /**
  * Server-side auth adapter interface.
  * Must be implemented by the consuming application to provide server-side auth.
- * 
+ *
  * @template S - The session type used by your auth system
  */
 export type ServerAuthAdapter<S = unknown> = {
@@ -32,7 +32,7 @@ export type ServerAuthAdapter<S = unknown> = {
 /**
  * Client-side auth adapter interface.
  * Must be implemented by the consuming application to provide client-side auth.
- * 
+ *
  * @template S - The session type used by your auth system
  */
 export type ClientAuthAdapter<S = unknown> = {
@@ -50,10 +50,11 @@ export type ClientAuthAdapter<S = unknown> = {
 
 /**
  * Combined auth adapter for components that need both.
- * 
+ *
  * @template S - The session type used by your auth system
  */
-export type AuthAdapter<S = unknown> = ServerAuthAdapter<S> & ClientAuthAdapter<S>
+export type AuthAdapter<S = unknown> = ServerAuthAdapter<S> &
+    ClientAuthAdapter<S>
 
 /**
  * Client session props provided to wrapped components.
@@ -169,10 +170,7 @@ export type NextPageProps = {
 /**
  * Typed page props including params and search (Promise-wrapped)
  */
-export type PageProps<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
-> = {
+export type PageProps<Params extends z.ZodType, Search extends z.ZodType> = {
     params: Promise<z.output<Params>>
     searchParams: Promise<z.output<Search>>
 } & BasePageProps
@@ -214,10 +212,7 @@ export type UnwrappedPageComponent<
 /**
  * Route info configuration.
  */
-export type RouteInfo<
-    Params extends z.ZodType,
-    Search extends z.ZodType,
-> = {
+export type RouteInfo<Params extends z.ZodType, Search extends z.ZodType> = {
     name: string
     params: Params
     search: Search
@@ -290,20 +285,19 @@ export type SchemasConfig<
  * When Params is an empty z.object({}), z.input<Params> can resolve to Record<string, never>,
  * which poisons intersections. This conditional removes the index-signature.
  */
-export type ParamProps<P extends z.ZodType> = z.input<P> extends Record<string, never>
-    ? object
-    : z.input<P>
+export type ParamProps<P extends z.ZodType> =
+    z.input<P> extends Record<string, never> ? object : z.input<P>
 
 /**
  * Extract params type from RouteBuilder.
  */
-export type RouteBuilderParams<T extends { paramsSchema: z.ZodType }> = 
+export type RouteBuilderParams<T extends { paramsSchema: z.ZodType }> =
     z.output<T['paramsSchema']>
 
 /**
  * Extract search type from RouteBuilder.
  */
-export type RouteBuilderSearch<T extends { searchSchema: z.ZodType }> = 
+export type RouteBuilderSearch<T extends { searchSchema: z.ZodType }> =
     z.output<T['searchSchema']>
 
 /**

@@ -1,92 +1,123 @@
-import { createAuthEndpoint } from "better-auth/api";
-import { setSessionCookie } from "better-auth/cookies";
-import * as z from "zod/v4";
+import { createAuthEndpoint } from 'better-auth/api'
+import { setSessionCookie } from 'better-auth/cookies'
+import * as z from 'zod/v4'
 
-import { bearerToken, secretsMatch } from "../secrets";
+import { bearerToken, secretsMatch } from '../secrets'
 
-import type { BetterAuthPlugin } from "better-auth";
+import type { BetterAuthPlugin } from 'better-auth'
 
 interface LoginAsOptions {
-    enabled?: boolean;
-    devAuthKey: string;
+    enabled?: boolean
+    devAuthKey: string
 }
 
 export const loginAsPlugin = (options: LoginAsOptions) => {
-    const { enabled = process.env.NODE_ENV === "development", devAuthKey } = options;
+    const { enabled = process.env.NODE_ENV === 'development', devAuthKey } =
+        options
 
     return {
-        id: "login-as",
+        id: 'login-as',
         endpoints: {
             loginAs: createAuthEndpoint(
-                "/login-as",
+                '/login-as',
                 {
-                    method: "POST",
+                    method: 'POST',
                     body: z.object({
-                        userId: z.string().min(1, "User ID is required"),
+                        userId: z.string().min(1, 'User ID is required'),
                     }),
                 },
                 async (ctx) => {
                     // Check if plugin is enabled
                     if (!enabled) {
-                        return ctx.json({ error: "Login-as is disabled" }, { status: 403 });
+                        return ctx.json(
+                            { error: 'Login-as is disabled' },
+                            { status: 403 }
+                        )
                     }
 
                     if (!ctx.request) {
-                        return ctx.json({ error: "Invalid request context" }, { status: 400 });
+                        return ctx.json(
+                            { error: 'Invalid request context' },
+                            { status: 400 }
+                        )
                     }
 
                     // Constant-time comparison: `!==` on the whole header would leak the expected prefix.
-                    if (!secretsMatch(bearerToken(ctx.request.headers.get("authorization")), devAuthKey)) {
-                        return ctx.json({ error: "Unauthorized" }, { status: 401 });
+                    if (
+                        !secretsMatch(
+                            bearerToken(
+                                ctx.request.headers.get('authorization')
+                            ),
+                            devAuthKey
+                        )
+                    ) {
+                        return ctx.json(
+                            { error: 'Unauthorized' },
+                            { status: 401 }
+                        )
                     }
 
-                    const { userId } = ctx.body;
+                    const { userId } = ctx.body
 
                     try {
                         // Get user from database
-                        const user = (await ctx.context.adapter.findOne<{
-                            id: string;
-                            createdAt: Date;
-                            updatedAt: Date;
-                            email: string;
-                            emailVerified: boolean;
-                            name: string;
-                            image?: string | null;
+                        const user = await ctx.context.adapter.findOne<{
+                            id: string
+                            createdAt: Date
+                            updatedAt: Date
+                            email: string
+                            emailVerified: boolean
+                            name: string
+                            image?: string | null
                         }>({
-                            model: "user",
-                            where: [{ field: "id", value: userId, operator: "eq" }],
-                        }));
+                            model: 'user',
+                            where: [
+                                { field: 'id', value: userId, operator: 'eq' },
+                            ],
+                        })
 
                         if (!user) {
-                            return await ctx.json({ error: "User not found" }, { status: 404 });
+                            return await ctx.json(
+                                { error: 'User not found' },
+                                { status: 404 }
+                            )
                         }
 
                         try {
                             // Create session for the user
-                            const session = await ctx.context.internalAdapter.createSession(user.id);
+                            const session =
+                                await ctx.context.internalAdapter.createSession(
+                                    user.id
+                                )
 
                             await setSessionCookie(ctx, {
                                 session,
                                 user,
-                            });
+                            })
 
                             return await ctx.json({
                                 success: true,
-                            });
+                            })
                         } catch {
-                            return await ctx.json({ error: "Failed to create session" }, { status: 500 });
+                            return await ctx.json(
+                                { error: 'Failed to create session' },
+                                { status: 500 }
+                            )
                         }
                     } catch (error) {
-                        console.error("Login-as error:", error);
+                        console.error('Login-as error:', error)
                         return ctx.json(
                             {
-                                error: process.env.NODE_ENV === "development" ? JSON.stringify(error) : "Internal server error",
+                                error:
+                                    process.env.NODE_ENV === 'development'
+                                        ? JSON.stringify(error)
+                                        : 'Internal server error',
                             },
                             { status: 500 }
-                        );
+                        )
                     }
                 }
             ),
         },
-    } satisfies BetterAuthPlugin;
-};
+    } satisfies BetterAuthPlugin
+}

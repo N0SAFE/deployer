@@ -7,6 +7,7 @@
 Before a domain or subdomain can be used in the platform, ownership must be verified via DNS records. This prevents domain hijacking and ensures only legitimate owners can use domains.
 
 **Important**: Organizations can register either:
+
 - **Root domains**: `example.com`
 - **Subdomains**: `api.example.com`, `team.api.example.com`, etc.
 
@@ -23,6 +24,7 @@ This allows multiple organizations to collaborate on shared domains by registeri
 The token is suffixed with a hash of the registered domain to ensure verification is domain-specific.
 
 **For root domain registration** (`example.com`):
+
 ```
 Record Type: TXT
 Name: _deployer-verify.example.com
@@ -31,6 +33,7 @@ TTL: 3600 (or minimum allowed)
 ```
 
 **For subdomain registration** (`api.example.com`):
+
 ```
 Record Type: TXT
 Name: _deployer-verify.api.example.com
@@ -39,6 +42,7 @@ TTL: 3600 (or minimum allowed)
 ```
 
 **For nested subdomain registration** (`team.api.example.com`):
+
 ```
 Record Type: TXT
 Name: _deployer-verify.team.api.example.com
@@ -47,6 +51,7 @@ TTL: 3600 (or minimum allowed)
 ```
 
 **Advantages**:
+
 - ✅ Doesn't affect existing DNS configuration
 - ✅ Works with any DNS provider
 - ✅ No impact on live services
@@ -80,6 +85,7 @@ private async verifyTxtRecord(recordName: string, expectedToken: string): Promis
 **How it works**: User adds a CNAME record pointing to a verification endpoint that includes the registered domain.
 
 **For root domain registration** (`example.com`):
+
 ```
 Record Type: CNAME
 Name: _deployer-verify.example.com
@@ -88,6 +94,7 @@ TTL: 3600 (or minimum allowed)
 ```
 
 **For subdomain registration** (`api.example.com`):
+
 ```
 Record Type: CNAME
 Name: _deployer-verify.api.example.com
@@ -96,10 +103,12 @@ TTL: 3600 (or minimum allowed)
 ```
 
 **Advantages**:
+
 - ✅ Alternative for providers with TXT limitations
 - ✅ Can be used for additional validation
 
 **Disadvantages**:
+
 - ❌ Slightly more complex setup
 - ❌ Requires deployer.io DNS infrastructure
 
@@ -137,6 +146,7 @@ generateVerificationToken(registeredDomain: string): string {
 ```
 
 **Why include the domain in the token?**
+
 - Ensures verification is specific to the exact domain being registered
 - Prevents token reuse across different domain registrations
 - Makes audit logs more readable
@@ -236,10 +246,10 @@ interface VerificationInstructions {
 
 ```json
 {
-  "method": "txt_record",
-  "recordName": "_deployer-verify.example.com",
-  "recordValue": "deployer-verify-a1b2c3d4e5f6...",
-  "instructions": "Add the following TXT record to your DNS configuration:\n\nRecord Type: TXT\nName: _deployer-verify.example.com\nValue: deployer-verify-a1b2c3d4e5f6...\nTTL: 3600 (or minimum allowed)\n\nThe verification will be checked automatically within an hour, or you can trigger manual verification."
+    "method": "txt_record",
+    "recordName": "_deployer-verify.example.com",
+    "recordValue": "deployer-verify-a1b2c3d4e5f6...",
+    "instructions": "Add the following TXT record to your DNS configuration:\n\nRecord Type: TXT\nName: _deployer-verify.example.com\nValue: deployer-verify-a1b2c3d4e5f6...\nTTL: 3600 (or minimum allowed)\n\nThe verification will be checked automatically within an hour, or you can trigger manual verification."
 }
 ```
 
@@ -264,10 +274,10 @@ interface VerifyDomainResult {
 
 ```json
 {
-  "success": true,
-  "status": "verified",
-  "message": "Domain verified successfully",
-  "verifiedAt": "2025-11-30T10:30:00.000Z"
+    "success": true,
+    "status": "verified",
+    "message": "Domain verified successfully",
+    "verifiedAt": "2025-11-30T10:30:00.000Z"
 }
 ```
 
@@ -275,13 +285,13 @@ interface VerifyDomainResult {
 
 ```json
 {
-  "success": false,
-  "status": "failed",
-  "message": "DNS record not found or token mismatch",
-  "error": {
-    "code": "DNS_VERIFICATION_FAILED",
-    "details": "Please check your DNS configuration and try again. DNS changes can take up to 48 hours to propagate."
-  }
+    "success": false,
+    "status": "failed",
+    "message": "DNS record not found or token mismatch",
+    "error": {
+        "code": "DNS_VERIFICATION_FAILED",
+        "details": "Please check your DNS configuration and try again. DNS changes can take up to 48 hours to propagate."
+    }
 }
 ```
 
@@ -309,22 +319,24 @@ async autoVerifyPendingDomains() {
 **Enable Auto-Verification**:
 
 1. Install `@nestjs/schedule`:
-   ```bash
-   npm install @nestjs/schedule
-   ```
+
+    ```bash
+    npm install @nestjs/schedule
+    ```
 
 2. Update `DomainModule`:
-   ```typescript
-   import { ScheduleModule } from '@nestjs/schedule';
 
-   @Module({
-     imports: [
-       ScheduleModule.forRoot(),
-       // ...
-     ],
-   })
-   export class DomainModule {}
-   ```
+    ```typescript
+    import { ScheduleModule } from '@nestjs/schedule'
+
+    @Module({
+        imports: [
+            ScheduleModule.forRoot(),
+            // ...
+        ],
+    })
+    export class DomainModule {}
+    ```
 
 3. Uncomment the `@Cron` decorator in `DomainVerificationService`.
 
@@ -382,11 +394,13 @@ TTL: Automatic
 #### 1. "DNS record not found"
 
 **Causes**:
+
 - DNS propagation not complete (can take up to 48 hours)
 - Record added to wrong domain
 - Record name has wrong prefix
 
 **Solutions**:
+
 - Wait for DNS propagation
 - Verify record using: `dig TXT _deployer-verify.example.com`
 - Check DNS provider dashboard
@@ -394,11 +408,13 @@ TTL: Automatic
 #### 2. "Token mismatch"
 
 **Causes**:
+
 - Copied token incorrectly
 - Trailing/leading spaces in DNS record
 - Token truncated
 
 **Solutions**:
+
 - Re-copy the exact token value
 - Remove any extra spaces
 - Ensure full token is included
@@ -456,14 +472,14 @@ If a token is compromised:
 
 ```typescript
 // Delete and re-register domain
-await orgDomainRepository.delete(domainId);
+await orgDomainRepository.delete(domainId)
 
 // User registers again with new token
 await orgDomainController.addOrganizationDomain({
-  organizationId,
-  domain,
-  verificationMethod: 'txt_record',
-});
+    organizationId,
+    domain,
+    verificationMethod: 'txt_record',
+})
 ```
 
 ### 4. Verification Expiry
@@ -473,7 +489,7 @@ Consider adding token expiry for long-pending verifications:
 ```typescript
 // Future enhancement
 if (domain.createdAt < thirtyDaysAgo) {
-  // Regenerate token or require re-registration
+    // Regenerate token or require re-registration
 }
 ```
 

@@ -1,12 +1,13 @@
 # ORPC Auth Context Examples
 
 > ⚠️ **DEPRECATED**: This documentation uses legacy `accessControl()` patterns.
-> 
+>
 > **Use plugin-based middlewares instead:**
+>
 > - `adminMiddlewares.requireRole(['admin'])` - Role-based access
 > - `adminMiddlewares.requirePermission({ resource: ['action'] })` - Permission-based access
 > - `organizationMiddlewares.requireRole(['owner', 'admin', 'member'])` - Organization role-based access
-> 
+>
 > See `plugin-factory.ts` and `test.controller.ts` for examples of the new implementation.
 
 This document provides practical examples of using the ORPC auth context layer for common authentication and authorization scenarios.
@@ -29,26 +30,26 @@ This document provides practical examples of using the ORPC auth context layer f
 ### Example 1: Simple Authenticated Endpoint
 
 ```typescript
-import { Implement, implement } from "@orpc/nest";
-import { requireAuth } from "@/core/modules/orpc-auth";
-import { userContract } from "@deployer/identity-contracts";
+import { Implement, implement } from '@orpc/nest'
+import { requireAuth } from '@/core/modules/orpc-auth'
+import { userContract } from '@deployer/identity-contracts'
 
 @Controller()
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+    constructor(private readonly userService: UserService) {}
 
-  @Implement(userContract.getProfile)
-  getProfile() {
-    return implement(userContract.getProfile)
-      .use(requireAuth())
-      .handler(async ({ context }) => {
-        // User is guaranteed to be authenticated
-        const userId = context.auth.user!.id;
-        const profile = await this.userService.getProfile(userId);
-        
-        return profile;
-      });
-  }
+    @Implement(userContract.getProfile)
+    getProfile() {
+        return implement(userContract.getProfile)
+            .use(requireAuth())
+            .handler(async ({ context }) => {
+                // User is guaranteed to be authenticated
+                const userId = context.auth.user!.id
+                const profile = await this.userService.getProfile(userId)
+
+                return profile
+            })
+    }
 }
 ```
 
@@ -639,67 +640,67 @@ archiveProject() {
 
 ```typescript
 describe('ProjectController', () => {
-  let controller: ProjectController;
-  let service: ProjectService;
-  
-  beforeEach(() => {
-    // Setup
-  });
-  
-  describe('createProject', () => {
-    it('should allow admin to create project', async () => {
-      const mockAuth = {
-        isLoggedIn: true,
-        user: {
-          id: 'user-1',
-          email: 'admin@example.com',
-          role: 'admin',
-        },
-        session: { /* ... */ },
-        requireAuth: jest.fn(() => ({ user: { id: 'user-1' } })),
-        requireRole: jest.fn(() => ({ user: { id: 'user-1' } })),
-        hasRole: jest.fn((role) => role === 'admin'),
-        getRoles: jest.fn(() => ['admin']),
-        access: jest.fn(() => Promise.resolve(true)),
-      };
-      
-      const context = {
-        request: {} as Request,
-        auth: mockAuth as any,
-      };
-      
-      const result = await controller.createProject().handler({
-        input: { name: 'Test Project' },
-        context,
-      } as any);
-      
-      expect(result).toBeDefined();
-      expect(mockAuth.requireRole).toHaveBeenCalledWith('admin');
-    });
-    
-    it('should deny non-admin users', async () => {
-      const mockAuth = {
-        isLoggedIn: true,
-        user: { id: 'user-2', role: 'user' },
-        requireRole: jest.fn(() => {
-          throw new ForbiddenException('Access denied');
-        }),
-      };
-      
-      const context = {
-        request: {} as Request,
-        auth: mockAuth as any,
-      };
-      
-      await expect(
-        controller.createProject().handler({
-          input: { name: 'Test Project' },
-          context,
-        } as any)
-      ).rejects.toThrow(ForbiddenException);
-    });
-  });
-});
+    let controller: ProjectController
+    let service: ProjectService
+
+    beforeEach(() => {
+        // Setup
+    })
+
+    describe('createProject', () => {
+        it('should allow admin to create project', async () => {
+            const mockAuth = {
+                isLoggedIn: true,
+                user: {
+                    id: 'user-1',
+                    email: 'admin@example.com',
+                    role: 'admin',
+                },
+                session: {/* ... */},
+                requireAuth: jest.fn(() => ({ user: { id: 'user-1' } })),
+                requireRole: jest.fn(() => ({ user: { id: 'user-1' } })),
+                hasRole: jest.fn((role) => role === 'admin'),
+                getRoles: jest.fn(() => ['admin']),
+                access: jest.fn(() => Promise.resolve(true)),
+            }
+
+            const context = {
+                request: {} as Request,
+                auth: mockAuth as any,
+            }
+
+            const result = await controller.createProject().handler({
+                input: { name: 'Test Project' },
+                context,
+            } as any)
+
+            expect(result).toBeDefined()
+            expect(mockAuth.requireRole).toHaveBeenCalledWith('admin')
+        })
+
+        it('should deny non-admin users', async () => {
+            const mockAuth = {
+                isLoggedIn: true,
+                user: { id: 'user-2', role: 'user' },
+                requireRole: jest.fn(() => {
+                    throw new ForbiddenException('Access denied')
+                }),
+            }
+
+            const context = {
+                request: {} as Request,
+                auth: mockAuth as any,
+            }
+
+            await expect(
+                controller.createProject().handler({
+                    input: { name: 'Test Project' },
+                    context,
+                } as any)
+            ).rejects.toThrow(ForbiddenException)
+        })
+    })
+})
 ```
 
 ---

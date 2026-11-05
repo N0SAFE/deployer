@@ -1,4 +1,4 @@
-import { defineConfig } from "drizzle-kit";
+import { defineConfig } from 'drizzle-kit'
 
 /**
  * Global (Postgres) schema: the generator lives WITH the schema, so it keeps working when the
@@ -6,10 +6,10 @@ import { defineConfig } from "drizzle-kit";
  * migrator reads.
  */
 export default defineConfig({
-	schema: "./src/global/index.ts",
-	out: "./migrations/global",
-	dialect: "postgresql",
-	dbCredentials: {
-		url: process.env.SETUP_DATABASE_URL ?? "",
-	},
-});
+    schema: './src/global/index.ts',
+    out: './migrations/global',
+    dialect: 'postgresql',
+    dbCredentials: {
+        url: process.env.SETUP_DATABASE_URL ?? '',
+    },
+})

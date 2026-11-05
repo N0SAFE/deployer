@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { z } from 'zod'
 
-export const page = true;
-export const layout = true;
+export const page = true
+export const layout = true
 export const Route = {
-  name: "AuthDashboardNetworkIngress",
-  params: z.object({}),
-};
+    name: 'AuthDashboardNetworkIngress',
+    params: z.object({}),
+}

@@ -1,23 +1,25 @@
-import { Effect } from "effect";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Effect } from 'effect'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
+import { AppLifecyclePhase, type AppLifecycleShape } from '@deployer/lifecycle'
 
-import { makeLocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
+import { makeLocalEventOutboxDispatcherService } from './local-event-outbox-dispatcher.service'
 
-import type { LocalEventOutboxRepositoryShape } from "./local-event-outbox.repository";
+import type { LocalEventOutboxRepositoryShape } from './local-event-outbox.repository'
 
-function createLifecycleMock(phase: AppLifecyclePhase = AppLifecyclePhase.READY) {
-    return { stateNow: () => ({ phase }) } as unknown as AppLifecycleShape;
+function createLifecycleMock(
+    phase: AppLifecyclePhase = AppLifecyclePhase.READY
+) {
+    return { stateNow: () => ({ phase }) } as unknown as AppLifecycleShape
 }
 
 type OutboxRow = {
-    id: string;
-    state: "pending" | "dispatching" | "sent" | "dead_letter";
-    retryCount: number;
-    payload: Record<string, unknown>;
-    createdAt: Date;
-};
+    id: string
+    state: 'pending' | 'dispatching' | 'sent' | 'dead_letter'
+    retryCount: number
+    payload: Record<string, unknown>
+    createdAt: Date
+}
 
 /**
  * A repository mock that models the CLAIM, not a plain read.
@@ -29,46 +31,60 @@ type OutboxRow = {
  * receive the same row.
  */
 function createOutboxRepositoryMock() {
-    const rows: OutboxRow[] = [];
-    const updates: (Record<string, unknown> & { id: string })[] = [];
-    const dispatched: string[] = [];
+    const rows: OutboxRow[] = []
+    const updates: (Record<string, unknown> & { id: string })[] = []
+    const dispatched: string[] = []
 
     const repository = {
         claimDue: vi.fn((limit: number) => {
             // Claimable = still pending. Claiming REMOVES it, as the real claim does.
-            const claimed = rows.filter((r) => r.state === "pending").slice(0, limit);
-            for (const row of claimed) row.state = "dispatching";
-            return Effect.succeed(claimed);
+            const claimed = rows
+                .filter((r) => r.state === 'pending')
+                .slice(0, limit)
+            for (const row of claimed) row.state = 'dispatching'
+            return Effect.succeed(claimed)
         }),
-        findById: vi.fn((id: string) => Effect.succeed(rows.find((row) => row.id === id) ?? null)),
+        findById: vi.fn((id: string) =>
+            Effect.succeed(rows.find((row) => row.id === id) ?? null)
+        ),
         hasSentDuplicateEventId: vi.fn(() => Effect.succeed(false)),
         markSent: vi.fn((id: string) => {
-            updates.push({ id, state: "sent" });
-            dispatched.push(id);
-            const row = rows.find((r) => r.id === id);
-            if (row) row.state = "sent";
-            return Effect.void;
+            updates.push({ id, state: 'sent' })
+            dispatched.push(id)
+            const row = rows.find((r) => r.id === id)
+            if (row) row.state = 'sent'
+            return Effect.void
         }),
-        scheduleRetry: vi.fn((id: string, retryCount: number, maxRetries: number) => {
-            const nextRetryCount = retryCount + 1;
-            if (nextRetryCount >= maxRetries) {
-                updates.push({ id, state: "dead_letter", retryCount: nextRetryCount });
-                return Effect.succeed("dead_letter" as const);
+        scheduleRetry: vi.fn(
+            (id: string, retryCount: number, maxRetries: number) => {
+                const nextRetryCount = retryCount + 1
+                if (nextRetryCount >= maxRetries) {
+                    updates.push({
+                        id,
+                        state: 'dead_letter',
+                        retryCount: nextRetryCount,
+                    })
+                    return Effect.succeed('dead_letter' as const)
+                }
+                updates.push({
+                    id,
+                    state: 'pending',
+                    retryCount: nextRetryCount,
+                })
+                const row = rows.find((r) => r.id === id)
+                if (row) row.state = 'pending'
+                return Effect.succeed('retry' as const)
             }
-            updates.push({ id, state: "pending", retryCount: nextRetryCount });
-            const row = rows.find((r) => r.id === id);
-            if (row) row.state = "pending";
-            return Effect.succeed("retry" as const);
-        }),
+        ),
         markDeadLetter: vi.fn((id: string, retryCount: number) => {
-            updates.push({ id, state: "dead_letter", retryCount });
-            const row = rows.find((r) => r.id === id);
-            if (row) row.state = "dead_letter";
-            return Effect.void;
+            updates.push({ id, state: 'dead_letter', retryCount })
+            const row = rows.find((r) => r.id === id)
+            if (row) row.state = 'dead_letter'
+            return Effect.void
         }),
         enqueue: vi.fn(() => Effect.void),
         findByTopic: vi.fn(() => Effect.succeed([])),
-    };
+    }
 
     return {
         repository: repository as unknown as LocalEventOutboxRepositoryShape,
@@ -76,96 +92,113 @@ function createOutboxRepositoryMock() {
         rows,
         updates,
         dispatched,
-    };
+    }
 }
 
-describe("LocalEventOutboxDispatcherService", () => {
+describe('LocalEventOutboxDispatcherService', () => {
     beforeEach(() => {
-        vi.clearAllMocks();
-    });
+        vi.clearAllMocks()
+    })
 
-    it("marks invalid envelopes as dead-letter", async () => {
-        const mock = createOutboxRepositoryMock();
-        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
+    it('marks invalid envelopes as dead-letter', async () => {
+        const mock = createOutboxRepositoryMock()
+        const service = makeLocalEventOutboxDispatcherService({
+            outbox: mock.repository,
+            lifecycle: createLifecycleMock(),
+        })
 
         mock.rows.push({
-            id: "outbox-1",
-            state: "pending",
+            id: 'outbox-1',
+            state: 'pending',
             retryCount: 0,
             payload: { invalid: true },
             createdAt: new Date(),
-        });
+        })
 
-        await Effect.runPromise(service.dispatchPending(10));
+        await Effect.runPromise(service.dispatchPending(10))
 
-        expect(mock.updates.some((set) => set.state === "dead_letter")).toBe(true);
-    });
+        expect(mock.updates.some((set) => set.state === 'dead_letter')).toBe(
+            true
+        )
+    })
 
-    it("marks duplicate sent event envelopes as sent without re-dispatch", async () => {
-        const mock = createOutboxRepositoryMock();
-        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
+    it('marks duplicate sent event envelopes as sent without re-dispatch', async () => {
+        const mock = createOutboxRepositoryMock()
+        const service = makeLocalEventOutboxDispatcherService({
+            outbox: mock.repository,
+            lifecycle: createLifecycleMock(),
+        })
 
         const payload = {
-            eventId: "11111111-1111-4111-8111-111111111111",
-            aggregateType: "service",
-            aggregateId: "svc-1",
-            eventType: "service.updated",
-            version: "1",
+            eventId: '11111111-1111-4111-8111-111111111111',
+            aggregateType: 'service',
+            aggregateId: 'svc-1',
+            eventType: 'service.updated',
+            version: '1',
             occurredAt: new Date().toISOString(),
-            payload: { serviceId: "svc-1" },
-            metadata: { source: "test" },
-        };
+            payload: { serviceId: 'svc-1' },
+            metadata: { source: 'test' },
+        }
 
         mock.rows.push({
-            id: "outbox-2",
-            state: "pending",
+            id: 'outbox-2',
+            state: 'pending',
             retryCount: 0,
             payload,
             createdAt: new Date(),
-        });
-        (mock.repositoryMock.hasSentDuplicateEventId as ReturnType<typeof vi.fn>).mockReturnValueOnce(Effect.succeed(true));
+        })
+        ;(
+            mock.repositoryMock.hasSentDuplicateEventId as ReturnType<
+                typeof vi.fn
+            >
+        ).mockReturnValueOnce(Effect.succeed(true))
 
-        await Effect.runPromise(service.dispatchPending(10));
+        await Effect.runPromise(service.dispatchPending(10))
 
-        expect(mock.updates.some((set) => set.state === "sent")).toBe(true);
-    });
+        expect(mock.updates.some((set) => set.state === 'sent')).toBe(true)
+    })
 
-    it("schedules retry when dispatch update fails", async () => {
-        const mock = createOutboxRepositoryMock();
-        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
+    it('schedules retry when dispatch update fails', async () => {
+        const mock = createOutboxRepositoryMock()
+        const service = makeLocalEventOutboxDispatcherService({
+            outbox: mock.repository,
+            lifecycle: createLifecycleMock(),
+        })
 
         const payload = {
-            eventId: "22222222-2222-4222-8222-222222222222",
-            aggregateType: "deployment",
-            aggregateId: "dep-1",
-            eventType: "deployment.updated",
-            version: "1",
+            eventId: '22222222-2222-4222-8222-222222222222',
+            aggregateType: 'deployment',
+            aggregateId: 'dep-1',
+            eventType: 'deployment.updated',
+            version: '1',
             occurredAt: new Date().toISOString(),
-            payload: { deploymentId: "dep-1" },
-            metadata: { source: "test" },
-        };
+            payload: { deploymentId: 'dep-1' },
+            metadata: { source: 'test' },
+        }
 
         mock.rows.push({
-            id: "outbox-3",
-            state: "pending",
+            id: 'outbox-3',
+            state: 'pending',
             retryCount: 0,
             payload,
             createdAt: new Date(),
-        });
+        })
         // First markSent throws → retry scheduled.
-        let markSentCalls = 0;
+        let markSentCalls = 0
         vi.mocked(mock.repositoryMock.markSent).mockImplementation(() => {
-            markSentCalls += 1;
+            markSentCalls += 1
             return markSentCalls === 1
-                ? Effect.fail(new Error("forced-update-failure"))
-                : Effect.void;
-        });
+                ? Effect.fail(new Error('forced-update-failure'))
+                : Effect.void
+        })
 
-        await Effect.runPromise(service.dispatchPending(10));
+        await Effect.runPromise(service.dispatchPending(10))
 
-        const retryUpdate = mock.updates.find((set) => set.state === "pending" && set.retryCount === 1);
-        expect(retryUpdate).toBeDefined();
-    });
+        const retryUpdate = mock.updates.find(
+            (set) => set.state === 'pending' && set.retryCount === 1
+        )
+        expect(retryUpdate).toBeDefined()
+    })
 
     /**
      * The bug this phase exists to fix.
@@ -181,64 +214,76 @@ describe("LocalEventOutboxDispatcherService", () => {
      * cannot see it. This test runs two dispatchers over one shared repository and
      * asserts each event is dispatched exactly once.
      */
-    it("dispatches each event exactly once when two dispatchers run concurrently", async () => {
-        const mock = createOutboxRepositoryMock();
-        const first = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
-        const second = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
+    it('dispatches each event exactly once when two dispatchers run concurrently', async () => {
+        const mock = createOutboxRepositoryMock()
+        const first = makeLocalEventOutboxDispatcherService({
+            outbox: mock.repository,
+            lifecycle: createLifecycleMock(),
+        })
+        const second = makeLocalEventOutboxDispatcherService({
+            outbox: mock.repository,
+            lifecycle: createLifecycleMock(),
+        })
 
-        const EVENTS = 20;
+        const EVENTS = 20
         for (let i = 0; i < EVENTS; i += 1) {
             mock.rows.push({
                 id: `outbox-${String(i)}`,
-                state: "pending",
+                state: 'pending',
                 retryCount: 0,
                 payload: {
-                    eventId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
-                    aggregateType: "service",
+                    eventId: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+                    aggregateType: 'service',
                     aggregateId: `svc-${String(i)}`,
-                    eventType: "service.updated",
-                    version: "1",
+                    eventType: 'service.updated',
+                    version: '1',
                     occurredAt: new Date().toISOString(),
                     payload: { serviceId: `svc-${String(i)}` },
-                    metadata: { source: "test" },
+                    metadata: { source: 'test' },
                 },
                 createdAt: new Date(),
-            });
+            })
         }
 
         // Both claim the whole backlog at once, so without a claim they would each
         // see all 20 and deliver 40.
-        await Promise.all([Effect.runPromise(first.dispatchPending(EVENTS)), Effect.runPromise(second.dispatchPending(EVENTS))]);
+        await Promise.all([
+            Effect.runPromise(first.dispatchPending(EVENTS)),
+            Effect.runPromise(second.dispatchPending(EVENTS)),
+        ])
 
-        const distinct = new Set(mock.dispatched);
-        expect(mock.dispatched).toHaveLength(EVENTS);
-        expect(distinct.size).toBe(EVENTS);
-    });
+        const distinct = new Set(mock.dispatched)
+        expect(mock.dispatched).toHaveLength(EVENTS)
+        expect(distinct.size).toBe(EVENTS)
+    })
 
-    it("does not re-dispatch a row that is already claimed by another dispatcher", async () => {
-        const mock = createOutboxRepositoryMock();
-        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
+    it('does not re-dispatch a row that is already claimed by another dispatcher', async () => {
+        const mock = createOutboxRepositoryMock()
+        const service = makeLocalEventOutboxDispatcherService({
+            outbox: mock.repository,
+            lifecycle: createLifecycleMock(),
+        })
 
         mock.rows.push({
-            id: "outbox-taken",
-            state: "dispatching",
+            id: 'outbox-taken',
+            state: 'dispatching',
             retryCount: 0,
             payload: {
-                eventId: "33333333-3333-4333-8333-333333333333",
-                aggregateType: "service",
-                aggregateId: "svc-taken",
-                eventType: "service.updated",
-                version: "1",
+                eventId: '33333333-3333-4333-8333-333333333333',
+                aggregateType: 'service',
+                aggregateId: 'svc-taken',
+                eventType: 'service.updated',
+                version: '1',
                 occurredAt: new Date().toISOString(),
                 payload: {},
-                metadata: { source: "test" },
+                metadata: { source: 'test' },
             },
             createdAt: new Date(),
-        });
+        })
 
-        await Effect.runPromise(service.dispatchPending(10));
+        await Effect.runPromise(service.dispatchPending(10))
 
         // A row mid-dispatch belongs to someone else: it must not be claimed.
-        expect(mock.dispatched).toHaveLength(0);
-    });
-});
+        expect(mock.dispatched).toHaveLength(0)
+    })
+})

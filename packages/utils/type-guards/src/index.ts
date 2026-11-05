@@ -68,7 +68,7 @@
  * ```
  */
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -77,7 +77,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
  * `isRecord` when the value must be a true object.
  */
 export function isObjectLike(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
+    return typeof value === 'object' && value !== null
 }
 
 // ---------------------------------------------------------------------------
@@ -96,10 +96,10 @@ export function isObjectLike(value: unknown): value is Record<string, unknown> {
  * ```
  */
 export function hasProperty<K extends string>(
-  value: unknown,
-  key: K,
+    value: unknown,
+    key: K
 ): value is Record<K, unknown> {
-  return isRecord(value) && key in value
+    return isRecord(value) && key in value
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ export function hasProperty<K extends string>(
  * you need to require at least one character.
  */
 export function isString(value: unknown): value is string {
-  return typeof value === "string"
+    return typeof value === 'string'
 }
 
 /**
@@ -120,7 +120,7 @@ export function isString(value: unknown): value is string {
  * guard matches that contract.
  */
 export function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0
+    return typeof value === 'string' && value.length > 0
 }
 
 /**
@@ -129,12 +129,12 @@ export function isNonEmptyString(value: unknown): value is string {
  * `isNonEmptyString`, for values read out of untrusted payloads.
  */
 export function nonEmptyString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null
-  }
+    if (typeof value !== 'string') {
+        return null
+    }
 
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
 }
 
 /**
@@ -142,7 +142,7 @@ export function nonEmptyString(value: unknown): string | null {
  * you need to reject `NaN` and `Infinity`.
  */
 export function isNumber(value: unknown): value is number {
-  return typeof value === "number"
+    return typeof value === 'number'
 }
 
 /**
@@ -150,14 +150,14 @@ export function isNumber(value: unknown): value is number {
  * `-Infinity`).
  */
 export function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value)
+    return typeof value === 'number' && Number.isFinite(value)
 }
 
 /**
  * Narrow `unknown` to `boolean`.
  */
 export function isBoolean(value: unknown): value is boolean {
-  return typeof value === "boolean"
+    return typeof value === 'boolean'
 }
 
 /**
@@ -174,7 +174,7 @@ export function isBoolean(value: unknown): value is boolean {
  * ```
  */
 export function isObject(value: unknown): value is object {
-  return typeof value === "object" && value !== null
+    return typeof value === 'object' && value !== null
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ export function isObject(value: unknown): value is object {
  * element" checks before mapping/iterating.
  */
 export function isNonEmptyArray<T>(value: unknown): value is [T, ...T[]] {
-  return Array.isArray(value) && value.length > 0
+    return Array.isArray(value) && value.length > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +198,7 @@ export function isNonEmptyArray<T>(value: unknown): value is [T, ...T[]] {
  * `error.message` or `error.stack` on a value of type `unknown`.
  */
 export function isError(value: unknown): value is Error {
-  return value instanceof Error
+    return value instanceof Error
 }
 
 /**
@@ -207,13 +207,13 @@ export function isError(value: unknown): value is Error {
  * shape.
  */
 export function isObjectWithMessage(
-  value: unknown,
+    value: unknown
 ): value is { message: string } {
-  return (
-    isObject(value) &&
-    "message" in value &&
-    typeof (value).message === "string"
-  )
+    return (
+        isObject(value) &&
+        'message' in value &&
+        typeof value.message === 'string'
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -248,4 +248,3 @@ export function isObjectWithMessage(
 // Example: instead of writing `isContainerEntity(value)` here, use
 //   `dockerContainerSchema.safeParse(value).success` at the call site
 //   — the schema is the truth, and you get a typed result for free.
-

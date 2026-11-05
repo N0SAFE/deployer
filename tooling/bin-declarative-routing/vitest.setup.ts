@@ -13,30 +13,30 @@ export const writeJSONSyncMock = vi.fn()
 
 // Mock fs-extra with both default and named exports for compatibility
 vi.mock('fs-extra', () => ({
-  default: {
+    default: {
+        readFileSync: readFileSyncMock,
+        writeFileSync: writeFileSyncMock,
+        existsSync: existsSyncMock,
+        mkdirSync: mkdirSyncMock,
+        readJSONSync: readJSONSyncMock,
+        writeJSONSync: writeJSONSyncMock,
+    },
     readFileSync: readFileSyncMock,
     writeFileSync: writeFileSyncMock,
     existsSync: existsSyncMock,
     mkdirSync: mkdirSyncMock,
     readJSONSync: readJSONSyncMock,
     writeJSONSync: writeJSONSyncMock,
-  },
-  readFileSync: readFileSyncMock,
-  writeFileSync: writeFileSyncMock,
-  existsSync: existsSyncMock,
-  mkdirSync: mkdirSyncMock,
-  readJSONSync: readJSONSyncMock,
-  writeJSONSync: writeJSONSyncMock,
 }))
 
 // Mock fs (Node.js built-in) with both default and named exports
 vi.mock('fs', () => ({
-  default: {
+    default: {
+        readFileSync: readFileSyncMock,
+        writeFileSync: writeFileSyncMock,
+        existsSync: existsSyncMock,
+    },
     readFileSync: readFileSyncMock,
     writeFileSync: writeFileSyncMock,
     existsSync: existsSyncMock,
-  },
-  readFileSync: readFileSyncMock,
-  writeFileSync: writeFileSyncMock,
-  existsSync: existsSyncMock,
 }))

@@ -1,33 +1,25 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "compilerOptions": {
-    "target": "esnext",
-    "module": "esnext",
-    "composite": false,
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "inlineSources": false,
-    "moduleResolution": "bundler",
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "preserveWatchOutput": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "isolatedModules": false,
-    "paths": {
-      "@deployer/cli-declarative-routing/*": [
-        "./src/*"
-      ]
-    }
-  },
-  "include": [
-    "pkg-build.config.ts", "src/**/*.ts",
-    "scripts/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "composite": false,
+        "declaration": true,
+        "declarationMap": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "inlineSources": false,
+        "moduleResolution": "bundler",
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "preserveWatchOutput": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "isolatedModules": false,
+        "paths": {
+            "@deployer/cli-declarative-routing/*": ["./src/*"]
+        }
+    },
+    "include": ["pkg-build.config.ts", "src/**/*.ts", "scripts/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
 }

@@ -12,7 +12,7 @@ export const DEFAULT_SESSION_QUERY_KEY = ['session'] as const
 export interface SessionResult<TData> {
     data: TData | null | undefined
     isLoading: boolean
-    isPending?: boolean  // For compatibility with components expecting isPending
+    isPending?: boolean // For compatibility with components expecting isPending
     error: unknown
     refetch: () => Promise<void>
 }
@@ -30,7 +30,7 @@ export interface BetterAuthSessionResult<TData> {
 /**
  * Minimal auth client interface - the methods we expect from any Better Auth client.
  * Note: Better Auth uses isPending, we normalize to isLoading in our enhanced hook.
- * 
+ *
  * getSession returns the session directly (not wrapped in { data, error }) in Better Auth.
  * The response shape is: { user, session, ... } | null
  */

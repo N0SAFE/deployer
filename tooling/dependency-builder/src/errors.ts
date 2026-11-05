@@ -28,7 +28,7 @@ export class NoEnabledApplicationsError extends Error {
     constructor(readonly detail: string) {
         super(
             `No enabled applications: ${detail}. ` +
-                'The dependency-builder reads compose\'s COMPOSE_PROFILES; start it through a compose profile (see infra/docker/compose/).'
+                "The dependency-builder reads compose's COMPOSE_PROFILES; start it through a compose profile (see infra/docker/compose/)."
         )
         this.name = 'NoEnabledApplicationsError'
     }

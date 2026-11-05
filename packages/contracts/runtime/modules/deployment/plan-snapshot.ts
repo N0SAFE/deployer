@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 import {
     deploymentCompiledPlanSnapshotByRunResultSchema,
@@ -6,54 +6,68 @@ import {
     deploymentCreateCompiledPlanSnapshotInputSchema,
     deploymentCreateCompiledPlanSnapshotResultSchema,
     deploymentListCompiledPlanSnapshotsResultSchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 const deploymentCreateCompiledPlanSnapshotOps = standard.zod(
     deploymentCreateCompiledPlanSnapshotResultSchema,
-    "deploymentCreateCompiledPlanSnapshot",
-);
+    'deploymentCreateCompiledPlanSnapshot'
+)
 const deploymentListCompiledPlanSnapshotsOps = standard.zod(
     deploymentListCompiledPlanSnapshotsResultSchema,
-    "deploymentListCompiledPlanSnapshots",
-);
+    'deploymentListCompiledPlanSnapshots'
+)
 const deploymentCompiledPlanSnapshotOps = standard.zod(
     deploymentCompiledPlanSnapshotSchema,
-    "deploymentCompiledPlanSnapshot",
-);
+    'deploymentCompiledPlanSnapshot'
+)
 const deploymentCompiledPlanSnapshotByRunOps = standard.zod(
     deploymentCompiledPlanSnapshotByRunResultSchema,
-    "deploymentCompiledPlanSnapshotByRun",
-);
+    'deploymentCompiledPlanSnapshotByRun'
+)
 
-export const deploymentCreateCompiledPlanSnapshotContract = deploymentCreateCompiledPlanSnapshotOps
-    .create()
-    .input((b) =>
-        b
-            .params((p) => p`/${p("id", z.uuid())}/compiled-plan-snapshots`)
-            .body(deploymentCreateCompiledPlanSnapshotInputSchema),
-    )
-    .output(deploymentCreateCompiledPlanSnapshotResultSchema)
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+export const deploymentCreateCompiledPlanSnapshotContract =
+    deploymentCreateCompiledPlanSnapshotOps
+        .create()
+        .input((b) =>
+            b
+                .params((p) => p`/${p('id', z.uuid())}/compiled-plan-snapshots`)
+                .body(deploymentCreateCompiledPlanSnapshotInputSchema)
+        )
+        .output(deploymentCreateCompiledPlanSnapshotResultSchema)
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()
 
-export const deploymentListCompiledPlanSnapshotsContract = deploymentListCompiledPlanSnapshotsOps
-    .list()
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/compiled-plan-snapshots`))
-    .output(deploymentListCompiledPlanSnapshotsResultSchema)
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+export const deploymentListCompiledPlanSnapshotsContract =
+    deploymentListCompiledPlanSnapshotsOps
+        .list()
+        .input((b) =>
+            b.params((p) => p`/${p('id', z.uuid())}/compiled-plan-snapshots`)
+        )
+        .output(deploymentListCompiledPlanSnapshotsResultSchema)
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()
 
-export const deploymentGetCompiledPlanSnapshotContract = deploymentCompiledPlanSnapshotOps
-    .read({ idFieldName: "snapshotId", idSchema: z.uuid() })
-    .input((b) => b.params((p) => p`/compiled-plan-snapshots/${p("snapshotId", z.uuid())}`))
-    .output(deploymentCompiledPlanSnapshotSchema.nullable())
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+export const deploymentGetCompiledPlanSnapshotContract =
+    deploymentCompiledPlanSnapshotOps
+        .read({ idFieldName: 'snapshotId', idSchema: z.uuid() })
+        .input((b) =>
+            b.params(
+                (p) => p`/compiled-plan-snapshots/${p('snapshotId', z.uuid())}`
+            )
+        )
+        .output(deploymentCompiledPlanSnapshotSchema.nullable())
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()
 
-export const deploymentGetCompiledPlanSnapshotByRunContract = deploymentCompiledPlanSnapshotByRunOps
-    .list()
-    .input((b) => b.params((p) => p`/runs/${p("runId", z.uuid())}/compiled-plan-snapshot`))
-    .output(deploymentCompiledPlanSnapshotByRunResultSchema)
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+export const deploymentGetCompiledPlanSnapshotByRunContract =
+    deploymentCompiledPlanSnapshotByRunOps
+        .list()
+        .input((b) =>
+            b.params(
+                (p) => p`/runs/${p('runId', z.uuid())}/compiled-plan-snapshot`
+            )
+        )
+        .output(deploymentCompiledPlanSnapshotByRunResultSchema)
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()

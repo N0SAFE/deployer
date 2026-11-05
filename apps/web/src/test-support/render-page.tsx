@@ -11,10 +11,12 @@ import type { ReactElement } from 'react'
  * which is the "no uncaught exception" requirement.
  */
 export function renderPage(ui: ReactElement): RenderResult {
-	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-	return render(
-		<QueryClientProvider client={client}>
-			<NuqsTestingAdapter>{ui}</NuqsTestingAdapter>
-		</QueryClientProvider>,
-	)
+    const client = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+    })
+    return render(
+        <QueryClientProvider client={client}>
+            <NuqsTestingAdapter>{ui}</NuqsTestingAdapter>
+        </QueryClientProvider>
+    )
 }

@@ -1,9 +1,17 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import {
+    Inject,
+    Injectable,
+    Logger,
+    type OnApplicationBootstrap,
+} from '@nestjs/common'
 
-import { authAuditEvents } from "@deployer/nest-schema/global/identity/audit";
+import { authAuditEvents } from '@deployer/nest-schema/global/identity/audit'
 
-import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
-import { setDenialSink } from "@identity/core/orpc/denial";
+import {
+    DatabasePort,
+    type DatabaseShape,
+} from '@identity/core/database/database.port'
+import { setDenialSink } from '@identity/core/orpc/denial'
 
 /**
  * Records every refusal an authorized caller received (`SEC-068`).
@@ -13,24 +21,28 @@ import { setDenialSink } from "@identity/core/orpc/denial";
  */
 @Injectable()
 export class DenialAuditInstaller implements OnApplicationBootstrap {
-	private readonly logger = new Logger(DenialAuditInstaller.name);
+    private readonly logger = new Logger(DenialAuditInstaller.name)
 
-	constructor(@Inject(DatabasePort) private readonly database: DatabaseShape) {}
+    constructor(
+        @Inject(DatabasePort) private readonly database: DatabaseShape
+    ) {}
 
-	onApplicationBootstrap(): void {
-		setDenialSink((event) => {
-			void this.database.db
-				.insert(authAuditEvents)
-				.values({
-					action: event.action,
-					actorId: event.actorId ?? null,
-					ip: event.ip ?? null,
-					userAgent: event.userAgent ?? null,
-					detail: event.detail,
-				})
-				.catch((error: unknown) => {
-					this.logger.warn(`denial audit write failed: ${String(error)}`);
-				});
-		});
-	}
+    onApplicationBootstrap(): void {
+        setDenialSink((event) => {
+            void this.database.db
+                .insert(authAuditEvents)
+                .values({
+                    action: event.action,
+                    actorId: event.actorId ?? null,
+                    ip: event.ip ?? null,
+                    userAgent: event.userAgent ?? null,
+                    detail: event.detail,
+                })
+                .catch((error: unknown) => {
+                    this.logger.warn(
+                        `denial audit write failed: ${String(error)}`
+                    )
+                })
+        })
+    }
 }

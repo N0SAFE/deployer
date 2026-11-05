@@ -1,5 +1,5 @@
 ---
-title: "Networking: mesh, lanes and edge providers"
+title: 'Networking: mesh, lanes and edge providers'
 description: How deployer nodes reach each other and how clients reach them — the peer-equal WireGuard mesh, the three ingress lanes and their doors, pluggable public edge providers, the DNS plane, joining and revoking nodes, and the current limits.
 order: 8
 ---
@@ -7,7 +7,10 @@ order: 8
 <DocMeta source="docs/edge-mesh-architecture.md" scope="canonical" />
 
 <DocCallout title="Status: current behavior" tone="success">
-This page is the operator-facing summary of `docs/edge-mesh-architecture.md`, which holds the full design and the reasoning behind it. Decisions and the questions behind them are recorded in `docs/qa/edge-mesh/`.
+    This page is the operator-facing summary of
+    `docs/edge-mesh-architecture.md`, which holds the full design and the
+    reasoning behind it. Decisions and the questions behind them are recorded in
+    `docs/qa/edge-mesh/`.
 </DocCallout>
 
 ## The invariant
@@ -38,23 +41,23 @@ The mesh exists before Swarm (Swarm rides on it), Swarm exists before Traefik (T
 
 There is **no controller, coordinator or lighthouse** — every member can do anything another member can. Each node runs one `deployer-node-agent` container:
 
-| Property | Value |
-|---|---|
-| Runtime | plain container, `restart: unless-stopped` — not a swarm service, because it must exist before Swarm does |
-| Network | `host` (the mesh interface is a host interface, so Swarm and the doors can bind it) |
-| Capability | `NET_ADMIN` (it creates the WireGuard interface) |
-| State | `deployer-mesh-state` volume: the node's keys and its copy of the roster |
-| Started by | setup or the API, whichever reaches the node first; the API supervises the agent on its own node |
+| Property   | Value                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------- |
+| Runtime    | plain container, `restart: unless-stopped` — not a swarm service, because it must exist before Swarm does |
+| Network    | `host` (the mesh interface is a host interface, so Swarm and the doors can bind it)                       |
+| Capability | `NET_ADMIN` (it creates the WireGuard interface)                                                          |
+| State      | `deployer-mesh-state` volume: the node's keys and its copy of the roster                                  |
+| Started by | setup or the API, whichever reaches the node first; the API supervises the agent on its own node          |
 
 The agent generates the node's signing and WireGuard keys on first boot (private keys never leave the node), **derives the node's mesh address from its WireGuard key** inside the cluster CIDR (default `100.88.0.0/16`, so nobody has to be online to allocate an address), and gossips a **signed roster** to a few random members every 5 seconds over the mesh.
 
 The roster is replicated state with no owner: admissions, member entries, revocations and cluster-wide settings, each signed by a member and merged the same way on every node. Losing any one member — including the one that founded the cluster — loses no data. The cluster-wide settings it carries are:
 
-| Setting | Holds |
-|---|---|
-| `ingress.lanes` | which lanes are on, their domains, the door port (entry port), the public edge provider and its options, console visibility |
-| `edge.<provider id>` | what that edge provider created (e.g. the Cloudflare tunnel id and connector token) |
-| `node.doors` | the doors every agent converges, derived from `ingress.lanes` by the API |
+| Setting              | Holds                                                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `ingress.lanes`      | which lanes are on, their domains, the door port (entry port), the public edge provider and its options, console visibility |
+| `edge.<provider id>` | what that edge provider created (e.g. the Cloudflare tunnel id and connector token)                                         |
+| `node.doors`         | the doors every agent converges, derived from `ingress.lanes` by the API                                                    |
 
 Because they live in the roster, these settings survive the API being rescheduled to another node.
 
@@ -72,11 +75,11 @@ Traefik is a `global` swarm service on every node, with **no Docker socket and n
 
 Each lane is a separate Traefik entrypoint with its own **door** — a small listener in front of Traefik that the node's mesh agent runs:
 
-| Lane | Enabled | Who can reach it | Hostnames |
-|---|---|---|---|
-| `local` | always | this machine only — the door binds `127.0.0.1:<entry port>` | `<label>.{prefix}deployer.localhost` |
-| `private` | opt-in | mesh members — the door binds `<mesh address>:<entry port>`; with "allow same-network join" a second door also binds the node's LAN address | `<label>.<private domain>` (default `deployer.internal`) |
-| `public` | opt-in, served by **one** edge provider | the internet, through the provider | `<label>.<public domain>` + verified custom domains |
+| Lane      | Enabled                                 | Who can reach it                                                                                                                            | Hostnames                                                |
+| --------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `local`   | always                                  | this machine only — the door binds `127.0.0.1:<entry port>`                                                                                 | `<label>.{prefix}deployer.localhost`                     |
+| `private` | opt-in                                  | mesh members — the door binds `<mesh address>:<entry port>`; with "allow same-network join" a second door also binds the node's LAN address | `<label>.<private domain>` (default `deployer.internal`) |
+| `public`  | opt-in, served by **one** edge provider | the internet, through the provider                                                                                                          | `<label>.<public domain>` + verified custom domains      |
 
 The entry port defaults to 80 (`DEPLOYER_TRAEFIK_HTTP_PORT` seeds it once); after that it is part of `ingress.lanes` and is changed on **Network → Ingress & edge**. A door that cannot bind its port is reported as failed in that page's doors table.
 
@@ -88,21 +91,21 @@ The entry port defaults to 80 (`DEPLOYER_TRAEFIK_HTTP_PORT` seeds it once); afte
 
 Every route has a label (its subdomain on the generated lanes) and a visibility:
 
-| Visibility | Served on |
-|---|---|
-| `private` | local + private |
-| `public` | local + private + public |
+| Visibility | Served on                |
+| ---------- | ------------------------ |
+| `private`  | local + private          |
+| `public`   | local + private + public |
 
 Services choose their visibility (default `public`). The platform console has one stack setting, console visibility (default `public`, so webhooks and OAuth callbacks work once a public lane exists). A public route on a stack with no public lane simply has no public router.
 
 ## Edge providers
 
-The public lane is "reach Traefik's `public` entrypoint from the internet", and *how* is the business of exactly **one edge provider** chosen by the operator. Built in today:
+The public lane is "reach Traefik's `public` entrypoint from the internet", and _how_ is the business of exactly **one edge provider** chosen by the operator. Built in today:
 
-| Provider | Kind | What it costs you | HTTPS |
-|---|---|---|---|
-| `cloudflare-tunnel` | tunnel — dials out | a Cloudflare account added as a DNS provider with tunnel management enabled; connector replicas on the cluster; no inbound port, no public IP | Cloudflare terminates TLS |
-| `direct` | inbound | every node opens `:80` (and `:443` with TLS) and needs a public address you declare on Network → Ingress & edge; you must tick an explicit acknowledgement that inbound ports will open | Let's Encrypt (HTTP-01) on the `public-tls` entrypoint |
+| Provider            | Kind               | What it costs you                                                                                                                                                                       | HTTPS                                                  |
+| ------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `cloudflare-tunnel` | tunnel — dials out | a Cloudflare account added as a DNS provider with tunnel management enabled; connector replicas on the cluster; no inbound port, no public IP                                           | Cloudflare terminates TLS                              |
+| `direct`            | inbound            | every node opens `:80` (and `:443` with TLS) and needs a public address you declare on Network → Ingress & edge; you must tick an explicit acknowledgement that inbound ports will open | Let's Encrypt (HTTP-01) on the `public-tls` entrypoint |
 
 Traefik never publishes a port that was not acknowledged, even if the setting is edited by hand. `direct` is kept because it is the only public path with no third party; a `direct` node also helps the mesh, since its declared public address becomes a link candidate that NATed members can reach.
 
@@ -122,11 +125,11 @@ A tunnel-style provider returns a `connector()` (image, credentials, args, repli
 
 DNS is separate from ingress: enabling an edge creates no record by itself. The DNS plane reconciles on every lane change and every 10 minutes, through whichever DNS provider account owns the zone:
 
-| Lane | Record |
-|---|---|
-| public | what the edge provider asks for — Cloudflare Tunnel: `*.<domain>` CNAME to the tunnel (proxied); Direct: `*.<domain>` A records to the nodes' declared public IPs |
-| private, domain in a managed zone | `*.<private domain>` A records to the nodes' mesh addresses |
-| local | none — `*.localhost` always resolves to loopback |
+| Lane                              | Record                                                                                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| public                            | what the edge provider asks for — Cloudflare Tunnel: `*.<domain>` CNAME to the tunnel (proxied); Direct: `*.<domain>` A records to the nodes' declared public IPs |
+| private, domain in a managed zone | `*.<private domain>` A records to the nodes' mesh addresses                                                                                                       |
+| local                             | none — `*.localhost` always resolves to loopback                                                                                                                  |
 
 A zone no connected account owns is shown as **manual** on Network → DNS, with the exact record to create.
 
@@ -134,13 +137,13 @@ A zone no connected account owns is shown as **manual** on Network → DNS, with
 
 Every plane has one page under **Network**:
 
-| Page | What you do there |
-|---|---|
-| Overview | lanes at a glance, exposure, mesh health, DNS status, join paths |
+| Page           | What you do there                                                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview       | lanes at a glance, exposure, mesh health, DNS status, join paths                                                                                     |
 | Ingress & edge | turn the local/private lanes and the public edge on or off, entry port, console visibility, node public addresses (inbound edges), this node's doors |
-| Mesh | members as this node sees them (link path, last handshake, endpoints), revoke a member, how a node joins |
-| DNS | lane record sets and whether they converged |
-| Domains | project custom domains, served on the public lane |
+| Mesh           | members as this node sees them (link path, last handshake, endpoints), revoke a member, how a node joins                                             |
+| DNS            | lane record sets and whether they converged                                                                                                          |
+| Domains        | project custom domains, served on the public lane                                                                                                    |
 
 Changing lanes, the edge or mesh membership requires a platform admin.
 

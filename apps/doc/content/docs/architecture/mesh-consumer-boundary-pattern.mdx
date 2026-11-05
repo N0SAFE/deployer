@@ -13,7 +13,9 @@ When stream/event features grow, mesh code often drifts into business concerns (
 This pattern enforces one clean rule:
 
 <DocCallout title="Single responsibility split" tone="success">
-Mesh handles network/runtime concerns (where things live, how to connect, how to bridge). Consumer modules handle business concerns (what events mean, what to do with them, invariants and permissions).
+    Mesh handles network/runtime concerns (where things live, how to connect,
+    how to bridge). Consumer modules handle business concerns (what events mean,
+    what to do with them, invariants and permissions).
 </DocCallout>
 
 ## Design goals
@@ -83,7 +85,8 @@ These contracts are **private ORPC contracts** (control-plane only):
 - callable only by trusted internal actors (mesh services, orchestrators, workers)
 
 <DocCallout title="Boundary rule" tone="warning">
-Consumer contracts must never expose mesh internals as business API. Mesh contracts must never encode domain-specific business rules.
+    Consumer contracts must never expose mesh internals as business API. Mesh
+    contracts must never encode domain-specific business rules.
 </DocCallout>
 
 ## Private ORPC for mesh internal/control-plane traffic
@@ -111,17 +114,19 @@ flowchart LR
 ```ts
 // apps/api/src/core/modules/mesh/contracts/private/mesh-runtime.private.router.ts
 export const meshRuntimePrivateContract = oc.router({
-  openInternalBridge: meshOpenInternalBridgeContract,
-  joinBridges: meshJoinBridgesContract,
-  closeBridge: meshCloseBridgeContract,
-});
+    openInternalBridge: meshOpenInternalBridgeContract,
+    joinBridges: meshJoinBridgesContract,
+    closeBridge: meshCloseBridgeContract,
+})
 
 // all handlers must use internal mesh auth middleware (not public user auth)
 // implement(meshRuntimePrivateContract.openInternalBridge).use(requireMeshServiceAuth())
 ```
 
 <DocCallout title="Hard rule" tone="warning">
-Even when traffic is internal, do not bypass ORPC contracts with ad-hoc HTTP handlers. Internal mesh/control paths remain contract-first, typed, and authenticated.
+    Even when traffic is internal, do not bypass ORPC contracts with ad-hoc HTTP
+    handlers. Internal mesh/control paths remain contract-first, typed, and
+    authenticated.
 </DocCallout>
 
 ## Schema-first mesh event model (DX + production pattern)
@@ -154,80 +159,90 @@ flowchart LR
 
 ```ts
 // apps/api/src/core/modules/mesh/schemas/events/deployment.events.ts
-import { z } from "zod/v4";
+import { z } from 'zod/v4'
 
 export const deploymentQueuedSchema = z.object({
-  type: z.literal("deployment.queued"),
-  deploymentId: z.string(),
-  at: z.string(),
-});
+    type: z.literal('deployment.queued'),
+    deploymentId: z.string(),
+    at: z.string(),
+})
 
 export const deploymentStartedSchema = z.object({
-  type: z.literal("deployment.started"),
-  deploymentId: z.string(),
-  at: z.string(),
-});
+    type: z.literal('deployment.started'),
+    deploymentId: z.string(),
+    at: z.string(),
+})
 ```
 
 ### 2) Aggregate once in a central registry
 
 ```ts
 // apps/api/src/core/modules/mesh/schemas/events/registry.ts
-import { z } from "zod/v4";
-import { deploymentQueuedSchema, deploymentStartedSchema } from "./deployment.events";
-import { serviceHealthChangedSchema } from "./service.events";
+import { z } from 'zod/v4'
+import {
+    deploymentQueuedSchema,
+    deploymentStartedSchema,
+} from './deployment.events'
+import { serviceHealthChangedSchema } from './service.events'
 
 export const meshEventRegistry = {
-  deploymentQueued: deploymentQueuedSchema,
-  deploymentStarted: deploymentStartedSchema,
-  serviceHealthChanged: serviceHealthChangedSchema,
-} as const;
+    deploymentQueued: deploymentQueuedSchema,
+    deploymentStarted: deploymentStartedSchema,
+    serviceHealthChanged: serviceHealthChangedSchema,
+} as const
 
-export type MeshEventRegistry = typeof meshEventRegistry;
-export type MeshEventKey = keyof MeshEventRegistry;
+export type MeshEventRegistry = typeof meshEventRegistry
+export type MeshEventKey = keyof MeshEventRegistry
 
-export const meshEventUnionSchema = z.discriminatedUnion("type", [
-  ...Object.values(meshEventRegistry),
-]);
+export const meshEventUnionSchema = z.discriminatedUnion('type', [
+    ...Object.values(meshEventRegistry),
+])
 
-export type MeshEvent = z.infer<typeof meshEventUnionSchema>;
+export type MeshEvent = z.infer<typeof meshEventUnionSchema>
 ```
 
 ### 3) Wrap with a typed envelope schema
 
 ```ts
 // apps/api/src/core/modules/mesh/schemas/events/envelope.ts
-import { z } from "zod/v4";
-import { meshEventUnionSchema } from "./registry";
+import { z } from 'zod/v4'
+import { meshEventUnionSchema } from './registry'
 
 export const meshEnvelopeSchema = z.object({
-  stream: z.string(),
-  sourceModule: z.enum(["deployment", "service", "project", "system"]),
-  sequence: z.number().int().nonnegative(),
-  emittedAt: z.string(),
-  event: meshEventUnionSchema,
-});
+    stream: z.string(),
+    sourceModule: z.enum(['deployment', 'service', 'project', 'system']),
+    sequence: z.number().int().nonnegative(),
+    emittedAt: z.string(),
+    event: meshEventUnionSchema,
+})
 
-export type MeshEnvelope = z.infer<typeof meshEnvelopeSchema>;
+export type MeshEnvelope = z.infer<typeof meshEnvelopeSchema>
 ```
 
 ### 4) Create typed join helpers from the registry
 
 ```ts
 // apps/api/src/core/modules/mesh/services/event-join.helpers.ts
-import { z } from "zod/v4";
-import type { Observable } from "rxjs";
-import { merge } from "rxjs";
-import type { MeshEnvelope } from "../schemas/events/envelope";
-import type { MeshEventKey, MeshEventRegistry } from "../schemas/events/registry";
+import { z } from 'zod/v4'
+import type { Observable } from 'rxjs'
+import { merge } from 'rxjs'
+import type { MeshEnvelope } from '../schemas/events/envelope'
+import type {
+    MeshEventKey,
+    MeshEventRegistry,
+} from '../schemas/events/registry'
 
-type EventByKey<K extends MeshEventKey> = z.infer<MeshEventRegistry[K]>;
-type EnvelopeByKey<K extends MeshEventKey> = MeshEnvelope & { event: EventByKey<K> };
+type EventByKey<K extends MeshEventKey> = z.infer<MeshEventRegistry[K]>
+type EnvelopeByKey<K extends MeshEventKey> = MeshEnvelope & {
+    event: EventByKey<K>
+}
 
-export function mergeByEventKeys<const K extends readonly MeshEventKey[]>(
-  streams: { [P in K[number]]: Observable<EnvelopeByKey<P>> },
-): Observable<EnvelopeByKey<K[number]>> {
-  return merge(...Object.values(streams));
+export function mergeByEventKeys<
+    const K extends readonly MeshEventKey[],
+>(streams: { [P in K[number]]: Observable<EnvelopeByKey<P>> }): Observable<
+    EnvelopeByKey<K[number]>
+> {
+    return merge(...Object.values(streams))
 }
 ```
 
@@ -235,29 +250,34 @@ export function mergeByEventKeys<const K extends readonly MeshEventKey[]>(
 
 ```ts
 // apps/api/shared/src/core/modules/mesh/services/base-mesh.service.ts
-import { Injectable } from "@nestjs/common";
-import type { Observable } from "rxjs";
-import { map } from "rxjs/operators";
-import type { ZodTypeAny, z } from "zod/v4";
-import { meshEnvelopeSchema, type MeshEnvelope } from "../schemas/events/envelope";
+import { Injectable } from '@nestjs/common'
+import type { Observable } from 'rxjs'
+import { map } from 'rxjs/operators'
+import type { ZodTypeAny, z } from 'zod/v4'
+import {
+    meshEnvelopeSchema,
+    type MeshEnvelope,
+} from '../schemas/events/envelope'
 
 @Injectable()
 export abstract class BaseMeshService {
-  protected constructor(protected readonly runtime: MeshStreamRuntimeService) {}
+    protected constructor(
+        protected readonly runtime: MeshStreamRuntimeService
+    ) {}
 
-  protected openInternalTypedStream<TSchema extends ZodTypeAny>(
-    input: MeshOpenBridgeInput,
-    headers: Headers,
-    payloadSchema: TSchema,
-  ): Observable<MeshEnvelope & { event: z.infer<TSchema> }> {
-    return this.runtime.openBridge<unknown>(input, headers).pipe(
-      map((raw) => meshEnvelopeSchema.parse(raw)),
-      map((envelope) => ({
-        ...envelope,
-        event: payloadSchema.parse(envelope.event),
-      })),
-    );
-  }
+    protected openInternalTypedStream<TSchema extends ZodTypeAny>(
+        input: MeshOpenBridgeInput,
+        headers: Headers,
+        payloadSchema: TSchema
+    ): Observable<MeshEnvelope & { event: z.infer<TSchema> }> {
+        return this.runtime.openBridge<unknown>(input, headers).pipe(
+            map((raw) => meshEnvelopeSchema.parse(raw)),
+            map((envelope) => ({
+                ...envelope,
+                event: payloadSchema.parse(envelope.event),
+            }))
+        )
+    }
 }
 ```
 
@@ -267,35 +287,56 @@ export abstract class BaseMeshService {
 // apps/api/services/runtime/src/modules/deployment/mesh/services/deployment-mesh.service.ts
 @Injectable()
 export class DeploymentMeshService extends BaseMeshService {
-  streamDeploymentSignals(input: { deploymentId: string; headers: Headers }) {
-    return this.openInternalTypedStream(
-      {
-        resourceKind: "stream",
-        resourceKey: `stream:deployment:${input.deploymentId}`,
-        transport: "sse",
-        bridgeMode: "dedicated",
-        query: {},
-        forwardAuth: true,
-      },
-      input.headers,
-      meshEventRegistry.deploymentStarted,
-    );
-  }
+    streamDeploymentSignals(input: { deploymentId: string; headers: Headers }) {
+        return this.openInternalTypedStream(
+            {
+                resourceKind: 'stream',
+                resourceKey: `stream:deployment:${input.deploymentId}`,
+                transport: 'sse',
+                bridgeMode: 'dedicated',
+                query: {},
+                forwardAuth: true,
+            },
+            input.headers,
+            meshEventRegistry.deploymentStarted
+        )
+    }
 }
 ```
 
 ### Production checklist for this pattern
 
 <DocChecklist
-  items={[
-    { label: 'Every internal mesh event has a zod schema (no untyped payloads)', done: false },
-    { label: 'Registry is the single source of truth for event shape + key', done: false },
-    { label: 'Envelope schema validates transport payload before business use', done: false },
-    { label: 'All internal bridge/control calls go through private ORPC contracts', done: false },
-    { label: 'All internal mesh handlers use requireInternalMesh() middleware', done: false },
-    { label: 'Signed mesh token path (verifyMeshToken) is enabled in strict mode where possible', done: false },
-    { label: 'Feature mesh services extend BaseMeshService rather than re-implementing transport logic', done: false },
-  ]}
+    items={[
+        {
+            label: 'Every internal mesh event has a zod schema (no untyped payloads)',
+            done: false,
+        },
+        {
+            label: 'Registry is the single source of truth for event shape + key',
+            done: false,
+        },
+        {
+            label: 'Envelope schema validates transport payload before business use',
+            done: false,
+        },
+        {
+            label: 'All internal bridge/control calls go through private ORPC contracts',
+            done: false,
+        },
+        {
+            label: 'All internal mesh handlers use requireInternalMesh() middleware',
+            done: false,
+        },
+        {
+            label: 'Signed mesh token path (verifyMeshToken) is enabled in strict mode where possible',
+            done: false,
+        },
+        {
+            label: 'Feature mesh services extend BaseMeshService rather than re-implementing transport logic',
+            done: false,
+        },
+    ]}
 />
 
 ## Recommended service pattern
@@ -303,18 +344,18 @@ export class DeploymentMeshService extends BaseMeshService {
 Define three service roles:
 
 1. **ConsumerStreamOrchestrator** (feature module)
-   - decides whether stream is local or remote
-   - asks mesh for a stream channel when remote
-   - merges replay/filter business rules with domain semantics
+    - decides whether stream is local or remote
+    - asks mesh for a stream channel when remote
+    - merges replay/filter business rules with domain semantics
 
 2. **MeshStreamRuntimeService** (core mesh module)
-   - discovers owner node/resource
-   - opens transport (SSE/HTTP stream/WebSocket)
-   - returns typed observable stream with cancellation and error propagation
+    - discovers owner node/resource
+    - opens transport (SSE/HTTP stream/WebSocket)
+    - returns typed observable stream with cancellation and error propagation
 
 3. **DomainBusinessService** (feature module)
-   - interprets domain events
-   - performs state transitions, policy checks, side effects
+    - interprets domain events
+    - performs state transitions, policy checks, side effects
 
 ## Concrete code example
 
@@ -328,66 +369,71 @@ The example below shows the exact boundary split:
 
 ```ts
 // packages/contracts/api/modules/deployment/stream.ts
-import { z } from "zod/v4";
-import { standard } from "@deployer/orpc-utils";
-import { deploymentEventSchema } from "@deployer/contracts-common/common/deployment";
+import { z } from 'zod/v4'
+import { standard } from '@deployer/orpc-utils'
+import { deploymentEventSchema } from '@deployer/contracts-common/common/deployment'
 
-const deploymentOps = standard.zod(z.object({ id: z.string() }), "deployment");
+const deploymentOps = standard.zod(z.object({ id: z.string() }), 'deployment')
 
 export const deploymentStreamContract = deploymentOps
-  .findById()
-  .input((b) =>
-    b.query(
-      z.object({
-        replay: z.boolean().default(false),
-        replayLimit: z.number().int().min(1).max(500).default(100),
-      }),
-    ),
-  )
-  .output((b) => b.observable(deploymentEventSchema))
-  .build();
+    .findById()
+    .input((b) =>
+        b.query(
+            z.object({
+                replay: z.boolean().default(false),
+                replayLimit: z.number().int().min(1).max(500).default(100),
+            })
+        )
+    )
+    .output((b) => b.observable(deploymentEventSchema))
+    .build()
 ```
 
 ### 2) Mesh runtime contract (platform-facing)
 
 ```ts
 // apps/api/src/core/modules/mesh/contracts/mesh-stream-runtime.contract.ts
-import { z } from "zod/v4";
+import { z } from 'zod/v4'
 
 export const meshOpenBridgeInputSchema = z.object({
-  resourceKind: z.literal("stream"),
-  resourceKey: z.string(),
-  transport: z.enum(["sse", "http-stream", "websocket"]).default("sse"),
-  bridgeMode: z.enum(["dedicated", "shared_passthrough"]).default("dedicated"),
-  query: z.record(z.string(), z.string()).default({}),
-  forwardAuth: z.boolean().default(true),
-});
+    resourceKind: z.literal('stream'),
+    resourceKey: z.string(),
+    transport: z.enum(['sse', 'http-stream', 'websocket']).default('sse'),
+    bridgeMode: z
+        .enum(['dedicated', 'shared_passthrough'])
+        .default('dedicated'),
+    query: z.record(z.string(), z.string()).default({}),
+    forwardAuth: z.boolean().default(true),
+})
 
 export const meshBridgeEnvelopeSchema = z.object({
-  at: z.string(),
-  data: z.unknown(),
-});
+    at: z.string(),
+    data: z.unknown(),
+})
 
-export type MeshOpenBridgeInput = z.infer<typeof meshOpenBridgeInputSchema>;
+export type MeshOpenBridgeInput = z.infer<typeof meshOpenBridgeInputSchema>
 ```
 
 ### 3) Mesh runtime service (core transport concern only)
 
 ```ts
 // apps/api/shared/src/core/modules/mesh/services/mesh-stream-runtime.service.ts
-import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
+import { Injectable } from '@nestjs/common'
+import { Observable } from 'rxjs'
 
 @Injectable()
 export class MeshStreamRuntimeService {
-  openBridge<TEvent>(input: MeshOpenBridgeInput, headers: Headers): Observable<TEvent> {
-    // 1) lookup resource owner in mesh directory
-    // 2) connect over selected transport
-    // 3) parse frames + map envelope -> TEvent
-    // 4) propagate cancellation/errors
-    // (implementation intentionally runtime-focused, no business branching)
-    return new Observable<TEvent>();
-  }
+    openBridge<TEvent>(
+        input: MeshOpenBridgeInput,
+        headers: Headers
+    ): Observable<TEvent> {
+        // 1) lookup resource owner in mesh directory
+        // 2) connect over selected transport
+        // 3) parse frames + map envelope -> TEvent
+        // 4) propagate cancellation/errors
+        // (implementation intentionally runtime-focused, no business branching)
+        return new Observable<TEvent>()
+    }
 }
 ```
 
@@ -395,58 +441,58 @@ export class MeshStreamRuntimeService {
 
 ```ts
 // apps/api/src/modules/deployment/application/deployment-stream.orchestrator.ts
-import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
+import { Injectable } from '@nestjs/common'
+import { Observable } from 'rxjs'
 
 @Injectable()
 export class DeploymentStreamOrchestrator {
-  constructor(
-    private readonly deploymentService: DeploymentService,
-    private readonly meshRuntime: MeshStreamRuntimeService,
-    private readonly meshTopology: SystemMeshTopologyService,
-  ) {}
+    constructor(
+        private readonly deploymentService: DeploymentService,
+        private readonly meshRuntime: MeshStreamRuntimeService,
+        private readonly meshTopology: SystemMeshTopologyService
+    ) {}
 
-  openStream(input: {
-    deploymentId: string;
-    replay: boolean;
-    replayLimit: number;
-    headers: Headers;
-  }): Observable<DeploymentStreamEvent> {
-    const key = `stream:deployment:${input.deploymentId}`;
-    const lookup = this.meshTopology.lookupResource({
-      kind: "stream",
-      key,
-      includeCandidates: true,
-    });
+    openStream(input: {
+        deploymentId: string
+        replay: boolean
+        replayLimit: number
+        headers: Headers
+    }): Observable<DeploymentStreamEvent> {
+        const key = `stream:deployment:${input.deploymentId}`
+        const lookup = this.meshTopology.lookupResource({
+            kind: 'stream',
+            key,
+            includeCandidates: true,
+        })
 
-    const owner = lookup.primary;
-    const localNodeId = this.meshTopology.getLocalNode().nodeId;
+        const owner = lookup.primary
+        const localNodeId = this.meshTopology.getLocalNode().nodeId
 
-    if (!owner || owner.ownerNodeId === localNodeId) {
-      // local ownership => business service decides event semantics
-      return this.deploymentService.streamDeploymentEvents({
-        deploymentId: input.deploymentId,
-        replay: input.replay,
-        replayLimit: input.replayLimit,
-      });
+        if (!owner || owner.ownerNodeId === localNodeId) {
+            // local ownership => business service decides event semantics
+            return this.deploymentService.streamDeploymentEvents({
+                deploymentId: input.deploymentId,
+                replay: input.replay,
+                replayLimit: input.replayLimit,
+            })
+        }
+
+        // remote ownership => ask mesh runtime for bridge (transport concern)
+        return this.meshRuntime.openBridge<DeploymentStreamEvent>(
+            {
+                resourceKind: 'stream',
+                resourceKey: key,
+                transport: 'sse',
+                bridgeMode: 'dedicated',
+                query: {
+                    replay: String(input.replay),
+                    replayLimit: String(input.replayLimit),
+                },
+                forwardAuth: true,
+            },
+            input.headers
+        )
     }
-
-    // remote ownership => ask mesh runtime for bridge (transport concern)
-    return this.meshRuntime.openBridge<DeploymentStreamEvent>(
-      {
-        resourceKind: "stream",
-        resourceKey: key,
-        transport: "sse",
-        bridgeMode: "dedicated",
-        query: {
-          replay: String(input.replay),
-          replayLimit: String(input.replayLimit),
-        },
-        forwardAuth: true,
-      },
-      input.headers,
-    );
-  }
 }
 ```
 
@@ -470,7 +516,8 @@ stream() {
 ```
 
 <DocCallout title="Concrete boundary check" tone="success">
-If you can delete/replace the mesh transport implementation without touching domain semantics, your boundary is correct.
+    If you can delete/replace the mesh transport implementation without touching
+    domain semantics, your boundary is correct.
 </DocCallout>
 
 ## End-to-end stream lifecycle
@@ -522,7 +569,9 @@ flowchart TD
 ```
 
 <DocCallout title="Why shared passthrough is discouraged" tone="warning">
-`shared_passthrough` couples unrelated consumers to one transport lifecycle (backpressure, reconnect storms, and failure blast radius). Keep it as an explicit opt-in, never as default.
+    `shared_passthrough` couples unrelated consumers to one transport lifecycle
+    (backpressure, reconnect storms, and failure blast radius). Keep it as an
+    explicit opt-in, never as default.
 </DocCallout>
 
 ## Multi-module stream join pattern
@@ -545,44 +594,77 @@ flowchart LR
 
 ```ts
 // apps/api/src/modules/deployment/application/unified-activity.orchestrator.ts
-import { Injectable } from "@nestjs/common";
-import { merge, Observable } from "rxjs";
-import { map } from "rxjs/operators";
+import { Injectable } from '@nestjs/common'
+import { merge, Observable } from 'rxjs'
+import { map } from 'rxjs/operators'
 
 type UnifiedActivityEvent = {
-  source: "deployment" | "service" | "project";
-  at: string;
-  data: unknown;
-};
+    source: 'deployment' | 'service' | 'project'
+    at: string
+    data: unknown
+}
 
 @Injectable()
 export class UnifiedActivityOrchestrator {
-  constructor(
-    private readonly deploymentOrchestrator: DeploymentStreamOrchestrator,
-    private readonly serviceOrchestrator: ServiceStreamOrchestrator,
-    private readonly projectOrchestrator: ProjectStreamOrchestrator,
-  ) {}
+    constructor(
+        private readonly deploymentOrchestrator: DeploymentStreamOrchestrator,
+        private readonly serviceOrchestrator: ServiceStreamOrchestrator,
+        private readonly projectOrchestrator: ProjectStreamOrchestrator
+    ) {}
 
-  openUnifiedActivity(input: {
-    deploymentId: string;
-    serviceId: string;
-    projectId: string;
-    headers: Headers;
-  }): Observable<UnifiedActivityEvent> {
-    const deployment$ = this.deploymentOrchestrator
-      .openStream({ deploymentId: input.deploymentId, replay: false, replayLimit: 100, headers: input.headers })
-      .pipe(map((data) => ({ source: "deployment" as const, at: new Date().toISOString(), data })));
+    openUnifiedActivity(input: {
+        deploymentId: string
+        serviceId: string
+        projectId: string
+        headers: Headers
+    }): Observable<UnifiedActivityEvent> {
+        const deployment$ = this.deploymentOrchestrator
+            .openStream({
+                deploymentId: input.deploymentId,
+                replay: false,
+                replayLimit: 100,
+                headers: input.headers,
+            })
+            .pipe(
+                map((data) => ({
+                    source: 'deployment' as const,
+                    at: new Date().toISOString(),
+                    data,
+                }))
+            )
 
-    const service$ = this.serviceOrchestrator
-      .openStream({ serviceId: input.serviceId, replay: false, replayLimit: 100, headers: input.headers })
-      .pipe(map((data) => ({ source: "service" as const, at: new Date().toISOString(), data })));
+        const service$ = this.serviceOrchestrator
+            .openStream({
+                serviceId: input.serviceId,
+                replay: false,
+                replayLimit: 100,
+                headers: input.headers,
+            })
+            .pipe(
+                map((data) => ({
+                    source: 'service' as const,
+                    at: new Date().toISOString(),
+                    data,
+                }))
+            )
 
-    const project$ = this.projectOrchestrator
-      .openStream({ projectId: input.projectId, replay: false, replayLimit: 100, headers: input.headers })
-      .pipe(map((data) => ({ source: "project" as const, at: new Date().toISOString(), data })));
+        const project$ = this.projectOrchestrator
+            .openStream({
+                projectId: input.projectId,
+                replay: false,
+                replayLimit: 100,
+                headers: input.headers,
+            })
+            .pipe(
+                map((data) => ({
+                    source: 'project' as const,
+                    at: new Date().toISOString(),
+                    data,
+                }))
+            )
 
-    return merge(deployment$, service$, project$);
-  }
+        return merge(deployment$, service$, project$)
+    }
 }
 ```
 
@@ -590,13 +672,13 @@ export class UnifiedActivityOrchestrator {
 
 Use the join operator based on semantics, not convenience:
 
-| Policy | RxJS primitive | Best for | Trade-offs | Recommended default? |
-|---|---|---|---|---|
-| First-available interleaving | `merge(...)` | Real-time activity feeds from many modules | Event order is per-source arrival, not global causal order | ✅ Yes |
-| Latest-state composition | `combineLatest(...)` | Dashboard state cards that need "latest of each stream" | No emission until each source emits once; chatty when many sources update | ⚠️ Case-by-case |
-| Lockstep pairing | `zip(...)` | Strictly paired pipelines (A event must pair with B event) | Can stall if one source lags; not suitable for unbalanced event rates | ❌ Rare |
-| Global time ordering | `merge(...) + reorder buffer` | Audit timelines needing near-ordered output | Added latency + buffering complexity; clock skew risk | ⚠️ Use only when required |
-| Controlled fan-in with limits | `mergeMap(..., concurrency)` | Dynamic N-stream joins with bounded resource usage | Requires lifecycle management per child stream | ✅ For dynamic sources |
+| Policy                        | RxJS primitive                | Best for                                                   | Trade-offs                                                                | Recommended default?      |
+| ----------------------------- | ----------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------- |
+| First-available interleaving  | `merge(...)`                  | Real-time activity feeds from many modules                 | Event order is per-source arrival, not global causal order                | ✅ Yes                    |
+| Latest-state composition      | `combineLatest(...)`          | Dashboard state cards that need "latest of each stream"    | No emission until each source emits once; chatty when many sources update | ⚠️ Case-by-case           |
+| Lockstep pairing              | `zip(...)`                    | Strictly paired pipelines (A event must pair with B event) | Can stall if one source lags; not suitable for unbalanced event rates     | ❌ Rare                   |
+| Global time ordering          | `merge(...) + reorder buffer` | Audit timelines needing near-ordered output                | Added latency + buffering complexity; clock skew risk                     | ⚠️ Use only when required |
+| Controlled fan-in with limits | `mergeMap(..., concurrency)`  | Dynamic N-stream joins with bounded resource usage         | Requires lifecycle management per child stream                            | ✅ For dynamic sources    |
 
 ```mermaid
 flowchart TD
@@ -610,16 +692,18 @@ flowchart TD
 ```
 
 <DocCallout title="Recommended baseline" tone="success">
-Start with `merge(...)` for cross-module activity streams. Add ordering buffers or snapshot joins only when product requirements explicitly demand them.
+    Start with `merge(...)` for cross-module activity streams. Add ordering
+    buffers or snapshot joins only when product requirements explicitly demand
+    them.
 </DocCallout>
 
 ```ts
 // Optional ordered merge sketch for audit-like timelines
 const ordered$ = merge(deployment$, service$, project$).pipe(
-  // 1) bucket by small window (e.g. 250ms)
-  // 2) sort by event.at then deterministic tiebreaker
-  // 3) emit in order
-);
+    // 1) bucket by small window (e.g. 250ms)
+    // 2) sort by event.at then deterministic tiebreaker
+    // 3) emit in order
+)
 ```
 
 ## Capability model for “new bridge” features

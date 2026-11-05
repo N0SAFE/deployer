@@ -9,13 +9,13 @@ from `appContract` so it describes only what this process mounts.
   points at it).
 - Offline, without running the server:
 
-  ```bash
-  cd apps/api/bff
-  bun run openapi:generate > openapi.json
-  ```
+    ```bash
+    cd apps/api/bff
+    bun run openapi:generate > openapi.json
+    ```
 
-  The script and the endpoint share `generateOpenApiSpec()` (`src/orpc/openapi.ts`), so a file
-  written offline cannot differ from what the running BFF serves.
+    The script and the endpoint share `generateOpenApiSpec()` (`src/orpc/openapi.ts`), so a file
+    written offline cannot differ from what the running BFF serves.
 
 Notes:
 

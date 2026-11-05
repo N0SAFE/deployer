@@ -1,11 +1,11 @@
-import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { isRecord, isObjectLike } from '@deployer/type-guards'
 
-import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
+import { deploymentStoragePolicySchema } from '../base/storage-policy.schema'
 
 import type {
     DeploymentStoragePolicyResolver,
     ResolveDeploymentStoragePolicyInput,
-} from "../base/storage-policy-resolver.interface";
+} from '../base/storage-policy-resolver.interface'
 
 /**
  * Resolves the deployment storage policy from the service's custom data
@@ -13,22 +13,26 @@ import type {
  * @deployer/type-guards in place of `as Record<string, unknown>` casts to
  * avoid the runtime lie.
  */
-export const serviceCustomDataStoragePolicyResolver: DeploymentStoragePolicyResolver = {
-    name: "service-custom-data-storage",
-    priority: 200,
+export const serviceCustomDataStoragePolicyResolver: DeploymentStoragePolicyResolver =
+    {
+        name: 'service-custom-data-storage',
+        priority: 200,
 
-    resolve(input: ResolveDeploymentStoragePolicyInput) {
-        const customData = input.serviceMetadata?.customData;
-        if (!isRecord(customData)) {
-            return undefined;
-        }
+        resolve(input: ResolveDeploymentStoragePolicyInput) {
+            const customData = input.serviceMetadata?.customData
+            if (!isRecord(customData)) {
+                return undefined
+            }
 
-        const storage = customData.storage;
-        if (!isObjectLike(storage)) {
-            return undefined;
-        }
+            const storage = customData.storage
+            if (!isObjectLike(storage)) {
+                return undefined
+            }
 
-        const parsedStoragePolicy = deploymentStoragePolicySchema.safeParse(storage);
-        return parsedStoragePolicy.success ? parsedStoragePolicy.data : undefined;
+            const parsedStoragePolicy =
+                deploymentStoragePolicySchema.safeParse(storage)
+            return parsedStoragePolicy.success
+                ? parsedStoragePolicy.data
+                : undefined
+        },
     }
-};

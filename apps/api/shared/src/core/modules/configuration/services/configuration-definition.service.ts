@@ -1,4 +1,4 @@
-import { Context } from "effect";
+import { Context } from 'effect'
 
 import {
     configurationScopeSchema,
@@ -6,62 +6,70 @@ import {
     serviceRuntimeConfigSchema,
     userRuntimeConfigSchema,
     type ConfigurationScope,
-} from "../schemas/runtime-configuration.schema";
+} from '../schemas/runtime-configuration.schema'
 
 type RuntimeConfigurationSchemaByScope = {
-    project: typeof projectRuntimeConfigSchema;
-    service: typeof serviceRuntimeConfigSchema;
-    user: typeof userRuntimeConfigSchema;
+    project: typeof projectRuntimeConfigSchema
+    service: typeof serviceRuntimeConfigSchema
+    user: typeof userRuntimeConfigSchema
 }
 
-type RuntimeConfigurationSchema = RuntimeConfigurationSchemaByScope[ConfigurationScope];
+type RuntimeConfigurationSchema =
+    RuntimeConfigurationSchemaByScope[ConfigurationScope]
 
 export type RuntimeConfigurationDefinition = {
-    scope: ConfigurationScope;
-    schema: RuntimeConfigurationSchema;
-    description: string;
-    dependsOn: ConfigurationScope[];
+    scope: ConfigurationScope
+    schema: RuntimeConfigurationSchema
+    description: string
+    dependsOn: ConfigurationScope[]
 }
 
-type RuntimeConfigurationDefinitionMap = Record<ConfigurationScope, RuntimeConfigurationDefinition>;
+type RuntimeConfigurationDefinitionMap = Record<
+    ConfigurationScope,
+    RuntimeConfigurationDefinition
+>
 
 const runtimeConfigurationDefinitions: RuntimeConfigurationDefinitionMap = {
     project: {
-        scope: "project",
+        scope: 'project',
         schema: projectRuntimeConfigSchema,
-        description: "Project-level overrides and deployment behavior",
+        description: 'Project-level overrides and deployment behavior',
         dependsOn: [],
     },
     service: {
-        scope: "service",
+        scope: 'service',
         schema: serviceRuntimeConfigSchema,
-        description: "Service-level runtime and routing overrides",
-        dependsOn: ["project"],
+        description: 'Service-level runtime and routing overrides',
+        dependsOn: ['project'],
     },
     user: {
-        scope: "user",
+        scope: 'user',
         schema: userRuntimeConfigSchema,
-        description: "User-level runtime overrides (e.g., preview preferences)",
-        dependsOn: ["project", "service"],
+        description: 'User-level runtime overrides (e.g., preview preferences)',
+        dependsOn: ['project', 'service'],
     },
-};
+}
 
 export type ConfigurationDefinitionServiceShape = {
-    readonly listDefinitions: () => RuntimeConfigurationDefinition[];
-    readonly getDefinition: (scope: ConfigurationScope) => RuntimeConfigurationDefinition;
-};
+    readonly listDefinitions: () => RuntimeConfigurationDefinition[]
+    readonly getDefinition: (
+        scope: ConfigurationScope
+    ) => RuntimeConfigurationDefinition
+}
 
 /** The definitions are constants: the service is pure, so its methods are plain reads. */
 export function makeConfigurationDefinitionService(
-    definitions: RuntimeConfigurationDefinitionMap = runtimeConfigurationDefinitions,
+    definitions: RuntimeConfigurationDefinitionMap = runtimeConfigurationDefinitions
 ): ConfigurationDefinitionServiceShape {
-    const getDefinition = (scope: ConfigurationScope) => definitions[scope];
+    const getDefinition = (scope: ConfigurationScope) => definitions[scope]
     return {
-        listDefinitions: () => configurationScopeSchema.options.map(getDefinition),
+        listDefinitions: () =>
+            configurationScopeSchema.options.map(getDefinition),
         getDefinition,
-    };
+    }
 }
 
-export class ConfigurationDefinitionService extends Context.Service<ConfigurationDefinitionService, ConfigurationDefinitionServiceShape>()(
-    "shared/ConfigurationDefinitionService",
-) {}
+export class ConfigurationDefinitionService extends Context.Service<
+    ConfigurationDefinitionService,
+    ConfigurationDefinitionServiceShape
+>()('shared/ConfigurationDefinitionService') {}

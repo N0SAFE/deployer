@@ -508,7 +508,7 @@ export class TurboRunner {
         // same set — with the hash the bake already cached. The union parameter
         // was dropped rather than kept unused: the membership decision belongs to
         // the caller, and the FILTER form is what has to agree with the image.
-        return ["--filter=!./apps/**"];
+        return ['--filter=!./apps/**']
     }
 
     /**

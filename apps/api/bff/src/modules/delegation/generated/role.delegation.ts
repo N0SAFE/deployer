@@ -26,40 +26,48 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { roleContract } from "@deployer/identity-contracts";
+import { roleContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class RoleDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", roleContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', roleContract)
+    }
 
-	@Implement(roleContract.list)
-	list() {
-		return implement(roleContract.list).handler(({ input }) => this.client.list(input));
-	}
+    @Implement(roleContract.list)
+    list() {
+        return implement(roleContract.list).handler(({ input }) =>
+            this.client.list(input)
+        )
+    }
 
-	@Implement(roleContract.create)
-	create() {
-		return implement(roleContract.create).handler(({ input }) => this.client.create(input));
-	}
+    @Implement(roleContract.create)
+    create() {
+        return implement(roleContract.create).handler(({ input }) =>
+            this.client.create(input)
+        )
+    }
 
-	@Implement(roleContract.update)
-	update() {
-		return implement(roleContract.update).handler(({ input }) => this.client.update(input));
-	}
+    @Implement(roleContract.update)
+    update() {
+        return implement(roleContract.update).handler(({ input }) =>
+            this.client.update(input)
+        )
+    }
 
-	@Implement(roleContract.delete)
-	delete() {
-		return implement(roleContract.delete).handler(({ input }) => this.client.delete(input));
-	}
+    @Implement(roleContract.delete)
+    delete() {
+        return implement(roleContract.delete).handler(({ input }) =>
+            this.client.delete(input)
+        )
+    }
 }

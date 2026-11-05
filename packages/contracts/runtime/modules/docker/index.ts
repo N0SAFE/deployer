@@ -1,101 +1,111 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
 import {
-  dockerContainersContract,
-  dockerContainerCreateDirectoryContract,
-  dockerContainerDeletePathContract,
-  dockerContainerFilesContract,
-  dockerListContainersContract,
-  dockerListContainersGroupedContract,
-  dockerContainerLogsStreamContract,
-  dockerContainerLinkedListContract,
-  dockerContainerProcessLogsStreamContract,
-  dockerContainerProcessesContract,
-  dockerContainerProcessesStreamContract,
-  dockerContainerReadFileContract,
-  dockerContainerRenamePathContract,
-  dockerContainerInspectContract,
-  dockerContainerRuntimeActionContract,
-  dockerContainerInspectStreamContract,
-  dockerContainerTerminalCloseContract,
-  dockerContainerTerminalInputContract,
-  dockerContainerTerminalOpenContract,
-  dockerContainerTerminalStreamContract,
-  dockerContainerWriteFileContract,
-} from "./containers";
-import { dockerEntityContract, dockerEntityStreamContract, dockerEntityInspectContract, dockerEntityListContract, dockerEntityListInputSchema, dockerEntityInspectInputSchema, dockerEntityStreamInputSchema } from "./entity";
+    dockerContainersContract,
+    dockerContainerCreateDirectoryContract,
+    dockerContainerDeletePathContract,
+    dockerContainerFilesContract,
+    dockerListContainersContract,
+    dockerListContainersGroupedContract,
+    dockerContainerLogsStreamContract,
+    dockerContainerLinkedListContract,
+    dockerContainerProcessLogsStreamContract,
+    dockerContainerProcessesContract,
+    dockerContainerProcessesStreamContract,
+    dockerContainerReadFileContract,
+    dockerContainerRenamePathContract,
+    dockerContainerInspectContract,
+    dockerContainerRuntimeActionContract,
+    dockerContainerInspectStreamContract,
+    dockerContainerTerminalCloseContract,
+    dockerContainerTerminalInputContract,
+    dockerContainerTerminalOpenContract,
+    dockerContainerTerminalStreamContract,
+    dockerContainerWriteFileContract,
+} from './containers'
 import {
-  dockerImagesContract,
-  dockerImageInspectContract,
-  dockerImageSecurityScanStreamContract,
-  dockerImageInspectStreamContract,
-  dockerListImagesContract,
-} from "./images";
-import { dockerNetworksContract, dockerListNetworksContract } from "./networks";
+    dockerEntityContract,
+    dockerEntityStreamContract,
+    dockerEntityInspectContract,
+    dockerEntityListContract,
+    dockerEntityListInputSchema,
+    dockerEntityInspectInputSchema,
+    dockerEntityStreamInputSchema,
+} from './entity'
 import {
-  dockerRuntimeContract,
-  dockerRuntimeEventsStreamContract,
-  dockerRuntimeSnapshotContract,
-} from "./runtime";
-import { dockerVolumesContract, dockerListVolumesContract } from "./volumes";
+    dockerImagesContract,
+    dockerImageInspectContract,
+    dockerImageSecurityScanStreamContract,
+    dockerImageInspectStreamContract,
+    dockerListImagesContract,
+} from './images'
+import { dockerNetworksContract, dockerListNetworksContract } from './networks'
+import {
+    dockerRuntimeContract,
+    dockerRuntimeEventsStreamContract,
+    dockerRuntimeSnapshotContract,
+} from './runtime'
+import { dockerVolumesContract, dockerListVolumesContract } from './volumes'
 
-export const dockerContract = oc.meta(openapi({ tags: ["Core Docker"], prefix: "/docker" })).router({
-  containers: dockerContainersContract,
-  images: dockerImagesContract,
-  networks: dockerNetworksContract,
-  volumes: dockerVolumesContract,
-  runtime: dockerRuntimeContract,
-  entity: dockerEntityContract,
-});
+export const dockerContract = oc
+    .meta(openapi({ tags: ['Core Docker'], prefix: '/docker' }))
+    .router({
+        containers: dockerContainersContract,
+        images: dockerImagesContract,
+        networks: dockerNetworksContract,
+        volumes: dockerVolumesContract,
+        runtime: dockerRuntimeContract,
+        entity: dockerEntityContract,
+    })
 
-export type DockerContract = typeof dockerContract;
+export type DockerContract = typeof dockerContract
 
 export {
-  dockerContainersContract,
-  dockerContainerCreateDirectoryContract,
-  dockerContainerDeletePathContract,
-  dockerContainerFilesContract,
-  dockerListContainersContract,
-  dockerListContainersGroupedContract,
-  dockerContainerLogsStreamContract,
-  dockerContainerLinkedListContract,
-  dockerContainerProcessLogsStreamContract,
-  dockerContainerProcessesContract,
-  dockerContainerProcessesStreamContract,
-  dockerContainerReadFileContract,
-  dockerContainerRenamePathContract,
-  dockerContainerInspectContract,
-  dockerContainerRuntimeActionContract,
-  dockerContainerInspectStreamContract,
-  dockerContainerTerminalCloseContract,
-  dockerContainerTerminalInputContract,
-  dockerContainerTerminalOpenContract,
-  dockerContainerTerminalStreamContract,
-  dockerContainerWriteFileContract,
-  dockerImagesContract,
-  dockerImageInspectContract,
-  dockerImageSecurityScanStreamContract,
-  dockerImageInspectStreamContract,
-  dockerListImagesContract,
-  dockerNetworksContract,
-  dockerListNetworksContract,
-  dockerVolumesContract,
-  dockerListVolumesContract,
-  dockerRuntimeContract,
-  dockerRuntimeEventsStreamContract,
-  dockerRuntimeSnapshotContract,
-  dockerEntityContract,
-  dockerEntityListContract,
-  dockerEntityInspectContract,
-  dockerEntityStreamContract,
-  dockerEntityListInputSchema,
-  dockerEntityInspectInputSchema,
-  dockerEntityStreamInputSchema,
-};
+    dockerContainersContract,
+    dockerContainerCreateDirectoryContract,
+    dockerContainerDeletePathContract,
+    dockerContainerFilesContract,
+    dockerListContainersContract,
+    dockerListContainersGroupedContract,
+    dockerContainerLogsStreamContract,
+    dockerContainerLinkedListContract,
+    dockerContainerProcessLogsStreamContract,
+    dockerContainerProcessesContract,
+    dockerContainerProcessesStreamContract,
+    dockerContainerReadFileContract,
+    dockerContainerRenamePathContract,
+    dockerContainerInspectContract,
+    dockerContainerRuntimeActionContract,
+    dockerContainerInspectStreamContract,
+    dockerContainerTerminalCloseContract,
+    dockerContainerTerminalInputContract,
+    dockerContainerTerminalOpenContract,
+    dockerContainerTerminalStreamContract,
+    dockerContainerWriteFileContract,
+    dockerImagesContract,
+    dockerImageInspectContract,
+    dockerImageSecurityScanStreamContract,
+    dockerImageInspectStreamContract,
+    dockerListImagesContract,
+    dockerNetworksContract,
+    dockerListNetworksContract,
+    dockerVolumesContract,
+    dockerListVolumesContract,
+    dockerRuntimeContract,
+    dockerRuntimeEventsStreamContract,
+    dockerRuntimeSnapshotContract,
+    dockerEntityContract,
+    dockerEntityListContract,
+    dockerEntityInspectContract,
+    dockerEntityStreamContract,
+    dockerEntityListInputSchema,
+    dockerEntityInspectInputSchema,
+    dockerEntityStreamInputSchema,
+}
 
 export type {
-  DockerEntityListInput,
-  DockerEntityInspectInput,
-  DockerEntityStreamInput,
-} from "./entity";
+    DockerEntityListInput,
+    DockerEntityInspectInput,
+    DockerEntityStreamInput,
+} from './entity'

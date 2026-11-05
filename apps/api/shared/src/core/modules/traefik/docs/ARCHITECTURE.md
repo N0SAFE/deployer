@@ -56,26 +56,26 @@ The Traefik module follows a layered architecture with clear separation of conce
 ```typescript
 @Injectable()
 export class TraefikService {
-  // Database Operations (Source of Truth)
-  createServiceConfiguration()
-  getServiceConfiguration()
-  updateServiceConfiguration()
-  deleteServiceConfiguration()
-  
-  // Filesystem Operations (Read-Only View)
-  getTraefikFileSystem()
-  getProjectFileSystem()
-  getFileContent()
-  
-  // Synchronization Operations
-  syncServiceConfiguration()
-  syncAllConfigurations()
-  forceSyncAll()
-  cleanupOrphanedFiles()
-  
-  // High-Level Operations
-  deployServiceConfiguration()
-  removeServiceConfiguration()
+    // Database Operations (Source of Truth)
+    createServiceConfiguration()
+    getServiceConfiguration()
+    updateServiceConfiguration()
+    deleteServiceConfiguration()
+
+    // Filesystem Operations (Read-Only View)
+    getTraefikFileSystem()
+    getProjectFileSystem()
+    getFileContent()
+
+    // Synchronization Operations
+    syncServiceConfiguration()
+    syncAllConfigurations()
+    forceSyncAll()
+    cleanupOrphanedFiles()
+
+    // High-Level Operations
+    deployServiceConfiguration()
+    removeServiceConfiguration()
 }
 ```
 
@@ -85,11 +85,11 @@ export class TraefikService {
 
 ```typescript
 // Virtual FS operations (database)
-getTraefikFileSystem()     // Read virtual directory tree
-getProjectFileSystem()     // Read project-specific tree
-getFileContent()           // Read virtual file content
-writeFile()                // Write to database (NOT real FS)
-deleteFile()               // Delete from database
+getTraefikFileSystem() // Read virtual directory tree
+getProjectFileSystem() // Read project-specific tree
+getFileContent() // Read virtual file content
+writeFile() // Write to database (NOT real FS)
+deleteFile() // Delete from database
 
 // Path generation
 generateServiceConfigPath()
@@ -115,8 +115,8 @@ cleanupOrphanedFiles()
 cleanupOrphanedFilesForProject()
 
 // Real filesystem operations (private)
-writeRealFile()    // Write actual file for Traefik
-deleteRealFile()   // Delete actual file
+writeRealFile() // Write actual file for Traefik
+deleteRealFile() // Delete actual file
 ```
 
 ### 4. TraefikValidationService
@@ -128,6 +128,7 @@ validateConfig(configContent: string): Promise<ValidationResult>
 ```
 
 **Returns**:
+
 - `isValid`: boolean
 - `errors`: validation errors with path and code
 - `warnings`: non-critical issues
@@ -138,11 +139,11 @@ validateConfig(configContent: string): Promise<ValidationResult>
 **Role**: Manages and renders configuration templates.
 
 ```typescript
-parseTemplate(template, variables)      // Replace ~##var##~ with values
-extractVariables(template)              // Find all variables in template
-validateVariables(required, provided)   // Ensure all required vars present
-getTemplateForDeployment()              // Get service or provider template
-renderTemplateForDeployment()           // Full render with validation
+parseTemplate(template, variables) // Replace ~##var##~ with values
+extractVariables(template) // Find all variables in template
+validateVariables(required, provided) // Ensure all required vars present
+getTemplateForDeployment() // Get service or provider template
+renderTemplateForDeployment() // Full render with validation
 ```
 
 ### 6. TraefikVariableResolverService
@@ -150,10 +151,10 @@ renderTemplateForDeployment()           // Full render with validation
 **Role**: Resolves variables in configuration objects.
 
 ```typescript
-buildVariableMap(context)               // Build var map from context
-resolveString(template, context)        // Resolve ~##var##~ in string
-resolveConfig(config, context)          // Resolve in entire config object
-resolveBuilder(builder, context)        // Resolve in TraefikConfigBuilder
+buildVariableMap(context) // Build var map from context
+resolveString(template, context) // Resolve ~##var##~ in string
+resolveConfig(config, context) // Resolve in entire config object
+resolveBuilder(builder, context) // Resolve in TraefikConfigBuilder
 ```
 
 ### 7. TraefikEventService
@@ -162,12 +163,12 @@ resolveBuilder(builder, context)        // Resolve in TraefikConfigBuilder
 
 ```typescript
 // Event contracts
-configSync      // Sync progress events
-configChange    // Config modification events
+configSync // Sync progress events
+configChange // Config modification events
 validationResult // Validation result events
 
 // Usage
-subscribe('configSync', { configId })   // Subscribe to sync events
+subscribe('configSync', { configId }) // Subscribe to sync events
 emit('configChange', { configId }, data) // Emit change event
 ```
 
@@ -176,14 +177,14 @@ emit('configChange', { configId }, data) // Emit change event
 **Role**: Provides pre-built, customizable middleware configurations.
 
 ```typescript
-getRateLimiter(options)     // Rate limiting middleware
-getCors(options)            // CORS headers middleware
-getSecurityHeaders()        // Security headers preset
-getCompression()            // Compression middleware
-getBasicAuth(users)         // Basic authentication
-getForwardAuth(address)     // Forward authentication
-getRetry(attempts)          // Retry middleware
-getCircuitBreaker(expr)     // Circuit breaker
+getRateLimiter(options) // Rate limiting middleware
+getCors(options) // CORS headers middleware
+getSecurityHeaders() // Security headers preset
+getCompression() // Compression middleware
+getBasicAuth(users) // Basic authentication
+getForwardAuth(address) // Forward authentication
+getRetry(attempts) // Retry middleware
+getCircuitBreaker(expr) // Circuit breaker
 ```
 
 ## Data Flow
@@ -237,16 +238,16 @@ getCircuitBreaker(expr)     // Circuit breaker
 
 ### Core Tables
 
-| Table | Description |
-|-------|-------------|
-| `traefik_service_configs` | Main service configurations |
-| `traefik_domain_routes` | Domain routing rules |
-| `traefik_service_targets` | Load balancer targets |
-| `traefik_ssl_certificates` | SSL certificate data |
-| `traefik_middlewares` | Middleware configurations |
-| `traefik_config_files` | Virtual filesystem files |
-| `traefik_static_files` | Static configuration files |
-| `traefik_backups` | Configuration backups |
+| Table                      | Description                 |
+| -------------------------- | --------------------------- |
+| `traefik_service_configs`  | Main service configurations |
+| `traefik_domain_routes`    | Domain routing rules        |
+| `traefik_service_targets`  | Load balancer targets       |
+| `traefik_ssl_certificates` | SSL certificate data        |
+| `traefik_middlewares`      | Middleware configurations   |
+| `traefik_config_files`     | Virtual filesystem files    |
+| `traefik_static_files`     | Static configuration files  |
+| `traefik_backups`          | Configuration backups       |
 
 ### Key Relationships
 

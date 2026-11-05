@@ -1,73 +1,106 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest'
 
-import { EnrollmentService, type EnrollmentPorts } from "./enrollment.service";
+import { EnrollmentService, type EnrollmentPorts } from './enrollment.service'
 
-const grant = { managerToken: null, workerToken: "w", controlPlaneAddrs: ["10.0.0.1:2377"], role: "worker" as const, reason: "capacity" };
-
-function ports(over: Partial<EnrollmentPorts> = {}): EnrollmentPorts {
-  return {
-    version: "3.1.0",
-    swarmGrant: vi.fn(async () => grant),
-    checkToken: vi.fn(async () => true),
-    databaseUrl: () => "postgres://db/deployer",
-    register: vi.fn(async (input) => ({ nodeId: input.nodeId, enrolledAt: "2026-10-29T00:00:00.000Z" })),
-    ...over,
-  };
+const grant = {
+    managerToken: null,
+    workerToken: 'w',
+    controlPlaneAddrs: ['10.0.0.1:2377'],
+    role: 'worker' as const,
+    reason: 'capacity',
 }
 
-const enrollInput = { token: "t", nodeId: "node-b", serverUrl: "https://b.example.test" };
+function ports(over: Partial<EnrollmentPorts> = {}): EnrollmentPorts {
+    return {
+        version: '3.1.0',
+        swarmGrant: vi.fn(async () => grant),
+        checkToken: vi.fn(async () => true),
+        databaseUrl: () => 'postgres://db/deployer',
+        register: vi.fn(async (input) => ({
+            nodeId: input.nodeId,
+            enrolledAt: '2026-10-29T00:00:00.000Z',
+        })),
+        ...over,
+    }
+}
 
-describe("EnrollmentService", () => {
-  it("describes the fleet to a holder of a valid token", async () => {
-    const p = ports();
-    const service = new EnrollmentService(p);
+const enrollInput = {
+    token: 't',
+    nodeId: 'node-b',
+    serverUrl: 'https://b.example.test',
+}
 
-    expect(await service.describe("t")).toEqual({ version: "3.1.0", meshNetwork: null });
-    expect(p.checkToken).toHaveBeenCalledWith("t");
-  });
+describe('EnrollmentService', () => {
+    it('describes the fleet to a holder of a valid token', async () => {
+        const p = ports()
+        const service = new EnrollmentService(p)
 
-  it("enrolls a node: registers it and answers the swarm role the fleet decides", async () => {
-    const p = ports();
-    const service = new EnrollmentService(p);
+        expect(await service.describe('t')).toEqual({
+            version: '3.1.0',
+            meshNetwork: null,
+        })
+        expect(p.checkToken).toHaveBeenCalledWith('t')
+    })
 
-    const result = await service.enroll({ ...enrollInput, requestedSwarmPolicy: "auto" });
+    it('enrolls a node: registers it and answers the swarm role the fleet decides', async () => {
+        const p = ports()
+        const service = new EnrollmentService(p)
 
-    expect(p.register).toHaveBeenCalledWith({ nodeId: "node-b", serverUrl: "https://b.example.test", displayName: null });
-    expect(p.swarmGrant).toHaveBeenCalledWith("auto");
-    expect(result).toEqual({
-      nodeId: "node-b",
-      enrolledAt: "2026-10-29T00:00:00.000Z",
-      databaseUrl: "postgres://db/deployer",
-      swarmGrant: grant,
-      meshJoinToken: "t",
-    });
-  });
+        const result = await service.enroll({
+            ...enrollInput,
+            requestedSwarmPolicy: 'auto',
+        })
 
-  it("refuses a token its agent does not vouch for, and registers nothing", async () => {
-    const p = ports({ checkToken: vi.fn(async () => false) });
-    const service = new EnrollmentService(p);
+        expect(p.register).toHaveBeenCalledWith({
+            nodeId: 'node-b',
+            serverUrl: 'https://b.example.test',
+            displayName: null,
+        })
+        expect(p.swarmGrant).toHaveBeenCalledWith('auto')
+        expect(result).toEqual({
+            nodeId: 'node-b',
+            enrolledAt: '2026-10-29T00:00:00.000Z',
+            databaseUrl: 'postgres://db/deployer',
+            swarmGrant: grant,
+            meshJoinToken: 't',
+        })
+    })
 
-    await expect(service.enroll(enrollInput)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    await expect(service.describe("t")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    expect(p.register).not.toHaveBeenCalled();
-  });
+    it('refuses a token its agent does not vouch for, and registers nothing', async () => {
+        const p = ports({ checkToken: vi.fn(async () => false) })
+        const service = new EnrollmentService(p)
 
-  it("enrolls no one when it has no agent to vouch for the token", async () => {
-    await expect(new EnrollmentService(ports({ checkToken: vi.fn(async () => null) })).enroll(enrollInput)).rejects.toMatchObject({
-      code: "UNAUTHORIZED",
-    });
-  });
+        await expect(service.enroll(enrollInput)).rejects.toMatchObject({
+            code: 'UNAUTHORIZED',
+        })
+        await expect(service.describe('t')).rejects.toMatchObject({
+            code: 'UNAUTHORIZED',
+        })
+        expect(p.register).not.toHaveBeenCalled()
+    })
 
-  it("refuses to enroll before it has a database to hand over", async () => {
-    const p = ports({ databaseUrl: () => null });
+    it('enrolls no one when it has no agent to vouch for the token', async () => {
+        await expect(
+            new EnrollmentService(
+                ports({ checkToken: vi.fn(async () => null) })
+            ).enroll(enrollInput)
+        ).rejects.toMatchObject({
+            code: 'UNAUTHORIZED',
+        })
+    })
 
-    await expect(new EnrollmentService(p).enroll(enrollInput)).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-    expect(p.register).not.toHaveBeenCalled();
-  });
+    it('refuses to enroll before it has a database to hand over', async () => {
+        const p = ports({ databaseUrl: () => null })
 
-  it("hands the agent join token back to the joiner it admitted with it", async () => {
-    const result = await new EnrollmentService(ports()).enroll(enrollInput);
+        await expect(
+            new EnrollmentService(p).enroll(enrollInput)
+        ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' })
+        expect(p.register).not.toHaveBeenCalled()
+    })
 
-    expect(result.meshJoinToken).toBe("t");
-  });
-});
+    it('hands the agent join token back to the joiner it admitted with it', async () => {
+        const result = await new EnrollmentService(ports()).enroll(enrollInput)
+
+        expect(result.meshJoinToken).toBe('t')
+    })
+})

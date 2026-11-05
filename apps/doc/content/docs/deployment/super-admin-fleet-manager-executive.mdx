@@ -12,30 +12,35 @@ order: 31
 > **Scope**: v3
 
 ### Summary
+
 Phase 1 is intentionally simple: a super admin connects servers and allocates CPU/RAM per organization per server, while each instance keeps exactly one database.
 
 ### Context
+
 This scope avoids combinatorial complexity from multi-database federation, cross-instance DB merge, and runtime database ownership transfer.
 
 ### Details / Implementation
 
 #### Hard rules (authoritative)
+
 - One instance = one active database binding (internal or external).
 - Load balancer uses its own host instance database.
 - No cross-instance shared DB / DB merge in Phase 1.
 - Super admin manages:
-  - server connections,
-  - org → server assignment,
-  - org CPU/RAM allocation by server,
-  - fleet metrics visibility.
+    - server connections,
+    - org → server assignment,
+    - org CPU/RAM allocation by server,
+    - fleet metrics visibility.
 - Organization users can read their allowed CPU/RAM by server.
 
 #### What this enables now
+
 - Fast operational clarity.
 - Clear ownership boundaries.
 - Predictable control-plane behavior for quota decisions.
 
 #### What is deferred
+
 - Shared database across instances.
 - Cross-instance DB composition/federation.
 - Runtime database export/import ownership transfer workflows.
@@ -90,18 +95,21 @@ erDiagram
 
 ## Sign-off log
 
-| Date | Approver | Role | Decision | Notes |
-|------|----------|------|----------|-------|
-| _TBD_ | _TBD_ | Product | Pending | |
-| _TBD_ | _TBD_ | Operations | Pending | |
+| Date  | Approver | Role       | Decision | Notes |
+| ----- | -------- | ---------- | -------- | ----- |
+| _TBD_ | _TBD_    | Product    | Pending  |       |
+| _TBD_ | _TBD_    | Operations | Pending  |       |
 
 ## Affected Files / Locations
+
 - `apps/doc/content/docs/deployment/super-admin-fleet-manager-architecture.mdx` — full technical architecture with schema/UML/sequence diagrams.
 
 ## Known Limitations / Caveats
+
 - This page is intentionally simplified for product/ops alignment; use the technical architecture page for implementation details.
 
 ## Related Documentation
+
 - [Super Admin Fleet Manager Architecture](/docs/deployment/super-admin-fleet-manager-architecture)
 - [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations)
 - [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)

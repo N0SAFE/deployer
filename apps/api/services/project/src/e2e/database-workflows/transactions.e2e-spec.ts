@@ -7,7 +7,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { projects } from '@deployer/nest-schema/global/project/deployment'
 import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
-import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@deployer/shared/core/modules/database/services/global-database.service'
+import {
+    GlobalDatabaseService,
+    type GlobalDatabaseServiceShape,
+} from '@deployer/shared/core/modules/database/services/global-database.service'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
 
 import { getSharedApiRuntimeContext } from '@/e2e/runtime'
@@ -15,7 +18,6 @@ import { ProjectStore } from '@/modules/project/repositories/project.repository'
 
 import { DatabasePort } from '@project/core/database/database.port'
 import { ProjectDb } from '@project/core/database/project-db'
-
 
 /**
  * Transactions against a REAL Postgres: commit, rollback, and cancellation of a running statement.
@@ -50,7 +52,11 @@ describe('ProjectDb e2e: transactions and cancellation', () => {
 
     beforeAll(async () => {
         const context = await getSharedApiRuntimeContext()
-        db = (context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape).db
+        db = (
+            context.serviceMapper.get(
+                GlobalDatabaseService
+            ) as unknown as GlobalDatabaseServiceShape
+        ).db
         pool = (db as unknown as { $client: Pool }).$client
         const admin = await createAuthenticatedSession(context, {
             role: 'admin',

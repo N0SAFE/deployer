@@ -16,14 +16,14 @@ migrations/
 Each migration consists of two files with matching names:
 
 1. **Migration Script**: `YYYY-MM-DD-migration-name.migration.ts`
-   - Contains the executable migration logic
-   - Can be run via `npx tsx migrations/YYYY-MM-DD-migration-name.migration.ts`
+    - Contains the executable migration logic
+    - Can be run via `npx tsx migrations/YYYY-MM-DD-migration-name.migration.ts`
 
 2. **Documentation**: `YYYY-MM-DD-migration-name.doc.md`
-   - Explains what the migration does
-   - Documents the "before" and "after" states
-   - Lists any manual steps required
-   - Provides rollback instructions if applicable
+    - Explains what the migration does
+    - Documents the "before" and "after" states
+    - Lists any manual steps required
+    - Provides rollback instructions if applicable
 
 ## Running Migrations
 
@@ -54,12 +54,12 @@ bun run --filter=@deployer/declarative-routing tsx migrations/YYYY-MM-DD-migrati
 
 Most migration scripts support these options:
 
-| Option | Description |
-|--------|-------------|
-| `--dry-run` | Preview changes without modifying files |
-| `--app-dir <path>` | Target a specific app directory |
-| `--verbose` | Show detailed output |
-| `--help` | Show migration-specific help |
+| Option             | Description                             |
+| ------------------ | --------------------------------------- |
+| `--dry-run`        | Preview changes without modifying files |
+| `--app-dir <path>` | Target a specific app directory         |
+| `--verbose`        | Show detailed output                    |
+| `--help`           | Show migration-specific help            |
 
 ## Creating New Migrations
 
@@ -77,44 +77,46 @@ When adding a new migration:
 /**
  * Migration: MIGRATION_NAME
  * Date: YYYY-MM-DD
- * 
+ *
  * Description: Brief description of what this migration does
  */
 
-import * as fs from "fs";
-import * as path from "path";
-import { glob } from "glob";
+import * as fs from 'fs'
+import * as path from 'path'
+import { glob } from 'glob'
 
 // Migration options
 interface MigrationOptions {
-  dryRun: boolean;
-  appDir: string;
-  verbose: boolean;
+    dryRun: boolean
+    appDir: string
+    verbose: boolean
 }
 
 // Parse CLI arguments
 function parseArgs(): MigrationOptions {
-  const args = process.argv.slice(2);
-  return {
-    dryRun: args.includes("--dry-run"),
-    appDir: args.find((_, i, arr) => arr[i - 1] === "--app-dir") || process.cwd(),
-    verbose: args.includes("--verbose"),
-  };
+    const args = process.argv.slice(2)
+    return {
+        dryRun: args.includes('--dry-run'),
+        appDir:
+            args.find((_, i, arr) => arr[i - 1] === '--app-dir') ||
+            process.cwd(),
+        verbose: args.includes('--verbose'),
+    }
 }
 
 // Main migration logic
 async function migrate(options: MigrationOptions): Promise<void> {
-  // Implementation here
+    // Implementation here
 }
 
 // Run
-migrate(parseArgs()).catch(console.error);
+migrate(parseArgs()).catch(console.error)
 ```
 
 ## Migration History
 
-| Date | Name | Description |
-|------|------|-------------|
+| Date       | Name               | Description                                                                      |
+| ---------- | ------------------ | -------------------------------------------------------------------------------- |
 | 2026-01-01 | unified-info-files | Migrate `page.info.ts` → `route.info.ts` and API `route.info.ts` → `api.info.ts` |
 
 ## Safety Notes

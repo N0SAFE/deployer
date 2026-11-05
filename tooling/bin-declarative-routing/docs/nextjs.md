@@ -19,15 +19,15 @@ npx declarative-routing build
 Instead of doing this:
 
 ```tsx
-import Link from "next/link";
-<Link href={`/product/${product.id}`}>Product</Link>;
+import Link from 'next/link'
+;<Link href={`/product/${product.id}`}>Product</Link>
 ```
 
 You can do this:
 
 ```tsx
-import { ProductDetail } from "@/routes";
-<ProductDetail.Link productId={product.id}>Product</ProductDetail.Link>;
+import { ProductDetail } from '@/routes'
+;<ProductDetail.Link productId={product.id}>Product</ProductDetail.Link>
 ```
 
 ## Using API Routes
@@ -36,15 +36,15 @@ API routes are fully typesafe. Instead of doing this:
 
 ```tsx
 // Data is any
-const data = await fetch(`/api/product/${productId}`).then((res) => res.json());
+const data = await fetch(`/api/product/${productId}`).then((res) => res.json())
 ```
 
 You can do this:
 
 ```tsx
-import { getProduct } from "@/routes";
+import { getProduct } from '@/routes'
 // Data is strongly typed as the response of the getProduct function
-const data = await getProduct({ productId });
+const data = await getProduct({ productId })
 ```
 
 And both the request and the response are strongly typed.
@@ -72,30 +72,30 @@ Routes are typed using one or more of the methods defined in `@/router/makeRoute
 `makeRoute` is used to define a page route. It takes the path of the route as a string, and an `info` object that contains the name of the route, as well as the Zod schemas for the route parameters and search parameters. Here is an example usage:
 
 ```tsx
-const ProductDetail = makeRoute("/product-detail/[productId]", {
-  name: "ProductDetail",
-  params: z.object({
-    productId: z.string()
-  }),
-  search: z.object({
-    q: z.string().optional()
-  })
-});
+const ProductDetail = makeRoute('/product-detail/[productId]', {
+    name: 'ProductDetail',
+    params: z.object({
+        productId: z.string(),
+    }),
+    search: z.object({
+        q: z.string().optional(),
+    }),
+})
 ```
 
 The returned `ProductDetail` is a function that when invoked with the params and search parameters, returns the URL of the route. Shown below is an example usage:
 
 ```tsx
-<Link href={ProductDetail({ productId: "abc123" }, { q: "foo" })}>
-  Product abc123
+<Link href={ProductDetail({ productId: 'abc123' }, { q: 'foo' })}>
+    Product abc123
 </Link>
 ```
 
 In addition to the function, the `ProductDetail` object also contains a `Link` component that can be used to link to the route. Shown below is an example usage:
 
 ```tsx
-<ProductDetail.Link productId={"abc123"} search={{ q: "foo" }}>
-  Product abc123
+<ProductDetail.Link productId={'abc123'} search={{ q: 'foo' }}>
+    Product abc123
 </ProductDetail.Link>
 ```
 
@@ -103,10 +103,10 @@ There is also a `ParamsLink` component that can be used to link to the route usi
 
 ```tsx
 <ProductDetail.ParamsLink
-  params={{ productId: "abc123" }}
-  search={{ q: "foo" }}
+    params={{ productId: 'abc123' }}
+    search={{ q: 'foo' }}
 >
-  Product abc123
+    Product abc123
 </ProductDetail.ParamsLink>
 ```
 
@@ -122,27 +122,27 @@ API routes are defined using `makeGetRoute`, `makePostRoute`, `makePutRoute`, an
 
 ```tsx
 export const getProduct = makeGetRoute(
-  "/api/product/[productId]",
-  {
-    name: "GetProduct",
-    params: z.object({
-      productId: z.string()
-    })
-  },
-  {
-    result: z.object({
-      id: z.string(),
-      name: z.string(),
-      price: z.number()
-    })
-  }
-);
+    '/api/product/[productId]',
+    {
+        name: 'GetProduct',
+        params: z.object({
+            productId: z.string(),
+        }),
+    },
+    {
+        result: z.object({
+            id: z.string(),
+            name: z.string(),
+            price: z.number(),
+        }),
+    }
+)
 ```
 
 A function is returned that when invoked runs `fetch` against the endpoint and returns the result. There are three optional parameters; `params` for the route params, `search` for the route search params, and `options` for any additional options for `fetch`. Shown below is an example usage:
 
 ```tsx
-const data = await getProduct({ productId: "abc123" });
+const data = await getProduct({ productId: 'abc123' })
 ```
 
 `makePostRoute` and `makePutRoute` require a `body` schema as well, and it accepts a `body` parameter as the first parameter to the function, as well as `params`, `search` and `options`.
@@ -227,14 +227,14 @@ Why not put all that information into the `page.tsx` or `route.tsx` files direct
 You can, and should, import your own Route from `@/router` if your route supports parameters or search params because you and use the `.params` and `.search` types to ensure that your route is correctly typed. For example, you might have a `/product/[productId]/page.tsx` file that looks like this:
 
 ```tsx
-import { ProductDetail } from "@/routes";
+import { ProductDetail } from '@/routes'
 
 export default function ProductDetailPage({
-  params
+    params,
 }: {
-  params: typeof ProductDetail.params;
+    params: typeof ProductDetail.params
 }) {
-  return <div>Product Detail {productId}</div>;
+    return <div>Product Detail {productId}</div>
 }
 ```
 

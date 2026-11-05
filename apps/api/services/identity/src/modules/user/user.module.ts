@@ -20,7 +20,12 @@ import { UserService } from './services/user.service'
 export class UserDomainModule extends createModuleContext(
     {
         controllers: [UserController],
-        imports: [StepUpDomainModule, RoleDomainModule, AuditDomainModule, ApprovalDomainModule],
+        imports: [
+            StepUpDomainModule,
+            RoleDomainModule,
+            AuditDomainModule,
+            ApprovalDomainModule,
+        ],
         providers: [
             { provide: UserService, useValue: UserService.live },
             { provide: UserRepository, useValue: UserRepository.live },

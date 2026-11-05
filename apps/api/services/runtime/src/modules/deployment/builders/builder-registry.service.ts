@@ -1,9 +1,10 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { RuntimeInvalid } from "../../../core/runtime.errors";
+import type { ServiceLifecycleShape } from '@deployer/nest-effect'
 
-import type { BuilderStrategy } from "./base/builder-strategy.interface";
-import type { ServiceLifecycleShape } from "@deployer/nest-effect";
+import { RuntimeInvalid } from '../../../core/runtime.errors'
+
+import type { BuilderStrategy } from './base/builder-strategy.interface'
 
 /**
  * Multi-provider token for builder strategies.
@@ -11,7 +12,7 @@ import type { ServiceLifecycleShape } from "@deployer/nest-effect";
  * Mirrors `CodeProvider` / `DNS_PROVIDERS`: an array bound under one token so the
  * registry never names a concrete strategy.
  */
-export const BUILDER_STRATEGIES = Symbol("BUILDER_STRATEGIES");
+export const BUILDER_STRATEGIES = Symbol('BUILDER_STRATEGIES')
 
 /**
  * BuilderRegistry — the single public entry point for builder dispatch.
@@ -31,7 +32,9 @@ export const BUILDER_STRATEGIES = Symbol("BUILDER_STRATEGIES");
  */
 export type BuilderRegistryShape = ServiceLifecycleShape & {
     /** Every registered builder, with availability, for the catalog / preflight. */
-    readonly supportedBuilders: () => Effect.Effect<{ builderType: string; available: boolean; reason: string | null }[]>;
+    readonly supportedBuilders: () => Effect.Effect<
+        { builderType: string; available: boolean; reason: string | null }[]
+    >
     /**
      * Resolve a strategy, or fail with the reason it cannot be used.
      *
@@ -39,58 +42,79 @@ export type BuilderRegistryShape = ServiceLifecycleShape & {
      * bug or a stale client) from "the builder exists but its toolchain is missing"
      * (an environment problem the operator can fix).
      */
-    readonly resolve: (builderType: string) => Effect.Effect<BuilderStrategy, RuntimeInvalid>;
+    readonly resolve: (
+        builderType: string
+    ) => Effect.Effect<BuilderStrategy, RuntimeInvalid>
     /** True when a builder is both registered AND runnable. */
-    readonly isSupported: (builderType: string) => Effect.Effect<boolean>;
-    readonly onStart: () => Effect.Effect<void>;
-};
+    readonly isSupported: (builderType: string) => Effect.Effect<boolean>
+    readonly onStart: () => Effect.Effect<void>
+}
 
-export class BuilderRegistry extends Context.Service<BuilderRegistry, BuilderRegistryShape>()("runtime/BuilderRegistry") {}
+export class BuilderRegistry extends Context.Service<
+    BuilderRegistry,
+    BuilderRegistryShape
+>()('runtime/BuilderRegistry') {}
 
 /** The registry over its strategies; a later strategy of the same type wins, and `onStart` says so. */
-export function makeBuilderRegistry(strategies: readonly BuilderStrategy[]): BuilderRegistryShape {
-    const byType = new Map<string, BuilderStrategy>();
-    const duplicates: string[] = [];
+export function makeBuilderRegistry(
+    strategies: readonly BuilderStrategy[]
+): BuilderRegistryShape {
+    const byType = new Map<string, BuilderStrategy>()
+    const duplicates: string[] = []
     for (const strategy of strategies) {
-        const key = strategy.builderType.toLowerCase();
-        if (byType.has(key)) duplicates.push(key);
-        byType.set(key, strategy);
+        const key = strategy.builderType.toLowerCase()
+        if (byType.has(key)) duplicates.push(key)
+        byType.set(key, strategy)
     }
 
-    const supportedBuilders: BuilderRegistryShape["supportedBuilders"] = () =>
+    const supportedBuilders: BuilderRegistryShape['supportedBuilders'] = () =>
         Effect.sync(() =>
             [...byType.values()].map((strategy) => ({
                 builderType: strategy.builderType,
                 available: strategy.isAvailable(),
-                reason: strategy.isAvailable() ? null : strategy.unavailableReason(),
-            })),
-        );
+                reason: strategy.isAvailable()
+                    ? null
+                    : strategy.unavailableReason(),
+            }))
+        )
 
     return {
         supportedBuilders,
         resolve: (builderType) =>
             Effect.gen(function* () {
-                const strategy = byType.get(builderType.toLowerCase());
+                const strategy = byType.get(builderType.toLowerCase())
                 if (!strategy) {
-                    return yield* new RuntimeInvalid({ reason: `Unsupported builder '${builderType}'. Supported: ${[...byType.keys()].join(", ")}` });
+                    return yield* new RuntimeInvalid({
+                        reason: `Unsupported builder '${builderType}'. Supported: ${[...byType.keys()].join(', ')}`,
+                    })
                 }
                 if (!strategy.isAvailable()) {
-                    return yield* new RuntimeInvalid({ reason: `Builder '${builderType}' is registered but unavailable: ${strategy.unavailableReason()}` });
+                    return yield* new RuntimeInvalid({
+                        reason: `Builder '${builderType}' is registered but unavailable: ${strategy.unavailableReason()}`,
+                    })
                 }
-                return strategy;
+                return strategy
             }),
         isSupported: (builderType) =>
-            Effect.sync(() => byType.get(builderType.toLowerCase())?.isAvailable() === true),
+            Effect.sync(
+                () =>
+                    byType.get(builderType.toLowerCase())?.isAvailable() ===
+                    true
+            ),
         onStart: () =>
             Effect.gen(function* () {
                 for (const key of duplicates) {
-                    yield* Effect.logWarning(`Builder '${key}' registered twice; the later one wins`);
+                    yield* Effect.logWarning(
+                        `Builder '${key}' registered twice; the later one wins`
+                    )
                 }
-                const builders = yield* supportedBuilders();
-                const available = builders.filter((builder) => builder.available).map((builder) => builder.builderType);
+                const builders = yield* supportedBuilders()
+                const available = builders
+                    .filter((builder) => builder.available)
+                    .map((builder) => builder.builderType)
                 yield* Effect.logInfo(
-                    `Builder registry: ${available.length}/${String(byType.size)} available — ${available.join(", ")}`,
-                );
+                    `Builder registry: ${available.length}/${String(byType.size)} available — ${available.join(', ')}`
+                )
             }),
-    };
+    }
 }

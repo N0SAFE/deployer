@@ -8,10 +8,10 @@
  *     code/  — CODE providers (github, gitlab, ...) → orpc.providers.code.<variant>.*
  *     dns/   — DNS providers (cloudflare, route53, ...) → orpc.providers.dns.* + orpc.providers.dns.<variant>.*
  */
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { codeProvidersContract } from "./code";
-import { dnsProvidersContract } from "./dns";
+import { codeProvidersContract } from './code'
+import { dnsProvidersContract } from './dns'
 
 /**
  * Providers contract combines all provider-type sub-contracts.
@@ -22,12 +22,12 @@ import { dnsProvidersContract } from "./dns";
 export const providersContract = oc.router({
     code: codeProvidersContract,
     dns: dnsProvidersContract,
-});
+})
 
-export type ProvidersContract = typeof providersContract;
+export type ProvidersContract = typeof providersContract
 
-export * from "./code";
-export * from "./dns";
+export * from './code'
+export * from './dns'
 export {
     githubAppContract,
     githubWebhookContract,
@@ -36,8 +36,8 @@ export {
     isPullRequestWebhook,
     isInstallationWebhook,
     runnerDetectionHintsSchema,
-} from "./code/github/contracts";
-export type { GithubWebhookInput } from "./code/github/contracts";
+} from './code/github/contracts'
+export type { GithubWebhookInput } from './code/github/contracts'
 export type {
     WebhookEvent,
     WebhookEventMap,
@@ -48,5 +48,8 @@ export type {
     PushEvent,
     CreateEvent,
     DeleteEvent,
-} from "@octokit/webhooks-types";
-export type { GitHubAppContract, RunnerDetectionHints } from "./code/github/contracts";
+} from '@octokit/webhooks-types'
+export type {
+    GitHubAppContract,
+    RunnerDetectionHints,
+} from './code/github/contracts'

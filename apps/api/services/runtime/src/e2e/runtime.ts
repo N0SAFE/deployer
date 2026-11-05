@@ -1,19 +1,20 @@
 // Installs `.effect()` on oRPC's procedure builder: the e2e harness loads the root module directly and
 // never runs `main.ts`, so without this import every Effect-based controller fails with
 // `.effect is not a function`.
-import "@orpc/effect/extensions/effect";
-import { Effect } from "effect";
-import {
-	getSharedApiRuntimeContext as getShared,
-	useDescribeSharedApiRuntime as useDescribeShared,
-	type SharedApiRuntimeContext,
-	type SharedApiRuntimeOptions,
-	type DescribeSharedRuntimeScope,
-	type SharedRuntimeOrpcClientOptions,
-} from "@deployer/shared/e2e-harness/shared-api-runtime";
-import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@deployer/shared/e2e-harness/shared-api-runtime";
+import '@orpc/effect/extensions/effect'
+import { Effect } from 'effect'
 
-import { DeploymentQueueWorker } from "@/modules/deployment/queue/deployment-queue.worker.service";
+import {
+    getSharedApiRuntimeContext as getShared,
+    useDescribeSharedApiRuntime as useDescribeShared,
+    type SharedApiRuntimeContext,
+    type SharedApiRuntimeOptions,
+    type DescribeSharedRuntimeScope,
+    type SharedRuntimeOrpcClientOptions,
+} from '@deployer/shared/e2e-harness/shared-api-runtime'
+import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from '@deployer/shared/e2e-harness/shared-api-runtime'
+
+import { DeploymentQueueWorker } from '@/modules/deployment/queue/deployment-queue.worker.service'
 
 /**
  * The shared e2e harness, bound to THIS service's root module.
@@ -25,28 +26,35 @@ import { DeploymentQueueWorker } from "@/modules/deployment/queue/deployment-que
  * day one drifts. Binding it once here means a spec gets the right graph, and exactly one
  * place names which app these e2e tests exercise.
  */
-const rootModuleLoader = async () => (await import("@/app.module")).RuntimeServiceModule;
+const rootModuleLoader = async () =>
+    (await import('@/app.module')).RuntimeServiceModule
 
-function withRootModule(options: SharedApiRuntimeOptions = {}): SharedApiRuntimeOptions {
-	return {
-		...options,
-		nest: { ...options.nest, rootModuleLoader },
-	};
+function withRootModule(
+    options: SharedApiRuntimeOptions = {}
+): SharedApiRuntimeOptions {
+    return {
+        ...options,
+        nest: { ...options.nest, rootModuleLoader },
+    }
 }
 
 export async function getSharedApiRuntimeContext(
-	options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<SharedApiRuntimeContext> {
-	return getShared(withRootModule(options));
+    return getShared(withRootModule(options))
 }
 
 export function useDescribeSharedApiRuntime(
-	options: SharedApiRuntimeOptions = {},
+    options: SharedApiRuntimeOptions = {}
 ): DescribeSharedRuntimeScope {
-	return useDescribeShared(withRootModule(options));
+    return useDescribeShared(withRootModule(options))
 }
 
-export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRuntimeScope };
+export type {
+    SharedApiRuntimeContext,
+    SharedApiRuntimeOptions,
+    DescribeSharedRuntimeScope,
+}
 
 /**
  * Boot the app with `DeploymentQueueWorker` made inert.
@@ -70,25 +78,25 @@ export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRu
  * the graph intact and states exactly what is being taken out of the picture.
  */
 export function withDeploymentQueueWorkerDisabled(
-	options: SharedApiRuntimeOptions = {},
+    options: SharedApiRuntimeOptions = {}
 ): SharedApiRuntimeOptions {
-	return {
-		...options,
-		nest: {
-			...options.nest,
-			onModuleBuilder: async (context) => {
-				context.moduleBuilder
-					.overrideProvider(DeploymentQueueWorker)
-					.useValue({
-						onStart: () => Effect.void,
-						onStop: () => Effect.void,
-						processQueueJob: () => Effect.void,
-						cancelRunningJob: () => Effect.succeed(false),
-					});
-				await options.nest?.onModuleBuilder?.(context);
-			},
-		},
-	};
+    return {
+        ...options,
+        nest: {
+            ...options.nest,
+            onModuleBuilder: async (context) => {
+                context.moduleBuilder
+                    .overrideProvider(DeploymentQueueWorker)
+                    .useValue({
+                        onStart: () => Effect.void,
+                        onStop: () => Effect.void,
+                        processQueueJob: () => Effect.void,
+                        cancelRunningJob: () => Effect.succeed(false),
+                    })
+                await options.nest?.onModuleBuilder?.(context)
+            },
+        },
+    }
 }
 
 /**
@@ -98,10 +106,13 @@ export function withDeploymentQueueWorkerDisabled(
  * context does — an unbound call would boot a runtime with no root module and now fail.
  */
 export async function createSharedSetupOrpcClient(
-	options?: SharedRuntimeOrpcClientOptions,
-	runtimeOptions?: SharedApiRuntimeOptions,
+    options?: SharedRuntimeOrpcClientOptions,
+    runtimeOptions?: SharedApiRuntimeOptions
 ) {
-	return createSharedSetupOrpcClientRaw(options, withRootModule(runtimeOptions));
+    return createSharedSetupOrpcClientRaw(
+        options,
+        withRootModule(runtimeOptions)
+    )
 }
 
-export { stopSharedApiRuntime } from "@deployer/shared/e2e-harness/shared-api-runtime";
+export { stopSharedApiRuntime } from '@deployer/shared/e2e-harness/shared-api-runtime'

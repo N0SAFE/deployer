@@ -10,7 +10,7 @@
  * - FilteringConfig = BaseFilteringConfig (identical)
  */
 
-import * as z from "zod";
+import * as z from 'zod'
 
 import {
     type FilterOperator as BaseFilterOperator,
@@ -22,95 +22,138 @@ import {
     NUMERIC_OPERATORS as BASE_NUMERIC_OPERATORS,
     ARRAY_OPERATORS as BASE_ARRAY_OPERATORS,
     NULL_OPERATORS as BASE_NULL_OPERATORS,
-} from "@deployer/orpc-utils/operations/base/utils/filtering";
+} from '@deployer/orpc-utils/operations/base/utils/filtering'
 import {
     CONFIG_SYMBOL,
     withConfig,
     getConfig,
     type ZodSchemaWithConfig,
-} from "@deployer/orpc-utils/operations/zod/utils/pagination";
+} from '@deployer/orpc-utils/operations/zod/utils/pagination'
 
 // Re-export base types for external use
-export type { BaseFilterOperator, BaseFieldFilterConfig, BaseFilteringConfig };
+export type { BaseFilterOperator, BaseFieldFilterConfig, BaseFilteringConfig }
 
 // Re-export operator presets from base
-export const ALL_FILTER_OPERATORS = BASE_ALL_FILTER_OPERATORS;
-export const COMPARISON_OPERATORS = BASE_COMPARISON_OPERATORS;
-export const STRING_OPERATORS = BASE_STRING_OPERATORS;
-export const NUMERIC_OPERATORS = BASE_NUMERIC_OPERATORS;
-export const ARRAY_OPERATORS = BASE_ARRAY_OPERATORS;
-export const NULL_OPERATORS = BASE_NULL_OPERATORS;
+export const ALL_FILTER_OPERATORS = BASE_ALL_FILTER_OPERATORS
+export const COMPARISON_OPERATORS = BASE_COMPARISON_OPERATORS
+export const STRING_OPERATORS = BASE_STRING_OPERATORS
+export const NUMERIC_OPERATORS = BASE_NUMERIC_OPERATORS
+export const ARRAY_OPERATORS = BASE_ARRAY_OPERATORS
+export const NULL_OPERATORS = BASE_NULL_OPERATORS
 
 /**
  * Filter operator types - EXTENDS base type
  */
-export type FilterOperator = BaseFilterOperator;
+export type FilterOperator = BaseFilterOperator
 
 /**
  * Field filter configuration - uses base type with Zod-specific adaptations
  */
 type ZodFieldFilterConfig = {
-    type: "string" | "number" | "boolean" | "date" | "enum" | "array";
-    operators?: FilterOperator[];
-    enumValues?: readonly string[];
-    nullable?: boolean;
+    type: 'string' | 'number' | 'boolean' | 'date' | 'enum' | 'array'
+    operators?: FilterOperator[]
+    enumValues?: readonly string[]
+    nullable?: boolean
     /** Phantom field for carrying the resolved value type through the type system */
-    _valueType?: unknown;
+    _valueType?: unknown
     /** Phantom field for carrying exact operator literal types through the type system */
-    _operators?: unknown;
-};
+    _operators?: unknown
+}
 
-export type FieldFilterConfig = ZodFieldFilterConfig | (BaseFieldFilterConfig & { _valueType?: unknown; _operators?: unknown });
+export type FieldFilterConfig =
+    | ZodFieldFilterConfig
+    | (BaseFieldFilterConfig & { _valueType?: unknown; _operators?: unknown })
 
 /**
  * Filtering configuration type - EXTENDS base type
  */
-export type FilteringConfig<TFields extends Record<string, FieldFilterConfig> = Record<string, FieldFilterConfig>> = {
-    fields: TFields;
-    allowLogicalOperators: boolean;
-};
+export type FilteringConfig<
+    TFields extends Record<string, FieldFilterConfig> = Record<
+        string,
+        FieldFilterConfig
+    >,
+> = {
+    fields: TFields
+    allowLogicalOperators: boolean
+}
 
 /**
  * Extract operators from a field filter config.
  * Priority: _operators phantom → readonly operators array → type-based defaults.
  */
-type ExtractOperators<TConfig extends FieldFilterConfig> = 
-    TConfig extends { _operators: infer U extends FilterOperator } ? U :
-    TConfig extends { operators: readonly (infer U)[] } ? U :
-    TConfig extends { type: infer T } ? 
-        T extends "string" ? "eq" | "ne" | "like" | "ilike" | "in" | "notIn" | "contains" | "startsWith" | "endsWith" :
-        T extends "number" ? "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "notIn" | "between" :
-        T extends "boolean" ? "eq" | "ne" :
-        T extends "date" ? "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between" :
-        T extends "enum" ? "eq" | "ne" | "in" | "notIn" :
-        T extends "array" ? "contains" | "in" :
-        "eq" | "ne"
-    : "eq" | "ne";
+type ExtractOperators<TConfig extends FieldFilterConfig> = TConfig extends {
+    _operators: infer U extends FilterOperator
+}
+    ? U
+    : TConfig extends { operators: readonly (infer U)[] }
+      ? U
+      : TConfig extends { type: infer T }
+        ? T extends 'string'
+            ? | 'eq'
+              | 'ne'
+              | 'like'
+              | 'ilike'
+              | 'in'
+              | 'notIn'
+              | 'contains'
+              | 'startsWith'
+              | 'endsWith'
+            : T extends 'number'
+              ? | 'eq'
+                | 'ne'
+                | 'gt'
+                | 'gte'
+                | 'lt'
+                | 'lte'
+                | 'in'
+                | 'notIn'
+                | 'between'
+              : T extends 'boolean'
+                ? 'eq' | 'ne'
+                : T extends 'date'
+                  ? 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
+                  : T extends 'enum'
+                    ? 'eq' | 'ne' | 'in' | 'notIn'
+                    : T extends 'array'
+                      ? 'contains' | 'in'
+                      : 'eq' | 'ne'
+        : 'eq' | 'ne'
 
 /**
  * Extract the value type from a FieldFilterConfig.
  * Uses _valueType phantom if available, otherwise resolves from `type` field, else `unknown`.
  */
-type ExtractValueType<TConfig extends FieldFilterConfig> =
-    TConfig extends { _valueType: infer V } ? unknown extends V ? (
-        TConfig extends { type: infer T } ?
-            T extends "string" ? string :
-            T extends "number" ? number :
-            T extends "boolean" ? boolean :
-            T extends "date" ? string | Date :
-            T extends "enum" ? string :
-            unknown
-        : unknown
-    ) : V : (
-        TConfig extends { type: infer T } ?
-            T extends "string" ? string :
-            T extends "number" ? number :
-            T extends "boolean" ? boolean :
-            T extends "date" ? string | Date :
-            T extends "enum" ? string :
-            unknown
-        : unknown
-    );
+type ExtractValueType<TConfig extends FieldFilterConfig> = TConfig extends {
+    _valueType: infer V
+}
+    ? unknown extends V
+        ? TConfig extends { type: infer T }
+            ? T extends 'string'
+                ? string
+                : T extends 'number'
+                  ? number
+                  : T extends 'boolean'
+                    ? boolean
+                    : T extends 'date'
+                      ? string | Date
+                      : T extends 'enum'
+                        ? string
+                        : unknown
+            : unknown
+        : V
+    : TConfig extends { type: infer T }
+      ? T extends 'string'
+          ? string
+          : T extends 'number'
+            ? number
+            : T extends 'boolean'
+              ? boolean
+              : T extends 'date'
+                ? string | Date
+                : T extends 'enum'
+                  ? string
+                  : unknown
+      : unknown
 
 /**
  * Compute the value type for a specific operator.
@@ -119,11 +162,16 @@ type ExtractValueType<TConfig extends FieldFilterConfig> =
  * - `in`/`notIn` → array T[]
  * - `isNull`/`isNotNull` → boolean
  */
-type OperatorValueType<TOp extends FilterOperator, TValue> =
-    TOp extends "between" ? [TValue, TValue] :
-    TOp extends "in" | "notIn" ? TValue[] :
-    TOp extends "isNull" | "isNotNull" ? boolean :
-    TValue;
+type OperatorValueType<
+    TOp extends FilterOperator,
+    TValue,
+> = TOp extends 'between'
+    ? [TValue, TValue]
+    : TOp extends 'in' | 'notIn'
+      ? TValue[]
+      : TOp extends 'isNull' | 'isNotNull'
+        ? boolean
+        : TValue
 
 /**
  * Discriminated union entry for a field filter.
@@ -131,8 +179,8 @@ type OperatorValueType<TOp extends FilterOperator, TValue> =
  * e.g., { operator: 'eq'; value: string } | { operator: 'like'; value: string }
  */
 type FieldFilterEntry<TOps extends FilterOperator, TValue> = {
-    [Op in TOps]: { operator: Op; value: OperatorValueType<Op, TValue> };
-}[TOps];
+    [Op in TOps]: { operator: Op; value: OperatorValueType<Op, TValue> }
+}[TOps]
 
 /**
  * Filtering schema output type — each field is a { operator, value } discriminated union.
@@ -152,12 +200,17 @@ type FieldFilterEntry<TOps extends FilterOperator, TValue> = {
  * }
  * ```
  */
-export type FilteringSchemaOutput<TFields extends Record<string, FieldFilterConfig>> = {
-    [K in keyof TFields]?: FieldFilterEntry<ExtractOperators<TFields[K]>, ExtractValueType<TFields[K]>>;
+export type FilteringSchemaOutput<
+    TFields extends Record<string, FieldFilterConfig>,
+> = {
+    [K in keyof TFields]?: FieldFilterEntry<
+        ExtractOperators<TFields[K]>,
+        ExtractValueType<TFields[K]>
+    >
 } & {
-    _and?: FilteringSchemaOutput<TFields>[];
-    _or?: FilteringSchemaOutput<TFields>[];
-};
+    _and?: FilteringSchemaOutput<TFields>[]
+    _or?: FilteringSchemaOutput<TFields>[]
+}
 
 /**
  * Create a filtering configuration schema
@@ -176,21 +229,23 @@ export type FilteringSchemaOutput<TFields extends Record<string, FieldFilterConf
  * });
  * ```
  */
-export function createFilteringConfigSchema<TFields extends Record<string, FieldFilterConfig>>(
+export function createFilteringConfigSchema<
+    TFields extends Record<string, FieldFilterConfig>,
+>(
     fields: TFields,
     options?: {
-        allowLogicalOperators?: boolean;
+        allowLogicalOperators?: boolean
     }
 ): ZodSchemaWithConfig<FilteringConfig<TFields>> {
     const config: FilteringConfig<TFields> = {
         fields,
         allowLogicalOperators: options?.allowLogicalOperators ?? true,
-    };
+    }
 
     // Build a flexible filter schema
-    const filterSchema = z.record(z.string(), z.unknown()).optional();
+    const filterSchema = z.record(z.string(), z.unknown()).optional()
 
-    return withConfig(filterSchema, config);
+    return withConfig(filterSchema, config)
 }
 
 /**
@@ -201,30 +256,46 @@ export function createFilteringConfigSchema<TFields extends Record<string, Field
  */
 export function createFilteringSchema<TConfig extends Partial<FilteringConfig>>(
     config: ZodSchemaWithConfig<TConfig>
-): z.ZodType<TConfig extends FilteringConfig<infer TFields> ? FilteringSchemaOutput<TFields> : never> {
-    const filteringConfig = getConfig<TConfig>(config);
+): z.ZodType<
+    TConfig extends FilteringConfig<infer TFields>
+        ? FilteringSchemaOutput<TFields>
+        : never
+> {
+    const filteringConfig = getConfig<TConfig>(config)
     if (!filteringConfig) {
-        throw new Error("Invalid filtering config schema");
+        throw new Error('Invalid filtering config schema')
     }
 
-    const fields = filteringConfig.fields ?? {};
-    const shape: Record<string, z.ZodType> = {};
+    const fields = filteringConfig.fields ?? {}
+    const shape: Record<string, z.ZodType> = {}
 
     for (const [fieldName, fieldConfig] of Object.entries(fields)) {
-        shape[fieldName] = createFieldFilterSchema(fieldConfig);
+        shape[fieldName] = createFieldFilterSchema(fieldConfig)
     }
 
     // Add _and/_or logical operators if allowed
     if (filteringConfig.allowLogicalOperators) {
-        const recursiveFilterSchema: z.ZodType = z.lazy(() => z.object({
-            _and: z.array(recursiveFilterSchema).optional(),
-            _or: z.array(recursiveFilterSchema).optional(),
-            ...shape,
-        }).partial());
-        return recursiveFilterSchema as unknown as z.ZodType<TConfig extends FilteringConfig<infer TFields> ? FilteringSchemaOutput<TFields> : never>;
+        const recursiveFilterSchema: z.ZodType = z.lazy(() =>
+            z
+                .object({
+                    _and: z.array(recursiveFilterSchema).optional(),
+                    _or: z.array(recursiveFilterSchema).optional(),
+                    ...shape,
+                })
+                .partial()
+        )
+        return recursiveFilterSchema as unknown as z.ZodType<
+            TConfig extends FilteringConfig<infer TFields>
+                ? FilteringSchemaOutput<TFields>
+                : never
+        >
     }
 
-    return z.object(shape).partial() as unknown as z.ZodType<TConfig extends FilteringConfig<infer TFields> ? FilteringSchemaOutput<TFields> : never>;
+    return z.object(shape).partial() as unknown as z.ZodType<
+        TConfig extends FilteringConfig<infer TFields>
+            ? FilteringSchemaOutput<TFields>
+            : never
+    >
 }
 
 /**
@@ -235,46 +306,70 @@ export function createFilteringSchema<TConfig extends Partial<FilteringConfig>>(
  * @returns Zod schema for the field's filter (optional)
  */
 export function createFieldFilterSchema(config: FieldFilterConfig): z.ZodType {
-    const operators = getOperators(config);
-    const baseSchema = getBaseSchema(config);
+    const operators = getOperators(config)
+    const baseSchema = getBaseSchema(config)
 
     // Create discriminated union: { operator: 'op', value: valueSchema } for each operator
-    const variants = operators.map(op =>
+    const variants = operators.map((op) =>
         z.object({
             operator: z.literal(op),
             value: createOperatorValueSchema(op, baseSchema),
         })
-    );
+    )
 
     if (variants.length === 0) {
-        return z.never().optional();
+        return z.never().optional()
     }
     if (variants.length === 1 && variants[0]) {
-        return variants[0].optional();
+        return variants[0].optional()
     }
 
-    return z.union(variants as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]]).optional();
+    return z
+        .union(variants as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]])
+        .optional()
 }
 
 /**
  * Get default operators for a field type
  */
-function getDefaultOperators(type: ZodFieldFilterConfig["type"]): FilterOperator[] {
+function getDefaultOperators(
+    type: ZodFieldFilterConfig['type']
+): FilterOperator[] {
     switch (type) {
-        case "string":
-            return ["eq", "ne", "like", "ilike", "in", "notIn", "contains", "startsWith", "endsWith"];
-        case "number":
-            return ["eq", "ne", "gt", "gte", "lt", "lte", "in", "notIn", "between"];
-        case "boolean":
-            return ["eq", "ne"];
-        case "date":
-            return ["eq", "ne", "gt", "gte", "lt", "lte", "between"];
-        case "enum":
-            return ["eq", "ne", "in", "notIn"];
-        case "array":
-            return ["contains", "in"];
+        case 'string':
+            return [
+                'eq',
+                'ne',
+                'like',
+                'ilike',
+                'in',
+                'notIn',
+                'contains',
+                'startsWith',
+                'endsWith',
+            ]
+        case 'number':
+            return [
+                'eq',
+                'ne',
+                'gt',
+                'gte',
+                'lt',
+                'lte',
+                'in',
+                'notIn',
+                'between',
+            ]
+        case 'boolean':
+            return ['eq', 'ne']
+        case 'date':
+            return ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between']
+        case 'enum':
+            return ['eq', 'ne', 'in', 'notIn']
+        case 'array':
+            return ['contains', 'in']
         default:
-            return ["eq", "ne"];
+            return ['eq', 'ne']
     }
 }
 
@@ -285,61 +380,62 @@ function createOperatorValueSchema(
     operator: FilterOperator,
     baseSchema: z.ZodType
 ): z.ZodType {
-
     switch (operator) {
-        case "in":
-        case "notIn":
-            return z.array(baseSchema);
-        case "between":
-            return z.tuple([baseSchema, baseSchema]);
-        case "isNull":
-        case "isNotNull":
-            return z.boolean();
+        case 'in':
+        case 'notIn':
+            return z.array(baseSchema)
+        case 'between':
+            return z.tuple([baseSchema, baseSchema])
+        case 'isNull':
+        case 'isNotNull':
+            return z.boolean()
         default:
-            return baseSchema;
+            return baseSchema
     }
 }
 
 /**
  * Get the base Zod schema for a field type
  */
-function isZodFieldFilterConfig(config: FieldFilterConfig): config is ZodFieldFilterConfig {
-    return typeof config === "object" && "type" in config;
+function isZodFieldFilterConfig(
+    config: FieldFilterConfig
+): config is ZodFieldFilterConfig {
+    return typeof config === 'object' && 'type' in config
 }
 
 function getOperators(config: FieldFilterConfig): FilterOperator[] {
     if (isZodFieldFilterConfig(config)) {
-        return config.operators ?? getDefaultOperators(config.type);
+        return config.operators ?? getDefaultOperators(config.type)
     }
 
-    return [...config.operators];
+    return [...config.operators]
 }
 
 function getBaseSchema(config: FieldFilterConfig): z.ZodType {
     if (isZodFieldFilterConfig(config)) {
         switch (config.type) {
-            case "string":
-                return z.string();
-            case "number":
-                return z.number();
-            case "boolean":
-                return z.boolean();
-            case "date":
-                return z.coerce.date();
-            case "enum":
+            case 'string':
+                return z.string()
+            case 'number':
+                return z.number()
+            case 'boolean':
+                return z.boolean()
+            case 'date':
+                return z.coerce.date()
+            case 'enum':
                 if (config.enumValues && config.enumValues.length > 0) {
-                    return z.enum(config.enumValues as [string, ...string[]]);
+                    return z.enum(config.enumValues as [string, ...string[]])
                 }
-                return z.string();
-            case "array":
-                return z.array(z.unknown());
+                return z.string()
+            case 'array':
+                return z.array(z.unknown())
             default:
-                return z.unknown();
+                return z.unknown()
         }
     }
 
-    const baseSchema = z.unknown();
-    return config.allowNull ? baseSchema.nullable() : baseSchema;
+    const baseSchema = z.unknown()
+    return config.allowNull ? baseSchema.nullable() : baseSchema
 }
 
 // ==================== Helper Factory Functions ====================
@@ -348,68 +444,92 @@ function getBaseSchema(config: FieldFilterConfig): z.ZodType {
  * Create a string field filter config
  */
 export function stringField(options?: {
-    operators?: FilterOperator[];
-    nullable?: boolean;
+    operators?: FilterOperator[]
+    nullable?: boolean
 }): FieldFilterConfig {
     return {
-        type: "string",
-        operators: options?.operators ?? ["eq", "ne", "like", "ilike", "contains", "startsWith", "endsWith"],
+        type: 'string',
+        operators: options?.operators ?? [
+            'eq',
+            'ne',
+            'like',
+            'ilike',
+            'contains',
+            'startsWith',
+            'endsWith',
+        ],
         nullable: options?.nullable,
-    };
+    }
 }
 
 /**
  * Create a numeric field filter config
  */
 export function numericField(options?: {
-    operators?: FilterOperator[];
-    nullable?: boolean;
+    operators?: FilterOperator[]
+    nullable?: boolean
 }): FieldFilterConfig {
     return {
-        type: "number",
-        operators: options?.operators ?? ["eq", "ne", "gt", "gte", "lt", "lte", "between"],
+        type: 'number',
+        operators: options?.operators ?? [
+            'eq',
+            'ne',
+            'gt',
+            'gte',
+            'lt',
+            'lte',
+            'between',
+        ],
         nullable: options?.nullable,
-    };
+    }
 }
 
 /**
  * Create a comparison field filter config (gt, lt, gte, lte)
  */
 export function comparisonField(options?: {
-    nullable?: boolean;
+    nullable?: boolean
 }): FieldFilterConfig {
     return {
-        type: "number",
-        operators: ["gt", "gte", "lt", "lte", "between"],
+        type: 'number',
+        operators: ['gt', 'gte', 'lt', 'lte', 'between'],
         nullable: options?.nullable,
-    };
+    }
 }
 
 /**
  * Create a boolean field filter config
  */
 export function booleanField(options?: {
-    nullable?: boolean;
+    nullable?: boolean
 }): FieldFilterConfig {
     return {
-        type: "boolean",
-        operators: ["eq", "ne"],
+        type: 'boolean',
+        operators: ['eq', 'ne'],
         nullable: options?.nullable,
-    };
+    }
 }
 
 /**
  * Create a date field filter config
  */
 export function dateField(options?: {
-    operators?: FilterOperator[];
-    nullable?: boolean;
+    operators?: FilterOperator[]
+    nullable?: boolean
 }): FieldFilterConfig {
     return {
-        type: "date",
-        operators: options?.operators ?? ["eq", "ne", "gt", "gte", "lt", "lte", "between"],
+        type: 'date',
+        operators: options?.operators ?? [
+            'eq',
+            'ne',
+            'gt',
+            'gte',
+            'lt',
+            'lte',
+            'between',
+        ],
         nullable: options?.nullable,
-    };
+    }
 }
 
 /**
@@ -418,31 +538,31 @@ export function dateField(options?: {
 export function enumField<TValues extends readonly string[]>(
     values: TValues,
     options?: {
-        operators?: FilterOperator[];
-        nullable?: boolean;
+        operators?: FilterOperator[]
+        nullable?: boolean
     }
 ): FieldFilterConfig {
     return {
-        type: "enum",
+        type: 'enum',
         enumValues: values,
-        operators: options?.operators ?? ["eq", "ne", "in", "notIn"],
+        operators: options?.operators ?? ['eq', 'ne', 'in', 'notIn'],
         nullable: options?.nullable,
-    };
+    }
 }
 
 /**
  * Create an array field filter config
  */
 export function arrayField(options?: {
-    operators?: FilterOperator[];
-    nullable?: boolean;
+    operators?: FilterOperator[]
+    nullable?: boolean
 }): FieldFilterConfig {
     return {
-        type: "array",
-        operators: options?.operators ?? ["contains", "in"],
+        type: 'array',
+        operators: options?.operators ?? ['contains', 'in'],
         nullable: options?.nullable,
-    };
+    }
 }
 
 // Re-export shared types
-export { CONFIG_SYMBOL, withConfig, getConfig, type ZodSchemaWithConfig };
+export { CONFIG_SYMBOL, withConfig, getConfig, type ZodSchemaWithConfig }

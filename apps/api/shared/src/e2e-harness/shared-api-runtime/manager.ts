@@ -1,5 +1,5 @@
-import { writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,9 +21,16 @@ import * as schema from '@deployer/nest-schema/global'
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from "../../core/modules/database/database-connection"
-import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '../../core/modules/database/global/global-database.service'
-import { TraefikFileSystemService, type TraefikFileSystemShape } from '../../core/modules/traefik/services/traefik-file-system.service'
+} from '../../core/modules/database/database-connection'
+import {
+    GlobalDatabaseService,
+    type GlobalDatabaseServiceShape,
+} from '../../core/modules/database/global/global-database.service'
+import {
+    TraefikFileSystemService,
+    type TraefikFileSystemShape,
+} from '../../core/modules/traefik/services/traefik-file-system.service'
+import { containerHttpEdge, mountHttpEdge } from '../../server/http-edge'
 
 import {
     DEFAULT_SHARED_RUNTIME_KEY,
@@ -38,15 +45,12 @@ import {
 } from './types'
 
 import type { AddressInfo } from 'node:net'
-import { containerHttpEdge, mountHttpEdge } from "../../server/http-edge"
 
 const SHARED_RUNTIME_LOG_ENV = 'E2E_SHARED_RUNTIME_LOGS'
 /** When set, a compile timeout writes the whole provider graph here (JSON), to find a cycle or a stuck factory offline. */
 const PROVIDER_GRAPH_DUMP_ENV = 'E2E_PROVIDER_GRAPH_DUMP'
 
-class ExternalSharedPostgresContainerHandle
-    implements SharedPostgresContainerHandle
-{
+class ExternalSharedPostgresContainerHandle implements SharedPostgresContainerHandle {
     public constructor(private readonly connectionUri: string) {}
 
     public getConnectionUri(): string {
@@ -162,7 +166,9 @@ function describeUnresolvedProviders(builder: unknown): string {
         inject?: unknown[] | null
         metatype?: unknown
         name?: unknown
-        getInstanceByContextId?: (context: { id: number }) => { isResolved?: boolean, isPending?: boolean } | undefined
+        getInstanceByContextId?: (context: {
+            id: number
+        }) => { isResolved?: boolean; isPending?: boolean } | undefined
     }
     type ModuleLike = {
         metatype?: { name?: string }
@@ -174,31 +180,62 @@ function describeUnresolvedProviders(builder: unknown): string {
         const entry = (token as { token?: unknown } | undefined)?.token ?? token
         return typeof entry === 'function' ? entry.name : String(entry)
     }
-    const container = (builder as { container?: { getModules?: () => Map<string, ModuleLike> } } | null)?.container
+    const container = (
+        builder as {
+            container?: { getModules?: () => Map<string, ModuleLike> }
+        } | null
+    )?.container
     const modules = container?.getModules?.()
     if (modules === undefined) return 'unresolved providers: unavailable'
     const graph: Record<string, string[]> = {}
     let unresolved = 0
     let total = 0
     for (const module of modules.values()) {
-        for (const [kind, wrappers] of [['provider', module.providers], ['controller', module.controllers], ['injectable', module.injectables]] as const) {
+        for (const [kind, wrappers] of [
+            ['provider', module.providers],
+            ['controller', module.controllers],
+            ['injectable', module.injectables],
+        ] as const) {
             for (const [token, wrapper] of wrappers) {
                 total += 1
-                const resolved = wrapper.getInstanceByContextId?.({ id: 1 })?.isResolved
+                const resolved = wrapper.getInstanceByContextId?.({
+                    id: 1,
+                })?.isResolved
                 if (resolved === false) unresolved += 1
                 let deps: unknown[] = wrapper.inject ?? []
                 if (wrapper.inject === null || wrapper.inject === undefined) {
                     const target = wrapper.metatype as object | undefined
-                    const types: unknown[] = typeof target === 'function' ? ((Reflect.getMetadata('design:paramtypes', target) as unknown[] | undefined) ?? []) : []
-                    const selfs = typeof target === 'function' ? ((Reflect.getMetadata('self:paramtypes', target) as { index: number, param: unknown }[] | undefined) ?? []) : []
-                    deps = types.map((type, index) => selfs.find((self) => self.index === index)?.param ?? type)
+                    const types: unknown[] =
+                        typeof target === 'function'
+                            ? ((Reflect.getMetadata(
+                                  'design:paramtypes',
+                                  target
+                              ) as unknown[] | undefined) ?? [])
+                            : []
+                    const selfs =
+                        typeof target === 'function'
+                            ? ((Reflect.getMetadata(
+                                  'self:paramtypes',
+                                  target
+                              ) as
+                                  | { index: number; param: unknown }[]
+                                  | undefined) ?? [])
+                            : []
+                    deps = types.map(
+                        (type, index) =>
+                            selfs.find((self) => self.index === index)?.param ??
+                            type
+                    )
                 }
-                graph[`${module.metatype?.name ?? 'module'}:${kind}:${tokenName(token)}${resolved === false ? '[unresolved]' : ''}`] = deps.map(tokenName)
+                graph[
+                    `${module.metatype?.name ?? 'module'}:${kind}:${tokenName(token)}${resolved === false ? '[unresolved]' : ''}`
+                ] = deps.map(tokenName)
             }
         }
     }
     const dump = process.env[PROVIDER_GRAPH_DUMP_ENV]
-    if (dump !== undefined && dump !== '') writeFileSync(dump, JSON.stringify(graph, null, 1))
+    if (dump !== undefined && dump !== '')
+        writeFileSync(dump, JSON.stringify(graph, null, 1))
     return `unresolved (${String(unresolved)} of ${String(total)} across ${String(modules.size)} modules)${dump === undefined ? '' : `; graph written to ${dump}`}`
 }
 
@@ -342,14 +379,21 @@ async function assertRuntimeDatabaseBinding(
     moduleRef: TestingModule,
     expectedDatabaseUrl: string
 ): Promise<void> {
-    const databaseService = moduleRef.get<typeof GlobalDatabaseService, GlobalDatabaseServiceShape>(GlobalDatabaseService)
+    const databaseService = moduleRef.get<
+        typeof GlobalDatabaseService,
+        GlobalDatabaseServiceShape
+    >(GlobalDatabaseService)
     if (!(await Effect.runPromise(databaseService.probe()))) {
-        throw new Error('GlobalDatabaseService is not connected after app bootstrap')
+        throw new Error(
+            'GlobalDatabaseService is not connected after app bootstrap'
+        )
     }
 
     await databaseService.db.execute('SELECT 1')
 
-    const pool = moduleRef.get<Pool | null>(GLOBAL_DATABASE_POOL, { strict: false })
+    const pool = moduleRef.get<Pool | null>(GLOBAL_DATABASE_POOL, {
+        strict: false,
+    })
     const actualConnectionString = (
         pool as unknown as { options?: { connectionString?: string } } | null
     )?.options?.connectionString
@@ -423,7 +467,10 @@ async function configureTraefikPathsForE2E(
         fs.writeFile(join(backupPath, '.e2e-writable-check'), ''),
     ])
 
-    ;(traefikFileSystemService as TraefikFileSystemShape).setBasePaths({ basePath, backupPath })
+    ;(traefikFileSystemService as TraefikFileSystemShape).setBasePaths({
+        basePath,
+        backupPath,
+    })
 }
 
 function resolveDefaultRuntimeKey(): string {
@@ -444,20 +491,25 @@ function resolveRuntimeKey(options?: SharedApiRuntimeOptions): string {
 
 export class SharedApiRuntimeManager {
     private runtimePromisesByKey = new Map<string, Promise<SharedApiRuntime>>()
-    private runtimeEnvSnapshotsByKey = new Map<string, Map<string, string | undefined>>()
+    private runtimeEnvSnapshotsByKey = new Map<
+        string,
+        Map<string, string | undefined>
+    >()
     private runtimeStartStopLock: Promise<void> = Promise.resolve()
     private sharedPostgresContainerPromise: Promise<SharedPostgresContainerHandle> | null =
         null
     private sharedPostgresContainerRefCount = 0
 
-    private resolvePlugins(options: SharedApiRuntimeOptions): SharedRuntimePlugin[] {
+    private resolvePlugins(
+        options: SharedApiRuntimeOptions
+    ): SharedRuntimePlugin[] {
         return options.plugins ?? []
     }
 
     private async runPluginHook(
         plugins: SharedRuntimePlugin[],
         hook: keyof SharedRuntimePlugin,
-        context: unknown,
+        context: unknown
     ): Promise<void> {
         for (const plugin of plugins) {
             const handler = plugin[hook]
@@ -465,9 +517,13 @@ export class SharedApiRuntimeManager {
                 continue
             }
 
-            await withWatchdog(`plugin:${plugin.name}:${String(hook)}`, 30_000, async () => {
-                await handler(context as never)
-            })
+            await withWatchdog(
+                `plugin:${plugin.name}:${String(hook)}`,
+                30_000,
+                async () => {
+                    await handler(context as never)
+                }
+            )
         }
     }
 
@@ -543,9 +599,11 @@ export class SharedApiRuntimeManager {
             }
             try {
                 await dockerContainer.stop({ t: 5 }).catch(() => undefined)
-                await dockerContainer.remove({ force: true }).catch(() => undefined)
+                await dockerContainer
+                    .remove({ force: true })
+                    .catch(() => undefined)
                 logStep(
-                    `Cleaned up deployer-managed container: ${String(containerInfo.Names?.[0] ?? containerInfo.Id)}`,
+                    `Cleaned up deployer-managed container: ${String(containerInfo.Names?.[0] ?? containerInfo.Id)}`
                 )
             } catch {
                 // already removed or inaccessible — ignore
@@ -581,8 +639,8 @@ export class SharedApiRuntimeManager {
                     process.env[SHARED_POSTGRES_CONNECTION_URI_ENV]
                 if (sharedConnectionUri && sharedConnectionUri.length > 0) {
                     logStep(
-                        `acquireSharedPostgresContainer: using EXTERNAL shared container (${summarizeDatabaseEndpoint(sharedConnectionUri)})`,
-                    );
+                        `acquireSharedPostgresContainer: using EXTERNAL shared container (${summarizeDatabaseEndpoint(sharedConnectionUri)})`
+                    )
                     this.sharedPostgresContainerPromise = Promise.resolve(
                         new ExternalSharedPostgresContainerHandle(
                             sharedConnectionUri
@@ -590,35 +648,34 @@ export class SharedApiRuntimeManager {
                     )
                 } else {
                     logStep(
-                        'acquireSharedPostgresContainer: creating NEW container (no shared URI)',
-                    );
-                    this.sharedPostgresContainerPromise = new PostgreSqlContainer(
-                        'postgres:16-alpine'
+                        'acquireSharedPostgresContainer: creating NEW container (no shared URI)'
                     )
-                        .withDatabase('deployer_e2e')
-                        .withUsername('deployer')
-                        .withPassword('deployer')
-                        .withWaitStrategy(
-                            Wait.forLogMessage(
-                                'database system is ready to accept connections'
+                    this.sharedPostgresContainerPromise =
+                        new PostgreSqlContainer('postgres:16-alpine')
+                            .withDatabase('deployer_e2e')
+                            .withUsername('deployer')
+                            .withPassword('deployer')
+                            .withWaitStrategy(
+                                Wait.forLogMessage(
+                                    'database system is ready to accept connections'
+                                )
                             )
-                        )
-                        .withStartupTimeout(180_000)
-                        .start()
+                            .withStartupTimeout(180_000)
+                            .start()
                 }
             }
 
             const containerPromise = this.sharedPostgresContainerPromise
             if (containerPromise === null) {
                 throw new Error(
-                    'shared Postgres container promise was not initialised',
+                    'shared Postgres container promise was not initialised'
                 )
             }
             const container = await containerPromise
             this.sharedPostgresContainerRefCount += 1
             logStep(
-                `acquireSharedPostgresContainer: refCount now ${String(this.sharedPostgresContainerRefCount)}`,
-            );
+                `acquireSharedPostgresContainer: refCount now ${String(this.sharedPostgresContainerRefCount)}`
+            )
             return container
         })
     }
@@ -686,7 +743,9 @@ export class SharedApiRuntimeManager {
         container: SharedPostgresContainerHandle,
         databaseName: string
     ): Promise<void> {
-        const adminDatabaseUrl = buildAdminDatabaseUrl(container.getConnectionUri())
+        const adminDatabaseUrl = buildAdminDatabaseUrl(
+            container.getConnectionUri()
+        )
         const adminPool = new Pool({
             connectionString: adminDatabaseUrl,
             max: 1,
@@ -786,19 +845,24 @@ export class SharedApiRuntimeManager {
                 await runtime.app.close()
             })
         } catch (error) {
-            appCloseError = error instanceof Error ? error : new Error(String(error))
+            appCloseError =
+                error instanceof Error ? error : new Error(String(error))
             logStep(
-                `stopRuntime: app.close failed (${key}): ${appCloseError.message} — continuing with container cleanup`,
+                `stopRuntime: app.close failed (${key}): ${appCloseError.message} — continuing with container cleanup`
             )
         }
 
         try {
-            await withWatchdog(`Nest module close (${key})`, 20_000, async () => {
-                await runtime.moduleRef.close()
-            })
+            await withWatchdog(
+                `Nest module close (${key})`,
+                20_000,
+                async () => {
+                    await runtime.moduleRef.close()
+                }
+            )
         } catch (error) {
             logStep(
-                `stopRuntime: moduleRef.close failed (${key}): ${error instanceof Error ? error.message : String(error)}`,
+                `stopRuntime: moduleRef.close failed (${key}): ${error instanceof Error ? error.message : String(error)}`
             )
         }
 
@@ -825,9 +889,10 @@ export class SharedApiRuntimeManager {
             try {
                 await this.stopRuntime({ instanceKey: key })
             } catch (error) {
-                lastError = error instanceof Error ? error : new Error(String(error))
+                lastError =
+                    error instanceof Error ? error : new Error(String(error))
                 logStep(
-                    `stopAllRuntimes: runtime "${key}" stop failed: ${lastError.message}`,
+                    `stopAllRuntimes: runtime "${key}" stop failed: ${lastError.message}`
                 )
             }
         }
@@ -839,13 +904,16 @@ export class SharedApiRuntimeManager {
         try {
             await this.cleanupDeployerManagedContainers()
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error)
-            logStep(`stopAllRuntimes: cleanupDeployerManagedContainers failed: ${message}`)
+            const message =
+                error instanceof Error ? error.message : String(error)
+            logStep(
+                `stopAllRuntimes: cleanupDeployerManagedContainers failed: ${message}`
+            )
         }
 
         if (lastError) {
             logStep(
-                `stopAllRuntimes: completed with errors — ${keys.length} runtime(s) processed, last error: ${lastError.message}`,
+                `stopAllRuntimes: completed with errors — ${keys.length} runtime(s) processed, last error: ${lastError.message}`
             )
         }
     }
@@ -906,15 +974,17 @@ export class SharedApiRuntimeManager {
             }
 
             await options.database?.onDatabaseCreate?.(databaseContext)
-            await this.runPluginHook(plugins, 'onDatabaseCreated', databaseContext)
+            await this.runPluginHook(
+                plugins,
+                'onDatabaseCreated',
+                databaseContext
+            )
 
             const apiMockEnv = getMockEnv('api')
             const runtimeEnv = {
                 ...apiMockEnv,
                 SETUP_DATABASE_URL: databaseUrl,
-                AUTH_SECRET:
-                    process.env.AUTH_SECRET ??
-                    apiMockEnv.AUTH_SECRET,
+                AUTH_SECRET: process.env.AUTH_SECRET ?? apiMockEnv.AUTH_SECRET,
                 BETTER_AUTH_SECRET:
                     process.env.BETTER_AUTH_SECRET ??
                     process.env.AUTH_SECRET ??
@@ -1013,7 +1083,7 @@ export class SharedApiRuntimeManager {
                     await this.runPluginHook(
                         plugins,
                         'onModuleBuilder',
-                        moduleBuilderContext,
+                        moduleBuilderContext
                     )
 
                     if (isSharedRuntimeLoggingEnabled()) {
@@ -1030,17 +1100,20 @@ export class SharedApiRuntimeManager {
                         moduleRef: compiled,
                     }
                     compilePhase = 'options.onModuleCompiled'
-                    await options.nest?.onModuleCompiled?.(moduleCompiledContext)
+                    await options.nest?.onModuleCompiled?.(
+                        moduleCompiledContext
+                    )
                     compilePhase = 'plugins.onModuleCompiled'
                     await this.runPluginHook(
                         plugins,
                         'onModuleCompiled',
-                        moduleCompiledContext,
+                        moduleCompiledContext
                     )
 
                     return compiled
                 },
-                () => `phase=${compilePhase} | ${describeUnresolvedProviders(moduleBuilder)}`
+                () =>
+                    `phase=${compilePhase} | ${describeUnresolvedProviders(moduleBuilder)}`
             )
 
             await withWatchdog(
@@ -1060,14 +1133,15 @@ export class SharedApiRuntimeManager {
                 moduleRef,
                 'moduleRef missing for app init'
             ).createNestApplication({
-                logger: isSharedRuntimeLoggingEnabled()
-                    ? undefined
-                    : ['error'],
+                logger: isSharedRuntimeLoggingEnabled() ? undefined : ['error'],
             })
 
             // The HTTP edge, as `createApiServerApp` mounts it: what the container holds (Better Auth's routes, body parsing),
             // then what the app adds. Mounted AFTER the header copy above, the order Nest's own `configure()` ran in.
-            mountHttpEdge(app, [...containerHttpEdge(app), ...(options.nest?.edge ?? [])])
+            mountHttpEdge(app, [
+                ...containerHttpEdge(app),
+                ...(options.nest?.edge ?? []),
+            ])
 
             // `moduleBuilder` is reassigned later in this method, so TypeScript's
             // control-flow analysis still sees its `null` initialiser as one member of
@@ -1187,7 +1261,8 @@ export class SharedApiRuntimeManager {
             await this.runPluginHook(plugins, 'onError', {
                 instanceKey,
                 error: normalizedError,
-                databaseName: databaseName.length > 0 ? databaseName : undefined,
+                databaseName:
+                    databaseName.length > 0 ? databaseName : undefined,
                 databaseUrl: databaseUrl.length > 0 ? databaseUrl : undefined,
                 postgresContainer: postgresContainer ?? undefined,
             }).catch(() => undefined)

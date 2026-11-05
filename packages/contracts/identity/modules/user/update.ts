@@ -1,9 +1,9 @@
-import { access } from "@deployer/auth/authz/meta";
-import { userSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { userSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 // Create standard operations builder for users
-const userOps = standard.zod(userSchema, "user");
+const userOps = standard.zod(userSchema, 'user')
 
 // Create update contract using builder
 // Omit both image and id, make remaining fields optional, then add required id back
@@ -11,9 +11,15 @@ const userOps = standard.zod(userSchema, "user");
 // (`{ key: true }`), not an array of names.
 export const userUpdateContract = userOps
     .update()
-    .input((b) => b.entitySchema.omit({ image: true, id: true }).partial().extend({ id: userSchema.shape.id }))
+    .input((b) =>
+        b.entitySchema
+            .omit({ image: true, id: true })
+            .partial()
+            .extend({ id: userSchema.shape.id })
+    )
     .errors((e) => [
         // 404 for unknown user id.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: "user:update" })).build();
+    .meta(access({ permission: 'user:update' }))
+    .build()

@@ -1,110 +1,136 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
+import type { SwarmServiceSpecInput } from '@deployer/contracts-entities'
 
-import { toDockerServiceSpec } from "./swarm-spec.mapper";
+import { toDockerServiceSpec } from './swarm-spec.mapper'
 
-import type Docker from "dockerode";
+import type Docker from 'dockerode'
 
 /** Narrow the TaskTemplate discriminated union to the container variant. */
-function containerSpec(spec: Docker.ServiceSpec): Docker.ContainerSpec | undefined {
-    const task = spec.TaskTemplate;
-    return task && "ContainerSpec" in task ? task.ContainerSpec : undefined;
+function containerSpec(
+    spec: Docker.ServiceSpec
+): Docker.ContainerSpec | undefined {
+    const task = spec.TaskTemplate
+    return task && 'ContainerSpec' in task ? task.ContainerSpec : undefined
 }
 
 const baseInput: SwarmServiceSpecInput = {
-    name: "deployer-svc-1234567890ab-ab12cd34",
-    image: "nginx:alpine",
-    mode: "replicated",
+    name: 'deployer-svc-1234567890ab-ab12cd34',
+    image: 'nginx:alpine',
+    mode: 'replicated',
     replicas: 2,
-    env: ["FOO=bar", "BAZ=qux"],
+    env: ['FOO=bar', 'BAZ=qux'],
     command: [],
-    args: ["sh", "-lc", "npm start"],
-    labels: { "deployer.managed": "true", "traefik.enable": "true" },
-    containerLabels: { "com.example.label": "value" },
+    args: ['sh', '-lc', 'npm start'],
+    labels: { 'deployer.managed': 'true', 'traefik.enable': 'true' },
+    containerLabels: { 'com.example.label': 'value' },
     mounts: [],
-    placementPreferences: [{ spreadDescriptor: "node.labels.deployer.node.role" }],
+    placementPreferences: [
+        { spreadDescriptor: 'node.labels.deployer.node.role' },
+    ],
     placementConstraints: [],
     resourcesLimits: { nanoCpus: 2_000_000_000, memoryBytes: 1_073_741_824 },
     resourcesReservations: {},
-    networks: [{ target: "deployer-project-1", aliases: ["web-1"] }],
+    networks: [{ target: 'deployer-project-1', aliases: ['web-1'] }],
     healthcheck: {
-        test: ["CMD-SHELL", "wget --spider http://localhost:3000/health || exit 1"],
+        test: [
+            'CMD-SHELL',
+            'wget --spider http://localhost:3000/health || exit 1',
+        ],
         intervalMs: 5_000,
         timeoutMs: 2_000,
         retries: 3,
         startPeriodMs: 1_000,
     },
-    updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
-    endpointPorts: [{ targetPort: 3000, publishedPort: 8080, protocol: "tcp" }],
-    endpointMode: "vip",
+    updateConfig: {
+        parallelism: 1,
+        delayMs: 0,
+        order: 'start-first',
+        failureAction: 'rollback',
+    },
+    endpointPorts: [{ targetPort: 3000, publishedPort: 8080, protocol: 'tcp' }],
+    endpointMode: 'vip',
     stopGracePeriodSeconds: 30,
-};
+}
 
-describe("toDockerServiceSpec", () => {
-    it("maps the canonical spec to a dockerode ServiceSpec", () => {
-        const spec = toDockerServiceSpec(baseInput);
-        const container = containerSpec(spec);
+describe('toDockerServiceSpec', () => {
+    it('maps the canonical spec to a dockerode ServiceSpec', () => {
+        const spec = toDockerServiceSpec(baseInput)
+        const container = containerSpec(spec)
 
-        expect(spec.Name).toBe("deployer-svc-1234567890ab-ab12cd34");
-        expect(spec.Labels?.["deployer.managed"]).toBe("true");
-        expect(container?.Image).toBe("nginx:alpine");
-        expect(container?.Env).toEqual(["FOO=bar", "BAZ=qux"]);
-        expect(container?.Args).toEqual(["sh", "-lc", "npm start"]);
-        expect(container?.Labels).toEqual({ "com.example.label": "value" });
-        expect(spec.Mode).toEqual({ Replicated: { Replicas: 2 } });
-    });
+        expect(spec.Name).toBe('deployer-svc-1234567890ab-ab12cd34')
+        expect(spec.Labels?.['deployer.managed']).toBe('true')
+        expect(container?.Image).toBe('nginx:alpine')
+        expect(container?.Env).toEqual(['FOO=bar', 'BAZ=qux'])
+        expect(container?.Args).toEqual(['sh', '-lc', 'npm start'])
+        expect(container?.Labels).toEqual({ 'com.example.label': 'value' })
+        expect(spec.Mode).toEqual({ Replicated: { Replicas: 2 } })
+    })
 
-    it("maps global mode to Mode.Global (one task per node — platform infra)", () => {
-        const spec = toDockerServiceSpec({ ...baseInput, mode: "global", replicas: 2 });
-        expect(spec.Mode).toEqual({ Global: {} });
-    });
+    it('maps global mode to Mode.Global (one task per node — platform infra)', () => {
+        const spec = toDockerServiceSpec({
+            ...baseInput,
+            mode: 'global',
+            replicas: 2,
+        })
+        expect(spec.Mode).toEqual({ Global: {} })
+    })
 
-    it("converts health intervals from ms to nanoseconds", () => {
-        const spec = toDockerServiceSpec(baseInput);
+    it('converts health intervals from ms to nanoseconds', () => {
+        const spec = toDockerServiceSpec(baseInput)
         expect(containerSpec(spec)?.HealthCheck).toMatchObject({
             Interval: 5_000 * 1_000_000,
             Timeout: 2_000 * 1_000_000,
             StartPeriod: 1_000 * 1_000_000,
             Retries: 3,
-        });
-    });
+        })
+    })
 
-    it("maps resources + placement + networks", () => {
-        const spec = toDockerServiceSpec(baseInput);
+    it('maps resources + placement + networks', () => {
+        const spec = toDockerServiceSpec(baseInput)
         expect(spec.TaskTemplate?.Resources?.Limits).toEqual({
             NanoCPUs: 2_000_000_000,
             MemoryBytes: 1_073_741_824,
-        });
+        })
         expect(spec.TaskTemplate?.Placement?.Preferences).toEqual([
-            { Spread: { SpreadDescriptor: "node.labels.deployer.node.role" } },
-        ]);
+            { Spread: { SpreadDescriptor: 'node.labels.deployer.node.role' } },
+        ])
         expect(spec.TaskTemplate?.Networks).toEqual([
-            { Target: "deployer-project-1", Aliases: ["web-1"] },
-        ]);
-    });
+            { Target: 'deployer-project-1', Aliases: ['web-1'] },
+        ])
+    })
 
-    it("maps update/rollback config with ns delay", () => {
+    it('maps update/rollback config with ns delay', () => {
         const spec = toDockerServiceSpec({
             ...baseInput,
-            updateConfig: { parallelism: 2, delayMs: 250, order: "stop-first", failureAction: "pause" },
-            rollbackConfig: { parallelism: 1, delayMs: 500, order: "stop-first", failureAction: "pause" },
-        });
+            updateConfig: {
+                parallelism: 2,
+                delayMs: 250,
+                order: 'stop-first',
+                failureAction: 'pause',
+            },
+            rollbackConfig: {
+                parallelism: 1,
+                delayMs: 500,
+                order: 'stop-first',
+                failureAction: 'pause',
+            },
+        })
         expect(spec.UpdateConfig).toEqual({
             Parallelism: 2,
             Delay: 250 * 1_000_000,
-            Order: "stop-first",
-            FailureAction: "pause",
-        });
-        expect(spec.RollbackConfig?.Delay).toBe(500 * 1_000_000);
-    });
+            Order: 'stop-first',
+            FailureAction: 'pause',
+        })
+        expect(spec.RollbackConfig?.Delay).toBe(500 * 1_000_000)
+    })
 
-    it("maps endpoint ports", () => {
-        const spec = toDockerServiceSpec(baseInput);
+    it('maps endpoint ports', () => {
+        const spec = toDockerServiceSpec(baseInput)
         expect(spec.EndpointSpec?.Ports).toEqual([
-            { TargetPort: 3000, PublishedPort: 8080, Protocol: "tcp" },
-        ]);
-    });
+            { TargetPort: 3000, PublishedPort: 8080, Protocol: 'tcp' },
+        ])
+    })
 
     /**
      * REGRESSION GUARD: a single-replica service (the global database, Redis)
@@ -113,29 +139,48 @@ describe("toDockerServiceSpec", () => {
      * while the task is perfectly healthy on its own address — a failure mode
      * indistinguishable from a dead database.
      */
-    it("maps endpointMode onto EndpointSpec.Mode, dnsrr for single-task services", () => {
-        expect(toDockerServiceSpec(baseInput).EndpointSpec?.Mode).toBe("vip");
-        expect(toDockerServiceSpec({ ...baseInput, endpointMode: "dnsrr" }).EndpointSpec?.Mode).toBe("dnsrr");
-    });
+    it('maps endpointMode onto EndpointSpec.Mode, dnsrr for single-task services', () => {
+        expect(toDockerServiceSpec(baseInput).EndpointSpec?.Mode).toBe('vip')
+        expect(
+            toDockerServiceSpec({ ...baseInput, endpointMode: 'dnsrr' })
+                .EndpointSpec?.Mode
+        ).toBe('dnsrr')
+    })
 
-    it("still emits EndpointSpec for a service with no published ports", () => {
-        const spec = toDockerServiceSpec({ ...baseInput, endpointPorts: [], endpointMode: "dnsrr" });
-        expect(spec.EndpointSpec).toEqual({ Mode: "dnsrr" });
-    });
+    it('still emits EndpointSpec for a service with no published ports', () => {
+        const spec = toDockerServiceSpec({
+            ...baseInput,
+            endpointPorts: [],
+            endpointMode: 'dnsrr',
+        })
+        expect(spec.EndpointSpec).toEqual({ Mode: 'dnsrr' })
+    })
 
-    it("maps volume mounts and omits empty placements", () => {
+    it('maps volume mounts and omits empty placements', () => {
         const spec = toDockerServiceSpec({
             ...baseInput,
             placementPreferences: [],
-            placementConstraints: ["node.role == worker"],
+            placementConstraints: ['node.role == worker'],
             mounts: [
-                { type: "volume", source: "deployer-storage-depl-1", target: "/data", readOnly: false },
+                {
+                    type: 'volume',
+                    source: 'deployer-storage-depl-1',
+                    target: '/data',
+                    readOnly: false,
+                },
             ],
-        });
+        })
         expect(containerSpec(spec)?.Mounts).toEqual([
-            { Type: "volume", Source: "deployer-storage-depl-1", Target: "/data", ReadOnly: false },
-        ]);
-        expect(spec.TaskTemplate?.Placement?.Preferences).toBeUndefined();
-        expect(spec.TaskTemplate?.Placement?.Constraints).toEqual(["node.role == worker"]);
-    });
-});
+            {
+                Type: 'volume',
+                Source: 'deployer-storage-depl-1',
+                Target: '/data',
+                ReadOnly: false,
+            },
+        ])
+        expect(spec.TaskTemplate?.Placement?.Preferences).toBeUndefined()
+        expect(spec.TaskTemplate?.Placement?.Constraints).toEqual([
+            'node.role == worker',
+        ])
+    })
+})

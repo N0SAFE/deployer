@@ -8,10 +8,10 @@
  *
  * The value is policy, so it lives here (dependency-free) where the web can show the same countdown the API enforces.
  */
-export const STEP_UP_WINDOW_SECONDS = 300;
+export const STEP_UP_WINDOW_SECONDS = 300
 
 /** The factor that produced a step-up. `passkey` is AAL3 (phishing-resistant); `totp` is AAL2 (possession only). */
-export type StepUpMethod = "passkey" | "totp";
+export type StepUpMethod = 'passkey' | 'totp'
 
 /**
  * Whether a proof may authorise a CRITICAL action.
@@ -19,6 +19,8 @@ export type StepUpMethod = "passkey" | "totp";
  * Only AAL3 does: a TOTP code can be phished in real time, which is the whole reason the design asks for a passkey tap.
  * The row is still recorded for TOTP so an operator can see the attempt, but it never satisfies this.
  */
-export function isCriticalStepUp(method: StepUpMethod | null | undefined): boolean {
-	return method === "passkey";
+export function isCriticalStepUp(
+    method: StepUpMethod | null | undefined
+): boolean {
+    return method === 'passkey'
 }

@@ -1,7 +1,7 @@
-import { Controller, Get } from "@nestjs/common";
-import { Render as SsrRender } from "@nestjs-ssr/react";
+import { Controller, Get } from '@nestjs/common'
+import { Render as SsrRender } from '@nestjs-ssr/react'
 
-import SetupView from "@/views/pages/setup";
+import SetupView from '@/views/pages/setup'
 
 /**
  * The wizard PAGE — the only non-oRPC route the setup app serves.
@@ -31,16 +31,16 @@ import SetupView from "@/views/pages/setup";
  */
 @Controller()
 export class WizardPageController {
-  /**
-   * `GET /` — the onboarding page.
-   *
-   * `needsSetup` is always `true`: this app only exists while setup is pending,
-   * so the "already done" branch the API needed is unreachable. The page keeps
-   * its own guard so the component stays usable from either host.
-   */
-  @Get()
-  @SsrRender(SetupView, { layout: null })
-  setupPage(): { needsSetup: boolean } {
-    return { needsSetup: true };
-  }
+    /**
+     * `GET /` — the onboarding page.
+     *
+     * `needsSetup` is always `true`: this app only exists while setup is pending,
+     * so the "already done" branch the API needed is unreachable. The page keeps
+     * its own guard so the component stays usable from either host.
+     */
+    @Get()
+    @SsrRender(SetupView, { layout: null })
+    setupPage(): { needsSetup: boolean } {
+        return { needsSetup: true }
+    }
 }

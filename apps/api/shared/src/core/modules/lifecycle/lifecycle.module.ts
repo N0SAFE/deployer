@@ -1,7 +1,7 @@
-import { Global, Module } from "@nestjs/common";
+import { Global, Module } from '@nestjs/common'
 
-import { AppLifecycle, makeAppLifecycle } from "@deployer/lifecycle";
-import { declareModule } from "@deployer/nest-effect";
+import { AppLifecycle, makeAppLifecycle } from '@deployer/lifecycle'
+import { declareModule } from '@deployer/nest-effect'
 
 /**
  * Provides the application lifecycle Effect service under its own tag, once per process, for every
@@ -12,22 +12,24 @@ import { declareModule } from "@deployer/nest-effect";
 @Global()
 @Module({})
 class AppLifecycleNestModule {
-	static forRoot() {
-		return declareModule(
-			{
-				module: AppLifecycleNestModule,
-				providers: [{ provide: AppLifecycle, useFactory: makeAppLifecycle }],
-				exports: [AppLifecycle],
-			},
-			// The claims ARE the type: `provides` is what this module's own Effects may yield, `exports` what its
-			// importers get. Omitting them leaves the import contributing nothing, silently.
-			{ provides: [AppLifecycle], exports: [AppLifecycle], global: true },
-		);
-	}
+    static forRoot() {
+        return declareModule(
+            {
+                module: AppLifecycleNestModule,
+                providers: [
+                    { provide: AppLifecycle, useFactory: makeAppLifecycle },
+                ],
+                exports: [AppLifecycle],
+            },
+            // The claims ARE the type: `provides` is what this module's own Effects may yield, `exports` what its
+            // importers get. Omitting them leaves the import contributing nothing, silently.
+            { provides: [AppLifecycle], exports: [AppLifecycle], global: true }
+        )
+    }
 }
 
 // The class itself declares no providers (they come from `forRoot`), so only its exports can be claimed.
 export const AppLifecycleModule = declareModule(AppLifecycleNestModule, {
-	exports: [AppLifecycle],
-	global: true,
-});
+    exports: [AppLifecycle],
+    global: true,
+})

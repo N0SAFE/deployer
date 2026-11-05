@@ -1,6 +1,6 @@
-"use client";
+'use client'
 
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from '@tanstack/react-query'
 
 /**
  * React Query client for the setup wizard.
@@ -11,24 +11,24 @@ import { QueryClient } from "@tanstack/react-query";
  * internally using this client, so it works the same wherever it is mounted.
  */
 export const setupQueryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			staleTime: 30_000,
-			refetchOnWindowFocus: false,
-			retry: 1,
-		},
-	},
-});
+    defaultOptions: {
+        queries: {
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+            retry: 1,
+        },
+    },
+})
 
 /** Fresh client — for callers that need per-render isolation (SSR). */
 export function createSetupQueryClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: {
-				staleTime: 30_000,
-				refetchOnWindowFocus: false,
-				retry: 1,
-			},
-		},
-	});
+    return new QueryClient({
+        defaultOptions: {
+            queries: {
+                staleTime: 30_000,
+                refetchOnWindowFocus: false,
+                retry: 1,
+            },
+        },
+    })
 }

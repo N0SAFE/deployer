@@ -35,60 +35,61 @@ export type JoinEntryPointKind = z.output<typeof joinEntryPointKindSchema>
 export const INGRESS_JOIN_ENTRY_POINTS = ['lan', 'public'] as const
 
 export const joinEntryPointSchema = z.object({
-	kind: joinEntryPointKindSchema,
-	/** Human name of the path ("Same network", or the edge provider's label). */
-	via: z.string(),
-	/** Whether this cluster can be joined through it right now. */
-	available: z.boolean(),
-	/** What the joining node dials. Null when nothing is configured. */
-	target: z.string().nullable(),
-	/**
-	 * The `Host` that must be sent when the dialed address is not itself a name
-	 * Traefik has a router for (Traefik matches on `Host(...)`). Null when the
-	 * target already is the route's hostname.
-	 */
-	hostHeader: z.string().nullable(),
-	/** How many existing members offer this path — the redundancy behind it. */
-	sources: z.number().int().min(0),
-	/** Why it is unavailable, or what it costs. Always shown, never inferred by the client. */
-	detail: z.string(),
+    kind: joinEntryPointKindSchema,
+    /** Human name of the path ("Same network", or the edge provider's label). */
+    via: z.string(),
+    /** Whether this cluster can be joined through it right now. */
+    available: z.boolean(),
+    /** What the joining node dials. Null when nothing is configured. */
+    target: z.string().nullable(),
+    /**
+     * The `Host` that must be sent when the dialed address is not itself a name
+     * Traefik has a router for (Traefik matches on `Host(...)`). Null when the
+     * target already is the route's hostname.
+     */
+    hostHeader: z.string().nullable(),
+    /** How many existing members offer this path — the redundancy behind it. */
+    sources: z.number().int().min(0),
+    /** Why it is unavailable, or what it costs. Always shown, never inferred by the client. */
+    detail: z.string(),
 })
 export type JoinEntryPoint = z.output<typeof joinEntryPointSchema>
 
 export const joinEntryPointSummarySchema = z.object({
-	/** True when at least one path exists — i.e. a fresh node can actually join. */
-	joinable: z.boolean(),
-	/** The path an operator should try first, or null when nothing is available. */
-	preferred: joinEntryPointKindSchema.nullable(),
-	points: z.array(joinEntryPointSchema),
+    /** True when at least one path exists — i.e. a fresh node can actually join. */
+    joinable: z.boolean(),
+    /** The path an operator should try first, or null when nothing is available. */
+    preferred: joinEntryPointKindSchema.nullable(),
+    points: z.array(joinEntryPointSchema),
 })
 export type JoinEntryPointSummary = z.output<typeof joinEntryPointSummarySchema>
 
 /** What the active edge provider says about joining through the public lane. */
 export interface PublicJoinPath {
-	/** The provider's label, e.g. "Cloudflare Tunnel". */
-	via: string
-	available: boolean
-	target: string | null
-	hostHeader: string | null
-	sources: number
-	detail: string
+    /** The provider's label, e.g. "Cloudflare Tunnel". */
+    via: string
+    available: boolean
+    target: string | null
+    hostHeader: string | null
+    sources: number
+    detail: string
 }
 
 export interface JoinEntryPointInputs {
-	lanes: IngressLanes
-	/** Existing members that are active and are NODES (an operator laptop serves no entry). */
-	memberCount: number
-	/** The active edge provider's answer, or null when there is no public lane. */
-	publicPath: PublicJoinPath | null
+    lanes: IngressLanes
+    /** Existing members that are active and are NODES (an operator laptop serves no entry). */
+    memberCount: number
+    /** The active edge provider's answer, or null when there is no public lane. */
+    publicPath: PublicJoinPath | null
 }
 
 /** The public hostname the console answers on, when a public lane exists. */
 export function publicEntryHost(lanes: IngressLanes): string | null {
-	return lanes.public === null ? null : `web.${lanes.public.domain}`
+    return lanes.public === null ? null : `web.${lanes.public.domain}`
 }
 
-const NO_MEMBERS = 'This cluster has no members yet, so there is nothing to join — this node is the first one.'
+const NO_MEMBERS =
+    'This cluster has no members yet, so there is nothing to join — this node is the first one.'
 
 /**
  * Rank the ways a new node can join, and say what each one requires.
@@ -97,53 +98,58 @@ const NO_MEMBERS = 'This cluster has no members yet, so there is nothing to join
  * carries a `sources` count so an operator can notice when the one member behind
  * a path is down.
  */
-export function joinEntryPoints(inputs: JoinEntryPointInputs): JoinEntryPointSummary {
-	const { lanes, memberCount, publicPath } = inputs
-	const lanOpen = lanes.private.enabled && lanes.private.exposeOnLan
-	const members = Math.max(0, memberCount)
-	const entryable = members > 0
+export function joinEntryPoints(
+    inputs: JoinEntryPointInputs
+): JoinEntryPointSummary {
+    const { lanes, memberCount, publicPath } = inputs
+    const lanOpen = lanes.private.enabled && lanes.private.exposeOnLan
+    const members = Math.max(0, memberCount)
+    const entryable = members > 0
 
-	const lan: JoinEntryPoint = {
-		kind: 'lan',
-		via: 'Same network',
-		available: entryable && lanOpen,
-		target: entryable && lanOpen ? `http://<member LAN address>:${String(lanes.entryPort)}` : null,
-		hostHeader: `api.${lanes.private.domain}`,
-		sources: entryable && lanOpen ? members : 0,
-		detail: !entryable
-			? NO_MEMBERS
-			: !lanes.private.enabled
-				? 'The private lane is off, so no member binds its LAN address. Turn the private lane on to join from the same network.'
-				: !lanOpen
-					? `The private lane is on but binds the mesh address only. Enable "allow same-network join" so a node that is not yet a member can reach :${String(lanes.entryPort)}.`
-					: `A node on the same subnet dials any member on :${String(lanes.entryPort)}, sending Host: api.${lanes.private.domain} — Traefik matches on the hostname, so the address alone is not enough. No public IP, no DNS, no provider account.`,
-	}
+    const lan: JoinEntryPoint = {
+        kind: 'lan',
+        via: 'Same network',
+        available: entryable && lanOpen,
+        target:
+            entryable && lanOpen
+                ? `http://<member LAN address>:${String(lanes.entryPort)}`
+                : null,
+        hostHeader: `api.${lanes.private.domain}`,
+        sources: entryable && lanOpen ? members : 0,
+        detail: !entryable
+            ? NO_MEMBERS
+            : !lanes.private.enabled
+              ? 'The private lane is off, so no member binds its LAN address. Turn the private lane on to join from the same network.'
+              : !lanOpen
+                ? `The private lane is on but binds the mesh address only. Enable "allow same-network join" so a node that is not yet a member can reach :${String(lanes.entryPort)}.`
+                : `A node on the same subnet dials any member on :${String(lanes.entryPort)}, sending Host: api.${lanes.private.domain} — Traefik matches on the hostname, so the address alone is not enough. No public IP, no DNS, no provider account.`,
+    }
 
-	const pub: JoinEntryPoint =
-		publicPath === null
-			? {
-					kind: 'public',
-					via: 'Public lane',
-					available: false,
-					target: null,
-					hostHeader: null,
-					sources: 0,
-					detail: entryable
-						? 'No public lane is enabled. Turn one on to let a node join from anywhere.'
-						: NO_MEMBERS,
-				}
-			: {
-					kind: 'public',
-					via: publicPath.via,
-					available: entryable && publicPath.available,
-					target: entryable ? publicPath.target : null,
-					hostHeader: publicPath.hostHeader,
-					sources: entryable ? publicPath.sources : 0,
-					detail: entryable ? publicPath.detail : NO_MEMBERS,
-				}
+    const pub: JoinEntryPoint =
+        publicPath === null
+            ? {
+                  kind: 'public',
+                  via: 'Public lane',
+                  available: false,
+                  target: null,
+                  hostHeader: null,
+                  sources: 0,
+                  detail: entryable
+                      ? 'No public lane is enabled. Turn one on to let a node join from anywhere.'
+                      : NO_MEMBERS,
+              }
+            : {
+                  kind: 'public',
+                  via: publicPath.via,
+                  available: entryable && publicPath.available,
+                  target: entryable ? publicPath.target : null,
+                  hostHeader: publicPath.hostHeader,
+                  sources: entryable ? publicPath.sources : 0,
+                  detail: entryable ? publicPath.detail : NO_MEMBERS,
+              }
 
-	const points = [lan, pub]
-	// First AVAILABLE in canonical order — the caller does not re-derive the ranking.
-	const preferred = points.find((point) => point.available)?.kind ?? null
-	return { joinable: preferred !== null, preferred, points }
+    const points = [lan, pub]
+    // First AVAILABLE in canonical order — the caller does not re-derive the ranking.
+    const preferred = points.find((point) => point.available)?.kind ?? null
+    return { joinable: preferred !== null, preferred, points }
 }

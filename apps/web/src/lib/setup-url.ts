@@ -19,7 +19,9 @@
  * `redirectTo` is forwarded so the operator lands back on whatever they were
  * trying to reach once setup finishes.
  */
-export function setupDestinationUrl(options?: { redirectTo?: string | null }): string {
+export function setupDestinationUrl(options?: {
+    redirectTo?: string | null
+}): string {
     const params = new URLSearchParams()
     if (options?.redirectTo) params.set('redirectTo', options.redirectTo)
     const query = params.toString()

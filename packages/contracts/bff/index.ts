@@ -9,13 +9,13 @@
 // let a service import a contract it does not serve, and let the public surface
 // drift from what any service actually implements.
 
-export * from "./modules/setup";
-export * from "./modules/template";
+export * from './modules/setup'
+export * from './modules/template'
 
 // The BFF's screen contract: the composed, screen-shaped procedures the FRONT
 // calls. Distinct from the three above, which are procedures the BFF implements
 // itself (setup/test/template) rather than composing from services.
-export * from "./modules/orchestration";
+export * from './modules/orchestration'
 
 // NOTE: the SERVICE SURFACE is deliberately NOT exported from this package.
 // A function returning a 315-procedure router has an inferred type that exceeds

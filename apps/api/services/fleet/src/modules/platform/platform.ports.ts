@@ -4,8 +4,7 @@ import type { EnvService } from '@deployer/shared/config/env/env.module'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
 import type { PlatformConfigServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/platform-config.service'
 import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
-import type { SupervisorOrchestratorShape } from "@deployer/supervision";
-
+import type { SupervisorOrchestratorShape } from '@deployer/supervision'
 
 /**
  * What the managed-web service depends on, as Effect ports over Promise-based Nest providers

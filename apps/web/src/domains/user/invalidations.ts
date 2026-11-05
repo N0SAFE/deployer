@@ -4,17 +4,17 @@
  * Defines which queries to invalidate when mutations succeed.
  */
 
-import { defineInvalidations } from "../shared/helpers";
+import { defineInvalidations } from '../shared/helpers'
 
-import { userEndpoints } from "./endpoints";
+import { userEndpoints } from './endpoints'
 
 function resolveUserId(input: unknown): string | undefined {
-  if (!input || typeof input !== "object") {
-    return undefined;
-  }
+    if (!input || typeof input !== 'object') {
+        return undefined
+    }
 
-  const candidate = input as { id?: string; params?: { id?: string } };
-  return candidate.id ?? candidate.params?.id;
+    const candidate = input as { id?: string; params?: { id?: string } }
+    return candidate.id ?? candidate.params?.id
 }
 
 /**
@@ -26,17 +26,24 @@ function resolveUserId(input: unknown): string | undefined {
  * - delete: Invalidates specific user, list, and count
  */
 export const userInvalidations = defineInvalidations(userEndpoints, {
-  create: ({ keys }) => [keys.list(), keys.count()],
-  update: ({ input, keys }) => {
-    const userId = resolveUserId(input);
-    return userId
-      ? [keys.findById({ input: { params: { id: userId } } }), keys.list()]
-      : [keys.list()];
-  },
-  delete: ({ input, keys }) => {
-    const userId = resolveUserId(input);
-    return userId
-      ? [keys.findById({ input: { params: { id: userId } } }), keys.list(), keys.count()]
-      : [keys.list(), keys.count()];
-  },
-});
+    create: ({ keys }) => [keys.list(), keys.count()],
+    update: ({ input, keys }) => {
+        const userId = resolveUserId(input)
+        return userId
+            ? [
+                  keys.findById({ input: { params: { id: userId } } }),
+                  keys.list(),
+              ]
+            : [keys.list()]
+    },
+    delete: ({ input, keys }) => {
+        const userId = resolveUserId(input)
+        return userId
+            ? [
+                  keys.findById({ input: { params: { id: userId } } }),
+                  keys.list(),
+                  keys.count(),
+              ]
+            : [keys.list(), keys.count()]
+    },
+})

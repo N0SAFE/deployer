@@ -28,51 +28,54 @@
  */
 
 /** The two doors a mesh procedure can be served on. */
-export type MeshDoor = "peer" | "node";
+export type MeshDoor = 'peer' | 'node'
 
 export type MeshProcedureMeta = {
-	/** Which door serves it. */
-	readonly door: MeshDoor;
-	/** The router group, e.g. `directory`, `roster`, `node`. */
-	readonly group: string;
-	/** The key inside the group. Defaults to the method name. */
-	readonly key?: string;
-	/** The contract procedure. Validation and documentation only; nothing is executed with it. */
-	readonly contract: unknown;
-};
+    /** Which door serves it. */
+    readonly door: MeshDoor
+    /** The router group, e.g. `directory`, `roster`, `node`. */
+    readonly group: string
+    /** The key inside the group. Defaults to the method name. */
+    readonly key?: string
+    /** The contract procedure. Validation and documentation only; nothing is executed with it. */
+    readonly contract: unknown
+}
 
 /** Every procedure a class declares, by method name. */
-export type MeshProcedureDeclarations = Readonly<Record<string, MeshProcedureMeta>>;
+export type MeshProcedureDeclarations = Readonly<
+    Record<string, MeshProcedureMeta>
+>
 
 /** Identity helper, for typing: `static readonly procedures = declareProcedures({ … })`. */
-export function declareProcedures<D extends MeshProcedureDeclarations>(declarations: D): D {
-	return declarations;
+export function declareProcedures<D extends MeshProcedureDeclarations>(
+    declarations: D
+): D {
+    return declarations
 }
 
-const MESH_CONTROLLER: symbol = Symbol.for("mesh:controller");
+const MESH_CONTROLLER: symbol = Symbol.for('mesh:controller')
 
 export abstract class MeshController {
-	/**
-	 * The procedures this class serves, declared as data so nothing depends on decorators, reflection or how a compiler
-	 * emits class fields. Each key is a method on the instance the resolver calls once.
-	 */
-	static readonly procedures: MeshProcedureDeclarations = {};
-	/**
-	 * A global-symbol marker, not `instanceof`.
-	 *
-	 * The agent boots its module graph several times in one test process (and a package can be loaded twice through its
-	 * ESM and CJS entries), which would make two `MeshController` classes that are not each other's prototype. A symbol
-	 * from the global registry is the same key in every copy, and static inheritance carries it to subclasses.
-	 */
-	static readonly [MESH_CONTROLLER] = true;
+    /**
+     * The procedures this class serves, declared as data so nothing depends on decorators, reflection or how a compiler
+     * emits class fields. Each key is a method on the instance the resolver calls once.
+     */
+    static readonly procedures: MeshProcedureDeclarations = {}
+    /**
+     * A global-symbol marker, not `instanceof`.
+     *
+     * The agent boots its module graph several times in one test process (and a package can be loaded twice through its
+     * ESM and CJS entries), which would make two `MeshController` classes that are not each other's prototype. A symbol
+     * from the global registry is the same key in every copy, and static inheritance carries it to subclasses.
+     */
+    static readonly [MESH_CONTROLLER] = true
 }
-
-
-
-
 
 /** Whether a class extends `MeshController`, by the global marker (see the base class). */
 export function isMeshController(metatype: unknown): boolean {
-	if (typeof metatype !== "function") return false;
-	return (metatype as unknown as Record<symbol, unknown>)[MESH_CONTROLLER] === true;
+    if (typeof metatype !== 'function') return false
+    return (
+        (metatype as unknown as Record<symbol, unknown>)[MESH_CONTROLLER] ===
+        true
+    )
 }

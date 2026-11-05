@@ -1,4 +1,11 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+    index,
+    jsonb,
+    pgTable,
+    text,
+    timestamp,
+    uuid,
+} from 'drizzle-orm/pg-core'
 
 /**
  * Step-up proofs — append-only (`AUTH-062`).
@@ -15,23 +22,29 @@ import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-cor
  * treating every row as equal.
  */
 export const stepUpEvents = pgTable(
-	"step_up_events",
-	{
-		id: uuid("id").primaryKey().defaultRandom(),
-		/** The Better Auth session that performed the verification. */
-		sessionId: text("session_id").notNull(),
-		/** The user the session belongs to, duplicated so a read does not need a join. */
-		userId: text("user_id").notNull(),
-		/** `passkey` (AAL3) or `totp` (AAL2). */
-		method: text("method").notNull(),
-		/** Why the caller asked for it, as the endpoint recorded it. */
-		reason: text("reason"),
-		/** Verification facts that are not credentials: the credential id, the authenticator's transport. */
-		detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}),
-		verifiedAt: timestamp("verified_at").defaultNow().notNull(),
-	},
-	(table) => [
-		index("step_up_events_session_idx").on(table.sessionId, table.verifiedAt),
-		index("step_up_events_user_idx").on(table.userId, table.verifiedAt),
-	],
-);
+    'step_up_events',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        /** The Better Auth session that performed the verification. */
+        sessionId: text('session_id').notNull(),
+        /** The user the session belongs to, duplicated so a read does not need a join. */
+        userId: text('user_id').notNull(),
+        /** `passkey` (AAL3) or `totp` (AAL2). */
+        method: text('method').notNull(),
+        /** Why the caller asked for it, as the endpoint recorded it. */
+        reason: text('reason'),
+        /** Verification facts that are not credentials: the credential id, the authenticator's transport. */
+        detail: jsonb('detail')
+            .$type<Record<string, unknown>>()
+            .notNull()
+            .default({}),
+        verifiedAt: timestamp('verified_at').defaultNow().notNull(),
+    },
+    (table) => [
+        index('step_up_events_session_idx').on(
+            table.sessionId,
+            table.verifiedAt
+        ),
+        index('step_up_events_user_idx').on(table.userId, table.verifiedAt),
+    ]
+)

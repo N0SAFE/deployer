@@ -10,10 +10,10 @@ This migration updates the declarative routing info file naming convention to pr
 
 ### Changes
 
-| Before | After | Context |
-|--------|-------|---------|
-| `page.info.ts` | `route.info.ts` | For directories with `page.tsx` or `layout.tsx` |
-| `route.info.ts` | `api.info.ts` | For directories with `route.ts` (API routes) |
+| Before          | After           | Context                                         |
+| --------------- | --------------- | ----------------------------------------------- |
+| `page.info.ts`  | `route.info.ts` | For directories with `page.tsx` or `layout.tsx` |
+| `route.info.ts` | `api.info.ts`   | For directories with `route.ts` (API routes)    |
 
 ## Motivation
 
@@ -87,12 +87,12 @@ bun run --filter=@deployer/declarative-routing tsx migrations/2026-01-01-unified
 
 ### Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--dry-run` | Preview changes without modifying files | `false` |
-| `--app-dir <path>` | Target directory to scan | Current directory |
-| `--verbose`, `-v` | Show detailed output | `false` |
-| `--help`, `-h` | Show help message | - |
+| Option             | Description                             | Default           |
+| ------------------ | --------------------------------------- | ----------------- |
+| `--dry-run`        | Preview changes without modifying files | `false`           |
+| `--app-dir <path>` | Target directory to scan                | Current directory |
+| `--verbose`, `-v`  | Show detailed output                    | `false`           |
+| `--help`, `-h`     | Show help message                       | -                 |
 
 ## Migration Logic
 
@@ -101,24 +101,24 @@ bun run --filter=@deployer/declarative-routing tsx migrations/2026-01-01-unified
 For each `page.info.ts` (or `.js`) file found:
 
 1. **Check directory contents:**
-   - If `route.ts` exists → This is an API directory
-     - If `api.info.ts` already exists → Delete `page.info.ts`
-     - Otherwise → Rename to `api.info.ts`
-   - If `page.tsx` or `layout.tsx` exists → This is a page/layout directory
-     - If `route.info.ts` already exists → Delete `page.info.ts`
-     - Otherwise → Rename to `route.info.ts`
-   - If neither exists → Skip (orphaned info file)
+    - If `route.ts` exists → This is an API directory
+        - If `api.info.ts` already exists → Delete `page.info.ts`
+        - Otherwise → Rename to `api.info.ts`
+    - If `page.tsx` or `layout.tsx` exists → This is a page/layout directory
+        - If `route.info.ts` already exists → Delete `page.info.ts`
+        - Otherwise → Rename to `route.info.ts`
+    - If neither exists → Skip (orphaned info file)
 
 ### Phase 2: route.info.* Files in API Directories
 
 For each `route.info.ts` (or `.js`) file found:
 
 1. **Check if it's an API directory:**
-   - If `route.ts` exists AND no `page.tsx`/`layout.tsx`:
-     - If `api.info.ts` already exists → Delete `route.info.ts`
-     - Otherwise → Rename to `api.info.ts`
-   - If both `route.ts` and `page.tsx`/`layout.tsx` exist → Skip (ambiguous)
-   - If only `page.tsx`/`layout.tsx` exists → Skip (already correct location)
+    - If `route.ts` exists AND no `page.tsx`/`layout.tsx`:
+        - If `api.info.ts` already exists → Delete `route.info.ts`
+        - Otherwise → Rename to `api.info.ts`
+    - If both `route.ts` and `page.tsx`/`layout.tsx` exist → Skip (ambiguous)
+    - If only `page.tsx`/`layout.tsx` exists → Skip (already correct location)
 
 ## Edge Cases
 
@@ -163,25 +163,27 @@ app/
 ## Post-Migration Steps
 
 1. **Rebuild routes:**
-   ```bash
-   bun run dr:build
-   # or
-   bun run web -- dr:build
-   ```
+
+    ```bash
+    bun run dr:build
+    # or
+    bun run web -- dr:build
+    ```
 
 2. **Verify imports:**
    Check that `@/routes/index.ts` now imports from the correct info files.
 
 3. **Run tests:**
-   ```bash
-   bun run test
-   ```
+
+    ```bash
+    bun run test
+    ```
 
 4. **Review git changes:**
-   ```bash
-   git diff
-   git status
-   ```
+    ```bash
+    git diff
+    git status
+    ```
 
 ## Rollback
 

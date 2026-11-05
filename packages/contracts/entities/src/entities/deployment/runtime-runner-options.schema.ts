@@ -11,8 +11,8 @@
  * Shared by the providers module (checkout contexts), the deployment queue
  * processor and the deployment execution workflow.
  */
-import z from "zod/v4";
-import { runnerNetworkModeSchema } from "@deployer/contracts-common";
+import z from 'zod/v4'
+import { runnerNetworkModeSchema } from '@deployer/contracts-common'
 
 // ─── Execution-level fields shared by every runner kind ────────────────────
 
@@ -27,7 +27,7 @@ const executionLevelOptionsShape = {
     traefikSyncMaxAttempts: z.number().int().positive().optional(),
     convergenceRetryBaseDelayMs: z.number().int().positive().optional(),
     startupCommand: z.string().min(1).optional(),
-} as const;
+} as const
 
 // ─── Runner-specific nested options (one per runner kind) ──────────────────
 
@@ -35,7 +35,7 @@ const dockerfileAdvancedSchema = z
     .object({
         containerName: z.string().min(1).optional(),
     })
-    .strict();
+    .strict()
 
 const dockerComposeAdvancedSchema = z
     .object({
@@ -43,109 +43,109 @@ const dockerComposeAdvancedSchema = z
         networkMode: runnerNetworkModeSchema.optional(),
         profiles: z.array(z.string().min(1)).min(1).optional(),
     })
-    .strict();
+    .strict()
 
 const nixpacksAdvancedSchema = z
     .object({
         cpuShares: z.number().positive().optional(),
     })
-    .strict();
+    .strict()
 
 const buildpackAdvancedSchema = z
     .object({
         memoryLimitBytes: z.number().positive().optional(),
         builder: z.string().min(1).optional(),
     })
-    .strict();
+    .strict()
 
 const railpackAdvancedSchema = z
     .object({
         healthCheckUrl: z.string().min(1).optional(),
         startupCommand: z.string().min(1).optional(),
     })
-    .strict();
+    .strict()
 
 // ─── Union members — one per runner kind (plain objects, NO .extend()) ─────
 
 export const dockerRuntimeRunnerOptionsSchema = z
     .object({
-        runner: z.literal("docker"),
+        runner: z.literal('docker'),
         ...executionLevelOptionsShape,
     })
-    .strict();
+    .strict()
 
 export const dockerfileRuntimeRunnerOptionsSchema = z
     .object({
-        runner: z.literal("dockerfile"),
+        runner: z.literal('dockerfile'),
         ...executionLevelOptionsShape,
         dockerfile: dockerfileAdvancedSchema.optional(),
     })
-    .strict();
+    .strict()
 
 export const dockerComposeRuntimeRunnerOptionsSchema = z
     .object({
-        runner: z.literal("docker_compose"),
+        runner: z.literal('docker_compose'),
         ...executionLevelOptionsShape,
         dockerCompose: dockerComposeAdvancedSchema.optional(),
     })
-    .strict();
+    .strict()
 
 export const nixpacksRuntimeRunnerOptionsSchema = z
     .object({
-        runner: z.literal("nixpacks"),
+        runner: z.literal('nixpacks'),
         ...executionLevelOptionsShape,
         nixpacks: nixpacksAdvancedSchema.optional(),
     })
-    .strict();
+    .strict()
 
 export const buildpackRuntimeRunnerOptionsSchema = z
     .object({
-        runner: z.literal("buildpack"),
+        runner: z.literal('buildpack'),
         ...executionLevelOptionsShape,
         buildpack: buildpackAdvancedSchema.optional(),
     })
-    .strict();
+    .strict()
 
 export const railpackRuntimeRunnerOptionsSchema = z
     .object({
-        runner: z.literal("railpack"),
+        runner: z.literal('railpack'),
         ...executionLevelOptionsShape,
         railpack: railpackAdvancedSchema.optional(),
     })
-    .strict();
+    .strict()
 
 // ─── The discriminated union — SSOT dispatch type ──────────────────────────
 
-export const runtimeRunnerOptionsSchema = z.discriminatedUnion("runner", [
+export const runtimeRunnerOptionsSchema = z.discriminatedUnion('runner', [
     dockerRuntimeRunnerOptionsSchema,
     dockerfileRuntimeRunnerOptionsSchema,
     dockerComposeRuntimeRunnerOptionsSchema,
     nixpacksRuntimeRunnerOptionsSchema,
     buildpackRuntimeRunnerOptionsSchema,
     railpackRuntimeRunnerOptionsSchema,
-]);
+])
 
-export type RuntimeRunnerOptions = z.infer<typeof runtimeRunnerOptionsSchema>;
+export type RuntimeRunnerOptions = z.infer<typeof runtimeRunnerOptionsSchema>
 
 export const RUNTIME_RUNNER_KINDS = [
-    "docker",
-    "dockerfile",
-    "docker_compose",
-    "nixpacks",
-    "buildpack",
-    "railpack",
-] as const;
-export type RuntimeRunnerKind = (typeof RUNTIME_RUNNER_KINDS)[number];
+    'docker',
+    'dockerfile',
+    'docker_compose',
+    'nixpacks',
+    'buildpack',
+    'railpack',
+] as const
+export type RuntimeRunnerKind = (typeof RUNTIME_RUNNER_KINDS)[number]
 
 /**
  * Resolve a loose runner-kind string into a valid kind, defaulting to
  * "docker" (the base runner) when the value is empty or unknown.
  */
 export function resolveRuntimeRunnerKind(
-    value: string | null | undefined,
+    value: string | null | undefined
 ): RuntimeRunnerKind {
-    const normalized = (value ?? "").trim().toLowerCase() as RuntimeRunnerKind;
+    const normalized = (value ?? '').trim().toLowerCase() as RuntimeRunnerKind
     return (RUNTIME_RUNNER_KINDS as readonly string[]).includes(normalized)
         ? normalized
-        : "docker";
+        : 'docker'
 }

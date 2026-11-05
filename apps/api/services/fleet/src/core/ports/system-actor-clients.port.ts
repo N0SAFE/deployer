@@ -1,10 +1,14 @@
-import { Context } from "effect";
+import { Context } from 'effect'
 
-import type { ServiceClientShape } from "@deployer/shared/server";
+import type { ServiceClientShape } from '@deployer/shared/server'
 
 /** Effect view of the service client: the clients that call a sibling service as the system. */
-export type SystemActorClientsShape = Pick<ServiceClientShape, "systemActorClientFor">;
+export type SystemActorClientsShape = Pick<
+    ServiceClientShape,
+    'systemActorClientFor'
+>
 
-export class SystemActorClients extends Context.Service<SystemActorClients, SystemActorClientsShape>()(
-	"fleet/SystemActorClients",
-) {}
+export class SystemActorClients extends Context.Service<
+    SystemActorClients,
+    SystemActorClientsShape
+>()('fleet/SystemActorClients') {}

@@ -17,28 +17,82 @@ const shared = createNextJsConfig({
             // name to a directory lets both the barrel and every subpath resolve
             // to source. Mapping to `${pkg}/src/index.ts` would leave subpaths to
             // fall through to `dist/`, which tests must not load.
-            '@deployer/env': path.resolve(__dirname, '../../packages/config/env/src'),
-            '@deployer/logger': path.resolve(__dirname, '../../packages/infrastructure/logger/src'),
-            '@deployer/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src'),
-            '@deployer/bff-contracts': path.resolve(__dirname, '../../packages/contracts/bff'),
-            '@deployer/auth': path.resolve(__dirname, '../../packages/auth/src'),
-            '@deployer/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src'),
-            '@deployer/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src'),
+            '@deployer/env': path.resolve(
+                __dirname,
+                '../../packages/config/env/src'
+            ),
+            '@deployer/logger': path.resolve(
+                __dirname,
+                '../../packages/infrastructure/logger/src'
+            ),
+            '@deployer/type-guards': path.resolve(
+                __dirname,
+                '../../packages/utils/type-guards/src'
+            ),
+            '@deployer/bff-contracts': path.resolve(
+                __dirname,
+                '../../packages/contracts/bff'
+            ),
+            '@deployer/auth': path.resolve(
+                __dirname,
+                '../../packages/auth/src'
+            ),
+            '@deployer/contracts-entities': path.resolve(
+                __dirname,
+                '../../packages/contracts/entities/src'
+            ),
+            '@deployer/contracts-common': path.resolve(
+                __dirname,
+                '../../packages/contracts/common/src'
+            ),
             // The service contract packages the shared surface composes. Without
             // these, `service-surface.ts` resolves them through the package
             // `exports` map and loads `dist/` — which tests must not use, and which
             // is absent in a fresh checkout, so the whole unit project fails to load.
-            '@deployer/identity-contracts': path.resolve(__dirname, '../../packages/contracts/identity'),
-            '@deployer/project-contracts': path.resolve(__dirname, '../../packages/contracts/project'),
-            '@deployer/runtime-contracts': path.resolve(__dirname, '../../packages/contracts/runtime'),
-            '@deployer/fleet-contracts': path.resolve(__dirname, '../../packages/contracts/fleet'),
-            '@deployer/health-contracts': path.resolve(__dirname, '../../packages/contracts/health'),
-            '@deployer/orpc-utils': path.resolve(__dirname, '../../packages/transport/orpc/src'),
-            '@deployer/provider-schema': path.resolve(__dirname, '../../packages/utils/provider-schema/src'),
-            '@deployer/errors': path.resolve(__dirname, '../../packages/utils/errors/src'),
-            '@deployer/nest-effect/events': path.resolve(__dirname, '../../packages/nest/effect/src/events'),
-            '@deployer/nest-effect/lifecycle': path.resolve(__dirname, '../../packages/nest/effect/src/lifecycle'),
-            '@deployer/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
+            '@deployer/identity-contracts': path.resolve(
+                __dirname,
+                '../../packages/contracts/identity'
+            ),
+            '@deployer/project-contracts': path.resolve(
+                __dirname,
+                '../../packages/contracts/project'
+            ),
+            '@deployer/runtime-contracts': path.resolve(
+                __dirname,
+                '../../packages/contracts/runtime'
+            ),
+            '@deployer/fleet-contracts': path.resolve(
+                __dirname,
+                '../../packages/contracts/fleet'
+            ),
+            '@deployer/health-contracts': path.resolve(
+                __dirname,
+                '../../packages/contracts/health'
+            ),
+            '@deployer/orpc-utils': path.resolve(
+                __dirname,
+                '../../packages/transport/orpc/src'
+            ),
+            '@deployer/provider-schema': path.resolve(
+                __dirname,
+                '../../packages/utils/provider-schema/src'
+            ),
+            '@deployer/errors': path.resolve(
+                __dirname,
+                '../../packages/utils/errors/src'
+            ),
+            '@deployer/nest-effect/events': path.resolve(
+                __dirname,
+                '../../packages/nest/effect/src/events'
+            ),
+            '@deployer/nest-effect/lifecycle': path.resolve(
+                __dirname,
+                '../../packages/nest/effect/src/lifecycle'
+            ),
+            '@deployer/ui': path.resolve(
+                __dirname,
+                '../../packages/ui/base/src'
+            ),
         },
     },
     define: {

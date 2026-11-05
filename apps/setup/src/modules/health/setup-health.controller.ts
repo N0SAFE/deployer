@@ -1,11 +1,13 @@
-import { Controller, Get, HttpCode, Inject, Res } from "@nestjs/common";
-import { HealthCheckService } from "@nestjs/terminus";
+import { Controller, Get, HttpCode, Inject, Res } from '@nestjs/common'
+import { HealthCheckService } from '@nestjs/terminus'
 
+import { SetupPhaseService, type SetupPhaseShape } from './setup-phase.service'
+import {
+    SetupReadinessIndicator,
+    type SetupReadinessIndicatorShape,
+} from './setup-readiness.indicator'
 
-import { SetupPhaseService, type SetupPhaseShape } from "./setup-phase.service";
-import { SetupReadinessIndicator, type SetupReadinessIndicatorShape } from "./setup-readiness.indicator";
-
-import type { Response } from "express";
+import type { Response } from 'express'
 
 /**
  * The setup app's health surface.
@@ -22,45 +24,55 @@ import type { Response } from "express";
  * Neither is authenticated: the setup app is pre-auth by definition (there is no
  * user database yet). Neither exposes secrets — only phase names and booleans.
  */
-@Controller("setup")
+@Controller('setup')
 export class SetupHealthController {
-  constructor(
-    private readonly health: HealthCheckService,
-    @Inject(SetupReadinessIndicator) private readonly indicator: SetupReadinessIndicatorShape,
-    @Inject(SetupPhaseService) private readonly phases: SetupPhaseShape,
-  ) {}
+    constructor(
+        private readonly health: HealthCheckService,
+        @Inject(SetupReadinessIndicator)
+        private readonly indicator: SetupReadinessIndicatorShape,
+        @Inject(SetupPhaseService) private readonly phases: SetupPhaseShape
+    ) {}
 
-  /**
-   * The compose gate.
-   *
-   * Uses `@Res()` directly rather than throwing so the Terminus verdict is
-   * translated explicitly: Terminus signals "down" by throwing
-   * `ServiceUnavailableException`, and letting that propagate would make a
-   * normal not-ready state look like a crash in the logs.
-   */
-  @Get("health")
-  async healthCheck(@Res() res: Response): Promise<void> {
-    try {
-      const result = await this.health.check([() => Promise.resolve(this.indicator.check())]);
-      res.status(200).json(result);
-    } catch (error: unknown) {
-      const response = (error as { getResponse?: () => unknown }).getResponse?.();
-      res.status(503).json(
-        response ?? {
-          status: "error",
-          error: { setup: { status: "down", reason: "readiness probe failed" } },
-        },
-      );
+    /**
+     * The compose gate.
+     *
+     * Uses `@Res()` directly rather than throwing so the Terminus verdict is
+     * translated explicitly: Terminus signals "down" by throwing
+     * `ServiceUnavailableException`, and letting that propagate would make a
+     * normal not-ready state look like a crash in the logs.
+     */
+    @Get('health')
+    async healthCheck(@Res() res: Response): Promise<void> {
+        try {
+            const result = await this.health.check([
+                () => Promise.resolve(this.indicator.check()),
+            ])
+            res.status(200).json(result)
+        } catch (error: unknown) {
+            const response = (
+                error as { getResponse?: () => unknown }
+            ).getResponse?.()
+            res.status(503).json(
+                response ?? {
+                    status: 'error',
+                    error: {
+                        setup: {
+                            status: 'down',
+                            reason: 'readiness probe failed',
+                        },
+                    },
+                }
+            )
+        }
     }
-  }
 
-  /**
-   * The wizard's read model. Always 200 — "not ready yet" is data here, not an
-   * error, which keeps the browser console clean while setup runs.
-   */
-  @Get("state")
-  @HttpCode(200)
-  state() {
-    return this.phases.current();
-  }
+    /**
+     * The wizard's read model. Always 200 — "not ready yet" is data here, not an
+     * error, which keeps the browser console clean while setup runs.
+     */
+    @Get('state')
+    @HttpCode(200)
+    state() {
+        return this.phases.current()
+    }
 }

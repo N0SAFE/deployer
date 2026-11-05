@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { z } from 'zod'
 
-export const page = true;
-export const layout = false;
+export const page = true
+export const layout = false
 export const Route = {
-  name: "AuthDashboardSettingsRoles",
-  params: z.object({}),
-};
+    name: 'AuthDashboardSettingsRoles',
+    params: z.object({}),
+}

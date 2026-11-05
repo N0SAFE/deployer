@@ -26,25 +26,27 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { servicePreviewTopologyContract } from "@deployer/project-contracts";
+import { servicePreviewTopologyContract } from '@deployer/project-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class ServicePreviewTopologyDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("project", servicePreviewTopologyContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('project', servicePreviewTopologyContract)
+    }
 
-	@Implement(servicePreviewTopologyContract.resolve)
-	resolve() {
-		return implement(servicePreviewTopologyContract.resolve).handler(({ input }) => this.client.resolve(input));
-	}
+    @Implement(servicePreviewTopologyContract.resolve)
+    resolve() {
+        return implement(servicePreviewTopologyContract.resolve).handler(
+            ({ input }) => this.client.resolve(input)
+        )
+    }
 }

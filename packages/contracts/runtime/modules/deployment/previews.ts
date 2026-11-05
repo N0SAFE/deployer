@@ -1,6 +1,6 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * Preview environment read model — exposes the `preview_environments` table
@@ -27,24 +27,25 @@ export const previewEnvironmentSchema = z.object({
         .optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
-});
+})
 
 export const listServicePreviewsOutputSchema = z.object({
     previews: z.array(previewEnvironmentSchema),
-});
+})
 
-const previewOps = standard.zod(listServicePreviewsOutputSchema, "servicePreviews");
+const previewOps = standard.zod(
+    listServicePreviewsOutputSchema,
+    'servicePreviews'
+)
 
 export const listServicePreviewsContract = previewOps
     .list()
     // The static segment lives in the params TEMPLATE: `.params()` defines the whole path, so a `.path("/previews")` before it
     // was silently dropped and this became `GET /deployments/{serviceId}`, colliding with `findById`.
-    .input((b) =>
-        b.params((p) => p`/previews/${p("serviceId", z.uuid())}`),
-    )
+    .input((b) => b.params((p) => p`/previews/${p('serviceId', z.uuid())}`))
     .output(listServicePreviewsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 // ─── Promote preview → stable ─────────────────────────────────────────────
 
@@ -53,9 +54,12 @@ export const promoteServicePreviewOutputSchema = z.object({
     host: z.string().nullable(),
     reason: z.string().nullable().optional(),
     mappingId: z.string().nullable().optional(),
-});
+})
 
-const promotePreviewOps = standard.zod(promoteServicePreviewOutputSchema, "promoteServicePreview");
+const promotePreviewOps = standard.zod(
+    promoteServicePreviewOutputSchema,
+    'promoteServicePreview'
+)
 
 export const promoteServicePreviewContract = promotePreviewOps
     .create()
@@ -63,9 +67,9 @@ export const promoteServicePreviewContract = promotePreviewOps
     // other single-segment POST (`/trigger`, `/trigger-event`, `/upload-bundle`) before its own route was reached.
     .input((b) =>
         b
-            .params((p) => p`/previews/promote/${p("serviceId", z.uuid())}`)
-            .body(z.object({ previewName: z.string().min(1) })),
+            .params((p) => p`/previews/promote/${p('serviceId', z.uuid())}`)
+            .body(z.object({ previewName: z.string().min(1) }))
     )
     .output(promoteServicePreviewOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()

@@ -1,15 +1,14 @@
-import { reportDenial } from "@identity/core/orpc/denial";
 import {
-	createModuleContext,
-	EffectRuntimeModule,
-	EffectHost,
-	EffectHostModule,
-} from "@deployer/nest-effect";
+    createModuleContext,
+    EffectRuntimeModule,
+    EffectHost,
+    EffectHostModule,
+} from '@deployer/nest-effect'
 import { registerSchemaCodecs } from '@deployer/shared/config/drizzle/schema-codecs'
 import { EnvModule } from '@deployer/shared/config/env/env.module'
 import { AuthModule } from '@deployer/shared/core/modules/auth/auth.module'
 import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
-import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module';
+import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module'
 import {
     DEPENDENCIES,
     HealthModule,
@@ -19,14 +18,15 @@ import {
 } from '@deployer/shared/server'
 
 import { DatabasePortModule } from '@identity/core/database/database.module'
+import { reportDenial } from '@identity/core/orpc/denial'
 
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
 import { ApprovalDomainModule } from './modules/approval/approval.module'
 import { AuditDomainModule } from './modules/audit/audit.module'
-import { RoleSeedModule } from './modules/role/role-seed.module'
-import { StepUpDomainModule } from './modules/step-up/step-up.module'
-import { RoleDomainModule } from './modules/role/role.module'
 import { PushDomainModule } from './modules/push/push.module'
+import { RoleSeedModule } from './modules/role/role-seed.module'
+import { RoleDomainModule } from './modules/role/role.module'
+import { StepUpDomainModule } from './modules/step-up/step-up.module'
 import { UserDomainModule } from './modules/user/user.module'
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
@@ -74,11 +74,16 @@ export class IdentityServiceModule extends createModuleContext({
         // contributes that context per request without changing the shared policy.
         EffectHostModule,
         createOrpcModule({
-			boundary: { service: 'svc-identity', onDomainFailure: reportDenial },
+            boundary: {
+                service: 'svc-identity',
+                onDomainFailure: reportDenial,
+            },
             extraContext: {
                 inject: [EffectHost],
                 resolve: (executionContext, host) => ({
-                    'effect/context': host.contextFor(executionContext.getClass()),
+                    'effect/context': host.contextFor(
+                        executionContext.getClass()
+                    ),
                 }),
             },
         }),

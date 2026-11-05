@@ -1,12 +1,12 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { DatabasePort } from "@identity/core/database/database.port";
-import { AuditDomainModule } from "@identity/modules/audit/audit.module";
-import { StepUpDomainModule } from "@identity/modules/step-up/step-up.module";
+import { DatabasePort } from '@identity/core/database/database.port'
+import { AuditDomainModule } from '@identity/modules/audit/audit.module'
+import { StepUpDomainModule } from '@identity/modules/step-up/step-up.module'
 
-import { RoleController } from "./controllers/role.controller";
-import { RoleRepository } from "./role.repository";
-import { RoleService } from "./role.service";
+import { RoleController } from './controllers/role.controller'
+import { RoleRepository } from './role.repository'
+import { RoleService } from './role.service'
 
 /**
  * The role catalogue: reads for the picker, plus the boot-time seed that keeps the built-in roles in sync with
@@ -14,14 +14,14 @@ import { RoleService } from "./role.service";
  * a request context.
  */
 export class RoleDomainModule extends createModuleContext(
-	{
-		controllers: [RoleController],
-		imports: [AuditDomainModule, StepUpDomainModule],
-		exports: [RoleService, RoleRepository],
-		providers: [
-			{ provide: RoleService, useValue: RoleService.live },
-			{ provide: RoleRepository, useValue: RoleRepository.live },
-		],
-	},
-	DatabasePort,
+    {
+        controllers: [RoleController],
+        imports: [AuditDomainModule, StepUpDomainModule],
+        exports: [RoleService, RoleRepository],
+        providers: [
+            { provide: RoleService, useValue: RoleService.live },
+            { provide: RoleRepository, useValue: RoleRepository.live },
+        ],
+    },
+    DatabasePort
 ) {}

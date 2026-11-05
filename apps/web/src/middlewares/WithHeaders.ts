@@ -1,11 +1,19 @@
-import { NextFetchEvent, NextProxy, NextRequest, NextResponse } from 'next/server'
+import {
+    NextFetchEvent,
+    NextProxy,
+    NextRequest,
+    NextResponse,
+} from 'next/server'
 
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
 import { nextjsRegexpPageOnly } from './utils/static'
 import { Matcher, MiddlewareFactory } from './utils/types'
 
-const debugHeaders = createContextFilterDebugLogger('WithHeaders', 'middleware:[WithHeaders]')
+const debugHeaders = createContextFilterDebugLogger(
+    'WithHeaders',
+    'middleware:[WithHeaders]'
+)
 
 /**
  * Middleware-internal headers that encode routing/request machinery. They are
@@ -14,24 +22,25 @@ const debugHeaders = createContextFilterDebugLogger('WithHeaders', 'middleware:[
  * ours). `x-middleware-set-cookie` is NOT excluded on purpose — cookies set by
  * inner middlewares must survive the response swap.
  */
-const MIDDLEWARE_REGEN_HEADERS = /^x-middleware-(request-|override-headers|next$)/i
+const MIDDLEWARE_REGEN_HEADERS =
+    /^x-middleware-(request-|override-headers|next$)/i
 
 export const withHeaders: MiddlewareFactory = (next: NextProxy) => {
     return async (request: NextRequest, _next: NextFetchEvent) => {
         debugHeaders('Processing request headers', {
             path: request.nextUrl.pathname,
             method: request.method,
-            headers: Object.fromEntries(request.headers.entries())
+            headers: Object.fromEntries(request.headers.entries()),
         })
-        
+
         const res = await next(request, _next)
-        
+
         if (res) {
             res.headers.set('x-pathname', request.nextUrl.pathname)
             debugHeaders('Setting response headers', {
                 path: request.nextUrl.pathname,
                 'x-pathname': request.nextUrl.pathname,
-                responseHeaders: Object.fromEntries(res.headers.entries())
+                responseHeaders: Object.fromEntries(res.headers.entries()),
             })
 
             // Forward the current URL to Server Components / Server Actions via
@@ -50,7 +59,9 @@ export const withHeaders: MiddlewareFactory = (next: NextProxy) => {
                 requestHeaders.set('x-pathname', request.nextUrl.pathname)
                 requestHeaders.set('x-search', request.nextUrl.search)
 
-                const nextRes = NextResponse.next({ request: { headers: requestHeaders } })
+                const nextRes = NextResponse.next({
+                    request: { headers: requestHeaders },
+                })
 
                 // Preserve user-facing response headers (x-pathname, cookies,
                 // anything inner middlewares added) but never the x-middleware-*
@@ -64,17 +75,19 @@ export const withHeaders: MiddlewareFactory = (next: NextProxy) => {
                     path: request.nextUrl.pathname,
                     'x-pathname': request.nextUrl.pathname,
                     'x-search': request.nextUrl.search,
-                    responseHeaders: Object.fromEntries(nextRes.headers.entries())
+                    responseHeaders: Object.fromEntries(
+                        nextRes.headers.entries()
+                    ),
                 })
 
                 return nextRes
             }
         } else {
             debugHeaders('No response returned from next middleware', {
-                path: request.nextUrl.pathname
+                path: request.nextUrl.pathname,
             })
         }
-        
+
         return res
     }
 }

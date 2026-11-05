@@ -1,7 +1,7 @@
-import { Context } from "effect";
+import { Context } from 'effect'
 
-import type { DeploymentRepository } from "../repositories/deployment.repository";
-import type { DeploymentServiceShape } from "../services/deployment.service";
+import type { DeploymentRepository } from '../repositories/deployment.repository'
+import type { DeploymentServiceShape } from '../services/deployment.service'
 
 /**
  * What the trigger sources and event-triggered deployments depend on, as Effect ports over
@@ -11,9 +11,9 @@ import type { DeploymentServiceShape } from "../services/deployment.service";
  */
 export class TriggerServiceLinkPort extends Context.Service<
     TriggerServiceLinkPort,
-    Pick<DeploymentRepository, "findServiceBySourceUrl">
->()("runtime/TriggerServiceLinkPort") {}
+    Pick<DeploymentRepository, 'findServiceBySourceUrl'>
+>()('runtime/TriggerServiceLinkPort') {}
 export class SystemDeploymentsPort extends Context.Service<
     SystemDeploymentsPort,
-    Pick<DeploymentServiceShape, "triggerDeploymentAsSystem">
->()("runtime/SystemDeploymentsPort") {}
+    Pick<DeploymentServiceShape, 'triggerDeploymentAsSystem'>
+>()('runtime/SystemDeploymentsPort') {}

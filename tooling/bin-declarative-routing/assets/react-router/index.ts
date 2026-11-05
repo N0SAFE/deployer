@@ -1,11 +1,11 @@
-import { z } from "zod";
-import { makeRoute } from "./makeRoute";
+import { z } from 'zod'
+import { makeRoute } from './makeRoute'
 
-export const Home = makeRoute("/", {
-  name: "Home",
-  params: z.object({}),
-  search: z.object({})
-});
+export const Home = makeRoute('/', {
+    name: 'Home',
+    params: z.object({}),
+    search: z.object({}),
+})
 
 /*
 Define your routes here, like this:

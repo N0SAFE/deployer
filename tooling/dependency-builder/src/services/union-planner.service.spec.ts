@@ -62,8 +62,14 @@ describe('UnionPlanner', () => {
                 private: true,
                 devDependencies: { '@deployer/tooling': '*' },
             },
-            'apps/api': { name: 'api', dependencies: { '@deployer/shared': '*' } },
-            'apps/web': { name: 'web', dependencies: { '@deployer/widget': '*' } },
+            'apps/api': {
+                name: 'api',
+                dependencies: { '@deployer/shared': '*' },
+            },
+            'apps/web': {
+                name: 'web',
+                dependencies: { '@deployer/widget': '*' },
+            },
             'packages/shared': { name: '@deployer/shared' },
             'packages/widget': { name: '@deployer/widget' },
             'packages/tooling': { name: '@deployer/tooling' },
@@ -134,10 +140,16 @@ describe('UnionPlanner', () => {
     it('lists a shared package once, naming every application that pulled it in', () => {
         const root = repo({
             '.': { name: 'root', private: true },
-            'apps/api': { name: 'api', dependencies: { '@deployer/shared': '*' } },
+            'apps/api': {
+                name: 'api',
+                dependencies: { '@deployer/shared': '*' },
+            },
             'apps/web': {
                 name: 'web',
-                dependencies: { '@deployer/shared': '*', '@deployer/only-web': '*' },
+                dependencies: {
+                    '@deployer/shared': '*',
+                    '@deployer/only-web': '*',
+                },
             },
             'packages/shared': { name: '@deployer/shared' },
             'packages/only-web': { name: '@deployer/only-web' },
@@ -167,7 +179,10 @@ describe('UnionPlanner', () => {
     it("includes the tool's own internal dependencies", () => {
         const root = repo({
             '.': { name: 'root', private: true },
-            'apps/api': { name: 'api', dependencies: { '@deployer/shared': '*' } },
+            'apps/api': {
+                name: 'api',
+                dependencies: { '@deployer/shared': '*' },
+            },
             'packages/shared': { name: '@deployer/shared' },
             'packages/logger': { name: '@deployer/logger' },
             'tooling/dependency-builder': {
@@ -191,7 +206,10 @@ describe('UnionPlanner', () => {
     it('marks a package shared by an application and the tool', () => {
         const root = repo({
             '.': { name: 'root', private: true },
-            'apps/api': { name: 'api', dependencies: { '@deployer/logger': '*' } },
+            'apps/api': {
+                name: 'api',
+                dependencies: { '@deployer/logger': '*' },
+            },
             'packages/logger': { name: '@deployer/logger' },
             'tooling/dependency-builder': {
                 name: '@deployer/dependency-builder',

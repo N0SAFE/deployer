@@ -21,20 +21,29 @@ import { isPlatformAdministrator, platformRoleRank } from '@deployer/auth/authz'
  * so it must be validated rather than cast.
  */
 export function isPlatformRole(value: unknown): value is PlatformRole {
-	return typeof value === 'string' && (PLATFORM_ROLES as readonly string[]).includes(value)
+    return (
+        typeof value === 'string' &&
+        (PLATFORM_ROLES as readonly string[]).includes(value)
+    )
 }
 
 /** Does `role` meet or exceed `minimum`? Unknown roles never do. */
-export function isPlatformRoleAtLeast(role: unknown, minimum: PlatformRole): boolean {
-	return platformRoleRank(typeof role === 'string' ? role : null) >= platformRoleRank(minimum)
+export function isPlatformRoleAtLeast(
+    role: unknown,
+    minimum: PlatformRole
+): boolean {
+    return (
+        platformRoleRank(typeof role === 'string' ? role : null) >=
+        platformRoleRank(minimum)
+    )
 }
 
 /** Does `role` administer the platform? */
 export function isPlatformAdminRole(role: unknown): boolean {
-	return isPlatformAdministrator(typeof role === 'string' ? role : null)
+    return isPlatformAdministrator(typeof role === 'string' ? role : null)
 }
 
 /** Every role, highest privilege first — for a picker that must not hardcode them. */
-export const platformRolesByPrivilege: readonly PlatformRole[] = [...PLATFORM_ROLES].sort(
-	(a, b) => platformRoleRank(b) - platformRoleRank(a),
-)
+export const platformRolesByPrivilege: readonly PlatformRole[] = [
+    ...PLATFORM_ROLES,
+].sort((a, b) => platformRoleRank(b) - platformRoleRank(a))

@@ -58,6 +58,7 @@ GitHubModule (core/modules/github/)
 ```
 
 **Issues with Current Design:**
+
 1. **Scattered Responsibility**: Git operations split between two modules
 2. **Duplication**: Both have commit info methods (local vs API)
 3. **No Clear Provider Pattern**: Not following the builder/provider registry pattern
@@ -130,13 +131,23 @@ providers/
 // providers/github/services/git-operations.service.ts
 @Injectable()
 export class GitOperationsService {
-  private readonly workspaceDir: string;
-  
-  async cloneRepository(options: CloneOptions): Promise<string> { /* ... */ }
-  async extractArchive(options: ExtractOptions): Promise<string> { /* ... */ }
-  async getCommitInfo(repoPath: string): Promise<CommitInfo> { /* ... */ }
-  async validateRepository(url: string): Promise<boolean> { /* ... */ }
-  async cleanupWorkspace(deploymentId: string): Promise<void> { /* ... */ }
+    private readonly workspaceDir: string
+
+    async cloneRepository(options: CloneOptions): Promise<string> {
+        /* ... */
+    }
+    async extractArchive(options: ExtractOptions): Promise<string> {
+        /* ... */
+    }
+    async getCommitInfo(repoPath: string): Promise<CommitInfo> {
+        /* ... */
+    }
+    async validateRepository(url: string): Promise<boolean> {
+        /* ... */
+    }
+    async cleanupWorkspace(deploymentId: string): Promise<void> {
+        /* ... */
+    }
 }
 ```
 
@@ -146,32 +157,37 @@ export class GitOperationsService {
 // providers/github/services/github-provider.service.ts
 @Injectable()
 export class GithubProviderService implements SourceProviderInterface {
-  readonly id = 'github';
-  readonly name = 'GitHub';
-  
-  constructor(
-    private readonly gitOps: GitOperationsService,
-    private readonly githubApi: GitHubApiService,
-  ) {}
-  
-  supports(config: SourceConfig): boolean {
-    return config.type === 'github' || config.type === 'git';
-  }
-  
-  async fetchSource(config: SourceConfig, deploymentId: string): Promise<FetchResult> {
-    // Clone repository using git operations
-    const repoPath = await this.gitOps.cloneRepository({
-      url: config.repositoryUrl!,
-      branch: config.branch,
-      commit: config.commitSha,
-      deploymentId,
-    });
-    
-    return {
-      sourcePath: repoPath,
-      commitSha: config.commitSha || (await this.gitOps.getCommitInfo(repoPath)).sha,
-    };
-  }
+    readonly id = 'github'
+    readonly name = 'GitHub'
+
+    constructor(
+        private readonly gitOps: GitOperationsService,
+        private readonly githubApi: GitHubApiService
+    ) {}
+
+    supports(config: SourceConfig): boolean {
+        return config.type === 'github' || config.type === 'git'
+    }
+
+    async fetchSource(
+        config: SourceConfig,
+        deploymentId: string
+    ): Promise<FetchResult> {
+        // Clone repository using git operations
+        const repoPath = await this.gitOps.cloneRepository({
+            url: config.repositoryUrl!,
+            branch: config.branch,
+            commit: config.commitSha,
+            deploymentId,
+        })
+
+        return {
+            sourcePath: repoPath,
+            commitSha:
+                config.commitSha ||
+                (await this.gitOps.getCommitInfo(repoPath)).sha,
+        }
+    }
 }
 ```
 
@@ -179,16 +195,17 @@ export class GithubProviderService implements SourceProviderInterface {
 
 ```typescript
 // Before (in deployment module)
-import { GitModule } from '@/core/modules/git/git.module';
-import { GitHubModule } from '@/core/modules/github/github.module';
+import { GitModule } from '@/core/modules/git/git.module'
+import { GitHubModule } from '@/core/modules/github/github.module'
 
 // After
-import { GitHubProviderModule } from '@/core/modules/providers/github/github-provider.module';
+import { GitHubProviderModule } from '@/core/modules/providers/github/github-provider.module'
 ```
 
 ### Phase 5: Delete Old Modules
 
 Once migration is complete and tested:
+
 1. Delete `core/modules/git/` directory
 2. Update `core/modules/github/` to only contain API services (or merge entirely)
 
@@ -199,35 +216,38 @@ Once migration is complete and tested:
 ```typescript
 // providers/interfaces/source-provider.interface.ts
 export interface SourceProviderInterface {
-  /** Unique provider identifier */
-  readonly id: string;
-  
-  /** Human-readable provider name */
-  readonly name: string;
-  
-  /** Check if this provider can handle the config */
-  supports(config: SourceConfig): boolean;
-  
-  /** Fetch source code for deployment */
-  fetchSource(config: SourceConfig, deploymentId: string): Promise<FetchResult>;
-  
-  /** Optional: Cleanup after deployment */
-  cleanup?(deploymentId: string): Promise<void>;
+    /** Unique provider identifier */
+    readonly id: string
+
+    /** Human-readable provider name */
+    readonly name: string
+
+    /** Check if this provider can handle the config */
+    supports(config: SourceConfig): boolean
+
+    /** Fetch source code for deployment */
+    fetchSource(
+        config: SourceConfig,
+        deploymentId: string
+    ): Promise<FetchResult>
+
+    /** Optional: Cleanup after deployment */
+    cleanup?(deploymentId: string): Promise<void>
 }
 
 export interface SourceConfig {
-  type: 'github' | 'gitlab' | 'git' | 'upload' | 'static';
-  repositoryUrl?: string;
-  branch?: string;
-  commitSha?: string;
-  filePath?: string;
-  // ... other config
+    type: 'github' | 'gitlab' | 'git' | 'upload' | 'static'
+    repositoryUrl?: string
+    branch?: string
+    commitSha?: string
+    filePath?: string
+    // ... other config
 }
 
 export interface FetchResult {
-  sourcePath: string;
-  commitSha?: string;
-  metadata?: Record<string, any>;
+    sourcePath: string
+    commitSha?: string
+    metadata?: Record<string, any>
 }
 ```
 
@@ -235,11 +255,11 @@ export interface FetchResult {
 
 ## Affected Modules
 
-| Module | Current Usage | After Migration |
-|--------|--------------|-----------------|
-| `OrchestrationModule` | Imports `GitService` directly | Uses `GitHubProviderModule` |
+| Module                 | Current Usage                             | After Migration             |
+| ---------------------- | ----------------------------------------- | --------------------------- |
+| `OrchestrationModule`  | Imports `GitService` directly             | Uses `GitHubProviderModule` |
 | `CoreDeploymentModule` | Imports `GitHubProviderModule` (missing!) | Uses `GitHubProviderModule` |
-| `GitHubWebhookModule` | Uses `GitHubService` | Uses `GitHubApiService` |
+| `GitHubWebhookModule`  | Uses `GitHubService`                      | Uses `GitHubApiService`     |
 
 ---
 

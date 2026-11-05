@@ -1,25 +1,29 @@
-"use client";
+'use client'
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import type {
     SetupStreamEvent,
     SetupInitializeInput,
-} from "@deployer/contracts-entities";
-import { isSetupRunFinished } from "@deployer/ui/components/setup/progress-tasks";
+} from '@deployer/contracts-entities'
+import { isSetupRunFinished } from '@deployer/ui/components/setup/progress-tasks'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
+import {
+    isDefinedORPCError,
+    UNKNOWN_ORPC_ERROR_MESSAGE,
+    getErrorMessage,
+} from '@/lib/orpc/typed-errors'
 
-import { setupEndpoints } from "./endpoints";
+import { setupEndpoints } from './endpoints'
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 const setupKeys = {
-  all: ['setup'] as const,
-  state: () => [...setupKeys.all, 'state'] as const,
-  nodeStatus: () => [...setupKeys.all, 'nodeStatus'] as const,
-};
+    all: ['setup'] as const,
+    state: () => [...setupKeys.all, 'state'] as const,
+    nodeStatus: () => [...setupKeys.all, 'nodeStatus'] as const,
+}
 
 // ─── Query hooks ──────────────────────────────────────────────────────────────
 
@@ -29,32 +33,38 @@ const setupKeys = {
  * and by the wizard page to render the correct step.
  */
 export function useSetupState(options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: setupKeys.state(),
-    queryFn: () =>
-      setupEndpoints.getState.call({}, {
-        context: { cookie: document.cookie },
-      }),
-    enabled: options?.enabled ?? true,
-    staleTime: 15_000,
-    gcTime: 60_000,
-  });
+    return useQuery({
+        queryKey: setupKeys.state(),
+        queryFn: () =>
+            setupEndpoints.getState.call(
+                {},
+                {
+                    context: { cookie: document.cookie },
+                }
+            ),
+        enabled: options?.enabled ?? true,
+        staleTime: 15_000,
+        gcTime: 60_000,
+    })
 }
 
 /**
  * Node status — network identity, configuredAt, etc.
  */
 export function useNodeStatus(options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: setupKeys.nodeStatus(),
-    queryFn: () =>
-      setupEndpoints.getNodeStatus.call({}, {
-        context: { cookie: document.cookie },
-      }),
-    enabled: options?.enabled ?? true,
-    staleTime: 30_000,
-    gcTime: 120_000,
-  });
+    return useQuery({
+        queryKey: setupKeys.nodeStatus(),
+        queryFn: () =>
+            setupEndpoints.getNodeStatus.call(
+                {},
+                {
+                    context: { cookie: document.cookie },
+                }
+            ),
+        enabled: options?.enabled ?? true,
+        staleTime: 30_000,
+        gcTime: 120_000,
+    })
 }
 
 // ─── Pre-flight probes ────────────────────────────────────────────────────────
@@ -64,12 +74,12 @@ export function useNodeStatus(options?: { enabled?: boolean }) {
  * The contract wraps the result in `{ status: 201, body: ... }`, so unwrap `.body`.
  */
 export function useProbeDatabase() {
-  return useMutation({
-    mutationFn: async (databaseUrl: string) => {
-      const res = await setupEndpoints.probeDatabase.call({ databaseUrl });
-      return res.body
-    },
-  });
+    return useMutation({
+        mutationFn: async (databaseUrl: string) => {
+            const res = await setupEndpoints.probeDatabase.call({ databaseUrl })
+            return res.body
+        },
+    })
 }
 
 // ─── Trigger initialization ──────────────────────────────────────────────────
@@ -87,19 +97,25 @@ export function useProbeDatabase() {
  * reflects the new status.
  */
 export function useTriggerInitialize() {
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: (input: SetupInitializeInput) =>
-      setupEndpoints.triggerInitialize.call(input),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: setupKeys.state() });
-      void queryClient.invalidateQueries({ queryKey: setupKeys.nodeStatus() });
-    },
-    onError: (error: Error) => {
-      toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Setup trigger failed') : UNKNOWN_ORPC_ERROR_MESSAGE);
-    },
-  });
+    return useMutation({
+        mutationFn: (input: SetupInitializeInput) =>
+            setupEndpoints.triggerInitialize.call(input),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: setupKeys.state() })
+            void queryClient.invalidateQueries({
+                queryKey: setupKeys.nodeStatus(),
+            })
+        },
+        onError: (error: Error) => {
+            toast.error(
+                isDefinedORPCError(error)
+                    ? getErrorMessage(error, 'Setup trigger failed')
+                    : UNKNOWN_ORPC_ERROR_MESSAGE
+            )
+        },
+    })
 }
 
 // ─── Stream initialization events (SSE) ──────────────────────────────────────
@@ -114,43 +130,45 @@ export function useTriggerInitialize() {
  * @param options.enabled - Enable the query (e.g. only after trigger)
  */
 export function useInitializeStream(options?: { enabled?: boolean }) {
-  const query = useQuery({
-    ...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions({
-      input: undefined,
-      enabled: options?.enabled ?? false,
-      refetchInterval: false,
-      // ── A CUT CONNECTION MUST REJECT, NOT SILENTLY SUCCEED ─────────────────
-      // The handover REPLACES the ingress (setup's bootstrap Traefik releases the
-      // entry port, the swarm-managed one binds it), which tears this SSE down.
-      // That ends with a CLEAN `complete()`, so without this the query was marked
-      // successful, nothing retried, and no request appeared in the network tab.
-      //
-      // Declaring "the stream is only finished at a terminal event" is what makes
-      // the collector reject an incomplete stream — so the `retry` below fires and
-      // `queryFn` issues a genuinely new request against whatever now serves this
-      // origin. Reconnecting the SAME origin is correct: the handover's last act
-      // points this hostname at the API, so the address is unchanged.
-      //
-      // The step list is PRESERVED across reconnects, so the operator keeps the
-      // progress they already had instead of an empty view.
-      isComplete: isSetupRunFinished,
-      // Short, and now SAFE to be short: the server sends a heartbeat every 3s,
-      // so a healthy stream always delivers bytes inside this window even while
-      // a step waits on something slow. Only a DEAD socket is silent this long.
-      inactivityTimeoutMs: 10_000,
-    }),
-    staleTime: Infinity,
-    gcTime: 0, // don't persist stream data across navigations
-    retry: (failureCount) => failureCount < 30,
-    retryDelay: (attempt: number) => Math.min(1_500 * (attempt + 1), 5_000),
-  });
-  return {
-    data: query.data,
-    error: query.error,
-    // A failed attempt being retried, with no terminal error yet — what the
-    // handover looks like from here (the ingress is replaced under the stream).
-    reconnecting: query.failureCount > 0 && query.error === null,
-  };
+    const query = useQuery({
+        ...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions(
+            {
+                input: undefined,
+                enabled: options?.enabled ?? false,
+                refetchInterval: false,
+                // ── A CUT CONNECTION MUST REJECT, NOT SILENTLY SUCCEED ─────────────────
+                // The handover REPLACES the ingress (setup's bootstrap Traefik releases the
+                // entry port, the swarm-managed one binds it), which tears this SSE down.
+                // That ends with a CLEAN `complete()`, so without this the query was marked
+                // successful, nothing retried, and no request appeared in the network tab.
+                //
+                // Declaring "the stream is only finished at a terminal event" is what makes
+                // the collector reject an incomplete stream — so the `retry` below fires and
+                // `queryFn` issues a genuinely new request against whatever now serves this
+                // origin. Reconnecting the SAME origin is correct: the handover's last act
+                // points this hostname at the API, so the address is unchanged.
+                //
+                // The step list is PRESERVED across reconnects, so the operator keeps the
+                // progress they already had instead of an empty view.
+                isComplete: isSetupRunFinished,
+                // Short, and now SAFE to be short: the server sends a heartbeat every 3s,
+                // so a healthy stream always delivers bytes inside this window even while
+                // a step waits on something slow. Only a DEAD socket is silent this long.
+                inactivityTimeoutMs: 10_000,
+            }
+        ),
+        staleTime: Infinity,
+        gcTime: 0, // don't persist stream data across navigations
+        retry: (failureCount) => failureCount < 30,
+        retryDelay: (attempt: number) => Math.min(1_500 * (attempt + 1), 5_000),
+    })
+    return {
+        data: query.data,
+        error: query.error,
+        // A failed attempt being retried, with no terminal error yet — what the
+        // handover looks like from here (the ingress is replaced under the stream).
+        reconnecting: query.failureCount > 0 && query.error === null,
+    }
 }
 
 /**
@@ -162,11 +180,13 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
  * retried, so the wizard stays on "still waiting" rather than on a stale answer.
  */
 export function usePostSetupVerification(options?: { enabled?: boolean }) {
-  return useQuery(
-    setupEndpoints.getPostSetupVerificationStream.experimental_liveObservableOptions({
-      enabled: options?.enabled ?? false,
-    }),
-  );
+    return useQuery(
+        setupEndpoints.getPostSetupVerificationStream.experimental_liveObservableOptions(
+            {
+                enabled: options?.enabled ?? false,
+            }
+        )
+    )
 }
 
 /**
@@ -174,9 +194,11 @@ export function usePostSetupVerification(options?: { enabled?: boolean }) {
  * stream data — if the last event is not `completed` or `error`,
  * initialization is still running (or pending).
  */
-export function isInitializing(events: SetupStreamEvent[] | undefined): boolean {
-  if (!events || events.length === 0) return false;
-  const last = events.at(-1);
-  if (!last) return false;
-  return last.type !== "completed" && last.type !== "error";
+export function isInitializing(
+    events: SetupStreamEvent[] | undefined
+): boolean {
+    if (!events || events.length === 0) return false
+    const last = events.at(-1)
+    if (!last) return false
+    return last.type !== 'completed' && last.type !== 'error'
 }

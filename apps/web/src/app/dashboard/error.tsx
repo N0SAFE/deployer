@@ -11,11 +11,11 @@ import { RouteError } from '@/components/error/RouteError'
  * Without it, an error anywhere under /dashboard replaces the entire viewport.
  */
 export default function DashboardError({
-  error,
-  reset,
+    error,
+    reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+    error: Error & { digest?: string }
+    reset: () => void
 }) {
-  return <RouteError error={error} reset={reset} />
+    return <RouteError error={error} reset={reset} />
 }

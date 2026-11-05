@@ -12,4 +12,4 @@ export default build({
     // emits them without their re-exports: 395 of 678 symbols survive, silently.
     // Every consumer of this package fails with "Export named X not found".
     splitting: false,
-});
+})

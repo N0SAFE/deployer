@@ -22,16 +22,16 @@
  * emitting whatever it likes while the public surface stays a single prefix.
  */
 
-import * as http from "node:http";
+import * as http from 'node:http'
 
-import { logger } from "@deployer/logger";
+import { logger } from '@deployer/logger'
 
-import type { Request, Response, NextFunction, RequestHandler } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from 'express'
 
-const log = logger.scope("ViteAssets");
+const log = logger.scope('ViteAssets')
 
 /** The single prefix every dev asset lives under (mirrors vite.config `base`). */
-export const VITE_ASSETS_PREFIX = "/vite";
+export const VITE_ASSETS_PREFIX = '/vite'
 
 /**
  * Paths that must reach the Vite dev server but are NOT under the base.
@@ -41,16 +41,22 @@ export const VITE_ASSETS_PREFIX = "/vite";
  * React plugin before the base is applied). Forwarding these keeps a
  * middlewareMode/standalone split from producing a half-loaded page.
  */
-const ROOT_ASSET_PREFIXES = ["/src/", "/node_modules/", "/@fs/", "/@vite", "/@react-refresh"];
+const ROOT_ASSET_PREFIXES = [
+    '/src/',
+    '/node_modules/',
+    '/@fs/',
+    '/@vite',
+    '/@react-refresh',
+]
 
 /**
  * Paths the browser requests automatically and that have no asset behind them.
  * Answering 204 keeps them out of the 503 path without inventing a file.
  */
-const NO_CONTENT_PATHS = ["/favicon.ico"];
+const NO_CONTENT_PATHS = ['/favicon.ico']
 
 /** Default port, matching `server.port` in the API's vite.config.ts. */
-const DEFAULT_VITE_DEV_SERVER_PORT = 5173;
+const DEFAULT_VITE_DEV_SERVER_PORT = 5173
 
 /**
  * Origin of the standalone Vite dev server that builds an app's client bundle.
@@ -64,15 +70,21 @@ const DEFAULT_VITE_DEV_SERVER_PORT = 5173;
  * `VITE_DEV_SERVER_URL` still overrides the whole origin, for a non-default dev
  * setup (a remote Vite server, or a test double).
  */
-export function resolveViteDevServerUrl(port: number = DEFAULT_VITE_DEV_SERVER_PORT): string {
-	return process.env.VITE_DEV_SERVER_URL ?? `http://127.0.0.1:${String(port)}`;
+export function resolveViteDevServerUrl(
+    port: number = DEFAULT_VITE_DEV_SERVER_PORT
+): string {
+    return process.env.VITE_DEV_SERVER_URL ?? `http://127.0.0.1:${String(port)}`
 }
 
 export function isViteAssetRequest(path: string): boolean {
-	const pathname = path.split("?")[0] ?? path;
-	if (pathname === VITE_ASSETS_PREFIX || pathname.startsWith(`${VITE_ASSETS_PREFIX}/`)) return true;
-	if (NO_CONTENT_PATHS.includes(pathname)) return true;
-	return ROOT_ASSET_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+    const pathname = path.split('?')[0] ?? path
+    if (
+        pathname === VITE_ASSETS_PREFIX ||
+        pathname.startsWith(`${VITE_ASSETS_PREFIX}/`)
+    )
+        return true
+    if (NO_CONTENT_PATHS.includes(pathname)) return true
+    return ROOT_ASSET_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
 /**
@@ -85,11 +97,15 @@ export function isViteAssetRequest(path: string): boolean {
  * Query strings are preserved: Vite uses them for HMR and dependency versioning.
  */
 export function toViteBasePath(path: string): string {
-	const [pathname, query] = path.split("?", 2) as [string, string | undefined];
-	if (pathname === VITE_ASSETS_PREFIX || pathname.startsWith(`${VITE_ASSETS_PREFIX}/`)) return path;
-	if (NO_CONTENT_PATHS.includes(pathname)) return path;
-	const rewritten = `${VITE_ASSETS_PREFIX}${pathname}`;
-	return query === undefined ? rewritten : `${rewritten}?${query}`;
+    const [pathname, query] = path.split('?', 2) as [string, string | undefined]
+    if (
+        pathname === VITE_ASSETS_PREFIX ||
+        pathname.startsWith(`${VITE_ASSETS_PREFIX}/`)
+    )
+        return path
+    if (NO_CONTENT_PATHS.includes(pathname)) return path
+    const rewritten = `${VITE_ASSETS_PREFIX}${pathname}`
+    return query === undefined ? rewritten : `${rewritten}?${query}`
 }
 
 /**
@@ -101,48 +117,53 @@ export function toViteBasePath(path: string): string {
  * gateway 503 instead of hanging the request.
  */
 export function createViteAssetsProxy(target: string): RequestHandler {
-	const url = new URL(target);
+    const url = new URL(target)
 
-	return (req: Request, res: Response, next: NextFunction): void => {
-		const path = req.url ?? "/";
-		if (!isViteAssetRequest(path)) {
-			next();
-			return;
-		}
+    return (req: Request, res: Response, next: NextFunction): void => {
+        const path = req.url ?? '/'
+        if (!isViteAssetRequest(path)) {
+            next()
+            return
+        }
 
-		// Browser-automatic probes have no asset behind them — answering 204
-		// avoids a spurious 503 in the console.
-		const pathname = path.split("?")[0] ?? path;
-		if (NO_CONTENT_PATHS.includes(pathname)) {
-			res.status(204).end();
-			return;
-		}
+        // Browser-automatic probes have no asset behind them — answering 204
+        // avoids a spurious 503 in the console.
+        const pathname = path.split('?')[0] ?? path
+        if (NO_CONTENT_PATHS.includes(pathname)) {
+            res.status(204).end()
+            return
+        }
 
-		const upstreamPath = toViteBasePath(path);
-		const upstream = http.request(
-			{
-				hostname: url.hostname,
-				port: url.port,
-				path: upstreamPath,
-				method: req.method,
-				headers: { ...req.headers, host: url.host },
-			},
-			(upstreamRes) => {
-				if (!res.headersSent) {
-					res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
-				}
-				upstreamRes.pipe(res);
-			},
-		);
+        const upstreamPath = toViteBasePath(path)
+        const upstream = http.request(
+            {
+                hostname: url.hostname,
+                port: url.port,
+                path: upstreamPath,
+                method: req.method,
+                headers: { ...req.headers, host: url.host },
+            },
+            (upstreamRes) => {
+                if (!res.headersSent) {
+                    res.writeHead(
+                        upstreamRes.statusCode ?? 502,
+                        upstreamRes.headers
+                    )
+                }
+                upstreamRes.pipe(res)
+            }
+        )
 
-		upstream.on("error", (error: Error) => {
-			// The dev server is not up (or died). Fail open so the request falls
-			// through to the gateway/router, which reports a real 503 rather than
-			// an opaque proxy error.
-			log.warn(`Vite asset proxy unavailable for ${path}: ${error.message}`);
-			if (!res.headersSent) next();
-		});
+        upstream.on('error', (error: Error) => {
+            // The dev server is not up (or died). Fail open so the request falls
+            // through to the gateway/router, which reports a real 503 rather than
+            // an opaque proxy error.
+            log.warn(
+                `Vite asset proxy unavailable for ${path}: ${error.message}`
+            )
+            if (!res.headersSent) next()
+        })
 
-		req.pipe(upstream);
-	};
+        req.pipe(upstream)
+    }
 }

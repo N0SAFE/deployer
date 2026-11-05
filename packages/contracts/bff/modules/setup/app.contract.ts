@@ -1,6 +1,6 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
-import z from "zod/v4";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
+import z from 'zod/v4'
 
 import {
     setupStateSnapshotSchema,
@@ -19,13 +19,13 @@ import {
     setupMeshJoinResultSchema,
     setupMeshTokenInputSchema,
     setupMeshTokenResultSchema,
-} from "@deployer/contracts-entities";
+} from '@deployer/contracts-entities'
 import {
     standard,
     standardDomainErrorContracts,
     standardDomainErrorPayloadSchema,
     type ErrorDefinitionBuilder,
-} from "@deployer/orpc-utils";
+} from '@deployer/orpc-utils'
 
 /**
  * The SETUP APP's contract — the wizard surface as the setup process serves it.
@@ -62,16 +62,40 @@ import {
  * returned "Unknown setup path". Naming each procedure makes every one of those
  * impossible by construction.
  */
-const setupAppOps = standard.zod(setupStateSnapshotSchema, "setupAppState");
-const setupAppNodeStatusOps = standard.zod(nodeConfigStatusSchema, "setupAppNodeStatus");
-const setupAppProbeDbOps = standard.zod(setupProbeDbResultSchema, "setupAppProbeDb");
-const setupAppHintsOps = standard.zod(listHintsResultSchema, "setupAppHints");
-const setupAppDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupAppDestination");
-const setupAppVerificationOps = standard.zod(setupPostSetupVerificationSchema, "setupAppVerification");
-const setupAppRetryOps = standard.zod(z.object({ accepted: z.boolean() }), "setupAppHandoverRetry");
-const setupAppMeshStatusOps = standard.zod(setupMeshStatusSchema, "setupAppMeshStatus");
-const setupAppMeshJoinOps = standard.zod(setupMeshJoinResultSchema, "setupAppMeshJoin");
-const setupAppMeshTokenOps = standard.zod(setupMeshTokenResultSchema, "setupAppMeshToken");
+const setupAppOps = standard.zod(setupStateSnapshotSchema, 'setupAppState')
+const setupAppNodeStatusOps = standard.zod(
+    nodeConfigStatusSchema,
+    'setupAppNodeStatus'
+)
+const setupAppProbeDbOps = standard.zod(
+    setupProbeDbResultSchema,
+    'setupAppProbeDb'
+)
+const setupAppHintsOps = standard.zod(listHintsResultSchema, 'setupAppHints')
+const setupAppDestinationOps = standard.zod(
+    setupPostSetupDestinationSchema,
+    'setupAppDestination'
+)
+const setupAppVerificationOps = standard.zod(
+    setupPostSetupVerificationSchema,
+    'setupAppVerification'
+)
+const setupAppRetryOps = standard.zod(
+    z.object({ accepted: z.boolean() }),
+    'setupAppHandoverRetry'
+)
+const setupAppMeshStatusOps = standard.zod(
+    setupMeshStatusSchema,
+    'setupAppMeshStatus'
+)
+const setupAppMeshJoinOps = standard.zod(
+    setupMeshJoinResultSchema,
+    'setupAppMeshJoin'
+)
+const setupAppMeshTokenOps = standard.zod(
+    setupMeshTokenResultSchema,
+    'setupAppMeshToken'
+)
 
 /**
  * The trigger and its stream share one builder, exactly as the API's own
@@ -87,7 +111,10 @@ const setupAppMeshTokenOps = standard.zod(setupMeshTokenResultSchema, "setupAppM
  * is the same arrangement `setupContract.triggerInitialize` uses, which keeps one
  * shape for this pair across both apps.
  */
-const setupAppInitializeOps = standard.zod(setupInitializeLocalResultSchema, "setupAppInitialize");
+const setupAppInitializeOps = standard.zod(
+    setupInitializeLocalResultSchema,
+    'setupAppInitialize'
+)
 
 /**
  * The setup app's error set — the same shape the wizard already handles.
@@ -103,37 +130,37 @@ function setupAppErrorContracts(e: (code?: string) => ErrorDefinitionBuilder) {
     return [
         ...standardDomainErrorContracts(e),
         e()
-            .code("SERVICE_UNAVAILABLE")
-            .message("The platform API is not reachable yet")
+            .code('SERVICE_UNAVAILABLE')
+            .message('The platform API is not reachable yet')
             .status(503)
             .data(standardDomainErrorPayloadSchema),
         e()
-            .code("BAD_GATEWAY")
-            .message("Upstream platform API request failed")
+            .code('BAD_GATEWAY')
+            .message('Upstream platform API request failed')
             .status(502)
             .data(standardDomainErrorPayloadSchema),
         e()
-            .code("GATEWAY_TIMEOUT")
-            .message("Upstream platform API timed out")
+            .code('GATEWAY_TIMEOUT')
+            .message('Upstream platform API timed out')
             .status(504)
             .data(standardDomainErrorPayloadSchema),
         e()
-            .code("INTERNAL_SERVER_ERROR")
-            .message("Setup failed")
+            .code('INTERNAL_SERVER_ERROR')
+            .message('Setup failed')
             .status(500)
             .data(standardDomainErrorPayloadSchema),
-    ] as const;
+    ] as const
 }
 
 export const setupAppContract = oc
-    .meta(openapi({ tags: ["SetupApp"], prefix: "/setup" }))
+    .meta(openapi({ tags: ['SetupApp'], prefix: '/setup' }))
     .router({
         // ─── State (answered LOCALLY — the API does not exist yet) ───────────
 
         /** Current wizard state. Read from the shared `node_config` row. */
         getState: setupAppOps
             .list()
-            .path("/state")
+            .path('/state')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(setupStateSnapshotSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -142,7 +169,7 @@ export const setupAppContract = oc
         /** Persisted node config — is this node already configured? */
         getNodeStatus: setupAppNodeStatusOps
             .list()
-            .path("/node-status")
+            .path('/node-status')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(nodeConfigStatusSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -158,7 +185,7 @@ export const setupAppContract = oc
         /** This node's mesh state — standalone or a member of a swarm. */
         getMeshStatus: setupAppMeshStatusOps
             .list()
-            .path("/mesh/status")
+            .path('/mesh/status')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(setupMeshStatusSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -172,7 +199,7 @@ export const setupAppContract = oc
          */
         joinMesh: setupAppMeshJoinOps
             .create()
-            .path("/mesh/join")
+            .path('/mesh/join')
             .input((b) => b.body(setupMeshJoinInputSchema))
             .output((b) => b.body(setupMeshJoinResultSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -181,7 +208,7 @@ export const setupAppContract = oc
         /** Issue a one-time invite another node can redeem. */
         issueMeshToken: setupAppMeshTokenOps
             .create()
-            .path("/mesh/token")
+            .path('/mesh/token')
             .input((b) => b.body(setupMeshTokenInputSchema))
             .output((b) => b.body(setupMeshTokenResultSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -192,16 +219,16 @@ export const setupAppContract = oc
         /** Test a PostgreSQL URL before submitting (local flow, Step 2). */
         probeDatabase: setupAppProbeDbOps
             .create()
-            .path("/probe/database")
+            .path('/probe/database')
             .input((b) => b.body(setupProbeDbInputSchema))
             .output((b) => b.body(setupProbeDbResultSchema))
             .errors((e) => setupAppErrorContracts(e))
             .build(),
 
         /** Test a mesh URL before submitting (remote flow, Step 2). */
-    
+
         /** Authenticate against a remote mesh node. */
-    
+
         // ─── Trigger (opens the gate, then forwards) ─────────────────────────
 
         /**
@@ -215,9 +242,13 @@ export const setupAppContract = oc
          */
         triggerInitialize: setupAppInitializeOps
             .create()
-            .path("/trigger")
+            .path('/trigger')
             .input((b) => b.body(setupInitializeInputSchema))
-            .output((b) => b.body(z.object({ accepted: z.boolean(), delivered: z.boolean() })))
+            .output((b) =>
+                b.body(
+                    z.object({ accepted: z.boolean(), delivered: z.boolean() })
+                )
+            )
             .errors((e) => setupAppErrorContracts(e))
             .build(),
 
@@ -246,7 +277,7 @@ export const setupAppContract = oc
          */
         getInitializeStream: setupAppInitializeOps
             .list()
-            .path("/stream")
+            .path('/stream')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.observable(setupStreamEventSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -257,7 +288,7 @@ export const setupAppContract = oc
         /** List pending post-setup hint IDs — shown after setup completes. */
         listPostSetupHints: setupAppHintsOps
             .list()
-            .path("/post-setup/hints")
+            .path('/post-setup/hints')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(listHintsResultSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -266,7 +297,7 @@ export const setupAppContract = oc
         /** Dismiss a post-setup hint. */
         dismissPostSetupHint: setupAppHintsOps
             .create()
-            .path("/post-setup/hints/dismiss")
+            .path('/post-setup/hints/dismiss')
             .input((b) => b.body(dismissHintInputSchema))
             .output((b) => b.body(z.object({ ok: z.boolean() })))
             .errors((e) => setupAppErrorContracts(e))
@@ -284,7 +315,7 @@ export const setupAppContract = oc
          */
         getPostSetupDestination: setupAppDestinationOps
             .list()
-            .path("/post-setup/destination")
+            .path('/post-setup/destination')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(setupPostSetupDestinationSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -303,7 +334,7 @@ export const setupAppContract = oc
          */
         getPostSetupVerification: setupAppVerificationOps
             .list()
-            .path("/post-setup/verification")
+            .path('/post-setup/verification')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(setupPostSetupVerificationSchema))
             .errors((e) => setupAppErrorContracts(e))
@@ -321,11 +352,11 @@ export const setupAppContract = oc
          */
         retryHandover: setupAppRetryOps
             .create()
-            .path("/handover/retry")
+            .path('/handover/retry')
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(z.object({ accepted: z.boolean() })))
             .errors((e) => setupAppErrorContracts(e))
             .build(),
-    });
+    })
 
-export type SetupAppContract = typeof setupAppContract;
+export type SetupAppContract = typeof setupAppContract

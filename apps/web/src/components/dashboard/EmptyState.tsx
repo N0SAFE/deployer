@@ -21,53 +21,61 @@ import type { ReactNode } from 'react'
  * belongs to the caller, which knows the route and can call `router.push`.
  */
 export function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-  secondaryAction,
-  className,
-  compact = false,
+    icon: Icon,
+    title,
+    description,
+    action,
+    secondaryAction,
+    className,
+    compact = false,
 }: {
-  icon: LucideIcon
-  title: string
-  description?: ReactNode
-  /** Primary action — the one thing that makes the list non-empty. */
-  action?: { label: string; onClick?: () => void }
-  /** Optional quieter second action (e.g. "Read the docs"). */
-  secondaryAction?: { label: string; onClick?: () => void }
-  className?: string
-  compact?: boolean
+    icon: LucideIcon
+    title: string
+    description?: ReactNode
+    /** Primary action — the one thing that makes the list non-empty. */
+    action?: { label: string; onClick?: () => void }
+    /** Optional quieter second action (e.g. "Read the docs"). */
+    secondaryAction?: { label: string; onClick?: () => void }
+    className?: string
+    compact?: boolean
 }) {
-  return (
-    <div
-      className={cn(
-        'flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border/70 bg-background/30 px-6 text-center',
-        compact ? 'py-6' : 'py-12',
-        className,
-      )}
-    >
-      <div className="flex size-9 items-center justify-center rounded-full bg-muted/60">
-        <Icon className="size-4 text-muted-foreground" aria-hidden />
-      </div>
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      {description ? <p className="max-w-md text-sm text-muted-foreground">{description}</p> : null}
-      {action || secondaryAction ? (
-        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-          {action ? (
-            <Button size="sm" onClick={action.onClick}>
-              {action.label}
-            </Button>
-          ) : null}
-          {secondaryAction ? (
-            <Button size="sm" variant="ghost" onClick={secondaryAction.onClick}>
-              {secondaryAction.label}
-            </Button>
-          ) : null}
+    return (
+        <div
+            className={cn(
+                'border-border/70 bg-background/30 flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-6 text-center',
+                compact ? 'py-6' : 'py-12',
+                className
+            )}
+        >
+            <div className="bg-muted/60 flex size-9 items-center justify-center rounded-full">
+                <Icon className="text-muted-foreground size-4" aria-hidden />
+            </div>
+            <p className="text-foreground text-sm font-medium">{title}</p>
+            {description ? (
+                <p className="text-muted-foreground max-w-md text-sm">
+                    {description}
+                </p>
+            ) : null}
+            {action || secondaryAction ? (
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+                    {action ? (
+                        <Button size="sm" onClick={action.onClick}>
+                            {action.label}
+                        </Button>
+                    ) : null}
+                    {secondaryAction ? (
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={secondaryAction.onClick}
+                        >
+                            {secondaryAction.label}
+                        </Button>
+                    ) : null}
+                </div>
+            ) : null}
         </div>
-      ) : null}
-    </div>
-  )
+    )
 }
 
 /**
@@ -76,22 +84,33 @@ export function EmptyState({
  * `EmptyState`.
  */
 export function FilteredEmptyState({
-  onClear,
-  label = 'Nothing matches the current filters.',
-  className,
+    onClear,
+    label = 'Nothing matches the current filters.',
+    className,
 }: {
-  onClear?: () => void
-  label?: string
-  className?: string
+    onClear?: () => void
+    label?: string
+    className?: string
 }) {
-  return (
-    <div role="status" className={cn('flex flex-wrap items-center justify-center gap-2 py-6 text-sm text-muted-foreground', className)}>
-      <span>{label}</span>
-      {onClear ? (
-        <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={onClear}>
-          Clear filters
-        </Button>
-      ) : null}
-    </div>
-  )
+    return (
+        <div
+            role="status"
+            className={cn(
+                'text-muted-foreground flex flex-wrap items-center justify-center gap-2 py-6 text-sm',
+                className
+            )}
+        >
+            <span>{label}</span>
+            {onClear ? (
+                <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-sm"
+                    onClick={onClear}
+                >
+                    Clear filters
+                </Button>
+            ) : null}
+        </div>
+    )
 }

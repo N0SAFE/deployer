@@ -1,8 +1,8 @@
-import * as z from "zod/v4";
+import * as z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { serviceEnvironmentLinkInputSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { serviceEnvironmentLinkInputSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * SERVICE × ENVIRONMENT LINK CRUD.
@@ -22,29 +22,39 @@ const serviceEnvironmentLinkOutputSchema = z.object({
             overrides: z.record(z.string(), z.unknown()).nullable(),
             serviceName: z.string(),
             environmentName: z.string(),
-            environmentKind: z.enum(["stable", "preview", "ephemeral"]),
-        }),
+            environmentKind: z.enum(['stable', 'preview', 'ephemeral']),
+        })
     ),
-});
+})
 
-const serviceEnvLinkOps = standard.zod(serviceEnvironmentLinkOutputSchema, "serviceEnvironmentLinks");
+const serviceEnvLinkOps = standard.zod(
+    serviceEnvironmentLinkOutputSchema,
+    'serviceEnvironmentLinks'
+)
 
 /** List all service×environment links for a project. */
 export const projectListServiceEnvironmentLinksContract = serviceEnvLinkOps
     .list()
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/service-environment-links`))
+    .input((b) =>
+        b.params((p) => p`/${p('id', z.uuid())}/service-environment-links`)
+    )
     .output(serviceEnvironmentLinkOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'project:read',
+            scope: { by: 'input', path: 'params.id', kind: 'project' },
+        })
+    )
+    .build()
 
 /** Upsert a service×environment link (enable/disable + overrides). */
 export const projectUpsertServiceEnvironmentLinkContract = serviceEnvLinkOps
     .create()
     .input((b) =>
         b
-            .params((p) => p`/${p("id", z.uuid())}/service-environment-links`)
-            .body(serviceEnvironmentLinkInputSchema),
+            .params((p) => p`/${p('id', z.uuid())}/service-environment-links`)
+            .body(serviceEnvironmentLinkInputSchema)
     )
     .output(
         z.object({
@@ -53,8 +63,13 @@ export const projectUpsertServiceEnvironmentLinkContract = serviceEnvLinkOps
             environmentId: z.uuid(),
             isEnabled: z.boolean(),
             overrides: z.record(z.string(), z.unknown()).nullable(),
-        }),
+        })
     )
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "project:write", scope: { by: "input", path: "params.id", kind: "project" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'project:write',
+            scope: { by: 'input', path: 'params.id', kind: 'project' },
+        })
+    )
+    .build()

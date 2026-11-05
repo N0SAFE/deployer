@@ -1,4 +1,4 @@
-import type { impersonationPlugin } from "../../server/plugins/impersonation";
+import type { impersonationPlugin } from '../../server/plugins/impersonation'
 
 /**
  * Links the client to `impersonationPlugin`.
@@ -7,6 +7,6 @@ import type { impersonationPlugin } from "../../server/plugins/impersonation";
  * methods, without the client re-declaring their input or output.
  */
 export const impersonationClient = () => ({
-	id: "impersonation" as const,
-	$InferServerPlugin: {} as ReturnType<typeof impersonationPlugin>,
-});
+    id: 'impersonation' as const,
+    $InferServerPlugin: {} as ReturnType<typeof impersonationPlugin>,
+})

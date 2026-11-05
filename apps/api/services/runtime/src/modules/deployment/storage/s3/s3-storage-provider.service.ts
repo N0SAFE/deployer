@@ -1,26 +1,26 @@
-import { Effect } from "effect";
-import z from "zod/v4";
+import { Effect } from 'effect'
+import z from 'zod/v4'
 
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
-import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { RuntimeInvalid } from '../../../../core/runtime.errors'
 import {
     deploymentStorageBindingSchema,
     type DeploymentStorageBinding,
     type DeploymentStorageProvider,
-} from "../base/storage-provider.interface";
+} from '../base/storage-provider.interface'
 import {
     extractStorageConfig,
     resolveAutoRedeployOnUpdate,
     resolveMountPath,
     resolveUpdateStrategy,
-} from "../base/storage-provider.utils";
+} from '../base/storage-provider.utils'
 
-import type { DeploymentStoragePolicy } from "../base/storage-policy.schema";
+import type { DeploymentStoragePolicy } from '../base/storage-policy.schema'
 
 const s3StorageConfigSchema = z
     .object({
-        type: z.literal("s3"),
+        type: z.literal('s3'),
         s3: z.object({
             bucket: z.string().min(1),
             region: z.string().min(1).optional(),
@@ -28,30 +28,34 @@ const s3StorageConfigSchema = z
             prefix: z.string().min(1).optional(),
         }),
     })
-    .loose();
+    .loose()
 
 export const s3StorageProvider: DeploymentStorageProvider = {
-    storageType: "s3",
+    storageType: 's3',
 
     resolveStorageBinding(
         input: DeploymentTriggerInput,
-        serviceStorageConfig?: DeploymentStoragePolicy,
+        serviceStorageConfig?: DeploymentStoragePolicy
     ): Effect.Effect<DeploymentStorageBinding | null, RuntimeInvalid> {
-        const storageConfig = extractStorageConfig(input, serviceStorageConfig);
-        const parsed = s3StorageConfigSchema.safeParse(storageConfig);
+        const storageConfig = extractStorageConfig(input, serviceStorageConfig)
+        const parsed = s3StorageConfigSchema.safeParse(storageConfig)
 
         if (!parsed.success) {
-            if (storageConfig?.type === "s3") {
-                return Effect.fail(new RuntimeInvalid({ reason: "S3 storage requires storage.s3.bucket in sourceConfig.customData" }));
+            if (storageConfig?.type === 's3') {
+                return Effect.fail(
+                    new RuntimeInvalid({
+                        reason: 'S3 storage requires storage.s3.bucket in sourceConfig.customData',
+                    })
+                )
             }
-            return Effect.succeed(null);
+            return Effect.succeed(null)
         }
 
-        const autoRedeployOnUpdate = resolveAutoRedeployOnUpdate(storageConfig);
+        const autoRedeployOnUpdate = resolveAutoRedeployOnUpdate(storageConfig)
 
         return Effect.sync(() =>
             deploymentStorageBindingSchema.parse({
-                storageType: "s3",
+                storageType: 's3',
                 autoRedeployOnUpdate,
                 updateStrategy: resolveUpdateStrategy(autoRedeployOnUpdate),
                 mountPath: resolveMountPath(storageConfig),
@@ -61,7 +65,7 @@ export const s3StorageProvider: DeploymentStorageProvider = {
                     endpoint: parsed.data.s3.endpoint ?? null,
                     prefix: parsed.data.s3.prefix ?? null,
                 },
-            }),
-        );
-    }
-};
+            })
+        )
+    },
+}

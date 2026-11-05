@@ -26,7 +26,10 @@ import type { Workspace } from '../schemas'
 /** A workspace map with just the fields the detector reads. */
 function workspaces(...names: string[]): Map<string, Workspace> {
     return new Map(
-        names.map((name) => [name, { name, dir: `packages/${name}`, internalDeps: [] }])
+        names.map((name) => [
+            name,
+            { name, dir: `packages/${name}`, internalDeps: [] },
+        ])
     )
 }
 
@@ -63,7 +66,12 @@ function detect(value: string): string[] {
 describe('ApplicationDetector', () => {
     it('resolves `all` to every application, sorted', () => {
         expect(detect('all')).toEqual(
-            [...TIER, '@deployer/doc', '@deployer/setup', '@deployer/web'].sort()
+            [
+                ...TIER,
+                '@deployer/doc',
+                '@deployer/setup',
+                '@deployer/web',
+            ].sort()
         )
     })
 
@@ -118,7 +126,9 @@ describe('ApplicationDetector', () => {
     })
 
     it('rejects a value that names no application at all', () => {
-        expect(() => detect('observability')).toThrow(NoEnabledApplicationsError)
+        expect(() => detect('observability')).toThrow(
+            NoEnabledApplicationsError
+        )
     })
 
     it('rejects an empty or whitespace-only value', () => {

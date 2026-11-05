@@ -1,19 +1,19 @@
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 import {
-  dockerContainerDeletePathBodySchema,
-  dockerContainerTerminalMutationAckSchema,
-} from "../shared";
+    dockerContainerDeletePathBodySchema,
+    dockerContainerTerminalMutationAckSchema,
+} from '../shared'
 
 const dockerContainerDeletePathOps = standard.zod(
-  dockerContainerTerminalMutationAckSchema,
-  "dockerContainerDeletePath",
-);
+    dockerContainerTerminalMutationAckSchema,
+    'dockerContainerDeletePath'
+)
 
 export const dockerContainerDeletePathContract = dockerContainerDeletePathOps
-  .create()
-  .path("/delete")
-  .input((b) => b.body(dockerContainerDeletePathBodySchema))
-  .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();
+    .create()
+    .path('/delete')
+    .input((b) => b.body(dockerContainerDeletePathBodySchema))
+    .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()

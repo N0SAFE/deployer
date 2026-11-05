@@ -1,26 +1,16 @@
 {
-  "extends": "@deployer/config-typescript/nestjs",
-  "compilerOptions": {
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "outDir": "./dist",
-    "noEmit": true,
-    "rootDir": "./",
-    "types": [
-      "node",
-      "bun"
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    }
-  },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+    "extends": "@deployer/config-typescript/nestjs",
+    "compilerOptions": {
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "outDir": "./dist",
+        "noEmit": true,
+        "rootDir": "./",
+        "types": ["node", "bun"],
+        "paths": {
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
 }

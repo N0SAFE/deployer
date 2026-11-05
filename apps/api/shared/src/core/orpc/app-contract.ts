@@ -11,14 +11,31 @@
  * Keep the entry list in sync with `packages/contracts/api/modules/index.ts`.
  */
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { templateContract, setupContract } from "@deployer/bff-contracts";
-import { providerSchemaContract, nodesContract, reachabilityContract, providersContract, meshContract, clusterContract, platformContract } from "@deployer/fleet-contracts";
-import { healthContract } from "@deployer/health-contracts";
-import { userContract, pushContract, analyticsContract } from "@deployer/identity-contracts";
-import { domainContract, projectContract, serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
-import { deploymentContract, dockerContract } from "@deployer/runtime-contracts";
+import { templateContract, setupContract } from '@deployer/bff-contracts'
+import {
+    providerSchemaContract,
+    nodesContract,
+    reachabilityContract,
+    providersContract,
+    meshContract,
+    clusterContract,
+    platformContract,
+} from '@deployer/fleet-contracts'
+import { healthContract } from '@deployer/health-contracts'
+import {
+    userContract,
+    pushContract,
+    analyticsContract,
+} from '@deployer/identity-contracts'
+import {
+    domainContract,
+    projectContract,
+    serviceContract,
+    servicePreviewTopologyContract,
+} from '@deployer/project-contracts'
+import { deploymentContract, dockerContract } from '@deployer/runtime-contracts'
 
 export const appContract = oc.router({
     user: userContract,
@@ -50,6 +67,6 @@ export const appContract = oc.router({
     // The resource-dispatcher catch-all (POST /mesh/:entityKey/:methodName)
     // remains reachable via the MeshResourceController. It is NOT part of the
     // public app contract either — the cross-node caller uses it directly.
-});
+})
 
-export type AppContract = typeof appContract;
+export type AppContract = typeof appContract

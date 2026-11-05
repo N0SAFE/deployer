@@ -8,7 +8,7 @@
  * `apps/web` narrows `include` to its own `src/`, so its tsconfig lists this
  * path explicitly — see `apps/web/tsconfig.json`.
  */
-declare module "exceljs/dist/exceljs.min.js" {
-  const exceljs: unknown;
-  export default exceljs;
+declare module 'exceljs/dist/exceljs.min.js' {
+    const exceljs: unknown
+    export default exceljs
 }

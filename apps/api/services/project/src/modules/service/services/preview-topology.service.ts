@@ -1,8 +1,8 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { ResourceNotFound } from "@/modules/project/domain/project.errors";
+import { ResourceNotFound } from '@/modules/project/domain/project.errors'
 
-import { ServiceStore } from "../repositories/service.repository";
+import { ServiceStore } from '../repositories/service.repository'
 
 import {
     resolvePreviewTopology,
@@ -10,7 +10,7 @@ import {
     type TopologyDependencyEdge,
     type TopologyResolveInput,
     type TopologyServiceRecord,
-} from "./preview-topology.resolver";
+} from './preview-topology.resolver'
 
 /** Preview-topology dry-run use cases, composed as Effects over the store. */
 export class PreviewTopologyServiceImpl {
@@ -18,88 +18,95 @@ export class PreviewTopologyServiceImpl {
      * Resolve the preview topology for a service.
      * @returns the resolved chain (flat node list) + consulted contracts.
      */
-    resolve(
-        serviceId: string,
-        input: TopologyResolveInput,
-    ) {
+    resolve(serviceId: string, input: TopologyResolveInput) {
         return Effect.gen(function* () {
-            const store = yield* ServiceStore;
+            const store = yield* ServiceStore
 
-            const root = yield* store.findById(serviceId);
+            const root = yield* store.findById(serviceId)
             if (!root) {
-                return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: serviceId }));
+                return yield* Effect.fail(
+                    new ResourceNotFound({ entity: 'Service', id: serviceId })
+                )
             }
 
             // 1) Load project contract registry (DI interfaces).
-            const settings = yield* store.getProjectSettings(root.projectId);
-            const contracts = ((settings as { contracts?: Record<string, unknown> } | null)?.contracts ?? {});
+            const settings = yield* store.getProjectSettings(root.projectId)
+            const contracts =
+                (settings as { contracts?: Record<string, unknown> } | null)
+                    ?.contracts ?? {}
 
             // 2) Build service + deps maps by BFS over the whole project (top-level
             //    query is cheap; keeps the pure resolver free of IO).
-            const services = new Map<string, TopologyServiceRecord>();
-            const deps = new Map<string, TopologyDependencyEdge[]>();
+            const services = new Map<string, TopologyServiceRecord>()
+            const deps = new Map<string, TopologyDependencyEdge[]>()
 
             // Seed with the root, then expand via getDependencies recursively.
-            const queue = [serviceId];
-            const seen = new Set<string>();
+            const queue = [serviceId]
+            const seen = new Set<string>()
             while (queue.length > 0) {
-                const id = queue.shift();
-                if (!id || seen.has(id)) continue;
-                seen.add(id);
+                const id = queue.shift()
+                if (!id || seen.has(id)) continue
+                seen.add(id)
 
-                const svc = yield* store.findById(id);
-                if (!svc) continue;
+                const svc = yield* store.findById(id)
+                if (!svc) continue
 
                 services.set(id, {
                     id: svc.id,
                     name: svc.name,
                     implementsContract: svc.implementsContract,
                     preview: svc.preview,
-                });
+                })
 
-                const edges = yield* store.getDependencies(id);
+                const edges = yield* store.getDependencies(id)
                 const edgeList: TopologyDependencyEdge[] = edges.map((e) => ({
                     serviceId: e.serviceId,
                     dependsOnServiceId: e.dependsOnServiceId,
                     isRequired: e.isRequired,
-                }));
-                deps.set(id, edgeList);
+                }))
+                deps.set(id, edgeList)
                 for (const e of edgeList) {
-                    queue.push(e.dependsOnServiceId);
+                    queue.push(e.dependsOnServiceId)
                 }
 
                 // Also index any mockRef referenced by this service's preview config.
-                const resolution = svc.preview?.backendResolution;
-                if (resolution?.mode === "mock" && resolution.mockRef && !seen.has(resolution.mockRef)) {
-                    queue.push(resolution.mockRef);
+                const resolution = svc.preview?.backendResolution
+                if (
+                    resolution?.mode === 'mock' &&
+                    resolution.mockRef &&
+                    !seen.has(resolution.mockRef)
+                ) {
+                    queue.push(resolution.mockRef)
                 }
                 for (const linked of svc.preview?.linkedServices ?? []) {
-                    if (!seen.has(linked.serviceId)) queue.push(linked.serviceId);
+                    if (!seen.has(linked.serviceId))
+                        queue.push(linked.serviceId)
                 }
             }
 
             // 3) Run the pure resolver.
-            const ctx: TopologyContext = { services, deps, contracts, input };
-            const result = resolvePreviewTopology(serviceId, ctx);
+            const ctx: TopologyContext = { services, deps, contracts, input }
+            const result = resolvePreviewTopology(serviceId, ctx)
 
             return {
                 nodes: result.nodes,
                 environment: input.environment,
                 input,
                 contracts: result.contracts,
-            };
-        });
+            }
+        })
     }
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type PreviewTopologyServiceShape = PreviewTopologyServiceImpl;
+export type PreviewTopologyServiceShape = PreviewTopologyServiceImpl
 
 /** Effect key = NestJS token. */
 export class PreviewTopologyService extends Context.Service<
     PreviewTopologyService,
     PreviewTopologyServiceShape
->()("project/PreviewTopologyService") {
+>()('project/PreviewTopologyService') {
     /** Resolves the requirements the methods name when the layer is built. */
-    static readonly live: PreviewTopologyServiceShape = new PreviewTopologyServiceImpl();
+    static readonly live: PreviewTopologyServiceShape =
+        new PreviewTopologyServiceImpl()
 }

@@ -1,15 +1,19 @@
-import "reflect-metadata";
+import 'reflect-metadata'
 // The oRPC context augmentation (`context.request`, `context.auth`) — imported
 // for its side effect, and imported as `@/core/...` so it is the SAME module
 // identity the shared code resolves. Importing it by the package name instead
 // would load a second copy and leave this app's handlers typed against an
 // un-augmented context.
-import "@/core/orpc/context";
+import '@/core/orpc/context'
 
-import { bootstrapApiServer, DependencyNotReadyError, DEPENDENCIES } from "@deployer/shared/server";
+import {
+    bootstrapApiServer,
+    DependencyNotReadyError,
+    DEPENDENCIES,
+} from '@deployer/shared/server'
 
-import { BffModule } from "./bff.module";
-import { serviceAuthContextEdge } from "./clients/service-auth-context.edge";
+import { BffModule } from './bff.module'
+import { serviceAuthContextEdge } from './clients/service-auth-context.edge'
 
 /**
  * The BFF's process entry point.
@@ -19,7 +23,7 @@ import { serviceAuthContextEdge } from "./clients/service-auth-context.edge";
  * API before routes to the BFF now, so the ingress config and the web client
  * need no change.
  */
-const BFF_PORT = Number(process.env.API_PORT ?? 3005);
+const BFF_PORT = Number(process.env.API_PORT ?? 3005)
 
 /**
  * The BFF is the process that answers for the platform, so it declares the FULL
@@ -29,22 +33,22 @@ const BFF_PORT = Number(process.env.API_PORT ?? 3005);
  * it would be the thing reporting the platform as fine.
  */
 void bootstrapApiServer({
-        rootModule: BffModule,
-        port: BFF_PORT,
-        name: "api-bff",
-        dependencies: DEPENDENCIES.platform,
-        // Binds the CALLER's credentials to the request, so every fan-out the BFF makes is made as them. A plain function,
-        // not a Nest middleware: see `service-auth-context.edge.ts` for why it is an edge piece and not a guard.
-        edge: [serviceAuthContextEdge()],
+    rootModule: BffModule,
+    port: BFF_PORT,
+    name: 'api-bff',
+    dependencies: DEPENDENCIES.platform,
+    // Binds the CALLER's credentials to the request, so every fan-out the BFF makes is made as them. A plain function,
+    // not a Nest middleware: see `service-auth-context.edge.ts` for why it is an edge piece and not a guard.
+    edge: [serviceAuthContextEdge()],
 }).catch((error: unknown) => {
-        // A missing dependency is a KNOWN, reportable condition — not an
-        // unhandled boot crash. Exit 5 (the documented "engine/dependency
-        // unavailable" code) so the orchestrator and the swarm can branch on it
-        // without parsing a stack trace.
-        if (error instanceof DependencyNotReadyError) {
-                console.error(error.message);
-                process.exit(5);
-        }
-        console.error(error);
-        process.exit(1);
-});
+    // A missing dependency is a KNOWN, reportable condition — not an
+    // unhandled boot crash. Exit 5 (the documented "engine/dependency
+    // unavailable" code) so the orchestrator and the swarm can branch on it
+    // without parsing a stack trace.
+    if (error instanceof DependencyNotReadyError) {
+        console.error(error.message)
+        process.exit(5)
+    }
+    console.error(error)
+    process.exit(1)
+})

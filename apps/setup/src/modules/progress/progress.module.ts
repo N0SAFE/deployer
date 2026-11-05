@@ -1,8 +1,11 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { EnvModule, EnvService } from "@/config/env/env.module";
+import { EnvModule, EnvService } from '@/config/env/env.module'
 
-import { makeOrchestrationStreamService, OrchestrationStreamService } from "./services/orchestration-stream.service";
+import {
+    makeOrchestrationStreamService,
+    OrchestrationStreamService,
+} from './services/orchestration-stream.service'
 
 /**
  * The setup app's progress timeline — the steps the operator watches.
@@ -24,7 +27,13 @@ import { makeOrchestrationStreamService, OrchestrationStreamService } from "./se
  * an ambient provider, and the DI gate (`check-di-graph.ts`) reads the imports.
  */
 export class SetupProgressModule extends createModuleContext({
-  imports: [EnvModule],
-  providers: [{ provide: OrchestrationStreamService, useFactory: makeOrchestrationStreamService, inject: [EnvService] }],
-  exports: [OrchestrationStreamService],
+    imports: [EnvModule],
+    providers: [
+        {
+            provide: OrchestrationStreamService,
+            useFactory: makeOrchestrationStreamService,
+            inject: [EnvService],
+        },
+    ],
+    exports: [OrchestrationStreamService],
 }) {}

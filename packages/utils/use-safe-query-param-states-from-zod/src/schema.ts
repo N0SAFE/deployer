@@ -5,7 +5,7 @@
  */
 import type { z } from 'zod'
 
-import { isRecord } from "@deployer/type-guards"
+import { isRecord } from '@deployer/type-guards'
 
 /** Possible Zod type discriminants we care about. */
 type ZodKind =
@@ -84,7 +84,7 @@ function mapTypeString(value: string): ZodKind {
         normalized === 'union' ||
         normalized === 'nativeenum'
     ) {
-        return normalized;
+        return normalized
     }
     return 'unknown'
 }

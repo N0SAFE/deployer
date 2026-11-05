@@ -33,13 +33,13 @@ It defines:
 - Security stage flow component: `v3/apps/web/src/app/dashboard/docker/_components/docker-image-security-flow.tsx`
 - Pull progress panel: `v3/apps/web/src/app/dashboard/docker/_components/docker-image-pull-progress-panel.tsx`
 - Docker web domain hooks/endpoints in:
-  - `v3/apps/web/src/domains/docker/hooks.ts`
-  - `v3/apps/web/src/domains/docker/endpoints.ts`
+    - `v3/apps/web/src/domains/docker/hooks.ts`
+    - `v3/apps/web/src/domains/docker/endpoints.ts`
 - API scan orchestration in:
-  - `v3/packages/nest/docker/src/services/docker.service.ts`
-  - `v3/apps/api/services/runtime/src/modules/docker/domains/images/queue/docker-image-auto-scan-listener.service.ts`
-  - `v3/apps/api/services/runtime/src/modules/docker/common/events/docker-runtime-events-stream.service.ts`
-  - `v3/apps/api/services/runtime/src/modules/docker/repositories/facade/docker.repository.ts`
+    - `v3/packages/nest/docker/src/services/docker.service.ts`
+    - `v3/apps/api/services/runtime/src/modules/docker/domains/images/queue/docker-image-auto-scan-listener.service.ts`
+    - `v3/apps/api/services/runtime/src/modules/docker/common/events/docker-runtime-events-stream.service.ts`
+    - `v3/apps/api/services/runtime/src/modules/docker/repositories/facade/docker.repository.ts`
 
 ### Out of scope
 
@@ -132,8 +132,8 @@ Displays:
 Must support explicit queued state:
 
 - If no scan has started yet, show a clear queued panel:
-  - “Scan is queued by API service…”
-  - no fake progress
+    - “Scan is queued by API service…”
+    - no fake progress
 
 #### 3.2 Logs stage
 
@@ -201,12 +201,12 @@ No “silent idle with ambiguous state”.
 
 ## UI state machine (security)
 
-| Condition | Stage | Status label | Required UX |
-|---|---|---|---|
-| No persisted summary, no live scan activity | Pulling | queued | Queue notice panel + zero progress |
-| Pull/log/scanning events active | Pulling or Logs | pulling | live progress and log feed |
-| Complete event or persisted summary exists | Results | complete | summary + findings + rescan control |
-| Error event present | Pulling/Logs | error | error banner with details |
+| Condition                                   | Stage           | Status label | Required UX                         |
+| ------------------------------------------- | --------------- | ------------ | ----------------------------------- |
+| No persisted summary, no live scan activity | Pulling         | queued       | Queue notice panel + zero progress  |
+| Pull/log/scanning events active             | Pulling or Logs | pulling      | live progress and log feed          |
+| Complete event or persisted summary exists  | Results         | complete     | summary + findings + rescan control |
+| Error event present                         | Pulling/Logs    | error        | error banner with details           |
 
 Stage auto-navigation policy:
 
@@ -237,9 +237,9 @@ The web spec depends on these backend behaviors:
 
 1. `inspectImage` returns image detail **without forcing a fresh scan**.
 2. `streamImageSecurityScan(forceScan=false)` returns:
-   - running stream if active,
-   - cached complete event if persisted,
-   - empty/terminal when awaiting queue.
+    - running stream if active,
+    - cached complete event if persisted,
+    - empty/terminal when awaiting queue.
 3. `ensureImageSecurityScan(...)` is used by internal services (startup bootstrap + runtime listeners).
 4. Global runtime event stream service is initialized once and reused by consumers.
 
@@ -270,20 +270,20 @@ At minimum, debug traces should exist for:
 ## QA scenarios
 
 1. **Cold start with unscanned image**
-   - Start API, open image security tab.
-   - Expect queued UI first, then stream/results as backend starts.
+    - Start API, open image security tab.
+    - Expect queued UI first, then stream/results as backend starts.
 2. **Cached scan available**
-   - Open image security tab.
-   - Expect direct results without new scan launch.
+    - Open image security tab.
+    - Expect direct results without new scan launch.
 3. **Runtime create event**
-   - Create container with unscanned image.
-   - Expect auto-scan scheduling from backend service.
+    - Create container with unscanned image.
+    - Expect auto-scan scheduling from backend service.
 4. **UI open regression**
-   - Re-open details repeatedly.
-   - Confirm no new scan starts unless rescan action used.
+    - Re-open details repeatedly.
+    - Confirm no new scan starts unless rescan action used.
 5. **Rescan flow**
-   - From completed state, click rescan.
-   - Expect reset to pulling/logs/results sequence.
+    - From completed state, click rescan.
+    - Expect reset to pulling/logs/results sequence.
 
 ---
 

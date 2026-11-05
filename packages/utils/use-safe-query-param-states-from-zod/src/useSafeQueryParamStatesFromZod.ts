@@ -15,11 +15,13 @@
 import { useQueryStates } from 'nuqs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-
 import { getZodObjectDefaults } from '@deployer/use-safe-query-param-states-from-zod/defaults'
 import { mergeWithDefaults } from '@deployer/use-safe-query-param-states-from-zod/merge'
 import { createParserForZodField } from '@deployer/use-safe-query-param-states-from-zod/parsers'
-import type { UnknownRecord, UseSafeQueryParamStatesOptions } from '@deployer/use-safe-query-param-states-from-zod/types'
+import type {
+    UnknownRecord,
+    UseSafeQueryParamStatesOptions,
+} from '@deployer/use-safe-query-param-states-from-zod/types'
 import { useDebouncedCallback } from '@deployer/use-safe-query-param-states-from-zod/useDebouncedCallback'
 
 import type { z } from 'zod'
@@ -36,7 +38,10 @@ import type { z } from 'zod'
  */
 function buildParserMap<T extends z.ZodObject>(
     schema: T
-): Record<keyof z.infer<T> & string, ReturnType<typeof createParserForZodField>> {
+): Record<
+    keyof z.infer<T> & string,
+    ReturnType<typeof createParserForZodField>
+> {
     const shape = (schema as { shape: z.ZodRawShape }).shape
     const map: Record<string, ReturnType<typeof createParserForZodField>> = {}
     for (const [key, fieldSchema] of Object.entries(shape)) {
@@ -83,20 +88,14 @@ export function useSafeQueryParamStatesFromZod<T extends z.ZodObject>(
     options?: UseSafeQueryParamStatesOptions
 ): [z.infer<T>, SetQueryParamState<T>] {
     const parsers = useMemo(() => buildParserMap(schema), [schema])
-    const nuqsOptions = useMemo(
-        () => pickNuqsOptions(options),
-        [options]
-    )
+    const nuqsOptions = useMemo(() => pickNuqsOptions(options), [options])
 
     const [rawValues, setRawValues] = useQueryStates(
         parsers as Parameters<typeof useQueryStates>[0],
         nuqsOptions
     )
 
-    const rawValuesKey = useMemo(
-        () => stableStringify(rawValues),
-        [rawValues]
-    )
+    const rawValuesKey = useMemo(() => stableStringify(rawValues), [rawValues])
 
     const merged = useMemo(
         () =>
@@ -138,12 +137,16 @@ export function useSafeQueryParamStatesFromZod<T extends z.ZodObject>(
     )
 
     const debouncedWrite = useDebouncedCallback(
-        (value: Partial<z.infer<T>> | null) => {writeToUrl(value)},
+        (value: Partial<z.infer<T>> | null) => {
+            writeToUrl(value)
+        },
         delay
     )
 
     const immediateSetter = useCallback<SetQueryParamState<T>>(
-        (value) => {writeToUrl(value)},
+        (value) => {
+            writeToUrl(value)
+        },
         [writeToUrl]
     )
 

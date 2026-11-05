@@ -1,46 +1,70 @@
-import { Effect } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { Effect } from 'effect'
+import { describe, expect, it, vi } from 'vitest'
 
-import { ProjectDomainNotFoundError } from "../errors";
-import { makeDomainVerificationService } from "./domain-verification.service";
+import { ProjectDomainNotFoundError } from '../errors'
 
-import type { ProjectDomainRepositoryShape } from "../repositories/project-domain.repository";
+import { makeDomainVerificationService } from './domain-verification.service'
 
-const verified = { id: "d1", projectId: "p1", domain: "a.test", verificationStatus: "verified", verifiedAt: new Date(0) };
+import type { ProjectDomainRepositoryShape } from '../repositories/project-domain.repository'
 
-function service(domain: unknown) {
-  const repository = {
-    findById: vi.fn(() => Effect.succeed(domain)),
-    update: vi.fn(() => Effect.succeed(domain)),
-    findByProjectId: vi.fn(() => Effect.succeed([{ verificationStatus: "pending" }, { verificationStatus: "verified" }])),
-  } as unknown as ProjectDomainRepositoryShape;
-  return { repository, service: makeDomainVerificationService(repository) };
+const verified = {
+    id: 'd1',
+    projectId: 'p1',
+    domain: 'a.test',
+    verificationStatus: 'verified',
+    verifiedAt: new Date(0),
 }
 
-describe("DomainVerificationService", () => {
-  it("fails with ProjectDomainNotFoundError when the domain belongs to another project", async () => {
-    const error = await Effect.runPromise(Effect.flip(service(verified).service.verifyProjectDomain("other", "d1")));
-    expect(error).toBeInstanceOf(ProjectDomainNotFoundError);
-  });
+function service(domain: unknown) {
+    const repository = {
+        findById: vi.fn(() => Effect.succeed(domain)),
+        update: vi.fn(() => Effect.succeed(domain)),
+        findByProjectId: vi.fn(() =>
+            Effect.succeed([
+                { verificationStatus: 'pending' },
+                { verificationStatus: 'verified' },
+            ])
+        ),
+    } as unknown as ProjectDomainRepositoryShape
+    return { repository, service: makeDomainVerificationService(repository) }
+}
 
-  it("answers an already verified domain without touching DNS or the row", async () => {
-    const t = service(verified);
-    const result = await Effect.runPromise(t.service.verifyProjectDomain("p1", "d1"));
-    expect(result).toMatchObject({ success: true, status: "verified" });
-    expect(t.repository.update).not.toHaveBeenCalled();
-  });
+describe('DomainVerificationService', () => {
+    it('fails with ProjectDomainNotFoundError when the domain belongs to another project', async () => {
+        const error = await Effect.runPromise(
+            Effect.flip(
+                service(verified).service.verifyProjectDomain('other', 'd1')
+            )
+        )
+        expect(error).toBeInstanceOf(ProjectDomainNotFoundError)
+    })
 
-  it("counts pending domains", async () => {
-    expect(await Effect.runPromise(service(verified).service.getPendingDomainsCount("p1"))).toBe(1);
-  });
+    it('answers an already verified domain without touching DNS or the row', async () => {
+        const t = service(verified)
+        const result = await Effect.runPromise(
+            t.service.verifyProjectDomain('p1', 'd1')
+        )
+        expect(result).toMatchObject({ success: true, status: 'verified' })
+        expect(t.repository.update).not.toHaveBeenCalled()
+    })
 
-  it("declares its sweep in the shape, and no onStart", () => {
-    const { service: s } = service(verified);
-    expect(s.run).toBeTypeOf("function");
-    expect(s.onStart).toBeUndefined();
-  });
+    it('counts pending domains', async () => {
+        expect(
+            await Effect.runPromise(
+                service(verified).service.getPendingDomainsCount('p1')
+            )
+        ).toBe(1)
+    })
 
-  it("builds a verification token carrying the domain", () => {
-    expect(service(verified).service.generateVerificationToken("a.test")).toMatch(/^deployer-verify-[0-9a-f]{32}-a\.test$/);
-  });
-});
+    it('declares its sweep in the shape, and no onStart', () => {
+        const { service: s } = service(verified)
+        expect(s.run).toBeTypeOf('function')
+        expect(s.onStart).toBeUndefined()
+    })
+
+    it('builds a verification token carrying the domain', () => {
+        expect(
+            service(verified).service.generateVerificationToken('a.test')
+        ).toMatch(/^deployer-verify-[0-9a-f]{32}-a\.test$/)
+    })
+})

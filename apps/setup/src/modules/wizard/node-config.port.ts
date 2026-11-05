@@ -1,4 +1,4 @@
-import type { NodeConfigRepositoryShape } from "@deployer/node-state";
+import type { NodeConfigRepositoryShape } from '@deployer/node-state'
 
 /**
  * The slice of `NodeConfigRepositoryShape` the setup wizard's own services use.
@@ -24,10 +24,10 @@ import type { NodeConfigRepositoryShape } from "@deployer/node-state";
  */
 
 /** Read-only: services that only answer "what does this node have?". */
-export type NodeConfigReader = Pick<NodeConfigRepositoryShape, "find">;
+export type NodeConfigReader = Pick<NodeConfigRepositoryShape, 'find'>
 
 /** Read + persist: the gate writes the operator's choices before the API starts. */
-export type NodeConfigStore = Pick<NodeConfigRepositoryShape, "find" | "upsert">;
+export type NodeConfigStore = Pick<NodeConfigRepositoryShape, 'find' | 'upsert'>
 
 /**
  * Runtime DI tokens for the two ports.
@@ -41,5 +41,5 @@ export type NodeConfigStore = Pick<NodeConfigRepositoryShape, "find" | "upsert">
  * accidentally be handed the store. Both resolve to the SAME repository instance
  * (see `useExisting` in the module), so "one repository, narrower views" holds.
  */
-export const NODE_CONFIG_READER = Symbol("NodeConfigReader");
-export const NODE_CONFIG_STORE = Symbol("NodeConfigStore");
+export const NODE_CONFIG_READER = Symbol('NodeConfigReader')
+export const NODE_CONFIG_STORE = Symbol('NodeConfigStore')

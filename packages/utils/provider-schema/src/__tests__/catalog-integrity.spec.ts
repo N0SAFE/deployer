@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 import {
     buildersCatalog,
     builderConfigValidators,
@@ -6,26 +6,26 @@ import {
     providersCatalog,
     providerConfigValidators,
     providerSchemasCatalog,
-} from "@deployer/provider-schema/index";
+} from '@deployer/provider-schema/index'
 
-describe("provider-schema catalog integrity", () => {
-    it("keeps provider catalogs, schemas, and validators aligned", () => {
-        const providerIds = providersCatalog.map((provider) => provider.id);
+describe('provider-schema catalog integrity', () => {
+    it('keeps provider catalogs, schemas, and validators aligned', () => {
+        const providerIds = providersCatalog.map((provider) => provider.id)
 
         for (const id of providerIds) {
-            expect(providerSchemasCatalog[id]).toBeDefined();
-            expect(providerConfigValidators[id]).toBeDefined();
+            expect(providerSchemasCatalog[id]).toBeDefined()
+            expect(providerConfigValidators[id]).toBeDefined()
         }
-    });
+    })
 
-    it("keeps builder catalogs, schemas, and validators aligned", () => {
-        const builderIds = buildersCatalog.map((builder) => builder.id);
+    it('keeps builder catalogs, schemas, and validators aligned', () => {
+        const builderIds = buildersCatalog.map((builder) => builder.id)
 
         for (const id of builderIds) {
-            expect(builderSchemasCatalog[id]).toBeDefined();
-            expect(builderConfigValidators[id]).toBeDefined();
+            expect(builderSchemasCatalog[id]).toBeDefined()
+            expect(builderConfigValidators[id]).toBeDefined()
         }
-    });
+    })
 
     /**
      * The catalog MUST agree with the builders the deployment pipeline accepts.
@@ -38,60 +38,60 @@ describe("provider-schema catalog integrity", () => {
      * exist. Comparing against the deployment enum is the only check that ties the UI's
      * options to reality.
      */
-    it("lists exactly the builders the deployment pipeline accepts", () => {
+    it('lists exactly the builders the deployment pipeline accepts', () => {
         const deploymentBuilderKinds = [
-            "dockerfile",
-            "docker_compose",
-            "nixpacks",
-            "buildpack",
-            "railpack",
-            "external",
-        ];
+            'dockerfile',
+            'docker_compose',
+            'nixpacks',
+            'buildpack',
+            'railpack',
+            'external',
+        ]
 
         expect(buildersCatalog.map((builder) => builder.id).sort()).toEqual(
-            [...deploymentBuilderKinds].sort(),
-        );
-    });
+            [...deploymentBuilderKinds].sort()
+        )
+    })
 
-    it("has no builder config schema for a builder that does not exist", () => {
-        const catalogIds = new Set(buildersCatalog.map((builder) => builder.id));
+    it('has no builder config schema for a builder that does not exist', () => {
+        const catalogIds = new Set(buildersCatalog.map((builder) => builder.id))
 
         for (const id of Object.keys(builderSchemasCatalog)) {
-            expect(catalogIds.has(id)).toBe(true);
+            expect(catalogIds.has(id)).toBe(true)
         }
         for (const id of Object.keys(builderConfigValidators)) {
-            expect(catalogIds.has(id)).toBe(true);
+            expect(catalogIds.has(id)).toBe(true)
         }
-    });
+    })
 
-    it("validates known valid provider config", () => {
-        const githubValidator = providerConfigValidators.github;
-        expect(githubValidator).toBeDefined();
+    it('validates known valid provider config', () => {
+        const githubValidator = providerConfigValidators.github
+        expect(githubValidator).toBeDefined()
 
         if (!githubValidator) {
-            return;
+            return
         }
 
         const parsed = githubValidator.safeParse({
-            repositoryUrl: "https://github.com/org/repo",
-            branch: "main",
-        });
+            repositoryUrl: 'https://github.com/org/repo',
+            branch: 'main',
+        })
 
-        expect(parsed.success).toBe(true);
-    });
+        expect(parsed.success).toBe(true)
+    })
 
-    it("rejects invalid provider config", () => {
-        const githubValidator = providerConfigValidators.github;
-        expect(githubValidator).toBeDefined();
+    it('rejects invalid provider config', () => {
+        const githubValidator = providerConfigValidators.github
+        expect(githubValidator).toBeDefined()
 
         if (!githubValidator) {
-            return;
+            return
         }
 
         const parsed = githubValidator.safeParse({
-            repositoryUrl: "not-a-url",
-        });
+            repositoryUrl: 'not-a-url',
+        })
 
-        expect(parsed.success).toBe(false);
-    });
-});
+        expect(parsed.success).toBe(false)
+    })
+})

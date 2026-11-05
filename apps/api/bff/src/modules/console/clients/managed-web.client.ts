@@ -1,6 +1,9 @@
-import { platformContract, type ManagedWebState } from "@deployer/fleet-contracts";
+import {
+    platformContract,
+    type ManagedWebState,
+} from '@deployer/fleet-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 /**
  * The managed web app's state and actions, read from the service that owns them.
@@ -25,34 +28,34 @@ import { ServiceClientRegistry } from "../../../clients/service-registry";
  * browser reaching a service namespace directly.
  */
 export class ManagedWebClient {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The platform client, bound with the caller's credentials by the registry. */
-	private get platform() {
-		return this.clients.for("fleet", platformContract);
-	}
+    /** The platform client, bound with the caller's credentials by the registry. */
+    private get platform() {
+        return this.clients.for('fleet', platformContract)
+    }
 
-	async state(): Promise<ManagedWebState> {
-		return this.platform.getManagedWebState({});
-	}
+    async state(): Promise<ManagedWebState> {
+        return this.platform.getManagedWebState({})
+    }
 
-	async toggle() {
-		return this.platform.toggleManagedWeb({});
-	}
+    async toggle() {
+        return this.platform.toggleManagedWeb({})
+    }
 
-	async restart() {
-		return this.platform.restartManagedWeb({});
-	}
+    async restart() {
+        return this.platform.restartManagedWeb({})
+    }
 
-	async setOrigin(input: { origin: string | null }) {
-		return this.platform.setManagedWebOrigin(input);
-	}
+    async setOrigin(input: { origin: string | null }) {
+        return this.platform.setManagedWebOrigin(input)
+    }
 
-	async enableTunnel(input: { hostname: string }) {
-		return this.platform.enableManagedWebTunnel(input);
-	}
+    async enableTunnel(input: { hostname: string }) {
+        return this.platform.enableManagedWebTunnel(input)
+    }
 
-	async disableTunnel() {
-		return this.platform.disableManagedWebTunnel({});
-	}
+    async disableTunnel() {
+        return this.platform.disableManagedWebTunnel({})
+    }
 }

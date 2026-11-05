@@ -142,17 +142,20 @@ import { RequireAuth, RequireOrganizationRole, RequirePlatformRole, RequirePermi
 Programmatic permission checks come from `lib/permissions.ts`:
 
 ```tsx
-import { usePlatformPermissions, useOrganizationPermissions } from '@/lib/permissions'
+import {
+    usePlatformPermissions,
+    useOrganizationPermissions,
+} from '@/lib/permissions'
 
 const { hasPlatformPermission } = usePlatformPermissions()
 const { hasOrganizationPermission } = useOrganizationPermissions(orgId)
 
 if (hasPlatformPermission('platform.users.manage')) {
-  // User has platform permission
+    // User has platform permission
 }
 
 if (hasOrganizationPermission('organization.members.invite')) {
-  // User has organization permission
+    // User has organization permission
 }
 ```
 
@@ -171,6 +174,7 @@ create.mutate({ body: { name: 'John', email: 'john@example.com' } })
 ```
 
 **Benefits**:
+
 - Co-locates endpoints, hooks, and invalidation strategy by feature
 - Keeps components free from endpoint/query key details
 - Type-safe through ORPC endpoint `queryOptions` / `mutationOptions`
@@ -187,8 +191,8 @@ Define route metadata using `route.info.ts` files (generated/synced):
 import { z } from 'zod'
 
 export const Route = {
-  name: 'FeatureRouteName',
-  params: z.object({}),
+    name: 'FeatureRouteName',
+    params: z.object({}),
 }
 ```
 
@@ -199,7 +203,7 @@ import { FeatureRouteName } from '@/routes'
 import { useSearchParams } from '@/routes/hooks'
 
 // Type-safe links
-<FeatureRouteName.Link>Go to feature</FeatureRouteName.Link>
+;<FeatureRouteName.Link>Go to feature</FeatureRouteName.Link>
 
 // Type-safe navigation
 const search = useSearchParams(FeatureRouteName)
@@ -218,14 +222,18 @@ const search = useSearchParams(FeatureRouteName)
 Middleware stack is composed in order:
 
 ```tsx
-export default WithEnv(              // 1. Validate environment
-  WithHealthCheck(                   // 2. Health check endpoint
-    WithAuth(                        // 3. Session management
-      WithHeaders(                   // 4. CORS and security headers
-        () => NextResponse.next()
-      )
+export default WithEnv(
+    // 1. Validate environment
+    WithHealthCheck(
+        // 2. Health check endpoint
+        WithAuth(
+            // 3. Session management
+            WithHeaders(
+                // 4. CORS and security headers
+                () => NextResponse.next()
+            )
+        )
     )
-  )
 )
 ```
 
@@ -246,6 +254,7 @@ const { data: session, isLoading } = useSession()
 ```
 
 **Plugins**: Admin and Organization plugins are enabled with custom hooks:
+
 - `useOrganizationMembers()` - Get organization members
 - `usePlatformPermissions()` - Check platform-level permissions
 - `useOrganizationPermissions()` - Check organization-level permissions
@@ -306,116 +315,132 @@ Use route-level adapter components to map domain entities/events into generic re
 ## File Organization Rules
 
 1. **Architecture discipline is mandatory**
-  - Every new or moved file must be intentionally placed after architectural review.
-  - Verify scope (`_feature` local vs shared), ownership, and long-term fit before creating/moving files.
+
+- Every new or moved file must be intentionally placed after architectural review.
+- Verify scope (`_feature` local vs shared), ownership, and long-term fit before creating/moving files.
 
 2. **Fix structure immediately (no deferred cleanup)**
-  - If you discover a non-ideal structure while working, fix it in the same change set.
-  - Do not postpone with temporary legacy layers.
+
+- If you discover a non-ideal structure while working, fix it in the same change set.
+- Do not postpone with temporary legacy layers.
 
 3. **No legacy bridge / no compatibility re-export shims**
-  - Do not keep old folders alive only for import compatibility.
-  - Do not add re-export proxy files to preserve deprecated paths.
-  - Move imports directly to canonical paths and remove dead paths.
+
+- Do not keep old folders alive only for import compatibility.
+- Do not add re-export proxy files to preserve deprecated paths.
+- Move imports directly to canonical paths and remove dead paths.
 
 4. **Group by Feature, Not Type**
-   - Keep related components together (auth components in `components/auth/`)
-   - Don't create generic folders like `components/common/`
+    - Keep related components together (auth components in `components/auth/`)
+    - Don't create generic folders like `components/common/`
 
 5. **Prefer Domain Layer Hooks**
-  - Use `src/domains/<feature>/{endpoints,hooks,invalidations}.ts`
-  - Avoid ad-hoc query/mutation logic in components
-  - See `src/domains/user/` as the reference pattern
+
+- Use `src/domains/<feature>/{endpoints,hooks,invalidations}.ts`
+- Avoid ad-hoc query/mutation logic in components
+- See `src/domains/user/` as the reference pattern
 
 6. **No Empty Directories**
-   - Remove folders that don't contain files
-   - Don't create placeholder directories
+    - Remove folders that don't contain files
+    - Don't create placeholder directories
 
 7. **No Duplicate Components**
-   - Keep single source of truth for each component type
-  - Reusable UI must live under `components/atomics/{atoms,molecules,organisms}`
+    - Keep single source of truth for each component type
+
+- Reusable UI must live under `components/atomics/{atoms,molecules,organisms}`
 
 8. **Co-locate Route Metadata**
-  - Route metadata is `route.info.ts` (not `page.info.ts`)
-   - Use unique Route names to avoid collisions
+
+- Route metadata is `route.info.ts` (not `page.info.ts`)
+- Use unique Route names to avoid collisions
 
 9. **Explicit Imports**
-  - Prefer canonical paths: `@/components/atomics/...`, `@/domains/...`, `@/lib/...`
-  - Avoid deep cross-feature imports into another feature's private `_...` folders
+
+- Prefer canonical paths: `@/components/atomics/...`, `@/domains/...`, `@/lib/...`
+- Avoid deep cross-feature imports into another feature's private `_...` folders
 
 10. **Layouts and pages responsibilities**
-   - Keep global/shell concerns in layouts
-   - Keep page components focused on route composition and feature orchestration
-   - Keep cross-cutting infrastructure in `lib/`, not inside route pages
+
+- Keep global/shell concerns in layouts
+- Keep page components focused on route composition and feature orchestration
+- Keep cross-cutting infrastructure in `lib/`, not inside route pages
 
 ## Migration Notes
 
 ### Deprecated Patterns
 
 1. **Legacy reusable component root**
-  - **Status**: REMOVED
-  - **Deprecated**: `components/organisms/*`
-  - **Migration**: Use `components/atomics/organisms/*`
+
+- **Status**: REMOVED
+- **Deprecated**: `components/organisms/*`
+- **Migration**: Use `components/atomics/organisms/*`
 
 2. **Legacy compatibility re-export strategy**
-  - **Status**: FORBIDDEN
-  - **Migration**: update all imports to canonical final paths directly
-  - **Reason**: re-export bridges keep legacy structure alive and create maintenance debt
+
+- **Status**: FORBIDDEN
+- **Migration**: update all imports to canonical final paths directly
+- **Reason**: re-export bridges keep legacy structure alive and create maintenance debt
 
 3. **String-based Routing**
-   - **Status**: DEPRECATED
-   - **Migration**: Use declarative routes from `@/routes`
-  - **Example**: typed `<Route.Link>` instead of raw string `href` paths in complex flows
+    - **Status**: DEPRECATED
+    - **Migration**: Use declarative routes from `@/routes`
+
+- **Example**: typed `<Route.Link>` instead of raw string `href` paths in complex flows
 
 ### Active Patterns
 
 1. **Domain Hooks + Explicit Invalidations**
-  - Define endpoint contracts in `endpoints.ts`
-  - Keep invalidation config in `invalidations.ts`
-  - Expose composable hooks from `hooks.ts`
+
+- Define endpoint contracts in `endpoints.ts`
+- Keep invalidation config in `invalidations.ts`
+- Expose composable hooks from `hooks.ts`
 
 2. **Declarative Routing**
-  - Define route metadata in `route.info.ts`
-   - Use typed links: `<Route.Link>`
-   - Use typed hooks: `useSearchParams(Route)`
-  - Regenerate route artifacts after route changes (`dr:build`)
+
+- Define route metadata in `route.info.ts`
+- Use typed links: `<Route.Link>`
+- Use typed hooks: `useSearchParams(Route)`
+- Regenerate route artifacts after route changes (`dr:build`)
 
 3. **Better Auth**
-   - Use `auth()` for server components
-   - Use `useSession()` for client components
-   - Leverage admin and organization plugins
+    - Use `auth()` for server components
+    - Use `useSession()` for client components
+    - Leverage admin and organization plugins
 
 4. **Middleware Composition**
-   - Stack middleware functions in `proxy.ts`
-   - Use matchers for route-specific middleware
-   - Validate environment before other middleware
+    - Stack middleware functions in `proxy.ts`
+    - Use matchers for route-specific middleware
+    - Validate environment before other middleware
 
 5. **Route-local private folders with promotion path**
-  - Keep one-feature internals in `_components/_hooks/_models/_data-table/_utils`
-  - Promote only true cross-feature reuse to `components/atomics`, `domains`, or `lib`
+
+- Keep one-feature internals in `_components/_hooks/_models/_data-table/_utils`
+- Promote only true cross-feature reuse to `components/atomics`, `domains`, or `lib`
 
 ## Usage Examples
 
 ### Creating a New CRUD Feature
 
 1. **Define API Contract** (in `packages/contracts/api/`)
+
 ```typescript
 export const productContract = o.contract({
-  list: o.route({ /* ... */ }),
-  findById: o.route({ /* ... */ }),
-  create: o.route({ /* ... */ }),
-  // ...
+    list: o.route({/* ... */}),
+    findById: o.route({/* ... */}),
+    create: o.route({/* ... */}),
+    // ...
 })
 ```
 
 2. **Create Domain Layer** (in `apps/web/src/domains/product/`)
+
 ```typescript
 // endpoints.ts
 import { orpc } from '@/lib/orpc'
 export const productEndpoints = {
-  list: orpc.product.list,
-  findById: orpc.product.findById,
-  create: orpc.product.create,
+    list: orpc.product.list,
+    findById: orpc.product.findById,
+    create: orpc.product.create,
 }
 
 // hooks.ts
@@ -423,40 +448,43 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { productEndpoints } from './endpoints'
 
 export function useProductList(input: { query: Record<string, unknown> }) {
-  return useQuery(productEndpoints.list.queryOptions({ input }))
+    return useQuery(productEndpoints.list.queryOptions({ input }))
 }
 
 export function useCreateProduct() {
-  return useMutation(productEndpoints.create.mutationOptions())
+    return useMutation(productEndpoints.create.mutationOptions())
 }
 ```
 
 3. **Create Route** (in `apps/web/src/app/products/`)
+
 ```typescript
 // route.info.ts
 import { z } from 'zod'
 
 export const Route = {
-  name: 'Products',
-  params: z.object({}),
+    name: 'Products',
+    params: z.object({}),
 }
 ```
 
 4. **Use in Component**
+
 ```tsx
 import { useProductList } from '@/domains/product/hooks'
 import { Products } from '@/routes'
 import { useSearchParams } from '@/routes/hooks'
 
 export default function ProductsPage() {
-  const { page = 1 } = useSearchParams(Products)
-  const { data } = useProductList({ query: { page } })
-  
-  return <ProductList products={data?.products || []} />
+    const { page = 1 } = useSearchParams(Products)
+    const { data } = useProductList({ query: { page } })
+
+    return <ProductList products={data?.products || []} />
 }
 ```
 
 5. **Optional route-local private structure**
+
 ```text
 app/products/
   page.tsx
@@ -474,18 +502,18 @@ app/products/
 import { RequireOrganizationRole } from '@/components/auth'
 
 export function AdminPanel({ orgId }: { orgId: string }) {
-  return (
-    <RequireOrganizationRole 
-      role="admin" 
-      organizationId={orgId}
-      fallback={<AccessDenied />}
-    >
-      <div>
-        <h1>Admin Panel</h1>
-        {/* Admin-only content */}
-      </div>
-    </RequireOrganizationRole>
-  )
+    return (
+        <RequireOrganizationRole
+            role="admin"
+            organizationId={orgId}
+            fallback={<AccessDenied />}
+        >
+            <div>
+                <h1>Admin Panel</h1>
+                {/* Admin-only content */}
+            </div>
+        </RequireOrganizationRole>
+    )
 }
 ```
 
@@ -495,19 +523,19 @@ export function AdminPanel({ orgId }: { orgId: string }) {
 import { ShowIfPlatformRole, ShowIfOrganizationRole } from '@/components/auth'
 
 export function UserActions({ userId, orgId }: Props) {
-  return (
-    <div>
-      {/* Show for platform admins */}
-      <ShowIfPlatformRole role="admin">
-        <DeleteUserButton userId={userId} />
-      </ShowIfPlatformRole>
-      
-      {/* Show for organization owners */}
-      <ShowIfOrganizationRole role="owner" organizationId={orgId}>
-        <TransferOwnershipButton />
-      </ShowIfOrganizationRole>
-    </div>
-  )
+    return (
+        <div>
+            {/* Show for platform admins */}
+            <ShowIfPlatformRole role="admin">
+                <DeleteUserButton userId={userId} />
+            </ShowIfPlatformRole>
+
+            {/* Show for organization owners */}
+            <ShowIfOrganizationRole role="owner" organizationId={orgId}>
+                <TransferOwnershipButton />
+            </ShowIfOrganizationRole>
+        </div>
+    )
 }
 ```
 
@@ -524,6 +552,7 @@ export function UserActions({ userId, orgId }: Props) {
 ## Questions or Issues?
 
 If you're unsure about the correct pattern to use:
+
 1. Look for similar existing implementations
 2. Check this ARCHITECTURE.md document
 3. Check `src/README.md` for canonical structure decisions

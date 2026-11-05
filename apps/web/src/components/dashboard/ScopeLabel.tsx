@@ -16,25 +16,25 @@ import { Badge } from '@deployer/ui/components/shadcn/badge'
  * scope they are operating in.
  */
 export function ScopeLabel({
-  scope,
-  nodeName,
+    scope,
+    nodeName,
 }: {
-  scope: 'mesh' | 'node'
-  nodeName?: string
+    scope: 'mesh' | 'node'
+    nodeName?: string
 }) {
-  if (scope === 'node') {
-    return (
-      <Badge variant="secondary" className="gap-1.5 font-normal">
-        <Server className="size-3" />
-        Node{nodeName ? ` · ${nodeName}` : ''}
-      </Badge>
-    )
-  }
+    if (scope === 'node') {
+        return (
+            <Badge variant="secondary" className="gap-1.5 font-normal">
+                <Server className="size-3" />
+                Node{nodeName ? ` · ${nodeName}` : ''}
+            </Badge>
+        )
+    }
 
-  return (
-    <Badge variant="outline" className="gap-1.5 font-normal">
-      <Network className="size-3" />
-      Mesh
-    </Badge>
-  )
+    return (
+        <Badge variant="outline" className="gap-1.5 font-normal">
+            <Network className="size-3" />
+            Mesh
+        </Badge>
+    )
 }

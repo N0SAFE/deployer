@@ -24,14 +24,14 @@ export {
     meshMemberViewSchema,
     meshDoorViewSchema,
     updateIngressInputSchema,
-} from "./contracts";
+} from './contracts'
 export {
     joinEntryPointKindSchema,
     INGRESS_JOIN_ENTRY_POINTS,
     joinEntryPointSchema,
     joinEntryPointSummarySchema,
     joinEntryPoints,
-} from "@deployer/contracts-entities/entities/ingress/index";
+} from '@deployer/contracts-entities/entities/ingress/index'
 export type {
     JoinEntryPoint,
     JoinEntryPointKind,
@@ -46,7 +46,7 @@ export type {
     EdgeResource,
     EdgeHealth,
     RouteVisibility,
-} from "@deployer/contracts-entities/entities/ingress/index";
+} from '@deployer/contracts-entities/entities/ingress/index'
 export type {
     ReachabilityContract,
     IngressState,
@@ -54,4 +54,4 @@ export type {
     MeshMemberView,
     MeshDoorView,
     PublicEdgeView,
-} from "./contracts";
+} from './contracts'

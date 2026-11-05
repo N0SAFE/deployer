@@ -7,13 +7,13 @@
  */
 
 import type {
-  VariableString,
-  VariableBoolean,
-  VariableNumber,
-  VariableArray,
-  RateLimitConfig,
-  IPWhiteListConfig,
-} from './common.interfaces';
+    VariableString,
+    VariableBoolean,
+    VariableNumber,
+    VariableArray,
+    RateLimitConfig,
+    IPWhiteListConfig,
+} from './common.interfaces'
 
 // ============================================================================
 // PREFIX MIDDLEWARES
@@ -23,15 +23,15 @@ import type {
  * AddPrefix middleware configuration
  */
 export type AddPrefixConfig = {
-  prefix: VariableString;
+    prefix: VariableString
 }
 
 /**
  * StripPrefix middleware configuration
  */
 export type StripPrefixConfig = {
-  prefixes: VariableArray<string>;
-  forceSlash?: VariableBoolean;
+    prefixes: VariableArray<string>
+    forceSlash?: VariableBoolean
 }
 
 // ============================================================================
@@ -42,37 +42,37 @@ export type StripPrefixConfig = {
  * Headers middleware configuration
  */
 export type HeadersConfig = {
-  customRequestHeaders?: Record<string, VariableString>;
-  customResponseHeaders?: Record<string, VariableString>;
-  accessControlAllowCredentials?: VariableBoolean;
-  accessControlAllowHeaders?: VariableArray<string>;
-  accessControlAllowMethods?: VariableArray<string>;
-  accessControlAllowOriginList?: VariableArray<string>;
-  accessControlAllowOriginListRegex?: VariableArray<string>;
-  accessControlExposeHeaders?: VariableArray<string>;
-  accessControlMaxAge?: VariableNumber;
-  addVaryHeader?: VariableBoolean;
-  allowedHosts?: VariableArray<string>;
-  hostsProxyHeaders?: VariableArray<string>;
-  sslRedirect?: VariableBoolean;
-  sslTemporaryRedirect?: VariableBoolean;
-  sslHost?: VariableString;
-  sslProxyHeaders?: Record<string, VariableString>;
-  stsSeconds?: VariableNumber;
-  stsIncludeSubdomains?: VariableBoolean;
-  stsPreload?: VariableBoolean;
-  forceSTSHeader?: VariableBoolean;
-  frameDeny?: VariableBoolean;
-  customFrameOptionsValue?: VariableString;
-  contentTypeNosniff?: VariableBoolean;
-  browserXssFilter?: VariableBoolean;
-  customBrowserXSSValue?: VariableString;
-  contentSecurityPolicy?: VariableString;
-  publicKey?: VariableString;
-  referrerPolicy?: VariableString;
-  featurePolicy?: VariableString;
-  permissionsPolicy?: VariableString;
-  isDevelopment?: VariableBoolean;
+    customRequestHeaders?: Record<string, VariableString>
+    customResponseHeaders?: Record<string, VariableString>
+    accessControlAllowCredentials?: VariableBoolean
+    accessControlAllowHeaders?: VariableArray<string>
+    accessControlAllowMethods?: VariableArray<string>
+    accessControlAllowOriginList?: VariableArray<string>
+    accessControlAllowOriginListRegex?: VariableArray<string>
+    accessControlExposeHeaders?: VariableArray<string>
+    accessControlMaxAge?: VariableNumber
+    addVaryHeader?: VariableBoolean
+    allowedHosts?: VariableArray<string>
+    hostsProxyHeaders?: VariableArray<string>
+    sslRedirect?: VariableBoolean
+    sslTemporaryRedirect?: VariableBoolean
+    sslHost?: VariableString
+    sslProxyHeaders?: Record<string, VariableString>
+    stsSeconds?: VariableNumber
+    stsIncludeSubdomains?: VariableBoolean
+    stsPreload?: VariableBoolean
+    forceSTSHeader?: VariableBoolean
+    frameDeny?: VariableBoolean
+    customFrameOptionsValue?: VariableString
+    contentTypeNosniff?: VariableBoolean
+    browserXssFilter?: VariableBoolean
+    customBrowserXSSValue?: VariableString
+    contentSecurityPolicy?: VariableString
+    publicKey?: VariableString
+    referrerPolicy?: VariableString
+    featurePolicy?: VariableString
+    permissionsPolicy?: VariableString
+    isDevelopment?: VariableBoolean
 }
 
 // ============================================================================
@@ -83,18 +83,18 @@ export type HeadersConfig = {
  * RedirectScheme middleware configuration
  */
 export type RedirectSchemeConfig = {
-  scheme: VariableString;
-  port?: VariableString;
-  permanent?: VariableBoolean;
+    scheme: VariableString
+    port?: VariableString
+    permanent?: VariableBoolean
 }
 
 /**
  * RedirectRegex middleware configuration
  */
 export type RedirectRegexConfig = {
-  regex: VariableString;
-  replacement: VariableString;
-  permanent?: VariableBoolean;
+    regex: VariableString
+    replacement: VariableString
+    permanent?: VariableBoolean
 }
 
 // ============================================================================
@@ -105,40 +105,40 @@ export type RedirectRegexConfig = {
  * BasicAuth middleware configuration
  */
 export type BasicAuthConfig = {
-  users?: VariableArray<string>;
-  usersFile?: VariableString;
-  realm?: VariableString;
-  removeHeader?: VariableBoolean;
-  headerField?: VariableString;
+    users?: VariableArray<string>
+    usersFile?: VariableString
+    realm?: VariableString
+    removeHeader?: VariableBoolean
+    headerField?: VariableString
 }
 
 /**
  * DigestAuth middleware configuration
  */
 export type DigestAuthConfig = {
-  users?: VariableArray<string>;
-  usersFile?: VariableString;
-  removeHeader?: VariableBoolean;
-  realm?: VariableString;
-  headerField?: VariableString;
+    users?: VariableArray<string>
+    usersFile?: VariableString
+    removeHeader?: VariableBoolean
+    realm?: VariableString
+    headerField?: VariableString
 }
 
 /**
  * ForwardAuth middleware configuration
  */
 export type ForwardAuthConfig = {
-  address: VariableString;
-  tls?: {
-    ca?: VariableString;
-    caOptional?: VariableBoolean;
-    cert?: VariableString;
-    key?: VariableString;
-    insecureSkipVerify?: VariableBoolean;
-  };
-  trustForwardHeader?: VariableBoolean;
-  authResponseHeaders?: VariableArray<string>;
-  authResponseHeadersRegex?: VariableString;
-  authRequestHeaders?: VariableArray<string>;
+    address: VariableString
+    tls?: {
+        ca?: VariableString
+        caOptional?: VariableBoolean
+        cert?: VariableString
+        key?: VariableString
+        insecureSkipVerify?: VariableBoolean
+    }
+    trustForwardHeader?: VariableBoolean
+    authResponseHeaders?: VariableArray<string>
+    authResponseHeadersRegex?: VariableString
+    authRequestHeaders?: VariableArray<string>
 }
 
 // ============================================================================
@@ -149,7 +149,7 @@ export type ForwardAuthConfig = {
  * Chain middleware configuration
  */
 export type ChainConfig = {
-  middlewares: VariableArray<string>;
+    middlewares: VariableArray<string>
 }
 
 // ============================================================================
@@ -160,8 +160,8 @@ export type ChainConfig = {
  * Compress middleware configuration
  */
 export type CompressConfig = {
-  excludedContentTypes?: VariableArray<string>;
-  minResponseBodyBytes?: VariableNumber;
+    excludedContentTypes?: VariableArray<string>
+    minResponseBodyBytes?: VariableNumber
 }
 
 // ============================================================================
@@ -172,15 +172,15 @@ export type CompressConfig = {
  * ReplacePathRegex middleware configuration
  */
 export type ReplacePathRegexConfig = {
-  regex: VariableString;
-  replacement: VariableString;
+    regex: VariableString
+    replacement: VariableString
 }
 
 /**
  * ReplacePath middleware configuration
  */
 export type ReplacePathConfig = {
-  path: VariableString;
+    path: VariableString
 }
 
 // ============================================================================
@@ -191,44 +191,44 @@ export type ReplacePathConfig = {
  * Retry middleware configuration
  */
 export type RetryConfig = {
-  attempts?: VariableNumber;
-  initialInterval?: VariableString;
+    attempts?: VariableNumber
+    initialInterval?: VariableString
 }
 
 /**
  * Buffering middleware configuration
  */
 export type BufferingConfig = {
-  maxRequestBodyBytes?: VariableNumber;
-  memRequestBodyBytes?: VariableNumber;
-  maxResponseBodyBytes?: VariableNumber;
-  memResponseBodyBytes?: VariableNumber;
-  retryExpression?: VariableString;
+    maxRequestBodyBytes?: VariableNumber
+    memRequestBodyBytes?: VariableNumber
+    maxResponseBodyBytes?: VariableNumber
+    memResponseBodyBytes?: VariableNumber
+    retryExpression?: VariableString
 }
 
 /**
  * CircuitBreaker middleware configuration
  */
 export type CircuitBreakerConfig = {
-  expression: VariableString;
-  checkPeriod?: VariableString;
-  fallbackDuration?: VariableString;
-  recoveryDuration?: VariableString;
+    expression: VariableString
+    checkPeriod?: VariableString
+    fallbackDuration?: VariableString
+    recoveryDuration?: VariableString
 }
 
 /**
  * InFlightReq middleware configuration
  */
 export type InFlightReqConfig = {
-  amount?: VariableNumber;
-  sourceCriterion?: {
-    ipStrategy?: {
-      depth?: VariableNumber;
-      excludedIPs?: VariableArray<string>;
-    };
-    requestHeaderName?: VariableString;
-    requestHost?: VariableBoolean;
-  };
+    amount?: VariableNumber
+    sourceCriterion?: {
+        ipStrategy?: {
+            depth?: VariableNumber
+            excludedIPs?: VariableArray<string>
+        }
+        requestHeaderName?: VariableString
+        requestHost?: VariableBoolean
+    }
 }
 
 // ============================================================================
@@ -239,39 +239,39 @@ export type InFlightReqConfig = {
  * HTTP Middleware configuration (union of all middleware types)
  */
 export type HttpMiddlewareConfig = {
-  addPrefix?: AddPrefixConfig;
-  stripPrefix?: StripPrefixConfig;
-  headers?: HeadersConfig;
-  redirectScheme?: RedirectSchemeConfig;
-  redirectRegex?: RedirectRegexConfig;
-  basicAuth?: BasicAuthConfig;
-  digestAuth?: DigestAuthConfig;
-  forwardAuth?: ForwardAuthConfig;
-  chain?: ChainConfig;
-  compress?: CompressConfig;
-  rateLimit?: RateLimitConfig;
-  replacePathRegex?: ReplacePathRegexConfig;
-  replacePath?: ReplacePathConfig;
-  retry?: RetryConfig;
-  buffering?: BufferingConfig;
-  circuitBreaker?: CircuitBreakerConfig;
-  inFlightReq?: InFlightReqConfig;
-  ipWhiteList?: IPWhiteListConfig;
-  ipAllowList?: IPWhiteListConfig;
+    addPrefix?: AddPrefixConfig
+    stripPrefix?: StripPrefixConfig
+    headers?: HeadersConfig
+    redirectScheme?: RedirectSchemeConfig
+    redirectRegex?: RedirectRegexConfig
+    basicAuth?: BasicAuthConfig
+    digestAuth?: DigestAuthConfig
+    forwardAuth?: ForwardAuthConfig
+    chain?: ChainConfig
+    compress?: CompressConfig
+    rateLimit?: RateLimitConfig
+    replacePathRegex?: ReplacePathRegexConfig
+    replacePath?: ReplacePathConfig
+    retry?: RetryConfig
+    buffering?: BufferingConfig
+    circuitBreaker?: CircuitBreakerConfig
+    inFlightReq?: InFlightReqConfig
+    ipWhiteList?: IPWhiteListConfig
+    ipAllowList?: IPWhiteListConfig
 }
 
 /**
  * TCP Middleware configuration
  */
 export type TcpMiddlewareConfig = {
-  ipWhiteList?: IPWhiteListConfig;
-  ipAllowList?: IPWhiteListConfig;
+    ipWhiteList?: IPWhiteListConfig
+    ipAllowList?: IPWhiteListConfig
 }
 
 /**
  * Middleware collection by type
  */
 export type MiddlewaresConfig = {
-  http?: Record<string, HttpMiddlewareConfig>;
-  tcp?: Record<string, TcpMiddlewareConfig>;
+    http?: Record<string, HttpMiddlewareConfig>
+    tcp?: Record<string, TcpMiddlewareConfig>
 }

@@ -1,45 +1,63 @@
-import { Logger } from "@nestjs/common";
-import { Effect } from "effect";
+import { Logger } from '@nestjs/common'
+import { Effect } from 'effect'
 
-import type { DockerEngineShape } from "@deployer/docker";
-import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
+import type { DockerEngineShape } from '@deployer/docker'
+import { platformNetworkName, platformOverlayForPrefix } from '@deployer/docker'
 import {
-	makeSwarmAppWiring,
-	
-	
-	SWARM_APP_WIRING_SUPERVISOR_ID,
-	
-} from "@deployer/platform-supervisors";
+    makeSwarmAppWiring,
+    SWARM_APP_WIRING_SUPERVISOR_ID,
+} from '@deployer/platform-supervisors'
 
-import { EnvService } from "../../../../config/env/env.module";
-import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
+import { EnvService } from '../../../../config/env/env.module'
+import {
+    buildSupervisor,
+    type SupervisorEventBusFacade,
+    type SupervisorRegistration,
+} from '../../supervision/index'
 
-export { SWARM_APP_WIRING_SUPERVISOR_ID };
+export { SWARM_APP_WIRING_SUPERVISOR_ID }
 
 export type SwarmAppWiringDeps = {
-	readonly engine: DockerEngineShape;
-	readonly env: EnvService;
-	readonly bus: SupervisorEventBusFacade;
-};
+    readonly engine: DockerEngineShape
+    readonly env: EnvService
+    readonly bus: SupervisorEventBusFacade
+}
 
 /**
  * The supervisor that keeps this API container attached to the swarm overlay. Always registered; its
  * background loop re-wires when the overlay appears or changes.
  */
-export function makeSwarmAppWiringRegistration({ engine, env, bus }: SwarmAppWiringDeps): SupervisorRegistration {
-	const wiring = makeSwarmAppWiring({
-		engine,
-		logger: new Logger("SwarmAppWiringSupervisor"),
-		config: {
-			overlay: () => platformOverlayForPrefix(env.get("DEPLOYER_PREFIX")),
-			platformNetwork: () => platformNetworkName(env.get("DEPLOYER_PREFIX")),
-			declaredTargets: () =>
-				(["DEPLOYER_API_TARGET", "DEPLOYER_WEB_TARGET"] as const)
-					.map((key) => env.get(key)?.trim())
-					.filter((value): value is string => value !== undefined && value !== ""),
-			selfHostname: () => process.env.HOSTNAME,
-		},
-	});
-	const supervisor = buildSupervisor(wiring.spec, bus, "SwarmAppWiringSupervisor");
-	return { supervisor, activate: Effect.succeed({ background: wiring.background(supervisor.ensureDesiredState) }) };
+export function makeSwarmAppWiringRegistration({
+    engine,
+    env,
+    bus,
+}: SwarmAppWiringDeps): SupervisorRegistration {
+    const wiring = makeSwarmAppWiring({
+        engine,
+        logger: new Logger('SwarmAppWiringSupervisor'),
+        config: {
+            overlay: () => platformOverlayForPrefix(env.get('DEPLOYER_PREFIX')),
+            platformNetwork: () =>
+                platformNetworkName(env.get('DEPLOYER_PREFIX')),
+            declaredTargets: () =>
+                (['DEPLOYER_API_TARGET', 'DEPLOYER_WEB_TARGET'] as const)
+                    .map((key) => env.get(key)?.trim())
+                    .filter(
+                        (value): value is string =>
+                            value !== undefined && value !== ''
+                    ),
+            selfHostname: () => process.env.HOSTNAME,
+        },
+    })
+    const supervisor = buildSupervisor(
+        wiring.spec,
+        bus,
+        'SwarmAppWiringSupervisor'
+    )
+    return {
+        supervisor,
+        activate: Effect.succeed({
+            background: wiring.background(supervisor.ensureDesiredState),
+        }),
+    }
 }

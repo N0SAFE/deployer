@@ -33,6 +33,7 @@ The Traefik module implements a **virtual filesystem** that stores all configura
 ```
 
 **Important Rules**:
+
 1. All writes go to the database first
 2. Real filesystem is populated via sync operations
 3. Never read from real filesystem for application logic
@@ -46,40 +47,44 @@ The main service for virtual filesystem operations.
 
 ```typescript
 // Get complete virtual filesystem tree
-const tree = await fileSystemService.getTraefikFileSystem();
+const tree = await fileSystemService.getTraefikFileSystem()
 // Returns: TraefikFileSystemEntry[]
 
 // Get project-specific filesystem
-const projectTree = await fileSystemService.getProjectFileSystem(projectId);
+const projectTree = await fileSystemService.getProjectFileSystem(projectId)
 
 // Get directory listing
-const entries = await fileSystemService.listDirectory('/dynamic/projects/');
+const entries = await fileSystemService.listDirectory('/dynamic/projects/')
 ```
 
 ### File Operations
 
 ```typescript
 // Read file content
-const content = await fileSystemService.getFileContent('/dynamic/projects/my-app/service.yml');
+const content = await fileSystemService.getFileContent(
+    '/dynamic/projects/my-app/service.yml'
+)
 // Returns: FileContentResult { content: string, path: string, ... }
 
 // Write file (to database) - simple string content
 await fileSystemService.writeFile(
-  '/dynamic/projects/my-app/service.yml',
-  yamlContent,
-  true  // createDirectories (optional, default: true)
-);
+    '/dynamic/projects/my-app/service.yml',
+    yamlContent,
+    true // createDirectories (optional, default: true)
+)
 // Returns: FileOperationResult { success: boolean, filePath: string, action: 'created'|'updated'|'error', ... }
 
 // Delete file (from database)
-await fileSystemService.deleteFile('/dynamic/projects/my-app/service.yml');
+await fileSystemService.deleteFile('/dynamic/projects/my-app/service.yml')
 // Returns: FileOperationResult
 
 // Check if file exists
-const exists = await fileSystemService.fileExists('/dynamic/projects/my-app/service.yml');
+const exists = await fileSystemService.fileExists(
+    '/dynamic/projects/my-app/service.yml'
+)
 
 // Backup file before modification
-await fileSystemService.backupFile('/dynamic/projects/my-app/service.yml');
+await fileSystemService.backupFile('/dynamic/projects/my-app/service.yml')
 // Returns: FileOperationResult with backupPath
 ```
 
@@ -89,33 +94,35 @@ await fileSystemService.backupFile('/dynamic/projects/my-app/service.yml');
 // Generate path for service config
 // generateServiceConfigPath(serviceId, configId, projectName?)
 const path = fileSystemService.generateServiceConfigPath(
-  'svc_abc12345',  // serviceId
-  'cfg_xyz67890',  // configId  
-  'my-project'     // projectName (optional)
-);
+    'svc_abc12345', // serviceId
+    'cfg_xyz67890', // configId
+    'my-project' // projectName (optional)
+)
 // Returns: '/dynamic/projects/my-project/svc-abc12345-xyz67890.yml'
 // Without projectName: '/dynamic/standalone/svc-abc12345-xyz67890.yml'
 
 // Generate middleware path
 // generateMiddlewarePath(middlewareName, middlewareId, isGlobal?)
 const middlewarePath = fileSystemService.generateMiddlewarePath(
-  'rate-limit',     // middlewareName
-  'mw_abc12345',    // middlewareId
-  true              // isGlobal (optional, default: false)
-);
+    'rate-limit', // middlewareName
+    'mw_abc12345', // middlewareId
+    true // isGlobal (optional, default: false)
+)
 // Returns: '/middleware/global/rate-limit-mw_abc123.yml' (global)
 // Or:      '/middleware/local/rate-limit-mw_abc123.yml' (local)
 
 // Generate SSL certificate path
 // generateSSLCertificatePath(domain, certificateId)
 const sslPath = fileSystemService.generateSSLCertificatePath(
-  'example.com',    // domain
-  'cert_abc12345'   // certificateId
-);
+    'example.com', // domain
+    'cert_abc12345' // certificateId
+)
 // Returns: '/certs/example.com-cert_abc1.pem'
 
 // Generate backup path
-const backupPath = fileSystemService.generateBackupPath('/dynamic/projects/my-app/service.yml');
+const backupPath = fileSystemService.generateBackupPath(
+    '/dynamic/projects/my-app/service.yml'
+)
 // Returns: '/backups/dynamic/projects/my-app/service.yml.bak'
 ```
 
@@ -125,15 +132,15 @@ const backupPath = fileSystemService.generateBackupPath('/dynamic/projects/my-ap
 
 ```typescript
 interface TraefikFileSystemEntry {
-  path: string;           // Full virtual path
-  name: string;           // File/directory name
-  type: 'file' | 'directory';
-  size?: number;          // File size in bytes
-  mimeType?: string;      // MIME type (files only)
-  createdAt?: Date;
-  updatedAt?: Date;
-  children?: TraefikFileSystemEntry[]; // Directories only
-  metadata?: Record<string, unknown>;
+    path: string // Full virtual path
+    name: string // File/directory name
+    type: 'file' | 'directory'
+    size?: number // File size in bytes
+    mimeType?: string // MIME type (files only)
+    createdAt?: Date
+    updatedAt?: Date
+    children?: TraefikFileSystemEntry[] // Directories only
+    metadata?: Record<string, unknown>
 }
 ```
 
@@ -225,29 +232,29 @@ The virtual filesystem internally detects MIME types based on file extensions wh
 
 ```typescript
 // MIME type is automatically detected from file extension
-await fileSystemService.writeFile('/path/config.yml', yamlContent);
+await fileSystemService.writeFile('/path/config.yml', yamlContent)
 // Internal mimeType: 'application/yaml'
 
-await fileSystemService.writeFile('/path/config.json', jsonContent);
+await fileSystemService.writeFile('/path/config.json', jsonContent)
 // Internal mimeType: 'application/json'
 
 // When downloading, the correct content-type is returned
-const result = await fileSystemService.downloadFile('/path/config.yml');
+const result = await fileSystemService.downloadFile('/path/config.yml')
 // result.mimeType: 'application/yaml'
 ```
 
 ### Supported Extensions
 
-| Extension | MIME Type |
-|-----------|-----------|
-| `.yml`, `.yaml` | `application/yaml` |
-| `.json` | `application/json` |
-| `.pem` | `application/x-pem-file` |
+| Extension       | MIME Type                    |
+| --------------- | ---------------------------- |
+| `.yml`, `.yaml` | `application/yaml`           |
+| `.json`         | `application/json`           |
+| `.pem`          | `application/x-pem-file`     |
 | `.crt`, `.cert` | `application/x-x509-ca-cert` |
-| `.key` | `application/x-pem-file` |
-| `.toml` | `application/toml` |
-| `.txt` | `text/plain` |
-| (other) | `application/octet-stream` |
+| `.key`          | `application/x-pem-file`     |
+| `.toml`         | `application/toml`           |
+| `.txt`          | `text/plain`                 |
+| (other)         | `application/octet-stream`   |
 
 ## Usage Patterns
 
@@ -255,15 +262,15 @@ const result = await fileSystemService.downloadFile('/path/config.yml');
 
 ```typescript
 // Get all config files for a project
-const projectConfigs = await fileSystemService.getProjectFileSystem(projectId);
+const projectConfigs = await fileSystemService.getProjectFileSystem(projectId)
 
 // Get specific file content
 const content = await fileSystemService.getFileContent(
-  '/dynamic/projects/my-app/service.yml'
-);
+    '/dynamic/projects/my-app/service.yml'
+)
 
 // Build a complete tree for UI display
-const tree = await fileSystemService.getTraefikFileSystem();
+const tree = await fileSystemService.getTraefikFileSystem()
 ```
 
 ### Writing Configuration Files
@@ -271,26 +278,25 @@ const tree = await fileSystemService.getTraefikFileSystem();
 ```typescript
 // Write a service configuration
 const builder = new TraefikConfigBuilder()
-  .addRouter('my-service', router => router
-    .rule('Host(`{{domain}}`)')
-    .service('my-service')
-  )
-  .addService('my-service', service => service
-    .loadBalancer(lb => lb.server('http://{{host}}:{{port}}'))
-  );
+    .addRouter('my-service', (router) =>
+        router.rule('Host(`{{domain}}`)').service('my-service')
+    )
+    .addService('my-service', (service) =>
+        service.loadBalancer((lb) => lb.server('http://{{host}}:{{port}}'))
+    )
 
 // Provide context for variable resolution
 const context = {
-  domain: 'app.example.com',
-  host: 'backend',
-  port: '8080'
-};
+    domain: 'app.example.com',
+    host: 'backend',
+    port: '8080',
+}
 
 // writeFile takes (path, content, createDirectories?)
 await fileSystemService.writeFile(
-  '/dynamic/projects/my-project/service-svc_123.yml',
-  builder.toYAML(context)
-);
+    '/dynamic/projects/my-project/service-svc_123.yml',
+    builder.toYAML(context)
+)
 ```
 
 ### Batch Operations
@@ -305,15 +311,15 @@ await fileSystemService.writeFile(
 // ]);
 
 // CURRENT: Use individual write operations
-await fileSystemService.writeFile('/path/file1.yml', content1);
-await fileSystemService.writeFile('/path/file2.yml', content2);
+await fileSystemService.writeFile('/path/file1.yml', content1)
+await fileSystemService.writeFile('/path/file2.yml', content2)
 
 // FUTURE: Delete multiple files atomically
 // await fileSystemService.deleteFiles(['/path/file1.yml', '/path/file2.yml']);
 
 // CURRENT: Use individual delete operations
-await fileSystemService.deleteFile('/path/file1.yml');
-await fileSystemService.deleteFile('/path/file2.yml');
+await fileSystemService.deleteFile('/path/file1.yml')
+await fileSystemService.deleteFile('/path/file2.yml')
 ```
 
 ### Moving/Renaming Files
@@ -328,9 +334,9 @@ await fileSystemService.deleteFile('/path/file2.yml');
 // );
 
 // CURRENT: Read, write to new path, delete old
-const content = await fileSystemService.getFileContent('/old/path.yml');
-await fileSystemService.writeFile('/new/path.yml', content.content);
-await fileSystemService.deleteFile('/old/path.yml');
+const content = await fileSystemService.getFileContent('/old/path.yml')
+await fileSystemService.writeFile('/new/path.yml', content.content)
+await fileSystemService.deleteFile('/old/path.yml')
 ```
 
 ## Integration with Sync Service
@@ -339,13 +345,13 @@ The virtual filesystem works with TraefikSyncService to write to real filesystem
 
 ```typescript
 // 1. Write to virtual filesystem (database)
-await fileSystemService.writeFile(path, content);
+await fileSystemService.writeFile(path, content)
 
 // 2. Sync to real filesystem (async)
-await syncService.syncServiceConfiguration(serviceConfigId);
+await syncService.syncServiceConfiguration(serviceConfigId)
 
 // Or sync all pending changes
-await syncService.syncAllConfigurations();
+await syncService.syncAllConfigurations()
 ```
 
 See [SYNC-SYSTEM.md](./SYNC-SYSTEM.md) for details on the synchronization process.
@@ -356,11 +362,11 @@ See [SYNC-SYSTEM.md](./SYNC-SYSTEM.md) for details on the synchronization proces
 
 ```typescript
 try {
-  const content = await fileSystemService.getFileContent('/nonexistent/path');
+    const content = await fileSystemService.getFileContent('/nonexistent/path')
 } catch (error) {
-  if (error instanceof FileNotFoundError) {
-    console.log('File does not exist:', error.path);
-  }
+    if (error instanceof FileNotFoundError) {
+        console.log('File does not exist:', error.path)
+    }
 }
 ```
 
@@ -370,12 +376,14 @@ try {
 
 ```typescript
 try {
-  // Future: with overwrite protection
-  await fileSystemService.writeFile('/existing/path', content, { overwrite: false });
+    // Future: with overwrite protection
+    await fileSystemService.writeFile('/existing/path', content, {
+        overwrite: false,
+    })
 } catch (error) {
-  if (error instanceof FileExistsError) {
-    console.log('File already exists:', error.path);
-  }
+    if (error instanceof FileExistsError) {
+        console.log('File already exists:', error.path)
+    }
 }
 ```
 
@@ -383,11 +391,14 @@ try {
 
 ```typescript
 try {
-  await fileSystemService.writeFile('../../../etc/passwd', 'malicious content');
+    await fileSystemService.writeFile(
+        '../../../etc/passwd',
+        'malicious content'
+    )
 } catch (error) {
-  if (error instanceof InvalidPathError) {
-    console.log('Invalid path:', error.path);
-  }
+    if (error instanceof InvalidPathError) {
+        console.log('Invalid path:', error.path)
+    }
 }
 ```
 
@@ -397,10 +408,12 @@ try {
 
 ```typescript
 // ✅ Good: Virtual path
-const content = await fileSystemService.getFileContent('/dynamic/projects/app/config.yml');
+const content = await fileSystemService.getFileContent(
+    '/dynamic/projects/app/config.yml'
+)
 
 // ❌ Bad: Real filesystem path
-const content = fs.readFileSync('/etc/traefik/dynamic/projects/app/config.yml');
+const content = fs.readFileSync('/etc/traefik/dynamic/projects/app/config.yml')
 ```
 
 ### 2. Let the Service Generate Paths
@@ -408,22 +421,22 @@ const content = fs.readFileSync('/etc/traefik/dynamic/projects/app/config.yml');
 ```typescript
 // ✅ Good: Use path generators with proper parameters
 const path = fileSystemService.generateServiceConfigPath(
-  'svc_abc12345',  // serviceId
-  'cfg_xyz67890',  // configId
-  'my-project'     // projectName
-);
+    'svc_abc12345', // serviceId
+    'cfg_xyz67890', // configId
+    'my-project' // projectName
+)
 
 // ❌ Bad: Manually construct paths
-const path = `/dynamic/projects/${projectName}/service-${id}.yml`;
+const path = `/dynamic/projects/${projectName}/service-${id}.yml`
 ```
 
 ### 3. Use Backup Before Modifications
 
 ```typescript
 // ✅ Good: Backup before overwriting
-const existingContent = await fileSystemService.getFileContent(path);
-await fileSystemService.backupFile(path);
-await fileSystemService.writeFile(path, newContent);
+const existingContent = await fileSystemService.getFileContent(path)
+await fileSystemService.backupFile(path)
+await fileSystemService.writeFile(path, newContent)
 ```
 
 ### 4. Handle Batch Operations Carefully
@@ -432,15 +445,15 @@ await fileSystemService.writeFile(path, newContent);
 
 ```typescript
 // ✅ Good: Handle individual failures gracefully
-const filesToWrite = [file1, file2, file3];
-const results = [];
+const filesToWrite = [file1, file2, file3]
+const results = []
 
 for (const file of filesToWrite) {
-  const result = await fileSystemService.writeFile(file.path, file.content);
-  results.push(result);
-  if (!result.success) {
-    // Handle failure - could rollback previous writes
-    console.error(`Failed to write ${file.path}: ${result.message}`);
-  }
+    const result = await fileSystemService.writeFile(file.path, file.content)
+    results.push(result)
+    if (!result.success) {
+        // Handle failure - could rollback previous writes
+        console.error(`Failed to write ${file.path}: ${result.message}`)
+    }
 }
 ```

@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * JoinClusterStep — the JOINING step of the setup wizard (reached only from
@@ -15,102 +15,119 @@
  * just joined.
  */
 
-import { ArrowLeft, ArrowRight, Info } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, ArrowRight, Info } from 'lucide-react'
+import { useState } from 'react'
 
-import type { SwarmPolicyDocument } from "@deployer/contracts-entities";
+import type { SwarmPolicyDocument } from '@deployer/contracts-entities'
 import {
-  SwarmParticipationForm,
-  type SwarmParticipationDraft,
-} from "@deployer/ui/components/setup/swarm-participation-form";
-import { Button } from "@deployer/ui/components/shadcn/button";
+    SwarmParticipationForm,
+    type SwarmParticipationDraft,
+} from '@deployer/ui/components/setup/swarm-participation-form'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 /** Roles a joining node can take (copy mirrors the API's policy documents). */
 const JOINING_POLICIES: SwarmPolicyDocument[] = [
-  {
-    policy: "worker",
-    name: "Worker only",
-    description:
-      "This node only runs workloads. Control-plane duties stay on the cluster's existing managers — the most common way to add capacity.",
-    bestFor: "Adding capacity to a running cluster",
-    role: "worker",
-    schedulesWorkloads: true,
-    recommended: true,
-  },
-  {
-    policy: "auto",
-    name: "Mixed — manager & worker",
-    description:
-      "This node joins as a manager as well, so it shares control-plane duties (redundancy) while still running workloads. Recommended once a cluster has 3+ nodes.",
-    bestFor: "Reinforcing a cluster's control plane",
-    role: "manager",
-    schedulesWorkloads: true,
-    recommended: false,
-  },
-  {
-    policy: "manager",
-    name: "Dedicated master",
-    description:
-      "This node joins as a manager that does NOT run workload tasks (drained) — a pure control-plane node for larger clusters.",
-    bestFor: "Larger clusters with a dedicated controller",
-    role: "manager",
-    schedulesWorkloads: false,
-    recommended: false,
-  },
-];
+    {
+        policy: 'worker',
+        name: 'Worker only',
+        description:
+            "This node only runs workloads. Control-plane duties stay on the cluster's existing managers — the most common way to add capacity.",
+        bestFor: 'Adding capacity to a running cluster',
+        role: 'worker',
+        schedulesWorkloads: true,
+        recommended: true,
+    },
+    {
+        policy: 'auto',
+        name: 'Mixed — manager & worker',
+        description:
+            'This node joins as a manager as well, so it shares control-plane duties (redundancy) while still running workloads. Recommended once a cluster has 3+ nodes.',
+        bestFor: "Reinforcing a cluster's control plane",
+        role: 'manager',
+        schedulesWorkloads: true,
+        recommended: false,
+    },
+    {
+        policy: 'manager',
+        name: 'Dedicated master',
+        description:
+            'This node joins as a manager that does NOT run workload tasks (drained) — a pure control-plane node for larger clusters.',
+        bestFor: 'Larger clusters with a dedicated controller',
+        role: 'manager',
+        schedulesWorkloads: false,
+        recommended: false,
+    },
+]
 
 interface Props {
-  initial: SwarmParticipationDraft;
-  onBack?: () => void;
-  onContinue: (draft: SwarmParticipationDraft) => void;
+    initial: SwarmParticipationDraft
+    onBack?: () => void
+    onContinue: (draft: SwarmParticipationDraft) => void
 }
 
 export function JoinClusterStep({ initial, onBack, onContinue }: Props) {
-  const [draft, setDraft] = useState<SwarmParticipationDraft>({
-    ...initial,
-    mode: "join",
-  });
+    const [draft, setDraft] = useState<SwarmParticipationDraft>({
+        ...initial,
+        mode: 'join',
+    })
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold tracking-tight text-balance">
-          Your role in the cluster
-        </h2>
-        <p className="text-sm text-muted-foreground leading-relaxed text-pretty">
-          This node joins the Swarm cluster the fleet already runs — it never starts a cluster of its own.
-        </p>
-      </div>
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+                <h2 className="text-2xl font-semibold tracking-tight text-balance">
+                    Your role in the cluster
+                </h2>
+                <p className="text-muted-foreground text-sm leading-relaxed text-pretty">
+                    This node joins the Swarm cluster the fleet already runs —
+                    it never starts a cluster of its own.
+                </p>
+            </div>
 
-      <div className="rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground flex gap-2 items-start">
-        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-        <span>
-          Node identity, database and swarm credentials are inherited from the fleet during setup.
-          Swarm joins after setup completes.
-        </span>
-      </div>
+            <div className="bg-muted/30 text-muted-foreground flex items-start gap-2 rounded-lg border px-4 py-3 text-xs">
+                <Info
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                    aria-hidden="true"
+                />
+                <span>
+                    Node identity, database and swarm credentials are inherited
+                    from the fleet during setup. Swarm joins after setup
+                    completes.
+                </span>
+            </div>
 
-      <SwarmParticipationForm
-        initial={draft}
-        policies={JOINING_POLICIES}
-        context="joining"
-        onChange={setDraft}
-      />
+            <SwarmParticipationForm
+                initial={draft}
+                policies={JOINING_POLICIES}
+                context="joining"
+                onChange={setDraft}
+            />
 
-      <div className="flex items-center justify-between">
-        {onBack ? (
-          <Button type="button" variant="ghost" onClick={onBack} className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-        ) : (
-          <span />
-        )}
-        <Button size="lg" type="button" onClick={() => { onContinue(draft); }} className="gap-2">
-          Continue
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
+            <div className="flex items-center justify-between">
+                {onBack ? (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={onBack}
+                        className="gap-2"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                    </Button>
+                ) : (
+                    <span />
+                )}
+                <Button
+                    size="lg"
+                    type="button"
+                    onClick={() => {
+                        onContinue(draft)
+                    }}
+                    className="gap-2"
+                >
+                    Continue
+                    <ArrowRight className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    )
 }

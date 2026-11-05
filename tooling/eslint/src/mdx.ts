@@ -1,6 +1,6 @@
-import * as mdx from "eslint-plugin-mdx";
-import { defineConfig } from "eslint/config";
-import { ignoresConfig } from "./base";
+import * as mdx from 'eslint-plugin-mdx'
+import { defineConfig } from 'eslint/config'
+import { ignoresConfig } from './base'
 
 const base = defineConfig([
     ...ignoresConfig,
@@ -16,7 +16,7 @@ const base = defineConfig([
                 // optional, same as the `parserOptions.ignoreRemarkConfig`, you have to specify it twice unfortunately
                 ignoreRemarkConfig: true,
                 // optional, same as the `parserOptions.remarkConfigPath`, you have to specify it twice unfortunately
-                remarkConfigPath: "path/to/your/remarkrc",
+                remarkConfigPath: 'path/to/your/remarkrc',
             }),
         },
         {
@@ -24,24 +24,22 @@ const base = defineConfig([
             rules: {
                 ...mdx.flatCodeBlocks.rules,
                 // if you want to override some rules for code blocks
-                "no-var": "error",
-                "prefer-const": "error",
+                'no-var': 'error',
+                'prefer-const': 'error',
             },
         },
     ],
-]);
+])
 
-const all = defineConfig([
-    base,
-]);
+const all = defineConfig([base])
 
 export default {
     meta: {
-        name: "@deployer/config-eslint/mdx",
-        version: "0.0.0",
+        name: '@deployer/config-eslint/mdx',
+        version: '0.0.0',
     },
     configs: {
         base,
         all,
     },
-} as const;
+} as const

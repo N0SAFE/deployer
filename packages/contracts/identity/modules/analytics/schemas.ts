@@ -1,11 +1,21 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-export const timeRangeSchema = z.enum(["1h", "6h", "12h", "1d", "3d", "7d", "30d", "90d", "1y"]);
+export const timeRangeSchema = z.enum([
+    '1h',
+    '6h',
+    '12h',
+    '1d',
+    '3d',
+    '7d',
+    '30d',
+    '90d',
+    '1y',
+])
 
 export const dateRangeSchema = z.object({
     start: z.coerce.date(),
     end: z.coerce.date(),
-});
+})
 
 export const analyticsResourceUsageSchema = z.object({
     timestamp: z.coerce.date(),
@@ -27,7 +37,7 @@ export const analyticsResourceUsageSchema = z.object({
         inbound: z.number(),
         outbound: z.number(),
     }),
-});
+})
 
 export const applicationMetricsSchema = z.object({
     timestamp: z.coerce.date(),
@@ -41,7 +51,7 @@ export const applicationMetricsSchema = z.object({
     errorRate: z.number().min(0).max(100),
     activeConnections: z.number(),
     throughput: z.number(),
-});
+})
 
 export const databaseMetricsSchema = z.object({
     timestamp: z.coerce.date(),
@@ -65,7 +75,7 @@ export const databaseMetricsSchema = z.object({
         indexSize: z.number(),
         growth: z.number(),
     }),
-});
+})
 
 export const deploymentAnalyticsSchema = z.object({
     timestamp: z.coerce.date(),
@@ -76,25 +86,25 @@ export const deploymentAnalyticsSchema = z.object({
         z.object({
             reason: z.string(),
             count: z.number(),
-        }),
+        })
     ),
     rollbackCount: z.number(),
-});
+})
 
 export const analyticsServiceHealthSchema = z.object({
     serviceName: z.string(),
-    status: z.enum(["healthy", "degraded", "unhealthy", "unknown"]),
+    status: z.enum(['healthy', 'degraded', 'unhealthy', 'unknown']),
     uptime: z.number(),
     lastCheck: z.coerce.date(),
     checks: z.array(
         z.object({
             name: z.string(),
-            status: z.enum(["pass", "fail", "warn"]),
+            status: z.enum(['pass', 'fail', 'warn']),
             message: z.string().optional(),
             timestamp: z.coerce.date(),
-        }),
+        })
     ),
-});
+})
 
 export const userActivitySchema = z.object({
     timestamp: z.coerce.date(),
@@ -104,7 +114,7 @@ export const userActivitySchema = z.object({
     details: z.record(z.string(), z.unknown()).optional(),
     ipAddress: z.string().optional(),
     userAgent: z.string().optional(),
-});
+})
 
 export const activitySummarySchema = z.object({
     period: z.string(),
@@ -114,24 +124,24 @@ export const activitySummarySchema = z.object({
         z.object({
             action: z.string(),
             count: z.number(),
-        }),
+        })
     ),
     topResources: z.array(
         z.object({
             resource: z.string(),
             count: z.number(),
-        }),
+        })
     ),
-});
+})
 
 export const reportConfigurationSchema = z.object({
     name: z.string(),
     description: z.string().optional(),
     metrics: z.array(z.string()),
     filters: z.record(z.string(), z.unknown()).optional(),
-    schedule: z.enum(["none", "daily", "weekly", "monthly"]).default("none"),
+    schedule: z.enum(['none', 'daily', 'weekly', 'monthly']).default('none'),
     recipients: z.array(z.string()).optional(),
-});
+})
 
 export const analyticsReportSchema = z.object({
     id: z.string(),
@@ -151,7 +161,7 @@ export const analyticsReportSchema = z.object({
     deploymentAnalytics: z.array(deploymentAnalyticsSchema),
     serviceHealth: z.array(analyticsServiceHealthSchema),
     userActivity: activitySummarySchema.optional(),
-});
+})
 
 /**
  * Where a metrics/usage payload actually comes from. The analytics module is
@@ -162,36 +172,38 @@ export const analyticsReportSchema = z.object({
  * fabricated numbers.
  */
 export const analyticsDataSourceSchema = z.enum([
-    "docker",
-    "deployments",
-    "services",
-    "reports",
-    "unavailable",
-]);
+    'docker',
+    'deployments',
+    'services',
+    'reports',
+    'unavailable',
+])
 
-export type AnalyticsDataSource = z.infer<typeof analyticsDataSourceSchema>;
+export type AnalyticsDataSource = z.infer<typeof analyticsDataSourceSchema>
 
 export const getMetricsInputSchema = z.object({
-    timeRange: timeRangeSchema.default("1d"),
-    granularity: z.enum(["minute", "hour", "day"]).default("hour"),
+    timeRange: timeRangeSchema.default('1d'),
+    granularity: z.enum(['minute', 'hour', 'day']).default('hour'),
     metrics: z.array(z.string()).optional(),
     services: z.array(z.string()).optional(),
-});
+})
 
 export const getUsageInputSchema = z.object({
-    timeRange: timeRangeSchema.default("1d"),
-    resource: z.enum(["cpu", "memory", "disk", "network", "all"]).default("all"),
-    aggregation: z.enum(["average", "max", "min", "sum"]).default("average"),
-});
+    timeRange: timeRangeSchema.default('1d'),
+    resource: z
+        .enum(['cpu', 'memory', 'disk', 'network', 'all'])
+        .default('all'),
+    aggregation: z.enum(['average', 'max', 'min', 'sum']).default('average'),
+})
 
 export const getActivityInputSchema = z.object({
-    timeRange: timeRangeSchema.default("1d"),
+    timeRange: timeRangeSchema.default('1d'),
     userId: z.string().optional(),
     action: z.string().optional(),
     resource: z.string().optional(),
     limit: z.coerce.number().min(1).max(1000).default(100),
     offset: z.coerce.number().min(0).default(0),
-});
+})
 
 export const generateReportInputSchema = z.object({
     period: dateRangeSchema,
@@ -201,5 +213,5 @@ export const generateReportInputSchema = z.object({
     includeDeploymentAnalytics: z.boolean().default(true),
     includeServiceHealth: z.boolean().default(true),
     includeUserActivity: z.boolean().default(false),
-    format: z.enum(["json", "pdf", "csv"]).default("json"),
-});
+    format: z.enum(['json', 'pdf', 'csv']).default('json'),
+})

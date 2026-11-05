@@ -1,9 +1,9 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 // Define the input for the check endpoint
-export const healthCheckInput = z.object({});
+export const healthCheckInput = z.object({})
 
 /**
  * One indicator's verdict, as reported by `check`.
@@ -13,13 +13,13 @@ export const healthCheckInput = z.object({});
  * says up while detailed says the database is down".
  */
 export const healthCheckIndicatorSchema = z.object({
-  name: z.string(),
-  status: z.enum(["up", "down"]),
-  latencyMs: z.coerce.number(),
-  message: z.string().optional(),
-  reason: z.string().optional(),
-  detail: z.record(z.string(), z.unknown()).optional(),
-});
+    name: z.string(),
+    status: z.enum(['up', 'down']),
+    latencyMs: z.coerce.number(),
+    message: z.string().optional(),
+    reason: z.string().optional(),
+    detail: z.record(z.string(), z.unknown()).optional(),
+})
 
 /**
  * The output for the check endpoint.
@@ -34,23 +34,23 @@ export const healthCheckIndicatorSchema = z.object({
  * gate — can satisfy this contract without producing a full report.
  */
 export const healthCheckOutput = z.object({
-  status: z.string(),
-  timestamp: z.date(),
-  service: z.string().optional(),
-  /** Per-indicator verdicts, in declaration order. */
-  indicators: z.array(healthCheckIndicatorSchema).optional(),
-});
+    status: z.string(),
+    timestamp: z.date(),
+    service: z.string().optional(),
+    /** Per-indicator verdicts, in declaration order. */
+    indicators: z.array(healthCheckIndicatorSchema).optional(),
+})
 
-const healthCheckOps = standard.zod(healthCheckOutput, "healthCheck");
+const healthCheckOps = standard.zod(healthCheckOutput, 'healthCheck')
 
 // Define the contract
 export const healthCheckContract = healthCheckOps
-  .list()
-  .path("/")
-  .input(healthCheckInput)
-  .output(healthCheckOutput)
-  .errors((e) => [
-    // 503 when a dependency is down.
-    ...standardDomainErrorContracts(e),
-  ])
-  .build();
+    .list()
+    .path('/')
+    .input(healthCheckInput)
+    .output(healthCheckOutput)
+    .errors((e) => [
+        // 503 when a dependency is down.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build()

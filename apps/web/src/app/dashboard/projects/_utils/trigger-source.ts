@@ -1,7 +1,7 @@
 import type { DeploymentTriggerSource } from '@deployer/runtime-contracts/modules/deployment/crud'
 
 function str(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined
+    return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 /**
@@ -10,14 +10,14 @@ function str(value: unknown): string | undefined {
  * `custom` run (the server resolves the source from the service itself).
  */
 export function buildTriggerSource(
-  providerId: string | null | undefined,
-  providerConfig: Record<string, unknown> | null | undefined,
+    providerId: string | null | undefined,
+    providerConfig: Record<string, unknown> | null | undefined
 ): DeploymentTriggerSource {
-  const config = providerConfig ?? {}
-  const repositoryUrl = str(config.sourceUrl) ?? str(config.repositoryUrl)
-  const branch = str(config.branch) ?? 'main'
-  if ((providerId === 'github' || providerId === 'gitlab') && repositoryUrl) {
-    return { sourceType: providerId, repositoryUrl, branch }
-  }
-  return { sourceType: 'custom' }
+    const config = providerConfig ?? {}
+    const repositoryUrl = str(config.sourceUrl) ?? str(config.repositoryUrl)
+    const branch = str(config.branch) ?? 'main'
+    if ((providerId === 'github' || providerId === 'gitlab') && repositoryUrl) {
+        return { sourceType: providerId, repositoryUrl, branch }
+    }
+    return { sourceType: 'custom' }
 }

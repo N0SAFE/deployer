@@ -1,25 +1,26 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { access } from "@deployer/auth/authz/meta";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 export const deviceSchema = z.object({
-  deviceName: z.string(),
-  lastUsed: z.date(),
-});
+    deviceName: z.string(),
+    lastUsed: z.date(),
+})
 
 export const getStatsOutputSchema = z.object({
-  totalSubscriptions: z.number(),
-  activeSubscriptions: z.number(),
-  devices: z.array(deviceSchema),
-});
+    totalSubscriptions: z.number(),
+    activeSubscriptions: z.number(),
+    devices: z.array(deviceSchema),
+})
 
-const pushStatsOps = standard.zod(getStatsOutputSchema, "pushStats");
+const pushStatsOps = standard.zod(getStatsOutputSchema, 'pushStats')
 
 export const getStatsContract = pushStatsOps
-  .list()
-  .path("/stats")
-  .input(z.object({}))
-  .output(getStatsOutputSchema)
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .meta(access({ permission: "push:stats" })).build();
+    .list()
+    .path('/stats')
+    .input(z.object({}))
+    .output(getStatsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(access({ permission: 'push:stats' }))
+    .build()

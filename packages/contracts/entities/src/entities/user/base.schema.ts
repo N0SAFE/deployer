@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
 /**
  * A platform user, as the API returns one.
@@ -8,14 +8,14 @@ import z from "zod/v4";
  * catalogue (`roleHasPermission`), never by this shape.
  */
 export const userSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	email: z.email(),
-	emailVerified: z.boolean(),
-	image: z.string().nullable(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-	role: z.string().min(1).optional(),
-	banned: z.boolean().optional(),
-});
-export type User = z.infer<typeof userSchema>;
+    id: z.string(),
+    name: z.string(),
+    email: z.email(),
+    emailVerified: z.boolean(),
+    image: z.string().nullable(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+    role: z.string().min(1).optional(),
+    banned: z.boolean().optional(),
+})
+export type User = z.infer<typeof userSchema>

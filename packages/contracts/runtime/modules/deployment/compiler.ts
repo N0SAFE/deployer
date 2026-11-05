@@ -3,35 +3,39 @@ import {
     deploymentCompileRollbackEdgesResultSchema,
     deploymentPlanCompileInputSchema,
     deploymentPlanCompileResultSchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const deploymentPlanCompileOps = standard.zod(deploymentPlanCompileResultSchema, "deploymentPlanCompile");
+const deploymentPlanCompileOps = standard.zod(
+    deploymentPlanCompileResultSchema,
+    'deploymentPlanCompile'
+)
 const deploymentRollbackEdgesCompileOps = standard.zod(
     deploymentCompileRollbackEdgesResultSchema,
-    "deploymentRollbackEdgesCompile",
-);
+    'deploymentRollbackEdgesCompile'
+)
 
 export const deploymentCompilePlanContract = deploymentPlanCompileOps
     .create()
-    .path("/compile-plan")
+    .path('/compile-plan')
     .input((b) => b.body(deploymentPlanCompileInputSchema))
     .output(deploymentPlanCompileResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const deploymentCompilePlanPreviewContract = deploymentPlanCompileOps
     .create()
-    .path("/compile-plan/preview")
+    .path('/compile-plan/preview')
     .input((b) => b.body(deploymentPlanCompileInputSchema))
     .output(deploymentPlanCompileResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
-export const deploymentCompileRollbackEdgesContract = deploymentRollbackEdgesCompileOps
-    .create()
-    .path("/compile-plan/rollback-edges")
-    .input((b) => b.body(deploymentCompileRollbackEdgesInputSchema))
-    .output(deploymentCompileRollbackEdgesResultSchema)
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+export const deploymentCompileRollbackEdgesContract =
+    deploymentRollbackEdgesCompileOps
+        .create()
+        .path('/compile-plan/rollback-edges')
+        .input((b) => b.body(deploymentCompileRollbackEdgesInputSchema))
+        .output(deploymentCompileRollbackEdgesResultSchema)
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()

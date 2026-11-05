@@ -2,11 +2,25 @@
 
 import { Check, Lock, Globe } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '@deployer/ui/components/shadcn/alert'
 import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
-import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
+import {
+    Field,
+    FieldLabel,
+    FieldDescription,
+} from '@deployer/ui/components/shadcn/field'
 import { Input } from '@deployer/ui/components/shadcn/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@deployer/ui/components/shadcn/select'
 import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { cn } from '@deployer/ui/lib/utils'
 
@@ -15,59 +29,110 @@ import { Section } from './step-section'
 
 import type { CreateServiceFormApi } from '../CreateService.hook'
 
-
-function NumberField({ value, onChange, options, placeholder }: {
-  value: number
-  onChange: (v: number) => void
-  options: readonly string[]
-  placeholder?: string
+function NumberField({
+    value,
+    onChange,
+    options,
+    placeholder,
+}: {
+    value: number
+    onChange: (v: number) => void
+    options: readonly string[]
+    placeholder?: string
 }) {
-  const current = String(value)
-  const all = options.includes(current) ? [...options] : [current, ...options]
-  return (
-    <Select value={current} onValueChange={(v) => { onChange(Number(v)) }}>
-      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
-      <SelectContent>
-        {all.map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
-      </SelectContent>
-    </Select>
-  )
+    const current = String(value)
+    const all = options.includes(current) ? [...options] : [current, ...options]
+    return (
+        <Select
+            value={current}
+            onValueChange={(v) => {
+                onChange(Number(v))
+            }}
+        >
+            <SelectTrigger>
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                {all.map((o) => (
+                    <SelectItem key={o} value={o}>
+                        {o}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    )
 }
 
 /** Type picker for the health check. */
-function HealthTypePicker({ value, onChange }: { value: string; onChange: (v: 'http' | 'tcp' | 'command' | 'none') => void }) {
-  const options = [
-    { value: 'http', label: 'HTTP', description: 'Request a URL, expect a status.' },
-    { value: 'tcp', label: 'TCP', description: 'Open a TCP connection to a port.' },
-    { value: 'command', label: 'Command', description: 'Run a shell command in-container.' },
-    { value: 'none', label: 'None', description: 'No health checking.' },
-  ] as const
-  return (
-    <div className="grid gap-2 sm:grid-cols-4">
-      {options.map((o) => {
-        const selected = value === o.value
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => { onChange(o.value) }}
-            className={cn(
-              'relative flex flex-col gap-1 rounded-lg border p-2.5 text-left transition-all',
-              selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border bg-background/40 hover:border-primary/40',
-            )}
-          >
-            {selected && <Check className="absolute right-1.5 top-1.5 size-3 text-primary" />}
-            <span className="text-xs font-medium">{o.label}</span>
-            <span className="text-xs leading-snug text-muted-foreground">{o.description}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
+function HealthTypePicker({
+    value,
+    onChange,
+}: {
+    value: string
+    onChange: (v: 'http' | 'tcp' | 'command' | 'none') => void
+}) {
+    const options = [
+        {
+            value: 'http',
+            label: 'HTTP',
+            description: 'Request a URL, expect a status.',
+        },
+        {
+            value: 'tcp',
+            label: 'TCP',
+            description: 'Open a TCP connection to a port.',
+        },
+        {
+            value: 'command',
+            label: 'Command',
+            description: 'Run a shell command in-container.',
+        },
+        { value: 'none', label: 'None', description: 'No health checking.' },
+    ] as const
+    return (
+        <div className="grid gap-2 sm:grid-cols-4">
+            {options.map((o) => {
+                const selected = value === o.value
+                return (
+                    <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => {
+                            onChange(o.value)
+                        }}
+                        className={cn(
+                            'relative flex flex-col gap-1 rounded-lg border p-2.5 text-left transition-all',
+                            selected
+                                ? 'border-primary bg-primary/10 ring-primary ring-1'
+                                : 'border-border bg-background/40 hover:border-primary/40'
+                        )}
+                    >
+                        {selected && (
+                            <Check className="text-primary absolute top-1.5 right-1.5 size-3" />
+                        )}
+                        <span className="text-xs font-medium">{o.label}</span>
+                        <span className="text-muted-foreground text-xs leading-snug">
+                            {o.description}
+                        </span>
+                    </button>
+                )
+            })}
+        </div>
+    )
 }
 
 const HTTP_METHODS = ['GET', 'HEAD', 'POST'] as const
-const STATUS_PRESETS = ['200', '201', '204', '301', '302', '401', '403', '404', '500'] as const
+const STATUS_PRESETS = [
+    '200',
+    '201',
+    '204',
+    '301',
+    '302',
+    '401',
+    '403',
+    '404',
+    '500',
+] as const
 
 /**
  * Step 6 — Network & Health. Container port, ingress visibility + TLS,
@@ -75,178 +140,673 @@ const STATUS_PRESETS = ['200', '201', '204', '301', '302', '401', '403', '404', 
  * traffic reaches them only through the ingress lanes.
  */
 export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
-  return (
-    <form.Subscribe
-      selector={(s) => ({
-        runnerId: s.values.runner.runnerId,
-        subServiceCount: s.values.runner.runnerId === 'orchestrator'
-          ? ((s.values.runner.config as { subServices?: unknown[] }).subServices ?? []).length
-          : 0,
-      })}
-      children={({ runnerId, subServiceCount }) => {
-        const orchestratorWithSubs = runnerId === 'orchestrator' && subServiceCount > 0
+    return (
+        <form.Subscribe
+            selector={(s) => ({
+                runnerId: s.values.runner.runnerId,
+                subServiceCount:
+                    s.values.runner.runnerId === 'orchestrator'
+                        ? (
+                              (
+                                  s.values.runner.config as {
+                                      subServices?: unknown[]
+                                  }
+                              ).subServices ?? []
+                          ).length
+                        : 0,
+            })}
+            children={({ runnerId, subServiceCount }) => {
+                const orchestratorWithSubs =
+                    runnerId === 'orchestrator' && subServiceCount > 0
 
-        // When the orchestrator owns sub-services, networking/ports/domains
-        // are configured PER SUB-SERVICE (in the Runner step), not on the shell.
-        if (orchestratorWithSubs) {
-          return (
-            <div className="space-y-4">
-              <Alert>
-                <Globe className="size-4" />
-                <AlertTitle className="text-xs">Networking is configured per sub-service</AlertTitle>
-                <AlertDescription className="text-xs">
-                  This orchestrator owns <strong>{String(subServiceCount)} sub-service(s)</strong>.
-                  Ports, visibility, TLS and health checks are configured inside each sub-service in
-                  the Runner step — the orchestrator shell itself has no route of its own.
-                </AlertDescription>
-              </Alert>
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Go back to <strong>Runner</strong> to configure each sub-service&apos;s networking,
-                visibility, TLS and domains.
-              </div>
-            </div>
-          )
-        }
-
-        return (
-          <form.Subscribe selector={(s) => ({ hcType: s.values.network.healthCheck.type, visibility: s.values.network.visibility })} children={({ hcType, visibility }) => (
-      <div className="space-y-4">
-        {/* ── Networking ── */}
-        <Section title="Networking" description="The port your service listens on and which ingress lanes route to it. Services never publish host ports.">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <form.Field name="network.port" children={(f) => (
-              <Field>
-                <FieldLabel>Container port</FieldLabel>
-                <Input type="number" value={f.state.value} onChange={(e) => { f.handleChange(e.target.value ? Number(e.target.value) : undefined) }} placeholder="3000" />
-                <FieldDescription>The primary port your service listens on inside the container.</FieldDescription>
-              </Field>
-            )} />
-            <form.Field name="network.visibility" children={(f) => (
-              <Field>
-                <FieldLabel className="flex items-center gap-2"><Globe className="size-3.5" /> Visibility</FieldLabel>
-                <Select value={f.state.value} onValueChange={(v) => { f.handleChange(v as 'private' | 'public') }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="public">Public — also on the public lane (internet) when one is enabled</SelectItem>
-                    <SelectItem value="private">Private — this machine and mesh members only</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  Routes always answer on the local lane (<code>&lt;app&gt;.deployer.localhost</code>) and the
-                  private lane; visibility only decides whether the public lane carries this service too.
-                  Lanes are configured in Network → Ingress &amp; edge.
-                </FieldDescription>
-              </Field>
-            )} />
-          </div>
-
-          {visibility === 'public' && (
-            <form.Field name="network.tls" children={(f) => {
-              const tlsVal = f.state.value as never as { enabled: boolean; certSecretRef?: string; httpRedirect: boolean }
-              const update = (patch: Partial<typeof tlsVal>) => { f.handleChange({ ...tlsVal, ...patch }) }
-              return (
-                <Field>
-                  <FieldLabel className="flex items-center gap-2"><Lock className="size-3.5" /> TLS termination</FieldLabel>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={tlsVal.enabled} onCheckedChange={(c) => { update({ enabled: c }) }} />
-                    <span className="text-xs text-muted-foreground">Terminate HTTPS on the edge.</span>
-                  </div>
-                  {tlsVal.enabled && (
-                    <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <FieldLabel className="text-xs">Certificate secret</FieldLabel>
-                        <AutocompleteField value={tlsVal.certSecretRef ?? ''} onChange={(v) => { update({ certSecretRef: v }) }} options={['letsencrypt', 'cloudflare-origin', 'wildcard-prod', 'wildcard-staging']} placeholder="letsencrypt" />
-                      </div>
-                      <div className="flex items-end gap-2 pb-1">
-                        <Checkbox checked={tlsVal.httpRedirect} onCheckedChange={(c) => { update({ httpRedirect: c === true }) }} />
-                        <span className="text-xs text-muted-foreground">Redirect HTTP → HTTPS</span>
-                      </div>
-                    </div>
-                  )}
-                </Field>
-              )
-            }} />
-          )}
-        </Section>
-
-        {/* ── Health check ── */}
-        <Section title="Health check" description="A health check is a probe the platform runs on a schedule. After enough failed probes the service is marked unhealthy.">
-          <form.Field name="network.healthCheck.type" children={(f) => (
-            <HealthTypePicker
-              value={f.state.value}
-              onChange={(v) => {
-                const base = { interval: 30, timeout: 10, retries: 3, startPeriod: 0, successThreshold: 1, failureThreshold: 3 }
-                if (v === 'http') {
-                  f.handleChange({ type: 'http', path: '/health', method: 'GET', expectedStatus: 200, headers: {}, ...base } as never)
-                } else if (v === 'tcp') {
-                  f.handleChange({ type: 'tcp', port: (form.state.values.network.port ?? 3000), ...base } as never)
-                } else if (v === 'command') {
-                  f.handleChange({ type: 'command', command: 'curl -f http://localhost:3000/health', ...base } as never)
-                } else {
-                  f.handleChange({ type: 'none' } as never)
+                // When the orchestrator owns sub-services, networking/ports/domains
+                // are configured PER SUB-SERVICE (in the Runner step), not on the shell.
+                if (orchestratorWithSubs) {
+                    return (
+                        <div className="space-y-4">
+                            <Alert>
+                                <Globe className="size-4" />
+                                <AlertTitle className="text-xs">
+                                    Networking is configured per sub-service
+                                </AlertTitle>
+                                <AlertDescription className="text-xs">
+                                    This orchestrator owns{' '}
+                                    <strong>
+                                        {String(subServiceCount)} sub-service(s)
+                                    </strong>
+                                    . Ports, visibility, TLS and health checks
+                                    are configured inside each sub-service in
+                                    the Runner step — the orchestrator shell
+                                    itself has no route of its own.
+                                </AlertDescription>
+                            </Alert>
+                            <div className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
+                                Go back to <strong>Runner</strong> to configure
+                                each sub-service&apos;s networking, visibility,
+                                TLS and domains.
+                            </div>
+                        </div>
+                    )
                 }
-              }}
-            />
-          )} />
 
-          {hcType === 'http' && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <form.Field name="network.healthCheck.path" children={(f) => (<Field><FieldLabel>Path</FieldLabel><Input value={f.state.value} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="/health" /><FieldDescription>URL path requested on the container port.</FieldDescription></Field>)} />
-              <form.Field name="network.healthCheck.method" children={(f) => (
-                <Field>
-                  <FieldLabel>Method</FieldLabel>
-                  <Select value={f.state.value} onValueChange={(v) => { f.handleChange(v as never) }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{HTTP_METHODS.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent>
-                  </Select>
-                </Field>
-              )} />
-              <form.Field name="network.healthCheck.expectedStatus" children={(f) => (
-                <Field>
-                  <FieldLabel>Expected status code</FieldLabel>
-                  <AutocompleteField value={String(f.state.value)} onChange={(v) => { f.handleChange(Number(v)) }} options={STATUS_PRESETS} placeholder="200" />
-                </Field>
-              )} />
-            </div>
-          )}
-          {hcType === 'tcp' && (
-            <form.Field name="network.healthCheck.port" children={(f) => (
-              <Field><FieldLabel>TCP port</FieldLabel><Input type="number" value={f.state.value} onChange={(e) => { f.handleChange(Number(e.target.value)) }} placeholder="3000" /></Field>
-            )} />
-          )}
-          {hcType === 'command' && (
-            <form.Field name="network.healthCheck.command" children={(f) => (
-              <Field><FieldLabel>Command</FieldLabel><FieldDescription>Run inside the container; exit code 0 means healthy.</FieldDescription><AutocompleteField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['curl -f http://localhost:3000/health', 'wget -q --spider http://localhost:3000/health', 'test -f /tmp/healthy']} placeholder="curl -f http://localhost:3000/health" /></Field>
-            )} />
-          )}
+                return (
+                    <form.Subscribe
+                        selector={(s) => ({
+                            hcType: s.values.network.healthCheck.type,
+                            visibility: s.values.network.visibility,
+                        })}
+                        children={({ hcType, visibility }) => (
+                            <div className="space-y-4">
+                                {/* ── Networking ── */}
+                                <Section
+                                    title="Networking"
+                                    description="The port your service listens on and which ingress lanes route to it. Services never publish host ports."
+                                >
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <form.Field
+                                            name="network.port"
+                                            children={(f) => (
+                                                <Field>
+                                                    <FieldLabel>
+                                                        Container port
+                                                    </FieldLabel>
+                                                    <Input
+                                                        type="number"
+                                                        value={f.state.value}
+                                                        onChange={(e) => {
+                                                            f.handleChange(
+                                                                e.target.value
+                                                                    ? Number(
+                                                                          e
+                                                                              .target
+                                                                              .value
+                                                                      )
+                                                                    : undefined
+                                                            )
+                                                        }}
+                                                        placeholder="3000"
+                                                    />
+                                                    <FieldDescription>
+                                                        The primary port your
+                                                        service listens on
+                                                        inside the container.
+                                                    </FieldDescription>
+                                                </Field>
+                                            )}
+                                        />
+                                        <form.Field
+                                            name="network.visibility"
+                                            children={(f) => (
+                                                <Field>
+                                                    <FieldLabel className="flex items-center gap-2">
+                                                        <Globe className="size-3.5" />{' '}
+                                                        Visibility
+                                                    </FieldLabel>
+                                                    <Select
+                                                        value={f.state.value}
+                                                        onValueChange={(v) => {
+                                                            f.handleChange(
+                                                                v as
+                                                                    | 'private'
+                                                                    | 'public'
+                                                            )
+                                                        }}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="public">
+                                                                Public — also on
+                                                                the public lane
+                                                                (internet) when
+                                                                one is enabled
+                                                            </SelectItem>
+                                                            <SelectItem value="private">
+                                                                Private — this
+                                                                machine and mesh
+                                                                members only
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FieldDescription>
+                                                        Routes always answer on
+                                                        the local lane (
+                                                        <code>
+                                                            &lt;app&gt;.deployer.localhost
+                                                        </code>
+                                                        ) and the private lane;
+                                                        visibility only decides
+                                                        whether the public lane
+                                                        carries this service
+                                                        too. Lanes are
+                                                        configured in Network →
+                                                        Ingress &amp; edge.
+                                                    </FieldDescription>
+                                                </Field>
+                                            )}
+                                        />
+                                    </div>
 
-          {hcType !== 'none' && (
-            <div className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-3">
-              <form.Field name="network.healthCheck.interval" children={(f) => (
-                <Field><FieldLabel>Interval (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['10', '15', '30', '60', '120']} placeholder="30" /><FieldDescription>Time between probes.</FieldDescription></Field>
-              )} />
-              <form.Field name="network.healthCheck.timeout" children={(f) => (
-                <Field><FieldLabel>Timeout (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['3', '5', '10', '30', '60']} placeholder="10" /><FieldDescription>A probe slower than this fails.</FieldDescription></Field>
-              )} />
-              <form.Field name="network.healthCheck.retries" children={(f) => (
-                <Field><FieldLabel>Retries</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['0', '1', '3', '5', '10']} placeholder="3" /><FieldDescription>Extra attempts before a probe counts as failed.</FieldDescription></Field>
-              )} />
-              <form.Field name="network.healthCheck.startPeriod" children={(f) => (
-                <Field><FieldLabel>Start period (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['0', '5', '10', '30', '60']} placeholder="0" /><FieldDescription>Grace time after start before failures count.</FieldDescription></Field>
-              )} />
-              <form.Field name="network.healthCheck.successThreshold" children={(f) => (
-                <Field><FieldLabel>Success threshold</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['1', '2', '3', '5']} placeholder="1" /><FieldDescription>Passing probes in a row to be healthy.</FieldDescription></Field>
-              )} />
-              <form.Field name="network.healthCheck.failureThreshold" children={(f) => (
-                <Field><FieldLabel>Failure threshold</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['1', '2', '3', '5']} placeholder="3" /><FieldDescription>Failing probes in a row to be unhealthy.</FieldDescription></Field>
-              )} />
-            </div>
-          )}
-        </Section>
-      </div>
-    )} />
-        )
-      }}
-    />
-  )
+                                    {visibility === 'public' && (
+                                        <form.Field
+                                            name="network.tls"
+                                            children={(f) => {
+                                                const tlsVal = f.state
+                                                    .value as never as {
+                                                    enabled: boolean
+                                                    certSecretRef?: string
+                                                    httpRedirect: boolean
+                                                }
+                                                const update = (
+                                                    patch: Partial<
+                                                        typeof tlsVal
+                                                    >
+                                                ) => {
+                                                    f.handleChange({
+                                                        ...tlsVal,
+                                                        ...patch,
+                                                    })
+                                                }
+                                                return (
+                                                    <Field>
+                                                        <FieldLabel className="flex items-center gap-2">
+                                                            <Lock className="size-3.5" />{' '}
+                                                            TLS termination
+                                                        </FieldLabel>
+                                                        <div className="flex items-center gap-2">
+                                                            <Switch
+                                                                checked={
+                                                                    tlsVal.enabled
+                                                                }
+                                                                onCheckedChange={(
+                                                                    c
+                                                                ) => {
+                                                                    update({
+                                                                        enabled:
+                                                                            c,
+                                                                    })
+                                                                }}
+                                                            />
+                                                            <span className="text-muted-foreground text-xs">
+                                                                Terminate HTTPS
+                                                                on the edge.
+                                                            </span>
+                                                        </div>
+                                                        {tlsVal.enabled && (
+                                                            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                                                                <div>
+                                                                    <FieldLabel className="text-xs">
+                                                                        Certificate
+                                                                        secret
+                                                                    </FieldLabel>
+                                                                    <AutocompleteField
+                                                                        value={
+                                                                            tlsVal.certSecretRef ??
+                                                                            ''
+                                                                        }
+                                                                        onChange={(
+                                                                            v
+                                                                        ) => {
+                                                                            update(
+                                                                                {
+                                                                                    certSecretRef:
+                                                                                        v,
+                                                                                }
+                                                                            )
+                                                                        }}
+                                                                        options={[
+                                                                            'letsencrypt',
+                                                                            'cloudflare-origin',
+                                                                            'wildcard-prod',
+                                                                            'wildcard-staging',
+                                                                        ]}
+                                                                        placeholder="letsencrypt"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-end gap-2 pb-1">
+                                                                    <Checkbox
+                                                                        checked={
+                                                                            tlsVal.httpRedirect
+                                                                        }
+                                                                        onCheckedChange={(
+                                                                            c
+                                                                        ) => {
+                                                                            update(
+                                                                                {
+                                                                                    httpRedirect:
+                                                                                        c ===
+                                                                                        true,
+                                                                                }
+                                                                            )
+                                                                        }}
+                                                                    />
+                                                                    <span className="text-muted-foreground text-xs">
+                                                                        Redirect
+                                                                        HTTP →
+                                                                        HTTPS
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </Field>
+                                                )
+                                            }}
+                                        />
+                                    )}
+                                </Section>
+
+                                {/* ── Health check ── */}
+                                <Section
+                                    title="Health check"
+                                    description="A health check is a probe the platform runs on a schedule. After enough failed probes the service is marked unhealthy."
+                                >
+                                    <form.Field
+                                        name="network.healthCheck.type"
+                                        children={(f) => (
+                                            <HealthTypePicker
+                                                value={f.state.value}
+                                                onChange={(v) => {
+                                                    const base = {
+                                                        interval: 30,
+                                                        timeout: 10,
+                                                        retries: 3,
+                                                        startPeriod: 0,
+                                                        successThreshold: 1,
+                                                        failureThreshold: 3,
+                                                    }
+                                                    if (v === 'http') {
+                                                        f.handleChange({
+                                                            type: 'http',
+                                                            path: '/health',
+                                                            method: 'GET',
+                                                            expectedStatus: 200,
+                                                            headers: {},
+                                                            ...base,
+                                                        } as never)
+                                                    } else if (v === 'tcp') {
+                                                        f.handleChange({
+                                                            type: 'tcp',
+                                                            port:
+                                                                form.state
+                                                                    .values
+                                                                    .network
+                                                                    .port ??
+                                                                3000,
+                                                            ...base,
+                                                        } as never)
+                                                    } else if (
+                                                        v === 'command'
+                                                    ) {
+                                                        f.handleChange({
+                                                            type: 'command',
+                                                            command:
+                                                                'curl -f http://localhost:3000/health',
+                                                            ...base,
+                                                        } as never)
+                                                    } else {
+                                                        f.handleChange({
+                                                            type: 'none',
+                                                        } as never)
+                                                    }
+                                                }}
+                                            />
+                                        )}
+                                    />
+
+                                    {hcType === 'http' && (
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <form.Field
+                                                name="network.healthCheck.path"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Path
+                                                        </FieldLabel>
+                                                        <Input
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(e) => {
+                                                                f.handleChange(
+                                                                    e.target
+                                                                        .value
+                                                                )
+                                                            }}
+                                                            placeholder="/health"
+                                                        />
+                                                        <FieldDescription>
+                                                            URL path requested
+                                                            on the container
+                                                            port.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.method"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Method
+                                                        </FieldLabel>
+                                                        <Select
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onValueChange={(
+                                                                v
+                                                            ) => {
+                                                                f.handleChange(
+                                                                    v as never
+                                                                )
+                                                            }}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {HTTP_METHODS.map(
+                                                                    (m) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                m
+                                                                            }
+                                                                            value={
+                                                                                m
+                                                                            }
+                                                                        >
+                                                                            {m}
+                                                                        </SelectItem>
+                                                                    )
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.expectedStatus"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Expected status code
+                                                        </FieldLabel>
+                                                        <AutocompleteField
+                                                            value={String(
+                                                                f.state.value
+                                                            )}
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    Number(v)
+                                                                )
+                                                            }}
+                                                            options={
+                                                                STATUS_PRESETS
+                                                            }
+                                                            placeholder="200"
+                                                        />
+                                                    </Field>
+                                                )}
+                                            />
+                                        </div>
+                                    )}
+                                    {hcType === 'tcp' && (
+                                        <form.Field
+                                            name="network.healthCheck.port"
+                                            children={(f) => (
+                                                <Field>
+                                                    <FieldLabel>
+                                                        TCP port
+                                                    </FieldLabel>
+                                                    <Input
+                                                        type="number"
+                                                        value={f.state.value}
+                                                        onChange={(e) => {
+                                                            f.handleChange(
+                                                                Number(
+                                                                    e.target
+                                                                        .value
+                                                                )
+                                                            )
+                                                        }}
+                                                        placeholder="3000"
+                                                    />
+                                                </Field>
+                                            )}
+                                        />
+                                    )}
+                                    {hcType === 'command' && (
+                                        <form.Field
+                                            name="network.healthCheck.command"
+                                            children={(f) => (
+                                                <Field>
+                                                    <FieldLabel>
+                                                        Command
+                                                    </FieldLabel>
+                                                    <FieldDescription>
+                                                        Run inside the
+                                                        container; exit code 0
+                                                        means healthy.
+                                                    </FieldDescription>
+                                                    <AutocompleteField
+                                                        value={f.state.value}
+                                                        onChange={(v) => {
+                                                            f.handleChange(v)
+                                                        }}
+                                                        options={[
+                                                            'curl -f http://localhost:3000/health',
+                                                            'wget -q --spider http://localhost:3000/health',
+                                                            'test -f /tmp/healthy',
+                                                        ]}
+                                                        placeholder="curl -f http://localhost:3000/health"
+                                                    />
+                                                </Field>
+                                            )}
+                                        />
+                                    )}
+
+                                    {hcType !== 'none' && (
+                                        <div className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-3">
+                                            <form.Field
+                                                name="network.healthCheck.interval"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Interval (s)
+                                                        </FieldLabel>
+                                                        <NumberField
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    v
+                                                                )
+                                                            }}
+                                                            options={[
+                                                                '10',
+                                                                '15',
+                                                                '30',
+                                                                '60',
+                                                                '120',
+                                                            ]}
+                                                            placeholder="30"
+                                                        />
+                                                        <FieldDescription>
+                                                            Time between probes.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.timeout"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Timeout (s)
+                                                        </FieldLabel>
+                                                        <NumberField
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    v
+                                                                )
+                                                            }}
+                                                            options={[
+                                                                '3',
+                                                                '5',
+                                                                '10',
+                                                                '30',
+                                                                '60',
+                                                            ]}
+                                                            placeholder="10"
+                                                        />
+                                                        <FieldDescription>
+                                                            A probe slower than
+                                                            this fails.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.retries"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Retries
+                                                        </FieldLabel>
+                                                        <NumberField
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    v
+                                                                )
+                                                            }}
+                                                            options={[
+                                                                '0',
+                                                                '1',
+                                                                '3',
+                                                                '5',
+                                                                '10',
+                                                            ]}
+                                                            placeholder="3"
+                                                        />
+                                                        <FieldDescription>
+                                                            Extra attempts
+                                                            before a probe
+                                                            counts as failed.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.startPeriod"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Start period (s)
+                                                        </FieldLabel>
+                                                        <NumberField
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    v
+                                                                )
+                                                            }}
+                                                            options={[
+                                                                '0',
+                                                                '5',
+                                                                '10',
+                                                                '30',
+                                                                '60',
+                                                            ]}
+                                                            placeholder="0"
+                                                        />
+                                                        <FieldDescription>
+                                                            Grace time after
+                                                            start before
+                                                            failures count.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.successThreshold"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Success threshold
+                                                        </FieldLabel>
+                                                        <NumberField
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    v
+                                                                )
+                                                            }}
+                                                            options={[
+                                                                '1',
+                                                                '2',
+                                                                '3',
+                                                                '5',
+                                                            ]}
+                                                            placeholder="1"
+                                                        />
+                                                        <FieldDescription>
+                                                            Passing probes in a
+                                                            row to be healthy.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                            <form.Field
+                                                name="network.healthCheck.failureThreshold"
+                                                children={(f) => (
+                                                    <Field>
+                                                        <FieldLabel>
+                                                            Failure threshold
+                                                        </FieldLabel>
+                                                        <NumberField
+                                                            value={
+                                                                f.state.value
+                                                            }
+                                                            onChange={(v) => {
+                                                                f.handleChange(
+                                                                    v
+                                                                )
+                                                            }}
+                                                            options={[
+                                                                '1',
+                                                                '2',
+                                                                '3',
+                                                                '5',
+                                                            ]}
+                                                            placeholder="3"
+                                                        />
+                                                        <FieldDescription>
+                                                            Failing probes in a
+                                                            row to be unhealthy.
+                                                        </FieldDescription>
+                                                    </Field>
+                                                )}
+                                            />
+                                        </div>
+                                    )}
+                                </Section>
+                            </div>
+                        )}
+                    />
+                )
+            }}
+        />
+    )
 }

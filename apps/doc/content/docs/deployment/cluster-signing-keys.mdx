@@ -7,6 +7,7 @@ order: 6
 ## The problem with environment-only secrets
 
 In a multi-node cluster, every node must share the same signing secrets for:
+
 - Forward tokens (`LB_ROUTE_SECRET`) — a token signed by NODE-A must be verifiable by NODE-B
 - Mesh internal keys (`MESH_STREAM_SHARED_SECRET`) — inter-node API calls
 - Diagnostic access keys (`LB_DIAGNOSTIC_SECRET`) — analytics gate
@@ -134,12 +135,12 @@ This means even if the database is compromised, the raw secrets are not directly
 
 ## Secret kinds
 
-| `kid` prefix | Used for | Signing algorithm |
-|---|---|---|
-| `lb-route-*` | Forward tokens, route hint tokens | HS256 |
-| `lb-diag-*` | Diagnostic / analytics access key | HS256 |
-| `mesh-stream-*` | Internal mesh-to-mesh HTTP call authentication | HS256 |
-| `cluster-join-*` | Cluster join grant tokens | HS256 |
+| `kid` prefix     | Used for                                       | Signing algorithm |
+| ---------------- | ---------------------------------------------- | ----------------- |
+| `lb-route-*`     | Forward tokens, route hint tokens              | HS256             |
+| `lb-diag-*`      | Diagnostic / analytics access key              | HS256             |
+| `mesh-stream-*`  | Internal mesh-to-mesh HTTP call authentication | HS256             |
+| `cluster-join-*` | Cluster join grant tokens                      | HS256             |
 
 ---
 
@@ -147,14 +148,14 @@ This means even if the database is compromised, the raw secrets are not directly
 
 On first boot (before any DB connection is available — e.g. during the setup wizard), nodes fall back to environment variables:
 
-| Env var | Fallback for |
-|---|---|
-| `LB_FORWARD_TOKEN_SECRET` | `lb-route-*` active key (canonical — preferred) |
-| `LB_FORWARD_TOKEN_SECRET_PREVIOUS` | `lb-route-*` expiring keys (canonical — preferred) |
-| `LB_ROUTE_SECRET` | `lb-route-*` active key (legacy alias — still accepted) |
-| `LB_ROUTE_SECRET_PREVIOUS` | `lb-route-*` expiring keys (legacy alias — still accepted) |
-| `LB_DIAGNOSTIC_SECRET` | `lb-diag-*` active key |
-| `MESH_STREAM_SHARED_SECRET` | `mesh-stream-*` active key |
+| Env var                            | Fallback for                                               |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `LB_FORWARD_TOKEN_SECRET`          | `lb-route-*` active key (canonical — preferred)            |
+| `LB_FORWARD_TOKEN_SECRET_PREVIOUS` | `lb-route-*` expiring keys (canonical — preferred)         |
+| `LB_ROUTE_SECRET`                  | `lb-route-*` active key (legacy alias — still accepted)    |
+| `LB_ROUTE_SECRET_PREVIOUS`         | `lb-route-*` expiring keys (legacy alias — still accepted) |
+| `LB_DIAGNOSTIC_SECRET`             | `lb-diag-*` active key                                     |
+| `MESH_STREAM_SHARED_SECRET`        | `mesh-stream-*` active key                                 |
 
 Once the DB is connected and keys are synced, the in-memory cache takes over. The env vars remain as emergency fallback only.
 

@@ -1,23 +1,29 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { serviceDomainOps } from "./shared";
+import { serviceDomainOps } from './shared'
 
 export const setPrimaryServiceDomainInput = z.object({
     serviceId: z.uuid(),
     mappingId: z.uuid(),
-});
+})
 
 export const setPrimaryServiceDomainContract = serviceDomainOps
-    .update({ idFieldName: "mappingId", idSchema: z.uuid() })
+    .update({ idFieldName: 'mappingId', idSchema: z.uuid() })
     .input((b) =>
         b.params(
-            (p) => p`/${p("serviceId", z.uuid())}/domains/${p("mappingId", z.uuid())}/primary`,
-        ),
+            (p) =>
+                p`/${p('serviceId', z.uuid())}/domains/${p('mappingId', z.uuid())}/primary`
+        )
     )
     .output((b) => b.entitySchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "domain:write", scope: { by: "input", path: "params.serviceId", kind: "service" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'domain:write',
+            scope: { by: 'input', path: 'params.serviceId', kind: 'service' },
+        })
+    )
+    .build()
 
-import { access } from "@deployer/auth/authz/meta";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standardDomainErrorContracts } from '@deployer/orpc-utils'

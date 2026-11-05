@@ -14,20 +14,30 @@
  * Zod types; dockerode types never leak past `DockerService` + this mapper.
  */
 
-import type { SwarmHealthcheckConfig, SwarmServiceSpecInput, SwarmUpdateConfig } from "@deployer/contracts-entities";
+import type {
+    SwarmHealthcheckConfig,
+    SwarmServiceSpecInput,
+    SwarmUpdateConfig,
+} from '@deployer/contracts-entities'
 
-import type Docker from "dockerode";
+import type Docker from 'dockerode'
 /** dockerode health/update/rollback intervals are expressed in nanoseconds. */
-const NANOS_PER_MS = 1_000_000;
+const NANOS_PER_MS = 1_000_000
 
-export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.ServiceSpec {
+export function toDockerServiceSpec(
+    input: SwarmServiceSpecInput
+): Docker.ServiceSpec {
     const containerSpec: Docker.ContainerSpec = {
         Image: input.image,
         ...(input.env.length > 0 ? { Env: input.env } : {}),
         ...(input.command.length > 0 ? { Command: input.command } : {}),
         ...(input.args.length > 0 ? { Args: input.args } : {}),
-        ...(Object.keys(input.containerLabels).length > 0 ? { Labels: input.containerLabels } : {}),
-        ...((input.capabilitiesAdd?.length ?? 0) > 0 ? { CapabilityAdd: input.capabilitiesAdd } : {}),
+        ...(Object.keys(input.containerLabels).length > 0
+            ? { Labels: input.containerLabels }
+            : {}),
+        ...((input.capabilitiesAdd?.length ?? 0) > 0
+            ? { CapabilityAdd: input.capabilitiesAdd }
+            : {}),
         ...(input.mounts.length > 0
             ? {
                   Mounts: input.mounts.map((m) => ({
@@ -38,17 +48,29 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
                   })),
               }
             : {}),
-        ...(input.healthcheck ? { HealthCheck: toHealthConfig(input.healthcheck) } : {}),
-    };
-
-    const resources: Docker.ResourceRequirements = {};
-    if (input.resourcesLimits.nanoCpus !== undefined || input.resourcesLimits.memoryBytes !== undefined) {
-        resources.Limits = {
-            ...(input.resourcesLimits.nanoCpus !== undefined ? { NanoCPUs: input.resourcesLimits.nanoCpus } : {}),
-            ...(input.resourcesLimits.memoryBytes !== undefined ? { MemoryBytes: input.resourcesLimits.memoryBytes } : {}),
-        };
+        ...(input.healthcheck
+            ? { HealthCheck: toHealthConfig(input.healthcheck) }
+            : {}),
     }
-    if (input.resourcesReservations.nanoCpus !== undefined || input.resourcesReservations.memoryBytes !== undefined) {
+
+    const resources: Docker.ResourceRequirements = {}
+    if (
+        input.resourcesLimits.nanoCpus !== undefined ||
+        input.resourcesLimits.memoryBytes !== undefined
+    ) {
+        resources.Limits = {
+            ...(input.resourcesLimits.nanoCpus !== undefined
+                ? { NanoCPUs: input.resourcesLimits.nanoCpus }
+                : {}),
+            ...(input.resourcesLimits.memoryBytes !== undefined
+                ? { MemoryBytes: input.resourcesLimits.memoryBytes }
+                : {}),
+        }
+    }
+    if (
+        input.resourcesReservations.nanoCpus !== undefined ||
+        input.resourcesReservations.memoryBytes !== undefined
+    ) {
         resources.Reservations = {
             ...(input.resourcesReservations.nanoCpus !== undefined
                 ? { NanoCPUs: input.resourcesReservations.nanoCpus }
@@ -56,7 +78,7 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
             ...(input.resourcesReservations.memoryBytes !== undefined
                 ? { MemoryBytes: input.resourcesReservations.memoryBytes }
                 : {}),
-        };
+        }
     }
 
     const taskTemplate: Docker.ContainerTaskSpec = {
@@ -66,16 +88,30 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
         ...(input.stopGracePeriodSeconds > 0
             ? { StopGracePeriod: input.stopGracePeriodSeconds * 1_000_000_000 }
             : {}),
-        ...(resources.Limits !== undefined || resources.Reservations !== undefined ? { Resources: resources } : {}),
+        ...(resources.Limits !== undefined ||
+        resources.Reservations !== undefined
+            ? { Resources: resources }
+            : {}),
         ...(input.placementPreferences.length > 0 ||
         input.placementConstraints.length > 0 ||
         input.placementMaxReplicasPerNode !== undefined
             ? {
                   Placement: {
                       ...(input.placementPreferences.length > 0
-                          ? { Preferences: input.placementPreferences.map((p) => ({ Spread: { SpreadDescriptor: p.spreadDescriptor } })) }
+                          ? {
+                                Preferences: input.placementPreferences.map(
+                                    (p) => ({
+                                        Spread: {
+                                            SpreadDescriptor:
+                                                p.spreadDescriptor,
+                                        },
+                                    })
+                                ),
+                            }
                           : {}),
-                      ...(input.placementConstraints.length > 0 ? { Constraints: input.placementConstraints } : {}),
+                      ...(input.placementConstraints.length > 0
+                          ? { Constraints: input.placementConstraints }
+                          : {}),
                       // `MaxReplicas` is a HARD cap on tasks per node, unlike the
                       // spread preferences above, which only bias the scheduler.
                       ...(input.placementMaxReplicasPerNode !== undefined
@@ -88,11 +124,13 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
             ? {
                   Networks: input.networks.map((network) => ({
                       Target: network.target,
-                      ...(network.aliases.length > 0 ? { Aliases: network.aliases } : {}),
+                      ...(network.aliases.length > 0
+                          ? { Aliases: network.aliases }
+                          : {}),
                   })),
               }
             : {}),
-    };
+    }
 
     return {
         Name: input.name,
@@ -101,11 +139,13 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
         // Global mode = one task on every node (platform node-local infra);
         // replicated = the requested replica count (user workloads).
         Mode:
-            input.mode === "global"
+            input.mode === 'global'
                 ? { Global: {} }
                 : { Replicated: { Replicas: input.replicas } },
         UpdateConfig: toUpdateConfig(input.updateConfig),
-        ...(input.rollbackConfig ? { RollbackConfig: toUpdateConfig(input.rollbackConfig) } : {}),
+        ...(input.rollbackConfig
+            ? { RollbackConfig: toUpdateConfig(input.rollbackConfig) }
+            : {}),
         // The endpoint spec is ALWAYS emitted: `Mode` (vip vs dnsrr) is a
         // property of the endpoint, not of the published ports, so a service
         // with no published ports still needs it to opt out of the VIP.
@@ -119,22 +159,32 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
                               ? { PublishedPort: port.publishedPort }
                               : {}),
                           Protocol: port.protocol,
-                          ...(port.publishMode !== undefined ? { PublishMode: port.publishMode } : {}),
+                          ...(port.publishMode !== undefined
+                              ? { PublishMode: port.publishMode }
+                              : {}),
                       })),
                   }
                 : {}),
         },
-    };
+    }
 }
 
-function toHealthConfig(config: NonNullable<SwarmHealthcheckConfig>): Docker.HealthConfig {
+function toHealthConfig(
+    config: NonNullable<SwarmHealthcheckConfig>
+): Docker.HealthConfig {
     return {
         ...(config.test && config.test.length > 0 ? { Test: config.test } : {}),
-        ...(config.intervalMs !== undefined ? { Interval: config.intervalMs * NANOS_PER_MS } : {}),
-        ...(config.timeoutMs !== undefined ? { Timeout: config.timeoutMs * NANOS_PER_MS } : {}),
+        ...(config.intervalMs !== undefined
+            ? { Interval: config.intervalMs * NANOS_PER_MS }
+            : {}),
+        ...(config.timeoutMs !== undefined
+            ? { Timeout: config.timeoutMs * NANOS_PER_MS }
+            : {}),
         ...(config.retries !== undefined ? { Retries: config.retries } : {}),
-        ...(config.startPeriodMs !== undefined ? { StartPeriod: config.startPeriodMs * NANOS_PER_MS } : {}),
-    };
+        ...(config.startPeriodMs !== undefined
+            ? { StartPeriod: config.startPeriodMs * NANOS_PER_MS }
+            : {}),
+    }
 }
 
 function toUpdateConfig(config: SwarmUpdateConfig): Docker.UpdateConfig {
@@ -143,5 +193,5 @@ function toUpdateConfig(config: SwarmUpdateConfig): Docker.UpdateConfig {
         Delay: config.delayMs * NANOS_PER_MS,
         Order: config.order,
         FailureAction: config.failureAction,
-    };
+    }
 }

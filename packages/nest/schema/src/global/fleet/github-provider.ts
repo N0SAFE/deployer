@@ -1,220 +1,210 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm'
 import {
-  pgTable,
-  text,
-  timestamp,
-  boolean,
-  integer,
-  uuid,
-  jsonb,
-  pgEnum,
-  index,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core';
-
+    pgTable,
+    text,
+    timestamp,
+    boolean,
+    integer,
+    uuid,
+    jsonb,
+    pgEnum,
+    index,
+    uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 import {
-  
-  githubDeploymentStrategySchema,
-  previewDeploymentStatusSchema,
-} from '@deployer/contracts-common';
-import { cacheStrategyEnum } from "@deployer/nest-schema/global/platform/github-provider";
-import { projects } from "@deployer/nest-schema/global/project/deployment";
-import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
+    githubDeploymentStrategySchema,
+    previewDeploymentStatusSchema,
+} from '@deployer/contracts-common'
+import { cacheStrategyEnum } from '@deployer/nest-schema/global/platform/github-provider'
+import { projects } from '@deployer/nest-schema/global/project/deployment'
+import { zodEnumToPgEnumValues } from '@deployer/nest-schema/global/utils/zod-enum'
 
-import { encryptedText } from '../../codecs/codec-registry';
+import { encryptedText } from '../../codecs/codec-registry'
 
 // Enums for GitHub provider
 export const deploymentStrategyEnum = pgEnum('deployment_strategy', [
-  ...zodEnumToPgEnumValues(githubDeploymentStrategySchema),
-]);
-
-
+    ...zodEnumToPgEnumValues(githubDeploymentStrategySchema),
+])
 
 export const previewDeploymentStatusEnum = pgEnum('preview_deployment_status', [
-  ...zodEnumToPgEnumValues(previewDeploymentStatusSchema),
-]);
-
-
+    ...zodEnumToPgEnumValues(previewDeploymentStatusSchema),
+])
 
 // GitHub Apps Table - Multiple GitHub app support
 export const githubApps = pgTable(
-  'github_apps',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    name: text('name').notNull(),
-    appId: text('app_id').notNull(),
-    clientId: text('client_id').notNull(),
-    clientSecret: encryptedText('client_secret').notNull(),
-    privateKey: encryptedText('private_key').notNull(),
-    webhookSecret: encryptedText('webhook_secret').notNull(),
-    installationId: text('installation_id'),
-    isActive: boolean('is_active').notNull().default(true),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index('github_apps_app_id_idx').on(table.appId),
-  ],
-);
-
-
+    'github_apps',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        name: text('name').notNull(),
+        appId: text('app_id').notNull(),
+        clientId: text('client_id').notNull(),
+        clientSecret: encryptedText('client_secret').notNull(),
+        privateKey: encryptedText('private_key').notNull(),
+        webhookSecret: encryptedText('webhook_secret').notNull(),
+        installationId: text('installation_id'),
+        isActive: boolean('is_active').notNull().default(true),
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+    },
+    (table) => [index('github_apps_app_id_idx').on(table.appId)]
+)
 
 // GitHub Repository Configs Table - Heavy configuration for each repository
 export const githubRepositoryConfigs = pgTable(
-  'github_repository_configs',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    githubAppId: uuid('github_app_id')
-      .notNull()
-      .references(() => githubApps.id, { onDelete: 'cascade' }),
-    repositoryId: text('repository_id').notNull(),
-    repositoryFullName: text('repository_full_name').notNull(),
+    'github_repository_configs',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        projectId: uuid('project_id')
+            .notNull()
+            .references(() => projects.id, { onDelete: 'cascade' }),
+        githubAppId: uuid('github_app_id')
+            .notNull()
+            .references(() => githubApps.id, { onDelete: 'cascade' }),
+        repositoryId: text('repository_id').notNull(),
+        repositoryFullName: text('repository_full_name').notNull(),
 
-    // Monorepo Support
-    basePath: text('base_path').default('/'),
-    watchPaths: jsonb('watch_paths')
-      .$type<string[]>()
-      .default([]),
-    ignorePaths: jsonb('ignore_paths')
-      .$type<string[]>()
-      .default([]),
+        // Monorepo Support
+        basePath: text('base_path').default('/'),
+        watchPaths: jsonb('watch_paths').$type<string[]>().default([]),
+        ignorePaths: jsonb('ignore_paths').$type<string[]>().default([]),
 
-    // Cache Strategy
-    cacheStrategy: cacheStrategyEnum('cache_strategy').notNull().default('strict'),
+        // Cache Strategy
+        cacheStrategy: cacheStrategyEnum('cache_strategy')
+            .notNull()
+            .default('strict'),
 
-    // Deployment Configuration
-    autoDeployEnabled: boolean('auto_deploy_enabled').notNull().default(true),
-    deploymentStrategy: deploymentStrategyEnum('deployment_strategy')
-      .notNull()
-      .default('standard'),
-    customStrategyScript: text('custom_strategy_script'),
+        // Deployment Configuration
+        autoDeployEnabled: boolean('auto_deploy_enabled')
+            .notNull()
+            .default(true),
+        deploymentStrategy: deploymentStrategyEnum('deployment_strategy')
+            .notNull()
+            .default('standard'),
+        customStrategyScript: text('custom_strategy_script'),
 
-    // Preview Deployments
-    previewDeploymentsEnabled: boolean('preview_deployments_enabled')
-      .notNull()
-      .default(false),
-    previewBranchPattern: text('preview_branch_pattern').default('*'),
-    previewAutoDelete: boolean('preview_auto_delete').notNull().default(true),
-    previewAutoDeleteAfterDays: integer('preview_auto_delete_after_days').default(7),
+        // Preview Deployments
+        previewDeploymentsEnabled: boolean('preview_deployments_enabled')
+            .notNull()
+            .default(false),
+        previewBranchPattern: text('preview_branch_pattern').default('*'),
+        previewAutoDelete: boolean('preview_auto_delete')
+            .notNull()
+            .default(true),
+        previewAutoDeleteAfterDays: integer(
+            'preview_auto_delete_after_days'
+        ).default(7),
 
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index('github_repo_configs_project_id_idx').on(table.projectId),
-    index('github_repo_configs_github_app_id_idx').on(table.githubAppId),
-    index('github_repo_configs_repo_id_idx').on(table.repositoryId),
-  ],
-);
-
-
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+    },
+    (table) => [
+        index('github_repo_configs_project_id_idx').on(table.projectId),
+        index('github_repo_configs_github_app_id_idx').on(table.githubAppId),
+        index('github_repo_configs_repo_id_idx').on(table.repositoryId),
+    ]
+)
 
 // Enhanced Deployment Rules Table - Extends existing deployment rules
 export const githubDeploymentRules = pgTable(
-  'github_deployment_rules',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description'),
-    priority: integer('priority').notNull().default(0),
-    isActive: boolean('is_active').notNull().default(true),
+    'github_deployment_rules',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        projectId: uuid('project_id')
+            .notNull()
+            .references(() => projects.id, { onDelete: 'cascade' }),
+        name: text('name').notNull(),
+        description: text('description'),
+        priority: integer('priority').notNull().default(0),
+        isActive: boolean('is_active').notNull().default(true),
 
-    // Trigger Configuration
-    event: text('event').notNull(), // 'push', 'pull_request', 'tag', etc.
-    branchPattern: text('branch_pattern'),
-    tagPattern: text('tag_pattern'),
+        // Trigger Configuration
+        event: text('event').notNull(), // 'push', 'pull_request', 'tag', etc.
+        branchPattern: text('branch_pattern'),
+        tagPattern: text('tag_pattern'),
 
-    // Path-based Conditions
-    pathConditions: jsonb('path_conditions').$type<{
-      include?: string[];
-      exclude?: string[];
-      requireAll?: boolean;
-    }>(),
+        // Path-based Conditions
+        pathConditions: jsonb('path_conditions').$type<{
+            include?: string[]
+            exclude?: string[]
+            requireAll?: boolean
+        }>(),
 
-    // Custom Conditions (JS expression)
-    customCondition: text('custom_condition'),
+        // Custom Conditions (JS expression)
+        customCondition: text('custom_condition'),
 
-    // Action
-    action: text('action').notNull(), // 'deploy', 'preview', 'skip'
-    deploymentStrategy: deploymentStrategyEnum('deployment_strategy'),
-    customStrategyScript: text('custom_strategy_script'),
+        // Action
+        action: text('action').notNull(), // 'deploy', 'preview', 'skip'
+        deploymentStrategy: deploymentStrategyEnum('deployment_strategy'),
+        customStrategyScript: text('custom_strategy_script'),
 
-    // Override cache behavior
-    bypassCache: boolean('bypass_cache').notNull().default(false),
+        // Override cache behavior
+        bypassCache: boolean('bypass_cache').notNull().default(false),
 
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index('github_deployment_rules_project_id_idx').on(table.projectId),
-    index('github_deployment_rules_priority_idx').on(table.priority),
-  ],
-);
-
-
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+    },
+    (table) => [
+        index('github_deployment_rules_project_id_idx').on(table.projectId),
+        index('github_deployment_rules_priority_idx').on(table.priority),
+    ]
+)
 
 // Preview Deployment Configs Table
 export const githubPreviewDeployments = pgTable(
-  'github_preview_deployments',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    repositoryId: text('repository_id').notNull(),
-    prNumber: integer('pr_number').notNull(),
-    branch: text('branch').notNull(),
+    'github_preview_deployments',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        projectId: uuid('project_id')
+            .notNull()
+            .references(() => projects.id, { onDelete: 'cascade' }),
+        repositoryId: text('repository_id').notNull(),
+        prNumber: integer('pr_number').notNull(),
+        branch: text('branch').notNull(),
 
-    // Deployment Info
-    deploymentId: uuid('deployment_id'),
-    serviceName: text('service_name').notNull(),
-    url: text('url'),
+        // Deployment Info
+        deploymentId: uuid('deployment_id'),
+        serviceName: text('service_name').notNull(),
+        url: text('url'),
 
-    // Status
-    status: previewDeploymentStatusEnum('status').notNull().default('pending'),
+        // Status
+        status: previewDeploymentStatusEnum('status')
+            .notNull()
+            .default('pending'),
 
-    // Lifecycle
-    lastActivityAt: timestamp('last_activity_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    autoDeleteAt: timestamp('auto_delete_at', { withTimezone: true }),
-    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+        // Lifecycle
+        lastActivityAt: timestamp('last_activity_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+        autoDeleteAt: timestamp('auto_delete_at', { withTimezone: true }),
+        deletedAt: timestamp('deleted_at', { withTimezone: true }),
 
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    index('github_preview_deployments_project_id_idx').on(table.projectId),
-    index('github_preview_deployments_repo_id_idx').on(table.repositoryId),
-    index('github_preview_deployments_pr_number_idx').on(table.prNumber),
-    index('github_preview_deployments_status_idx').on(table.status),
-  ],
-);
-
-
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+        updatedAt: timestamp('updated_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+    },
+    (table) => [
+        index('github_preview_deployments_project_id_idx').on(table.projectId),
+        index('github_preview_deployments_repo_id_idx').on(table.repositoryId),
+        index('github_preview_deployments_pr_number_idx').on(table.prNumber),
+        index('github_preview_deployments_status_idx').on(table.status),
+    ]
+)
 
 // GitHub Webhook Events Table
 // `delivery_id` is the DURABLE idempotency checkpoint (W-P2): the unique
@@ -223,89 +213,87 @@ export const githubPreviewDeployments = pgTable(
 // `github_app_id` is nullable so a delivery can be journaled before its app
 // is resolved (dedup must not depend on app resolution).
 export const githubWebhookEvents = pgTable(
-  'github_webhook_events',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    githubAppId: uuid('github_app_id').references(() => githubApps.id, {
-      onDelete: 'cascade',
-    }),
+    'github_webhook_events',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        githubAppId: uuid('github_app_id').references(() => githubApps.id, {
+            onDelete: 'cascade',
+        }),
 
-    // Event Details
-    event: text('event').notNull(),
-    deliveryId: text('delivery_id').notNull(),
-    payload: jsonb('payload').notNull(),
+        // Event Details
+        event: text('event').notNull(),
+        deliveryId: text('delivery_id').notNull(),
+        payload: jsonb('payload').notNull(),
 
-    // Processing Status
-    processed: boolean('processed').notNull().default(false),
-    processedAt: timestamp('processed_at', { withTimezone: true }),
-    error: text('error'),
+        // Processing Status
+        processed: boolean('processed').notNull().default(false),
+        processedAt: timestamp('processed_at', { withTimezone: true }),
+        error: text('error'),
 
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .$defaultFn(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex('github_webhook_events_delivery_id_uniq_idx').on(table.deliveryId),
-    index('github_webhook_events_app_id_idx').on(table.githubAppId),
-    index('github_webhook_events_processed_idx').on(table.processed),
-  ],
-);
-
-
+        createdAt: timestamp('created_at', { withTimezone: true })
+            .$defaultFn(() => new Date())
+            .notNull(),
+    },
+    (table) => [
+        uniqueIndex('github_webhook_events_delivery_id_uniq_idx').on(
+            table.deliveryId
+        ),
+        index('github_webhook_events_app_id_idx').on(table.githubAppId),
+        index('github_webhook_events_processed_idx').on(table.processed),
+    ]
+)
 
 // Relations
 export const githubAppsRelations = relations(githubApps, ({ many }) => ({
-  repositoryConfigs: many(githubRepositoryConfigs),
-  webhookEvents: many(githubWebhookEvents),
-}));
-
-
+    repositoryConfigs: many(githubRepositoryConfigs),
+    webhookEvents: many(githubWebhookEvents),
+}))
 
 export const githubRepositoryConfigsRelations = relations(
-  githubRepositoryConfigs,
-  ({ one }) => ({
-    project: one(projects, {
-      fields: [githubRepositoryConfigs.projectId],
-      references: [projects.id],
-    }),
-    githubApp: one(githubApps, {
-      fields: [githubRepositoryConfigs.githubAppId],
-      references: [githubApps.id],
-    }),
-    // Note: deploymentRules, deploymentCache, and previewDeployments are associated
-    // with projects (via projectId), not directly with repository configs.
-    // They can be filtered by repositoryId (text field) but there's no FK relationship.
-    // Access deployment rules via: config.project (projects have deploymentRules relation)
-    // Filter cache/previews by repositoryId in queries when needed
-  }),
-);
+    githubRepositoryConfigs,
+    ({ one }) => ({
+        project: one(projects, {
+            fields: [githubRepositoryConfigs.projectId],
+            references: [projects.id],
+        }),
+        githubApp: one(githubApps, {
+            fields: [githubRepositoryConfigs.githubAppId],
+            references: [githubApps.id],
+        }),
+        // Note: deploymentRules, deploymentCache, and previewDeployments are associated
+        // with projects (via projectId), not directly with repository configs.
+        // They can be filtered by repositoryId (text field) but there's no FK relationship.
+        // Access deployment rules via: config.project (projects have deploymentRules relation)
+        // Filter cache/previews by repositoryId in queries when needed
+    })
+)
 
-
-
-export const githubDeploymentRulesRelations = relations(githubDeploymentRules, ({ one }) => ({
-  project: one(projects, {
-    fields: [githubDeploymentRules.projectId],
-    references: [projects.id],
-  }),
-}));
-
-
+export const githubDeploymentRulesRelations = relations(
+    githubDeploymentRules,
+    ({ one }) => ({
+        project: one(projects, {
+            fields: [githubDeploymentRules.projectId],
+            references: [projects.id],
+        }),
+    })
+)
 
 export const githubPreviewDeploymentsRelations = relations(
-  githubPreviewDeployments,
-  ({ one }) => ({
-    project: one(projects, {
-      fields: [githubPreviewDeployments.projectId],
-      references: [projects.id],
-    }),
-  }),
-);
+    githubPreviewDeployments,
+    ({ one }) => ({
+        project: one(projects, {
+            fields: [githubPreviewDeployments.projectId],
+            references: [projects.id],
+        }),
+    })
+)
 
-
-
-export const githubWebhookEventsRelations = relations(githubWebhookEvents, ({ one }) => ({
-  githubApp: one(githubApps, {
-    fields: [githubWebhookEvents.githubAppId],
-    references: [githubApps.id],
-  }),
-}));
+export const githubWebhookEventsRelations = relations(
+    githubWebhookEvents,
+    ({ one }) => ({
+        githubApp: one(githubApps, {
+            fields: [githubWebhookEvents.githubAppId],
+            references: [githubApps.id],
+        }),
+    })
+)

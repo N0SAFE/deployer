@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import { accessOf } from "@deployer/auth/authz/meta";
-import { identityContract } from "@deployer/identity-contracts";
+import { accessOf } from '@deployer/auth/authz/meta'
+import { identityContract } from '@deployer/identity-contracts'
 
 /**
  * Every procedure this service exposes declares what it requires (`SEC-062`, `SEC-064`).
@@ -15,81 +15,104 @@ import { identityContract } from "@deployer/identity-contracts";
 
 /** Procedures that are deliberately undeclared, with why. */
 const UNDECLARED = new Map<string, string>([
-	[
-		"approval.require",
-		"internal mesh route (`requireMesh()`): a peer names the account it authenticated and the real check runs inside, in the approval ledger",
-	],
-	[
-		"analytics.generateReport",
-		"reports have no permission yet: generating and deleting one is not a read, and `analytics:read` would be a lie",
-	],
-	["analytics.getReport", "reports: see analytics.generateReport"],
-	["analytics.listReports", "reports: see analytics.generateReport"],
-	["analytics.deleteReport", "reports: see analytics.generateReport"],
-	["analytics.downloadReport", "reports: see analytics.generateReport"],
-	["analytics.getReportContent", "reports: see analytics.generateReport"],
-	["analytics.createReportConfig", "reports: see analytics.generateReport"],
-	["analytics.listReportConfigs", "reports: see analytics.generateReport"],
-	["analytics.updateReportConfig", "reports: see analytics.generateReport"],
-	["analytics.deleteReportConfig", "reports: see analytics.generateReport"],
-]);
+    [
+        'approval.require',
+        'internal mesh route (`requireMesh()`): a peer names the account it authenticated and the real check runs inside, in the approval ledger',
+    ],
+    [
+        'analytics.generateReport',
+        'reports have no permission yet: generating and deleting one is not a read, and `analytics:read` would be a lie',
+    ],
+    ['analytics.getReport', 'reports: see analytics.generateReport'],
+    ['analytics.listReports', 'reports: see analytics.generateReport'],
+    ['analytics.deleteReport', 'reports: see analytics.generateReport'],
+    ['analytics.downloadReport', 'reports: see analytics.generateReport'],
+    ['analytics.getReportContent', 'reports: see analytics.generateReport'],
+    ['analytics.createReportConfig', 'reports: see analytics.generateReport'],
+    ['analytics.listReportConfigs', 'reports: see analytics.generateReport'],
+    ['analytics.updateReportConfig', 'reports: see analytics.generateReport'],
+    ['analytics.deleteReportConfig', 'reports: see analytics.generateReport'],
+])
 
 /** A mounted route: a procedure contract, not a router. */
-function isProcedure(node: unknown): node is { "~orpc": { meta?: Record<PropertyKey, unknown> } } {
-	if (node === null || typeof node !== "object") return false;
-	const orpc = (node as { readonly "~orpc"?: Record<string, unknown> })["~orpc"];
-	return orpc !== undefined && "inputSchemas" in orpc;
+function isProcedure(
+    node: unknown
+): node is { '~orpc': { meta?: Record<PropertyKey, unknown> } } {
+    if (node === null || typeof node !== 'object') return false
+    const orpc = (node as { readonly '~orpc'?: Record<string, unknown> })[
+        '~orpc'
+    ]
+    return orpc !== undefined && 'inputSchemas' in orpc
 }
 
 function procedures(node: unknown, path: string[] = []): string[] {
-	if (isProcedure(node)) return [path.join(".")];
-	if (node === null || typeof node !== "object") return [];
-	return Object.entries(node).flatMap(([key, value]) => procedures(value, [...path, key]));
+    if (isProcedure(node)) return [path.join('.')]
+    if (node === null || typeof node !== 'object') return []
+    return Object.entries(node).flatMap(([key, value]) =>
+        procedures(value, [...path, key])
+    )
 }
 
 /** Reads the declaration off the same object the gate sees. */
 function declared(node: unknown, path: string[]): unknown {
-	let current = node;
-	for (const key of path) current = (current as Record<string, unknown>)[key];
-	return accessOf(current);
+    let current = node
+    for (const key of path) current = (current as Record<string, unknown>)[key]
+    return accessOf(current)
 }
 
-describe("identity authz declarations", () => {
-	const paths = procedures(identityContract);
+describe('identity authz declarations', () => {
+    const paths = procedures(identityContract)
 
-	it("finds the procedures it is meant to check", () => {
-		// A guard that silently scans nothing is worse than no guard.
-		expect(paths.length).toBeGreaterThan(30);
-	});
+    it('finds the procedures it is meant to check', () => {
+        // A guard that silently scans nothing is worse than no guard.
+        expect(paths.length).toBeGreaterThan(30)
+    })
 
-	it("declares access on every procedure, except the named exceptions", () => {
-		const undeclared = paths
-			.filter((path) => !UNDECLARED.has(path))
-			.filter((path) => declared(identityContract, path.split(".")) === undefined);
+    it('declares access on every procedure, except the named exceptions', () => {
+        const undeclared = paths
+            .filter((path) => !UNDECLARED.has(path))
+            .filter(
+                (path) =>
+                    declared(identityContract, path.split('.')) === undefined
+            )
 
-		expect(undeclared).toEqual([]);
-	});
+        expect(undeclared).toEqual([])
+    })
 
-	it("keeps the exception list honest: each entry really is undeclared", () => {
-		const stale = [...UNDECLARED.keys()]
-			.filter((path) => paths.includes(path))
-			.filter((path) => declared(identityContract, path.split(".")) !== undefined);
+    it('keeps the exception list honest: each entry really is undeclared', () => {
+        const stale = [...UNDECLARED.keys()]
+            .filter((path) => paths.includes(path))
+            .filter(
+                (path) =>
+                    declared(identityContract, path.split('.')) !== undefined
+            )
 
-		expect(stale).toEqual([]);
-	});
+        expect(stale).toEqual([])
+    })
 
-	it("names a permission or `self` on the mutations, never a bare allow", () => {
-		// A declaration that carries neither a permission, `self`, nor `public` would make the gate's own `decide` call
-		// read an undefined permission — the one shape the type cannot rule out once it travels as metadata.
-		const shapeless = paths
-			.map((path) => [path, declared(identityContract, path.split("."))] as const)
-			.filter(([, declaration]) => declaration !== undefined)
-			.filter(([, declaration]) => {
-				const value = declaration as { permission?: unknown; self?: unknown; public?: unknown };
-				return value.permission === undefined && value.self !== true && value.public !== true;
-			})
-			.map(([path]) => path);
+    it('names a permission or `self` on the mutations, never a bare allow', () => {
+        // A declaration that carries neither a permission, `self`, nor `public` would make the gate's own `decide` call
+        // read an undefined permission — the one shape the type cannot rule out once it travels as metadata.
+        const shapeless = paths
+            .map(
+                (path) =>
+                    [path, declared(identityContract, path.split('.'))] as const
+            )
+            .filter(([, declaration]) => declaration !== undefined)
+            .filter(([, declaration]) => {
+                const value = declaration as {
+                    permission?: unknown
+                    self?: unknown
+                    public?: unknown
+                }
+                return (
+                    value.permission === undefined &&
+                    value.self !== true &&
+                    value.public !== true
+                )
+            })
+            .map(([path]) => path)
 
-		expect(shapeless).toEqual([]);
-	});
-});
+        expect(shapeless).toEqual([])
+    })
+})

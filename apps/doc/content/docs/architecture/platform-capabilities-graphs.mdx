@@ -337,12 +337,12 @@ flowchart LR
 
 Think in 3 categories:
 
-1. **Persistent authoritative state** (DB-backed)  
-   - deployments, services, domains, events, route config metadata
-2. **Runtime mesh state** (in-memory + replicated envelopes)  
-   - peer sessions, topology edges, stream/resource ownership, queue transition logs
-3. **Fast routing state at LB layer** (in-memory + gossip)  
-   - node load reports, stream ownership hints, dedupe windows, route token keyrings
+1. **Persistent authoritative state** (DB-backed)
+    - deployments, services, domains, events, route config metadata
+2. **Runtime mesh state** (in-memory + replicated envelopes)
+    - peer sessions, topology edges, stream/resource ownership, queue transition logs
+3. **Fast routing state at LB layer** (in-memory + gossip)
+    - node load reports, stream ownership hints, dedupe windows, route token keyrings
 
 ```mermaid
 flowchart TD

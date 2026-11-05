@@ -1,13 +1,13 @@
 import type {
-DockerRuntimeEvent,
-DockerRuntimeActivityEntity,
-DockerRuntimeActivityStatus,
-DockerRuntimeActivitySeverity,
-DockerRuntimeActivityCategory,
-} from "@deployer/contracts-entities"
-import { isRecord } from "@deployer/type-guards";
+    DockerRuntimeEvent,
+    DockerRuntimeActivityEntity,
+    DockerRuntimeActivityStatus,
+    DockerRuntimeActivitySeverity,
+    DockerRuntimeActivityCategory,
+} from '@deployer/contracts-entities'
+import { isRecord } from '@deployer/type-guards'
 
-import type { SwarmActivityEnrichment } from "./swarm-activity-enricher.service"
+import type { SwarmActivityEnrichment } from './swarm-activity-enricher.service'
 
 /**
  * Pure projection of a `DockerRuntimeEvent` into a
@@ -22,7 +22,6 @@ import type { SwarmActivityEnrichment } from "./swarm-activity-enricher.service"
  * live stream (`docker-runtime-activity-domain.service.ts`).
  */
 
-
 /**
  * Project an event, optionally carrying live swarm state.
  *
@@ -31,178 +30,198 @@ import type { SwarmActivityEnrichment } from "./swarm-activity-enricher.service"
  * sends task events at all, so the failure reason has to arrive from the live
  * read (see `SwarmActivityEnricherService`).
  */
-export function projectRuntimeEvent(event: DockerRuntimeEvent, enrichment?: SwarmActivityEnrichment): DockerRuntimeActivityEntity {
-  const now = new Date()
-  const occurredAt = toTimestampDate(event.timestamp) ?? now
-  const normalizedActorId = toNullableNonEmptyString(event.actorId)
-  const isImageScanEvent = event.source === "image" && event.action.startsWith("scan_")
+export function projectRuntimeEvent(
+    event: DockerRuntimeEvent,
+    enrichment?: SwarmActivityEnrichment
+): DockerRuntimeActivityEntity {
+    const now = new Date()
+    const occurredAt = toTimestampDate(event.timestamp) ?? now
+    const normalizedActorId = toNullableNonEmptyString(event.actorId)
+    const isImageScanEvent =
+        event.source === 'image' && event.action.startsWith('scan_')
 
-  const flowId = isImageScanEvent
-    ? event.action === "scan_queued"
-      ? `image-scan-queue:${normalizedActorId ?? "unknown"}`
-      : `image-scan-run:${normalizedActorId ?? "unknown"}`
-    : `${event.source}:${normalizedActorId ?? event.eventId ?? "event"}`
+    const flowId = isImageScanEvent
+        ? event.action === 'scan_queued'
+            ? `image-scan-queue:${normalizedActorId ?? 'unknown'}`
+            : `image-scan-run:${normalizedActorId ?? 'unknown'}`
+        : `${event.source}:${normalizedActorId ?? event.eventId ?? 'event'}`
 
-  const dependsOnFlowId = isImageScanEvent && event.action !== "scan_queued"
-    ? `image-scan-queue:${normalizedActorId ?? "unknown"}`
-    : null
+    const dependsOnFlowId =
+        isImageScanEvent && event.action !== 'scan_queued'
+            ? `image-scan-queue:${normalizedActorId ?? 'unknown'}`
+            : null
 
-  const swarmTasks = enrichment?.tasks ?? []
-  const swarmService = enrichment?.service ?? null
-  // A failed task outranks the event's own action for EVERY derived column:
-  // the action is `update`/`create` regardless, while the task carries the
-  // outcome. This is what turns an opaque `service.update` into
-  // "2 of 3 tasks failed — no suitable node (host-mode port already in use)".
-  const failedTask = swarmTasks.find((task) => task.error !== null) ?? null
-  const hasFailedTask = failedTask !== null
+    const swarmTasks = enrichment?.tasks ?? []
+    const swarmService = enrichment?.service ?? null
+    // A failed task outranks the event's own action for EVERY derived column:
+    // the action is `update`/`create` regardless, while the task carries the
+    // outcome. This is what turns an opaque `service.update` into
+    // "2 of 3 tasks failed — no suitable node (host-mode port already in use)".
+    const failedTask = swarmTasks.find((task) => task.error !== null) ?? null
+    const hasFailedTask = failedTask !== null
 
-  const status = hasFailedTask
-    ? "error"
-    : inferStatus(event.action, event.actorAttributes.scanState)
-  const severity = hasFailedTask ? "error" : inferSeverity(event.action)
-  const progress = toProgress(event.actorAttributes.scanProgress)
-  const scanner = toNullableNonEmptyString(event.actorAttributes.scanScanner)
-  const stage = toNullableNonEmptyString(event.actorAttributes.scanStage)
-    ?? toNullableNonEmptyString(event.actorAttributes.scanState)
-  // Priority: an explicit scan message, then the swarm failure reason, then the
-  // generic derived message. The task error is the one an operator can ACT on.
-  const message = toNullableNonEmptyString(event.actorAttributes.scanMessage)
-    ?? toNullableNonEmptyString(event.actorAttributes.scanError)
-    ?? failedTask?.error
-    ?? swarmService?.updateMessage
-    ?? resolveMessage(event)
+    const status = hasFailedTask
+        ? 'error'
+        : inferStatus(event.action, event.actorAttributes.scanState)
+    const severity = hasFailedTask ? 'error' : inferSeverity(event.action)
+    const progress = toProgress(event.actorAttributes.scanProgress)
+    const scanner = toNullableNonEmptyString(event.actorAttributes.scanScanner)
+    const stage =
+        toNullableNonEmptyString(event.actorAttributes.scanStage) ??
+        toNullableNonEmptyString(event.actorAttributes.scanState)
+    // Priority: an explicit scan message, then the swarm failure reason, then the
+    // generic derived message. The task error is the one an operator can ACT on.
+    const message =
+        toNullableNonEmptyString(event.actorAttributes.scanMessage) ??
+        toNullableNonEmptyString(event.actorAttributes.scanError) ??
+        failedTask?.error ??
+        swarmService?.updateMessage ??
+        resolveMessage(event)
 
-  const eventFingerprint = createFingerprint(event)
-  const key = event.eventId ?? eventFingerprint
-  const id = `live:${key}`
+    const eventFingerprint = createFingerprint(event)
+    const key = event.eventId ?? eventFingerprint
+    const id = `live:${key}`
 
-  return {
-    id,
-    eventId: event.eventId ?? null,
-    eventFingerprint,
-    flowId,
-    dependsOnFlowId,
-    source: event.source,
-    action: event.action,
-    actorId: normalizedActorId,
-    status,
-    category: isImageScanEvent ? "image-scanning" : "runtime-event",
-    severity,
-    progress,
-    stage,
-    scanner,
-    message,
-    actorAttributes: event.actorAttributes,
-    payload: isRecord(event.payload) ? event.payload : {},
-    raw: event.raw,
-    occurredAt: occurredAt.toISOString(),
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-    swarmTasks: swarmTasks.map((task) => ({
-      taskId: task.taskId,
-      slot: task.slot,
-      state: task.state,
-      desiredState: task.desiredState,
-      error: task.error,
-    })),
-    swarmService: swarmService === null
-      ? null
-      : {
-          serviceId: swarmService.serviceId,
-          serviceName: swarmService.serviceName,
-          image: swarmService.image,
-          mode: swarmService.mode,
-          desiredTasks: swarmService.desiredTasks,
-          runningTasks: swarmService.runningTasks,
-          updateMessage: swarmService.updateMessage,
-        },
-  } satisfies DockerRuntimeActivityEntity
+    return {
+        id,
+        eventId: event.eventId ?? null,
+        eventFingerprint,
+        flowId,
+        dependsOnFlowId,
+        source: event.source,
+        action: event.action,
+        actorId: normalizedActorId,
+        status,
+        category: isImageScanEvent ? 'image-scanning' : 'runtime-event',
+        severity,
+        progress,
+        stage,
+        scanner,
+        message,
+        actorAttributes: event.actorAttributes,
+        payload: isRecord(event.payload) ? event.payload : {},
+        raw: event.raw,
+        occurredAt: occurredAt.toISOString(),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        swarmTasks: swarmTasks.map((task) => ({
+            taskId: task.taskId,
+            slot: task.slot,
+            state: task.state,
+            desiredState: task.desiredState,
+            error: task.error,
+        })),
+        swarmService:
+            swarmService === null
+                ? null
+                : {
+                      serviceId: swarmService.serviceId,
+                      serviceName: swarmService.serviceName,
+                      image: swarmService.image,
+                      mode: swarmService.mode,
+                      desiredTasks: swarmService.desiredTasks,
+                      runningTasks: swarmService.runningTasks,
+                      updateMessage: swarmService.updateMessage,
+                  },
+    } satisfies DockerRuntimeActivityEntity
 }
 
 function inferStatus(
-  action: string,
-  scanState: string | undefined,
+    action: string,
+    scanState: string | undefined
 ): DockerRuntimeActivityStatus {
-  if (scanState === "queued" || action.includes("queued")) return "queued"
-  if (scanState === "error" || action.includes("error") || action.includes("fail")) return "error"
-  if (
-    scanState === "completed"
-    || action.includes("complete")
-    || action.includes("done")
-  ) return "completed"
-  if (
-    action.includes("start")
-    || action.includes("progress")
-    || action.includes("create")
-    || action.includes("update")
-    || action.includes("pull")
-  ) return "running"
-  return "info"
+    if (scanState === 'queued' || action.includes('queued')) return 'queued'
+    if (
+        scanState === 'error' ||
+        action.includes('error') ||
+        action.includes('fail')
+    )
+        return 'error'
+    if (
+        scanState === 'completed' ||
+        action.includes('complete') ||
+        action.includes('done')
+    )
+        return 'completed'
+    if (
+        action.includes('start') ||
+        action.includes('progress') ||
+        action.includes('create') ||
+        action.includes('update') ||
+        action.includes('pull')
+    )
+        return 'running'
+    return 'info'
 }
 
 function inferSeverity(action: string): DockerRuntimeActivitySeverity {
-  if (
-    action.includes("error")
-    || action.includes("fail")
-    || action === "die"
-    || action === "kill"
-  ) return "error"
-  if (action === "delete" || action === "destroy") return "warning"
-  return "info"
+    if (
+        action.includes('error') ||
+        action.includes('fail') ||
+        action === 'die' ||
+        action === 'kill'
+    )
+        return 'error'
+    if (action === 'delete' || action === 'destroy') return 'warning'
+    return 'info'
 }
 
 function toProgress(raw: string | undefined): number | null {
-  if (!raw) return null
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed)) return null
-  if (parsed <= 0) return 0
-  if (parsed >= 100) return 100
-  return Math.round(parsed)
+    if (!raw) return null
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return null
+    if (parsed <= 0) return 0
+    if (parsed >= 100) return 100
+    return Math.round(parsed)
 }
 
-function toNullableNonEmptyString(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
+function toNullableNonEmptyString(
+    value: string | null | undefined
+): string | null {
+    if (typeof value !== 'string') return null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
 }
 
 function toTimestampDate(value: string | undefined): Date | null {
-  if (typeof value !== "string") return null
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
+    if (typeof value !== 'string') return null
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function resolveMessage(event: DockerRuntimeEvent): string | null {
-  // The `{}` fallback is what widened `payload` to `{}` (an empty object type has no
-  // index signature, so every `payload.x` access below failed with "Property 'x' does
-  // not exist on type '{}'"). Annotating the local keeps the narrowed record type in
-  // both branches, and the empty record keeps the loop's behaviour identical.
-  const payload: Record<string, unknown> = isRecord(event.payload) ? event.payload : {}
-  const candidates = [
-    payload.containerName,
-    payload.imageName,
-    payload.repository,
-    payload.networkName,
-    payload.volumeName,
-    payload.serviceName,
-    payload.daemonName,
-    payload.builderName,
-  ]
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim().length > 0) {
-      return candidate
+    // The `{}` fallback is what widened `payload` to `{}` (an empty object type has no
+    // index signature, so every `payload.x` access below failed with "Property 'x' does
+    // not exist on type '{}'"). Annotating the local keeps the narrowed record type in
+    // both branches, and the empty record keeps the loop's behaviour identical.
+    const payload: Record<string, unknown> = isRecord(event.payload)
+        ? event.payload
+        : {}
+    const candidates = [
+        payload.containerName,
+        payload.imageName,
+        payload.repository,
+        payload.networkName,
+        payload.volumeName,
+        payload.serviceName,
+        payload.daemonName,
+        payload.builderName,
+    ]
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim().length > 0) {
+            return candidate
+        }
     }
-  }
-  return null
+    return null
 }
 
 function createFingerprint(event: DockerRuntimeEvent): string {
-  const seed = [
-    event.eventId ?? "",
-    event.source,
-    event.action,
-    event.actorId ?? "",
-    event.timestamp,
-  ].join(":")
-  return `live:${seed}`
+    const seed = [
+        event.eventId ?? '',
+        event.source,
+        event.action,
+        event.actorId ?? '',
+        event.timestamp,
+    ].join(':')
+    return `live:${seed}`
 }

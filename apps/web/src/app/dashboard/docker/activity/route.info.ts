@@ -4,6 +4,6 @@ import { z } from 'zod'
 export const page = true
 export const layout = false
 export const Route = {
-  name: 'AuthDashboardDockerActivity',
-  params: z.object({}),
+    name: 'AuthDashboardDockerActivity',
+    params: z.object({}),
 }

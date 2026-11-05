@@ -8,22 +8,30 @@
  * dependency.
  */
 
-import { nodeDoorFromEnv } from "@deployer/mesh-client";
-import { createGlobalModule } from "@deployer/nest-effect";
+import { nodeDoorFromEnv } from '@deployer/mesh-client'
+import { createGlobalModule } from '@deployer/nest-effect'
 
-import { EnvModule, EnvService } from "../../../config/env/env.module";
+import { EnvModule, EnvService } from '../../../config/env/env.module'
 
-import { ClusterSettings, makeClusterSettings } from "./cluster-settings";
-import { NodeAgentBootstrap, nodeAgentBootstrapLifecycle } from "./node-agent-bootstrap.service";
+import { ClusterSettings, makeClusterSettings } from './cluster-settings'
+import {
+    NodeAgentBootstrap,
+    nodeAgentBootstrapLifecycle,
+} from './node-agent-bootstrap.service'
 
 export const MeshNodeModule = createGlobalModule({
-	imports: [EnvModule],
-	providers: [
-		// The cluster settings live on this node's agent, reached through its node door; the factory is how the door
-		// gets its socket, and how a spec hands it a fake one.
-		{ provide: ClusterSettings, useFactory: (env: EnvService) => makeClusterSettings(nodeDoorFromEnv(env)), inject: [EnvService] },
-		NodeAgentBootstrap.provider,
-		nodeAgentBootstrapLifecycle(),
-	],
-	exports: [ClusterSettings],
-});
+    imports: [EnvModule],
+    providers: [
+        // The cluster settings live on this node's agent, reached through its node door; the factory is how the door
+        // gets its socket, and how a spec hands it a fake one.
+        {
+            provide: ClusterSettings,
+            useFactory: (env: EnvService) =>
+                makeClusterSettings(nodeDoorFromEnv(env)),
+            inject: [EnvService],
+        },
+        NodeAgentBootstrap.provider,
+        nodeAgentBootstrapLifecycle(),
+    ],
+    exports: [ClusterSettings],
+})

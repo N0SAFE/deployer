@@ -44,7 +44,8 @@ flowchart LR
 - Role/permission conditions gate route and UI access.
 
 <DocCallout title="Boundary rule" tone="warning">
-Keep contract definitions in shared packages, implementations in API, and UI data orchestration in web domain hooks.
+    Keep contract definitions in shared packages, implementations in API, and UI
+    data orchestration in web domain hooks.
 </DocCallout>
 
 ## Docker topology — Swarm baseline
@@ -58,7 +59,10 @@ The v3 runtime baseline is a Docker Swarm cluster with manager/worker roles (imp
 - **Mesh (one mesh agent per node)**: service discovery, routing and persistent oRPC links between nodes. See [The Node Agent](/docs/architecture/node-agent).
 
 <DocCallout title="Implementation status" tone="success">
-The Swarm execution backend, master election, node sharing, and cluster API surface are implemented behind the dockerode SDK (zero CLI). See `docs/swarm-orchestration/` for design docs and the `IMPLEMENTATION_TODO.md` status checklist.
+    The Swarm execution backend, master election, node sharing, and cluster API
+    surface are implemented behind the dockerode SDK (zero CLI). See
+    `docs/swarm-orchestration/` for design docs and the `IMPLEMENTATION_TODO.md`
+    status checklist.
 </DocCallout>
 
 ## Multi-node topology
@@ -104,24 +108,28 @@ See [Production Deployment](/docs/deployment/production-deployment) for the base
 ## Implementation order (for architecture-impacting changes)
 
 <DocStepFlow
-	steps={[
-		{
-			title: 'Update contracts first',
-			description: 'Keep shared API contracts as the source of type truth before implementation.',
-		},
-		{
-			title: 'Implement API behavior',
-			description: 'Apply business logic and authorization in API modules/services.',
-		},
-		{
-			title: 'Regenerate and connect web hooks',
-			description: 'Refresh generated artifacts, then wire usage through web domain hooks.',
-		},
-		{
-			title: 'Validate system-wide',
-			description: 'Run check scripts to ensure architecture contracts stay coherent end-to-end.',
-		},
-	]}
+    steps={[
+        {
+            title: 'Update contracts first',
+            description:
+                'Keep shared API contracts as the source of type truth before implementation.',
+        },
+        {
+            title: 'Implement API behavior',
+            description:
+                'Apply business logic and authorization in API modules/services.',
+        },
+        {
+            title: 'Regenerate and connect web hooks',
+            description:
+                'Refresh generated artifacts, then wire usage through web domain hooks.',
+        },
+        {
+            title: 'Validate system-wide',
+            description:
+                'Run check scripts to ensure architecture contracts stay coherent end-to-end.',
+        },
+    ]}
 />
 
 ## Related docs

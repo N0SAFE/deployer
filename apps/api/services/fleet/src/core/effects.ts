@@ -28,9 +28,11 @@ export function describeFailure(error: unknown): string {
  */
 export function recover<A, E, R, B, R2 = never>(
     effect: Effect.Effect<A, E, R>,
-    onFailure: (error: unknown) => Effect.Effect<B, never, R2>,
+    onFailure: (error: unknown) => Effect.Effect<B, never, R2>
 ): Effect.Effect<A | B, never, R | R2> {
     return Effect.catchCause(effect, (cause) =>
-        Cause.hasInterrupts(cause) ? Effect.failCause(cause as Cause.Cause<never>) : onFailure(Cause.squash(cause)),
+        Cause.hasInterrupts(cause)
+            ? Effect.failCause(cause as Cause.Cause<never>)
+            : onFailure(Cause.squash(cause))
     )
 }

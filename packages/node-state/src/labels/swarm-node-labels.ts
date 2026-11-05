@@ -13,19 +13,23 @@
  * AND workloads — the shared-node default), `control`, `worker`.
  */
 
-import { clusterPlatformRoleSchema, type ClusterPlatformRole, type SwarmNodePolicy } from "@deployer/contracts-entities";
+import {
+    clusterPlatformRoleSchema,
+    type ClusterPlatformRole,
+    type SwarmNodePolicy,
+} from '@deployer/contracts-entities'
 
 /** Marks a node as an ingress node (`deployer.ingress == "true"`). */
-export const SWARM_NODE_LABEL_INGRESS = "deployer.ingress";
+export const SWARM_NODE_LABEL_INGRESS = 'deployer.ingress'
 
 /** The node's platform role (`deployer.node.role == both|control|worker`). */
-export const SWARM_NODE_LABEL_ROLE = "deployer.node.role";
+export const SWARM_NODE_LABEL_ROLE = 'deployer.node.role'
 
 /** Region label used for `prefer-region` spread preferences. */
-export const SWARM_NODE_LABEL_REGION = "deployer.region";
+export const SWARM_NODE_LABEL_REGION = 'deployer.region'
 
 /** Prefix of the per-tenant placement label (`deployer.tenant.<id>`). */
-export const SWARM_NODE_LABEL_TENANT_PREFIX = "deployer.tenant.";
+export const SWARM_NODE_LABEL_TENANT_PREFIX = 'deployer.tenant.'
 
 /**
  * Participation POLICY → the PLATFORM ROLE stored on the node.
@@ -35,29 +39,35 @@ export const SWARM_NODE_LABEL_TENANT_PREFIX = "deployer.tenant.";
  * node IS (`both`/`control`/`worker`). Writing the policy value into the role
  * label made the two indistinguishable — the label must always carry the ROLE.
  */
-export function platformRoleForPolicy(policy: SwarmNodePolicy): ClusterPlatformRole {
+export function platformRoleForPolicy(
+    policy: SwarmNodePolicy
+): ClusterPlatformRole {
     switch (policy) {
-        case "manager":
-            return "control";
-        case "worker":
-            return "worker";
-        case "auto":
+        case 'manager':
+            return 'control'
+        case 'worker':
+            return 'worker'
+        case 'auto':
         default:
-            return "both";
+            return 'both'
     }
 }
 
 /** Read the platform role from node labels; unknown/absent → `both`. */
 export function platformRoleFromLabels(
-    labels: Record<string, string> | undefined,
+    labels: Record<string, string> | undefined
 ): ClusterPlatformRole {
-    const parsed = clusterPlatformRoleSchema.safeParse(labels?.[SWARM_NODE_LABEL_ROLE]);
-    return parsed.success ? parsed.data : "both";
+    const parsed = clusterPlatformRoleSchema.safeParse(
+        labels?.[SWARM_NODE_LABEL_ROLE]
+    )
+    return parsed.success ? parsed.data : 'both'
 }
 
 /** Read the ingress flag from node labels. */
-export function ingressFromLabels(labels: Record<string, string> | undefined): boolean {
-    return labels?.[SWARM_NODE_LABEL_INGRESS] === "true";
+export function ingressFromLabels(
+    labels: Record<string, string> | undefined
+): boolean {
+    return labels?.[SWARM_NODE_LABEL_INGRESS] === 'true'
 }
 
 /**
@@ -68,11 +78,15 @@ export function ingressFromLabels(labels: Record<string, string> | undefined): b
  */
 export function withPlatformRole(
     labels: Record<string, string>,
-    role: ClusterPlatformRole | null,
+    role: ClusterPlatformRole | null
 ): Record<string, string> {
-    if (role === null) return labels;
-    const without = Object.fromEntries(Object.entries(labels).filter(([key]) => key !== SWARM_NODE_LABEL_ROLE));
-    return role === "both" ? without : { ...without, [SWARM_NODE_LABEL_ROLE]: role };
+    if (role === null) return labels
+    const without = Object.fromEntries(
+        Object.entries(labels).filter(([key]) => key !== SWARM_NODE_LABEL_ROLE)
+    )
+    return role === 'both'
+        ? without
+        : { ...without, [SWARM_NODE_LABEL_ROLE]: role }
 }
 
 /**
@@ -82,11 +96,17 @@ export function withPlatformRole(
  */
 export function withIngress(
     labels: Record<string, string>,
-    ingress: boolean | null,
+    ingress: boolean | null
 ): Record<string, string> {
-    if (ingress === null) return labels;
-    const without = Object.fromEntries(Object.entries(labels).filter(([key]) => key !== SWARM_NODE_LABEL_INGRESS));
-    return ingress ? { ...without, [SWARM_NODE_LABEL_INGRESS]: "true" } : without;
+    if (ingress === null) return labels
+    const without = Object.fromEntries(
+        Object.entries(labels).filter(
+            ([key]) => key !== SWARM_NODE_LABEL_INGRESS
+        )
+    )
+    return ingress
+        ? { ...without, [SWARM_NODE_LABEL_INGRESS]: 'true' }
+        : without
 }
 
 /**
@@ -95,12 +115,12 @@ export function withIngress(
  * Declared HERE rather than on the docker service: it is node VOCABULARY, and
  * `DockerService` re-exports it for compatibility with its own signatures.
  */
-export type SwarmNodeRole = "manager" | "worker";
+export type SwarmNodeRole = 'manager' | 'worker'
 
 /** Shape needed to resolve a role — the subset of a docker node summary. */
 export type SwarmNodeRoleSource = {
-	ManagerStatus: unknown;
-	Spec: { Role?: string | undefined };
+    ManagerStatus: unknown
+    Spec: { Role?: string | undefined }
 }
 
 /**
@@ -116,13 +136,15 @@ export type SwarmNodeRoleSource = {
  * cached row — a dependency with no runtime content.
  */
 export function resolveSwarmNodeRole(node: SwarmNodeRoleSource): SwarmNodeRole {
-	if (node.ManagerStatus !== null) return "manager";
-	return normalizeSwarmNodeRole(node.Spec.Role) ?? "manager";
+    if (node.ManagerStatus !== null) return 'manager'
+    return normalizeSwarmNodeRole(node.Spec.Role) ?? 'manager'
 }
 
 /** `Spec.Role` narrowed to the engine's enum; `null` when it is unreadable. */
-function normalizeSwarmNodeRole(value: string | undefined): SwarmNodeRole | null {
-	const role = (value ?? "").trim().toLowerCase();
-	if (role === "manager" || role === "worker") return role;
-	return null;
+function normalizeSwarmNodeRole(
+    value: string | undefined
+): SwarmNodeRole | null {
+    const role = (value ?? '').trim().toLowerCase()
+    if (role === 'manager' || role === 'worker') return role
+    return null
 }

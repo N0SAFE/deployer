@@ -1,7 +1,11 @@
-import { Cause, Effect } from "effect";
+import { Cause, Effect } from 'effect'
 
-import { Actor } from "@deployer/effect-core";
-import { handle, provideRequest, type RequestContextInput } from "@deployer/effect-orpc";
+import { Actor } from '@deployer/effect-core'
+import {
+    handle,
+    provideRequest,
+    type RequestContextInput,
+} from '@deployer/effect-orpc'
 
 /**
  * The node-agent's request boundary.
@@ -11,11 +15,16 @@ import { handle, provideRequest, type RequestContextInput } from "@deployer/effe
  * are hidden behind the correlation id, as in every service.
  */
 export const serveMeshPeer =
-  (context: RequestContextInput) =>
-  <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    effect.pipe(
-      handle((cause, correlationId) => {
-        console.error(`[svc-node-agent] defect ${correlationId}`, Cause.pretty(cause));
-      }),
-      provideRequest(context, () => Effect.succeed(Actor.system("mesh-peer"))),
-    );
+    (context: RequestContextInput) =>
+    <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+        effect.pipe(
+            handle((cause, correlationId) => {
+                console.error(
+                    `[svc-node-agent] defect ${correlationId}`,
+                    Cause.pretty(cause)
+                )
+            }),
+            provideRequest(context, () =>
+                Effect.succeed(Actor.system('mesh-peer'))
+            )
+        )

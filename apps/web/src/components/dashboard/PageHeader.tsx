@@ -16,39 +16,50 @@ import type { ReactNode } from 'react'
  * what the page is, and actions live at the top-right for scannability.
  */
 export function PageHeader({
-  eyebrow,
-  title,
-  badge,
-  description,
-  actions,
-  className,
+    eyebrow,
+    title,
+    badge,
+    description,
+    actions,
+    className,
 }: {
-  eyebrow?: ReactNode
-  title: ReactNode
-  badge?: ReactNode
-  description?: ReactNode
-  actions?: ReactNode
-  className?: string
+    eyebrow?: ReactNode
+    title: ReactNode
+    badge?: ReactNode
+    description?: ReactNode
+    actions?: ReactNode
+    className?: string
 }) {
-  return (
-    <div className={cn('flex flex-wrap items-start justify-between gap-x-4 gap-y-3', className)}>
-      <div className="min-w-0 space-y-1.5">
-        {eyebrow ? (
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            {eyebrow}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {badge}
+    return (
+        <div
+            className={cn(
+                'flex flex-wrap items-start justify-between gap-x-4 gap-y-3',
+                className
+            )}
+        >
+            <div className="min-w-0 space-y-1.5">
+                {eyebrow ? (
+                    <p className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">
+                        {eyebrow}
+                    </p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-2xl font-semibold tracking-tight">
+                        {title}
+                    </h1>
+                    {badge}
+                </div>
+                {description ? (
+                    <p className="text-muted-foreground max-w-3xl text-sm">
+                        {description}
+                    </p>
+                ) : null}
+            </div>
+            {actions ? (
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {actions}
+                </div>
+            ) : null}
         </div>
-        {description ? (
-          <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
-      ) : null}
-    </div>
-  )
+    )
 }

@@ -20,7 +20,8 @@ import * as path from 'node:path'
  */
 import { sweepOrphanedStaging } from './pkg-builder.service'
 
-const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'staging-sweep-'))
+const tmp = (): string =>
+    fs.mkdtempSync(path.join(os.tmpdir(), 'staging-sweep-'))
 
 const write = (dir: string, files: Record<string, string>): void => {
     for (const [rel, content] of Object.entries(files)) {
@@ -131,6 +132,8 @@ describe('sweepOrphanedStaging', () => {
         // A first build has no `dist`, and `readdirSync` runs on the PARENT, so the
         // function must not throw when the target is absent.
         const root = tmp()
-        expect(() => sweepOrphanedStaging(path.join(root, 'dist'))).not.toThrow()
+        expect(() =>
+            sweepOrphanedStaging(path.join(root, 'dist'))
+        ).not.toThrow()
     })
 })

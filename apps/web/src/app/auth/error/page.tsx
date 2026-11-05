@@ -16,7 +16,7 @@ export default function AuthErrorPage() {
         <Suspense
             fallback={
                 <div className="flex min-h-[70vh] w-full items-center justify-center">
-                    <p className="text-sm text-muted-foreground">Loading…</p>
+                    <p className="text-muted-foreground text-sm">Loading…</p>
                 </div>
             }
         >
@@ -26,6 +26,6 @@ export default function AuthErrorPage() {
 }
 
 export const metadata: Metadata = {
-    title: "Authentication error",
-    description: "There was a problem during authentication",
+    title: 'Authentication error',
+    description: 'There was a problem during authentication',
 }

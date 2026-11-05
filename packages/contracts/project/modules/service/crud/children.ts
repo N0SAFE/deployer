@@ -1,10 +1,13 @@
-import * as z from "zod";
+import * as z from 'zod'
 
-import { access } from "@deployer/auth/authz/meta";
-import { serviceEffectiveConfigSchema, serviceObjectShape } from "@deployer/contracts-entities";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import {
+    serviceEffectiveConfigSchema,
+    serviceObjectShape,
+} from '@deployer/contracts-entities'
+import { standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-import { serviceOps } from "./shared";
+import { serviceOps } from './shared'
 
 /**
  * Direct children (one level) of a service. Used by the tree UI to render the
@@ -13,22 +16,29 @@ import { serviceOps } from "./shared";
  * parent unless overridden).
  */
 const serviceChildrenOutputSchema = z.object({
-  children: z.array(
-    serviceObjectShape.extend({ effectiveConfig: serviceEffectiveConfigSchema }),
-  ),
-});
+    children: z.array(
+        serviceObjectShape.extend({
+            effectiveConfig: serviceEffectiveConfigSchema,
+        })
+    ),
+})
 
 export const serviceChildrenContract = serviceOps
-  .list()
-  .summary("List direct child services (sub-services) of a service")
-  // path-template params form — schema-only `.input(params(schema))` does
-  // NOT wire URL substitution in the OpenAPI client (requests went out as
-  // `/services/:id/children` even with a valid id).
-  .input((b) => b.params((p) => p`/${p("id", z.uuid())}/children`))
-  .output(serviceChildrenOutputSchema)
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
-  .build();
+    .list()
+    .summary('List direct child services (sub-services) of a service')
+    // path-template params form — schema-only `.input(params(schema))` does
+    // NOT wire URL substitution in the OpenAPI client (requests went out as
+    // `/services/:id/children` even with a valid id).
+    .input((b) => b.params((p) => p`/${p('id', z.uuid())}/children`))
+    .output(serviceChildrenOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(
+        access({
+            permission: 'service:read',
+            scope: { by: 'input', path: 'params.id', kind: 'service' },
+        })
+    )
+    .build()
 
 /**
  * The full descendant subtree of a service as a nested tree. Each node is a
@@ -40,29 +50,40 @@ export const serviceChildrenContract = serviceOps
  * consumer would otherwise lose the tree type entirely.
  */
 const serviceSubtreeNodeBaseSchema = serviceObjectShape.extend({
-  effectiveConfig: serviceEffectiveConfigSchema,
-});
+    effectiveConfig: serviceEffectiveConfigSchema,
+})
 
-export interface ServiceSubtreeNode extends z.infer<typeof serviceSubtreeNodeBaseSchema> {
-  children?: ServiceSubtreeNode[];
+export interface ServiceSubtreeNode extends z.infer<
+    typeof serviceSubtreeNodeBaseSchema
+> {
+    children?: ServiceSubtreeNode[]
 }
 
-export interface ServiceSubtreeNodeInput extends z.input<typeof serviceSubtreeNodeBaseSchema> {
-  children?: ServiceSubtreeNodeInput[];
+export interface ServiceSubtreeNodeInput extends z.input<
+    typeof serviceSubtreeNodeBaseSchema
+> {
+    children?: ServiceSubtreeNodeInput[]
 }
 
-const serviceSubtreeNodeSchema: z.ZodType<ServiceSubtreeNode, ServiceSubtreeNodeInput> =
-  serviceSubtreeNodeBaseSchema.extend({
+const serviceSubtreeNodeSchema: z.ZodType<
+    ServiceSubtreeNode,
+    ServiceSubtreeNodeInput
+> = serviceSubtreeNodeBaseSchema.extend({
     get children() {
-      return z.array(serviceSubtreeNodeSchema).optional();
+        return z.array(serviceSubtreeNodeSchema).optional()
     },
-  });
+})
 
 export const serviceSubtreeContract = serviceOps
-  .read()
-  .summary("Get the whole descendant subtree of a service (nested)")
-  .input((b) => b.params((p) => p`/${p("id", z.uuid())}/subtree`))
-  .output(serviceSubtreeNodeSchema.nullable())
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .meta(access({ permission: "service:read", scope: { by: "input", path: "params.id", kind: "service" } }))
-  .build();
+    .read()
+    .summary('Get the whole descendant subtree of a service (nested)')
+    .input((b) => b.params((p) => p`/${p('id', z.uuid())}/subtree`))
+    .output(serviceSubtreeNodeSchema.nullable())
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .meta(
+        access({
+            permission: 'service:read',
+            scope: { by: 'input', path: 'params.id', kind: 'service' },
+        })
+    )
+    .build()

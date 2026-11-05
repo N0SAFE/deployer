@@ -61,7 +61,10 @@ vi.mock('next/image', () => ({
 
 // Mock Next.js Link component
 vi.mock('next/link', () => ({
-    default: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => {
+    default: ({
+        children,
+        ...props
+    }: { children: React.ReactNode } & Record<string, unknown>) => {
         return React.createElement('a', props, children)
     },
 }))
@@ -144,7 +147,9 @@ vi.mock('#/env', () => ({
                 parse: vi.fn().mockReturnValue('http://localhost:3001'),
             },
             NEXT_PUBLIC_DEBUG: {
-                parse: vi.fn().mockReturnValue({ patterns: [], enableAll: false }),
+                parse: vi
+                    .fn()
+                    .mockReturnValue({ patterns: [], enableAll: false }),
             },
         },
     },
@@ -182,33 +187,49 @@ vi.mock('#/env', () => ({
 vi.mock('@/routes', () => {
     // Create a mock function that behaves like the actual route functions
     const createRouteMock = (defaultPath: string) => {
-        const routeFunction = vi.fn().mockImplementation((params = {}, search = {}) => {
-            // Handle parameters in the path
-            let path = defaultPath
-            Object.entries(params).forEach(([key, value]) => {
-                path = path.replace(`[${key}]`, String(value))
+        const routeFunction = vi
+            .fn()
+            .mockImplementation((params = {}, search = {}) => {
+                // Handle parameters in the path
+                let path = defaultPath
+                Object.entries(params).forEach(([key, value]) => {
+                    path = path.replace(`[${key}]`, String(value))
+                })
+
+                // Handle search parameters
+                const searchParams = new URLSearchParams()
+                Object.entries(search).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        searchParams.append(key, String(value))
+                    }
+                })
+
+                const searchString = searchParams.toString()
+                return searchString ? `${path}?${searchString}` : path
             })
-            
-            // Handle search parameters
-            const searchParams = new URLSearchParams()
-            Object.entries(search).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
-                    searchParams.append(key, String(value))
-                }
-            })
-            
-            const searchString = searchParams.toString()
-            return searchString ? `${path}?${searchString}` : path
-        })
 
         // Add Link property for Next.js Link compatibility
         Object.defineProperty(routeFunction, 'Link', {
-            value: vi.fn().mockImplementation(({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => {
-                return React.createElement('a', { ...props, href: defaultPath }, children)
-            }),
+            value: vi
+                .fn()
+                .mockImplementation(
+                    ({
+                        children,
+                        ...props
+                    }: { children: React.ReactNode } & Record<
+                        string,
+                        unknown
+                    >) => {
+                        return React.createElement(
+                            'a',
+                            { ...props, href: defaultPath },
+                            children
+                        )
+                    }
+                ),
             writable: true,
             enumerable: true,
-            configurable: true
+            configurable: true,
         })
 
         return routeFunction
@@ -216,25 +237,41 @@ vi.mock('@/routes', () => {
 
     return {
         // Route functions that match the actual routes/index.ts exports
-        InternalMiddlewareErrorEnv: createRouteMock('InternalMiddlewareErrorEnv'),
-        InternalMiddlewareErrorHealthCheck: createRouteMock('InternalMiddlewareErrorHealthCheck'),
+        InternalMiddlewareErrorEnv: createRouteMock(
+            'InternalMiddlewareErrorEnv'
+        ),
+        InternalMiddlewareErrorHealthCheck: createRouteMock(
+            'InternalMiddlewareErrorHealthCheck'
+        ),
         AuthError: createRouteMock('AuthError'),
         AuthMe: createRouteMock('AuthMe'),
         AuthSignin: createRouteMock('AuthSignin'),
         AuthSignup: createRouteMock('AuthSignup'),
         AuthDashboard: createRouteMock('AuthDashboard'),
         AuthDashboardProfile: createRouteMock('AuthDashboardProfile'),
-        AuthDashboardOrganizations: createRouteMock('AuthDashboardOrganizations'),
-        AuthDashboardOrganizationsNew: createRouteMock('AuthDashboardOrganizationsNew'),
-        AuthDashboardOrganizationsOrganizationId: createRouteMock('AuthDashboardOrganizationsOrganizationId'),
+        AuthDashboardOrganizations: createRouteMock(
+            'AuthDashboardOrganizations'
+        ),
+        AuthDashboardOrganizationsNew: createRouteMock(
+            'AuthDashboardOrganizationsNew'
+        ),
+        AuthDashboardOrganizationsOrganizationId: createRouteMock(
+            'AuthDashboardOrganizationsOrganizationId'
+        ),
         Home: createRouteMock('Home'),
         AuthForgotPassword: createRouteMock('/auth/forgot-password'),
         AuthResetPassword: createRouteMock('/auth/reset-password'),
-        AuthDashboardSettingsApprovals: createRouteMock('/dashboard/settings/approvals'),
-        AuthDashboardSettingsRoles: createRouteMock('/dashboard/settings/roles'),
-        AuthDashboardSettingsAudit: createRouteMock('/dashboard/settings/audit'),
+        AuthDashboardSettingsApprovals: createRouteMock(
+            '/dashboard/settings/approvals'
+        ),
+        AuthDashboardSettingsRoles: createRouteMock(
+            '/dashboard/settings/roles'
+        ),
+        AuthDashboardSettingsAudit: createRouteMock(
+            '/dashboard/settings/audit'
+        ),
         Invite: createRouteMock('/invite'),
-        
+
         // API route functions
         getApiServerHealth: vi.fn().mockReturnValue('/api/server/health'),
         getApiServerPing: vi.fn().mockReturnValue('/api/server/ping'),
@@ -245,33 +282,49 @@ vi.mock('@/routes', () => {
 vi.mock('@/routes/index', () => {
     // Create a mock function that behaves like the actual route functions
     const createRouteMock = (defaultPath: string) => {
-        const routeFunction = vi.fn().mockImplementation((params = {}, search = {}) => {
-            // Handle parameters in the path
-            let path = defaultPath
-            Object.entries(params).forEach(([key, value]) => {
-                path = path.replace(`[${key}]`, String(value))
+        const routeFunction = vi
+            .fn()
+            .mockImplementation((params = {}, search = {}) => {
+                // Handle parameters in the path
+                let path = defaultPath
+                Object.entries(params).forEach(([key, value]) => {
+                    path = path.replace(`[${key}]`, String(value))
+                })
+
+                // Handle search parameters
+                const searchParams = new URLSearchParams()
+                Object.entries(search).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        searchParams.append(key, String(value))
+                    }
+                })
+
+                const searchString = searchParams.toString()
+                return searchString ? `${path}?${searchString}` : path
             })
-            
-            // Handle search parameters
-            const searchParams = new URLSearchParams()
-            Object.entries(search).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
-                    searchParams.append(key, String(value))
-                }
-            })
-            
-            const searchString = searchParams.toString()
-            return searchString ? `${path}?${searchString}` : path
-        })
 
         // Add Link property for Next.js Link compatibility
         Object.defineProperty(routeFunction, 'Link', {
-            value: vi.fn().mockImplementation(({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => {
-                return React.createElement('a', { ...props, href: defaultPath }, children)
-            }),
+            value: vi
+                .fn()
+                .mockImplementation(
+                    ({
+                        children,
+                        ...props
+                    }: { children: React.ReactNode } & Record<
+                        string,
+                        unknown
+                    >) => {
+                        return React.createElement(
+                            'a',
+                            { ...props, href: defaultPath },
+                            children
+                        )
+                    }
+                ),
             writable: true,
             enumerable: true,
-            configurable: true
+            configurable: true,
         })
 
         return routeFunction
@@ -280,19 +333,29 @@ vi.mock('@/routes/index', () => {
     // Return static pre-defined routes to avoid proxy performance issues
     return {
         // Common routes that are actually used in the codebase (matching @/routes mock)
-        InternalMiddlewareErrorEnv: createRouteMock('InternalMiddlewareErrorEnv'),
-        InternalMiddlewareErrorHealthCheck: createRouteMock('InternalMiddlewareErrorHealthCheck'),
+        InternalMiddlewareErrorEnv: createRouteMock(
+            'InternalMiddlewareErrorEnv'
+        ),
+        InternalMiddlewareErrorHealthCheck: createRouteMock(
+            'InternalMiddlewareErrorHealthCheck'
+        ),
         AuthError: createRouteMock('AuthError'),
         AuthMe: createRouteMock('AuthMe'),
         AuthSignin: createRouteMock('AuthSignin'),
         AuthSignup: createRouteMock('AuthSignup'),
         AuthDashboard: createRouteMock('AuthDashboard'),
         AuthDashboardProfile: createRouteMock('AuthDashboardProfile'),
-        AuthDashboardOrganizations: createRouteMock('AuthDashboardOrganizations'),
-        AuthDashboardOrganizationsNew: createRouteMock('AuthDashboardOrganizationsNew'),
-        AuthDashboardOrganizationsOrganizationId: createRouteMock('AuthDashboardOrganizationsOrganizationId'),
+        AuthDashboardOrganizations: createRouteMock(
+            'AuthDashboardOrganizations'
+        ),
+        AuthDashboardOrganizationsNew: createRouteMock(
+            'AuthDashboardOrganizationsNew'
+        ),
+        AuthDashboardOrganizationsOrganizationId: createRouteMock(
+            'AuthDashboardOrganizationsOrganizationId'
+        ),
         Home: createRouteMock('Home'),
-        
+
         // API route functions
         getApiServerHealth: vi.fn().mockReturnValue('/api/server/health'),
         getApiServerPing: vi.fn().mockReturnValue('/api/server/ping'),
@@ -313,7 +376,9 @@ vi.mock('@/lib/debug', () => ({
 
 // Mock @/lib/utils to prevent timeout issues
 vi.mock('@/lib/utils', () => ({
-    toAbsoluteUrl: vi.fn().mockImplementation((path) => `http://localhost:3000${path}`),
+    toAbsoluteUrl: vi
+        .fn()
+        .mockImplementation((path) => `http://localhost:3000${path}`),
     cn: vi.fn().mockImplementation((...args) => args.filter(Boolean).join(' ')),
 }))
 

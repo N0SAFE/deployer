@@ -43,9 +43,9 @@ The `dev-dependency-builder` compose profile — `bun run dev:dep-builder`. One
 container runs this tool; the applications consume its output through the shared
 `dep-output` volume.
 
-| Concern                        | File                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------ |
-| the tool                       | `tooling/dependency-builder/`                                              |
+| Concern                        | File                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| the tool                       | `tooling/dependency-builder/`                                                  |
 | its image                      | `infra/docker/builder/dependency-builder/Dockerfile.dependency-builder.dev`    |
 | its service                    | `infra/docker/compose/common/dependency-builder/docker-compose.config.dev.yml` |
 | the applications' shared image | `infra/docker/builder/app/Dockerfile.app.dev`                                  |

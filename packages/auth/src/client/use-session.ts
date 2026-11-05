@@ -22,31 +22,40 @@ function useQueryClientSafe(): QueryClient | null {
  * Subscribe to React Query cache changes for a specific query key.
  * This allows components to re-render when HydrationBoundary updates the cache.
  */
- 
+
 function useQueryCacheSubscription<TData>(
     queryClient: QueryClient | null,
     queryKey: readonly unknown[]
 ): { data: TData | undefined; hasData: boolean } {
     // Subscribe to cache changes
-    const subscribe = useCallback((callback: () => void) => {
-        if (!queryClient) return (): void => { /* no-op cleanup */ }
-        const unsubscribe = queryClient.getQueryCache().subscribe((event: QueryCacheNotifyEvent) => {
-            // Only trigger for our specific query key
-            const eventKey = JSON.stringify(event.query.queryKey)
-            const targetKey = JSON.stringify(queryKey)
-            if (eventKey === targetKey) {
-                callback()
-            }
-        })
-        return unsubscribe
-    }, [queryClient, queryKey])
+    const subscribe = useCallback(
+        (callback: () => void) => {
+            if (!queryClient)
+                return (): void => {
+                    /* no-op cleanup */
+                }
+            const unsubscribe = queryClient
+                .getQueryCache()
+                .subscribe((event: QueryCacheNotifyEvent) => {
+                    // Only trigger for our specific query key
+                    const eventKey = JSON.stringify(event.query.queryKey)
+                    const targetKey = JSON.stringify(queryKey)
+                    if (eventKey === targetKey) {
+                        callback()
+                    }
+                })
+            return unsubscribe
+        },
+        [queryClient, queryKey]
+    )
 
     // Get current snapshot from cache
     const getSnapshot = useCallback(() => {
         if (!queryClient) return { data: undefined, hasData: false }
         const state = queryClient.getQueryState(queryKey)
         const data = queryClient.getQueryData<TData>(queryKey)
-        const hasData = state?.dataUpdatedAt !== undefined && state.dataUpdatedAt > 0
+        const hasData =
+            state?.dataUpdatedAt !== undefined && state.dataUpdatedAt > 0
         return { data, hasData }
     }, [queryClient, queryKey])
 
@@ -88,16 +97,16 @@ export interface CreateUseSessionOptions<TData> {
 
 /**
  * Factory function that creates an enhanced useSession hook.
- * 
+ *
  * The created hook integrates with:
  * 1. React Query cache (for HydrationBoundary/SessionPage hydration) - SUBSCRIBES to updates
  * 2. Better Auth's useSession (as fallback)
- * 
+ *
  * How it works:
  * 1. Subscribes to React Query cache changes via useSyncExternalStore
  *    - When a page hydrates the session (via HydrationBoundary), this hook re-renders
  * 2. If no hydrated data, falls back to Better Auth's useSession
- * 
+ *
  * This enables the key behavior:
  * - SessionPage: Server fetches + hydrates RQ cache → useSession picks it up instantly
  * - Regular pages: useSession fetches client-side on first call (lazy loading)
@@ -108,7 +117,7 @@ export interface CreateUseSessionOptions<TData> {
  * // In your app's auth setup
  * import { createUseSession } from './index'
  * import { authClient } from '@/client/options'
- * 
+ *
  * export const useSession = createUseSession({
  *   authClient,
  *   sessionQueryKey: ['session'],
@@ -118,24 +127,19 @@ export interface CreateUseSessionOptions<TData> {
 export function createUseSession<TData>(
     options: CreateUseSessionOptions<TData>
 ): () => SessionResult<TData> {
-    const { 
-        authClient, 
-        sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
-    } = options
+    const { authClient, sessionQueryKey = DEFAULT_SESSION_QUERY_KEY } = options
 
     return function useSession(): SessionResult<TData> {
         const queryClient = useQueryClientSafe()
-        
+
         // Subscribe to React Query cache for session updates
         // This re-renders when HydrationBoundary hydrates the session
-        const { data: cachedSession, hasData: hasHydratedData } = useQueryCacheSubscription<TData>(
-            queryClient,
-            sessionQueryKey
-        )
-        
+        const { data: cachedSession, hasData: hasHydratedData } =
+            useQueryCacheSubscription<TData>(queryClient, sessionQueryKey)
+
         // Use Better Auth's useSession as a fallback
         const betterAuthSession = authClient.useSession()
-        
+
         // Determine which session data to use
         const result = useMemo((): SessionResult<TData> => {
             // Priority 1: React Query cache (subscribes to HydrationBoundary updates)
@@ -145,15 +149,23 @@ export function createUseSession<TData>(
                     isLoading: false,
                     error: undefined,
                     refetch: async () => {
-                        await queryClient.invalidateQueries({ queryKey: sessionQueryKey })
+                        await queryClient.invalidateQueries({
+                            queryKey: sessionQueryKey,
+                        })
                     },
                 }
             }
-            
+
             // Priority 2: Better Auth's useSession (client-side fetch)
             return betterAuthSession
-        }, [queryClient, hasHydratedData, cachedSession, betterAuthSession, sessionQueryKey])
-        
+        }, [
+            queryClient,
+            hasHydratedData,
+            cachedSession,
+            betterAuthSession,
+            sessionQueryKey,
+        ])
+
         return result
     }
 }

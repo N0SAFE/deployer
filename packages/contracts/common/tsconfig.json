@@ -8,12 +8,8 @@
         "skipLibCheck": true,
         "moduleResolution": "bundler",
         "paths": {
-            "@deployer/contracts-common/*": [
-                "./src/*"
-            ]
+            "@deployer/contracts-common/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ]
+    "include": ["pkg-build.config.ts", "src/**/*"]
 }

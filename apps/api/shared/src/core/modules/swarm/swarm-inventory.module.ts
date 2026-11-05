@@ -21,22 +21,37 @@
  * `SetupModule` (it takes `NodeStateModule` instead), so there is no path back.
  */
 
+import {
+    createModuleContext,
+    effectHostProvider,
+    serviceLifecycle,
+} from '@deployer/nest-effect'
+import {
+    ClusterNodeInventoryRepository,
+    type ClusterNodeInventoryRepositoryShape,
+} from '@deployer/node-state'
+import { SwarmCluster, type SwarmClusterShape } from '@deployer/swarm'
 
+import { DatabaseModule } from '../database/database.module'
+import { DatabasePort } from '../database/storage'
+import { MeshCoreModule } from '../mesh/mesh-core.module'
+import {
+    SystemMeshConfigService,
+    type SystemMeshConfigServiceShape,
+} from '../mesh/services/system-mesh-config.service'
 
-import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
-import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm";
+import {
+    GlobalClusterNodesRepository,
+    makeGlobalClusterNodesRepository,
+    type GlobalClusterNodesRepositoryShape,
+} from './repositories/global-cluster-nodes.repository'
+import {
+    makeNodeInventoryService,
+    NodeInventoryService,
+} from './services/node-inventory.service'
+import { SwarmCoreModule } from './swarm.module'
 
-import { DatabaseModule } from "../database/database.module";
-import { DatabasePort } from "../database/storage";
-import { MeshCoreModule } from "../mesh/mesh-core.module";
-import { SystemMeshConfigService, type SystemMeshConfigServiceShape } from "../mesh/services/system-mesh-config.service";
-
-import { GlobalClusterNodesRepository, makeGlobalClusterNodesRepository, type GlobalClusterNodesRepositoryShape } from "./repositories/global-cluster-nodes.repository";
-import { makeNodeInventoryService, NodeInventoryService } from "./services/node-inventory.service";
-import { SwarmCoreModule } from "./swarm.module";
-
-import type { Context } from "effect";
+import type { Context } from 'effect'
 
 export class SwarmInventoryModule extends createModuleContext({
     // SwarmCoreModule supplies SwarmClusterService (the `docker node ls` read
@@ -46,15 +61,29 @@ export class SwarmInventoryModule extends createModuleContext({
         effectHostProvider(),
         {
             provide: GlobalClusterNodesRepository,
-            useFactory: (database: Context.Service.Shape<typeof DatabasePort>, meshConfig: SystemMeshConfigServiceShape) =>
-                makeGlobalClusterNodesRepository({ database, meshConfig }),
+            useFactory: (
+                database: Context.Service.Shape<typeof DatabasePort>,
+                meshConfig: SystemMeshConfigServiceShape
+            ) => makeGlobalClusterNodesRepository({ database, meshConfig }),
             inject: [DatabasePort, SystemMeshConfigService],
         },
         {
             provide: NodeInventoryService,
-            useFactory: (cluster: SwarmClusterShape, inventory: ClusterNodeInventoryRepositoryShape, globalClusterNodes: GlobalClusterNodesRepositoryShape) =>
-                makeNodeInventoryService({ cluster, inventory, globalClusterNodes }),
-            inject: [SwarmCluster, ClusterNodeInventoryRepository, GlobalClusterNodesRepository],
+            useFactory: (
+                cluster: SwarmClusterShape,
+                inventory: ClusterNodeInventoryRepositoryShape,
+                globalClusterNodes: GlobalClusterNodesRepositoryShape
+            ) =>
+                makeNodeInventoryService({
+                    cluster,
+                    inventory,
+                    globalClusterNodes,
+                }),
+            inject: [
+                SwarmCluster,
+                ClusterNodeInventoryRepository,
+                GlobalClusterNodesRepository,
+            ],
         },
         serviceLifecycle(NodeInventoryService),
     ],

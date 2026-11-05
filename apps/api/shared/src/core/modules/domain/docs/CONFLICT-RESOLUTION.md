@@ -24,19 +24,19 @@ Before creating or updating a service domain mapping, always check availability:
 
 ```typescript
 const availability = await conflictService.checkSubdomainAvailability(
-  projectDomainId,      // Target project domain
-  subdomain,            // Requested subdomain (can be multi-level like "staging.api")
-  basePath,             // Requested base path
-  excludeServiceId      // Optional: exclude current service when updating
-);
+    projectDomainId, // Target project domain
+    subdomain, // Requested subdomain (can be multi-level like "staging.api")
+    basePath, // Requested base path
+    excludeServiceId // Optional: exclude current service when updating
+)
 
 interface SubdomainAvailabilityResult {
-  available: boolean;                    // Can this URL be used?
-  conflicts: SubdomainConflict[];        // Existing conflicting mappings
-  suggestions: {
-    availableBasePaths: string[];        // Suggested alternative paths
-    message: string;                     // Human-readable explanation
-  };
+    available: boolean // Can this URL be used?
+    conflicts: SubdomainConflict[] // Existing conflicting mappings
+    suggestions: {
+        availableBasePaths: string[] // Suggested alternative paths
+        message: string // Human-readable explanation
+    }
 }
 ```
 
@@ -126,6 +126,7 @@ validateSubdomain(subdomain: string): { valid: boolean; error?: string }
 ```
 
 **Rules**:
+
 - Start with alphanumeric character
 - End with alphanumeric character
 - Can contain hyphens (`-`) in the middle
@@ -133,6 +134,7 @@ validateSubdomain(subdomain: string): { valid: boolean; error?: string }
 - Can be multi-level (e.g., `staging.api`, `v2.staging.api`)
 
 **Valid Examples**:
+
 ```
 api
 www
@@ -144,6 +146,7 @@ feature-123.dev.api   ← Multi-level
 ```
 
 **Invalid Examples**:
+
 ```
 -api           ← Starts with hyphen
 api-           ← Ends with hyphen
@@ -156,29 +159,35 @@ my..service    ← Double dot
 For multi-level subdomains, each label is validated separately:
 
 ```typescript
-function validateSubdomain(subdomain: string): { valid: boolean; error?: string } {
-  if (!subdomain) {
-    return { valid: true }; // null/empty is valid (root domain)
-  }
-
-  // Split multi-level subdomain into labels
-  const labels = subdomain.split('.');
-  
-  for (const label of labels) {
-    if (label.length > 63) {
-      return { valid: false, error: 'Each subdomain label must be 63 characters or less' };
+function validateSubdomain(subdomain: string): {
+    valid: boolean
+    error?: string
+} {
+    if (!subdomain) {
+        return { valid: true } // null/empty is valid (root domain)
     }
-    
-    const labelRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i;
-    if (!labelRegex.test(label)) {
-      return { 
-        valid: false, 
-        error: `Label "${label}" must start and end with alphanumeric characters` 
-      };
-    }
-  }
 
-  return { valid: true };
+    // Split multi-level subdomain into labels
+    const labels = subdomain.split('.')
+
+    for (const label of labels) {
+        if (label.length > 63) {
+            return {
+                valid: false,
+                error: 'Each subdomain label must be 63 characters or less',
+            }
+        }
+
+        const labelRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i
+        if (!labelRegex.test(label)) {
+            return {
+                valid: false,
+                error: `Label "${label}" must start and end with alphanumeric characters`,
+            }
+        }
+    }
+
+    return { valid: true }
 }
 ```
 
@@ -191,12 +200,14 @@ validateBasePath(basePath: string): { valid: boolean; error?: string }
 ```
 
 **Rules**:
+
 - Must start with `/`
 - Must not end with `/` (except root `/`)
 - Max 255 characters
 - Should be URL-safe
 
 **Valid Examples**:
+
 ```
 /
 /v1
@@ -206,6 +217,7 @@ validateBasePath(basePath: string): { valid: boolean; error?: string }
 ```
 
 **Invalid Examples**:
+
 ```
 v1           ← Missing leading slash
 /api/        ← Trailing slash (not root)
@@ -258,16 +270,17 @@ addServiceDomain() {
 ```typescript
 // When updating, exclude the current mapping from conflict check
 if (input.subdomain !== undefined || input.basePath !== undefined) {
-  const availabilityCheck = await this.conflictService.checkSubdomainAvailability(
-    mapping.projectDomainId,
-    input.subdomain ?? mapping.subdomain,
-    input.basePath ?? mapping.basePath,
-    mapping.id  // ← Exclude this mapping from check
-  );
+    const availabilityCheck =
+        await this.conflictService.checkSubdomainAvailability(
+            mapping.projectDomainId,
+            input.subdomain ?? mapping.subdomain,
+            input.basePath ?? mapping.basePath,
+            mapping.id // ← Exclude this mapping from check
+        )
 
-  if (!availabilityCheck.available) {
-    throw new Error('New URL already in use');
-  }
+    if (!availabilityCheck.available) {
+        throw new Error('New URL already in use')
+    }
 }
 ```
 
@@ -320,27 +333,27 @@ For more intelligent suggestions, consider:
 ```typescript
 // Future enhancement: Context-aware suggestions
 function generateSmartSuggestions(
-  existingMappings: ServiceDomainMapping[],
-  serviceName: string,
-  serviceType: 'api' | 'web' | 'admin'
+    existingMappings: ServiceDomainMapping[],
+    serviceName: string,
+    serviceType: 'api' | 'web' | 'admin'
 ): string[] {
-  const suggestions: string[] = [];
-  
-  // Service-type based suggestions
-  if (serviceType === 'api') {
-    suggestions.push('/api', '/v1', '/v2');
-  } else if (serviceType === 'admin') {
-    suggestions.push('/admin', '/dashboard', '/manage');
-  }
-  
-  // Version-based suggestions
-  const maxVersion = findMaxVersion(existingMappings);
-  suggestions.push(`/v${maxVersion + 1}`);
-  
-  // Service name based
-  suggestions.push(`/${serviceName.toLowerCase()}`);
-  
-  return filterAvailable(suggestions, existingMappings);
+    const suggestions: string[] = []
+
+    // Service-type based suggestions
+    if (serviceType === 'api') {
+        suggestions.push('/api', '/v1', '/v2')
+    } else if (serviceType === 'admin') {
+        suggestions.push('/admin', '/dashboard', '/manage')
+    }
+
+    // Version-based suggestions
+    const maxVersion = findMaxVersion(existingMappings)
+    suggestions.push(`/v${maxVersion + 1}`)
+
+    // Service name based
+    suggestions.push(`/${serviceName.toLowerCase()}`)
+
+    return filterAvailable(suggestions, existingMappings)
 }
 ```
 
@@ -451,15 +464,15 @@ await repository.create(...);
 ```typescript
 // ✅ Good: Helpful error with suggestions
 if (!check.available) {
-  throw new Error(
-    `URL "${subdomain}.domain.com${basePath}" is already in use by "${check.conflicts[0].serviceName}". ` +
-    `Available alternatives: ${check.suggestions.availableBasePaths.join(', ')}`
-  );
+    throw new Error(
+        `URL "${subdomain}.domain.com${basePath}" is already in use by "${check.conflicts[0].serviceName}". ` +
+            `Available alternatives: ${check.suggestions.availableBasePaths.join(', ')}`
+    )
 }
 
 // ❌ Bad: Generic error
 if (!check.available) {
-  throw new Error('Conflict');
+    throw new Error('Conflict')
 }
 ```
 
@@ -468,18 +481,18 @@ if (!check.available) {
 ```typescript
 // ✅ Good: Exclude current mapping when updating
 await conflictService.checkSubdomainAvailability(
-  projectDomainId,
-  newSubdomain,
-  newBasePath,
-  currentMappingId  // ← Exclude self
-);
+    projectDomainId,
+    newSubdomain,
+    newBasePath,
+    currentMappingId // ← Exclude self
+)
 
 // ❌ Bad: No exclusion (will always conflict with self)
 await conflictService.checkSubdomainAvailability(
-  projectDomainId,
-  newSubdomain,
-  newBasePath
-);
+    projectDomainId,
+    newSubdomain,
+    newBasePath
+)
 ```
 
 ### 4. Validate Input Format First

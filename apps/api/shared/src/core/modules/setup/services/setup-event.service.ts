@@ -1,26 +1,28 @@
-import { Observable } from "rxjs";
-import * as z from "zod/v4";
+import { Observable } from 'rxjs'
+import * as z from 'zod/v4'
 
+import { setupStreamEventSchema } from '@deployer/contracts-entities'
+import type { SetupStreamEvent } from '@deployer/contracts-entities'
+import { contractBuilder } from '@deployer/events'
 
-import { setupStreamEventSchema } from "@deployer/contracts-entities";
-import type { SetupStreamEvent } from "@deployer/contracts-entities";
-import { contractBuilder } from "@deployer/events";
-
-import { type CoreEventStreamPoolServiceShape } from "../../events/base/index";
-import { BasePooledEventService } from "../../events/base/index";
+import { type CoreEventStreamPoolServiceShape } from '../../events/base/index'
+import { BasePooledEventService } from '../../events/base/index'
 
 export const setupEventContracts = {
     progress: contractBuilder()
         .input(z.object({}))
         .output(setupStreamEventSchema)
         .build(),
-} as const;
+} as const
 
-export type SetupEventContracts = typeof setupEventContracts;
+export type SetupEventContracts = typeof setupEventContracts
 
-export class SetupEventService extends BasePooledEventService<SetupEventContracts, "setup"> {
+export class SetupEventService extends BasePooledEventService<
+    SetupEventContracts,
+    'setup'
+> {
     constructor(streamPool?: CoreEventStreamPoolServiceShape) {
-        super("setup", setupEventContracts, streamPool);
+        super('setup', setupEventContracts, streamPool)
     }
 
     /**
@@ -49,9 +51,13 @@ export class SetupEventService extends BasePooledEventService<SetupEventContract
      * which it might not be.
      */
     observeProgress$(): Observable<SetupStreamEvent> {
-        return this.subscribe$('progress', {}, {
-            replayLimit: this.durableReplayLimit,
-            includePersisted: false,
-        })
+        return this.subscribe$(
+            'progress',
+            {},
+            {
+                replayLimit: this.durableReplayLimit,
+                includePersisted: false,
+            }
+        )
     }
 }

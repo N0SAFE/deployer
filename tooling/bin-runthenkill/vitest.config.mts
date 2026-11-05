@@ -10,12 +10,9 @@ export default defineProject(
             environment: 'node',
             include: [
                 '**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}',
-                '**/__tests__/**/*.{js,mjs,cjs,ts,mts,cts}'
+                '**/__tests__/**/*.{js,mjs,cjs,ts,mts,cts}',
             ],
-            exclude: [
-                'node_modules', 
-                'dist',
-            ],
+            exclude: ['node_modules', 'dist'],
             globals: true,
         },
         resolve: {

@@ -19,50 +19,53 @@ import { defineConfig, type ViteUserConfigExport } from 'vitest/config'
  * package that has both a manifest and a `src` directory.
  */
 export function workspaceSourceAliases(): Record<string, string> {
-  const aliases: Record<string, string> = {}
+    const aliases: Record<string, string> = {}
 
-  const packagesDir = findPackagesDir()
-  if (!packagesDir) return aliases
+    const packagesDir = findPackagesDir()
+    if (!packagesDir) return aliases
 
-  // Packages live both directly under packages/ and one level deeper
-  // (packages/<group>/<name>).
-  const candidates: string[] = []
-  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    candidates.push(entry.name)
-    const nested = join(packagesDir, entry.name)
-    for (const inner of readdirSync(nested, { withFileTypes: true })) {
-      if (inner.isDirectory()) candidates.push(join(entry.name, inner.name))
+    // Packages live both directly under packages/ and one level deeper
+    // (packages/<group>/<name>).
+    const candidates: string[] = []
+    for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        candidates.push(entry.name)
+        const nested = join(packagesDir, entry.name)
+        for (const inner of readdirSync(nested, { withFileTypes: true })) {
+            if (inner.isDirectory())
+                candidates.push(join(entry.name, inner.name))
+        }
     }
-  }
 
-  for (const rel of candidates) {
-    const pkgDir = join(packagesDir, rel)
-    const manifestPath = join(pkgDir, 'package.json')
-    const src = join(pkgDir, 'src')
-    // `src` may itself be absent for root-entry or config-only packages.
-    if (!existsSync(manifestPath) || !existsSync(src)) continue
-    try {
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { name?: string }
-      if (manifest.name) aliases[manifest.name] = src
-    } catch {
-      // Ignore unreadable manifests.
+    for (const rel of candidates) {
+        const pkgDir = join(packagesDir, rel)
+        const manifestPath = join(pkgDir, 'package.json')
+        const src = join(pkgDir, 'src')
+        // `src` may itself be absent for root-entry or config-only packages.
+        if (!existsSync(manifestPath) || !existsSync(src)) continue
+        try {
+            const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+                name?: string
+            }
+            if (manifest.name) aliases[manifest.name] = src
+        } catch {
+            // Ignore unreadable manifests.
+        }
     }
-  }
-  return aliases
+    return aliases
 }
 
 /** Walk up from cwd until a `packages/` directory is found. */
 function findPackagesDir(): string | null {
-  let current = process.cwd()
-  for (let depth = 0; depth < 6; depth += 1) {
-    const candidate = join(current, 'packages')
-    if (existsSync(candidate)) return candidate
-    const parent = resolve(current, '..')
-    if (parent === current) break
-    current = parent
-  }
-  return null
+    let current = process.cwd()
+    for (let depth = 0; depth < 6; depth += 1) {
+        const candidate = join(current, 'packages')
+        if (existsSync(candidate)) return candidate
+        const parent = resolve(current, '..')
+        if (parent === current) break
+        current = parent
+    }
+    return null
 }
 
 /** One alias rule. The array form, because object keys have no guaranteed order. */
@@ -89,121 +92,140 @@ export type AliasEntry = { find: string | RegExp; replacement: string }
  * own `@/core` rule ahead of it without the two fighting.
  */
 function baseAliasEntries(): AliasEntry[] {
-  return [
-    ...Object.entries(workspaceSourceAliases()).map(([find, replacement]) => ({ find, replacement })),
-    { find: '~', replacement: '.' },
-    { find: /^@\/(.*)$/, replacement: 'src/$1' },
-    // A bare `@` import (no subpath) still resolves to `src`.
-    //
-    // ── WHY THIS IS A REGEX AND NOT THE STRING '@' ──────────────────────────
-    // `@rollup/plugin-alias` orders its entries with REGEX rules last, whatever
-    // position they hold in the array. A string `'@'` is therefore evaluated
-    // before `/^@\/core/`, and its match rule (`importee.startsWith(find + '/')`)
-    // makes it swallow every `@/core/...` import — rewriting it to
-    // `src/@/core/...` and undoing the shared remap entirely. Anchoring the regex
-    // to `@` alone means it matches only a bare `@` and defers everything else to
-    // the rules above it.
-    { find: /^@$/, replacement: 'src' },
-  ]
+    return [
+        ...Object.entries(workspaceSourceAliases()).map(
+            ([find, replacement]) => ({ find, replacement })
+        ),
+        { find: '~', replacement: '.' },
+        { find: /^@\/(.*)$/, replacement: 'src/$1' },
+        // A bare `@` import (no subpath) still resolves to `src`.
+        //
+        // ── WHY THIS IS A REGEX AND NOT THE STRING '@' ──────────────────────────
+        // `@rollup/plugin-alias` orders its entries with REGEX rules last, whatever
+        // position they hold in the array. A string `'@'` is therefore evaluated
+        // before `/^@\/core/`, and its match rule (`importee.startsWith(find + '/')`)
+        // makes it swallow every `@/core/...` import — rewriting it to
+        // `src/@/core/...` and undoing the shared remap entirely. Anchoring the regex
+        // to `@` alone means it matches only a bare `@` and defers everything else to
+        // the rules above it.
+        { find: /^@$/, replacement: 'src' },
+    ]
 }
 
 /**
  * Base Vitest configuration for all packages
  */
-export const createBaseConfig = (overrides: ViteUserConfigExport = {}): ViteUserConfigExport => {
-  const baseAliases: AliasEntry[] = baseAliasEntries()
+export const createBaseConfig = (
+    overrides: ViteUserConfigExport = {}
+): ViteUserConfigExport => {
+    const baseAliases: AliasEntry[] = baseAliasEntries()
 
-  // `resolve.alias` from an override must ADD to the base aliases, not replace
-  // them — otherwise a package that declares its own alias silently loses source
-  // resolution for every dependency.
-  //
-  // An override ARRAY is prepended (its rules are more specific) and the base
-  // array appended after it. An override OBJECT keeps the historical spread
-  // behaviour so existing consumers are unaffected.
-  const overrideResolve = (overrides as { resolve?: { alias?: Record<string, string> | AliasEntry[] } }).resolve
-  const overrideAlias = overrideResolve?.alias
+    // `resolve.alias` from an override must ADD to the base aliases, not replace
+    // them — otherwise a package that declares its own alias silently loses source
+    // resolution for every dependency.
+    //
+    // An override ARRAY is prepended (its rules are more specific) and the base
+    // array appended after it. An override OBJECT keeps the historical spread
+    // behaviour so existing consumers are unaffected.
+    const overrideResolve = (
+        overrides as {
+            resolve?: { alias?: Record<string, string> | AliasEntry[] }
+        }
+    ).resolve
+    const overrideAlias = overrideResolve?.alias
 
-  const alias: Record<string, string> | AliasEntry[] = Array.isArray(overrideAlias)
-    ? [...overrideAlias, ...baseAliases]
-    : { ...Object.fromEntries(baseAliases.map((entry) => [String(entry.find), entry.replacement])), ...(overrideAlias ?? {}) }
+    const alias: Record<string, string> | AliasEntry[] = Array.isArray(
+        overrideAlias
+    )
+        ? [...overrideAlias, ...baseAliases]
+        : {
+              ...Object.fromEntries(
+                  baseAliases.map((entry) => [
+                      String(entry.find),
+                      entry.replacement,
+                  ])
+              ),
+              ...(overrideAlias ?? {}),
+          }
 
-  // ── WHY THE WORKER COUNT IS CAPPED ───────────────────────────────────────
-  // Every service/web project runs with `server.deps.inline: true` and
-  // `esbuild: false` + the SWC decorator plugin, so each worker re-transforms the
-  // whole inlined `node_modules` graph in its own heap. Defaulting to one worker
-  // per core (12 on the reference machine) did not make the suite faster:
-  // measured 449% CPU over 5m05s with a 1.37 GB peak, i.e. memory-bound
-  // thrashing rather than parallelism. Half the cores keeps each heap below the
-  // point where v8 spends its time in major GC.
-  const merged: ViteUserConfigExport = {
-    ...overrides,
-    resolve: {
-      ...overrideResolve,
-      alias,
-    },
-  }
+    // ── WHY THE WORKER COUNT IS CAPPED ───────────────────────────────────────
+    // Every service/web project runs with `server.deps.inline: true` and
+    // `esbuild: false` + the SWC decorator plugin, so each worker re-transforms the
+    // whole inlined `node_modules` graph in its own heap. Defaulting to one worker
+    // per core (12 on the reference machine) did not make the suite faster:
+    // measured 449% CPU over 5m05s with a 1.37 GB peak, i.e. memory-bound
+    // thrashing rather than parallelism. Half the cores keeps each heap below the
+    // point where v8 spends its time in major GC.
+    const merged: ViteUserConfigExport = {
+        ...overrides,
+        resolve: {
+            ...overrideResolve,
+            alias,
+        },
+    }
 
-  const result = defineConfig({
-    test: {
-      globals: true,
-      environment: 'node',
-      include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-      exclude: [
-        '**/node_modules/**',
-        '**/dist/**',
-        '**/cypress/**',
-        '**/.{idea,git,cache,output,temp}/**',
-        '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*'
-      ],
-      coverage: {
-        provider: 'v8',
-        reporter: ['text', 'json', 'html'],
-        reportsDirectory: './coverage',
-        clean: true,
-        exclude: [
-          'coverage/**',
-          'dist/**',
-          '**/[.]**',
-          'packages/*/test{,s}/**',
-          '**/*.d.ts',
-          '**/virtual:*',
-          '**/__x00__*',
-          '**/\x00*',
-          'cypress/**',
-          'test{,s}/**',
-          'test{,-*}.{js,cjs,mjs,ts,tsx,jsx}',
-          '**/*{.,-}test.{js,cjs,mjs,ts,tsx,jsx}',
-          '**/*{.,-}spec.{js,cjs,mjs,ts,tsx,jsx}',
-          '**/tests/**',
-          '**/__tests__/**'
-        ]
-      },
-      // Common setup files
-      setupFiles: [],
-      maxWorkers: maxWorkersSetting(),
-      // Timeout settings
-      testTimeout: 10000,
-      hookTimeout: 10000,
-    },
-    // Aliases are merged into `merged.resolve` above, including any package
-    // overrides.
-    ...merged,
-  })
+    const result = defineConfig({
+        test: {
+            globals: true,
+            environment: 'node',
+            include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+            exclude: [
+                '**/node_modules/**',
+                '**/dist/**',
+                '**/cypress/**',
+                '**/.{idea,git,cache,output,temp}/**',
+                '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+            ],
+            coverage: {
+                provider: 'v8',
+                reporter: ['text', 'json', 'html'],
+                reportsDirectory: './coverage',
+                clean: true,
+                exclude: [
+                    'coverage/**',
+                    'dist/**',
+                    '**/[.]**',
+                    'packages/*/test{,s}/**',
+                    '**/*.d.ts',
+                    '**/virtual:*',
+                    '**/__x00__*',
+                    '**/\x00*',
+                    'cypress/**',
+                    'test{,s}/**',
+                    'test{,-*}.{js,cjs,mjs,ts,tsx,jsx}',
+                    '**/*{.,-}test.{js,cjs,mjs,ts,tsx,jsx}',
+                    '**/*{.,-}spec.{js,cjs,mjs,ts,tsx,jsx}',
+                    '**/tests/**',
+                    '**/__tests__/**',
+                ],
+            },
+            // Common setup files
+            setupFiles: [],
+            maxWorkers: maxWorkersSetting(),
+            // Timeout settings
+            testTimeout: 10000,
+            hookTimeout: 10000,
+        },
+        // Aliases are merged into `merged.resolve` above, including any package
+        // overrides.
+        ...merged,
+    })
 
-  // ── WHY THIS IS SET AFTER THE SPREAD ─────────────────────────────────────
-  // `...merged` is shallow, so a consumer that passes its own `test` block — every
-  // service app does, through `createServiceTestConfig` — replaces the base `test`
-  // block wholesale and would drop the cap. Applying it here keeps the cap on both
-  // paths without changing the merge semantics the consumers already rely on
-  // (notably: a config that declares `projects` must NOT inherit the base
-  // `include`, or the root run would collect every spec a second time). A consumer
-  // that sets its own `maxWorkers` keeps it.
-  const resultTest = (result as { test?: { maxWorkers?: number | string } }).test
-  if (resultTest !== undefined && resultTest.maxWorkers === undefined) {
-    resultTest.maxWorkers = maxWorkersSetting()
-  }
+    // ── WHY THIS IS SET AFTER THE SPREAD ─────────────────────────────────────
+    // `...merged` is shallow, so a consumer that passes its own `test` block — every
+    // service app does, through `createServiceTestConfig` — replaces the base `test`
+    // block wholesale and would drop the cap. Applying it here keeps the cap on both
+    // paths without changing the merge semantics the consumers already rely on
+    // (notably: a config that declares `projects` must NOT inherit the base
+    // `include`, or the root run would collect every spec a second time). A consumer
+    // that sets its own `maxWorkers` keeps it.
+    const resultTest = (result as { test?: { maxWorkers?: number | string } })
+        .test
+    if (resultTest !== undefined && resultTest.maxWorkers === undefined) {
+        resultTest.maxWorkers = maxWorkersSetting()
+    }
 
-  return result
+    return result
 }
 
 /**
@@ -214,12 +236,12 @@ export const createBaseConfig = (overrides: ViteUserConfigExport = {}): ViteUser
  * it without a code change.
  */
 function maxWorkersSetting(): number | string {
-  const fromEnv = process.env.VITEST_MAX_WORKERS
-  if (fromEnv !== undefined && fromEnv.length > 0) {
-    const asNumber = Number(fromEnv)
-    return Number.isInteger(asNumber) && asNumber > 0 ? asNumber : fromEnv
-  }
-  return '50%'
+    const fromEnv = process.env.VITEST_MAX_WORKERS
+    if (fromEnv !== undefined && fromEnv.length > 0) {
+        const asNumber = Number(fromEnv)
+        return Number.isInteger(asNumber) && asNumber > 0 ? asNumber : fromEnv
+    }
+    return '50%'
 }
 
 export const defaultConfig = createBaseConfig()

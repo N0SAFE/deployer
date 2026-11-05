@@ -1,8 +1,8 @@
-export const GLOBAL_DATABASE_CONNECTION = "GLOBAL_DATABASE_CONNECTION";
-export const GLOBAL_DATABASE_POOL = "GLOBAL_DATABASE_POOL";
+export const GLOBAL_DATABASE_CONNECTION = 'GLOBAL_DATABASE_CONNECTION'
+export const GLOBAL_DATABASE_POOL = 'GLOBAL_DATABASE_POOL'
 
 /** Typed Drizzle handle on the local SQLite database (what consumers query). */
-export const LOCAL_DATABASE_CONNECTION = "LOCAL_DATABASE_CONNECTION";
+export const LOCAL_DATABASE_CONNECTION = 'LOCAL_DATABASE_CONNECTION'
 
 /**
  * The RAW `bun:sqlite` handle underneath `LOCAL_DATABASE_CONNECTION`.
@@ -12,4 +12,4 @@ export const LOCAL_DATABASE_CONNECTION = "LOCAL_DATABASE_CONNECTION";
  * Both tokens resolve to the same underlying handle, opened once per Nest
  * context by `LocalDatabaseModule`.
  */
-export const LOCAL_DATABASE_CLIENT = "LOCAL_DATABASE_CLIENT";
+export const LOCAL_DATABASE_CLIENT = 'LOCAL_DATABASE_CLIENT'

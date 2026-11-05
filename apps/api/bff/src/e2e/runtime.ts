@@ -1,14 +1,14 @@
 import {
-	getSharedApiRuntimeContext as getShared,
-	useDescribeSharedApiRuntime as useDescribeShared,
-	type SharedApiRuntimeContext,
-	type SharedApiRuntimeOptions,
-	type SharedRuntimeOrpcClientOptions,
-	type DescribeSharedRuntimeScope,
-} from "@deployer/shared/e2e-harness/shared-api-runtime";
-import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@deployer/shared/e2e-harness/shared-api-runtime";
+    getSharedApiRuntimeContext as getShared,
+    useDescribeSharedApiRuntime as useDescribeShared,
+    type SharedApiRuntimeContext,
+    type SharedApiRuntimeOptions,
+    type SharedRuntimeOrpcClientOptions,
+    type DescribeSharedRuntimeScope,
+} from '@deployer/shared/e2e-harness/shared-api-runtime'
+import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from '@deployer/shared/e2e-harness/shared-api-runtime'
 
-import { serviceAuthContextEdge } from "@/clients/service-auth-context.edge";
+import { serviceAuthContextEdge } from '@/clients/service-auth-context.edge'
 
 /**
  * The shared e2e harness, bound to the BFF's root module.
@@ -20,32 +20,38 @@ import { serviceAuthContextEdge } from "@/clients/service-auth-context.edge";
  * drifts. Binding it once here means a spec gets the right graph, and exactly one place names
  * which app these e2e tests exercise.
  */
-const rootModuleLoader = async () => (await import("@/bff.module")).BffModule;
+const rootModuleLoader = async () => (await import('@/bff.module')).BffModule
 
 /** What `main.ts` passes to `bootstrapApiServer`: the harness boots the app itself, so it must mount the same edge. */
-const edge = [serviceAuthContextEdge()];
+const edge = [serviceAuthContextEdge()]
 
-function withRootModule(options: SharedApiRuntimeOptions = {}): SharedApiRuntimeOptions {
-	return {
-		...options,
-		nest: { ...options.nest, rootModuleLoader, edge },
-	};
+function withRootModule(
+    options: SharedApiRuntimeOptions = {}
+): SharedApiRuntimeOptions {
+    return {
+        ...options,
+        nest: { ...options.nest, rootModuleLoader, edge },
+    }
 }
 
 export async function getSharedApiRuntimeContext(
-	options?: SharedApiRuntimeOptions,
+    options?: SharedApiRuntimeOptions
 ): Promise<SharedApiRuntimeContext> {
-	return getShared(withRootModule(options));
+    return getShared(withRootModule(options))
 }
 
 export function useDescribeSharedApiRuntime(
-	options: SharedApiRuntimeOptions = {},
+    options: SharedApiRuntimeOptions = {}
 ): DescribeSharedRuntimeScope {
-	return useDescribeShared(withRootModule(options));
+    return useDescribeShared(withRootModule(options))
 }
 
-export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRuntimeScope };
-export { stopSharedApiRuntime } from "@deployer/shared/e2e-harness/shared-api-runtime";
+export type {
+    SharedApiRuntimeContext,
+    SharedApiRuntimeOptions,
+    DescribeSharedRuntimeScope,
+}
+export { stopSharedApiRuntime } from '@deployer/shared/e2e-harness/shared-api-runtime'
 
 /**
  * The setup-surface client, bound to the BFF's root module.
@@ -54,8 +60,11 @@ export { stopSharedApiRuntime } from "@deployer/shared/e2e-harness/shared-api-ru
  * context does — an unbound call would boot a runtime with no root module.
  */
 export async function createSharedSetupOrpcClient(
-	options?: SharedRuntimeOrpcClientOptions,
-	runtimeOptions?: SharedApiRuntimeOptions,
+    options?: SharedRuntimeOrpcClientOptions,
+    runtimeOptions?: SharedApiRuntimeOptions
 ) {
-	return createSharedSetupOrpcClientRaw(options, withRootModule(runtimeOptions));
+    return createSharedSetupOrpcClientRaw(
+        options,
+        withRootModule(runtimeOptions)
+    )
 }

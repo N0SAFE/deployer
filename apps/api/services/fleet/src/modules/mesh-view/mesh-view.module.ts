@@ -1,10 +1,13 @@
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { nodeAgentLink } from "@deployer/mesh-client";
-import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state";
+import { runPromiseUnwrapped } from '@deployer/effect-core'
+import { nodeAgentLink } from '@deployer/mesh-client'
+import { createModuleContext } from '@deployer/nest-effect'
+import {
+    NodeConfigRepository,
+    type NodeConfigRepositoryShape,
+} from '@deployer/node-state'
 
-import { MeshViewController } from "./mesh-view.controller";
-import { MeshViewService } from "./mesh-view.service";
+import { MeshViewController } from './mesh-view.controller'
+import { MeshViewService } from './mesh-view.service'
 
 /**
  * The agent's link is looked up on each call, not once at boot: the agent can start after this service, and a node
@@ -12,21 +15,22 @@ import { MeshViewService } from "./mesh-view.service";
  */
 /** One pooled link for the life of the process, opened the first time the agent's socket is there. */
 const sharedAgentLink = (() => {
-  let link: ReturnType<typeof nodeAgentLink>;
-  return () => (link ??= nodeAgentLink());
-})();
+    let link: ReturnType<typeof nodeAgentLink>
+    return () => (link ??= nodeAgentLink())
+})()
 
 export class MeshViewModule extends createModuleContext({
-  controllers: [MeshViewController],
-  providers: [
-    {
-      provide: MeshViewService,
-      useFactory: (nodeConfig: NodeConfigRepositoryShape) =>
-        new MeshViewService(
-          sharedAgentLink,
-          async () => ({ nodeId: (await runPromiseUnwrapped(nodeConfig.find()))?.nodeId ?? "standalone" }),
-        ),
-      inject: [NodeConfigRepository],
-    },
-  ],
+    controllers: [MeshViewController],
+    providers: [
+        {
+            provide: MeshViewService,
+            useFactory: (nodeConfig: NodeConfigRepositoryShape) =>
+                new MeshViewService(sharedAgentLink, async () => ({
+                    nodeId:
+                        (await runPromiseUnwrapped(nodeConfig.find()))
+                            ?.nodeId ?? 'standalone',
+                })),
+            inject: [NodeConfigRepository],
+        },
+    ],
 }) {}

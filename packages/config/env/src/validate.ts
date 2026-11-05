@@ -1,5 +1,10 @@
 import zod from 'zod/v4'
-import { apiEnvSchema, webEnvSchema, docEnvSchema, allEnvSchema } from '@deployer/env/index'
+import {
+    apiEnvSchema,
+    webEnvSchema,
+    docEnvSchema,
+    allEnvSchema,
+} from '@deployer/env/index'
 
 // ============================================================================
 // API Validation Functions
@@ -107,20 +112,32 @@ export const docEnvIsValid = (object: object) => {
 /**
  * Validate all apps' environment variables (safe - returns result)
  */
-export const validateAllEnvSafe = (env: { api: object; web: object; doc: object }) => {
+export const validateAllEnvSafe = (env: {
+    api: object
+    web: object
+    doc: object
+}) => {
     return allEnvSchema.safeParse(env)
 }
 
 /**
  * Validate all apps' environment variables (throws on error)
  */
-export const validateAllEnv = (env: { api: object; web: object; doc: object }) => {
+export const validateAllEnv = (env: {
+    api: object
+    web: object
+    doc: object
+}) => {
     return allEnvSchema.parse(env)
 }
 
 /**
  * Check if all apps' environments are valid
  */
-export const allEnvIsValid = (env: { api: object; web: object; doc: object }) => {
+export const allEnvIsValid = (env: {
+    api: object
+    web: object
+    doc: object
+}) => {
     return validateAllEnvSafe(env).success
 }

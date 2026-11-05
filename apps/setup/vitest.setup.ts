@@ -4,9 +4,9 @@
  * Runs BEFORE any module is imported, so the env schema sees these values when
  * it parses `process.env` at load.
  */
-import "reflect-metadata";
+import 'reflect-metadata'
 
-process.env.NODE_ENV = "test";
+process.env.NODE_ENV = 'test'
 
 /**
  * The local SQLite file the app opens at module init.
@@ -20,4 +20,4 @@ process.env.NODE_ENV = "test";
  * `??` so an explicit value in the environment still wins.
  */
 process.env.NODE_LOCAL_DB_PATH =
-  process.env.NODE_LOCAL_DB_PATH ?? "/tmp/deployer-setup-test-local.db";
+    process.env.NODE_LOCAL_DB_PATH ?? '/tmp/deployer-setup-test-local.db'

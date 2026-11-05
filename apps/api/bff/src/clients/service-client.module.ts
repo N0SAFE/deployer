@@ -1,7 +1,7 @@
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule } from '@deployer/nest-effect'
 
-import { ServiceClientsModule } from "./service-clients.module";
-import { ServiceClientRegistry } from "./service-registry";
+import { ServiceClientsModule } from './service-clients.module'
+import { ServiceClientRegistry } from './service-registry'
 
 /**
  * Owns `ServiceClientRegistry` so any screen module can inject it.
@@ -21,12 +21,17 @@ import { ServiceClientRegistry } from "./service-registry";
  * imported ONCE — `BffModule` does that.
  */
 export const ServiceClientModule = createGlobalModule({
-	// The registry (the transport) and the typed clients built on it are one unit:
-	// a client cannot exist without the registry, so a consumer that imports this
-	// module gets both and can inject whichever it needs.
-	imports: [ServiceClientsModule],
-	// No decorator on the registry: it has no collaborators, so the module builds it. Its caller-credentials store is the
-	// `service-auth-context` AsyncLocalStorage, not a Nest scope.
-	providers: [{ provide: ServiceClientRegistry, useFactory: () => new ServiceClientRegistry() }],
-	exports: [ServiceClientRegistry, ServiceClientsModule],
-});
+    // The registry (the transport) and the typed clients built on it are one unit:
+    // a client cannot exist without the registry, so a consumer that imports this
+    // module gets both and can inject whichever it needs.
+    imports: [ServiceClientsModule],
+    // No decorator on the registry: it has no collaborators, so the module builds it. Its caller-credentials store is the
+    // `service-auth-context` AsyncLocalStorage, not a Nest scope.
+    providers: [
+        {
+            provide: ServiceClientRegistry,
+            useFactory: () => new ServiceClientRegistry(),
+        },
+    ],
+    exports: [ServiceClientRegistry, ServiceClientsModule],
+})

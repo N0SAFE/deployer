@@ -1,32 +1,33 @@
+export type Resource = string
 
-export type Resource = string;
+export type ResourceActions = Record<Resource, string[]>
 
-export type ResourceActions = Record<Resource, string[]>;
+export type ActionsForResource = string
 
-export type ActionsForResource = string;
+export type Permission<T extends Resource = Resource> = Partial<
+    Record<T, string[]>
+>
 
-export type Permission<T extends Resource = Resource> = Partial<Record<T, string[]>>;
-
-export type RoleName = string;
+export type RoleName = string
 
 export interface AuthenticatedUserType {
-  id: string;
-  email: string;
-  role?: string;
-  permissions?: Record<string, string[]>;
+    id: string
+    email: string
+    role?: string
+    permissions?: Record<string, string[]>
 }
 
-export type CommonPermissionPattern<T extends Resource = Resource> = Permission<T>;
+export type CommonPermissionPattern<T extends Resource = Resource> =
+    Permission<T>
 
-export type StrictPermission<T extends Resource> = Record<T, string[]>;
+export type StrictPermission<T extends Resource> = Record<T, string[]>
 
-export type RoleLevel = 0 | 1 | 2 | 3 | 4 | 5;
+export type RoleLevel = 0 | 1 | 2 | 3 | 4 | 5
 
-export type AllRoleNames = string;
+export type AllRoleNames = string
 
 export interface PermissionTypes {
-  Resource: Resource;
-  Permission: Permission;
-  RoleName: RoleName;
+    Resource: Resource
+    Permission: Permission
+    RoleName: RoleName
 }
-

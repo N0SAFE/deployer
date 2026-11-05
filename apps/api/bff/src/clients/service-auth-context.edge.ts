@@ -1,28 +1,27 @@
-import { edgeUse, type HttpEdgeEntry } from "@deployer/shared/server";
+import { edgeUse, type HttpEdgeEntry } from '@deployer/shared/server'
 
-import { runWithServiceAuth } from "./service-auth-context";
+import { runWithServiceAuth } from './service-auth-context'
 
-import type { NextFunction, Request, Response } from "express";
-
+import type { NextFunction, Request, Response } from 'express'
 
 /** The header a caller uses to present a platform-scoped mesh internal key. */
-const HDR_MESH_INTERNAL_KEY = "x-mesh-internal-key";
+const HDR_MESH_INTERNAL_KEY = 'x-mesh-internal-key'
 
 /** The header (and the bearer prefix) a caller uses to present an API key. */
-const HDR_API_KEY = "x-api-key";
-const API_KEY_PREFIX = "dk_";
+const HDR_API_KEY = 'x-api-key'
+const API_KEY_PREFIX = 'dk_'
 
 /** The API key on the request, from `x-api-key` or a `Bearer dk_…` authorization. */
 function apiKeyOf(req: Request): string | undefined {
-	const direct = req.headers[HDR_API_KEY];
-	if (typeof direct === "string" && direct.length > 0) return direct;
-	if (Array.isArray(direct) && direct[0] !== undefined) return direct[0];
+    const direct = req.headers[HDR_API_KEY]
+    if (typeof direct === 'string' && direct.length > 0) return direct
+    if (Array.isArray(direct) && direct[0] !== undefined) return direct[0]
 
-	const authorization = req.headers.authorization;
-	if (typeof authorization !== "string") return undefined;
+    const authorization = req.headers.authorization
+    if (typeof authorization !== 'string') return undefined
 
-	const token = authorization.replace(/^bearer\s+/iu, "");
-	return token.startsWith(API_KEY_PREFIX) ? token : undefined;
+    const token = authorization.replace(/^bearer\s+/iu, '')
+    return token.startsWith(API_KEY_PREFIX) ? token : undefined
 }
 
 /**
@@ -61,19 +60,26 @@ function apiKeyOf(req: Request): string | undefined {
  * (health, setup, login) that legitimately fan out with no session.
  */
 export function serviceAuthContextEdge(): HttpEdgeEntry {
-	return edgeUse("service-auth-context", (req: Request, _res: Response, next: NextFunction): void => {
-		const meshInternalKey = req.headers[HDR_MESH_INTERNAL_KEY];
+    return edgeUse(
+        'service-auth-context',
+        (req: Request, _res: Response, next: NextFunction): void => {
+            const meshInternalKey = req.headers[HDR_MESH_INTERNAL_KEY]
 
-		runWithServiceAuth(
-			{
-				// `req.headers.cookie` is a string on Node's request; Better Auth's session
-				// lookup needs the raw cookie header, not a parsed map.
-				cookie: req.headers.cookie,
-				authorization: req.headers.authorization,
-				apiKey: apiKeyOf(req),
-				meshInternalKey: Array.isArray(meshInternalKey) ? meshInternalKey[0] : meshInternalKey,
-			},
-			() => { next(); },
-		);
-	});
+            runWithServiceAuth(
+                {
+                    // `req.headers.cookie` is a string on Node's request; Better Auth's session
+                    // lookup needs the raw cookie header, not a parsed map.
+                    cookie: req.headers.cookie,
+                    authorization: req.headers.authorization,
+                    apiKey: apiKeyOf(req),
+                    meshInternalKey: Array.isArray(meshInternalKey)
+                        ? meshInternalKey[0]
+                        : meshInternalKey,
+                },
+                () => {
+                    next()
+                }
+            )
+        }
+    )
 }

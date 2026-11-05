@@ -23,7 +23,9 @@ import { getWebE2eBaseUrl } from '../../vitest.setup.e2e'
 
 const baseUrl = getWebE2eBaseUrl()
 
-async function fetchHtml(path: string): Promise<{ status: number; html: string; location?: string }> {
+async function fetchHtml(
+    path: string
+): Promise<{ status: number; html: string; location?: string }> {
     const res = await fetch(`${baseUrl}${path}`, { redirect: 'manual' })
     const html = await res.text()
     return {
@@ -67,14 +69,16 @@ describe('instant navigation — static shell contracts', () => {
         // A query string bypasses the cached shell (dynamic document), but the
         // page must still render completely for real navigations with params.
         const { status, html } = await fetchHtml(
-            '/auth/signin?redirectTo=%2Fdashboard%2Fprojects',
+            '/auth/signin?redirectTo=%2Fdashboard%2Fprojects'
         )
         expect(status).toBe(200)
         expect(html).toContain('Sign in to Deployer')
     })
 
     it('auth error page serves the shell with its Suspense fallback', async () => {
-        const { status, html } = await fetchHtml('/auth/error?error=AccessDenied')
+        const { status, html } = await fetchHtml(
+            '/auth/error?error=AccessDenied'
+        )
         expect(status).toBe(200)
         // The error card is a client component reading useSearchParams(); it
         // suspends during SSR and resolves after hydration — so the static
@@ -86,13 +90,14 @@ describe('instant navigation — static shell contracts', () => {
 
     it('unauthenticated dashboard requests redirect preserving redirectTo', async () => {
         const { status, location } = await fetchHtml(
-            '/dashboard/projects/some-project-id/team',
+            '/dashboard/projects/some-project-id/team'
         )
         expect(status).toBe(307)
-        if (!location) throw new Error('307 response is missing a Location header')
+        if (!location)
+            throw new Error('307 response is missing a Location header')
         expect(location).toContain('/auth/signin')
         expect(decodeURIComponent(location)).toContain(
-            'redirectTo=/dashboard/projects/some-project-id/team',
+            'redirectTo=/dashboard/projects/some-project-id/team'
         )
     })
 
@@ -105,7 +110,7 @@ describe('instant navigation — static shell contracts', () => {
         const cwd = process.cwd()
         const fallbackPath = resolve(
             cwd,
-            '.next/server/app/dashboard/projects/[projectId]/team.html',
+            '.next/server/app/dashboard/projects/[projectId]/team.html'
         )
         const fallbackHtml = readFileSync(fallbackPath, 'utf-8')
         // Skeleton placeholders (animate-pulse) prove the fallback shell is real.

@@ -1,5 +1,3 @@
 {
-  "noNestExceptionFilter": [
-    "src/modules/project/project-effects.ts"
-  ]
+    "noNestExceptionFilter": ["src/modules/project/project-effects.ts"]
 }

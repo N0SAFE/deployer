@@ -1,60 +1,59 @@
 {
-	"name": "@deployer/nest-mesh",
-	"version": "0.0.0",
-	"private": true,
-	"description": "Declarative mesh transport for NestJS: a class extends MeshController, a field declares a procedure, one resolver builds the routers.",
-	"main": "./dist/cjs/index.js",
-	"module": "./dist/esm/index.mjs",
-	"types": "./dist/types/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/types/index.d.ts",
-			"import": "./dist/esm/index.mjs",
-			"require": "./dist/cjs/index.js"
-		},
-		"./*": {
-			"types": "./dist/types/*.d.ts",
-			"import": "./dist/esm/*.mjs",
-			"require": "./dist/cjs/*.js"
-		}
-	},
-	"scripts": {
-		"prettify": "bun fmt .",
-		"format": "bun run prettify",
-		"format:check": "bun fmt --check .",
-		"lint": "bun lint --no-script --type-aware",
-		"lint:fix": "bun lint --no-script --fix --type-aware",
-		"lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
-		"type-check": "bun check --no-script",
-		"build": "bun --bun pkg-build",
-		"dev": "bun --bun pkg-build --watch",
-		"clean": "rimraf dist",
-		"build:types": "bun --bun pkg-build --types",
-		"test": "bun --bun vitest run",
-		"test:watch": "bun --bun vitest"
-	},
-	"dependencies": {
-		"@deployer/nest-effect": "*",
-		"@nestjs/common": "catalog:api:nest",
-		"@nestjs/core": "catalog:api:nest",
-		"effect": "catalog:effect",
-		"reflect-metadata": "catalog:api:nest"
-	},
-	"peerDependencies": {
-		"@nestjs/common": "catalog:api:nest",
-		"@nestjs/core": "catalog:api:nest"
-	},
-	"devDependencies": {
-		"@deployer/config-eslint": "*",
-		"@deployer/config-prettier": "*",
-		"@deployer/config-typescript": "*",
-		"@deployer/config-vitest": "*",
-		"@deployer/pkg-build": "*",
-		"@types/node": "catalog:build",
-		"chokidar": "catalog:build",
-		"eslint": "catalog:linting",
-		"rimraf": "catalog:build",
-		"typescript": "catalog:build",
-		"vitest": "catalog:testing"
-	}
+    "name": "@deployer/nest-mesh",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Declarative mesh transport for NestJS: a class extends MeshController, a field declares a procedure, one resolver builds the routers.",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.mjs",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
+    },
+    "scripts": {
+        "format": "bun fmt .",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun pkg-build --types",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest"
+    },
+    "dependencies": {
+        "@deployer/nest-effect": "*",
+        "@nestjs/common": "catalog:api:nest",
+        "@nestjs/core": "catalog:api:nest",
+        "effect": "catalog:effect",
+        "reflect-metadata": "catalog:api:nest"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@nestjs/core": "catalog:api:nest"
+    },
+    "devDependencies": {
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    }
 }

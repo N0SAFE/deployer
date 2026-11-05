@@ -1,10 +1,10 @@
-import * as http from "node:http";
+import * as http from 'node:http'
 
-import { logger } from "@deployer/logger";
+import { logger } from '@deployer/logger'
 
-import type { Request, Response, NextFunction, RequestHandler } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from 'express'
 
-const log = logger.scope("SetupAuthProxy");
+const log = logger.scope('SetupAuthProxy')
 
 /**
  * The Better Auth surface, served by the API but reached through the SETUP host.
@@ -34,7 +34,7 @@ const log = logger.scope("SetupAuthProxy");
  * lose both the multi-value headers and the exact framing. This is the same
  * reasoning as `@deployer/vite-assets`.
  */
-export const SETUP_AUTH_PREFIX = "/api/auth";
+export const SETUP_AUTH_PREFIX = '/api/auth'
 
 /**
  * Build the middleware.
@@ -44,68 +44,77 @@ export const SETUP_AUTH_PREFIX = "/api/auth";
  * auth misconfiguration rather than as a proxy pointed at the wrong host.
  */
 export function createSetupAuthProxy(target: string): RequestHandler {
-  const url = new URL(target);
+    const url = new URL(target)
 
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const path = req.url ?? "/";
-    if (!path.startsWith(SETUP_AUTH_PREFIX)) {
-      next();
-      return;
-    }
-
-    const headers: Record<string, string | string[] | undefined> = { ...req.headers };
-    // The upstream must see ITS OWN host, not the setup host: Better Auth builds
-    // absolute callback URLs (and origin checks) from the inbound Host header.
-    headers.host = url.host;
-
-    const upstream = http.request(
-      {
-        hostname: url.hostname,
-        port: url.port,
-        path,
-        method: req.method,
-        headers,
-      },
-      (upstreamRes) => {
-        // `writeHead` with the raw headers array preserves EVERY `Set-Cookie`,
-        // which an object merge would collapse to one.
-        const raw: string[] = [];
-        for (const [name, value] of Object.entries(upstreamRes.headers)) {
-          if (value === undefined) continue;
-          for (const entry of Array.isArray(value) ? value : [value]) {
-            raw.push(name, entry);
-          }
+    return (req: Request, res: Response, next: NextFunction): void => {
+        const path = req.url ?? '/'
+        if (!path.startsWith(SETUP_AUTH_PREFIX)) {
+            next()
+            return
         }
-        res.writeHead(upstreamRes.statusCode ?? 502, raw);
-        upstreamRes.pipe(res);
-      },
-    );
 
-    upstream.on("error", (error: Error) => {
-      // The API is not up yet — an EXPECTED state during onboarding, since it
-      // starts behind the gate. Answering 503 lets the wizard render it as
-      // progress rather than as a fault, which is the same contract the oRPC
-      // proxy uses for the same condition.
-      log.warn(`Auth proxy unavailable for ${path}: ${error.message}`);
-      if (res.headersSent) {
-        res.end();
-        return;
-      }
-      res
-        .status(503)
-        .type("application/json")
-        .send(
-          JSON.stringify({
-            message: `The platform API is not reachable yet (${url.host}${SETUP_AUTH_PREFIX})`,
-          }),
-        );
-    });
+        const headers: Record<string, string | string[] | undefined> = {
+            ...req.headers,
+        }
+        // The upstream must see ITS OWN host, not the setup host: Better Auth builds
+        // absolute callback URLs (and origin checks) from the inbound Host header.
+        headers.host = url.host
 
-    // Body forwarding: the parsed JSON must be re-sent, because Express has
-    // already consumed the request stream by the time this middleware runs.
-    if (req.body !== undefined && req.body !== null && Object.keys(req.body).length > 0) {
-      upstream.write(JSON.stringify(req.body));
+        const upstream = http.request(
+            {
+                hostname: url.hostname,
+                port: url.port,
+                path,
+                method: req.method,
+                headers,
+            },
+            (upstreamRes) => {
+                // `writeHead` with the raw headers array preserves EVERY `Set-Cookie`,
+                // which an object merge would collapse to one.
+                const raw: string[] = []
+                for (const [name, value] of Object.entries(
+                    upstreamRes.headers
+                )) {
+                    if (value === undefined) continue
+                    for (const entry of Array.isArray(value)
+                        ? value
+                        : [value]) {
+                        raw.push(name, entry)
+                    }
+                }
+                res.writeHead(upstreamRes.statusCode ?? 502, raw)
+                upstreamRes.pipe(res)
+            }
+        )
+
+        upstream.on('error', (error: Error) => {
+            // The API is not up yet — an EXPECTED state during onboarding, since it
+            // starts behind the gate. Answering 503 lets the wizard render it as
+            // progress rather than as a fault, which is the same contract the oRPC
+            // proxy uses for the same condition.
+            log.warn(`Auth proxy unavailable for ${path}: ${error.message}`)
+            if (res.headersSent) {
+                res.end()
+                return
+            }
+            res.status(503)
+                .type('application/json')
+                .send(
+                    JSON.stringify({
+                        message: `The platform API is not reachable yet (${url.host}${SETUP_AUTH_PREFIX})`,
+                    })
+                )
+        })
+
+        // Body forwarding: the parsed JSON must be re-sent, because Express has
+        // already consumed the request stream by the time this middleware runs.
+        if (
+            req.body !== undefined &&
+            req.body !== null &&
+            Object.keys(req.body).length > 0
+        ) {
+            upstream.write(JSON.stringify(req.body))
+        }
+        upstream.end()
     }
-    upstream.end();
-  };
 }

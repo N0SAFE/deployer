@@ -11,77 +11,77 @@
  *   - `parent`   : direct parent resource + FK column + parent table name (null for roots)
  */
 
-import type { ProjectResource } from "./types";
+import type { ProjectResource } from './types'
 
 export interface ResourceNode {
     /** DB table name (exact, as declared in Drizzle schema). */
-    table: string;
+    table: string
     /** Primary key column name on this table. */
-    idField: string;
+    idField: string
     /** Parent relationship, or null if this is a root resource. */
-    parent: ResourceParent | null;
+    parent: ResourceParent | null
 }
 
 export interface ResourceParent {
     /** The parent resource type. */
-    resource: ProjectResource;
+    resource: ProjectResource
     /** FK column on the *child* table referencing the parent's PK. */
-    foreignKey: string;
+    foreignKey: string
     /** Parent's DB table name (for convenience in query builders). */
-    table: string;
+    table: string
 }
 
-export type ResourceGraph = Record<ProjectResource, ResourceNode>;
+export type ResourceGraph = Record<ProjectResource, ResourceNode>
 
 export const RESOURCE_GRAPH: ResourceGraph = {
     project: {
-        table: "projects",
-        idField: "id",
+        table: 'projects',
+        idField: 'id',
         parent: null,
     },
     service: {
-        table: "services",
-        idField: "id",
+        table: 'services',
+        idField: 'id',
         parent: {
-            resource: "project",
-            foreignKey: "projectId",
-            table: "projects",
+            resource: 'project',
+            foreignKey: 'projectId',
+            table: 'projects',
         },
     },
     deployment: {
-        table: "deployments",
-        idField: "id",
+        table: 'deployments',
+        idField: 'id',
         parent: {
-            resource: "service",
-            foreignKey: "serviceId",
-            table: "services",
+            resource: 'service',
+            foreignKey: 'serviceId',
+            table: 'services',
         },
     },
     logs: {
-        table: "deployment_logs",
-        idField: "id",
+        table: 'deployment_logs',
+        idField: 'id',
         parent: {
-            resource: "deployment",
-            foreignKey: "deploymentId",
-            table: "deployments",
+            resource: 'deployment',
+            foreignKey: 'deploymentId',
+            table: 'deployments',
         },
     },
     webhook: {
-        table: "webhooks",
-        idField: "id",
+        table: 'webhooks',
+        idField: 'id',
         parent: {
-            resource: "project",
-            foreignKey: "projectId",
-            table: "projects",
+            resource: 'project',
+            foreignKey: 'projectId',
+            table: 'projects',
         },
     },
     apiKey: {
-        table: "api_keys",
-        idField: "id",
+        table: 'api_keys',
+        idField: 'id',
         parent: {
-            resource: "project",
-            foreignKey: "projectId",
-            table: "projects",
+            resource: 'project',
+            foreignKey: 'projectId',
+            table: 'projects',
         },
     },
     /**
@@ -90,11 +90,11 @@ export const RESOURCE_GRAPH: ResourceGraph = {
      * cascade resolution stops at `project`, filter fields come from `projects` row.
      */
     environment: {
-        table: "projects",
-        idField: "id",
+        table: 'projects',
+        idField: 'id',
         parent: null,
     },
-} as const;
+} as const
 
 // ---------------------------------------------------------------------------
 // Ancestor chain helpers
@@ -104,7 +104,7 @@ export const RESOURCE_GRAPH: ResourceGraph = {
  * Maximum cascade depth (safety cap — the graph is acyclic by design,
  * but this prevents accidental infinite loops during graph edits).
  */
-export const MAX_CASCADE_DEPTH = 50;
+export const MAX_CASCADE_DEPTH = 50
 
 /**
  * Returns the full ordered ancestor chain for a given resource type.
@@ -116,24 +116,24 @@ export const MAX_CASCADE_DEPTH = 50;
  * @throws If the chain exceeds MAX_CASCADE_DEPTH (indicates a cycle).
  */
 export function getAncestorChain(resource: ProjectResource): ProjectResource[] {
-    const chain: ProjectResource[] = [];
-    let cursor: ProjectResource = resource;
+    const chain: ProjectResource[] = []
+    let cursor: ProjectResource = resource
 
     for (;;) {
-        const node: ResourceNode = RESOURCE_GRAPH[cursor];
-        if (node.parent === null) break;
-        chain.push(node.parent.resource);
-        cursor = node.parent.resource;
+        const node: ResourceNode = RESOURCE_GRAPH[cursor]
+        if (node.parent === null) break
+        chain.push(node.parent.resource)
+        cursor = node.parent.resource
 
         if (chain.length >= MAX_CASCADE_DEPTH) {
             throw new Error(
                 `Ancestor chain for resource "${resource}" exceeded MAX_CASCADE_DEPTH (${String(MAX_CASCADE_DEPTH)}). ` +
-                    `Possible cycle in RESOURCE_GRAPH.`,
-            );
+                    `Possible cycle in RESOURCE_GRAPH.`
+            )
         }
     }
 
-    return chain;
+    return chain
 }
 
 /**
@@ -141,7 +141,7 @@ export function getAncestorChain(resource: ProjectResource): ProjectResource[] {
  */
 export function isAncestorOf(
     ancestor: ProjectResource,
-    resource: ProjectResource,
+    resource: ProjectResource
 ): boolean {
-    return getAncestorChain(resource).includes(ancestor);
+    return getAncestorChain(resource).includes(ancestor)
 }

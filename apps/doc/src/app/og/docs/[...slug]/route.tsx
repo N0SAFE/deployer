@@ -1,43 +1,41 @@
-import { generate as DefaultImage } from 'fumadocs-ui/og';
-import { notFound } from 'next/navigation';
-import { ImageResponse } from 'next/og';
+import { generate as DefaultImage } from 'fumadocs-ui/og'
+import { notFound } from 'next/navigation'
+import { ImageResponse } from 'next/og'
 
-import { getPageImage, source } from '@/lib/source';
+import { getPageImage, source } from '@/lib/source'
 
 // Static export: every image path must be enumerated at build time.
 // `dynamic = 'force-static'` makes the export write a file per path, and
 // `dynamicParams = false` rejects paths outside `generateStaticParams`
 // instead of demanding a server render for them.
-export const dynamic = 'force-static';
-export const dynamicParams = false;
+export const dynamic = 'force-static'
+export const dynamicParams = false
 
 export async function GET(
-  _req: Request,
-  { params }: RouteContext<'/og/docs/[...slug]'>,
+    _req: Request,
+    { params }: RouteContext<'/og/docs/[...slug]'>
 ) {
-  const { slug } = await params;
-  const page = source.getPage(slug.slice(0, -1));
-  if (!page) notFound();
+    const { slug } = await params
+    const page = source.getPage(slug.slice(0, -1))
+    if (!page) notFound()
 
-  return new ImageResponse(
-    (
-      <DefaultImage
-        title={page.data.title}
-        description={page.data.description}
-        site="My App"
-      />
-    ),
-    {
-      width: 1200,
-      height: 630,
-    },
-  );
+    return new ImageResponse(
+        <DefaultImage
+            title={page.data.title}
+            description={page.data.description}
+            site="My App"
+        />,
+        {
+            width: 1200,
+            height: 630,
+        }
+    )
 }
 
 export function generateStaticParams() {
-  // Only `slug` is a segment of `/og/docs/[...slug]`. The previous
-  // `lang: page.locale` added an extra, undefined-valued param.
-  return source.getPages().map((page) => ({
-    slug: getPageImage(page).segments,
-  }));
+    // Only `slug` is a segment of `/og/docs/[...slug]`. The previous
+    // `lang: page.locale` added an extra, undefined-valued param.
+    return source.getPages().map((page) => ({
+        slug: getPageImage(page).segments,
+    }))
 }

@@ -14,7 +14,7 @@
 /**
  * Supported verification methods for domain ownership
  */
-export type VerificationMethod = 'txt_record' | 'cname_record';
+export type VerificationMethod = 'txt_record' | 'cname_record'
 
 // ============================================================================
 // VERIFICATION INSTRUCTIONS
@@ -24,14 +24,14 @@ export type VerificationMethod = 'txt_record' | 'cname_record';
  * DNS verification instructions provided to users
  */
 export type VerificationInstructions = {
-  /** The verification method (TXT or CNAME record) */
-  method: VerificationMethod;
-  /** The DNS record name to create (e.g., `_deployer-verify.example.com`) */
-  recordName: string;
-  /** The value to set for the DNS record */
-  recordValue: string;
-  /** Human-readable instructions for the user */
-  instructions: string;
+    /** The verification method (TXT or CNAME record) */
+    method: VerificationMethod
+    /** The DNS record name to create (e.g., `_deployer-verify.example.com`) */
+    recordName: string
+    /** The value to set for the DNS record */
+    recordValue: string
+    /** Human-readable instructions for the user */
+    instructions: string
 }
 
 // ============================================================================
@@ -42,19 +42,19 @@ export type VerificationInstructions = {
  * Result of a domain verification attempt
  */
 export type VerifyDomainResult = {
-  /** Whether the verification was successful */
-  success: boolean;
-  /** Current verification status */
-  status: 'verified' | 'failed';
-  /** Human-readable message about the result */
-  message: string;
-  /** Timestamp when domain was verified (only present on success) */
-  verifiedAt?: Date;
-  /** Error details (only present on failure) */
-  error?: {
-    /** Machine-readable error code */
-    code: string;
-    /** Human-readable error details */
-    details: string;
-  };
+    /** Whether the verification was successful */
+    success: boolean
+    /** Current verification status */
+    status: 'verified' | 'failed'
+    /** Human-readable message about the result */
+    message: string
+    /** Timestamp when domain was verified (only present on success) */
+    verifiedAt?: Date
+    /** Error details (only present on failure) */
+    error?: {
+        /** Machine-readable error code */
+        code: string
+        /** Human-readable error details */
+        details: string
+    }
 }

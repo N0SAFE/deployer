@@ -1,15 +1,19 @@
-import { Context, type Effect } from 'effect';
+import { Context, type Effect } from 'effect'
 
-import { makeDatabaseHandle, type DatabaseHandleShape } from "@deployer/database";
-import { DatabaseNotInitialized } from "../database.errors";
-import * as globalSchema from '@deployer/nest-schema/global';
+import {
+    makeDatabaseHandle,
+    type DatabaseHandleShape,
+} from '@deployer/database'
+import * as globalSchema from '@deployer/nest-schema/global'
 
-import type { ExtractTablesWithRelations } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
-import type { PgTransaction } from 'drizzle-orm/pg-core';
+import { DatabaseNotInitialized } from '../database.errors'
 
-export type GlobalDatabase = NodePgDatabase<typeof globalSchema>;
+import type { ExtractTablesWithRelations } from 'drizzle-orm'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres'
+import type { PgTransaction } from 'drizzle-orm/pg-core'
+
+export type GlobalDatabase = NodePgDatabase<typeof globalSchema>
 
 /**
  * The transaction handle `GlobalDatabaseService.transaction()` passes to its callback.
@@ -23,7 +27,7 @@ export type GlobalTransaction = PgTransaction<
     NodePgQueryResultHKT,
     typeof globalSchema,
     ExtractTablesWithRelations<typeof globalSchema>
->;
+>
 
 /**
  * Typed handle on the GLOBAL Postgres database.
@@ -35,42 +39,46 @@ export type GlobalTransaction = PgTransaction<
  */
 export type GlobalDatabaseServiceShape = {
     /** The Effect handle (`@deployer/database`) this service holds the connection in. */
-    readonly handle: DatabaseHandleShape<GlobalDatabase>;
+    readonly handle: DatabaseHandleShape<GlobalDatabase>
     /** Initialize (or re-initialize) the database connection. */
-    readonly init: (db: GlobalDatabase) => void;
+    readonly init: (db: GlobalDatabase) => void
     /** Whether this service has been initialized with a database connection. */
-    readonly isInitialized: boolean;
+    readonly isInitialized: boolean
     /**
      * The underlying Drizzle database handle. A synchronous accessor (it is what `DatabasePort` hands every repository), so
      * reading it before initialisation throws a `DatabaseNotInitialized`.
      */
-    readonly db: GlobalDatabase;
+    readonly db: GlobalDatabase
     /** Runs `SELECT 1` and resolves to whether the database answered. */
-    readonly probe: () => Effect.Effect<boolean>;
-};
+    readonly probe: () => Effect.Effect<boolean>
+}
 
-const OWNER = "GlobalDatabaseService";
+const OWNER = 'GlobalDatabaseService'
 
-export function makeGlobalDatabaseService(initial?: GlobalDatabase): GlobalDatabaseServiceShape {
-    const handle = makeDatabaseHandle<GlobalDatabase>(OWNER, initial);
+export function makeGlobalDatabaseService(
+    initial?: GlobalDatabase
+): GlobalDatabaseServiceShape {
+    const handle = makeDatabaseHandle<GlobalDatabase>(OWNER, initial)
 
     return {
         handle,
         init: (db) => {
-            handle.initNow(db);
+            handle.initNow(db)
         },
         get isInitialized() {
-            return handle.dbNow() !== undefined;
+            return handle.dbNow() !== undefined
         },
         get db() {
-            const db = handle.dbNow();
-            if (db === undefined) throw new DatabaseNotInitialized({ owner: OWNER });
-            return db;
+            const db = handle.dbNow()
+            if (db === undefined)
+                throw new DatabaseNotInitialized({ owner: OWNER })
+            return db
         },
         probe: () => handle.healthy,
-    };
+    }
 }
 
-export class GlobalDatabaseService extends Context.Service<GlobalDatabaseService, GlobalDatabaseServiceShape>()(
-    "shared/GlobalDatabaseService",
-) {}
+export class GlobalDatabaseService extends Context.Service<
+    GlobalDatabaseService,
+    GlobalDatabaseServiceShape
+>()('shared/GlobalDatabaseService') {}

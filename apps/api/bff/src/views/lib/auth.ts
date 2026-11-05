@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 /**
  * Better Auth client for the API-served views.
@@ -10,12 +10,12 @@
  * the right origin (and stay correct behind Traefik).
  */
 
-import { createAuthClientFactory } from "@deployer/auth/client";
+import { createAuthClientFactory } from '@deployer/auth/client'
 
 export const auth = createAuthClientFactory({
-	basePath: "/api/auth",
-	fetchOptions: { credentials: "include" },
-});
+    basePath: '/api/auth',
+    fetchOptions: { credentials: 'include' },
+})
 
 /**
  * Typed email/password sign-in.
@@ -25,10 +25,13 @@ export const auth = createAuthClientFactory({
  * web app's helper, which is what lets the setup wizard's final button behave
  * identically on both surfaces.
  */
-export async function signInWithEmail(input: { email: string; password: string }): Promise<unknown> {
-	const result = await auth.signIn.email(input);
-	if (result.error) {
-		throw new Error(result.error.message ?? "Sign in failed");
-	}
-	return result.data;
+export async function signInWithEmail(input: {
+    email: string
+    password: string
+}): Promise<unknown> {
+    const result = await auth.signIn.email(input)
+    if (result.error) {
+        throw new Error(result.error.message ?? 'Sign in failed')
+    }
+    return result.data
 }

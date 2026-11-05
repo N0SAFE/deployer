@@ -1,8 +1,8 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
 /**
  * Every procedure this service mounts is either authenticated or EXPLICITLY public (`SEC-065`).
@@ -16,69 +16,73 @@ import { describe, expect, it } from "vitest";
  */
 
 // `import.meta.dir` is Bun-only; vitest runs this under Node.
-const MODULES = join(dirname(fileURLToPath(import.meta.url)), "modules");
+const MODULES = join(dirname(fileURLToPath(import.meta.url)), 'modules')
 
 /** A procedure that may be served without a session, with the reason it is allowed. */
 const PUBLIC_ALLOWLIST = new Set<string>([
-	// Health/readiness and the email-exists probe are public by design; the probe is anonymous and rate-limited.
-	"userContract.checkEmail",
-]);
+    // Health/readiness and the email-exists probe are public by design; the probe is anonymous and rate-limited.
+    'userContract.checkEmail',
+])
 
 function controllerFiles(directory: string): string[] {
-	return readdirSync(directory).flatMap((entry) => {
-		const path = join(directory, entry);
-		if (statSync(path).isDirectory()) return controllerFiles(path);
-		return path.endsWith(".controller.ts") ? [path] : [];
-	});
+    return readdirSync(directory).flatMap((entry) => {
+        const path = join(directory, entry)
+        if (statSync(path).isDirectory()) return controllerFiles(path)
+        return path.endsWith('.controller.ts') ? [path] : []
+    })
 }
 
 /** `@Implement(x.y)` occurrences with the body that follows each, up to the next handler. */
 function procedures(): { file: string; contract: string; body: string }[] {
-	const found: { file: string; contract: string; body: string }[] = [];
+    const found: { file: string; contract: string; body: string }[] = []
 
-	for (const file of controllerFiles(MODULES)) {
-		const source = readFileSync(file, "utf8");
-		const markers = [...source.matchAll(/@Implement\(([^)]+)\)/g)];
+    for (const file of controllerFiles(MODULES)) {
+        const source = readFileSync(file, 'utf8')
+        const markers = [...source.matchAll(/@Implement\(([^)]+)\)/g)]
 
-		markers.forEach((marker, index) => {
-			const start = marker.index;
-			const end = markers[index + 1]?.index ?? source.length;
-			found.push({
-				file,
-				contract: (marker[1] ?? "").trim(),
-				body: source.slice(start, end),
-			});
-		});
-	}
+        markers.forEach((marker, index) => {
+            const start = marker.index
+            const end = markers[index + 1]?.index ?? source.length
+            found.push({
+                file,
+                contract: (marker[1] ?? '').trim(),
+                body: source.slice(start, end),
+            })
+        })
+    }
 
-	return found;
+    return found
 }
 
-describe("identity route guards", () => {
-	const mounted = procedures();
+describe('identity route guards', () => {
+    const mounted = procedures()
 
-	it("finds the procedures it is meant to check", () => {
-		// A guard that silently scans nothing is worse than no guard.
-		expect(mounted.length).toBeGreaterThan(10);
-	});
+    it('finds the procedures it is meant to check', () => {
+        // A guard that silently scans nothing is worse than no guard.
+        expect(mounted.length).toBeGreaterThan(10)
+    })
 
-	it("authenticates every procedure, except the explicit public allowlist", () => {
-		// A procedure is authenticated by a USER session or by the MESH (`SEC-069`): a peer call has no browser session,
-		// and refusing to name one is the honest boundary — the trust is the peer, and the handler says so.
-		const unguarded = mounted
-			.filter((procedure) => !PUBLIC_ALLOWLIST.has(procedure.contract))
-			.filter((procedure) => !procedure.body.includes("requireAuth()") && !procedure.body.includes("requireMesh()"))
-			.map((procedure) => `${procedure.file} → ${procedure.contract}`);
+    it('authenticates every procedure, except the explicit public allowlist', () => {
+        // A procedure is authenticated by a USER session or by the MESH (`SEC-069`): a peer call has no browser session,
+        // and refusing to name one is the honest boundary — the trust is the peer, and the handler says so.
+        const unguarded = mounted
+            .filter((procedure) => !PUBLIC_ALLOWLIST.has(procedure.contract))
+            .filter(
+                (procedure) =>
+                    !procedure.body.includes('requireAuth()') &&
+                    !procedure.body.includes('requireMesh()')
+            )
+            .map((procedure) => `${procedure.file} → ${procedure.contract}`)
 
-		expect(unguarded).toEqual([]);
-	});
+        expect(unguarded).toEqual([])
+    })
 
-	it("keeps the public allowlist honest: each entry really is public", () => {
-		const bypassing = mounted
-			.filter((procedure) => PUBLIC_ALLOWLIST.has(procedure.contract))
-			.filter((procedure) => procedure.body.includes("requireAuth()"))
-			.map((procedure) => procedure.contract);
+    it('keeps the public allowlist honest: each entry really is public', () => {
+        const bypassing = mounted
+            .filter((procedure) => PUBLIC_ALLOWLIST.has(procedure.contract))
+            .filter((procedure) => procedure.body.includes('requireAuth()'))
+            .map((procedure) => procedure.contract)
 
-		expect(bypassing).toEqual([]);
-	});
-});
+        expect(bypassing).toEqual([])
+    })
+})

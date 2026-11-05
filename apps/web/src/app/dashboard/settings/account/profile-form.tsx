@@ -1,51 +1,59 @@
 'use client'
 
 import { useForm } from '@tanstack/react-form'
-import { 
-  User, 
-  Mail, 
-  Calendar, 
-  Shield, 
-  Loader2,
-  CheckCircle,
+import {
+    User,
+    Mail,
+    Calendar,
+    Shield,
+    Loader2,
+    CheckCircle,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 
 import type { Session } from '@deployer/auth'
-import { Avatar, AvatarFallback, AvatarImage } from '@deployer/ui/components/shadcn/avatar'
+import {
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
+} from '@deployer/ui/components/shadcn/avatar'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@deployer/ui/components/shadcn/card'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 import { Separator } from '@deployer/ui/components/shadcn/separator'
 
-
-
 import { useSession, authClient } from '@/lib/auth'
 import { formatDateTime } from '@/lib/format/date'
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { getErrorMessage } from '@/lib/orpc/typed-errors'
 
 function getInitials(name: string | null | undefined): string {
-  if (!name) return 'U'
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
+    if (!name) return 'U'
+    return name
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
 }
 
 function formatDate(dateString: string | Date | null | undefined): string {
-  // Delegates to the shared UTC-pinned formatter, keeping this file's `N/A`
-  // fallback. The previous version pinned the locale but not the time zone, so
-  // the server and browser could still disagree on the rendered text.
-  return formatDateTime(dateString, 'N/A')
+    // Delegates to the shared UTC-pinned formatter, keeping this file's `N/A`
+    // fallback. The previous version pinned the locale but not the time zone, so
+    // the server and browser could still disagree on the rendered text.
+    return formatDateTime(dateString, 'N/A')
 }
 
 interface ProfileFormProps {
-  initialSession: Session | null
+    initialSession: Session | null
 }
 
 /**
@@ -53,224 +61,265 @@ interface ProfileFormProps {
  * Session is already hydrated from parent SessionRoute - reads from cache
  */
 export function ProfileForm({ initialSession }: ProfileFormProps) {
-  // Read session from cache - instantly available without loading state
-  const { data: session, refetch } = useSession()
-  const currentSession = session ?? initialSession
-  
-  const [isEditing, setIsEditing] = useState(false)
-  
-  // Get user name from session - session data can be null when not authenticated
-   
-  const userName = currentSession?.user?.name ?? ''
+    // Read session from cache - instantly available without loading state
+    const { data: session, refetch } = useSession()
+    const currentSession = session ?? initialSession
 
-  const form = useForm({
-    defaultValues: {
-      name: userName,
-    },
-    onSubmit: async ({ value }) => {
-      if (!value.name.trim()) {
-        toast.error('Name cannot be empty')
-        return
-      }
-      try {
-        const result = await authClient.updateUser({ name: value.name.trim() })
-        if (result.error) {
-          throw new Error(result.error.message ?? 'Failed to update profile')
+    const [isEditing, setIsEditing] = useState(false)
+
+    // Get user name from session - session data can be null when not authenticated
+
+    const userName = currentSession?.user?.name ?? ''
+
+    const form = useForm({
+        defaultValues: {
+            name: userName,
+        },
+        onSubmit: async ({ value }) => {
+            if (!value.name.trim()) {
+                toast.error('Name cannot be empty')
+                return
+            }
+            try {
+                const result = await authClient.updateUser({
+                    name: value.name.trim(),
+                })
+                if (result.error) {
+                    throw new Error(
+                        result.error.message ?? 'Failed to update profile'
+                    )
+                }
+                toast.success('Profile updated successfully')
+                setIsEditing(false)
+                await refetch()
+            } catch (error) {
+                const message =
+                    error instanceof Error
+                        ? getErrorMessage(error)
+                        : 'Failed to update profile'
+                toast.error(message)
+            }
+        },
+    })
+
+    // Reset form when session loads or editing is cancelled
+    useEffect(() => {
+        if (userName !== '' && !isEditing) {
+            form.setFieldValue('name', userName)
         }
-        toast.success('Profile updated successfully')
+    }, [userName, isEditing, form])
+
+    const handleCancel = () => {
+        form.setFieldValue('name', userName)
         setIsEditing(false)
-        await refetch()
-      } catch (error) {
-        const message = error instanceof Error ? getErrorMessage(error) : 'Failed to update profile'
-        toast.error(message)
-      }
-    },
-  })
-  
-  // Reset form when session loads or editing is cancelled
-  useEffect(() => {
-    if (userName !== '' && !isEditing) {
-      form.setFieldValue('name', userName)
     }
-  }, [userName, isEditing, form])
-  
-  const handleCancel = () => {
-    form.setFieldValue('name', userName)
-    setIsEditing(false)
-  }
-  
-  if (!currentSession?.user) {
-    return null // Parent route already handles auth
-  }
-  
-  const user = currentSession.user
-  const userRole =
-    'role' in user && typeof user.role === 'string' ? user.role : 'viewer'
-  const isAdmin = userRole === 'admin' || userRole === 'superAdmin'
 
-  return (
-    <div className="grid gap-6 md:grid-cols-3">
-      {/* Profile Card */}
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>
-            Your name is shown to teammates across the dashboard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Avatar Section */}
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <Avatar className="h-24 w-24">
-                { }
-                <AvatarImage src={user.image ?? undefined} alt={user.name ?? 'User'} />
-                <AvatarFallback className="text-2xl">
-                  {getInitials(user.name)}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            <div className="space-y-1">
-              { }
-              <h3 className="text-xl font-semibold">{user.name ?? 'User'}</h3>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
-              <div className="flex items-center gap-2">
-                {isAdmin && (
-                  <Badge variant="default" className="flex items-center gap-1">
-                    <Shield className="h-3 w-3" />
-                    {userRole === 'superAdmin' ? 'Super Admin' : 'Admin'}
-                  </Badge>
-                )}
-                {user.emailVerified && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    Verified
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
+    if (!currentSession?.user) {
+        return null // Parent route already handles auth
+    }
 
-          <Separator />
+    const user = currentSession.user
+    const userRole =
+        'role' in user && typeof user.role === 'string' ? user.role : 'viewer'
+    const isAdmin = userRole === 'admin' || userRole === 'superAdmin'
 
-          {/* Edit Form */}
-          <div className="space-y-4">
-            <form.Field name="name">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="name">Display Name</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="name"
-                      value={field.state.value}
-                      onChange={(e) => {
-                        field.handleChange(e.target.value)
-                        if (!isEditing) setIsEditing(true)
-                      }}
-                      placeholder="Enter your name"
-                      disabled={form.state.isSubmitting}
-                    />
-                  </div>
-                </div>
-              )}
-            </form.Field>
+    return (
+        <div className="grid gap-6 md:grid-cols-3">
+            {/* Profile Card */}
+            <Card className="md:col-span-2">
+                <CardHeader>
+                    <CardTitle>Profile</CardTitle>
+                    <CardDescription>
+                        Your name is shown to teammates across the dashboard.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Avatar Section */}
+                    <div className="flex items-center gap-6">
+                        <div className="relative">
+                            <Avatar className="h-24 w-24">
+                                {}
+                                <AvatarImage
+                                    src={user.image ?? undefined}
+                                    alt={user.name ?? 'User'}
+                                />
+                                <AvatarFallback className="text-2xl">
+                                    {getInitials(user.name)}
+                                </AvatarFallback>
+                            </Avatar>
+                        </div>
+                        <div className="space-y-1">
+                            {}
+                            <h3 className="text-xl font-semibold">
+                                {user.name ?? 'User'}
+                            </h3>
+                            <p className="text-muted-foreground text-sm">
+                                {user.email}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                {isAdmin && (
+                                    <Badge
+                                        variant="default"
+                                        className="flex items-center gap-1"
+                                    >
+                                        <Shield className="h-3 w-3" />
+                                        {userRole === 'superAdmin'
+                                            ? 'Super Admin'
+                                            : 'Admin'}
+                                    </Badge>
+                                )}
+                                {user.emailVerified && (
+                                    <Badge
+                                        variant="secondary"
+                                        className="flex items-center gap-1"
+                                    >
+                                        <CheckCircle className="h-3 w-3" />
+                                        Verified
+                                    </Badge>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                value={user.email}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-sm text-muted-foreground">
-                Your email is your sign-in identity and cannot be changed here.
-              </p>
-            </div>
+                    <Separator />
 
-            {isEditing && (
-              <div className="flex gap-2">
-                <form.Subscribe selector={(s) => s.isSubmitting}>
-                  {(isSubmitting) => (
-                    <Button onClick={() => { void form.handleSubmit() }} disabled={isSubmitting}>
-                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Save Changes
-                    </Button>
-                  )}
-                </form.Subscribe>
-                <Button variant="outline" onClick={handleCancel} disabled={form.state.isSubmitting}>
-                  Cancel
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                    {/* Edit Form */}
+                    <div className="space-y-4">
+                        <form.Field name="name">
+                            {(field) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Display Name</Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            id="name"
+                                            value={field.state.value}
+                                            onChange={(e) => {
+                                                field.handleChange(
+                                                    e.target.value
+                                                )
+                                                if (!isEditing)
+                                                    setIsEditing(true)
+                                            }}
+                                            placeholder="Enter your name"
+                                            disabled={form.state.isSubmitting}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </form.Field>
 
-      {/* Account Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Account Details</CardTitle>
-          <CardDescription>
-            Your account information and status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">User ID</p>
-              <p className="text-xs text-muted-foreground font-mono">
-                {user.id.slice(0, 8)}...
-              </p>
-            </div>
-          </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email Address</Label>
+                            <Input
+                                id="email"
+                                value={user.email}
+                                disabled
+                                className="bg-muted"
+                            />
+                            <p className="text-muted-foreground text-sm">
+                                Your email is your sign-in identity and cannot
+                                be changed here.
+                            </p>
+                        </div>
 
-          <Separator />
+                        {isEditing && (
+                            <div className="flex gap-2">
+                                <form.Subscribe
+                                    selector={(s) => s.isSubmitting}
+                                >
+                                    {(isSubmitting) => (
+                                        <Button
+                                            onClick={() => {
+                                                void form.handleSubmit()
+                                            }}
+                                            disabled={isSubmitting}
+                                        >
+                                            {isSubmitting && (
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            )}
+                                            Save Changes
+                                        </Button>
+                                    )}
+                                </form.Subscribe>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleCancel}
+                                    disabled={form.state.isSubmitting}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
 
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Mail className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Email Status</p>
-              <p className="text-sm text-muted-foreground">
-                {user.emailVerified ? 'Verified' : 'Not verified'}
-              </p>
-            </div>
-          </div>
+            {/* Account Info Card */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Account Details</CardTitle>
+                    <CardDescription>
+                        Your account information and status.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
+                            <User className="text-primary h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium">User ID</p>
+                            <p className="text-muted-foreground font-mono text-xs">
+                                {user.id.slice(0, 8)}...
+                            </p>
+                        </div>
+                    </div>
 
-          <Separator />
+                    <Separator />
 
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Shield className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Role</p>
-              <p className="text-xs text-muted-foreground capitalize">
-                {userRole}
-              </p>
-            </div>
-          </div>
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
+                            <Mail className="text-primary h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium">Email Status</p>
+                            <p className="text-muted-foreground text-sm">
+                                {user.emailVerified
+                                    ? 'Verified'
+                                    : 'Not verified'}
+                            </p>
+                        </div>
+                    </div>
 
-          <Separator />
+                    <Separator />
 
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Calendar className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Member Since</p>
-              <p className="text-sm text-muted-foreground">
-                {formatDate(user.createdAt)}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
+                            <Shield className="text-primary h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium">Role</p>
+                            <p className="text-muted-foreground text-xs capitalize">
+                                {userRole}
+                            </p>
+                        </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
+                            <Calendar className="text-primary h-5 w-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium">Member Since</p>
+                            <p className="text-muted-foreground text-sm">
+                                {formatDate(user.createdAt)}
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    )
 }

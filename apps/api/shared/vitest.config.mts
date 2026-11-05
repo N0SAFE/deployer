@@ -1,7 +1,10 @@
-import { createNodeConfig, workspaceSourceAliases } from '@deployer/config-vitest';
-import * as path from 'path';
+import {
+    createNodeConfig,
+    workspaceSourceAliases,
+} from '@deployer/config-vitest'
+import * as path from 'path'
 
-const sharedSrc = path.resolve(import.meta.dirname, './src');
+const sharedSrc = path.resolve(import.meta.dirname, './src')
 
 /**
  * The shared package's own tests.
@@ -25,28 +28,33 @@ const sharedSrc = path.resolve(import.meta.dirname, './src');
  * to its `src`; the shim is the same one the app configs use.
  */
 export default createNodeConfig({
-  resolve: {
-    alias: [
-      ...Object.entries(workspaceSourceAliases()).map(([find, replacement]) => ({
-        find,
-        replacement,
-      })),
-      { find: /^@\//, replacement: `${sharedSrc}/` },
-      { find: /^@$/, replacement: sharedSrc },
-      ...(process.versions.bun
-        ? []
-        : [
-            {
-              find: 'bun:sqlite',
-              replacement: path.join(sharedSrc, 'e2e-harness/vitest/bun-sqlite-shim.ts'),
-            },
-          ]),
-    ],
-  },
-  test: {
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    // Same reason as the app configs: a dependency's `bun:sqlite` /
-    // `zod/v4` subpath import is externalised unless the graph is inlined.
-    server: { deps: { inline: true } },
-  },
-});
+    resolve: {
+        alias: [
+            ...Object.entries(workspaceSourceAliases()).map(
+                ([find, replacement]) => ({
+                    find,
+                    replacement,
+                })
+            ),
+            { find: /^@\//, replacement: `${sharedSrc}/` },
+            { find: /^@$/, replacement: sharedSrc },
+            ...(process.versions.bun
+                ? []
+                : [
+                      {
+                          find: 'bun:sqlite',
+                          replacement: path.join(
+                              sharedSrc,
+                              'e2e-harness/vitest/bun-sqlite-shim.ts'
+                          ),
+                      },
+                  ]),
+        ],
+    },
+    test: {
+        include: ['src/**/*.{test,spec}.{ts,tsx}'],
+        // Same reason as the app configs: a dependency's `bun:sqlite` /
+        // `zod/v4` subpath import is externalised unless the graph is inlined.
+        server: { deps: { inline: true } },
+    },
+})

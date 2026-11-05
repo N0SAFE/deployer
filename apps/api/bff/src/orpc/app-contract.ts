@@ -21,40 +21,40 @@
  * limit (TS7056) — so it stays in an application, which never emits declarations.
  */
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
 import {
-	bffConsoleContract,
-	bffOrchestrationContract,
-	setupContract,
-	templateContract,
-} from "@deployer/bff-contracts";
+    bffConsoleContract,
+    bffOrchestrationContract,
+    setupContract,
+    templateContract,
+} from '@deployer/bff-contracts'
 
-import { serviceSurface } from "./service-surface";
+import { serviceSurface } from './service-surface'
 
 export const appContract = oc.router({
-	// The composition surface. `dashboardOverview` answers a SCREEN, not a table: it
-	// fans out to identity, project and runtime and joins the answers.
-	bff: bffOrchestrationContract,
+    // The composition surface. `dashboardOverview` answers a SCREEN, not a table: it
+    // fans out to identity, project and runtime and joins the answers.
+    bff: bffOrchestrationContract,
 
-	// The management console's control panel. Separate from the screens above: those
-	// JOIN several services, these expose one and exist because the BFF owns the page.
-	console: bffConsoleContract,
+    // The management console's control panel. Separate from the screens above: those
+    // JOIN several services, these expose one and exist because the BFF owns the page.
+    console: bffConsoleContract,
 
-	// ── THE RESOURCE SURFACE ────────────────────────────────────────────────
-	// The service namespaces, served by the BFF through typed clients (see
-	// `modules/delegation/`). A screen calls these when it wants the RESOURCE and not a
-	// join — `docker.containers.list` is already the shape the container list renders.
-	//
-	// Mounted from the SHARED list so the front cannot call a namespace this does not
-	// serve, or under a different key: a divergence there fails only at runtime, in
-	// whichever direction nobody tested.
-	...serviceSurface(),
+    // ── THE RESOURCE SURFACE ────────────────────────────────────────────────
+    // The service namespaces, served by the BFF through typed clients (see
+    // `modules/delegation/`). A screen calls these when it wants the RESOURCE and not a
+    // join — `docker.containers.list` is already the shape the container list renders.
+    //
+    // Mounted from the SHARED list so the front cannot call a namespace this does not
+    // serve, or under a different key: a divergence there fails only at runtime, in
+    // whichever direction nobody tested.
+    ...serviceSurface(),
 
-	// The setup wizard must answer BEFORE auth and ORPC are up, and the test surface
-	// exists to probe the transport itself — so both are the BFF's and nothing else's.
-	setup: setupContract,
-	template: templateContract,
-});
+    // The setup wizard must answer BEFORE auth and ORPC are up, and the test surface
+    // exists to probe the transport itself — so both are the BFF's and nothing else's.
+    setup: setupContract,
+    template: templateContract,
+})
 
-export type AppContract = typeof appContract;
+export type AppContract = typeof appContract

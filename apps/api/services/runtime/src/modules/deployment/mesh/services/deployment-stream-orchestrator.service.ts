@@ -1,23 +1,27 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import type { DeploymentProgressEvent } from "@deployer/runtime-contracts/modules/deployment/stream";
-import { serviceOver } from "@deployer/effect-core";
+import { serviceOver } from '@deployer/effect-core'
+import type { DeploymentProgressEvent } from '@deployer/runtime-contracts/modules/deployment/stream'
 
-import { DeploymentStreamsPort } from "../../deployment.ports";
+import { DeploymentStreamsPort } from '../../deployment.ports'
 
-import type { Observable } from "rxjs";
+import type { Observable } from 'rxjs'
 
 export type OpenDeploymentStreamInput = {
-    deploymentId: string;
-    replay: boolean;
-    replayLimit: number;
+    deploymentId: string
+    replay: boolean
+    replayLimit: number
 }
 
 export type DeploymentStreamOrchestratorServiceShape = {
     readonly openDeploymentStream: (
-        input: OpenDeploymentStreamInput,
-    ) => Effect.Effect<Observable<DeploymentProgressEvent>, never, DeploymentStreamsPort>;
-};
+        input: OpenDeploymentStreamInput
+    ) => Effect.Effect<
+        Observable<DeploymentProgressEvent>,
+        never,
+        DeploymentStreamsPort
+    >
+}
 
 /**
  * Opens the progress stream of a deployment.
@@ -29,7 +33,7 @@ export type DeploymentStreamOrchestratorServiceShape = {
 export class DeploymentStreamOrchestratorService extends Context.Service<
     DeploymentStreamOrchestratorService,
     DeploymentStreamOrchestratorServiceShape
->()("runtime/DeploymentStreamOrchestratorService") {
+>()('runtime/DeploymentStreamOrchestratorService') {
     static readonly live = serviceOver(
         Effect.all({ deployments: DeploymentStreamsPort }),
         ({ deployments }): DeploymentStreamOrchestratorServiceShape => ({
@@ -39,8 +43,8 @@ export class DeploymentStreamOrchestratorService extends Context.Service<
                         deploymentId: input.deploymentId,
                         replay: input.replay,
                         replayLimit: input.replayLimit,
-                    }),
+                    })
                 ),
-        }),
-    );
+        })
+    )
 }

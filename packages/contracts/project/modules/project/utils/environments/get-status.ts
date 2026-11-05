@@ -1,14 +1,27 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { environmentStatusOutputSchema, projectEnvironmentStatusOps } from "../shared";
+import {
+    environmentStatusOutputSchema,
+    projectEnvironmentStatusOps,
+} from '../shared'
 
 export const projectGetEnvironmentStatusContract = projectEnvironmentStatusOps
-    .read({ idFieldName: "environmentId", idSchema: z.uuid() })
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/environments/${p("environmentId", z.uuid())}/status`))
+    .read({ idFieldName: 'environmentId', idSchema: z.uuid() })
+    .input((b) =>
+        b.params(
+            (p) =>
+                p`/${p('id', z.uuid())}/environments/${p('environmentId', z.uuid())}/status`
+        )
+    )
     .output(environmentStatusOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .meta(access({ permission: "project:read", scope: { by: "input", path: "params.id", kind: "project" } }))
-    .build();
+    .meta(
+        access({
+            permission: 'project:read',
+            scope: { by: 'input', path: 'params.id', kind: 'project' },
+        })
+    )
+    .build()
 
-import { access } from "@deployer/auth/authz/meta";
-import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { standardDomainErrorContracts } from '@deployer/orpc-utils'

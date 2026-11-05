@@ -1,7 +1,7 @@
-import z from "zod/v4";
+import z from 'zod/v4'
 
-import { dockerRuntimeActivityEntitySchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { dockerRuntimeActivityEntitySchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /**
  * Live activity stream. The server emits one `DockerRuntimeActivityEntity`
@@ -14,23 +14,26 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
  * server publishes the activity entity directly.
  */
 const dockerRuntimeActivityStreamQuerySchema = z
-  .object({
-    source: z.string().optional(),
-    action: z.string().optional(),
-  })
-  .optional()
+    .object({
+        source: z.string().optional(),
+        action: z.string().optional(),
+    })
+    .optional()
 
-export type DockerRuntimeActivityStreamInput = z.infer<typeof dockerRuntimeActivityStreamQuerySchema>
+export type DockerRuntimeActivityStreamInput = z.infer<
+    typeof dockerRuntimeActivityStreamQuerySchema
+>
 
 const dockerRuntimeActivityStreamOps = standard.zod(
-  dockerRuntimeActivityEntitySchema,
-  "dockerRuntimeActivityStream",
+    dockerRuntimeActivityEntitySchema,
+    'dockerRuntimeActivityStream'
 )
 
-export const dockerRuntimeActivityStreamContract = dockerRuntimeActivityStreamOps
-  .list()
-  .path("/activity/stream")
-  .input((b) => b.query(dockerRuntimeActivityStreamQuerySchema))
-  .output((b) => b.observable(dockerRuntimeActivityEntitySchema))
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build()
+export const dockerRuntimeActivityStreamContract =
+    dockerRuntimeActivityStreamOps
+        .list()
+        .path('/activity/stream')
+        .input((b) => b.query(dockerRuntimeActivityStreamQuerySchema))
+        .output((b) => b.observable(dockerRuntimeActivityEntitySchema))
+        .errors((e) => [...standardDomainErrorContracts(e)])
+        .build()

@@ -45,7 +45,10 @@ export function shellQuote(word: string): string {
  * `process.exit`. `Bun.$` IS the shell primitive here: it takes the command as a
  * tagged template, inherits stdio, and reports `exitCode` directly.
  */
-async function runWithEnvironment(command: readonly string[], envVars: Record<string, string>): Promise<void> {
+async function runWithEnvironment(
+    command: readonly string[],
+    envVars: Record<string, string>
+): Promise<void> {
     const [cmd, ...rest] = command
     if (!cmd) {
         console.error('❌ No command specified')
@@ -57,10 +60,15 @@ async function runWithEnvironment(command: readonly string[], envVars: Record<st
     const shellCommand = [cmd, ...rest].map(shellQuote).join(' ')
 
     try {
-        const result = await $`${{ raw: shellCommand }}`.env({ ...process.env, ...envVars }).nothrow()
+        const result = await $`${{ raw: shellCommand }}`
+            .env({ ...process.env, ...envVars })
+            .nothrow()
         process.exit(result.exitCode ?? 0)
     } catch (err: unknown) {
-        console.error('❌ Failed to run command:', err instanceof Error ? err.message : err)
+        console.error(
+            '❌ Failed to run command:',
+            err instanceof Error ? err.message : err
+        )
         process.exit(1)
     }
 }
@@ -82,21 +90,21 @@ function loadEnvFiles(filePaths: string[]): Record<string, string> {
 
     for (const filePath of filePaths) {
         const absolutePath = resolve(filePath)
-        
+
         if (!existsSync(absolutePath)) {
             console.error(`❌ .env file not found: ${absolutePath}`)
             process.exit(1)
         }
 
         console.log(`📂 Loading ${filePath}...`)
-        
+
         const result = dotenvConfig({ path: absolutePath })
-        
+
         if (result.error) {
             console.error(`❌ Failed to parse ${filePath}:`, result.error)
             process.exit(1)
         }
-        
+
         if (result.parsed) {
             Object.assign(mergedEnv, result.parsed)
         }
@@ -108,7 +116,10 @@ function loadEnvFiles(filePaths: string[]): Record<string, string> {
 /**
  * Check environment variables for a specific app or all apps
  */
-function checkEnv(appName?: AppName, envVars: Record<string, string> = processEnv()): boolean {
+function checkEnv(
+    appName?: AppName,
+    envVars: Record<string, string> = processEnv()
+): boolean {
     let success = true
 
     if (appName) {
@@ -127,10 +138,10 @@ function checkEnv(appName?: AppName, envVars: Record<string, string> = processEn
     } else {
         // Check all apps
         console.log('\n🔍 Checking all apps environment variables...')
-        
+
         for (const [name, schema] of Object.entries(APP_SCHEMAS)) {
             const result = schema.safeParse(envVars)
-            
+
             if (result.success) {
                 console.log(`✅ ${name} environment variables are valid`)
             } else {
@@ -147,7 +158,11 @@ function checkEnv(appName?: AppName, envVars: Record<string, string> = processEn
 /**
  * Load and validate environment variables, optionally running a command
  */
-async function loadEnv(appName?: AppName, envFiles?: string[], command?: string[]): Promise<void> {
+async function loadEnv(
+    appName?: AppName,
+    envFiles?: string[],
+    command?: string[]
+): Promise<void> {
     let envVars: Record<string, string> = processEnv()
 
     // Load .env files if provided
@@ -160,14 +175,16 @@ async function loadEnv(appName?: AppName, envFiles?: string[], command?: string[
     const isValid = checkEnv(appName, envVars)
 
     if (!isValid) {
-        console.error('\n❌ Environment validation failed. Fix the errors above before running commands.')
+        console.error(
+            '\n❌ Environment validation failed. Fix the errors above before running commands.'
+        )
         process.exit(1)
     }
 
     if (!command || command.length === 0) {
         console.log('\n✅ Environment validated successfully.')
         console.log('💡 Environment variables loaded into process.env')
-        
+
         // Load into process.env
         Object.assign(process.env, envVars)
         return
@@ -175,7 +192,7 @@ async function loadEnv(appName?: AppName, envFiles?: string[], command?: string[
 
     // Run the command with validated environment
     console.log(`\n🚀 Running command: ${command.join(' ')}`)
-    
+
     await runWithEnvironment(command, envVars)
 }
 
@@ -189,7 +206,8 @@ async function main(): Promise<void> {
     const command = args[0]
 
     if (!command || !['check', 'load', 'mock'].includes(command)) {
-        console.error(`
+        console.error(
+            `
 Usage:
   check [app]           Check environment variables
   load [app] [--env <file>...] [--command <cmd>]  Load and validate environment, optionally run command
@@ -206,15 +224,17 @@ Examples:
   mock api                  Load mock API environment
   mock web --command "bun run dev"  Load mock web env and run command
   mock --command "bun run test"  Load all mock envs and run tests
-        `.trim())
+        `.trim()
+        )
         process.exit(1)
     }
 
     // Get app name if provided (must be second arg and be a valid app name)
     const appArg = args[1]
-    const appName = appArg && ['api', 'web', 'doc'].includes(appArg) 
-        ? appArg as AppName 
-        : undefined
+    const appName =
+        appArg && ['api', 'web', 'doc'].includes(appArg)
+            ? (appArg as AppName)
+            : undefined
 
     if (command === 'check') {
         const success = checkEnv(appName)
@@ -225,7 +245,7 @@ Examples:
         // Parse --env flags
         const envFiles: string[] = []
         let i = appName ? 2 : 1 // Start after app name if provided
-        
+
         while (i < args.length) {
             const envArg = args[i + 1]
             if (args[i] === '--env' && envArg) {
@@ -239,16 +259,22 @@ Examples:
         }
 
         // Find --command flag
-        const commandIndex = args.findIndex(arg => arg === '--command')
-        const commandToRun = commandIndex !== -1 ? args.slice(commandIndex + 1) : undefined
+        const commandIndex = args.findIndex((arg) => arg === '--command')
+        const commandToRun =
+            commandIndex !== -1 ? args.slice(commandIndex + 1) : undefined
 
-        await loadEnv(appName, envFiles.length > 0 ? envFiles : undefined, commandToRun)
+        await loadEnv(
+            appName,
+            envFiles.length > 0 ? envFiles : undefined,
+            commandToRun
+        )
     }
 
     if (command === 'mock') {
         // Find --command flag
-        const commandIndex = args.findIndex(arg => arg === '--command')
-        const commandToRun = commandIndex !== -1 ? args.slice(commandIndex + 1) : undefined
+        const commandIndex = args.findIndex((arg) => arg === '--command')
+        const commandToRun =
+            commandIndex !== -1 ? args.slice(commandIndex + 1) : undefined
 
         await mockEnv(appName, commandToRun)
     }
@@ -271,14 +297,16 @@ async function mockEnv(appName?: AppName, command?: string[]): Promise<void> {
     const isValid = checkEnv(appName, envVars)
 
     if (!isValid) {
-        console.error('\n❌ Mock environment validation failed. Check errors above.')
+        console.error(
+            '\n❌ Mock environment validation failed. Check errors above.'
+        )
         process.exit(1)
     }
 
     if (!command || command.length === 0) {
         console.log('\n✅ Mock environment validated successfully.')
         console.log('💡 Mock environment variables loaded into process.env')
-        
+
         // Load into process.env
         Object.assign(process.env, mockVars)
         return
@@ -286,7 +314,7 @@ async function mockEnv(appName?: AppName, command?: string[]): Promise<void> {
 
     // Run the command with mock environment
     console.log(`\n🚀 Running command: ${command.join(' ')}`)
-    
+
     await runWithEnvironment(command, envVars)
 }
 
@@ -303,6 +331,8 @@ if (import.meta.main) {
  * nothing downstream needs an `as any`.
  */
 function processEnv(): Record<string, string> {
-    const entries = Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+    const entries = Object.entries(process.env).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined
+    )
     return Object.fromEntries(entries)
 }

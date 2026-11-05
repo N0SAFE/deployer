@@ -1,97 +1,104 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 
-import { Observable } from "rxjs";
+import { Observable } from 'rxjs'
 
-import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
-import { relayLink } from "@deployer/mesh-client";
+import type { DockerRuntimeEvent } from '@deployer/contracts-entities'
+import { relayLink } from '@deployer/mesh-client'
 
 import type {
-  DockerContainerCreateDirectoryRequestPayload,
-  DockerContainerCreateDirectoryResponsePayload,
-  DockerContainerDeletePathRequestPayload,
-  DockerContainerDeletePathResponsePayload,
-  DockerContainerFilesSnapshotRequestPayload,
-  DockerContainerFilesSnapshotResponsePayload,
-  DockerContainerInspectRequestPayload,
-  DockerContainerInspectResponsePayload,
-  DockerContainerListRequestPayload,
-  DockerContainerListResponsePayload,
-  DockerContainerLogsSnapshotRequestPayload,
-  DockerContainerLogsSnapshotResponsePayload,
-  DockerContainerProcessLogsSnapshotRequestPayload,
-  DockerContainerProcessLogsSnapshotResponsePayload,
-  DockerContainerProcessesSnapshotRequestPayload,
-  DockerContainerProcessesSnapshotResponsePayload,
-  DockerContainerReadFileSnapshotRequestPayload,
-  DockerContainerReadFileSnapshotResponsePayload,
-  DockerContainerRenamePathRequestPayload,
-  DockerContainerRenamePathResponsePayload,
-  DockerContainerTerminalCloseRequestPayload,
-  DockerContainerTerminalCloseResponsePayload,
-  DockerContainerTerminalEventsRequestPayload,
-  DockerContainerTerminalEventsResponsePayload,
-  DockerContainerTerminalInputRequestPayload,
-  DockerContainerTerminalInputResponsePayload,
-  DockerContainerTerminalOpenRequestPayload,
-  DockerContainerTerminalOpenResponsePayload,
-  DockerContainerWriteFileRequestPayload,
-  DockerContainerWriteFileResponsePayload,
-  DockerImageInspectRequestPayload,
-  DockerImageInspectResponsePayload,
-  DockerRuntimeCatalogRequestPayload,
-  DockerRuntimeCatalogResponsePayload,
-} from "./node-mesh-types";
-import type { ClientContext, ClientLink } from "@orpc/client";
+    DockerContainerCreateDirectoryRequestPayload,
+    DockerContainerCreateDirectoryResponsePayload,
+    DockerContainerDeletePathRequestPayload,
+    DockerContainerDeletePathResponsePayload,
+    DockerContainerFilesSnapshotRequestPayload,
+    DockerContainerFilesSnapshotResponsePayload,
+    DockerContainerInspectRequestPayload,
+    DockerContainerInspectResponsePayload,
+    DockerContainerListRequestPayload,
+    DockerContainerListResponsePayload,
+    DockerContainerLogsSnapshotRequestPayload,
+    DockerContainerLogsSnapshotResponsePayload,
+    DockerContainerProcessLogsSnapshotRequestPayload,
+    DockerContainerProcessLogsSnapshotResponsePayload,
+    DockerContainerProcessesSnapshotRequestPayload,
+    DockerContainerProcessesSnapshotResponsePayload,
+    DockerContainerReadFileSnapshotRequestPayload,
+    DockerContainerReadFileSnapshotResponsePayload,
+    DockerContainerRenamePathRequestPayload,
+    DockerContainerRenamePathResponsePayload,
+    DockerContainerTerminalCloseRequestPayload,
+    DockerContainerTerminalCloseResponsePayload,
+    DockerContainerTerminalEventsRequestPayload,
+    DockerContainerTerminalEventsResponsePayload,
+    DockerContainerTerminalInputRequestPayload,
+    DockerContainerTerminalInputResponsePayload,
+    DockerContainerTerminalOpenRequestPayload,
+    DockerContainerTerminalOpenResponsePayload,
+    DockerContainerWriteFileRequestPayload,
+    DockerContainerWriteFileResponsePayload,
+    DockerImageInspectRequestPayload,
+    DockerImageInspectResponsePayload,
+    DockerRuntimeCatalogRequestPayload,
+    DockerRuntimeCatalogResponsePayload,
+} from './node-mesh-types'
+import type { ClientContext, ClientLink } from '@orpc/client'
 
 /** How long a node is given to answer before the caller moves on without it. */
-const DEFAULT_TIMEOUT_MS = 1_500;
-const SERVICE = "runtime";
-const CALL = { context: {} } as const;
+const DEFAULT_TIMEOUT_MS = 1_500
+const SERVICE = 'runtime'
+const CALL = { context: {} } as const
 /** Where the node router is mounted on every runtime replica, next to its public contracts. */
-const NODE_ROUTER = ["mesh", "node"] as const;
+const NODE_ROUTER = ['mesh', 'node'] as const
 /** How often the set of nodes whose events are followed is re-read, and how long a broken follower waits before trying again. */
-const EVENTS_REFRESH_MS = 5_000;
-const EVENTS_RECONNECT_MS = 2_000;
+const EVENTS_REFRESH_MS = 5_000
+const EVENTS_RECONNECT_MS = 2_000
 
 export type NodeMeshOptions<TResponse> = {
-  readonly timeoutMs?: number;
-  /** Stop collecting as soon as this says the answers so far are enough. */
-  readonly stopWhen?: (response: TResponse, collected: readonly TResponse[]) => boolean;
-  readonly maxCollectedResponses?: number;
-};
+    readonly timeoutMs?: number
+    /** Stop collecting as soon as this says the answers so far are enough. */
+    readonly stopWhen?: (
+        response: TResponse,
+        collected: readonly TResponse[]
+    ) => boolean
+    readonly maxCollectedResponses?: number
+}
 
 export type NodeMeshResult<TResponse> = {
-  readonly correlationId: string;
-  readonly responses: readonly TResponse[];
-  readonly stoppedEarly: boolean;
-  readonly reason: "timeout" | "killer_switch";
-  readonly metrics: {
-    readonly expectedResponders: number;
-    readonly receivedResponses: number;
-    readonly droppedResponses: number;
-    readonly retryResponses: number;
-    readonly maxLagMs: number;
-    readonly avgLagMs: number;
-    readonly timedOut: boolean;
-  };
-};
+    readonly correlationId: string
+    readonly responses: readonly TResponse[]
+    readonly stoppedEarly: boolean
+    readonly reason: 'timeout' | 'killer_switch'
+    readonly metrics: {
+        readonly expectedResponders: number
+        readonly receivedResponses: number
+        readonly droppedResponses: number
+        readonly retryResponses: number
+        readonly maxLagMs: number
+        readonly avgLagMs: number
+        readonly timedOut: boolean
+    }
+}
 
 /** The link to this node's agent, filled in when the runtime joins the mesh. Without it the runtime is alone on its node. */
 export type NodeAgent = {
-  link: ClientLink<ClientContext> | undefined;
-  /** This node's id, learned from the directory the first time the agent is asked. */
-  selfNodeId?: string | undefined;
-  /** This process's replica id, so the nodes it asks exclude its own. */
-  selfReplicaId: string;
-};
+    link: ClientLink<ClientContext> | undefined
+    /** This node's id, learned from the directory the first time the agent is asked. */
+    selfNodeId?: string | undefined
+    /** This process's replica id, so the nodes it asks exclude its own. */
+    selfReplicaId: string
+}
 
 /** DI token for the holder of the agent link. */
-export const NODE_AGENT = Symbol("runtime:node-agent");
+export const NODE_AGENT = Symbol('runtime:node-agent')
 
 /** DI token for the node mesh the docker callers ask through. */
-export const DOCKER_NODE_MESH = Symbol("runtime:docker-node-mesh");
+export const DOCKER_NODE_MESH = Symbol('runtime:docker-node-mesh')
 
-type Replica = { readonly service: string; readonly replicaId: string; readonly nodeId: string };
+type Replica = {
+    readonly service: string
+    readonly replicaId: string
+    readonly nodeId: string
+}
 
 /**
  * Asks the other nodes about their own docker engines, through this node's agent.
@@ -104,348 +111,588 @@ type Replica = { readonly service: string; readonly replicaId: string; readonly 
  * answers, a method resolves with no responses, which is what a lone node always meant.
  */
 export function dockerNodeMeshOver(holder: NodeAgent) {
-  const agent = () => holder.link;
+    const agent = () => holder.link
 
-  const replicas = async (link: ClientLink<ClientContext>): Promise<readonly Replica[]> => {
-    const snapshot = (await link.call(["directory", "snapshot"], {}, CALL)) as { replicas: Replica[] };
-    const runtimes = snapshot.replicas.filter((replica) => replica.service === SERVICE);
-    holder.selfNodeId = runtimes.find((replica) => replica.replicaId === holder.selfReplicaId)?.nodeId ?? holder.selfNodeId;
-    return runtimes;
-  };
-
-  /** Every node that runs a runtime, this one included or not. */
-  const nodesOf = async (link: ClientLink<ClientContext>, includeSelf: boolean): Promise<readonly string[]> => {
-    const all = await replicas(link);
-    const self = all.find((replica) => replica.replicaId === holder.selfReplicaId)?.nodeId;
-    return [...new Set(all.map((replica) => replica.nodeId))].filter((nodeId) => includeSelf || nodeId !== self);
-  };
-  const otherNodes = (link: ClientLink<ClientContext>) => nodesOf(link, false);
-
-  /** The node that announced `key` (a container id) among the other nodes, if any. */
-  const ownerOf = async (link: ClientLink<ClientContext>, key: string): Promise<string | undefined> => {
-    try {
-      const resolution = (await link.call(["directory", "resolve"], { service: SERVICE, key }, CALL)) as {
-        reason: string;
-        replica: Replica;
-      };
-      const self = (await replicas(link)).find((replica) => replica.replicaId === holder.selfReplicaId)?.nodeId;
-      return resolution.reason === "key-holder" && resolution.replica.nodeId !== self ? resolution.replica.nodeId : undefined;
-    } catch {
-      return undefined;
+    const replicas = async (
+        link: ClientLink<ClientContext>
+    ): Promise<readonly Replica[]> => {
+        const snapshot = (await link.call(
+            ['directory', 'snapshot'],
+            {},
+            CALL
+        )) as { replicas: Replica[] }
+        const runtimes = snapshot.replicas.filter(
+            (replica) => replica.service === SERVICE
+        )
+        holder.selfNodeId =
+            runtimes.find(
+                (replica) => replica.replicaId === holder.selfReplicaId
+            )?.nodeId ?? holder.selfNodeId
+        return runtimes
     }
-  };
 
-  const callNode = async (
-    link: ClientLink<ClientContext>,
-    node: string,
-    path: readonly string[],
-    input: unknown,
-    key?: string,
-  ): Promise<unknown> => relayLink({ agent: link, target: { service: SERVICE, node, ...(key === undefined ? {} : { key }) } }).call([...NODE_ROUTER, ...path], input, CALL);
+    /** Every node that runs a runtime, this one included or not. */
+    const nodesOf = async (
+        link: ClientLink<ClientContext>,
+        includeSelf: boolean
+    ): Promise<readonly string[]> => {
+        const all = await replicas(link)
+        const self = all.find(
+            (replica) => replica.replicaId === holder.selfReplicaId
+        )?.nodeId
+        return [...new Set(all.map((replica) => replica.nodeId))].filter(
+            (nodeId) => includeSelf || nodeId !== self
+        )
+    }
+    const otherNodes = (link: ClientLink<ClientContext>) => nodesOf(link, false)
 
-  /** Collects answers as they come, and stops at the first of: enough, wanted, everyone answered, out of time. */
-  const gather = <TOutput, TResponse>(
-    nodes: readonly string[],
-    ask: (node: string) => Promise<TOutput>,
-    toResponse: (output: TOutput, node: string) => TResponse,
-    options: NodeMeshOptions<TResponse>,
-    fallbackTimeoutMs: number,
-  ): Promise<NodeMeshResult<TResponse>> =>
-    new Promise((resolve) => {
-      const startedAt = Date.now();
-      const collected: TResponse[] = [];
-      let settled = 0;
-      let done = false;
-      const timeoutMs = options.timeoutMs ?? fallbackTimeoutMs;
+    /** The node that announced `key` (a container id) among the other nodes, if any. */
+    const ownerOf = async (
+        link: ClientLink<ClientContext>,
+        key: string
+    ): Promise<string | undefined> => {
+        try {
+            const resolution = (await link.call(
+                ['directory', 'resolve'],
+                { service: SERVICE, key },
+                CALL
+            )) as {
+                reason: string
+                replica: Replica
+            }
+            const self = (await replicas(link)).find(
+                (replica) => replica.replicaId === holder.selfReplicaId
+            )?.nodeId
+            return resolution.reason === 'key-holder' &&
+                resolution.replica.nodeId !== self
+                ? resolution.replica.nodeId
+                : undefined
+        } catch {
+            return undefined
+        }
+    }
 
-      const finish = (stoppedEarly: boolean, timedOut: boolean) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        const lag = Date.now() - startedAt;
-        resolve({
-          correlationId: randomUUID(),
-          responses: collected,
-          stoppedEarly,
-          reason: stoppedEarly ? "killer_switch" : "timeout",
-          metrics: {
-            expectedResponders: nodes.length,
-            receivedResponses: collected.length,
+    const callNode = async (
+        link: ClientLink<ClientContext>,
+        node: string,
+        path: readonly string[],
+        input: unknown,
+        key?: string
+    ): Promise<unknown> =>
+        relayLink({
+            agent: link,
+            target: {
+                service: SERVICE,
+                node,
+                ...(key === undefined ? {} : { key }),
+            },
+        }).call([...NODE_ROUTER, ...path], input, CALL)
+
+    /** Collects answers as they come, and stops at the first of: enough, wanted, everyone answered, out of time. */
+    const gather = <TOutput, TResponse>(
+        nodes: readonly string[],
+        ask: (node: string) => Promise<TOutput>,
+        toResponse: (output: TOutput, node: string) => TResponse,
+        options: NodeMeshOptions<TResponse>,
+        fallbackTimeoutMs: number
+    ): Promise<NodeMeshResult<TResponse>> =>
+        new Promise((resolve) => {
+            const startedAt = Date.now()
+            const collected: TResponse[] = []
+            let settled = 0
+            let done = false
+            const timeoutMs = options.timeoutMs ?? fallbackTimeoutMs
+
+            const finish = (stoppedEarly: boolean, timedOut: boolean) => {
+                if (done) return
+                done = true
+                clearTimeout(timer)
+                const lag = Date.now() - startedAt
+                resolve({
+                    correlationId: randomUUID(),
+                    responses: collected,
+                    stoppedEarly,
+                    reason: stoppedEarly ? 'killer_switch' : 'timeout',
+                    metrics: {
+                        expectedResponders: nodes.length,
+                        receivedResponses: collected.length,
+                        droppedResponses: 0,
+                        retryResponses: 0,
+                        maxLagMs: lag,
+                        avgLagMs: lag,
+                        timedOut,
+                    },
+                })
+            }
+
+            const timer = setTimeout(() => {
+                finish(false, true)
+            }, timeoutMs)
+            timer.unref()
+            if (nodes.length === 0) {
+                finish(false, false)
+                return
+            }
+            for (const node of nodes) {
+                ask(node)
+                    .then(
+                        (output) => {
+                            if (done) return
+                            const response = toResponse(output, node)
+                            collected.push(response)
+                            const enough =
+                                options.maxCollectedResponses !== undefined &&
+                                collected.length >=
+                                    options.maxCollectedResponses
+                            if (
+                                enough ||
+                                options.stopWhen?.(response, collected) === true
+                            ) {
+                                finish(true, false)
+                            }
+                        },
+                        () => undefined
+                    )
+                    .finally(() => {
+                        settled += 1
+                        if (settled === nodes.length) finish(false, false)
+                    })
+            }
+        })
+
+    const empty = <TResponse>(): NodeMeshResult<TResponse> => ({
+        correlationId: randomUUID(),
+        responses: [],
+        stoppedEarly: false,
+        reason: 'timeout',
+        metrics: {
+            expectedResponders: 0,
+            receivedResponses: 0,
             droppedResponses: 0,
             retryResponses: 0,
-            maxLagMs: lag,
-            avgLagMs: lag,
-            timedOut,
-          },
-        });
-      };
+            maxLagMs: 0,
+            avgLagMs: 0,
+            timedOut: false,
+        },
+    })
 
-      const timer = setTimeout(() => { finish(false, true); }, timeoutMs);
-      timer.unref();
-      if (nodes.length === 0) {
-        finish(false, false);
-        return;
-      }
-      for (const node of nodes) {
-        ask(node).then(
-          (output) => {
-            if (done) return;
-            const response = toResponse(output, node);
-            collected.push(response);
-            const enough = options.maxCollectedResponses !== undefined && collected.length >= options.maxCollectedResponses;
-            if (enough || options.stopWhen?.(response, collected) === true) {
-              finish(true, false);
-            }
-          },
-          () => undefined,
-        ).finally(() => {
-          settled += 1;
-          if (settled === nodes.length) finish(false, false);
-        });
-      }
-    });
-
-  const empty = <TResponse>(): NodeMeshResult<TResponse> => ({
-    correlationId: randomUUID(),
-    responses: [],
-    stoppedEarly: false,
-    reason: "timeout",
-    metrics: { expectedResponders: 0, receivedResponses: 0, droppedResponses: 0, retryResponses: 0, maxLagMs: 0, avgLagMs: 0, timedOut: false },
-  });
-
-  /**
-   * A question for every other node, or for every node when the caller merges the answers into one view: a list is the
-   * union of every node's own containers, this one's included, so leaving this node out would drop its containers.
-   */
-  const everywhere =
-    <TRequest, TOutput, TResponse>(
-      path: readonly string[],
-      input: (request: TRequest) => unknown,
-      toResponse: (output: TOutput, node: string) => TResponse,
-      timeoutMs = DEFAULT_TIMEOUT_MS,
-      includeSelf = false,
-    ) =>
-    async (request: TRequest, options: NodeMeshOptions<TResponse> = {}): Promise<NodeMeshResult<TResponse>> => {
-      const link = agent();
-      if (link === undefined) return empty();
-      try {
-        const nodes = await nodesOf(link, includeSelf);
-        return await gather(nodes, (node) => callNode(link, node, path, input(request)) as Promise<TOutput>, toResponse, options, timeoutMs);
-      } catch {
-        return empty();
-      }
-    };
-
-  /** A question about a container: its owner first, every other node if the owner is unknown or fails. */
-  const ofContainer =
-    <TRequest, TOutput, TResponse>(
-      path: readonly string[],
-      key: (request: TRequest) => string,
-      input: (request: TRequest) => unknown,
-      toResponse: (output: TOutput, node: string) => TResponse,
-      timeoutMs = DEFAULT_TIMEOUT_MS,
-    ) =>
-    async (request: TRequest, options: NodeMeshOptions<TResponse> = {}): Promise<NodeMeshResult<TResponse>> => {
-      const link = agent();
-      if (link === undefined) return empty();
-      try {
-        const owner = await ownerOf(link, key(request));
-        if (owner !== undefined) {
-          const answered = await gather(
-            [owner],
-            (node) => callNode(link, node, path, input(request), key(request)) as Promise<TOutput>,
-            toResponse,
-            options,
-            timeoutMs,
-          );
-          if (answered.responses.length > 0) return answered;
-        }
-        const nodes = (await otherNodes(link)).filter((node) => node !== owner);
-        return await gather(nodes, (node) => callNode(link, node, path, input(request)) as Promise<TOutput>, toResponse, options, timeoutMs);
-      } catch {
-        return empty();
-      }
-    };
-
-  /**
-   * Every other node's runtime events, followed over the mesh for as long as someone watches.
-   *
-   * Nodes come and go, and the agent may not be there yet when the runtime starts, so each node is followed by its own
-   * loop that reconnects on failure and the set of nodes is re-read every few seconds. Nothing is replayed: a stream is
-   * what happens from the moment it is followed.
-   */
-  const streamRuntimeEvents = (): Observable<DockerRuntimeEvent> =>
-    new Observable<DockerRuntimeEvent>((subscriber) => {
-      const following = new Map<string, { stop: () => void }>();
-      let closed = false;
-
-      const follow = (link: ClientLink<ClientContext>, node: string) => {
-        let stopped = false;
-        let current: AsyncIterator<unknown> | undefined;
-        const stop = () => {
-          stopped = true;
-          void current?.return?.();
-        };
-        void (async () => {
-          while (!stopped && !closed) {
+    /**
+     * A question for every other node, or for every node when the caller merges the answers into one view: a list is the
+     * union of every node's own containers, this one's included, so leaving this node out would drop its containers.
+     */
+    const everywhere =
+        <TRequest, TOutput, TResponse>(
+            path: readonly string[],
+            input: (request: TRequest) => unknown,
+            toResponse: (output: TOutput, node: string) => TResponse,
+            timeoutMs = DEFAULT_TIMEOUT_MS,
+            includeSelf = false
+        ) =>
+        async (
+            request: TRequest,
+            options: NodeMeshOptions<TResponse> = {}
+        ): Promise<NodeMeshResult<TResponse>> => {
+            const link = agent()
+            if (link === undefined) return empty()
             try {
-              current = (await callNode(link, node, ["events", "stream"], {})) as AsyncIterator<unknown>;
-              for (let step = await current.next(); !step.done && !stopped; step = await current.next()) {
-                subscriber.next(step.value as DockerRuntimeEvent);
-              }
+                const nodes = await nodesOf(link, includeSelf)
+                return await gather(
+                    nodes,
+                    (node) =>
+                        callNode(
+                            link,
+                            node,
+                            path,
+                            input(request)
+                        ) as Promise<TOutput>,
+                    toResponse,
+                    options,
+                    timeoutMs
+                )
             } catch {
-              // The node went away or its stream broke: try again after a pause.
+                return empty()
             }
-            if (!stopped && !closed) {
-              await new Promise<void>((resolve) => setTimeout(resolve, EVENTS_RECONNECT_MS).unref());
-            }
-          }
-        })();
-        following.set(node, { stop });
-      };
-
-      const refresh = async () => {
-        const link = agent();
-        if (link === undefined || closed) return;
-        try {
-          const nodes = new Set(await otherNodes(link));
-          for (const node of nodes) {
-            if (!following.has(node)) follow(link, node);
-          }
-          for (const [node, follower] of following) {
-            if (!nodes.has(node)) {
-              follower.stop();
-              following.delete(node);
-            }
-          }
-        } catch {
-          // The agent is not reachable right now: the nodes already followed keep going, the rest is for the next round.
         }
-      };
 
-      void refresh();
-      const timer = setInterval(() => void refresh(), EVENTS_REFRESH_MS);
-      timer.unref();
+    /** A question about a container: its owner first, every other node if the owner is unknown or fails. */
+    const ofContainer =
+        <TRequest, TOutput, TResponse>(
+            path: readonly string[],
+            key: (request: TRequest) => string,
+            input: (request: TRequest) => unknown,
+            toResponse: (output: TOutput, node: string) => TResponse,
+            timeoutMs = DEFAULT_TIMEOUT_MS
+        ) =>
+        async (
+            request: TRequest,
+            options: NodeMeshOptions<TResponse> = {}
+        ): Promise<NodeMeshResult<TResponse>> => {
+            const link = agent()
+            if (link === undefined) return empty()
+            try {
+                const owner = await ownerOf(link, key(request))
+                if (owner !== undefined) {
+                    const answered = await gather(
+                        [owner],
+                        (node) =>
+                            callNode(
+                                link,
+                                node,
+                                path,
+                                input(request),
+                                key(request)
+                            ) as Promise<TOutput>,
+                        toResponse,
+                        options,
+                        timeoutMs
+                    )
+                    if (answered.responses.length > 0) return answered
+                }
+                const nodes = (await otherNodes(link)).filter(
+                    (node) => node !== owner
+                )
+                return await gather(
+                    nodes,
+                    (node) =>
+                        callNode(
+                            link,
+                            node,
+                            path,
+                            input(request)
+                        ) as Promise<TOutput>,
+                    toResponse,
+                    options,
+                    timeoutMs
+                )
+            } catch {
+                return empty()
+            }
+        }
 
-      return () => {
-        closed = true;
-        clearInterval(timer);
-        for (const follower of following.values()) follower.stop();
-        following.clear();
-      };
-    });
+    /**
+     * Every other node's runtime events, followed over the mesh for as long as someone watches.
+     *
+     * Nodes come and go, and the agent may not be there yet when the runtime starts, so each node is followed by its own
+     * loop that reconnects on failure and the set of nodes is re-read every few seconds. Nothing is replayed: a stream is
+     * what happens from the moment it is followed.
+     */
+    const streamRuntimeEvents = (): Observable<DockerRuntimeEvent> =>
+        new Observable<DockerRuntimeEvent>((subscriber) => {
+            const following = new Map<string, { stop: () => void }>()
+            let closed = false
 
-  const named = <T extends object>(node: string, body: T) => ({ ...body, responderNodeId: node });
+            const follow = (link: ClientLink<ClientContext>, node: string) => {
+                let stopped = false
+                let current: AsyncIterator<unknown> | undefined
+                const stop = () => {
+                    stopped = true
+                    void current?.return?.()
+                }
+                void (async () => {
+                    while (!stopped && !closed) {
+                        try {
+                            current = (await callNode(
+                                link,
+                                node,
+                                ['events', 'stream'],
+                                {}
+                            )) as AsyncIterator<unknown>
+                            for (
+                                let step = await current.next();
+                                !step.done && !stopped;
+                                step = await current.next()
+                            ) {
+                                subscriber.next(
+                                    step.value as DockerRuntimeEvent
+                                )
+                            }
+                        } catch {
+                            // The node went away or its stream broke: try again after a pause.
+                        }
+                        if (!stopped && !closed) {
+                            await new Promise<void>((resolve) =>
+                                setTimeout(resolve, EVENTS_RECONNECT_MS).unref()
+                            )
+                        }
+                    }
+                })()
+                following.set(node, { stop })
+            }
 
-  return {
-    streamRuntimeEvents,
-    selfNodeId: () => holder.selfNodeId,
-    listContainersAcrossInstances: everywhere<DockerContainerListRequestPayload, { data: unknown[]; meta: unknown; daemonId: string | null }, DockerContainerListResponsePayload>(
-      ["containers", "list"],
-      (request) => request.query,
-      (output, node) => ({ data: output.data, meta: output.meta, responderNodeId: node, responderDaemonId: output.daemonId }) as DockerContainerListResponsePayload,
-      DEFAULT_TIMEOUT_MS,
-      true,
-    ),
-    inspectContainerAcrossInstances: ofContainer<DockerContainerInspectRequestPayload, { detail: unknown }, DockerContainerInspectResponsePayload>(
-      ["containers", "inspect"],
-      (request) => request.query.containerId,
-      (request) => request.query,
-      (output, node) => named(node, output) as DockerContainerInspectResponsePayload,
-    ),
-    listRuntimeCatalogAcrossInstances: everywhere<DockerRuntimeCatalogRequestPayload, { catalog: unknown }, DockerRuntimeCatalogResponsePayload>(
-      ["containers", "catalog"],
-      () => ({}),
-      (output, node) => named(node, output) as DockerRuntimeCatalogResponsePayload,
-      2_000,
-      true,
-    ),
-    listContainerLogsSnapshotAcrossInstances: ofContainer<DockerContainerLogsSnapshotRequestPayload, unknown, DockerContainerLogsSnapshotResponsePayload>(
-      ["runtime", "logs"],
-      (request) => request.query.containerId,
-      (request) => request.query,
-      (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerLogsSnapshotResponsePayload,
-    ),
-    listContainerProcessesSnapshotAcrossInstances: ofContainer<DockerContainerProcessesSnapshotRequestPayload, unknown, DockerContainerProcessesSnapshotResponsePayload>(
-      ["runtime", "processes"],
-      (request) => request.query.containerId,
-      (request) => request.query,
-      (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerProcessesSnapshotResponsePayload,
-    ),
-    listContainerProcessLogsSnapshotAcrossInstances: ofContainer<DockerContainerProcessLogsSnapshotRequestPayload, unknown, DockerContainerProcessLogsSnapshotResponsePayload>(
-      ["runtime", "processLogs"],
-      (request) => request.query.containerId,
-      (request) => request.query,
-      (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerProcessLogsSnapshotResponsePayload,
-    ),
-    listContainerFilesSnapshotAcrossInstances: ofContainer<DockerContainerFilesSnapshotRequestPayload, unknown, DockerContainerFilesSnapshotResponsePayload>(
-      ["runtime", "files"],
-      (request) => request.query.containerId,
-      (request) => request.query,
-      (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerFilesSnapshotResponsePayload,
-    ),
-    readContainerFileSnapshotAcrossInstances: ofContainer<DockerContainerReadFileSnapshotRequestPayload, unknown, DockerContainerReadFileSnapshotResponsePayload>(
-      ["runtime", "readFile"],
-      (request) => request.query.containerId,
-      (request) => request.query,
-      (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerReadFileSnapshotResponsePayload,
-    ),
-    writeContainerFileAcrossInstances: ofContainer<DockerContainerWriteFileRequestPayload, unknown, DockerContainerWriteFileResponsePayload>(
-      ["runtime", "writeFile"],
-      (request) => request.body.containerId,
-      (request) => request.body,
-      (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerWriteFileResponsePayload,
-    ),
-    deleteContainerPathAcrossInstances: ofContainer<DockerContainerDeletePathRequestPayload, unknown, DockerContainerDeletePathResponsePayload>(
-      ["runtime", "deletePath"],
-      (request) => request.body.containerId,
-      (request) => request.body,
-      (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerDeletePathResponsePayload,
-    ),
-    renameContainerPathAcrossInstances: ofContainer<DockerContainerRenamePathRequestPayload, unknown, DockerContainerRenamePathResponsePayload>(
-      ["runtime", "renamePath"],
-      (request) => request.body.containerId,
-      (request) => request.body,
-      (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerRenamePathResponsePayload,
-    ),
-    createContainerDirectoryAcrossInstances: ofContainer<DockerContainerCreateDirectoryRequestPayload, unknown, DockerContainerCreateDirectoryResponsePayload>(
-      ["runtime", "createDirectory"],
-      (request) => request.body.containerId,
-      (request) => request.body,
-      (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerCreateDirectoryResponsePayload,
-    ),
-    openContainerTerminalSessionAcrossInstances: ofContainer<DockerContainerTerminalOpenRequestPayload, unknown, DockerContainerTerminalOpenResponsePayload>(
-      ["runtime", "terminalOpen"],
-      (request) => request.body.containerId,
-      (request) => request.body,
-      (output, node) => ({ session: output, responderNodeId: node }) as DockerContainerTerminalOpenResponsePayload,
-    ),
-    // A terminal session lives on the node that opened it and its id is announced as a key, so the call reaches that
-    // node first and only fans out when no replica claims it (a caller from before the key was announced).
-    listContainerTerminalSessionEventsAcrossInstances: ofContainer<DockerContainerTerminalEventsRequestPayload, unknown, DockerContainerTerminalEventsResponsePayload>(
-      ["runtime", "terminalEvents"],
-      (request) => request.query.sessionId,
-      (request) => request.query,
-      (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerTerminalEventsResponsePayload,
-    ),
-    sendContainerTerminalInputAcrossInstances: ofContainer<DockerContainerTerminalInputRequestPayload, unknown, DockerContainerTerminalInputResponsePayload>(
-      ["runtime", "terminalInput"],
-      (request) => request.body.sessionId,
-      (request) => request.body,
-      (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerTerminalInputResponsePayload,
-    ),
-    closeContainerTerminalSessionAcrossInstances: ofContainer<DockerContainerTerminalCloseRequestPayload, unknown, DockerContainerTerminalCloseResponsePayload>(
-      ["runtime", "terminalClose"],
-      (request) => request.body.sessionId,
-      (request) => request.body,
-      (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerTerminalCloseResponsePayload,
-    ),
-    inspectImageAcrossInstances: everywhere<DockerImageInspectRequestPayload, { detail: unknown }, DockerImageInspectResponsePayload>(
-      ["images", "inspect"],
-      (request) => request.query,
-      (output, node) => named(node, output) as DockerImageInspectResponsePayload,
-    ),
-  };
+            const refresh = async () => {
+                const link = agent()
+                if (link === undefined || closed) return
+                try {
+                    const nodes = new Set(await otherNodes(link))
+                    for (const node of nodes) {
+                        if (!following.has(node)) follow(link, node)
+                    }
+                    for (const [node, follower] of following) {
+                        if (!nodes.has(node)) {
+                            follower.stop()
+                            following.delete(node)
+                        }
+                    }
+                } catch {
+                    // The agent is not reachable right now: the nodes already followed keep going, the rest is for the next round.
+                }
+            }
+
+            void refresh()
+            const timer = setInterval(() => void refresh(), EVENTS_REFRESH_MS)
+            timer.unref()
+
+            return () => {
+                closed = true
+                clearInterval(timer)
+                for (const follower of following.values()) follower.stop()
+                following.clear()
+            }
+        })
+
+    const named = <T extends object>(node: string, body: T) => ({
+        ...body,
+        responderNodeId: node,
+    })
+
+    return {
+        streamRuntimeEvents,
+        selfNodeId: () => holder.selfNodeId,
+        listContainersAcrossInstances: everywhere<
+            DockerContainerListRequestPayload,
+            { data: unknown[]; meta: unknown; daemonId: string | null },
+            DockerContainerListResponsePayload
+        >(
+            ['containers', 'list'],
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    data: output.data,
+                    meta: output.meta,
+                    responderNodeId: node,
+                    responderDaemonId: output.daemonId,
+                }) as DockerContainerListResponsePayload,
+            DEFAULT_TIMEOUT_MS,
+            true
+        ),
+        inspectContainerAcrossInstances: ofContainer<
+            DockerContainerInspectRequestPayload,
+            { detail: unknown },
+            DockerContainerInspectResponsePayload
+        >(
+            ['containers', 'inspect'],
+            (request) => request.query.containerId,
+            (request) => request.query,
+            (output, node) =>
+                named(node, output) as DockerContainerInspectResponsePayload
+        ),
+        listRuntimeCatalogAcrossInstances: everywhere<
+            DockerRuntimeCatalogRequestPayload,
+            { catalog: unknown },
+            DockerRuntimeCatalogResponsePayload
+        >(
+            ['containers', 'catalog'],
+            () => ({}),
+            (output, node) =>
+                named(node, output) as DockerRuntimeCatalogResponsePayload,
+            2_000,
+            true
+        ),
+        listContainerLogsSnapshotAcrossInstances: ofContainer<
+            DockerContainerLogsSnapshotRequestPayload,
+            unknown,
+            DockerContainerLogsSnapshotResponsePayload
+        >(
+            ['runtime', 'logs'],
+            (request) => request.query.containerId,
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    snapshot: output,
+                    responderNodeId: node,
+                }) as DockerContainerLogsSnapshotResponsePayload
+        ),
+        listContainerProcessesSnapshotAcrossInstances: ofContainer<
+            DockerContainerProcessesSnapshotRequestPayload,
+            unknown,
+            DockerContainerProcessesSnapshotResponsePayload
+        >(
+            ['runtime', 'processes'],
+            (request) => request.query.containerId,
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    snapshot: output,
+                    responderNodeId: node,
+                }) as DockerContainerProcessesSnapshotResponsePayload
+        ),
+        listContainerProcessLogsSnapshotAcrossInstances: ofContainer<
+            DockerContainerProcessLogsSnapshotRequestPayload,
+            unknown,
+            DockerContainerProcessLogsSnapshotResponsePayload
+        >(
+            ['runtime', 'processLogs'],
+            (request) => request.query.containerId,
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    snapshot: output,
+                    responderNodeId: node,
+                }) as DockerContainerProcessLogsSnapshotResponsePayload
+        ),
+        listContainerFilesSnapshotAcrossInstances: ofContainer<
+            DockerContainerFilesSnapshotRequestPayload,
+            unknown,
+            DockerContainerFilesSnapshotResponsePayload
+        >(
+            ['runtime', 'files'],
+            (request) => request.query.containerId,
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    snapshot: output,
+                    responderNodeId: node,
+                }) as DockerContainerFilesSnapshotResponsePayload
+        ),
+        readContainerFileSnapshotAcrossInstances: ofContainer<
+            DockerContainerReadFileSnapshotRequestPayload,
+            unknown,
+            DockerContainerReadFileSnapshotResponsePayload
+        >(
+            ['runtime', 'readFile'],
+            (request) => request.query.containerId,
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    snapshot: output,
+                    responderNodeId: node,
+                }) as DockerContainerReadFileSnapshotResponsePayload
+        ),
+        writeContainerFileAcrossInstances: ofContainer<
+            DockerContainerWriteFileRequestPayload,
+            unknown,
+            DockerContainerWriteFileResponsePayload
+        >(
+            ['runtime', 'writeFile'],
+            (request) => request.body.containerId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    ack: output,
+                    responderNodeId: node,
+                }) as DockerContainerWriteFileResponsePayload
+        ),
+        deleteContainerPathAcrossInstances: ofContainer<
+            DockerContainerDeletePathRequestPayload,
+            unknown,
+            DockerContainerDeletePathResponsePayload
+        >(
+            ['runtime', 'deletePath'],
+            (request) => request.body.containerId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    ack: output,
+                    responderNodeId: node,
+                }) as DockerContainerDeletePathResponsePayload
+        ),
+        renameContainerPathAcrossInstances: ofContainer<
+            DockerContainerRenamePathRequestPayload,
+            unknown,
+            DockerContainerRenamePathResponsePayload
+        >(
+            ['runtime', 'renamePath'],
+            (request) => request.body.containerId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    ack: output,
+                    responderNodeId: node,
+                }) as DockerContainerRenamePathResponsePayload
+        ),
+        createContainerDirectoryAcrossInstances: ofContainer<
+            DockerContainerCreateDirectoryRequestPayload,
+            unknown,
+            DockerContainerCreateDirectoryResponsePayload
+        >(
+            ['runtime', 'createDirectory'],
+            (request) => request.body.containerId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    ack: output,
+                    responderNodeId: node,
+                }) as DockerContainerCreateDirectoryResponsePayload
+        ),
+        openContainerTerminalSessionAcrossInstances: ofContainer<
+            DockerContainerTerminalOpenRequestPayload,
+            unknown,
+            DockerContainerTerminalOpenResponsePayload
+        >(
+            ['runtime', 'terminalOpen'],
+            (request) => request.body.containerId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    session: output,
+                    responderNodeId: node,
+                }) as DockerContainerTerminalOpenResponsePayload
+        ),
+        // A terminal session lives on the node that opened it and its id is announced as a key, so the call reaches that
+        // node first and only fans out when no replica claims it (a caller from before the key was announced).
+        listContainerTerminalSessionEventsAcrossInstances: ofContainer<
+            DockerContainerTerminalEventsRequestPayload,
+            unknown,
+            DockerContainerTerminalEventsResponsePayload
+        >(
+            ['runtime', 'terminalEvents'],
+            (request) => request.query.sessionId,
+            (request) => request.query,
+            (output, node) =>
+                ({
+                    snapshot: output,
+                    responderNodeId: node,
+                }) as DockerContainerTerminalEventsResponsePayload
+        ),
+        sendContainerTerminalInputAcrossInstances: ofContainer<
+            DockerContainerTerminalInputRequestPayload,
+            unknown,
+            DockerContainerTerminalInputResponsePayload
+        >(
+            ['runtime', 'terminalInput'],
+            (request) => request.body.sessionId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    ack: output,
+                    responderNodeId: node,
+                }) as DockerContainerTerminalInputResponsePayload
+        ),
+        closeContainerTerminalSessionAcrossInstances: ofContainer<
+            DockerContainerTerminalCloseRequestPayload,
+            unknown,
+            DockerContainerTerminalCloseResponsePayload
+        >(
+            ['runtime', 'terminalClose'],
+            (request) => request.body.sessionId,
+            (request) => request.body,
+            (output, node) =>
+                ({
+                    ack: output,
+                    responderNodeId: node,
+                }) as DockerContainerTerminalCloseResponsePayload
+        ),
+        inspectImageAcrossInstances: everywhere<
+            DockerImageInspectRequestPayload,
+            { detail: unknown },
+            DockerImageInspectResponsePayload
+        >(
+            ['images', 'inspect'],
+            (request) => request.query,
+            (output, node) =>
+                named(node, output) as DockerImageInspectResponsePayload
+        ),
+    }
 }
 
-export type DockerNodeMesh = ReturnType<typeof dockerNodeMeshOver>;
+export type DockerNodeMesh = ReturnType<typeof dockerNodeMeshOver>

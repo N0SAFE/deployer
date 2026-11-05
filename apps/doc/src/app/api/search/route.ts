@@ -1,6 +1,6 @@
-import { createFromSource } from 'fumadocs-core/search/server';
+import { createFromSource } from 'fumadocs-core/search/server'
 
-import { source } from '@/lib/source';
+import { source } from '@/lib/source'
 
 /**
  * Static export: the search index is written once at build time to
@@ -13,10 +13,10 @@ import { source } from '@/lib/source';
  * `staticClient({ from: '/api/search' })` expects to fetch.
  */
 const { staticGET } = createFromSource(source, {
-  // https://docs.orama.com/docs/orama-js/supported-languages
-  language: 'english',
-});
+    // https://docs.orama.com/docs/orama-js/supported-languages
+    language: 'english',
+})
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-static'
 
-export { staticGET as GET };
+export { staticGET as GET }

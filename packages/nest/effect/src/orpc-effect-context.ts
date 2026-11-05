@@ -1,36 +1,36 @@
-import { ORPCError, os } from "@orpc/server";
+import { ORPCError, os } from '@orpc/server'
 
-import type { Context } from "effect";
+import type { Context } from 'effect'
 
 /** Anything a `Context.Service` key structurally is. */
-export type ServiceKey = { readonly Identifier: unknown; readonly key: string };
+export type ServiceKey = { readonly Identifier: unknown; readonly key: string }
 
 /** The `Context` identifier a service key registers. */
-export type IdentifierOf<Key> = Key extends Context.Service<
-	infer Identifier,
-	infer _Shape
->
-	? Identifier
-	: never;
+export type IdentifierOf<Key> =
+    Key extends Context.Service<infer Identifier, infer _Shape>
+        ? Identifier
+        : never
 
 /** Brands a context with its services so callers can infer them. */
-declare const Services: unique symbol;
+declare const Services: unique symbol
 
 function middlewareFor<Services>() {
-	return os.$context().middleware(({ context, next }) => {
-		const effectContext = (
-			context as unknown as { "effect/context"?: Context.Context<Services> }
-		)["effect/context"];
+    return os.$context().middleware(({ context, next }) => {
+        const effectContext = (
+            context as unknown as {
+                'effect/context'?: Context.Context<Services>
+            }
+        )['effect/context']
 
-		if (effectContext === undefined) {
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message:
-					"effect/context is not configured — did the app pass `extraContext` to `createOrpcModule()`?",
-			});
-		}
+        if (effectContext === undefined) {
+            throw new ORPCError('INTERNAL_SERVER_ERROR', {
+                message:
+                    'effect/context is not configured — did the app pass `extraContext` to `createOrpcModule()`?',
+            })
+        }
 
-		return next({ context: { "effect/context": effectContext } });
-	});
+        return next({ context: { 'effect/context': effectContext } })
+    })
 }
 
 /**
@@ -49,10 +49,10 @@ function middlewareFor<Services>() {
  * The keys are type-level only — the runtime context is the app's, unchanged.
  */
 export type EffectContext<Services> = {
-	readonly [Services]?: Services;
-} & ReturnType<typeof middlewareFor<Services>>;
+    readonly [Services]?: Services
+} & ReturnType<typeof middlewareFor<Services>>
 
 /** Type-directed builder for the module wrapper, which derives its services. */
 export function effectContextFor<Services>(): EffectContext<Services> {
-	return middlewareFor<Services>();
+    return middlewareFor<Services>()
 }

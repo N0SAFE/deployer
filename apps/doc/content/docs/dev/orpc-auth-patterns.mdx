@@ -15,23 +15,25 @@ Auth is no longer global. The `ORPCGlobalContext` only has `request`. Routes tha
 Used for setup wizard, health checks, and any endpoint that should be accessible without authentication.
 
 ```typescript
-import { Controller } from '@nestjs/common';
-import { Implement, implement } from '@orpc/nest';
-import { setupContract } from '@deployer/bff-contracts';
-import { InitializationService } from '@/core/modules/setup/services/initialization.service';
+import { Controller } from '@nestjs/common'
+import { Implement, implement } from '@orpc/nest'
+import { setupContract } from '@deployer/bff-contracts'
+import { InitializationService } from '@/core/modules/setup/services/initialization.service'
 
 @Controller()
 export class SetupController {
-  constructor(
-    private readonly initializationService: InitializationService,
-  ) {}
+    constructor(
+        private readonly initializationService: InitializationService
+    ) {}
 
-  @Implement(setupContract.getState)
-  getState() {
-    return implement(setupContract.getState)
-      // No .use() needed — auth is not required
-      .handler(() => this.initializationService.getSetupState());
-  }
+    @Implement(setupContract.getState)
+    getState() {
+        return (
+            implement(setupContract.getState)
+                // No .use() needed — auth is not required
+                .handler(() => this.initializationService.getSetupState())
+        )
+    }
 }
 ```
 
@@ -44,39 +46,39 @@ export class SetupController {
 Used for any endpoint that needs a logged-in user.
 
 ```typescript
-import { Controller } from '@nestjs/common';
-import { Implement, implement } from '@orpc/nest';
-import { userContract } from '@deployer/identity-contracts';
-import { createAuthMiddleware } from '@/core/modules/auth/orpc/middlewares';
-import { requireAuth } from '@/core/modules/auth/orpc/middlewares';
-import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
-import { UserService } from './user.service';
+import { Controller } from '@nestjs/common'
+import { Implement, implement } from '@orpc/nest'
+import { userContract } from '@deployer/identity-contracts'
+import { createAuthMiddleware } from '@/core/modules/auth/orpc/middlewares'
+import { requireAuth } from '@/core/modules/auth/orpc/middlewares'
+import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service'
+import { UserService } from './user.service'
 
 @Controller()
 export class UserController {
-  private readonly authMiddleware;
+    private readonly authMiddleware
 
-  constructor(
-    authCoreService: AuthCoreService,
-    private readonly userService: UserService,
-  ) {
-    // Create auth middleware from the BetterAuth instance
-    // This populates context.auth from the current request's session
-    this.authMiddleware = createAuthMiddleware(authCoreService.instance);
-  }
+    constructor(
+        authCoreService: AuthCoreService,
+        private readonly userService: UserService
+    ) {
+        // Create auth middleware from the BetterAuth instance
+        // This populates context.auth from the current request's session
+        this.authMiddleware = createAuthMiddleware(authCoreService.instance)
+    }
 
-  @Implement(userContract.getProfile)
-  getProfile() {
-    return implement(userContract.getProfile)
-      .use(this.authMiddleware)      // Step 1: populate context.auth from session
-      .use(requireAuth())            // Step 2: throw UNAUTHORIZED if no session
-      .handler(({ context }) => {
-        // context.auth is now guaranteed (narrowed to ORPCAuthContext<true>)
-        // context.auth.session and context.auth.user are non-null
-        const userId = context.auth.user.id;
-        return this.userService.getProfile(userId);
-      });
-  }
+    @Implement(userContract.getProfile)
+    getProfile() {
+        return implement(userContract.getProfile)
+            .use(this.authMiddleware) // Step 1: populate context.auth from session
+            .use(requireAuth()) // Step 2: throw UNAUTHORIZED if no session
+            .handler(({ context }) => {
+                // context.auth is now guaranteed (narrowed to ORPCAuthContext<true>)
+                // context.auth.session and context.auth.user are non-null
+                const userId = context.auth.user.id
+                return this.userService.getProfile(userId)
+            })
+    }
 }
 ```
 
@@ -136,19 +138,19 @@ the wizard runs before any account exists.
 
 ```typescript
 // apps/api/bff/src/domains/setup/controllers/setup.controller.ts
-import { Controller } from '@nestjs/common';
-import { Implement, implement } from '@orpc/nest';
-import { setupContract } from '@deployer/bff-contracts';
+import { Controller } from '@nestjs/common'
+import { Implement, implement } from '@orpc/nest'
+import { setupContract } from '@deployer/bff-contracts'
 
 // No Nest guard runs: `.use(publicAccess())` is the whole opt-out.
 @Controller()
 export class SetupController {
-  @Implement(setupContract.getState)
-  getState() {
-    return implement(setupContract.getState)
-      .use(publicAccess())
-      .handler(() => this.initializationService.getSetupState());
-  }
+    @Implement(setupContract.getState)
+    getState() {
+        return implement(setupContract.getState)
+            .use(publicAccess())
+            .handler(() => this.initializationService.getSetupState())
+    }
 }
 ```
 
@@ -171,6 +173,7 @@ implement(contract)
 ```
 
 Each middleware can:
+
 - **Pass through**: `return next({ context })`
 - **Augment context**: `return next({ context: { ...context, auth } })`
 - **Throw**: `throw new ORPCError('UNAUTHORIZED', ...)`
@@ -179,11 +182,11 @@ Each middleware can:
 
 ## Available Middleware Functions
 
-| Function | Source | Context Input | Effect |
-|----------|--------|--------------|--------|
-| `createAuthMiddleware(auth)` | `orpc/middlewares.ts` | `{ request }` | Populates `context.auth` from session |
-| `requireAuth()` | `orpc/middlewares.ts` | `ORPCContextWithAuthOnly` | Throws `UNAUTHORIZED` if no session |
-| `requireMesh()` | `orpc/middlewares.ts` | `ORPCContextWithAuth` | Injects `context.mesh` |
-| `requirePlatformRole(roles)` | `orpc/middlewares.ts` | `ORPCContextWithAuthOnly<true>` | Throws `FORBIDDEN` if wrong role |
-| `authCoreService.middleware.admin.*` | `services/auth-core.service.ts` | `ORPCContextWithAuthOnly<true>` | Admin permission checks |
-| `authCoreService.middleware.org.*` | `services/auth-core.service.ts` | `ORPCContextWithAuthOnly<true>` | Org membership/role checks |
+| Function                             | Source                          | Context Input                   | Effect                                |
+| ------------------------------------ | ------------------------------- | ------------------------------- | ------------------------------------- |
+| `createAuthMiddleware(auth)`         | `orpc/middlewares.ts`           | `{ request }`                   | Populates `context.auth` from session |
+| `requireAuth()`                      | `orpc/middlewares.ts`           | `ORPCContextWithAuthOnly`       | Throws `UNAUTHORIZED` if no session   |
+| `requireMesh()`                      | `orpc/middlewares.ts`           | `ORPCContextWithAuth`           | Injects `context.mesh`                |
+| `requirePlatformRole(roles)`         | `orpc/middlewares.ts`           | `ORPCContextWithAuthOnly<true>` | Throws `FORBIDDEN` if wrong role      |
+| `authCoreService.middleware.admin.*` | `services/auth-core.service.ts` | `ORPCContextWithAuthOnly<true>` | Admin permission checks               |
+| `authCoreService.middleware.org.*`   | `services/auth-core.service.ts` | `ORPCContextWithAuthOnly<true>` | Org membership/role checks            |

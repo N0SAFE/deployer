@@ -1,29 +1,30 @@
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { Effect } from "effect";
-import { Pool } from "pg";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { Effect } from 'effect'
+import { Pool } from 'pg'
 
-import { inBoundary, procedure } from "@deployer/nest-effect";
-import { setupContract } from "@deployer/bff-contracts";
-import { NodeConfigRepository } from "@deployer/node-state"
-import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
+import { setupContract } from '@deployer/bff-contracts'
+import { inBoundary, procedure } from '@deployer/nest-effect'
+import { NodeConfigRepository } from '@deployer/node-state'
+import { liveSnapshot } from '@deployer/shared/core/utils/live-snapshot.utils'
 
-import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
-import {  EgressService } from "@/core/modules/egress/egress.service";
-import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
-import { NodeConfigNotFound } from "@/core/modules/setup/setup.errors";
-import { InitializationService } from "@/core/modules/setup/services/initialization.service";
+import { publicAccess } from '@/core/modules/auth/orpc/middlewares'
+import { EgressService } from '@/core/modules/egress/egress.service'
+import { ReachabilityService } from '@/core/modules/reachability/services/reachability.service'
+import { InitializationService } from '@/core/modules/setup/services/initialization.service'
+import { NodeConfigNotFound } from '@/core/modules/setup/setup.errors'
 
-import { PostSetupDestinationService } from "../services/post-setup-destination.service";
-import { PostSetupVerificationService, type PostSetupVerificationPorts } from "../services/post-setup-verification.service";
-
-
+import { PostSetupDestinationService } from '../services/post-setup-destination.service'
+import {
+    PostSetupVerificationService,
+    type PostSetupVerificationPorts,
+} from '../services/post-setup-verification.service'
 
 /**
  * Re-evaluation cadence for `getPostSetupVerificationStream` — the interval the
  * wizard used to poll at while the ingress is being replaced.
  */
-const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
+const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000
 
 /**
  * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs
@@ -37,7 +38,7 @@ const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
 export class SetupController {
     constructor(
         private readonly reachabilityService: ReachabilityService,
-        private readonly egress: EgressService,
+        private readonly egress: EgressService
     ) {}
 
     // ─── State ────────────────────────────────────────────────────────────────
@@ -47,9 +48,9 @@ export class SetupController {
         return procedure(setupContract.getState)
             .use(publicAccess())
             .effect(function* () {
-                const initialization = yield* InitializationService;
-                return yield* initialization.getSetupState();
-            });
+                const initialization = yield* InitializationService
+                return yield* initialization.getSetupState()
+            })
     }
 
     @Implement(setupContract.getNodeStatus)
@@ -57,9 +58,9 @@ export class SetupController {
         return procedure(setupContract.getNodeStatus)
             .use(publicAccess())
             .effect(function* () {
-                const initialization = yield* InitializationService;
-                return yield* initialization.getNodeStatus();
-            });
+                const initialization = yield* InitializationService
+                return yield* initialization.getNodeStatus()
+            })
     }
 
     // ─── Pre-flight probes ────────────────────────────────────────────────────
@@ -73,38 +74,46 @@ export class SetupController {
         return procedure(setupContract.probeDatabase)
             .use(publicAccess())
             .effect(function* ({ input }) {
-                const initialization = yield* InitializationService;
-                yield* initialization.assertSetupMutable();
-                yield* initialization.assertDatabaseProbeAllowed(input.databaseUrl.trim());
-                const start = Date.now();
+                const initialization = yield* InitializationService
+                yield* initialization.assertSetupMutable()
+                yield* initialization.assertDatabaseProbeAllowed(
+                    input.databaseUrl.trim()
+                )
+                const start = Date.now()
                 // The probe opens a throwaway connection: its outcome (reachable or not) is the answer, never a failure.
                 return yield* Effect.promise(async () => {
                     const pool = new Pool({
                         connectionString: input.databaseUrl.trim(),
                         max: 1,
                         connectionTimeoutMillis: 5_000,
-                    });
+                    })
                     try {
-                        await pool.query("SELECT 1");
+                        await pool.query('SELECT 1')
                         return {
                             status: 201 as const,
                             headers: {},
-                            body: { reachable: true, latencyMs: Date.now() - start },
-                        };
+                            body: {
+                                reachable: true,
+                                latencyMs: Date.now() - start,
+                            },
+                        }
                     } catch (err: unknown) {
                         return {
                             status: 201 as const,
                             headers: {},
                             body: {
                                 reachable: false,
-                                error: err instanceof Error ? err.message : String(err),
+                                error:
+                                    err instanceof Error
+                                        ? err.message
+                                        : String(err),
                             },
-                        };
+                        }
                     } finally {
-                        await pool.end().catch(() => undefined);
+                        await pool.end().catch(() => undefined)
                     }
-                });
-            });
+                })
+            })
     }
 
     /**
@@ -116,12 +125,12 @@ export class SetupController {
         return procedure(setupContract.triggerInitialize)
             .use(publicAccess())
             .effect(function* ({ input }) {
-                const initialization = yield* InitializationService;
-                yield* initialization.assertSetupMutable();
+                const initialization = yield* InitializationService
+                yield* initialization.assertSetupMutable()
                 // Credentials are stored inside initializationService.triggerInitialize()
-                const result = yield* initialization.triggerInitialize(input);
-                return { status: 201 as const, headers: {}, body: result };
-            });
+                const result = yield* initialization.triggerInitialize(input)
+                return { status: 201 as const, headers: {}, body: result }
+            })
     }
 
     // ─── Stream initialization events (SSE) ──────────────────────────────────
@@ -136,9 +145,9 @@ export class SetupController {
         return procedure(setupContract.getInitializeStream)
             .use(publicAccess())
             .effect(function* () {
-                const initialization = yield* InitializationService;
-                return initialization.getInitializeStream();
-            });
+                const initialization = yield* InitializationService
+                return initialization.getInitializeStream()
+            })
     }
 
     // ─── Post-setup hints (ORPC) ────────────────────────────────────────────
@@ -152,8 +161,8 @@ export class SetupController {
         return procedure(setupContract.listPostSetupHints)
             .use(publicAccess())
             .handler(() => ({
-                hintIds: ["scanning" as const, "notifications" as const],
-            }));
+                hintIds: ['scanning' as const, 'notifications' as const],
+            }))
     }
 
     /**
@@ -164,13 +173,13 @@ export class SetupController {
         return procedure(setupContract.dismissPostSetupHint)
             .use(publicAccess())
             .effect(function* ({ input }) {
-                const initialization = yield* InitializationService;
-                const nodeConfig = yield* NodeConfigRepository;
-                yield* initialization.assertSetupMutable();
-                yield* Effect.logInfo(`Hint dismissed: ${input.hintId}`);
-                const config = yield* nodeConfig.find();
-                if (!config) return yield* new NodeConfigNotFound({});
-                const flags = config.postSetupFlags ?? {};
+                const initialization = yield* InitializationService
+                const nodeConfig = yield* NodeConfigRepository
+                yield* initialization.assertSetupMutable()
+                yield* Effect.logInfo(`Hint dismissed: ${input.hintId}`)
+                const config = yield* nodeConfig.find()
+                if (!config) return yield* new NodeConfigNotFound({})
+                const flags = config.postSetupFlags ?? {}
                 yield* nodeConfig.upsert({
                     nodeId: config.nodeId,
                     strategy: config.strategy,
@@ -185,11 +194,11 @@ export class SetupController {
                     peerServiceToken: config.peerServiceToken,
                     peerServiceTokenExpiresAt: config.peerServiceTokenExpiresAt,
                     upgradedAtVersion: config.upgradedAtVersion,
-                    postSetupFlags: { ...flags, [input.hintId]: "dismissed" },
+                    postSetupFlags: { ...flags, [input.hintId]: 'dismissed' },
                     updatedAt: new Date().toISOString(),
-                });
-                return { status: 201 as const, headers: {}, body: { ok: true } };
-            });
+                })
+                return { status: 201 as const, headers: {}, body: { ok: true } }
+            })
     }
 
     // ─── Where the operator goes next ───────────────────────────────────────
@@ -209,9 +218,9 @@ export class SetupController {
         return procedure(setupContract.getPostSetupDestination)
             .use(publicAccess())
             .effect(function* () {
-                const destination = yield* PostSetupDestinationService;
-                return yield* destination.resolve();
-            });
+                const destination = yield* PostSetupDestinationService
+                return yield* destination.resolve()
+            })
     }
 
     /**
@@ -226,9 +235,9 @@ export class SetupController {
         return procedure(setupContract.getPostSetupVerification)
             .use(publicAccess())
             .effect(function* () {
-                const verification = yield* PostSetupVerificationService;
-                return yield* verification.verify();
-            });
+                const verification = yield* PostSetupVerificationService
+                return yield* verification.verify()
+            })
     }
 
     @Implement(setupContract.getPostSetupVerificationStream)
@@ -236,13 +245,19 @@ export class SetupController {
         return procedure(setupContract.getPostSetupVerificationStream)
             .use(publicAccess())
             .effect(function* ({ context }) {
-                const verification = yield* PostSetupVerificationService;
+                const verification = yield* PostSetupVerificationService
                 // The ports are captured once; each tick re-enters the request boundary for the timer-driven probe.
-                const ports = yield* Effect.context<PostSetupVerificationPorts>();
+                const ports =
+                    yield* Effect.context<PostSetupVerificationPorts>()
                 return liveSnapshot(
-                    () => Effect.runPromise(inBoundary(context, verification.verify()).pipe(Effect.provide(ports))),
-                    { intervalMs: POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS },
-                );
-            });
+                    () =>
+                        Effect.runPromise(
+                            inBoundary(context, verification.verify()).pipe(
+                                Effect.provide(ports)
+                            )
+                        ),
+                    { intervalMs: POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS }
+                )
+            })
     }
 }

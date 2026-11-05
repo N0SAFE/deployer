@@ -1,7 +1,7 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { PlatformHealthController } from "./controllers/platform-health.controller";
-import { PlatformHealthService } from "./services/platform-health.service";
+import { PlatformHealthController } from './controllers/platform-health.controller'
+import { PlatformHealthService } from './services/platform-health.service'
 
 /**
  * The platform health roll-up.
@@ -11,7 +11,12 @@ import { PlatformHealthService } from "./services/platform-health.service";
  * a second answer to "is the platform fine?".
  */
 export class PlatformHealthModule extends createModuleContext({
-	controllers: [PlatformHealthController],
-	providers: [{ provide: PlatformHealthService, useValue: PlatformHealthService.live }],
-	exports: [PlatformHealthService],
+    controllers: [PlatformHealthController],
+    providers: [
+        {
+            provide: PlatformHealthService,
+            useValue: PlatformHealthService.live,
+        },
+    ],
+    exports: [PlatformHealthService],
 }) {}

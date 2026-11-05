@@ -1,6 +1,6 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-import { OpenApiDocsController } from "./openapi-docs.controller";
+import { OpenApiDocsController } from './openapi-docs.controller'
 
 /**
  * Serves this API's OpenAPI document and a page that lists it.
@@ -12,5 +12,5 @@ import { OpenApiDocsController } from "./openapi-docs.controller";
  * app serves — see the note in `bff.module.ts`.
  */
 export class DocsModule extends createModuleContext({
-	controllers: [OpenApiDocsController],
+    controllers: [OpenApiDocsController],
 }) {}

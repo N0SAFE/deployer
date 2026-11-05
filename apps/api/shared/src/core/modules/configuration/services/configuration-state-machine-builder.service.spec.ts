@@ -1,35 +1,36 @@
-import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
+import { Effect } from 'effect'
+import { describe, expect, it } from 'vitest'
 
-import { makeConfigurationStateMachineBuilderService } from "./configuration-state-machine-builder.service";
+import { makeConfigurationStateMachineBuilderService } from './configuration-state-machine-builder.service'
 
-describe("ConfigurationStateMachineBuilderService", () => {
-    const service = makeConfigurationStateMachineBuilderService();
+describe('ConfigurationStateMachineBuilderService', () => {
+    const service = makeConfigurationStateMachineBuilderService()
 
-    it("builds typed state-machine definitions with dependencies, transitions, and rules", () => {
+    it('builds typed state-machine definitions with dependencies, transitions, and rules', () => {
         const machine = service
             .create()
             .defineNode({
-                scope: "project",
-                lifecycleState: "active",
+                scope: 'project',
+                lifecycleState: 'active',
                 dependsOnScopes: [],
-                allowedProviderTypes: ["github", "gitlab"],
-                allowedRunnerTypes: ["docker", "buildpack"],
+                allowedProviderTypes: ['github', 'gitlab'],
+                allowedRunnerTypes: ['docker', 'buildpack'],
             })
             .defineTransition({
-                from: "active",
-                to: "locked",
+                from: 'active',
+                to: 'locked',
                 when: {
-                    scopeIn: ["project"],
+                    scopeIn: ['project'],
                 },
-                description: "lock when project policy enters compliance freeze",
+                description:
+                    'lock when project policy enters compliance freeze',
             })
             .defineRule({
-                id: "production-hardening",
+                id: 'production-hardening',
                 priority: 100,
                 when: {
-                    requestedEnvironmentIn: ["production"],
-                    requestedProviderTypeIn: ["github"],
+                    requestedEnvironmentIn: ['production'],
+                    requestedProviderTypeIn: ['github'],
                 },
                 apply: {
                     deployment: {
@@ -40,34 +41,35 @@ describe("ConfigurationStateMachineBuilderService", () => {
                     },
                 },
             })
-            .build().pipe(Effect.runSync);
+            .build()
+            .pipe(Effect.runSync)
 
-        expect(machine.nodes).toHaveLength(1);
-        expect(machine.transitions).toHaveLength(1);
-        expect(machine.dispatch.rules).toHaveLength(1);
-        expect(machine.dispatch.rules[0]?.id).toBe("production-hardening");
-    });
+        expect(machine.nodes).toHaveLength(1)
+        expect(machine.transitions).toHaveLength(1)
+        expect(machine.dispatch.rules).toHaveLength(1)
+        expect(machine.dispatch.rules[0]?.id).toBe('production-hardening')
+    })
 
-    it("supports fluent policy DSL for constraints and dependencies", () => {
+    it('supports fluent policy DSL for constraints and dependencies', () => {
         const machine = service
             .policy()
-            .node("service", "active")
-            .describe("service runtime policy")
-            .dependsOn("project")
-            .allowProviders("github")
-            .allowRunners("docker")
+            .node('service', 'active')
+            .describe('service runtime policy')
+            .dependsOn('project')
+            .allowProviders('github')
+            .allowRunners('docker')
             .done()
-            .transition("active", "locked")
-            .describe("freeze deployments when required")
+            .transition('active', 'locked')
+            .describe('freeze deployments when required')
             .when({
-                scopeIn: ["service"],
-                requestedEnvironmentIn: ["production"],
+                scopeIn: ['service'],
+                requestedEnvironmentIn: ['production'],
             })
             .done()
-            .rule("prod-guard")
+            .rule('prod-guard')
             .priority(200)
-            .whenScope("service")
-            .whenEnvironment("production")
+            .whenScope('service')
+            .whenEnvironment('production')
             .apply({
                 deployment: {
                     requireApprovalForProduction: true,
@@ -83,20 +85,26 @@ describe("ConfigurationStateMachineBuilderService", () => {
                 envPolicyValid: true,
             })
             .done()
-            .build().pipe(Effect.runSync);
+            .build()
+            .pipe(Effect.runSync)
 
-        expect(machine.nodes).toHaveLength(1);
-        expect(machine.nodes[0]?.dependsOnScopes).toEqual(["project"]);
-        expect(machine.transitions[0]?.from).toBe("active");
-        expect(machine.dispatch.rules[0]?.id).toBe("prod-guard");
-        expect(machine.dispatch.rules[0]?.priority).toBe(200);
-        expect(machine.dispatch.rules[0]?.when.scopeIn).toEqual(["service"]);
-    });
+        expect(machine.nodes).toHaveLength(1)
+        expect(machine.nodes[0]?.dependsOnScopes).toEqual(['project'])
+        expect(machine.transitions[0]?.from).toBe('active')
+        expect(machine.dispatch.rules[0]?.id).toBe('prod-guard')
+        expect(machine.dispatch.rules[0]?.priority).toBe(200)
+        expect(machine.dispatch.rules[0]?.when.scopeIn).toEqual(['service'])
+    })
 
-    it("fails with every violation named when the definition breaks the schema", () => {
+    it('fails with every violation named when the definition breaks the schema', () => {
         const failure = Effect.runSync(
-            Effect.flip(service.create().defineNode({ scope: "nope" } as never).build()),
-        );
-        expect(failure._tag).toBe("RuntimeConfigurationStateMachineInvalid");
-    });
-});
+            Effect.flip(
+                service
+                    .create()
+                    .defineNode({ scope: 'nope' } as never)
+                    .build()
+            )
+        )
+        expect(failure._tag).toBe('RuntimeConfigurationStateMachineInvalid')
+    })
+})

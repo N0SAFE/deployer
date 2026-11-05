@@ -8,23 +8,23 @@ import NodesDiagnosticsPage from './diagnostics/page'
 import DashboardNodesPage from './page'
 
 describePageStates('Nodes list', {
-	page: () => <DashboardNodesPage />,
-	empty: { action: /add|connect|join|node/i },
+    page: () => <DashboardNodesPage />,
+    empty: { action: /add|connect|join|node/i },
 })
 
 describePageStates('Nodes capacity & admissions', {
-	page: () => <NodesCapacityPage />,
-	empty: { action: /add|reserve|allocate|create|node/i },
+    page: () => <NodesCapacityPage />,
+    empty: { action: /add|reserve|allocate|create|node/i },
 })
 
 describePageStates('Nodes diagnostics', {
-	page: () => <NodesDiagnosticsPage />,
-	empty: { action: /issue|look/i },
-	retryIsNotRefetch: true,
+    page: () => <NodesDiagnosticsPage />,
+    empty: { action: /issue|look/i },
+    retryIsNotRefetch: true,
 })
 
 describePageStates('Node detail', {
-	page: () => <DashboardNodeDetailPage />,
-	params: { nodeId: NODE_A },
-	empty: { action: /all nodes/i },
+    page: () => <DashboardNodeDetailPage />,
+    params: { nodeId: NODE_A },
+    empty: { action: /all nodes/i },
 })

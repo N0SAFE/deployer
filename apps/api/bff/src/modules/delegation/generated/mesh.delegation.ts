@@ -26,95 +26,125 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { meshContract } from "@deployer/fleet-contracts";
+import { meshContract } from '@deployer/fleet-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class MeshDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("fleet", meshContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('fleet', meshContract)
+    }
 
-	@Implement(meshContract.ping)
-	ping() {
-		return implement(meshContract.ping).handler(({ input }) => this.client.ping(input));
-	}
+    @Implement(meshContract.ping)
+    ping() {
+        return implement(meshContract.ping).handler(({ input }) =>
+            this.client.ping(input)
+        )
+    }
 
-	@Implement(meshContract.getLocalNode)
-	getLocalNode() {
-		return implement(meshContract.getLocalNode).handler(({ input }) => this.client.getLocalNode(input));
-	}
+    @Implement(meshContract.getLocalNode)
+    getLocalNode() {
+        return implement(meshContract.getLocalNode).handler(({ input }) =>
+            this.client.getLocalNode(input)
+        )
+    }
 
-	@Implement(meshContract.getNodeMetrics)
-	getNodeMetrics() {
-		return implement(meshContract.getNodeMetrics).handler(({ input }) => this.client.getNodeMetrics(input));
-	}
+    @Implement(meshContract.getNodeMetrics)
+    getNodeMetrics() {
+        return implement(meshContract.getNodeMetrics).handler(({ input }) =>
+            this.client.getNodeMetrics(input)
+        )
+    }
 
-	@Implement(meshContract.listPeers)
-	listPeers() {
-		return implement(meshContract.listPeers).handler(({ input }) => this.client.listPeers(input));
-	}
+    @Implement(meshContract.listPeers)
+    listPeers() {
+        return implement(meshContract.listPeers).handler(({ input }) =>
+            this.client.listPeers(input)
+        )
+    }
 
-	@Implement(meshContract.listEventStreams)
-	listEventStreams() {
-		return implement(meshContract.listEventStreams).handler(({ input }) => this.client.listEventStreams(input));
-	}
+    @Implement(meshContract.listEventStreams)
+    listEventStreams() {
+        return implement(meshContract.listEventStreams).handler(({ input }) =>
+            this.client.listEventStreams(input)
+        )
+    }
 
-	@Implement(meshContract.findEventStreamById)
-	findEventStreamById() {
-		return implement(meshContract.findEventStreamById).handler(({ input }) => this.client.findEventStreamById(input));
-	}
+    @Implement(meshContract.findEventStreamById)
+    findEventStreamById() {
+        return implement(meshContract.findEventStreamById).handler(
+            ({ input }) => this.client.findEventStreamById(input)
+        )
+    }
 
-	@Implement(meshContract.subscribeEventStream)
-	subscribeEventStream() {
-		return implement(meshContract.subscribeEventStream).handler(({ input }) => this.client.subscribeEventStream(input));
-	}
+    @Implement(meshContract.subscribeEventStream)
+    subscribeEventStream() {
+        return implement(meshContract.subscribeEventStream).handler(
+            ({ input }) => this.client.subscribeEventStream(input)
+        )
+    }
 
-	@Implement(meshContract.membershipSnapshot)
-	membershipSnapshot() {
-		return implement(meshContract.membershipSnapshot).handler(({ input }) => this.client.membershipSnapshot(input));
-	}
+    @Implement(meshContract.membershipSnapshot)
+    membershipSnapshot() {
+        return implement(meshContract.membershipSnapshot).handler(({ input }) =>
+            this.client.membershipSnapshot(input)
+        )
+    }
 
-	@Implement(meshContract.streamTopology)
-	streamTopology() {
-		return implement(meshContract.streamTopology).handler(({ input }) => this.client.streamTopology(input));
-	}
+    @Implement(meshContract.streamTopology)
+    streamTopology() {
+        return implement(meshContract.streamTopology).handler(({ input }) =>
+            this.client.streamTopology(input)
+        )
+    }
 
-	@Implement(meshContract.lookupResource)
-	lookupResource() {
-		return implement(meshContract.lookupResource).handler(({ input }) => this.client.lookupResource(input));
-	}
+    @Implement(meshContract.lookupResource)
+    lookupResource() {
+        return implement(meshContract.lookupResource).handler(({ input }) =>
+            this.client.lookupResource(input)
+        )
+    }
 
-	@Implement(meshContract.issueJoinToken)
-	issueJoinToken() {
-		return implement(meshContract.issueJoinToken).handler(({ input }) => this.client.issueJoinToken(input));
-	}
+    @Implement(meshContract.issueJoinToken)
+    issueJoinToken() {
+        return implement(meshContract.issueJoinToken).handler(({ input }) =>
+            this.client.issueJoinToken(input)
+        )
+    }
 
-	@Implement(meshContract.getNodeConfig)
-	getNodeConfig() {
-		return implement(meshContract.getNodeConfig).handler(({ input }) => this.client.getNodeConfig(input));
-	}
+    @Implement(meshContract.getNodeConfig)
+    getNodeConfig() {
+        return implement(meshContract.getNodeConfig).handler(({ input }) =>
+            this.client.getNodeConfig(input)
+        )
+    }
 
-	@Implement(meshContract.updateNodeConfig)
-	updateNodeConfig() {
-		return implement(meshContract.updateNodeConfig).handler(({ input }) => this.client.updateNodeConfig(input));
-	}
+    @Implement(meshContract.updateNodeConfig)
+    updateNodeConfig() {
+        return implement(meshContract.updateNodeConfig).handler(({ input }) =>
+            this.client.updateNodeConfig(input)
+        )
+    }
 
-	@Implement(meshContract.regenerateNodeConfigSecret)
-	regenerateNodeConfigSecret() {
-		return implement(meshContract.regenerateNodeConfigSecret).handler(({ input }) => this.client.regenerateNodeConfigSecret(input));
-	}
+    @Implement(meshContract.regenerateNodeConfigSecret)
+    regenerateNodeConfigSecret() {
+        return implement(meshContract.regenerateNodeConfigSecret).handler(
+            ({ input }) => this.client.regenerateNodeConfigSecret(input)
+        )
+    }
 
-	@Implement(meshContract.testNodeConfigDb)
-	testNodeConfigDb() {
-		return implement(meshContract.testNodeConfigDb).handler(({ input }) => this.client.testNodeConfigDb(input));
-	}
+    @Implement(meshContract.testNodeConfigDb)
+    testNodeConfigDb() {
+        return implement(meshContract.testNodeConfigDb).handler(({ input }) =>
+            this.client.testNodeConfigDb(input)
+        )
+    }
 }

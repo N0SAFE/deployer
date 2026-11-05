@@ -55,9 +55,9 @@ describe('rewriteDeclarationAliases', () => {
 
         expect(stats.specifiers).toBe(1)
         expect(stats.files).toBe(1)
-        expect(fs.readFileSync(path.join(typesDir, 'entities/bar.d.ts'), 'utf8')).toBe(
-            "export * from './foo'\n"
-        )
+        expect(
+            fs.readFileSync(path.join(typesDir, 'entities/bar.d.ts'), 'utf8')
+        ).toBe("export * from './foo'\n")
     })
 
     it('rewrites a nested alias to the correct relative hop', () => {
@@ -107,7 +107,8 @@ describe('rewriteDeclarationAliases', () => {
                     "import '@/target'",
                     '',
                 ].join('\n'),
-                'target.d.ts': 'export declare const t: 1\nexport type T = number\n',
+                'target.d.ts':
+                    'export declare const t: 1\nexport type T = number\n',
             }
         )
 
@@ -203,8 +204,12 @@ describe('rewriteDeclarationAliases', () => {
         )
         const aliases = [{ prefix: '@/', target: rootDir }]
 
-        expect(rewriteDeclarationAliases(typesDir, rootDir, aliases).specifiers).toBe(1)
-        expect(rewriteDeclarationAliases(typesDir, rootDir, aliases).specifiers).toBe(0)
+        expect(
+            rewriteDeclarationAliases(typesDir, rootDir, aliases).specifiers
+        ).toBe(1)
+        expect(
+            rewriteDeclarationAliases(typesDir, rootDir, aliases).specifiers
+        ).toBe(0)
     })
 
     it('handles a self-name alias that maps to the source root', () => {

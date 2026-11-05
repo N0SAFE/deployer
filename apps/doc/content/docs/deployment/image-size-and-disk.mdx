@@ -115,7 +115,7 @@ deployer-svc-bff       .bun 1343 MB   next ✓  eslint ✓  typescript ✓
 
 ### Why Next.js is in a NestJS image
 
-Not because anything imports it. `@deployer/ui` — a *shared* package — lists
+Not because anything imports it. `@deployer/ui` — a _shared_ package — lists
 `next`, `react` and `tailwindcss` in its `devDependencies`, and this repo uses
 bun's **isolated** linker (`linker = "isolated"`), so installing a workspace
 dependency also installs that workspace's devDependencies. `svc-health` does not

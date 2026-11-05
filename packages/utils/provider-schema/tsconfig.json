@@ -7,16 +7,10 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "moduleResolution": "bundler",
-        "types": [
-            "vitest/globals"
-        ],
+        "types": ["vitest/globals"],
         "paths": {
-            "@deployer/provider-schema/*": [
-                "./src/*"
-            ]
+            "@deployer/provider-schema/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ]
+    "include": ["pkg-build.config.ts", "src/**/*"]
 }

@@ -1,19 +1,19 @@
-import { Controller, Get, Res } from "@nestjs/common";
-import { Render as SsrRender } from "@nestjs-ssr/react";
+import { Controller, Get, Res } from '@nestjs/common'
+import { Render as SsrRender } from '@nestjs-ssr/react'
 
-import type { ManagedWebState } from "@deployer/fleet-contracts";
+import type { ManagedWebState } from '@deployer/fleet-contracts'
 
-import { EnvService } from "@/config/env/env.module";
-import LoginView from "@/views/pages/login";
-import ManagedWebAppView from "@/views/pages/manage-web-app";
+import { EnvService } from '@/config/env/env.module'
+import LoginView from '@/views/pages/login'
+import ManagedWebAppView from '@/views/pages/manage-web-app'
 
-import { ManagedWebClient } from "../clients/managed-web.client";
+import { ManagedWebClient } from '../clients/managed-web.client'
 
-import type { Response } from "express";
+import type { Response } from 'express'
 
 /** Why the fallback console refuses to render while an external web app owns the URL. */
 const CONSOLE_DISABLED_MESSAGE =
-	"Management console disabled: MANAGED_WEB_APP_EXTERNAL=true (an externally managed dev web app is running)";
+    'Management console disabled: MANAGED_WEB_APP_EXTERNAL=true (an externally managed dev web app is running)'
 
 /**
  * The management console — the API-rendered fallback for `/manage/*`.
@@ -29,36 +29,38 @@ const CONSOLE_DISABLED_MESSAGE =
  * its typed client — so each action has ONE implementation on each side of the
  * boundary rather than one per visual.
  */
-@Controller("manage")
+@Controller('manage')
 export class PlatformConsoleController {
-	constructor(
-		private readonly env: EnvService,
-		private readonly managedWeb: ManagedWebClient,
-	) {}
+    constructor(
+        private readonly env: EnvService,
+        private readonly managedWeb: ManagedWebClient
+    ) {}
 
-	/**
-	 * The single console URL. SSR-seeds the state; the view keeps it live over oRPC.
-	 *
-	 * 404 when an EXTERNAL web app owns this URL: rendering our fallback would show an
-	 * operator a console whose controls cannot change anything, which is worse than a
-	 * refusal that says why.
-	 */
-	@Get("web-app")
-	@SsrRender(ManagedWebAppView)
-	async consolePage(@Res({ passthrough: true }) res: Response): Promise<{ state: ManagedWebState }> {
-		if (this.env.get("MANAGED_WEB_APP_EXTERNAL")) {
-			// A string result is sent as is by the SSR renderer (no view), so the status and the reason are all the caller gets.
-			res.status(404);
-			// `never`: the renderer's typing only knows view props, but it passes a string through untouched.
-			return CONSOLE_DISABLED_MESSAGE as never;
-		}
-		return { state: await this.managedWeb.state() };
-	}
+    /**
+     * The single console URL. SSR-seeds the state; the view keeps it live over oRPC.
+     *
+     * 404 when an EXTERNAL web app owns this URL: rendering our fallback would show an
+     * operator a console whose controls cannot change anything, which is worse than a
+     * refusal that says why.
+     */
+    @Get('web-app')
+    @SsrRender(ManagedWebAppView)
+    async consolePage(
+        @Res({ passthrough: true }) res: Response
+    ): Promise<{ state: ManagedWebState }> {
+        if (this.env.get('MANAGED_WEB_APP_EXTERNAL')) {
+            // A string result is sent as is by the SSR renderer (no view), so the status and the reason are all the caller gets.
+            res.status(404)
+            // `never`: the renderer's typing only knows view props, but it passes a string through untouched.
+            return CONSOLE_DISABLED_MESSAGE as never
+        }
+        return { state: await this.managedWeb.state() }
+    }
 
-	/** Login screen — public by design; the SSR guard exempts this path. */
-	@Get("login")
-	@SsrRender(LoginView)
-	login(): { redirect: string; error: string | null } {
-		return { redirect: "/manage/web-app", error: null };
-	}
+    /** Login screen — public by design; the SSR guard exempts this path. */
+    @Get('login')
+    @SsrRender(LoginView)
+    login(): { redirect: string; error: string | null } {
+        return { redirect: '/manage/web-app', error: null }
+    }
 }

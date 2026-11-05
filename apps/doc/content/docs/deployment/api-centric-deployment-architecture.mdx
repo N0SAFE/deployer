@@ -4,10 +4,16 @@ description: Complete rewrite of the deployment model — API as the single self
 order: 21
 ---
 
-<DocMeta source="apps/doc/content/docs/deployment/api-centric-deployment-architecture.mdx" scope="canonical" />
+<DocMeta
+    source="apps/doc/content/docs/deployment/api-centric-deployment-architecture.mdx"
+    scope="canonical"
+/>
 
 <DocCallout title="Status: design document" tone="warning">
-This is the approved target architecture for the deployment rewrite. It replaces the "one compose file ships API + Web together" model. Implementation happens in phased atomic PRs (see [Migration plan](#migration-plan)).
+    This is the approved target architecture for the deployment rewrite. It
+    replaces the "one compose file ships API + Web together" model.
+    Implementation happens in phased atomic PRs (see [Migration
+    plan](#migration-plan)).
 </DocCallout>
 
 ## Table of contents
@@ -40,11 +46,11 @@ Today the platform is deployed as a **couple**: one Docker Compose orchestrator 
 
 This couples three things that have fundamentally different lifecycles:
 
-| Concern | Problem today |
-|---|---|
-| **Deployment unit** | Production requires shipping and orchestrating two containers that are versioned, released, and owned independently. |
-| **Trust model** | CORS origins must be known *before* the API boots, but consumers may host the web app anywhere, on machines the API owner has never heard of. |
-| **Ingress** | Everything is addressed by raw ports (`:3001`, `:3000`) instead of stable hostnames, so there is no single place to attach routing, TLS, or middleware later. |
+| Concern             | Problem today                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deployment unit** | Production requires shipping and orchestrating two containers that are versioned, released, and owned independently.                                          |
+| **Trust model**     | CORS origins must be known _before_ the API boots, but consumers may host the web app anywhere, on machines the API owner has never heard of.                 |
+| **Ingress**         | Everything is addressed by raw ports (`:3001`, `:3000`) instead of stable hostnames, so there is no single place to attach routing, TLS, or middleware later. |
 
 The rewrite inverts the relationship: **the API is the only deployment unit**. It boots alone, owns and supervises its own dependencies (Postgres today, platform Traefik now), optionally spawns and supervises a managed web app, and replaces origin-based trust (CORS) with **possession-based trust (app-instance tokens)**.
 
@@ -91,14 +97,14 @@ flowchart TB
 
 Key inversions:
 
-| Aspect | Before | After |
-|---|---|---|
-| What the operator starts | Compose stack (api + web + …) | Only the API container |
-| Who owns Traefik | Nobody (ports only) / per-project configs | The API — a dedicated platform Traefik container |
-| Who starts the web app | Compose, always | The API, only when the managed-web-app flag is enabled |
-| Trust between web and API | Static CORS origin allowlist | App-instance token issued at web boot |
-| Addressing | `host:3001`, `host:3000` | `api.{prefix}deployer.localhost`, `app.{prefix}deployer.localhost` |
-| Dev vs prod delta | Different compose files | Identical logic; dev passes one extra env var |
+| Aspect                    | Before                                    | After                                                              |
+| ------------------------- | ----------------------------------------- | ------------------------------------------------------------------ |
+| What the operator starts  | Compose stack (api + web + …)             | Only the API container                                             |
+| Who owns Traefik          | Nobody (ports only) / per-project configs | The API — a dedicated platform Traefik container                   |
+| Who starts the web app    | Compose, always                           | The API, only when the managed-web-app flag is enabled             |
+| Trust between web and API | Static CORS origin allowlist              | App-instance token issued at web boot                              |
+| Addressing                | `host:3001`, `host:3000`                  | `api.{prefix}deployer.localhost`, `app.{prefix}deployer.localhost` |
+| Dev vs prod delta         | Different compose files                   | Identical logic; dev passes one extra env var                      |
 
 ---
 
@@ -133,29 +139,29 @@ The platform Traefik reconciler runs on every boot (desired: always running). Th
 
 Supervisors no longer report a bare boolean. Every supervisor declares **`payloadSchema`** (Zod — the single source of truth), and `probe()` performs **real measurements** validated against it at runtime:
 
-| Supervisor | Reported measurements (payload) |
-|------------|----------------------------------|
-| `TraefikSupervisorService` | live swarm service view (null when absent); **real HTTP probe of the `local` entrypoint** across candidate hosts (status code + latency); config view (API hostname, HTTP-provider endpoint, lanes served) |
-| `PostgresSupervisorService` | **discriminated union** `mode: "managed" \| "external"`: managed → container + volume usage (`UsageData.Size`) + host port; external → real `SELECT 1` + `information_schema` table count/names |
-| `ManagedWebSupervisorService` | container state/sizes + desired-state flag + web hostname |
+| Supervisor                    | Reported measurements (payload)                                                                                                                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TraefikSupervisorService`    | live swarm service view (null when absent); **real HTTP probe of the `local` entrypoint** across candidate hosts (status code + latency); config view (API hostname, HTTP-provider endpoint, lanes served) |
+| `PostgresSupervisorService`   | **discriminated union** `mode: "managed" \| "external"`: managed → container + volume usage (`UsageData.Size`) + host port; external → real `SELECT 1` + `information_schema` table count/names            |
+| `ManagedWebSupervisorService` | container state/sizes + desired-state flag + web hostname                                                                                                                                                  |
 
 Access patterns on the orchestrator:
 
 ```ts
 // everything (each entry's payload already validated by its own schema)
-const all = await orch.getHealthOfAll();
+const all = await orch.getHealthOfAll()
 
 // THE accessor for anything that needs the SUPERVISED PROCESS: awaits
 // self-registration (supervisors register from their own onModuleInit,
 // possibly late — e.g. global-db waits for the DB URL), then returns the
 // fully typed instance.
-const traefik = await orch.getSupervisor(TraefikSupervisorService);
-const { payload } = (await traefik?.getHealth()) ?? {};
+const traefik = await orch.getSupervisor(TraefikSupervisorService)
+const { payload } = (await traefik?.getHealth()) ?? {}
 
 // the ENTIRE config + live info about the process: docker process (desired
 // spec + live container state), how to reach it (entry port, entry/api/web
 // URLs), connection DSNs, config locations — Zod-validated per supervisor.
-const info = traefik && (await traefik.getProcessInfo());
+const info = traefik && (await traefik.getProcessInfo())
 // info.process.kind === 'docker'; info.process.live.running;
 // info.urls.entryUrl / apiUrl / webUrl; info.entry.port + isDefault80
 ```
@@ -210,13 +216,13 @@ convergence) and all consumers reach the compose-owned service through the
 matching nested `managed.<service>.<key>` configuration (split from the flat
 `MANAGED_<SERVICE>_<KEY>` env by `splitManagedEnv` in `@deployer/env`):
 
-| Service | Compose-owned flag | Reach-config (nested) |
-|---|---|---|
-| Global Postgres | `MANAGED_GLOBAL_DB_ENABLED` | `managed.globalDb.{url,host,port,user,password,name,image}` |
-| Redis | `MANAGED_REDIS_ENABLED` | `managed.redis.{url,host,port,password}` |
-| Local SQLite | `MANAGED_LOCAL_DB_ENABLED` | `managed.localDb.path` |
-| Traefik | `MANAGED_TRAEFIK_ENABLED` | `managed.traefik.{host,image,httpPort,webHost,apiHost}` |
-| DB service primitive | `MANAGED_DATABASE_ENABLED` | `managed.database.{instances,host,port,user,password,name,image,dataVolumeBase}` |
+| Service              | Compose-owned flag          | Reach-config (nested)                                                            |
+| -------------------- | --------------------------- | -------------------------------------------------------------------------------- |
+| Global Postgres      | `MANAGED_GLOBAL_DB_ENABLED` | `managed.globalDb.{url,host,port,user,password,name,image}`                      |
+| Redis                | `MANAGED_REDIS_ENABLED`     | `managed.redis.{url,host,port,password}`                                         |
+| Local SQLite         | `MANAGED_LOCAL_DB_ENABLED`  | `managed.localDb.path`                                                           |
+| Traefik              | `MANAGED_TRAEFIK_ENABLED`   | `managed.traefik.{host,image,httpPort,webHost,apiHost}`                          |
+| DB service primitive | `MANAGED_DATABASE_ENABLED`  | `managed.database.{instances,host,port,user,password,name,image,dataVolumeBase}` |
 
 Mechanics:
 
@@ -352,7 +358,7 @@ another process already holds `:80`/`:443` for a `direct` edge, the ingress goes
 removed, instead of silently running headless.
 
 > **The entry port has exactly ONE owner: the door.** Traefik listens on `:80`
-> *inside* its container and is reached by overlay name (`deployer-traefik:80`);
+> _inside_ its container and is reached by overlay name (`deployer-traefik:80`);
 > the door publishes `<address>:<entryPort>` on the host and forwards there. If
 > the swarm service also published `entryPort` in `host` mode, two owners would
 > claim one port and the Traefik task could never start:
@@ -404,13 +410,13 @@ DATABASE (`PlatformRoutesSource` + the traefik tables), lane-agnostic, then
 attaches every route to the lanes its **visibility** allows (`private` → local +
 private; `public` → local + private + public):
 
-| Source | Labels / hosts → backend |
-|---|---|
-| **Platform** (`platform-api`, `platform-web`, `platform-setup`) | labels `api`, `web`, `setup` on every enabled lane (console visibility) → this API / the web target / setup |
-| **Global public address** (`node_network_config.publicAddress`) | public hosts only → this API |
-| **Deployments** (status `success`, container name + service port) | label `<svc>-<proj>` + `Host(customDomains…)` → `<containerName>:<port>` (service visibility) |
-| **Previews** (active `preview_environments` + their deployment) | `Host(fullDomain)` → the preview deployment container |
-| **Per-service configs** (`traefik_service_configs` + `traefik_domain_routes` + `traefik_service_targets`) | their hosts → their targets |
+| Source                                                                                                    | Labels / hosts → backend                                                                                    |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Platform** (`platform-api`, `platform-web`, `platform-setup`)                                           | labels `api`, `web`, `setup` on every enabled lane (console visibility) → this API / the web target / setup |
+| **Global public address** (`node_network_config.publicAddress`)                                           | public hosts only → this API                                                                                |
+| **Deployments** (status `success`, container name + service port)                                         | label `<svc>-<proj>` + `Host(customDomains…)` → `<containerName>:<port>` (service visibility)               |
+| **Previews** (active `preview_environments` + their deployment)                                           | `Host(fullDomain)` → the preview deployment container                                                       |
+| **Per-service configs** (`traefik_service_configs` + `traefik_domain_routes` + `traefik_service_targets`) | their hosts → their targets                                                                                 |
 
 **Every public entry point terminates at Traefik's `public` entrypoint.** A
 tunnel-style edge provider (Cloudflare Tunnel) runs connectors — one swarm
@@ -438,6 +444,7 @@ and liveness probes. It contains zero route-authoring code.
 re-converges the ingress and edge-connector supervisors (`convergeNow`, a no-op
 when nothing changed) so a lane switch, a new edge provider or a new entry port
 takes effect immediately rather than on the next sweep. Called from:
+
 - the ingress/edge service when lanes or the edge provider change,
 - the reachability controller when the global address config is saved,
 - the deployment service when a deploy/rollback queue job completes,
@@ -464,8 +471,8 @@ Every supervisor exposes a **static `getIdentifier()`** on
 `BaseSupervisorService` (inherited by `BaseDockerSupervisorService`):
 
 ```ts
-TraefikSupervisorService.getIdentifier()                          // "platform-ingress-traefik"
-MultiInstanceSupervisor.getIdentifier({ prefix: "acme" })         // "multi:acme:<12-hex-hash>"
+TraefikSupervisorService.getIdentifier() // "platform-ingress-traefik"
+MultiInstanceSupervisor.getIdentifier({ prefix: 'acme' }) // "multi:acme:<12-hex-hash>"
 ```
 
 - Subclasses declare `static readonly identifier = "<stable-id>"` — the id is
@@ -481,11 +488,11 @@ MultiInstanceSupervisor.getIdentifier({ prefix: "acme" })         // "multi:acme
 
 The database is supervised **conditionally on how it is provisioned** (`node_config.database_provisioning`):
 
-| Provisioning | Meaning | Supervision |
-|--------------|---------|-------------|
-| `"local"` | The API spawned its own Postgres container via dockerode (`deployer-postgres-dev`, named volume) during SETUP_AUTO | `GlobalDbSupervisorService` reconciles the container (reuse / restart / recreate) and reports health — registered into the supervisor orchestrator |
-| `"external"` | The operator supplied an existing database URL (`SETUP_AUTO_DATABASE_URL`, wizard "existing URL", remote mesh join, `setup-db` CLI) | **No supervisor.** Existing `DatabaseStartupGuard` / `DatabaseProbeService` logic applies |
-| `null` | Legacy / unknown | Treated as external — no supervision |
+| Provisioning | Meaning                                                                                                                             | Supervision                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"local"`    | The API spawned its own Postgres container via dockerode (`deployer-postgres-dev`, named volume) during SETUP_AUTO                  | `GlobalDbSupervisorService` reconciles the container (reuse / restart / recreate) and reports health — registered into the supervisor orchestrator |
+| `"external"` | The operator supplied an existing database URL (`SETUP_AUTO_DATABASE_URL`, wizard "existing URL", remote mesh join, `setup-db` CLI) | **No supervisor.** Existing `DatabaseStartupGuard` / `DatabaseProbeService` logic applies                                                          |
+| `null`       | Legacy / unknown                                                                                                                    | Treated as external — no supervision                                                                                                               |
 
 The supervisor self-registers only when the persisted marker is `"local"`, so externally-managed installs never see a Postgres supervisor in the health surface.
 
@@ -531,10 +538,10 @@ Key properties:
 
 The gateway exposes two levels of health:
 
-| Endpoint | Auth required | Includes supervisor status | Purpose |
-|---|---|---|---|
-| `GET /health` | No | No | Docker healthcheck, startup gate |
-| `GET /health/detailed` | Yes | Yes (`supervisors[]`) | Operational dashboard |
+| Endpoint               | Auth required | Includes supervisor status | Purpose                          |
+| ---------------------- | ------------- | -------------------------- | -------------------------------- |
+| `GET /health`          | No            | No                         | Docker healthcheck, startup gate |
+| `GET /health/detailed` | Yes           | Yes (`supervisors[]`)      | Operational dashboard            |
 
 The basic endpoint responds immediately (`status: ok`) even before the orchestrator completes — Docker needs an immediate signal. The detailed endpoint is richer but requires authentication.
 
@@ -549,11 +556,11 @@ Every `BaseSupervisorService` exposes `getHealth()` returning a `SupervisorHealt
 The platform supervisors are owned by the **API** (`AppModule`, i.e. the one graph `main.ts` builds). There is no gateway app and no sub-app pipeline — onboarding is a separate process, `apps/setup`, which founds the swarm and then hands the entry port over.
 
 1. **At API boot**, the platform-Traefik supervisor ensures a Traefik service exists:
-   - Image: configurable via `DEPLOYER_TRAEFIK_IMAGE` (default pinned `traefik:v3.6.10`).
-   - A swarm `global` service attached to the platform overlay the API creates/reuses.
-   - **No Docker socket and no config volume.** One entrypoint per lane: `local` (:80), `private` (:8001), `public` (:8002), plus `public-tls` (:8443) when the edge serves HTTPS through Let's Encrypt. Host ports are published only for an acknowledged inbound edge (`direct`); otherwise the node's doors reach the entrypoints over the overlay.
+    - Image: configurable via `DEPLOYER_TRAEFIK_IMAGE` (default pinned `traefik:v3.6.10`).
+    - A swarm `global` service attached to the platform overlay the API creates/reuses.
+    - **No Docker socket and no config volume.** One entrypoint per lane: `local` (:80), `private` (:8001), `public` (:8002), plus `public-tls` (:8443) when the edge serves HTTPS through Let's Encrypt. Host ports are published only for an acknowledged inbound edge (`direct`); otherwise the node's doors reach the entrypoints over the overlay.
 2. Routing comes from the **HTTP provider**: every task polls `GET /internal/ingress/traefik-config` on the API every 5 s (authenticated by a token derived from the auth secret). The API is the only writer of the swarm ingress's routes; there is no file to race on.
-   - During onboarding, `apps/setup` runs a separate **bootstrap** Traefik (plain container, bound to loopback) fed by the files setup writes (`dynamic-setup.yml`, `dynamic-api.yml`). The API's supervisor promotes the ingress to the swarm service, which serves `setup.*` from the HTTP configuration from then on.
+    - During onboarding, `apps/setup` runs a separate **bootstrap** Traefik (plain container, bound to loopback) fed by the files setup writes (`dynamic-setup.yml`, `dynamic-api.yml`). The API's supervisor promotes the ingress to the swarm service, which serves `setup.*` from the HTTP configuration from then on.
 3. **Onboarding runs in `apps/setup`**, which is the only process answering on `setup.{prefix}deployer.localhost` during that phase. It proxies the `/setup/*` contract to the API (the executor) and pipes the SSE stream.
 4. **At handover**, setup retargets `dynamic-api.yml`, polls `/health/ready` to `200`, rewrites `dynamic-setup.yml` to the API's `/setup/done` page, publishes `ready`, and exits.
 5. **The API then converges its supervisors** once the global DB exists (swarm app wiring → Postgres → Redis → managed web → ingress), which is what turns `/health/ready` green.
@@ -562,8 +569,16 @@ The platform supervisors are owned by the **API** (`AppModule`, i.e. the one gra
 
 The supervisor framework providers (`SupervisorOrchestratorService`, `SupervisorEventBus`) are provided by `SupervisorsModule.forRoot()` and are **singletons per Nest container**. One registry per container means health aggregation and convergence observe the same state within an application, while two applications booted in the same process (an e2e harness, for example) keep separate registries and cannot collide on a shared `supervisorId`.
 
-<DocCallout title="Traefik must be v3.6+, and the platform ingress uses no Docker provider" tone="warning">
-The swarm ingress reads only the HTTP provider — it has neither the `docker` nor the `swarm` provider, so the v2 option `--providers.docker.swarmMode=true` (removed in v3, and fatal at start-up if left in place) cannot reach it. Keep the image at v3.6 or newer all the same (`DEPLOYER_TRAEFIK_IMAGE`): earlier v3 releases do not negotiate the Docker Engine API version, which still matters for setup's bootstrap Traefik.
+<DocCallout
+    title="Traefik must be v3.6+, and the platform ingress uses no Docker provider"
+    tone="warning"
+>
+    The swarm ingress reads only the HTTP provider — it has neither the `docker`
+    nor the `swarm` provider, so the v2 option
+    `--providers.docker.swarmMode=true` (removed in v3, and fatal at start-up if
+    left in place) cannot reach it. Keep the image at v3.6 or newer all the same
+    (`DEPLOYER_TRAEFIK_IMAGE`): earlier v3 releases do not negotiate the Docker
+    Engine API version, which still matters for setup's bootstrap Traefik.
 </DocCallout>
 
 ### Reaching the app before/during setup
@@ -621,12 +636,12 @@ stateDiagram-v2
 
 When spawning the managed web container, the API injects:
 
-| Env on web container | Value |
-|---|---|
-| `NODE_ENV` | `production` |
-| `API_URL` | Internal address of the API (platform network) for server-side calls |
-| `NEXT_PUBLIC_API_URL` | Public Traefik hostname of the API — what browsers will call |
-| `NEXT_PUBLIC_APP_URL` | Public Traefik hostname of the web app itself |
+| Env on web container     | Value                                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`               | `production`                                                                                                                                                  |
+| `API_URL`                | Internal address of the API (platform network) for server-side calls                                                                                          |
+| `NEXT_PUBLIC_API_URL`    | Public Traefik hostname of the API — what browsers will call                                                                                                  |
+| `NEXT_PUBLIC_APP_URL`    | Public Traefik hostname of the web app itself                                                                                                                 |
 | Routing (not an env var) | Host-based router for the web hostname targeting the web container's listen port — served in the API's HTTP-provider configuration, never as container labels |
 
 The web container performs its **app-instance registration** against the API at boot (see [Identity redesign](#identity-redesign--app-instance-tokens)); the supervisor waits for a registered-and-healthy signal before declaring the managed web `Healthy`.
@@ -635,7 +650,7 @@ Versioning: the managed web image tag defaults to the API's own release version,
 
 ### Dev side-by-side mode
 
-Running `bun --bun run dev:api` and `bun --bun run dev:web` next to each other must not make the API spawn *another* web container. The API is told about this with one env var:
+Running `bun --bun run dev:api` and `bun --bun run dev:web` next to each other must not make the API spawn _another_ web container. The API is told about this with one env var:
 
 ```text
 MANAGED_WEB_APP_EXTERNAL=true
@@ -652,11 +667,11 @@ Everything else (Traefik supervision, routing, tokens) behaves identically to pr
 
 The architecture defines three deployment tiers, each with a different web-app ownership model:
 
-| Tier | Orchestrator | Web ownership | `MANAGED_WEB_APP_EXTERNAL` | Flag seed | Purpose |
-|---|---|---|---|---|---|
-| **dev** | `docker-compose.dev.yml` | Compose-managed | `true` | `false` | Local development, HMR |
-| **prod-like** | `docker-compose.prod-like.yml` | Compose-managed | `true` | `false` | Production images, full stack, compose manages everything |
-| **prod** | `docker-compose.prod.yml` | API-managed | `false` | `true` | True production — API is the sole deployment unit |
+| Tier          | Orchestrator                   | Web ownership   | `MANAGED_WEB_APP_EXTERNAL` | Flag seed | Purpose                                                   |
+| ------------- | ------------------------------ | --------------- | -------------------------- | --------- | --------------------------------------------------------- |
+| **dev**       | `docker-compose.dev.yml`       | Compose-managed | `true`                     | `false`   | Local development, HMR                                    |
+| **prod-like** | `docker-compose.prod-like.yml` | Compose-managed | `true`                     | `false`   | Production images, full stack, compose manages everything |
+| **prod**      | `docker-compose.prod.yml`      | API-managed     | `false`                    | `true`    | True production — API is the sole deployment unit         |
 
 In dev and prod-like, the web container is owned by the compose stack and registers against the API using `DEPLOYER_INSTANCE_EMAIL`/`DEPLOYER_INSTANCE_PASSWORD` credentials from the host `.env`. The API sees `MANAGED_WEB_APP_EXTERNAL=true` and defers to the compose stack's lifecycle.
 
@@ -685,7 +700,7 @@ Implementation shape: a single handler in the gateway layer rendering a static t
 This is the mode that makes the platform genuinely self-hostable by third parties:
 
 1. The consumer runs the official web container **on their own machine**:
-   - `API_URL` / `NEXT_PUBLIC_API_URL` point at whichever deployer API they want (hostname or IP, any origin).
+    - `API_URL` / `NEXT_PUBLIC_API_URL` point at whichever deployer API they want (hostname or IP, any origin).
 2. At boot the web container **registers itself** with that API (next section) and receives its app-instance token.
 3. From then on it is a first-class client: identical features, identical contracts.
 
@@ -699,16 +714,16 @@ The API learns about this web app dynamically at registration time — no pre-sh
 
 Static CORS answers "which origins may call me?" with a list written before deployment. In this architecture the set of legitimate callers is **open and unknowable at boot**: any consumer may host a web app anywhere. There is no safe static answer — an allowlist breaks BYO, a wildcard breaks credential-based auth (browsers refuse `Access-Control-Allow-Origin: *` together with `credentials: include`).
 
-So the trust anchor moves from *where the request comes from* to *what the caller holds*.
+So the trust anchor moves from _where the request comes from_ to _what the caller holds_.
 
 ### Token model
 
 Two independent credentials travel on every browser → API request:
 
-| Token | Issued to | Proves | Lifetime |
-|---|---|---|---|
-| **App-instance token** | The web app instance itself | "This client came through a registered deployer web app bound to this API" | Long-lived, renewable via heartbeat, revocable |
-| **User auth token** (Better Auth session/bearer) | The human | "This is an authenticated user of this API" | Existing Better Auth session semantics — unchanged |
+| Token                                            | Issued to                   | Proves                                                                     | Lifetime                                           |
+| ------------------------------------------------ | --------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
+| **App-instance token**                           | The web app instance itself | "This client came through a registered deployer web app bound to this API" | Long-lived, renewable via heartbeat, revocable     |
+| **User auth token** (Better Auth session/bearer) | The human                   | "This is an authenticated user of this API"                                | Existing Better Auth session semantics — unchanged |
 
 The app-instance token is **not** a user token. It carries no user privileges. Its claims are minimal:
 
@@ -783,7 +798,7 @@ With all cross-origin auth moved to headers:
 
 - No cookies cross the origin boundary → browsers happily accept `Access-Control-Allow-Origin: *` responses.
 - Preflights become trivial: allow the two known headers, allow the standard methods — statically, forever, regardless of who hosts web apps.
-- CSRF disappears for the cross-origin path: an attacker site cannot forge requests bearing headers it does not possess (it can scrape the *public* app token from a visited page, but that only grants the unprivileged app-surface — equivalent to any public SPA surface today; all privileged data still requires the user token it cannot steal).
+- CSRF disappears for the cross-origin path: an attacker site cannot forge requests bearing headers it does not possess (it can scrape the _public_ app token from a visited page, but that only grants the unprivileged app-surface — equivalent to any public SPA surface today; all privileged data still requires the user token it cannot steal).
 
 Same-origin convenience paths (cookies) may continue to exist internally, but the cross-origin contract is header-only. Native `EventSource` cannot set headers, but this codebase's SSE runs through ORPC live observables over `fetch` streams — headers work; nothing regresses.
 
@@ -791,29 +806,29 @@ Contract sketch (illustrative, final shapes land with the implementation PR):
 
 ```ts
 // packages/contracts/api/modules/platform/register-app-instance.ts — SKETCH
-import { standard } from "@deployer/orpc-utils"
-import z from "zod/v4"
+import { standard } from '@deployer/orpc-utils'
+import z from 'zod/v4'
 
 const registerInputSchema = z.object({
-  email: z.string().min(3),
-  password: z.string().min(8),
-  instanceLabel: z.string().min(1),
+    email: z.string().min(3),
+    password: z.string().min(8),
+    instanceLabel: z.string().min(1),
 })
 
 const registerOutputSchema = z.object({
-  instanceId: z.string().min(1),
-  appToken: z.string().min(1),
-  renewUntil: z.string().min(1),
+    instanceId: z.string().min(1),
+    appToken: z.string().min(1),
+    renewUntil: z.string().min(1),
 })
 
 export const registerAppInstanceContract = standard
-  .zod(registerOutputSchema, "registerAppInstance")
-  .create()
-  .path("/platform/app-instances/register")
-  .input((b) => b.body(registerInputSchema))
-  .output((b) => b.body(registerOutputSchema))
-  .errors((b) => [b.UNAUTHORIZED(), b.TOO_MANY_REQUESTS()])
-  .build()
+    .zod(registerOutputSchema, 'registerAppInstance')
+    .create()
+    .path('/platform/app-instances/register')
+    .input((b) => b.body(registerInputSchema))
+    .output((b) => b.body(registerOutputSchema))
+    .errors((b) => [b.UNAUTHORIZED(), b.TOO_MANY_REQUESTS()])
+    .build()
 ```
 
 ---
@@ -822,38 +837,38 @@ export const registerAppInstanceContract = standard
 
 ### API (new)
 
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `DEPLOYER_PREFIX` | no | *(empty)* | Hostname prefix segment. Empty → `api.deployer.localhost`. Never add a segment when unset. |
-| `MANAGED_WEB_APP_EXTERNAL` | no | `false` | Side-by-side dev marker: do not spawn web, do not serve the management page. |
-| `MANAGED_WEB_APP_ENABLED` | no | `true` | Seeds the initial value of the `managed_web_app.enabled` DB flag (first boot only; afterwards the DB wins). |
-| `MANAGED_WEB_APP_IMAGE` | no | same release as API | Image reference for the spawned managed web container. |
-| `DEPLOYER_TRAEFIK_IMAGE` | no | pinned `traefik:v3.6.10` | Image for the platform Traefik service. |
-| `DEPLOYER_TRAEFIK_HTTP_PORT` | no | `80` | Seeds the doors' entry port the first time `ingress.lanes` is written; afterwards the cluster setting is the only source. |
-| `DEPLOYER_DOOR_IMAGE` | no | `nginx:alpine` | Image the mesh agent runs the node doors with. |
-| `NODE_AGENT_IMAGE` | no | `deployer-svc-node-agent:dev` | Image of the per-node node agent setup / the API start. |
-| `DEPLOYER_CLOUDFLARED_IMAGE` / `DEPLOYER_CLOUDFLARED_REPLICAS` | no | pinned / `1` | Connector image and replicas for the `cloudflare-tunnel` edge provider. |
+| Variable                                                       | Required | Default                       | Purpose                                                                                                                   |
+| -------------------------------------------------------------- | -------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `DEPLOYER_PREFIX`                                              | no       | _(empty)_                     | Hostname prefix segment. Empty → `api.deployer.localhost`. Never add a segment when unset.                                |
+| `MANAGED_WEB_APP_EXTERNAL`                                     | no       | `false`                       | Side-by-side dev marker: do not spawn web, do not serve the management page.                                              |
+| `MANAGED_WEB_APP_ENABLED`                                      | no       | `true`                        | Seeds the initial value of the `managed_web_app.enabled` DB flag (first boot only; afterwards the DB wins).               |
+| `MANAGED_WEB_APP_IMAGE`                                        | no       | same release as API           | Image reference for the spawned managed web container.                                                                    |
+| `DEPLOYER_TRAEFIK_IMAGE`                                       | no       | pinned `traefik:v3.6.10`      | Image for the platform Traefik service.                                                                                   |
+| `DEPLOYER_TRAEFIK_HTTP_PORT`                                   | no       | `80`                          | Seeds the doors' entry port the first time `ingress.lanes` is written; afterwards the cluster setting is the only source. |
+| `DEPLOYER_DOOR_IMAGE`                                          | no       | `nginx:alpine`                | Image the mesh agent runs the node doors with.                                                                            |
+| `NODE_AGENT_IMAGE`                                             | no       | `deployer-svc-node-agent:dev` | Image of the per-node node agent setup / the API start.                                                                   |
+| `DEPLOYER_CLOUDFLARED_IMAGE` / `DEPLOYER_CLOUDFLARED_REPLICAS` | no       | pinned / `1`                  | Connector image and replicas for the `cloudflare-tunnel` edge provider.                                                   |
 
 There is deliberately **no env key for how the stack is reached**: the lanes and the public edge provider are an operator decision stored in the `ingress.lanes` mesh-roster setting (see [Networking](/docs/deployment/networking)).
 
 ### Web (BYO / managed — same contract)
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `API_URL` | yes | Server-side address of the target API. |
-| `NEXT_PUBLIC_API_URL` | yes | Browser-facing address of the target API. |
-| `DEPLOYER_INSTANCE_LABEL` | no | Human-readable label shown in the API's instance list. |
+| Variable                  | Required | Purpose                                                |
+| ------------------------- | -------- | ------------------------------------------------------ |
+| `API_URL`                 | yes      | Server-side address of the target API.                 |
+| `NEXT_PUBLIC_API_URL`     | yes      | Browser-facing address of the target API.              |
+| `DEPLOYER_INSTANCE_LABEL` | no       | Human-readable label shown in the API's instance list. |
 
 ### Removed
 
-| Variable | Fate |
-|---|---|
-| `TRUSTED_ORIGINS` | Deleted from the cross-origin path (see [What gets deleted](#what-gets-deleted)). |
-| `MANAGED_WIREGUARD_*` | Removed with the WireGuard sidecar — the per-node mesh agent replaces it. |
-| `DEPLOYER_DIRECT_PROXY_*`, `DIRECT_PROXY_*` | Removed with the failover proxy — the local door's rescue route replaces it. |
-| `DEPLOYER_EDGE_MODE`, `DEPLOYER_TUNNEL_*` | Removed — lanes and the edge provider live in the `ingress.lanes` / `edge.<provider id>` cluster settings. |
-| `DEPLOYER_TRAEFIK_TLS_ENABLED` | Removed — HTTPS is served by the edge provider (Cloudflare) or by Let's Encrypt on `public-tls` for `direct`. |
-| `SWARM_ADVERTISE_ADDR` | Removed — Swarm always advertises the node's mesh address (loopback without a mesh interface). |
+| Variable                                    | Fate                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `TRUSTED_ORIGINS`                           | Deleted from the cross-origin path (see [What gets deleted](#what-gets-deleted)).                             |
+| `MANAGED_WIREGUARD_*`                       | Removed with the WireGuard sidecar — the per-node mesh agent replaces it.                                     |
+| `DEPLOYER_DIRECT_PROXY_*`, `DIRECT_PROXY_*` | Removed with the failover proxy — the local door's rescue route replaces it.                                  |
+| `DEPLOYER_EDGE_MODE`, `DEPLOYER_TUNNEL_*`   | Removed — lanes and the edge provider live in the `ingress.lanes` / `edge.<provider id>` cluster settings.    |
+| `DEPLOYER_TRAEFIK_TLS_ENABLED`              | Removed — HTTPS is served by the edge provider (Cloudflare) or by Let's Encrypt on `public-tls` for `direct`. |
+| `SWARM_ADVERTISE_ADDR`                      | Removed — Swarm always advertises the node's mesh address (loopback without a mesh interface).                |
 
 All new variables are declared in `turbo.json` (`globalEnv`/task `env`) and mirrored in `.env.example` — undeclared env vars cause wrong cache hits, which is a documented anti-pattern in this repo.
 
@@ -927,9 +942,9 @@ sequenceDiagram
 Two additions, both following the existing Drizzle/Zod conventions in `apps/api/src/db/drizzle/schema/` (Zod schema colocated, inferred types, migrations generated — never `push` to prod):
 
 1. `app_instances`
-   - `id`, `label`, `kind` (`managed | external`), `tokenHash` (unique), `status` (`active | stale | revoked`), `lastSeenAt`, `createdByUserId`, `createdAt`, `updatedAt`.
+    - `id`, `label`, `kind` (`managed | external`), `tokenHash` (unique), `status` (`active | stale | revoked`), `lastSeenAt`, `createdByUserId`, `createdAt`, `updatedAt`.
 2. `platform_settings` (key/value, typed values via Zod discriminators) — or extension of the existing global-config store if the audit favors reuse over a new table (decided in Phase 0).
-   - Key `managed_web_app.enabled: boolean`.
+    - Key `managed_web_app.enabled: boolean`.
 
 No changes to user/org/auth tables. Better Auth remains the user identity system untouched.
 
@@ -937,16 +952,16 @@ No changes to user/org/auth tables. Better Auth remains the user identity system
 
 ## Security analysis
 
-| Threat | Mitigation |
-|---|---|
-| Random host mints an app token | Registration requires valid account credentials + strict rate limiting; failed attempts logged with request-id. |
-| Scraped app token from a public page | Grants only the unprivileged app-surface — by construction equivalent to today's public SPA surfaces. Privileged reads/writes always additionally require the user token. |
-| Stolen user token | Pre-existing Better Auth session security; unchanged by this redesign. App token alone is useless for impersonation. |
-| Rogue/disabled web instance | Instant revocation at the gateway (`jti` deny-list, cached); managed instance teardown flips flag → container removed → token revoked. |
-| Zombie instances | Heartbeat TTL marks instances stale; stale beyond threshold → auto-revoke, visible in console. |
-| Credential exposure in registration calls | HTTPS enforced for any non-loopback deployment; registration excluded from access logs payload capture. |
-| Passkey/WebAuthn across split hostnames | RP ID must cover both `api.*` and `app.*` hostnames (RP ID = shared parent domain). Called out explicitly in [Open questions](#open-questions). |
-| Traefik Docker socket | **Not mounted.** The swarm ingress reads routes from the API's HTTP provider (token-authenticated) and has no socket and no config volume. The mesh agent holds the socket on each node because it owns the doors. |
+| Threat                                    | Mitigation                                                                                                                                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Random host mints an app token            | Registration requires valid account credentials + strict rate limiting; failed attempts logged with request-id.                                                                                                    |
+| Scraped app token from a public page      | Grants only the unprivileged app-surface — by construction equivalent to today's public SPA surfaces. Privileged reads/writes always additionally require the user token.                                          |
+| Stolen user token                         | Pre-existing Better Auth session security; unchanged by this redesign. App token alone is useless for impersonation.                                                                                               |
+| Rogue/disabled web instance               | Instant revocation at the gateway (`jti` deny-list, cached); managed instance teardown flips flag → container removed → token revoked.                                                                             |
+| Zombie instances                          | Heartbeat TTL marks instances stale; stale beyond threshold → auto-revoke, visible in console.                                                                                                                     |
+| Credential exposure in registration calls | HTTPS enforced for any non-loopback deployment; registration excluded from access logs payload capture.                                                                                                            |
+| Passkey/WebAuthn across split hostnames   | RP ID must cover both `api.*` and `app.*` hostnames (RP ID = shared parent domain). Called out explicitly in [Open questions](#open-questions).                                                                    |
+| Traefik Docker socket                     | **Not mounted.** The swarm ingress reads routes from the API's HTTP provider (token-authenticated) and has no socket and no config volume. The mesh agent holds the socket on each node because it owns the doors. |
 
 ---
 
@@ -968,12 +983,12 @@ Each deletion lands in the same phase that makes it obsolete — no deprecation 
 
 Atomic phases; every phase type-checks, tests green, docs updated, conventional commits per area. Order is chosen so each phase is independently deployable.
 
-| Phase | Delivers | Deletes |
-|---|---|---|
-| **0 — Foundations** | `DEPLOYER_PREFIX` env + hostname-grammar helper (single SSOT), platform-settings store decision, turbo/env plumbing, `.env.example` updates. | Nothing yet. |
-| **1 — Platform Traefik** | Traefik supervisor module (ensure/reconcile/backoff), label-based routing for the API itself, hostname routing active alongside ports. | Nothing yet (ports still serve). |
-| **2 — App-instance tokens** | `app_instances` schema + migration, registration/heartbeat contracts (with `.errors(...)` definitions), gateway middlewares (app → user order, revocation cache), web-side boot registration + dual-token client injection, wildcard CORS preflight policy. | Cross-origin `TRUSTED_ORIGINS` enforcement. |
-| **3 — Managed web** | Managed-web reconciler (spawn/health/backoff/teardown), flag in platform settings, `/manage/web-app` console page (gated on `MANAGED_WEB_APP_EXTERNAL`), managed-instance token provisioning shortcut, web BYO compose template. | `web` from the production compose orchestrator; `depends_on` coupling. |
+| Phase                       | Delivers                                                                                                                                                                                                                                                    | Deletes                                                                |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **0 — Foundations**         | `DEPLOYER_PREFIX` env + hostname-grammar helper (single SSOT), platform-settings store decision, turbo/env plumbing, `.env.example` updates.                                                                                                                | Nothing yet.                                                           |
+| **1 — Platform Traefik**    | Traefik supervisor module (ensure/reconcile/backoff), label-based routing for the API itself, hostname routing active alongside ports.                                                                                                                      | Nothing yet (ports still serve).                                       |
+| **2 — App-instance tokens** | `app_instances` schema + migration, registration/heartbeat contracts (with `.errors(...)` definitions), gateway middlewares (app → user order, revocation cache), web-side boot registration + dual-token client injection, wildcard CORS preflight policy. | Cross-origin `TRUSTED_ORIGINS` enforcement.                            |
+| **3 — Managed web**         | Managed-web reconciler (spawn/health/backoff/teardown), flag in platform settings, `/manage/web-app` console page (gated on `MANAGED_WEB_APP_EXTERNAL`), managed-instance token provisioning shortcut, web BYO compose template.                            | `web` from the production compose orchestrator; `depends_on` coupling. |
 
 ### API-served SSR console (`@nestjs-ssr/react`)
 
@@ -986,7 +1001,7 @@ server-rendered React views with `@nestjs-ssr/react` — the same Tailwind theme
 - **Fully dynamic**: views call the API through typed ORPC ops (React Query + TanStack Form + `@deployer/ui` components) — no HTTP form POSTs / redirects. `PlatformConsoleController` only renders via `@Render`; every action is an ORPC implementation in `PlatformManagedWebController` (toggle/restart/origin/tunnel), backed by `PlatformManagedWebService`.
 - Auth: `SsrAuthGuardMiddleware` (AppModule `configure`) checks the Better Auth session server-side for every `/manage/*` route except `/manage/login`, which renders the shared login screen.
 - `@Render` is imported from `@nestjs-ssr/react` (aliased `SsrRender`) — never the `Render` template decorator from `@nestjs/common`.
-| **4 — Hardening + docs** | E2E for the three flows (prod-boot, side-by-side, BYO registration), security tests (revocation, rate-limit, stale sweep), docs app updates (deployment + architecture sections, this page finalized from *design* to *current*). | Leftover dead flags/utils from the old CORS path (`knip` clean). |
+  | **4 — Hardening + docs** | E2E for the three flows (prod-boot, side-by-side, BYO registration), security tests (revocation, rate-limit, stale sweep), docs app updates (deployment + architecture sections, this page finalized from _design_ to _current_). | Leftover dead flags/utils from the old CORS path (`knip` clean). |
 
 Validation gates per phase: `bun --bun run api -- type-check`, `bun --bun run web -- type-check`, targeted Vitest suites, and a manual smoke of the affected flow. Phase 2 and 3 additionally get e2e specs under the existing shared-postgres harness.
 

@@ -1,64 +1,74 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 
-import { Logger } from "@nestjs/common";
-import { ORPCError } from "@orpc/server";
-import { APIError } from "better-auth/api";
+import { Logger } from '@nestjs/common'
+import { ORPCError } from '@orpc/server'
+import { APIError } from 'better-auth/api'
 
-import { MeshBaseDomainError } from "../../modules/mesh/shared/domain/mesh-base-error";
+import { MeshBaseDomainError } from '../../modules/mesh/shared/domain/mesh-base-error'
 
 import {
     getInternalErrorRequestContext,
     type InternalErrorRequestContext,
-} from "./internal-error-context";
+} from './internal-error-context'
 
-import type { Request } from "express";
-
+import type { Request } from 'express'
 
 export type InternalErrorInsightModule = {
-    readonly id: string;
-    supports(error: unknown): boolean;
-    describe(error: unknown): Record<string, unknown>;
+    readonly id: string
+    supports(error: unknown): boolean
+    describe(error: unknown): Record<string, unknown>
 }
 
 export type InternalErrorCaptureOptions = {
-    source: "orpc" | "better-auth" | "mesh-domain" | "unknown";
-    request?: Request;
+    source: 'orpc' | 'better-auth' | 'mesh-domain' | 'unknown'
+    request?: Request
 }
 
 export type InternalErrorCaptureResult = {
-    traceId: string;
-    requestId?: string;
+    traceId: string
+    requestId?: string
 }
 
 export type InternalErrorInsightServiceShape = {
     /** Adds (or replaces, by id) a module that knows how to describe one family of errors. */
-    readonly registerModule: (module: InternalErrorInsightModule) => void;
+    readonly registerModule: (module: InternalErrorInsightModule) => void
     /** Logs the error with everything the modules know about it, and answers the trace id a client can quote. */
-    readonly capture: (error: unknown, options: InternalErrorCaptureOptions) => InternalErrorCaptureResult;
-    readonly shouldExposeDebugPayload: () => boolean;
-    readonly buildClientDebugPayload: (error: unknown) => Record<string, unknown>;
-};
+    readonly capture: (
+        error: unknown,
+        options: InternalErrorCaptureOptions
+    ) => InternalErrorCaptureResult
+    readonly shouldExposeDebugPayload: () => boolean
+    readonly buildClientDebugPayload: (
+        error: unknown
+    ) => Record<string, unknown>
+}
 
 /** A registry of error describers, built by the HTTP/oRPC host that owns the request boundary (it logs through Nest's logger, a sync edge). */
 export function makeInternalErrorInsightService(): InternalErrorInsightServiceShape {
-    const logger = new Logger("InternalErrorInsightService");
-    const modules = new Map<string, InternalErrorInsightModule>();
-    const includeStackInLogs = process.env.NODE_ENV !== "production";
+    const logger = new Logger('InternalErrorInsightService')
+    const modules = new Map<string, InternalErrorInsightModule>()
+    const includeStackInLogs = process.env.NODE_ENV !== 'production'
 
     const registerModule = (module: InternalErrorInsightModule): void => {
-        modules.set(module.id, module);
-    };
+        modules.set(module.id, module)
+    }
 
-    const capture = (error: unknown, options: InternalErrorCaptureOptions): InternalErrorCaptureResult => {
-        const traceId = randomUUID();
+    const capture = (
+        error: unknown,
+        options: InternalErrorCaptureOptions
+    ): InternalErrorCaptureResult => {
+        const traceId = randomUUID()
         const requestContext = options.request
             ? getInternalErrorRequestContext(options.request)
-            : undefined;
+            : undefined
 
-        const applicableModules = [...modules.values()].filter((module) => module.supports(error));
-        const selectedModules = applicableModules.length > 0
-            ? applicableModules
-            : [createFallbackModule()];
+        const applicableModules = [...modules.values()].filter((module) =>
+            module.supports(error)
+        )
+        const selectedModules =
+            applicableModules.length > 0
+                ? applicableModules
+                : [createFallbackModule()]
 
         const insightPayload = {
             traceId,
@@ -69,40 +79,58 @@ export function makeInternalErrorInsightService(): InternalErrorInsightServiceSh
                 module: module.id,
                 details: module.describe(error),
             })),
-        };
+        }
 
-        const stack = includeStackInLogs && error instanceof Error ? error.stack : undefined;
-        logger.error(`Captured internal error: ${safeStringify(insightPayload)}`, stack);
+        const stack =
+            includeStackInLogs && error instanceof Error
+                ? error.stack
+                : undefined
+        logger.error(
+            `Captured internal error: ${safeStringify(insightPayload)}`,
+            stack
+        )
 
         return {
             traceId,
             requestId: requestContext?.requestId,
-        };
-    };
+        }
+    }
 
     const shouldExposeDebugPayload = (): boolean => {
-        return includeStackInLogs;
-    };
+        return includeStackInLogs
+    }
 
-    const buildClientDebugPayload = (error: unknown): Record<string, unknown> => {
+    const buildClientDebugPayload = (
+        error: unknown
+    ): Record<string, unknown> => {
         return {
-            name: error instanceof Error ? error.name : "UnknownError",
-            message: error instanceof Error ? error.message : "Unknown error",
-            stack: includeStackInLogs && error instanceof Error ? error.stack : undefined,
-        };
-    };
+            name: error instanceof Error ? error.name : 'UnknownError',
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack:
+                includeStackInLogs && error instanceof Error
+                    ? error.stack
+                    : undefined,
+        }
+    }
 
-    registerModule(createOrpcModule());
-    registerModule(createBetterAuthModule());
-    registerModule(createMeshDomainModule());
-    registerModule(createFallbackModule());
+    registerModule(createOrpcModule())
+    registerModule(createBetterAuthModule())
+    registerModule(createMeshDomainModule())
+    registerModule(createFallbackModule())
 
-    return { registerModule, capture, shouldExposeDebugPayload, buildClientDebugPayload };
+    return {
+        registerModule,
+        capture,
+        shouldExposeDebugPayload,
+        buildClientDebugPayload,
+    }
 }
 
-function buildRequestPayload(context: InternalErrorRequestContext | undefined): Record<string, unknown> | undefined {
+function buildRequestPayload(
+    context: InternalErrorRequestContext | undefined
+): Record<string, unknown> | undefined {
     if (!context) {
-        return undefined;
+        return undefined
     }
 
     return {
@@ -111,7 +139,7 @@ function buildRequestPayload(context: InternalErrorRequestContext | undefined): 
         path: context.path,
         ip: context.ip,
         userAgent: context.userAgent,
-    };
+    }
 }
 
 function buildBaseErrorPayload(error: unknown): Record<string, unknown> {
@@ -119,98 +147,100 @@ function buildBaseErrorPayload(error: unknown): Record<string, unknown> {
         return {
             name: error.name,
             message: error.message,
-        };
+        }
     }
 
     return {
-        name: "NonErrorThrownValue",
+        name: 'NonErrorThrownValue',
         value: safeStringify(error),
-    };
+    }
 }
 
 function safeStringify(value: unknown): string {
     try {
-        return JSON.stringify(value);
+        return JSON.stringify(value)
     } catch {
-        return "[unserializable]";
+        return '[unserializable]'
     }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
+    return typeof value === 'object' && value !== null
 }
 
 function getStringProperty(value: unknown, key: string): string | undefined {
     if (!isRecord(value)) {
-        return undefined;
+        return undefined
     }
 
-    const property = value[key];
-    return typeof property === "string" ? property : undefined;
+    const property = value[key]
+    return typeof property === 'string' ? property : undefined
 }
 
 function getNumberProperty(value: unknown, key: string): number | undefined {
     if (!isRecord(value)) {
-        return undefined;
+        return undefined
     }
 
-    const property = value[key];
-    return typeof property === "number" ? property : undefined;
+    const property = value[key]
+    return typeof property === 'number' ? property : undefined
 }
 
 function getUnknownProperty(value: unknown, key: string): unknown {
     if (!isRecord(value)) {
-        return undefined;
+        return undefined
     }
 
-    return value[key];
+    return value[key]
 }
 
 function createOrpcModule(): InternalErrorInsightModule {
     return {
-        id: "orpc",
+        id: 'orpc',
         supports: (error: unknown) => {
             if (error instanceof ORPCError) {
-                return true;
+                return true
             }
 
             if (!isRecord(error)) {
-                return false;
+                return false
             }
 
-            return getStringProperty(error, "code") !== undefined
-                && getNumberProperty(error, "status") !== undefined;
+            return (
+                getStringProperty(error, 'code') !== undefined &&
+                getNumberProperty(error, 'status') !== undefined
+            )
         },
         describe: (error: unknown) => {
-            const code = getStringProperty(error, "code");
-            const status = getNumberProperty(error, "status");
-            const message = getStringProperty(error, "message");
-            const cause = getUnknownProperty(error, "cause");
+            const code = getStringProperty(error, 'code')
+            const status = getNumberProperty(error, 'status')
+            const message = getStringProperty(error, 'message')
+            const cause = getUnknownProperty(error, 'cause')
 
             return {
                 code,
                 status,
                 message,
                 causeName: cause instanceof Error ? cause.name : undefined,
-            };
+            }
         },
-    };
+    }
 }
 
 function createBetterAuthModule(): InternalErrorInsightModule {
     return {
-        id: "better-auth",
+        id: 'better-auth',
         supports: (error: unknown) => error instanceof APIError,
         describe: (error: unknown) => {
-            const apiError = error as APIError;
+            const apiError = error as APIError
 
             return {
                 statusCode: apiError.statusCode,
                 message: apiError.body?.message,
                 body: apiError.body,
-            };
+            }
         },
-    };
+    }
 }
 
 function createMeshDomainModule(): InternalErrorInsightModule {
@@ -235,7 +265,7 @@ function createMeshDomainModule(): InternalErrorInsightModule {
     // A static import is therefore both correct and strictly more robust: it is
     // resolved at build time, type-checked, and renamed/relocated by tooling.
     return {
-        id: "mesh-domain",
+        id: 'mesh-domain',
         supports: (error: unknown) => error instanceof MeshBaseDomainError,
         describe: (error: unknown) => {
             if (error instanceof MeshBaseDomainError) {
@@ -244,28 +274,28 @@ function createMeshDomainModule(): InternalErrorInsightModule {
                     httpStatus: error.httpStatus,
                     orpcCode: error.orpcCode,
                     message: error.message,
-                };
+                }
             }
-            return {};
+            return {}
         },
-    };
+    }
 }
 
 function createFallbackModule(): InternalErrorInsightModule {
     return {
-        id: "fallback",
+        id: 'fallback',
         supports: () => true,
         describe: (error: unknown) => {
             if (error instanceof Error) {
                 return {
                     name: error.name,
                     message: error.message,
-                };
+                }
             }
 
             return {
                 value: safeStringify(error),
-            };
+            }
         },
-    };
+    }
 }

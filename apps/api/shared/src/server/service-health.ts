@@ -1,10 +1,8 @@
-import { Controller, Get, Inject, Optional, Res } from "@nestjs/common";
+import { Controller, Get, Inject, Optional, Res } from '@nestjs/common'
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext } from '@deployer/nest-effect'
 
-
-import type { Response } from "express";
-
+import type { Response } from 'express'
 
 /**
  * What a service reports as "ready".
@@ -15,12 +13,12 @@ import type { Response } from "express";
  * below owns only the TRANSPORT (`/health`, `/health/ready`).
  */
 export type ServiceReadinessPort = {
-	/** `true` when the service can serve traffic. Never throws: "not ready" is an answer. */
-	isReady(): Promise<boolean>;
+    /** `true` when the service can serve traffic. Never throws: "not ready" is an answer. */
+    isReady(): Promise<boolean>
 }
 
 /** DI token for {@link ServiceReadinessPort}. */
-export const SERVICE_READINESS = Symbol("api-server:service-readiness");
+export const SERVICE_READINESS = Symbol('api-server:service-readiness')
 
 /**
  * The probes, as a module a service imports.
@@ -38,7 +36,7 @@ export const SERVICE_READINESS = Symbol("api-server:service-readiness");
  * declared a requirement, so there is nothing to fail). No default provider means
  * nothing to collide with.
  */
-@Controller("health")
+@Controller('health')
 // ── THE PROBES MUST NOT REQUIRE A SESSION ────────────────────────────────────
 // There is NO global guard (`AuthModule` installs none): a plain controller route requires
 // nothing, and these routes must stay that way. An orchestrator's probe has no session and
@@ -46,46 +44,52 @@ export const SERVICE_READINESS = Symbol("api-server:service-readiness");
 // unhealthy (`CMD-SHELL wget --spider http://127.0.0.1:3101/health/ready`), `bff` gates on
 // those containers, and the whole stack stayed down. Never add an auth requirement here.
 export class ServiceHealthController {
-	constructor(
-		@Optional() @Inject(SERVICE_READINESS) private readonly readiness: ServiceReadinessPort | null,
-	) {}
+    constructor(
+        @Optional()
+        @Inject(SERVICE_READINESS)
+        private readonly readiness: ServiceReadinessPort | null
+    ) {}
 
-	/**
-	 * LIVENESS. Never consults a dependency.
-	 *
-	 * A liveness probe that fails when a dependency is down makes an orchestrator
-	 * restart a healthy process in a loop — and buries the real fault behind a
-	 * restart storm. If this process can answer, it is alive.
-	 */
-	@Get()
-	liveness(@Res() res: Response): void {
-		res.status(200).json({ status: "ok", uptime: process.uptime() });
-	}
+    /**
+     * LIVENESS. Never consults a dependency.
+     *
+     * A liveness probe that fails when a dependency is down makes an orchestrator
+     * restart a healthy process in a loop — and buries the real fault behind a
+     * restart storm. If this process can answer, it is alive.
+     */
+    @Get()
+    liveness(@Res() res: Response): void {
+        res.status(200).json({ status: 'ok', uptime: process.uptime() })
+    }
 
-	/**
-	 * READINESS. The gate a compose/swarm healthcheck should target.
-	 *
-	 * Returns 503 while the service cannot serve, from whatever bound the port
-	 * (preflight at boot, or the health registry). Reads a CACHED verdict rather
-	 * than doing I/O: this endpoint is polled forever, and running the probes per
-	 * request is what the platform already got wrong once.
-	 */
-	@Get("ready")
-	async ready(@Res() res: Response): Promise<void> {
-		// ── WHY THIS FALLBACK IS `true`, AND WHY IT IS NO LONGER A LIE ───────
-		// `?? true` only applies when nothing bound `SERVICE_READINESS` — i.e. an
-		// app that declared no dependencies, so there is nothing to prove.
-		//
-		// It used to be a lie in practice, because `PreflightModule` was NOT global
-		// and this module never imported it: the token resolved to `null` even in
-		// apps that DID declare dependencies, and the fallback reported "ready"
-		// while preflight was still retrying (`/health/ready` answered 200 with
-		// 317 failed attempts logged). `PreflightModule` is now `global: true`, so
-		// the binding always reaches this controller and the verdict is the real
-		// one. Keep the fallback for the genuinely dependency-free case.
-		const ready = await Promise.resolve(this.readiness?.isReady() ?? true).catch(() => false);
-		res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "not-ready" });
-	}
+    /**
+     * READINESS. The gate a compose/swarm healthcheck should target.
+     *
+     * Returns 503 while the service cannot serve, from whatever bound the port
+     * (preflight at boot, or the health registry). Reads a CACHED verdict rather
+     * than doing I/O: this endpoint is polled forever, and running the probes per
+     * request is what the platform already got wrong once.
+     */
+    @Get('ready')
+    async ready(@Res() res: Response): Promise<void> {
+        // ── WHY THIS FALLBACK IS `true`, AND WHY IT IS NO LONGER A LIE ───────
+        // `?? true` only applies when nothing bound `SERVICE_READINESS` — i.e. an
+        // app that declared no dependencies, so there is nothing to prove.
+        //
+        // It used to be a lie in practice, because `PreflightModule` was NOT global
+        // and this module never imported it: the token resolved to `null` even in
+        // apps that DID declare dependencies, and the fallback reported "ready"
+        // while preflight was still retrying (`/health/ready` answered 200 with
+        // 317 failed attempts logged). `PreflightModule` is now `global: true`, so
+        // the binding always reaches this controller and the verdict is the real
+        // one. Keep the fallback for the genuinely dependency-free case.
+        const ready = await Promise.resolve(
+            this.readiness?.isReady() ?? true
+        ).catch(() => false)
+        res.status(ready ? 200 : 503).json({
+            status: ready ? 'ready' : 'not-ready',
+        })
+    }
 }
 
 /**
@@ -99,5 +103,5 @@ export class ServiceHealthController {
  * instead of declared, and `ServiceHealthController`'s `@Optional() SERVICE_READINESS` stays visible to the audit.
  */
 export class ServiceHealthModule extends createModuleContext({
-	controllers: [ServiceHealthController],
+    controllers: [ServiceHealthController],
 }) {}

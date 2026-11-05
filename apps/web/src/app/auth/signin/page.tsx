@@ -1,6 +1,5 @@
 'use client'
 
-
 // Using typed routing: replace raw next/link with declarative routes
 
 import { useForm } from '@tanstack/react-form'
@@ -8,7 +7,10 @@ import { Rocket } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React, { Suspense } from 'react'
 
-import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
+import {
+    AlertCircle,
+    Spinner,
+} from '@deployer/ui/components/atomics/atoms/Icon'
 import { Alert, AlertDescription } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -24,7 +26,7 @@ import { Label } from '@deployer/ui/components/shadcn/label'
 import redirect from '@/actions/redirect'
 import { useSetupState } from '@/domains/setup/hooks'
 import { authClient } from '@/lib/auth'
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { getErrorMessage } from '@/lib/orpc/typed-errors'
 import { setupDestinationUrl } from '@/lib/setup-url'
 import { PageTimingLogger } from '@/lib/timing'
 import { AuthSignup } from '@/routes'
@@ -34,7 +36,10 @@ import { PasswordInput } from '../_components/password-input'
 import { devConveniencesEnabled, signInErrorHint } from '../_utils/dev-only'
 
 import { DevDemoCredentials } from './_components/dev-demo-credentials'
-import { PasskeySignInButton, LastUsedBadge } from './_components/passkey-button'
+import {
+    PasskeySignInButton,
+    LastUsedBadge,
+} from './_components/passkey-button'
 import { getPostSignInTarget, readUrlSearchParam } from './_utils/url'
 import { loginSchema } from './schema'
 
@@ -105,7 +110,7 @@ function useUrlSearchString(): string {
     return React.useSyncExternalStore(
         subscribeToNothing,
         () => window.location.search,
-        () => '',
+        () => ''
     )
 }
 
@@ -189,7 +194,10 @@ export default function SignInPage() {
                 }
 
                 // No session yet: the account has a second factor.
-                if ((res.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect === true) {
+                if (
+                    (res.data as { twoFactorRedirect?: boolean } | null)
+                        ?.twoFactorRedirect === true
+                ) {
                     setChallenge(true)
                     return
                 }
@@ -200,7 +208,10 @@ export default function SignInPage() {
                 // rejection was unhandled and `isSubmitting` stayed true,
                 // leaving the submit button disabled forever.
                 setAuthError(
-                    getErrorMessage(error, 'Unable to reach the authentication service'),
+                    getErrorMessage(
+                        error,
+                        'Unable to reach the authentication service'
+                    )
                 )
             }
         },
@@ -215,13 +226,20 @@ export default function SignInPage() {
                 : await authClient.twoFactor.verifyTotp({ code })
 
             if (result.error) {
-                setAuthError(result.error.message ?? 'That code was not accepted')
+                setAuthError(
+                    result.error.message ?? 'That code was not accepted'
+                )
                 return
             }
 
             void redirect(getPostSignInTarget())
         } catch (error) {
-            setAuthError(getErrorMessage(error, 'Unable to reach the authentication service'))
+            setAuthError(
+                getErrorMessage(
+                    error,
+                    'Unable to reach the authentication service'
+                )
+            )
         } finally {
             setVerifying(false)
         }
@@ -237,7 +255,10 @@ export default function SignInPage() {
                     <CardHeader className="space-y-4 text-center">
                         <div className="flex justify-center">
                             <div className="bg-primary/10 rounded-full p-3">
-                                <Rocket className="text-primary h-8 w-8" aria-hidden />
+                                <Rocket
+                                    className="text-primary h-8 w-8"
+                                    aria-hidden
+                                />
                             </div>
                         </div>
                         <div>
@@ -245,8 +266,8 @@ export default function SignInPage() {
                                 Sign in to Deployer
                             </CardTitle>
                             <CardDescription className="text-base">
-                                Use your account to manage the projects, services and
-                                nodes deployed on this server.
+                                Use your account to manage the projects,
+                                services and nodes deployed on this server.
                             </CardDescription>
                         </div>
                     </CardHeader>
@@ -268,27 +289,43 @@ export default function SignInPage() {
                                     </p>
                                     <div className="space-y-2">
                                         <Label htmlFor="two-factor-code">
-                                            {useBackupCode ? 'Backup code' : 'Authentication code'}
+                                            {useBackupCode
+                                                ? 'Backup code'
+                                                : 'Authentication code'}
                                         </Label>
                                         <Input
                                             id="two-factor-code"
                                             autoFocus
                                             autoComplete="one-time-code"
-                                            inputMode={useBackupCode ? 'text' : 'numeric'}
+                                            inputMode={
+                                                useBackupCode
+                                                    ? 'text'
+                                                    : 'numeric'
+                                            }
                                             className="h-12"
                                             value={code}
-                                            onChange={(event) => { setCode(event.target.value); }}
+                                            onChange={(event) => {
+                                                setCode(event.target.value)
+                                            }}
                                         />
                                     </div>
 
                                     {authError && (
                                         <Alert variant="destructive">
                                             <AlertCircle className="h-4 w-4" />
-                                            <AlertDescription>{authError}</AlertDescription>
+                                            <AlertDescription>
+                                                {authError}
+                                            </AlertDescription>
                                         </Alert>
                                     )}
 
-                                    <Button type="submit" className="h-12 w-full text-base" disabled={verifying || code.length === 0}>
+                                    <Button
+                                        type="submit"
+                                        className="h-12 w-full text-base"
+                                        disabled={
+                                            verifying || code.length === 0
+                                        }
+                                    >
                                         {verifying && <Spinner />}
                                         {verifying ? 'Checking…' : 'Verify'}
                                     </Button>
@@ -296,133 +333,194 @@ export default function SignInPage() {
                                         type="button"
                                         variant="ghost"
                                         className="w-full"
-                                        onClick={() => { setUseBackupCode(!useBackupCode); setCode(''); }}
+                                        onClick={() => {
+                                            setUseBackupCode(!useBackupCode)
+                                            setCode('')
+                                        }}
                                     >
-                                        {useBackupCode ? 'Use an authenticator code' : 'Use a backup code'}
+                                        {useBackupCode
+                                            ? 'Use an authenticator code'
+                                            : 'Use a backup code'}
                                     </Button>
                                 </div>
                             </form>
                         ) : (
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                void form.handleSubmit()
-                            }}
-                            className="space-y-6"
-                        >
-                            <div className="space-y-4">
-                                <form.Field name="email">
-                                    {(field) => (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="email">Email address</Label>
-                                            <Input
-                                                placeholder="you@example.com"
-                                                id="email"
-                                                autoFocus
-                                                type="email"
-                                                className="h-12"
-                                                autoComplete="username"
-                                                value={field.state.value}
-                                                onBlur={field.handleBlur}
-                                                onChange={(event) => { field.handleChange(event.target.value); }}
-                                                aria-invalid={field.state.meta.errors.length > 0}
-                                                aria-describedby={field.state.meta.errors.length > 0 ? 'email-error' : undefined}
-                                            />
-                                            {/* Gate on isTouched: a blur on one field re-validates
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void form.handleSubmit()
+                                }}
+                                className="space-y-6"
+                            >
+                                <div className="space-y-4">
+                                    <form.Field name="email">
+                                        {(field) => (
+                                            <div className="space-y-2">
+                                                <Label htmlFor="email">
+                                                    Email address
+                                                </Label>
+                                                <Input
+                                                    placeholder="you@example.com"
+                                                    id="email"
+                                                    autoFocus
+                                                    type="email"
+                                                    className="h-12"
+                                                    autoComplete="username"
+                                                    value={field.state.value}
+                                                    onBlur={field.handleBlur}
+                                                    onChange={(event) => {
+                                                        field.handleChange(
+                                                            event.target.value
+                                                        )
+                                                    }}
+                                                    aria-invalid={
+                                                        field.state.meta.errors
+                                                            .length > 0
+                                                    }
+                                                    aria-describedby={
+                                                        field.state.meta.errors
+                                                            .length > 0
+                                                            ? 'email-error'
+                                                            : undefined
+                                                    }
+                                                />
+                                                {/* Gate on isTouched: a blur on one field re-validates
                                                 the whole form-level schema, so untouched siblings
                                                 must not surface their errors yet. */}
-                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                                                <p id="email-error" role="alert" className="text-sm font-medium text-destructive">
-                                                    {field.state.meta.errors[0]?.message}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                </form.Field>
+                                                {field.state.meta.isTouched &&
+                                                    field.state.meta.errors
+                                                        .length > 0 && (
+                                                        <p
+                                                            id="email-error"
+                                                            role="alert"
+                                                            className="text-destructive text-sm font-medium"
+                                                        >
+                                                            {
+                                                                field.state.meta
+                                                                    .errors[0]
+                                                                    ?.message
+                                                            }
+                                                        </p>
+                                                    )}
+                                            </div>
+                                        )}
+                                    </form.Field>
 
-                                <div className="flex justify-end">
-                                    <AuthForgotPassword.Link className="text-muted-foreground text-sm hover:underline">
-                                        Forgot password?
-                                    </AuthForgotPassword.Link>
+                                    <div className="flex justify-end">
+                                        <AuthForgotPassword.Link className="text-muted-foreground text-sm hover:underline">
+                                            Forgot password?
+                                        </AuthForgotPassword.Link>
+                                    </div>
+
+                                    <form.Field name="password">
+                                        {(field) => (
+                                            <div className="space-y-2">
+                                                <Label htmlFor="password">
+                                                    Password
+                                                </Label>
+                                                <PasswordInput
+                                                    id="password"
+                                                    className="h-12"
+                                                    autoComplete="current-password"
+                                                    value={field.state.value}
+                                                    onBlur={field.handleBlur}
+                                                    onChange={(event) => {
+                                                        field.handleChange(
+                                                            event.target.value
+                                                        )
+                                                    }}
+                                                    aria-invalid={
+                                                        field.state.meta.errors
+                                                            .length > 0
+                                                    }
+                                                    aria-describedby={
+                                                        field.state.meta.errors
+                                                            .length > 0
+                                                            ? 'password-error'
+                                                            : undefined
+                                                    }
+                                                />
+                                                {field.state.meta.isTouched &&
+                                                    field.state.meta.errors
+                                                        .length > 0 && (
+                                                        <p
+                                                            id="password-error"
+                                                            role="alert"
+                                                            className="text-destructive text-sm font-medium"
+                                                        >
+                                                            {
+                                                                field.state.meta
+                                                                    .errors[0]
+                                                                    ?.message
+                                                            }
+                                                        </p>
+                                                    )}
+                                            </div>
+                                        )}
+                                    </form.Field>
+
+                                    {authError && (
+                                        <Alert variant="destructive">
+                                            <AlertCircle className="h-4 w-4" />
+                                            <AlertDescription>
+                                                <p>{authError}</p>
+                                                {signInErrorHint(authError) ? (
+                                                    <p className="mt-1">
+                                                        {signInErrorHint(
+                                                            authError
+                                                        )}
+                                                    </p>
+                                                ) : null}
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+
+                                    {/* Form-native submit state — replaces manual isLoading */}
+                                    <form.Subscribe
+                                        selector={(state) => ({
+                                            canSubmit: state.canSubmit,
+                                            isSubmitting: state.isSubmitting,
+                                        })}
+                                    >
+                                        {({ canSubmit, isSubmitting }) => (
+                                            <Button
+                                                disabled={!canSubmit}
+                                                type="submit"
+                                                className="h-12 w-full text-base"
+                                            >
+                                                {isSubmitting && <Spinner />}
+                                                {isSubmitting
+                                                    ? 'Signing in…'
+                                                    : 'Sign in with email'}
+                                                <LastUsedBadge method="email" />
+                                            </Button>
+                                        )}
+                                    </form.Subscribe>
                                 </div>
 
-                                <form.Field name="password">
-                                    {(field) => (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="password">Password</Label>
-                                            <PasswordInput
-                                                id="password"
-                                                className="h-12"
-                                                autoComplete="current-password"
-                                                value={field.state.value}
-                                                onBlur={field.handleBlur}
-                                                onChange={(event) => { field.handleChange(event.target.value); }}
-                                                aria-invalid={field.state.meta.errors.length > 0}
-                                                aria-describedby={field.state.meta.errors.length > 0 ? 'password-error' : undefined}
-                                            />
-                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                                                <p id="password-error" role="alert" className="text-sm font-medium text-destructive">
-                                                    {field.state.meta.errors[0]?.message}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                </form.Field>
-
-                                {authError && (
-                                    <Alert variant="destructive">
-                                        <AlertCircle className="h-4 w-4" />
-                                        <AlertDescription>
-                                            <p>{authError}</p>
-                                            {signInErrorHint(authError) ? (
-                                                <p className="mt-1">{signInErrorHint(authError)}</p>
-                                            ) : null}
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-
-                                {/* Form-native submit state — replaces manual isLoading */}
-                                <form.Subscribe
-                                    selector={(state) => ({
-                                        canSubmit: state.canSubmit,
-                                        isSubmitting: state.isSubmitting,
-                                    })}
-                                >
-                                    {({ canSubmit, isSubmitting }) => (
-                                        <Button
-                                            disabled={!canSubmit}
-                                            type="submit"
-                                            className="h-12 w-full text-base"
-                                        >
-                                            {isSubmitting && <Spinner />}
-                                            {isSubmitting ? 'Signing in…' : 'Sign in with email'}
-                                            <LastUsedBadge method="email" />
-                                        </Button>
-                                    )}
-                                </form.Subscribe>
-                            </div>
-
-                            {/* Passkey sign-in. Rendered as an alternative rather than
+                                {/* Passkey sign-in. Rendered as an alternative rather than
                                 the default: a user without an enrolled passkey would
                                 otherwise meet a button that only shows a browser error. */}
-                            <PasskeySignInButton />
+                                <PasskeySignInButton />
 
-                            {DEV_CONVENIENCES ? <DevDemoCredentials /> : null}
-                        </form>
+                                {DEV_CONVENIENCES ? (
+                                    <DevDemoCredentials />
+                                ) : null}
+                            </form>
                         )}
                     </CardContent>
                 </Card>
                 {DEV_CONVENIENCES ? (
                     <div className="text-muted-foreground text-center text-sm">
                         <p>
-                            Don&apos;t have an account?{' '}
-                            <SignUpLink />
+                            Don&apos;t have an account? <SignUpLink />
                         </p>
                     </div>
                 ) : (
                     <p className="text-muted-foreground text-center text-sm">
-                        Accounts are created by an administrator of this server. Ask yours for an invitation.
+                        Accounts are created by an administrator of this server.
+                        Ask yours for an invitation.
                     </p>
                 )}
 

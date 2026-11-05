@@ -7,7 +7,7 @@
  * @module domain/interfaces/service-mapping
  */
 
-import type { serviceDomainMappings } from '@deployer/nest-schema/global';
+import type { serviceDomainMappings } from '@deployer/nest-schema/global'
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)
@@ -16,12 +16,13 @@ import type { serviceDomainMappings } from '@deployer/nest-schema/global';
 /**
  * Service domain mapping entity from database
  */
-export type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
+export type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect
 
 /**
  * Input type for creating a service domain mapping
  */
-export type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
+export type InsertServiceDomainMapping =
+    typeof serviceDomainMappings.$inferInsert
 
 // ============================================================================
 // EXTENDED TYPES
@@ -31,10 +32,10 @@ export type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInse
  * Service domain mapping with computed URLs
  */
 export type ServiceDomainMappingWithUrls = {
-  /** Full external URL (e.g., `https://api.example.com/v1`) */
-  fullUrl: string;
-  /** Internal URL for container-to-container communication (optional) */
-  internalUrl?: string;
+    /** Full external URL (e.g., `https://api.example.com/v1`) */
+    fullUrl: string
+    /** Internal URL for container-to-container communication (optional) */
+    internalUrl?: string
 } & ServiceDomainMapping
 
 // ============================================================================
@@ -44,23 +45,23 @@ export type ServiceDomainMappingWithUrls = {
 /**
  * SSL provider types for domain mappings
  */
-export type SSLProvider = 'letsencrypt' | 'custom' | 'none';
+export type SSLProvider = 'letsencrypt' | 'custom' | 'none'
 
 /**
  * SSL configuration for a domain mapping
  */
 export type SSLConfig = {
-  /** Whether SSL is enabled */
-  enabled: boolean;
-  /** SSL certificate provider */
-  provider: SSLProvider;
-  /** Custom certificate data (only for 'custom' provider) */
-  customCert?: {
-    /** PEM-encoded certificate */
-    certificate: string;
-    /** PEM-encoded private key */
-    privateKey: string;
-  };
+    /** Whether SSL is enabled */
+    enabled: boolean
+    /** SSL certificate provider */
+    provider: SSLProvider
+    /** Custom certificate data (only for 'custom' provider) */
+    customCert?: {
+        /** PEM-encoded certificate */
+        certificate: string
+        /** PEM-encoded private key */
+        privateKey: string
+    }
 }
 
 // ============================================================================
@@ -71,12 +72,12 @@ export type SSLConfig = {
  * Query result for service mappings with service names
  */
 export type ServiceMappingWithServiceName = {
-  /** Service ID */
-  serviceId: string;
-  /** Service name for display */
-  serviceName: string;
-  /** Subdomain (null for root) */
-  subdomain: string | null;
-  /** Base path (null for root) */
-  basePath: string | null;
+    /** Service ID */
+    serviceId: string
+    /** Service name for display */
+    serviceName: string
+    /** Subdomain (null for root) */
+    subdomain: string | null
+    /** Base path (null for root) */
+    basePath: string | null
 }

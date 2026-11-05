@@ -79,11 +79,11 @@ Steps:
 1. Wire orchestration queue/executor into deployment trigger path.
 2. Implement template compiler for Provider + Build + Deploy + Route baseline.
 3. Implement deployment phases as concrete actions:
-   - source fetch
-   - build
-   - container run/update
-   - Traefik route sync
-   - health check gate
+    - source fetch
+    - build
+    - container run/update
+    - Traefik route sync
+    - health check gate
 4. Persist phase transitions and emit stream events at each step.
 5. Implement failure handling with clear error surfaces.
 6. Add rollback to previous successful deployment.
@@ -167,10 +167,10 @@ Exit criteria:
 Steps:
 
 1. Add integration/e2e scenarios:
-   - first deploy
-   - failed deploy + rollback
-   - preview create/update/delete
-   - fleet rolling deploy
+    - first deploy
+    - failed deploy + rollback
+    - preview create/update/delete
+    - fleet rolling deploy
 2. Add observability SLO checks (latency, failure reason quality, stream completeness).
 3. Validate security posture (auth guards, ownership checks, secret handling).
 4. Document runbooks (incident, rollback, stuck deployment recovery).
@@ -201,19 +201,19 @@ Execution tracking source-of-truth:
 ### B. Template platform foundation (highest priority)
 
 - [ ] Implement versioned schema contracts for:
-   - [ ] `ProviderTemplate`
-   - [ ] `BuildTemplate`
-   - [ ] `DeployTemplate`
-   - [ ] `RouteTemplate`
-   - [ ] `PreviewTemplate`
-   - [ ] `DependencyTemplate`
+    - [ ] `ProviderTemplate`
+    - [ ] `BuildTemplate`
+    - [ ] `DeployTemplate`
+    - [ ] `RouteTemplate`
+    - [ ] `PreviewTemplate`
+    - [ ] `DependencyTemplate`
 - [ ] Add template compatibility matrix (provider × build strategy × deploy strategy × environment).
 - [ ] Build template validation engine (structural + semantic validations).
 - [ ] Build template inheritance resolver:
-   - [ ] global -> provider
-   - [ ] provider -> project
-   - [ ] project -> environment
-   - [ ] environment -> deployment-run override
+    - [ ] global -> provider
+    - [ ] provider -> project
+    - [ ] project -> environment
+    - [ ] environment -> deployment-run override
 - [ ] Add template version migration framework (up/down transforms + safety checks).
 - [ ] Add template provenance model (record exact version IDs used by each deployment).
 - [ ] Add immutable “compiled plan snapshot” persistence for every run.
@@ -250,9 +250,9 @@ Execution tracking source-of-truth:
 - [ ] Implement preview-specific environment overlays and secret scoping.
 - [ ] Implement preview DNS/routing + TLS application.
 - [ ] Implement auto-cleanup rules:
-   - [ ] on PR merge
-   - [ ] on PR close
-   - [ ] on TTL expiry
+    - [ ] on PR merge
+    - [ ] on PR close
+    - [ ] on TTL expiry
 - [ ] Add idempotency keys for repeated webhook deliveries.
 - [ ] Add preview lifecycle audit trail.
 
@@ -260,10 +260,10 @@ Execution tracking source-of-truth:
 
 - [ ] Implement service DAG generation from `service_dependencies` + template policies.
 - [ ] Add deployment strategies:
-   - [ ] ordered serial
-   - [ ] constrained parallel
-   - [ ] rolling windows
-   - [ ] canary progression (feature-flagged until stable)
+    - [ ] ordered serial
+    - [ ] constrained parallel
+    - [ ] rolling windows
+    - [ ] canary progression (feature-flagged until stable)
 - [ ] Implement cross-service health gates and dependency-aware readiness.
 - [ ] Implement fleet rollback semantics (local rollback vs full rollback modes).
 - [ ] Implement partial failure containment (failure domain boundaries).
@@ -343,49 +343,49 @@ Execution tracking source-of-truth:
 ### O. Advanced ideas implementation tracks
 
 - [ ] **Plan Simulation Mode**
-   - [ ] compile-only endpoint
-   - [ ] simulation risk scoring
-   - [ ] operator approval flow
+    - [ ] compile-only endpoint
+    - [ ] simulation risk scoring
+    - [ ] operator approval flow
 - [ ] **Plan Diff & Approval**
-   - [ ] previous vs next plan diff engine
-   - [ ] mandatory approval policy hooks
+    - [ ] previous vs next plan diff engine
+    - [ ] mandatory approval policy hooks
 - [ ] **Policy Engine for Safe Deploys (Policy-as-Code)**
-   - [ ] policy bundle loader
-   - [ ] compile-time and pre-run enforcement
-   - [ ] time-window and freeze-window enforcement
-   - [ ] approval rule integration (team/role/environment based)
-   - [ ] blast-radius limit enforcement
+    - [ ] policy bundle loader
+    - [ ] compile-time and pre-run enforcement
+    - [ ] time-window and freeze-window enforcement
+    - [ ] approval rule integration (team/role/environment based)
+    - [ ] blast-radius limit enforcement
 - [ ] **Progressive Delivery**
-   - [ ] canary percentage ramps
-   - [ ] automatic rollback on SLO breach
+    - [ ] canary percentage ramps
+    - [ ] automatic rollback on SLO breach
 - [ ] **Environment Matrix Deploys**
-   - [ ] orchestrated multi-environment execution graph
-   - [ ] dependency-aware promotion rules
+    - [ ] orchestrated multi-environment execution graph
+    - [ ] dependency-aware promotion rules
 - [ ] **Cross-Project Dependency Graph**
-   - [ ] inter-project dependency registry
-   - [ ] gate-aware scheduling
+    - [ ] inter-project dependency registry
+    - [ ] gate-aware scheduling
 - [ ] **Drift Detection and Auto-Reconcile**
-   - [ ] desired/actual state diff service
-   - [ ] safe reconcile executor
+    - [ ] desired/actual state diff service
+    - [ ] safe reconcile executor
 - [ ] **Template Marketplace (internal)**
-   - [ ] signed template catalog
-   - [ ] quality badge and compatibility metadata
+    - [ ] signed template catalog
+    - [ ] quality badge and compatibility metadata
 - [ ] **SLO-Aware Auto-Rollback**
-   - [ ] error-budget policy integration
-   - [ ] metric-threshold breach rollback triggers
-   - [ ] cooldown + retry guardrails to avoid rollback loops
+    - [ ] error-budget policy integration
+    - [ ] metric-threshold breach rollback triggers
+    - [ ] cooldown + retry guardrails to avoid rollback loops
 - [ ] **Config Provenance Timeline**
-   - [ ] deployment-level config provenance view
-   - [ ] audit export API
+    - [ ] deployment-level config provenance view
+    - [ ] audit export API
 - [ ] **Cell-based Fleet Scheduling**
-   - [ ] fleet cell model (region/class/capacity)
-   - [ ] placement policy engine
+    - [ ] fleet cell model (region/class/capacity)
+    - [ ] placement policy engine
 - [ ] **Automatic Capacity Rebalancing**
-   - [ ] utilization-driven move planner
-   - [ ] controlled live migration rules
+    - [ ] utilization-driven move planner
+    - [ ] controlled live migration rules
 - [ ] **Failure Domain Isolation**
-   - [ ] blast-radius segmentation policies
-   - [ ] project isolation enforcement
+    - [ ] blast-radius segmentation policies
+    - [ ] project isolation enforcement
 
 ## No-step-missed coverage matrix
 

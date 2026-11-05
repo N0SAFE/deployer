@@ -1,15 +1,18 @@
-import { getAsyncIteratorObjectSchemasDetails } from '@orpc/contract';
+import { getAsyncIteratorObjectSchemasDetails } from '@orpc/contract'
 
-import { getObservableSchemaDetails } from '@deployer/orpc-utils/observable/contract';
-import { hasRouteMethodMeta, getRouteMethod } from '@deployer/orpc-utils/types/route-method-meta';
-import { isContractProcedure } from '@deployer/orpc-utils/types/type-helpers';
+import { getObservableSchemaDetails } from '@deployer/orpc-utils/observable/contract'
+import {
+    hasRouteMethodMeta,
+    getRouteMethod,
+} from '@deployer/orpc-utils/types/route-method-meta'
+import { isContractProcedure } from '@deployer/orpc-utils/types/type-helpers'
 
-import type { AnySchema } from '@orpc/contract';
+import type { AnySchema } from '@orpc/contract'
 
 /**
  * Extended operation type supporting all ORPC operation types.
  */
-export type OperationType = 'query' | 'mutation' | 'streaming' | 'unsupported';
+export type OperationType = 'query' | 'mutation' | 'streaming' | 'unsupported'
 
 /**
  * Contract procedure metadata structure.
@@ -19,72 +22,93 @@ export type OperationType = 'query' | 'mutation' | 'streaming' | 'unsupported';
  * relevant schema is index 0.
  */
 export type ContractProcedureMetadata = {
-  meta?: Record<string, unknown>;
-  outputSchemas?: AnySchema[];
-  inputSchemas?: AnySchema[];
-};
+    meta?: Record<string, unknown>
+    outputSchemas?: AnySchema[]
+    inputSchemas?: AnySchema[]
+}
 
 /**
  * Check if a schema represents an event-iterator output (streaming).
  */
-export function isEventIteratorOutput(outputSchema: AnySchema | undefined): boolean {
-  if (!outputSchema) return false;
-  return getAsyncIteratorObjectSchemasDetails([outputSchema]) !== undefined || getObservableSchemaDetails(outputSchema) !== undefined;
+export function isEventIteratorOutput(
+    outputSchema: AnySchema | undefined
+): boolean {
+    if (!outputSchema) return false
+    return (
+        getAsyncIteratorObjectSchemasDetails([outputSchema]) !== undefined ||
+        getObservableSchemaDetails(outputSchema) !== undefined
+    )
 }
 
 /**
  * Detect operation type from RouteBuilder contract metadata.
  */
 export function detectOperationType(
-  procedure: unknown,
-   
-  _procedureName?: string
+    procedure: unknown,
+
+    _procedureName?: string
 ): OperationType {
-  if (!isContractProcedure(procedure)) {
-    return 'unsupported';
-  }
+    if (!isContractProcedure(procedure)) {
+        return 'unsupported'
+    }
 
-  if (!hasRouteMethodMeta(procedure)) {
-    return 'unsupported';
-  }
+    if (!hasRouteMethodMeta(procedure)) {
+        return 'unsupported'
+    }
 
-  const def = (procedure as { '~orpc'?: ContractProcedureMetadata })['~orpc'];
+    const def = (procedure as { '~orpc'?: ContractProcedureMetadata })['~orpc']
 
-  if (def?.outputSchemas?.[0] && isEventIteratorOutput(def.outputSchemas[0])) {
-    return 'streaming';
-  }
+    if (
+        def?.outputSchemas?.[0] &&
+        isEventIteratorOutput(def.outputSchemas[0])
+    ) {
+        return 'streaming'
+    }
 
-  const method = getRouteMethod(procedure);
-  if (method) {
-    return method.toUpperCase() === 'GET' ? 'query' : 'mutation';
-  }
+    const method = getRouteMethod(procedure)
+    if (method) {
+        return method.toUpperCase() === 'GET' ? 'query' : 'mutation'
+    }
 
-  return 'unsupported';
+    return 'unsupported'
 }
 
 /**
 
  * Auto-detect which queries should be invalidated by a mutation.
  */
-export function inferInvalidations(mutationName: string, availableQueries: string[]): string[] {
-  const invalidations = new Set<string>();
-  const lowerMutation = mutationName.toLowerCase();
+export function inferInvalidations(
+    mutationName: string,
+    availableQueries: string[]
+): string[] {
+    const invalidations = new Set<string>()
+    const lowerMutation = mutationName.toLowerCase()
 
-  if (lowerMutation.includes('create') || lowerMutation.includes('delete') || lowerMutation.includes('update')) {
-    availableQueries.forEach(query => {
-      if (query.toLowerCase().includes('list') || query.toLowerCase().includes('count')) {
-        invalidations.add(query);
-      }
-    });
-  }
+    if (
+        lowerMutation.includes('create') ||
+        lowerMutation.includes('delete') ||
+        lowerMutation.includes('update')
+    ) {
+        availableQueries.forEach((query) => {
+            if (
+                query.toLowerCase().includes('list') ||
+                query.toLowerCase().includes('count')
+            ) {
+                invalidations.add(query)
+            }
+        })
+    }
 
-  if (lowerMutation.includes('update') || lowerMutation.includes('delete')) {
-    availableQueries.forEach(query => {
-      if (query.toLowerCase().includes('findbyid') || query.toLowerCase().includes('get')) {
-        invalidations.add(query);
-      }
-    });
-  }
+    if (lowerMutation.includes('update') || lowerMutation.includes('delete')) {
+        availableQueries.forEach((query) => {
+            if (
+                query.toLowerCase().includes('findbyid') ||
+                query.toLowerCase().includes('get')
+            ) {
+                invalidations.add(query)
+            }
+        })
+    }
 
-  return Array.from(invalidations);
+    return Array.from(invalidations)
 }

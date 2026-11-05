@@ -26,143 +26,156 @@
  * `bun:sqlite` returns them (`PRAGMA journal_mode` -> `{ journal_mode }` …).
  */
 
-type SqlValue = string | number | bigint | null | Uint8Array;
-type Row = Record<string, unknown>;
-type RunResult = { changes: number | bigint; lastInsertRowid: number | bigint };
+type SqlValue = string | number | bigint | null | Uint8Array
+type Row = Record<string, unknown>
+type RunResult = { changes: number | bigint; lastInsertRowid: number | bigint }
 
 type SqliteStatementLike = {
-  all(...params: SqlValue[]): Row[];
-  /** `bun:sqlite` returns `null` for no row; `node:sqlite` returns `undefined`. */
-  get(...params: SqlValue[]): Row | null | undefined;
-  run(...params: SqlValue[]): RunResult;
-  columns(): { name: string }[];
+    all(...params: SqlValue[]): Row[]
+    /** `bun:sqlite` returns `null` for no row; `node:sqlite` returns `undefined`. */
+    get(...params: SqlValue[]): Row | null | undefined
+    run(...params: SqlValue[]): RunResult
+    columns(): { name: string }[]
 }
 
 type NodeSqliteDatabaseLike = {
-  exec(sql: string): void;
-  prepare(sql: string): SqliteStatementLike;
-  close(): void;
+    exec(sql: string): void
+    prepare(sql: string): SqliteStatementLike
+    close(): void
 }
 
-function loadNodeSqlite(): { DatabaseSync: new (path?: string) => NodeSqliteDatabaseLike } {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require("node:sqlite") as { DatabaseSync: new (path?: string) => NodeSqliteDatabaseLike };
-  return mod;
+function loadNodeSqlite(): {
+    DatabaseSync: new (path?: string) => NodeSqliteDatabaseLike
+} {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('node:sqlite') as {
+        DatabaseSync: new (path?: string) => NodeSqliteDatabaseLike
+    }
+    return mod
 }
 
 function toValues(rows: Row[], columns: { name: string }[]): unknown[][] {
-  const keys = columns.map((column) => column.name);
-  return rows.map((row) => keys.map((key) => row[key]));
+    const keys = columns.map((column) => column.name)
+    return rows.map((row) => keys.map((key) => row[key]))
 }
 
 /** Result of `db.query(sql)` / `db.prepare(sql)` — mirrors `bun:sqlite`. */
 class Statement {
-  private readonly raw: SqliteStatementLike;
-  private readonly hasValues: boolean;
+    private readonly raw: SqliteStatementLike
+    private readonly hasValues: boolean
 
-  constructor(raw: SqliteStatementLike) {
-    this.raw = raw;
-    this.hasValues = typeof (raw as { values?: unknown }).values === "function";
-  }
-
-  all(...params: SqlValue[]): Row[] {
-    return this.raw.all(...params);
-  }
-
-  /**
-   * Returns `null` when there is no row, matching `bun:sqlite`.
-   *
-   * `node:sqlite` returns `undefined` instead, and the two are NOT
-   * interchangeable: `bun:sqlite`'s `.get()` is typed `Row | null`, so every
-   * caller writes `row !== null`. With `undefined` those checks INVERT — a
-   * missing row reads as a present one. That is how the local-migration state
-   * check (`SELECT 1 … WHERE name = ?`) reported all 13 migrations as already
-   * applied against an empty table, leaving the schema uncreated and the app
-   * failing later with `no such table: node_config`.
-   */
-  get(...params: SqlValue[]): Row | null {
-    return this.raw.get(...params) ?? null;
-  }
-
-  run(...params: SqlValue[]): RunResult {
-    return this.raw.run(...params);
-  }
-
-  values(...params: SqlValue[]): unknown[][] {
-    if (this.hasValues) {
-      return (this.raw as SqliteStatementLike & { values(...p: SqlValue[]): unknown[][] }).values(...params);
+    constructor(raw: SqliteStatementLike) {
+        this.raw = raw
+        this.hasValues =
+            typeof (raw as { values?: unknown }).values === 'function'
     }
-    return toValues(this.raw.all(...params), this.raw.columns());
-  }
 
-  /** No-op — Node statements are not finalizable like bun's. */
-  finalize(): void {
-    /* no-op */
-  }
+    all(...params: SqlValue[]): Row[] {
+        return this.raw.all(...params)
+    }
+
+    /**
+     * Returns `null` when there is no row, matching `bun:sqlite`.
+     *
+     * `node:sqlite` returns `undefined` instead, and the two are NOT
+     * interchangeable: `bun:sqlite`'s `.get()` is typed `Row | null`, so every
+     * caller writes `row !== null`. With `undefined` those checks INVERT — a
+     * missing row reads as a present one. That is how the local-migration state
+     * check (`SELECT 1 … WHERE name = ?`) reported all 13 migrations as already
+     * applied against an empty table, leaving the schema uncreated and the app
+     * failing later with `no such table: node_config`.
+     */
+    get(...params: SqlValue[]): Row | null {
+        return this.raw.get(...params) ?? null
+    }
+
+    run(...params: SqlValue[]): RunResult {
+        return this.raw.run(...params)
+    }
+
+    values(...params: SqlValue[]): unknown[][] {
+        if (this.hasValues) {
+            return (
+                this.raw as SqliteStatementLike & {
+                    values(...p: SqlValue[]): unknown[][]
+                }
+            ).values(...params)
+        }
+        return toValues(this.raw.all(...params), this.raw.columns())
+    }
+
+    /** No-op — Node statements are not finalizable like bun's. */
+    finalize(): void {
+        /* no-op */
+    }
 }
 
 /** `bun:sqlite`-compatible `Database` backed by `node:sqlite`. */
 export class Database {
-  private readonly db: NodeSqliteDatabaseLike;
-  readonly path: string;
+    private readonly db: NodeSqliteDatabaseLike
+    readonly path: string
 
-  constructor(path: string | null = null) {
-    const { DatabaseSync } = loadNodeSqlite();
-    const resolved = path ?? ":memory:";
-    this.path = resolved;
-    this.db = new DatabaseSync(resolved);
-  }
+    constructor(path: string | null = null) {
+        const { DatabaseSync } = loadNodeSqlite()
+        const resolved = path ?? ':memory:'
+        this.path = resolved
+        this.db = new DatabaseSync(resolved)
+    }
 
-  run(sql: string, ...params: SqlValue[]): RunResult {
-    return this.prepare(sql).run(...params);
-  }
+    run(sql: string, ...params: SqlValue[]): RunResult {
+        return this.prepare(sql).run(...params)
+    }
 
-  exec(sql: string): void {
-    this.db.exec(sql);
-  }
+    exec(sql: string): void {
+        this.db.exec(sql)
+    }
 
-  prepare(sql: string): Statement {
-    return new Statement(this.db.prepare(sql));
-  }
+    prepare(sql: string): Statement {
+        return new Statement(this.db.prepare(sql))
+    }
 
-  query(sql: string): Statement {
-    return new Statement(this.db.prepare(sql));
-  }
+    query(sql: string): Statement {
+        return new Statement(this.db.prepare(sql))
+    }
 
-  transaction<T>(fn: () => T): (() => T) & {
-    deferred: () => T;
-    immediate: () => T;
-    exclusive: () => T;
-  } {
-    const run = (mode: "deferred" | "immediate" | "exclusive"): T => {
-      const begin =
-        mode === "immediate" ? "BEGIN IMMEDIATE" : mode === "exclusive" ? "BEGIN EXCLUSIVE" : "BEGIN";
-      this.db.exec(begin);
-      try {
-        const result = fn();
-        this.db.exec("COMMIT");
-        return result;
-      } catch (error) {
-        this.db.exec("ROLLBACK");
-        throw error;
-      }
-    };
+    transaction<T>(fn: () => T): (() => T) & {
+        deferred: () => T
+        immediate: () => T
+        exclusive: () => T
+    } {
+        const run = (mode: 'deferred' | 'immediate' | 'exclusive'): T => {
+            const begin =
+                mode === 'immediate'
+                    ? 'BEGIN IMMEDIATE'
+                    : mode === 'exclusive'
+                      ? 'BEGIN EXCLUSIVE'
+                      : 'BEGIN'
+            this.db.exec(begin)
+            try {
+                const result = fn()
+                this.db.exec('COMMIT')
+                return result
+            } catch (error) {
+                this.db.exec('ROLLBACK')
+                throw error
+            }
+        }
 
-    const txn = (() => run("deferred")) as (() => T) & {
-      deferred: () => T;
-      immediate: () => T;
-      exclusive: () => T;
-    };
-    txn.deferred = () => run("deferred");
-    txn.immediate = () => run("immediate");
-    txn.exclusive = () => run("exclusive");
-    return txn;
-  }
+        const txn = (() => run('deferred')) as (() => T) & {
+            deferred: () => T
+            immediate: () => T
+            exclusive: () => T
+        }
+        txn.deferred = () => run('deferred')
+        txn.immediate = () => run('immediate')
+        txn.exclusive = () => run('exclusive')
+        return txn
+    }
 
-  close(): void {
-    this.db.close();
-  }
+    close(): void {
+        this.db.close()
+    }
 }
 
 /** Alias kept for callers importing `Database as BunSqliteDatabase`. */
-export type StatementSync = Statement;
+export type StatementSync = Statement

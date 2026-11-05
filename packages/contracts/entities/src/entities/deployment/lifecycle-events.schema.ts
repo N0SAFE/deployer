@@ -1,20 +1,22 @@
-import z from "zod/v4";
-import { deploymentPhaseSchema } from "@deployer/contracts-common";
+import z from 'zod/v4'
+import { deploymentPhaseSchema } from '@deployer/contracts-common'
 import {
     deploymentConnectivityStatusSchema,
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "./base.schema";
-import { deploymentExecutionStateSchema } from "./execution.schema";
+} from './base.schema'
+import { deploymentExecutionStateSchema } from './execution.schema'
 
 export const deploymentNodeLifecycleEventTypeSchema = z.enum([
-    "start",
-    "success",
-    "fail",
-    "retry",
-    "rollback",
-]);
-export type DeploymentNodeLifecycleEventType = z.infer<typeof deploymentNodeLifecycleEventTypeSchema>;
+    'start',
+    'success',
+    'fail',
+    'retry',
+    'rollback',
+])
+export type DeploymentNodeLifecycleEventType = z.infer<
+    typeof deploymentNodeLifecycleEventTypeSchema
+>
 
 export const deploymentNodeLifecycleEventSchema = z.object({
     id: z.uuid(),
@@ -37,8 +39,10 @@ export const deploymentNodeLifecycleEventSchema = z.object({
     durationMs: z.number().int().min(0).nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
     emittedAt: z.string(),
-});
-export type DeploymentNodeLifecycleEvent = z.infer<typeof deploymentNodeLifecycleEventSchema>;
+})
+export type DeploymentNodeLifecycleEvent = z.infer<
+    typeof deploymentNodeLifecycleEventSchema
+>
 
 export const deploymentNodeLifecycleEventEmitInputSchema = z.object({
     deploymentId: z.uuid(),
@@ -60,14 +64,18 @@ export const deploymentNodeLifecycleEventEmitInputSchema = z.object({
     durationMs: z.number().int().min(0).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
     emittedAt: z.string().optional(),
-});
-export type DeploymentNodeLifecycleEventEmitInput = z.infer<typeof deploymentNodeLifecycleEventEmitInputSchema>;
+})
+export type DeploymentNodeLifecycleEventEmitInput = z.infer<
+    typeof deploymentNodeLifecycleEventEmitInputSchema
+>
 
 export const deploymentNodeLifecycleEventEmitResultSchema = z.object({
     emitted: z.boolean(),
     event: deploymentNodeLifecycleEventSchema,
-});
-export type DeploymentNodeLifecycleEventEmitResult = z.infer<typeof deploymentNodeLifecycleEventEmitResultSchema>;
+})
+export type DeploymentNodeLifecycleEventEmitResult = z.infer<
+    typeof deploymentNodeLifecycleEventEmitResultSchema
+>
 
 export const deploymentNodeLifecycleEventListInputSchema = z.object({
     deploymentId: z.uuid().optional(),
@@ -76,12 +84,16 @@ export const deploymentNodeLifecycleEventListInputSchema = z.object({
     type: deploymentNodeLifecycleEventTypeSchema.optional(),
     fromSequence: z.number().int().min(0).optional(),
     limit: z.number().int().min(1).max(500).default(100),
-});
-export type DeploymentNodeLifecycleEventListInput = z.infer<typeof deploymentNodeLifecycleEventListInputSchema>;
+})
+export type DeploymentNodeLifecycleEventListInput = z.infer<
+    typeof deploymentNodeLifecycleEventListInputSchema
+>
 
 export const deploymentNodeLifecycleEventListResultSchema = z.object({
     events: z.array(deploymentNodeLifecycleEventSchema),
     hasMore: z.boolean(),
     nextFromSequence: z.number().int().min(0).nullable(),
-});
-export type DeploymentNodeLifecycleEventListResult = z.infer<typeof deploymentNodeLifecycleEventListResultSchema>;
+})
+export type DeploymentNodeLifecycleEventListResult = z.infer<
+    typeof deploymentNodeLifecycleEventListResultSchema
+>

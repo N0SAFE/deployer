@@ -8,4 +8,4 @@
  *
  * It never defines a permission or a role of its own.
  */
-export * from "./config";
+export * from './config'

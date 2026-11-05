@@ -3,8 +3,13 @@ import { randomUUID } from 'node:crypto'
 import { and, asc, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver } from "@deployer/effect-core"
-import { account, apikey, session, user } from '@deployer/nest-schema/global/identity/auth'
+import { serviceOver } from '@deployer/effect-core'
+import {
+    account,
+    apikey,
+    session,
+    user,
+} from '@deployer/nest-schema/global/identity/auth'
 
 import {
     DatabasePort,
@@ -22,7 +27,13 @@ import type {
     UserListFilter,
     UserPage,
 } from './user.repository.types'
-import type { NewUser, SelfExportData, User, UserPatch, UserSessionRow } from '../domain/user.types'
+import type {
+    NewUser,
+    SelfExportData,
+    User,
+    UserPatch,
+    UserSessionRow,
+} from '../domain/user.types'
 
 /** The repository contract, declared BEFORE the implementation. */
 export type UserRepositoryShape = {
@@ -60,7 +71,9 @@ export type UserRepositoryShape = {
         id: string,
         patch: UserPatch
     ) => Effect.Effect<User, UserRepositoryFailure, DatabasePort>
-    readonly delete: (id: string) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
+    readonly delete: (
+        id: string
+    ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
     /**
      * Ends every credential a user holds: their sessions and their API keys.
      *
@@ -110,8 +123,9 @@ export class UserRepository extends Context.Service<
     UserRepositoryShape
 >()('identity/UserRepository') {
     /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(DatabasePort, ({ db }) => makeUserRepository(db));
-
+    static readonly live = serviceOver(DatabasePort, ({ db }) =>
+        makeUserRepository(db)
+    )
 }
 
 /** The column set one patch maps to. Shared by `update` and the atomic `applySecurityChange`. */
@@ -119,7 +133,9 @@ function userPatchSet(patch: UserPatch) {
     return {
         ...(patch.name === undefined ? {} : { name: patch.name }),
         ...(patch.email === undefined ? {} : { email: patch.email }),
-        ...(patch.emailVerified === undefined ? {} : { emailVerified: patch.emailVerified }),
+        ...(patch.emailVerified === undefined
+            ? {}
+            : { emailVerified: patch.emailVerified }),
         ...(patch.role === undefined ? {} : { role: patch.role }),
         ...(patch.banned === undefined ? {} : { banned: patch.banned }),
         updatedAt: new Date(),
@@ -127,9 +143,7 @@ function userPatchSet(patch: UserPatch) {
 }
 
 /** Drizzle implementation over one database handle. */
-function makeUserRepository(
-    db: DatabaseShape['db']
-): UserRepositoryShape {
+function makeUserRepository(db: DatabaseShape['db']): UserRepositoryShape {
     return {
         countByRole: (role: string) =>
             attempt(async () => {
@@ -171,7 +185,10 @@ function makeUserRepository(
 
                 return {
                     sessions,
-                    apiKeys: apiKeys.map((key) => ({ ...key, enabled: key.enabled ?? true })),
+                    apiKeys: apiKeys.map((key) => ({
+                        ...key,
+                        enabled: key.enabled ?? true,
+                    })),
                 }
             }),
 
@@ -318,17 +335,20 @@ function makeUserRepository(
                         .returning()
 
                     const row = rows[0]
-                    if (row === undefined) throw new Error(`user "${id}" was not found`)
+                    if (row === undefined)
+                        throw new Error(`user "${id}" was not found`)
 
                     // A role change invalidates every session; a ban additionally invalidates every key. An unban
                     // invalidates nothing, so signing back in still works.
                     if (patch.role !== undefined || patch.banned === true) {
                         await tx.delete(session).where(eq(session.userId, id))
-                        await tx.delete(apikey).where(eq(apikey.referenceId, id))
+                        await tx
+                            .delete(apikey)
+                            .where(eq(apikey.referenceId, id))
                     }
 
                     return toUser(row)
-                }),
+                })
             ),
 
         listSessions: (userId: string) =>
@@ -352,7 +372,12 @@ function makeUserRepository(
             attempt(async () => {
                 const deleted = await db
                     .delete(session)
-                    .where(and(eq(session.id, sessionId), eq(session.userId, userId)))
+                    .where(
+                        and(
+                            eq(session.id, sessionId),
+                            eq(session.userId, userId)
+                        )
+                    )
                     .returning({ id: session.id })
                 return deleted.length > 0
             }),

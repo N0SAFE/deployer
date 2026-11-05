@@ -28,7 +28,10 @@ export class FleetConflict extends domainError('FleetConflict', 'conflict')<{
 }
 
 /** The caller could not prove who it is (a webhook with no or a wrong signature). `reason` is a sentence written for the client. */
-export class FleetUnauthorized extends domainError('FleetUnauthorized', 'unauthorized')<{
+export class FleetUnauthorized extends domainError(
+    'FleetUnauthorized',
+    'unauthorized'
+)<{
     readonly reason: string
 }>() {
     override publicMessage() {

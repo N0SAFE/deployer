@@ -1,6 +1,6 @@
-import { Context } from "effect";
+import { Context } from 'effect'
 
-import type { EnvService } from "@deployer/shared/config/env/env.module";
+import type { EnvService } from '@deployer/shared/config/env/env.module'
 
 /**
  * What the runners depend on and have no Effect version of yet, as ports over Promise-based providers.
@@ -10,4 +10,6 @@ import type { EnvService } from "@deployer/shared/config/env/env.module";
  * runner asks for the port without importing Nest. A port is the seam a test replaces with a fake
  * and the place a collaborator is rewritten later without touching the runners.
  */
-export class RunnerEnvPort extends Context.Service<RunnerEnvPort, EnvService>()("runtime/RunnerEnvPort") {}
+export class RunnerEnvPort extends Context.Service<RunnerEnvPort, EnvService>()(
+    'runtime/RunnerEnvPort'
+) {}

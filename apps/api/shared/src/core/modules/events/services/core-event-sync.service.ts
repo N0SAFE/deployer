@@ -1,15 +1,31 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 
-import { Context, Effect } from "effect";
-import { EMPTY, Observable, combineLatest, defer, firstValueFrom, from, merge, throwError } from "rxjs";
-import { filter as rxFilter, map, mergeMap, startWith, tap as rxTap, toArray } from "rxjs/operators";
+import { Context, Effect } from 'effect'
+import {
+    EMPTY,
+    Observable,
+    combineLatest,
+    defer,
+    firstValueFrom,
+    from,
+    merge,
+    throwError,
+} from 'rxjs'
+import {
+    filter as rxFilter,
+    map,
+    mergeMap,
+    startWith,
+    tap as rxTap,
+    toArray,
+} from 'rxjs/operators'
 
 import type {
     CoreEventStreamDefinition,
     CoreSyncedEventEnvelope,
-} from "@deployer/contracts-entities";
-import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
-import type { CoreEventStreamListInput } from "@deployer/fleet-contracts";
+} from '@deployer/contracts-entities'
+import type { EventContracts, EventInput, EventOutput } from '@deployer/events'
+import type { CoreEventStreamListInput } from '@deployer/fleet-contracts'
 
 import {
     CoreEventCollectionFailed,
@@ -18,89 +34,97 @@ import {
     CoreEventStreamFiltersInvalid,
     CoreEventStreamInactive,
     CoreEventStreamNotFound,
-} from "../events.errors";
+} from '../events.errors'
 
-import type { CoreEventStreamPoolServiceShape } from "../base/index";
-import type { CoreEventStreamRepositoryShape } from "../repositories/core-event-stream.repository";
-import type { StorageFailure } from "../../database/storage";
-
-import type { BaseEventService } from "../base/index";
+import type { StorageFailure } from '../../database/storage'
+import type { CoreEventStreamPoolServiceShape } from '../base/index'
+import type { BaseEventService } from '../base/index'
+import type { CoreEventStreamRepositoryShape } from '../repositories/core-event-stream.repository'
 
 export type CoreEventAdapterEvent = {
-    eventName: string;
-    payload: unknown;
-    replayed?: boolean;
-    emittedAt?: string;
+    eventName: string
+    payload: unknown
+    replayed?: boolean
+    emittedAt?: string
 }
 
 export type CoreEventAdapterInput = {
-    definition: CoreEventStreamDefinition;
-    replay: boolean;
-    replayLimit: number;
+    definition: CoreEventStreamDefinition
+    replay: boolean
+    replayLimit: number
 }
 
 export type CoreEventNamespaceAdapter = (
-    input: CoreEventAdapterInput,
-) => Observable<CoreEventAdapterEvent>;
+    input: CoreEventAdapterInput
+) => Observable<CoreEventAdapterEvent>
 
 type ContractsOf<TService extends BaseEventService> =
-    TService extends BaseEventService<infer TContracts extends EventContracts> ? TContracts : never;
+    TService extends BaseEventService<infer TContracts extends EventContracts>
+        ? TContracts
+        : never
 
-type EventNamesOf<TService extends BaseEventService> =
-    Extract<keyof ContractsOf<TService>, string>;
+type EventNamesOf<TService extends BaseEventService> = Extract<
+    keyof ContractsOf<TService>,
+    string
+>
 
 type EnvelopeForEvent<TName extends string, TPayload> = Omit<
     CoreSyncedEventEnvelope,
-    "eventName" | "payload"
+    'eventName' | 'payload'
 > & {
-    eventName: TName;
-    payload: TPayload;
-};
+    eventName: TName
+    payload: TPayload
+}
 
 export type ServiceEventEnvelope<TService extends BaseEventService> = {
-    [K in EventNamesOf<TService>]: EnvelopeForEvent<K, EventOutput<ContractsOf<TService>[K]>>;
-}[EventNamesOf<TService>];
+    [K in EventNamesOf<TService>]: EnvelopeForEvent<
+        K,
+        EventOutput<ContractsOf<TService>[K]>
+    >
+}[EventNamesOf<TService>]
 
 export type NamespaceEventSubscription<
     TService extends BaseEventService,
     K extends EventNamesOf<TService> = EventNamesOf<TService>,
 > = {
-    eventName: K;
-    input: EventInput<ContractsOf<TService>[K]>;
-    mapEventName?: string | ((eventName: K) => string);
-    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown;
+    eventName: K
+    input: EventInput<ContractsOf<TService>[K]>
+    mapEventName?: string | ((eventName: K) => string)
+    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown
 }
 
-export type RegisterNamespaceEventServiceOptions<TService extends BaseEventService> = {
+export type RegisterNamespaceEventServiceOptions<
+    TService extends BaseEventService,
+> = {
     resolveSubscriptions?: (
-        definition: CoreEventStreamDefinition,
-    ) => NamespaceEventSubscription<TService>[] | CoreEventStreamFiltersInvalid;
+        definition: CoreEventStreamDefinition
+    ) => NamespaceEventSubscription<TService>[] | CoreEventStreamFiltersInvalid
 }
 
 type SelectedServiceEnvelope<
     TService extends BaseEventService,
     K extends EventNamesOf<TService>,
 > = EnvelopeForEvent<K, EventOutput<ContractsOf<TService>[K]>> & {
-    input: EventInput<ContractsOf<TService>[K]>;
-};
+    input: EventInput<ContractsOf<TService>[K]>
+}
 
 type AnyServiceSelection<TService extends BaseEventService> = {
-    [K in EventNamesOf<TService>]: ServiceSelectionInput<TService, K>;
-}[EventNamesOf<TService>];
+    [K in EventNamesOf<TService>]: ServiceSelectionInput<TService, K>
+}[EventNamesOf<TService>]
 
 type AliasForService<
     TService extends BaseEventService,
     TAlias extends string | undefined,
-> = TAlias extends string ? TAlias : TService["namespace"];
+> = TAlias extends string ? TAlias : TService['namespace']
 
 type ServiceSelectionInput<
     TService extends BaseEventService,
     K extends EventNamesOf<TService>,
 > = {
-    eventName: K;
-    input?: EventInput<ContractsOf<TService>[K]>;
-    mapEventName?: string | ((eventName: K) => string);
-    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown;
+    eventName: K
+    input?: EventInput<ContractsOf<TService>[K]>
+    mapEventName?: string | ((eventName: K) => string)
+    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown
 }
 
 export type ServiceQuerySelectInput<
@@ -108,12 +132,12 @@ export type ServiceQuerySelectInput<
     K extends EventNamesOf<TService>,
     TAlias extends string | undefined = undefined,
 > = {
-    alias?: TAlias;
-    service: TService;
-    eventName: K;
-    input?: EventInput<ContractsOf<TService>[K]>;
-    mapEventName?: string | ((eventName: K) => string);
-    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown;
+    alias?: TAlias
+    service: TService
+    eventName: K
+    input?: EventInput<ContractsOf<TService>[K]>
+    mapEventName?: string | ((eventName: K) => string)
+    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown
 }
 
 export type ServiceQuerySelectManyInput<
@@ -121,27 +145,28 @@ export type ServiceQuerySelectManyInput<
     TSelections extends readonly AnyServiceSelection<TService>[],
     TAlias extends string | undefined = undefined,
 > = {
-    alias?: TAlias;
-    service: TService;
-    selections: TSelections;
+    alias?: TAlias
+    service: TService
+    selections: TSelections
 }
 
 type ServiceQuerySourceInternal = {
-    alias: string;
-    stream$: Observable<CoreSyncedEventEnvelope>;
+    alias: string
+    stream$: Observable<CoreSyncedEventEnvelope>
 }
 
 export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
-    private stream$: Observable<TRow>;
+    private stream$: Observable<TRow>
 
-    constructor(
-        private readonly fromSource: ServiceQuerySourceInternal,
-    ) {
+    constructor(private readonly fromSource: ServiceQuerySourceInternal) {
         this.stream$ = this.fromSource.stream$.pipe(
-            map((event) => ({
-                [this.fromSource.alias]: event,
-            }) as TRow),
-        );
+            map(
+                (event) =>
+                    ({
+                        [this.fromSource.alias]: event,
+                    }) as TRow
+            )
+        )
     }
 
     join<
@@ -150,26 +175,37 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
         TAlias extends string | undefined,
     >(
         input: ServiceQuerySelectInput<TService, K, TAlias> & {
-            type?: CoreEventQueryJoinType;
-            on: (row: TRow, right: SelectedServiceEnvelope<TService, K>) => boolean;
-        },
+            type?: CoreEventQueryJoinType
+            on: (
+                row: TRow,
+                right: SelectedServiceEnvelope<TService, K>
+            ) => boolean
+        }
     ): CoreEventServiceQueryBuilder<
         TRow &
-            Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K> | null>
+            Record<
+                AliasForService<TService, TAlias>,
+                SelectedServiceEnvelope<TService, K> | null
+            >
     > {
-        const alias = (input.alias ?? input.service.namespace) as AliasForService<TService, TAlias>;
+        const alias = (input.alias ??
+            input.service.namespace) as AliasForService<TService, TAlias>
         const right$ = selectedServiceObservable(
             input.service,
             input.eventName,
             input.input,
             input.mapEventName,
-            input.mapPayload,
-        );
+            input.mapPayload
+        )
 
         const rightWithLeftSeed$ =
-            input.type === "left"
-                ? right$.pipe(startWith(null as SelectedServiceEnvelope<TService, K> | null))
-                : right$;
+            input.type === 'left'
+                ? right$.pipe(
+                      startWith(
+                          null as SelectedServiceEnvelope<TService, K> | null
+                      )
+                  )
+                : right$
 
         const next$ = combineLatest([this.stream$, rightWithLeftSeed$]).pipe(
             map(([row, right]) => {
@@ -177,432 +213,521 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
                     return {
                         ...row,
                         [alias]: null,
-                    };
+                    }
                 }
 
                 if (!input.on(row, right)) {
-                    return null;
+                    return null
                 }
 
                 return {
                     ...row,
                     [alias]: right,
-                };
+                }
             }),
             rxFilter(
-                (value): value is NonNullable<typeof value> =>
-                    value !== null,
-            ),
-        );
+                (value): value is NonNullable<typeof value> => value !== null
+            )
+        )
 
         const builder = this as unknown as CoreEventServiceQueryBuilder<
             TRow &
-                Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K> | null>
-        >;
-        builder.stream$ = next$;
-        return builder;
+                Record<
+                    AliasForService<TService, TAlias>,
+                    SelectedServiceEnvelope<TService, K> | null
+                >
+        >
+        builder.stream$ = next$
+        return builder
     }
 
     whereFuzzy(query: string): this {
-        return this.whereFuzzyBy(query, ["namespace", "eventName", "payload", "input"]);
+        return this.whereFuzzyBy(query, [
+            'namespace',
+            'eventName',
+            'payload',
+            'input',
+        ])
     }
 
-    where(
-        predicate: (row: TRow) => boolean,
-    ): this {
-        return this.filterRow(predicate);
+    where(predicate: (row: TRow) => boolean): this {
+        return this.filterRow(predicate)
     }
 
-    filterRow(
-        predicate: (row: TRow) => boolean,
-    ): this {
-        this.stream$ = this.stream$.pipe(
-            rxFilter(predicate),
-        );
-        return this;
+    filterRow(predicate: (row: TRow) => boolean): this {
+        this.stream$ = this.stream$.pipe(rxFilter(predicate))
+        return this
     }
 
     mapRow<TNext extends CoreEventQueryRow>(
-        mapper: (row: TRow) => TNext,
+        mapper: (row: TRow) => TNext
     ): CoreEventServiceQueryBuilder<TNext> {
-        const builder = this as unknown as CoreEventServiceQueryBuilder<TNext>;
-        builder.stream$ = this.stream$.pipe(map(mapper));
-        return builder;
+        const builder = this as unknown as CoreEventServiceQueryBuilder<TNext>
+        builder.stream$ = this.stream$.pipe(map(mapper))
+        return builder
     }
 
-    tapRow(
-        effect: (row: TRow) => void,
-    ): this {
-        this.stream$ = this.stream$.pipe(rxTap(effect));
-        return this;
+    tapRow(effect: (row: TRow) => void): this {
+        this.stream$ = this.stream$.pipe(rxTap(effect))
+        return this
     }
 
     whereInputFuzzy(query: string): this {
-        return this.whereFuzzyBy(query, ["input"]);
+        return this.whereFuzzyBy(query, ['input'])
     }
 
     wherePayloadFuzzy(query: string): this {
-        return this.whereFuzzyBy(query, ["payload"]);
+        return this.whereFuzzyBy(query, ['payload'])
     }
 
     whereEventNameFuzzy(query: string): this {
-        return this.whereFuzzyBy(query, ["eventName"]);
+        return this.whereFuzzyBy(query, ['eventName'])
     }
 
     whereNamespaceFuzzy(query: string): this {
-        return this.whereFuzzyBy(query, ["namespace"]);
+        return this.whereFuzzyBy(query, ['namespace'])
     }
 
     whereInput(
-        predicate: (input: InputInRow<TRow>, envelope: EnvelopeInRow<TRow>) => boolean,
+        predicate: (
+            input: InputInRow<TRow>,
+            envelope: EnvelopeInRow<TRow>
+        ) => boolean
     ): this {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) => {
                     if (!hasInputValue(envelope)) {
-                        return false;
+                        return false
                     }
-                    return predicate(envelope.input as InputInRow<TRow>, envelope);
-                }),
-            ),
-        );
-        return this;
+                    return predicate(
+                        envelope.input as InputInRow<TRow>,
+                        envelope
+                    )
+                })
+            )
+        )
+        return this
     }
 
     wherePayload(
-        predicate: (payload: PayloadInRow<TRow>, envelope: EnvelopeInRow<TRow>) => boolean,
+        predicate: (
+            payload: PayloadInRow<TRow>,
+            envelope: EnvelopeInRow<TRow>
+        ) => boolean
     ): this {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) =>
-                    predicate(envelope.payload, envelope),
-                ),
-            ),
-        );
-        return this;
+                    predicate(envelope.payload, envelope)
+                )
+            )
+        )
+        return this
     }
 
     whereEventName(
-        predicate: (eventName: EventNameInRow<TRow>, envelope: EnvelopeInRow<TRow>) => boolean,
+        predicate: (
+            eventName: EventNameInRow<TRow>,
+            envelope: EnvelopeInRow<TRow>
+        ) => boolean
     ): this {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) =>
-                    predicate(envelope.eventName, envelope),
-                ),
-            ),
-        );
-        return this;
+                    predicate(envelope.eventName, envelope)
+                )
+            )
+        )
+        return this
     }
 
     whereNamespace(
-        predicate: (namespace: NamespaceInRow<TRow>, envelope: EnvelopeInRow<TRow>) => boolean,
+        predicate: (
+            namespace: NamespaceInRow<TRow>,
+            envelope: EnvelopeInRow<TRow>
+        ) => boolean
     ): this {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) =>
-                    predicate(envelope.namespace, envelope),
-                ),
-            ),
-        );
-        return this;
+                    predicate(envelope.namespace, envelope)
+                )
+            )
+        )
+        return this
     }
 
     private whereFuzzyBy(query: string, fields: FuzzyField[]): this {
-        const normalized = query.trim().toLowerCase();
+        const normalized = query.trim().toLowerCase()
         if (!normalized) {
-            return this;
+            return this
         }
 
         this.stream$ = this.stream$.pipe(
-            rxFilter((row) => buildFuzzyHaystack(row, fields).includes(normalized)),
-        );
-        return this;
+            rxFilter((row) =>
+                buildFuzzyHaystack(row, fields).includes(normalized)
+            )
+        )
+        return this
     }
 
     private rowEnvelopes(row: TRow): EnvelopeInRow<TRow>[] {
-        return Object.values(row).filter((value): value is EnvelopeInRow<TRow> => value !== null);
+        return Object.values(row).filter(
+            (value): value is EnvelopeInRow<TRow> => value !== null
+        )
     }
 
     execute(): Observable<TRow> {
-        return this.stream$;
+        return this.stream$
     }
 }
 
-type FluentSelectOptions<TService extends BaseEventService, K extends EventNamesOf<TService>> = {
-    mapEventName?: string | ((eventName: string) => string);
-    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown;
+type FluentSelectOptions<
+    TService extends BaseEventService,
+    K extends EventNamesOf<TService>,
+> = {
+    mapEventName?: string | ((eventName: string) => string)
+    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown
 }
 
-export type CoreEventQueryJoinType = "inner" | "left";
+export type CoreEventQueryJoinType = 'inner' | 'left'
 
 export type CoreEventQueryNamespaceInput = {
-    namespace: string;
-    alias?: string;
-    name?: string;
-    description?: string | null;
-    scope?: CoreEventStreamDefinition["scope"];
-    scopeId?: string | null;
-    filters?: Record<string, unknown> | null;
-    isActive?: boolean;
-    replayDefault?: boolean;
-    replayLimitDefault?: number;
+    namespace: string
+    alias?: string
+    name?: string
+    description?: string | null
+    scope?: CoreEventStreamDefinition['scope']
+    scopeId?: string | null
+    filters?: Record<string, unknown> | null
+    isActive?: boolean
+    replayDefault?: boolean
+    replayLimitDefault?: number
 }
 
-export type CoreEventQueryRow = Record<string, CoreSyncedEventEnvelope | null>;
+export type CoreEventQueryRow = Record<string, CoreSyncedEventEnvelope | null>
 
-type EnvelopeInRow<TRow extends CoreEventQueryRow> = Exclude<TRow[keyof TRow], null>;
-type InputInRow<TRow extends CoreEventQueryRow> = EnvelopeInRow<TRow> extends { input: infer TInput }
-    ? TInput
-    : never;
-type PayloadInRow<TRow extends CoreEventQueryRow> = EnvelopeInRow<TRow>["payload"];
-type EventNameInRow<TRow extends CoreEventQueryRow> = EnvelopeInRow<TRow>["eventName"];
-type NamespaceInRow<TRow extends CoreEventQueryRow> = EnvelopeInRow<TRow>["namespace"];
+type EnvelopeInRow<TRow extends CoreEventQueryRow> = Exclude<
+    TRow[keyof TRow],
+    null
+>
+type InputInRow<TRow extends CoreEventQueryRow> =
+    EnvelopeInRow<TRow> extends { input: infer TInput } ? TInput : never
+type PayloadInRow<TRow extends CoreEventQueryRow> =
+    EnvelopeInRow<TRow>['payload']
+type EventNameInRow<TRow extends CoreEventQueryRow> =
+    EnvelopeInRow<TRow>['eventName']
+type NamespaceInRow<TRow extends CoreEventQueryRow> =
+    EnvelopeInRow<TRow>['namespace']
 
 export type CoreEventQueryJoinInput<
     TRow extends CoreEventQueryRow,
     TRight extends CoreSyncedEventEnvelope,
     TAlias extends string = string,
 > = {
-    alias?: TAlias;
-    type?: CoreEventQueryJoinType;
-    on: (row: TRow, right: TRight) => boolean;
+    alias?: TAlias
+    type?: CoreEventQueryJoinType
+    on: (row: TRow, right: TRight) => boolean
 } & CoreEventQueryNamespaceInput
 
 type CoreEventQueryJoinInternal = CoreEventQueryJoinInput<
     CoreEventQueryRow,
     CoreSyncedEventEnvelope
->;
+>
 
-export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEventQueryRow> {
-    private readonly joins: CoreEventQueryJoinInternal[] = [];
-    private replayEnabled = true;
-    private replayLimitValue?: number;
+export class CoreEventSyncQueryBuilder<
+    TRow extends CoreEventQueryRow = CoreEventQueryRow,
+> {
+    private readonly joins: CoreEventQueryJoinInternal[] = []
+    private replayEnabled = true
+    private replayLimitValue?: number
 
     constructor(
         private readonly service: CoreEventSyncServiceShape,
-        private readonly fromSource: CoreEventQueryNamespaceInput,
+        private readonly fromSource: CoreEventQueryNamespaceInput
     ) {}
 
-    join<TRight extends CoreSyncedEventEnvelope, TAlias extends string = string>(
-        input: CoreEventQueryJoinInput<TRow, TRight, TAlias>,
-    ): this {
-        this.joins.push(input as unknown as CoreEventQueryJoinInternal);
-        return this;
+    join<
+        TRight extends CoreSyncedEventEnvelope,
+        TAlias extends string = string,
+    >(input: CoreEventQueryJoinInput<TRow, TRight, TAlias>): this {
+        this.joins.push(input as unknown as CoreEventQueryJoinInternal)
+        return this
     }
 
     replay(value: boolean): this {
-        this.replayEnabled = value;
-        return this;
+        this.replayEnabled = value
+        return this
     }
 
     replayLimit(limit: number): this {
-        this.replayLimitValue = limit;
-        return this;
+        this.replayLimitValue = limit
+        return this
     }
 
     execute(): Observable<TRow> {
         return defer(() => from(this.resolveRows())).pipe(
-            mergeMap((rows) => from(rows)),
-        );
+            mergeMap((rows) => from(rows))
+        )
     }
 
     private async resolveRows(): Promise<TRow[]> {
-        const fromAlias = this.fromSource.alias ?? this.fromSource.namespace;
+        const fromAlias = this.fromSource.alias ?? this.fromSource.namespace
         const baseEvents = await Effect.runPromise(
-            this.service.collectNamespaceEvents(this.fromSource, this.replayEnabled, this.replayLimitValue),
-        );
+            this.service.collectNamespaceEvents(
+                this.fromSource,
+                this.replayEnabled,
+                this.replayLimitValue
+            )
+        )
 
         let rows: CoreEventQueryRow[] = baseEvents.map((event) => ({
             [fromAlias]: event,
-        }));
+        }))
 
         for (const join of this.joins) {
-            const joinAlias = join.alias ?? join.namespace;
+            const joinAlias = join.alias ?? join.namespace
             const rightEvents = await Effect.runPromise(
-                this.service.collectNamespaceEvents(join, this.replayEnabled, this.replayLimitValue),
-            );
+                this.service.collectNamespaceEvents(
+                    join,
+                    this.replayEnabled,
+                    this.replayLimitValue
+                )
+            )
 
-            const nextRows: CoreEventQueryRow[] = [];
+            const nextRows: CoreEventQueryRow[] = []
 
             for (const row of rows) {
-                const matches = rightEvents.filter((right) => join.on(row, right));
+                const matches = rightEvents.filter((right) =>
+                    join.on(row, right)
+                )
 
                 if (matches.length === 0) {
-                    if ((join.type ?? "inner") === "left") {
+                    if ((join.type ?? 'inner') === 'left') {
                         nextRows.push({
                             ...row,
                             [joinAlias]: null,
-                        });
+                        })
                     }
-                    continue;
+                    continue
                 }
 
                 for (const match of matches) {
                     nextRows.push({
                         ...row,
                         [joinAlias]: match,
-                    });
+                    })
                 }
             }
 
-            rows = nextRows;
+            rows = nextRows
         }
 
-        return rows as TRow[];
+        return rows as TRow[]
     }
 }
 
-export class CoreEventNamespaceBuilder<TService extends BaseEventService | null = null> {
-    private adapter?: CoreEventNamespaceAdapter;
-    private eventService?: BaseEventService;
-    private resolver?: (definition: CoreEventStreamDefinition) => NamespaceEventSubscription<BaseEventService>[];
-    private staticSelections: NamespaceEventSubscription<BaseEventService>[] = [];
+export class CoreEventNamespaceBuilder<
+    TService extends BaseEventService | null = null,
+> {
+    private adapter?: CoreEventNamespaceAdapter
+    private eventService?: BaseEventService
+    private resolver?: (
+        definition: CoreEventStreamDefinition
+    ) => NamespaceEventSubscription<BaseEventService>[]
+    private staticSelections: NamespaceEventSubscription<BaseEventService>[] =
+        []
 
     constructor(
         private readonly service: CoreEventSyncServiceShape,
-        private readonly namespaceValue: string,
+        private readonly namespaceValue: string
     ) {}
 
     fromAdapter(adapter: CoreEventNamespaceAdapter): this {
-        this.adapter = adapter;
-        return this;
+        this.adapter = adapter
+        return this
     }
 
     fromEventService<T extends BaseEventService>(eventService: T): this {
-        this.eventService = eventService;
+        this.eventService = eventService
         // Re-type the builder with the concrete event service so later
         // `.select(name, input)` is checked against the REAL contracts of that
         // service (previously the class generic stayed `null` → select's input
         // resolved to never and every typed selection failed to compile).
-        return this;
+        return this
     }
 
     select<K extends EventNamesOf<NonNullable<TService>>>(
         this: CoreEventNamespaceBuilder<NonNullable<TService>>,
         eventName: K,
         input: EventInput<ContractsOf<NonNullable<TService>>[K]>,
-        options?: FluentSelectOptions<NonNullable<TService>, K>,
+        options?: FluentSelectOptions<NonNullable<TService>, K>
     ): CoreEventNamespaceBuilder<NonNullable<TService>> {
         this.staticSelections.push({
             eventName,
             input,
             mapEventName: options?.mapEventName,
             mapPayload: options?.mapPayload,
-        });
-        return this;
+        })
+        return this
     }
 
     usingResolver<T extends BaseEventService>(
         this: CoreEventNamespaceBuilder<T>,
-        resolver: (definition: CoreEventStreamDefinition) => NamespaceEventSubscription<T>[],
+        resolver: (
+            definition: CoreEventStreamDefinition
+        ) => NamespaceEventSubscription<T>[]
     ): CoreEventNamespaceBuilder<T> {
         this.resolver = resolver as unknown as (
-            definition: CoreEventStreamDefinition,
-        ) => NamespaceEventSubscription<BaseEventService>[];
-        return this;
+            definition: CoreEventStreamDefinition
+        ) => NamespaceEventSubscription<BaseEventService>[]
+        return this
     }
 
     register(): Effect.Effect<void, CoreEventNamespaceMisconfigured> {
         if (this.adapter) {
-            this.service.registerNamespaceAdapter(this.namespaceValue, this.adapter);
-            return Effect.void;
+            this.service.registerNamespaceAdapter(
+                this.namespaceValue,
+                this.adapter
+            )
+            return Effect.void
         }
 
         if (!this.eventService) {
-            return Effect.fail(new CoreEventNamespaceMisconfigured({ namespace: this.namespaceValue }));
+            return Effect.fail(
+                new CoreEventNamespaceMisconfigured({
+                    namespace: this.namespaceValue,
+                })
+            )
         }
 
-        this.service.registerNamespaceEventService(this.namespaceValue, this.eventService, {
-            resolveSubscriptions: (definition) => {
-                if (this.resolver) {
-                    return this.resolver(definition);
-                }
+        this.service.registerNamespaceEventService(
+            this.namespaceValue,
+            this.eventService,
+            {
+                resolveSubscriptions: (definition) => {
+                    if (this.resolver) {
+                        return this.resolver(definition)
+                    }
 
-                if (this.staticSelections.length > 0) {
-                    return this.staticSelections;
-                }
+                    if (this.staticSelections.length > 0) {
+                        return this.staticSelections
+                    }
 
-                return defaultSubscriptionsFromFilters(definition);
-            },
-        });
-        return Effect.void;
+                    return defaultSubscriptionsFromFilters(definition)
+                },
+            }
+        )
+        return Effect.void
     }
 }
 
 export type CoreEventSyncServiceShape = {
     /** Publishes a namespace on the core event bus through an adapter. */
-    readonly registerNamespaceAdapter: (namespace: string, adapter: CoreEventNamespaceAdapter) => void;
-    readonly namespace: (namespace: string) => CoreEventNamespaceBuilder;
+    readonly registerNamespaceAdapter: (
+        namespace: string,
+        adapter: CoreEventNamespaceAdapter
+    ) => void
+    readonly namespace: (namespace: string) => CoreEventNamespaceBuilder
     /** Publishes a namespace served by a `BaseEventService`; a stream whose filters name no subscription errors with `CoreEventStreamFiltersInvalid`. */
     readonly registerNamespaceEventService: <TService extends BaseEventService>(
         namespace: string,
         eventService: TService,
-        options?: RegisterNamespaceEventServiceOptions<TService>,
-    ) => void;
-    readonly query: (from: CoreEventQueryNamespaceInput) => CoreEventSyncQueryBuilder;
+        options?: RegisterNamespaceEventServiceOptions<TService>
+    ) => void
+    readonly query: (
+        from: CoreEventQueryNamespaceInput
+    ) => CoreEventSyncQueryBuilder
     readonly select: <
         TService extends BaseEventService,
         K extends EventNamesOf<TService>,
         TAlias extends string | undefined = undefined,
     >(
-        input: ServiceQuerySelectInput<TService, K, TAlias>,
-    ) => CoreEventServiceQueryBuilder<Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K>>>;
+        input: ServiceQuerySelectInput<TService, K, TAlias>
+    ) => CoreEventServiceQueryBuilder<
+        Record<
+            AliasForService<TService, TAlias>,
+            SelectedServiceEnvelope<TService, K>
+        >
+    >
     readonly selectMany: <
         TService extends BaseEventService,
         TSelections extends readonly AnyServiceSelection<TService>[],
         TAlias extends string | undefined = undefined,
     >(
-        input: ServiceQuerySelectManyInput<TService, TSelections, TAlias>,
+        input: ServiceQuerySelectManyInput<TService, TSelections, TAlias>
     ) => CoreEventServiceQueryBuilder<
-        Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, TSelections[number]["eventName"]>>
-    >;
-    readonly queryFromService: <TService extends BaseEventService, TAlias extends string>(input: {
-        namespace: string;
-        service: TService;
-        alias: TAlias;
-        name?: string;
-        description?: string | null;
-        scope?: CoreEventStreamDefinition["scope"];
-        scopeId?: string | null;
-        filters?: Record<string, unknown> | null;
-        isActive?: boolean;
-        replayDefault?: boolean;
-        replayLimitDefault?: number;
-    }) => CoreEventSyncQueryBuilder<Record<TAlias, ServiceEventEnvelope<TService>>>;
+        Record<
+            AliasForService<TService, TAlias>,
+            SelectedServiceEnvelope<TService, TSelections[number]['eventName']>
+        >
+    >
+    readonly queryFromService: <
+        TService extends BaseEventService,
+        TAlias extends string,
+    >(input: {
+        namespace: string
+        service: TService
+        alias: TAlias
+        name?: string
+        description?: string | null
+        scope?: CoreEventStreamDefinition['scope']
+        scopeId?: string | null
+        filters?: Record<string, unknown> | null
+        isActive?: boolean
+        replayDefault?: boolean
+        replayLimitDefault?: number
+    }) => CoreEventSyncQueryBuilder<
+        Record<TAlias, ServiceEventEnvelope<TService>>
+    >
     readonly listStreams: (
-        input: CoreEventStreamListInput | undefined,
-    ) => ReturnType<CoreEventStreamRepositoryShape["findMany"]>;
-    readonly getStreamById: (id: string) => Effect.Effect<CoreEventStreamDefinition, StorageFailure | CoreEventStreamNotFound>;
+        input: CoreEventStreamListInput | undefined
+    ) => ReturnType<CoreEventStreamRepositoryShape['findMany']>
+    readonly getStreamById: (
+        id: string
+    ) => Effect.Effect<
+        CoreEventStreamDefinition,
+        StorageFailure | CoreEventStreamNotFound
+    >
     /**
      * The live (pooled) or replayed stream of a definition. The transport is RxJS, so failures arrive on the observable's
      * error channel as the tagged errors (`CoreEventStreamNotFound`, `CoreEventStreamInactive`, `CoreEventNamespaceUnregistered`).
      */
-    readonly streamSync: (input: { id: string; replay: boolean; replayLimit?: number }) => Observable<CoreSyncedEventEnvelope>;
+    readonly streamSync: (input: {
+        id: string
+        replay: boolean
+        replayLimit?: number
+    }) => Observable<CoreSyncedEventEnvelope>
     /** Every event of a namespace, collected (a virtual definition: nothing is stored). */
     readonly collectNamespaceEvents: (
         source: CoreEventQueryNamespaceInput,
         replay: boolean,
-        replayLimit?: number,
-    ) => Effect.Effect<CoreSyncedEventEnvelope[], CoreEventNamespaceUnregistered | CoreEventCollectionFailed>;
-};
+        replayLimit?: number
+    ) => Effect.Effect<
+        CoreSyncedEventEnvelope[],
+        CoreEventNamespaceUnregistered | CoreEventCollectionFailed
+    >
+}
 
 type Ports = {
-    readonly repository: CoreEventStreamRepositoryShape;
-    readonly streamPool: CoreEventStreamPoolServiceShape;
-};
+    readonly repository: CoreEventStreamRepositoryShape
+    readonly streamPool: CoreEventStreamPoolServiceShape
+}
 
-const STREAM_DOMAIN = "core-events-sync";
+const STREAM_DOMAIN = 'core-events-sync'
 
-const toVirtualDefinition = (source: CoreEventQueryNamespaceInput): CoreEventStreamDefinition => {
-    const now = new Date().toISOString();
+const toVirtualDefinition = (
+    source: CoreEventQueryNamespaceInput
+): CoreEventStreamDefinition => {
+    const now = new Date().toISOString()
     return {
         id: randomUUID(),
         name: source.name ?? `${source.namespace}-query-stream`,
         namespace: source.namespace,
         description: source.description ?? null,
         isActive: source.isActive ?? true,
-        scope: source.scope ?? "global",
+        scope: source.scope ?? 'global',
         scopeId: source.scopeId ?? null,
         filters: source.filters ?? null,
         replayDefault: source.replayDefault ?? true,
@@ -610,19 +735,19 @@ const toVirtualDefinition = (source: CoreEventQueryNamespaceInput): CoreEventStr
         createdBy: null,
         createdAt: now,
         updatedAt: now,
-    };
-};
+    }
+}
 
 const withEnvelope = (
     definition: CoreEventStreamDefinition,
-    source: Observable<CoreEventAdapterEvent>,
+    source: Observable<CoreEventAdapterEvent>
 ): Observable<CoreSyncedEventEnvelope> =>
     defer(() => {
-        let sequence = 0;
+        let sequence = 0
 
         return source.pipe(
             map((event) => {
-                sequence += 1;
+                sequence += 1
 
                 return {
                     streamId: definition.id,
@@ -632,86 +757,128 @@ const withEnvelope = (
                     sequence,
                     replayed: event.replayed,
                     emittedAt: event.emittedAt ?? new Date().toISOString(),
-                } satisfies CoreSyncedEventEnvelope;
-            }),
-        );
-    });
+                } satisfies CoreSyncedEventEnvelope
+            })
+        )
+    })
 
-export function makeCoreEventSyncService({ repository, streamPool }: Ports): CoreEventSyncServiceShape {
-    const namespaceAdapters = new Map<string, CoreEventNamespaceAdapter>();
+export function makeCoreEventSyncService({
+    repository,
+    streamPool,
+}: Ports): CoreEventSyncServiceShape {
+    const namespaceAdapters = new Map<string, CoreEventNamespaceAdapter>()
 
-    const registerNamespaceAdapter: CoreEventSyncServiceShape["registerNamespaceAdapter"] = (namespace, adapter) => {
-        namespaceAdapters.set(namespace, adapter);
-    };
+    const registerNamespaceAdapter: CoreEventSyncServiceShape['registerNamespaceAdapter'] =
+        (namespace, adapter) => {
+            namespaceAdapters.set(namespace, adapter)
+        }
 
-    const getStreamById: CoreEventSyncServiceShape["getStreamById"] = (id) =>
-        repository.findById(id).pipe(
-            Effect.flatMap((definition) => (definition === null ? Effect.fail(new CoreEventStreamNotFound({ id })) : Effect.succeed(definition))),
-        );
+    const getStreamById: CoreEventSyncServiceShape['getStreamById'] = (id) =>
+        repository
+            .findById(id)
+            .pipe(
+                Effect.flatMap((definition) =>
+                    definition === null
+                        ? Effect.fail(new CoreEventStreamNotFound({ id }))
+                        : Effect.succeed(definition)
+                )
+            )
 
     const service: CoreEventSyncServiceShape = {
         registerNamespaceAdapter,
 
-        namespace: (namespace) => new CoreEventNamespaceBuilder(service, namespace),
+        namespace: (namespace) =>
+            new CoreEventNamespaceBuilder(service, namespace),
 
         registerNamespaceEventService: <TService extends BaseEventService>(
             namespace: string,
             eventService: TService,
-            options?: RegisterNamespaceEventServiceOptions<TService>,
+            options?: RegisterNamespaceEventServiceOptions<TService>
         ) => {
             const adapter: CoreEventNamespaceAdapter = ({ definition }) => {
                 const subscriptions =
-                    options?.resolveSubscriptions?.(definition) ?? defaultSubscriptionsFromFilters<TService>(definition);
+                    options?.resolveSubscriptions?.(definition) ??
+                    defaultSubscriptionsFromFilters<TService>(definition)
 
-                if (subscriptions instanceof CoreEventStreamFiltersInvalid) return throwError(() => subscriptions);
-                if (subscriptions.length === 0) return EMPTY;
+                if (subscriptions instanceof CoreEventStreamFiltersInvalid)
+                    return throwError(() => subscriptions)
+                if (subscriptions.length === 0) return EMPTY
 
                 const streams = subscriptions.map((selection) =>
-                    eventService.subscribe$(selection.eventName, selection.input as never).pipe(
-                        map((value) => {
-                            const eventName =
-                                typeof selection.mapEventName === "function"
-                                    ? selection.mapEventName(selection.eventName)
-                                    : (selection.mapEventName ?? selection.eventName);
+                    eventService
+                        .subscribe$(
+                            selection.eventName,
+                            selection.input as never
+                        )
+                        .pipe(
+                            map((value) => {
+                                const eventName =
+                                    typeof selection.mapEventName === 'function'
+                                        ? selection.mapEventName(
+                                              selection.eventName
+                                          )
+                                        : (selection.mapEventName ??
+                                          selection.eventName)
 
-                            // The subscription is erased at this point (the builder accepts any service), so neither the
-                            // handler's output nor the mapper's parameter carries a type. `never` is the one argument
-                            // every parameter accepts; the payload leaves this seam as `unknown`.
-                            const payload: unknown = selection.mapPayload ? selection.mapPayload(value as never) : value;
+                                // The subscription is erased at this point (the builder accepts any service), so neither the
+                                // handler's output nor the mapper's parameter carries a type. `never` is the one argument
+                                // every parameter accepts; the payload leaves this seam as `unknown`.
+                                const payload: unknown = selection.mapPayload
+                                    ? selection.mapPayload(value as never)
+                                    : value
 
-                            return {
-                                eventName,
-                                payload,
-                                replayed: false,
-                                emittedAt: new Date().toISOString(),
-                            } satisfies CoreEventAdapterEvent;
-                        }),
-                    ),
-                );
+                                return {
+                                    eventName,
+                                    payload,
+                                    replayed: false,
+                                    emittedAt: new Date().toISOString(),
+                                } satisfies CoreEventAdapterEvent
+                            })
+                        )
+                )
 
-                return merge(...streams);
-            };
+                return merge(...streams)
+            }
 
-            namespaceAdapters.set(namespace, adapter);
+            namespaceAdapters.set(namespace, adapter)
         },
 
         query: (from) => new CoreEventSyncQueryBuilder(service, from),
 
         select: (input) => {
-            const alias = (input.alias ?? input.service.namespace) as AliasForService<typeof input.service, typeof input.alias>;
+            const alias = (input.alias ??
+                input.service.namespace) as AliasForService<
+                typeof input.service,
+                typeof input.alias
+            >
             return new CoreEventServiceQueryBuilder({
                 alias,
-                stream$: selectedServiceObservable(input.service, input.eventName, input.input, input.mapEventName, input.mapPayload),
-            }) as never;
+                stream$: selectedServiceObservable(
+                    input.service,
+                    input.eventName,
+                    input.input,
+                    input.mapEventName,
+                    input.mapPayload
+                ),
+            }) as never
         },
 
         selectMany: (input) => {
-            const alias = input.alias ?? input.service.namespace;
+            const alias = input.alias ?? input.service.namespace
             const sources = input.selections.map((selection) =>
-                selectedServiceObservable(input.service, selection.eventName, selection.input, selection.mapEventName, selection.mapPayload),
-            );
+                selectedServiceObservable(
+                    input.service,
+                    selection.eventName,
+                    selection.input,
+                    selection.mapEventName,
+                    selection.mapPayload
+                )
+            )
 
-            return new CoreEventServiceQueryBuilder({ alias, stream$: merge(...sources) }) as never;
+            return new CoreEventServiceQueryBuilder({
+                alias,
+                stream$: merge(...sources),
+            }) as never
         },
 
         queryFromService: (input) => {
@@ -726,8 +893,8 @@ export function makeCoreEventSyncService({ repository, streamPool }: Ports): Cor
                 isActive: input.isActive,
                 replayDefault: input.replayDefault,
                 replayLimitDefault: input.replayLimitDefault,
-            };
-            return new CoreEventSyncQueryBuilder(service, source) as never;
+            }
+            return new CoreEventSyncQueryBuilder(service, source) as never
         },
 
         listStreams: (input) => repository.findMany(input),
@@ -737,41 +904,89 @@ export function makeCoreEventSyncService({ repository, streamPool }: Ports): Cor
         streamSync: (input) =>
             defer(() => from(Effect.runPromise(getStreamById(input.id)))).pipe(
                 mergeMap((definition) => {
-                    if (!definition.isActive) return throwError(() => new CoreEventStreamInactive({ id: definition.id }));
+                    if (!definition.isActive)
+                        return throwError(
+                            () =>
+                                new CoreEventStreamInactive({
+                                    id: definition.id,
+                                })
+                        )
 
-                    const adapter = namespaceAdapters.get(definition.namespace);
-                    if (!adapter) return throwError(() => new CoreEventNamespaceUnregistered({ namespace: definition.namespace }));
+                    const adapter = namespaceAdapters.get(definition.namespace)
+                    if (!adapter)
+                        return throwError(
+                            () =>
+                                new CoreEventNamespaceUnregistered({
+                                    namespace: definition.namespace,
+                                })
+                        )
 
-                    const replayLimit = input.replayLimit ?? 1;
-                    const streamFactory = () => withEnvelope(definition, adapter({ definition, replay: input.replay, replayLimit }));
+                    const replayLimit = input.replayLimit ?? 1
+                    const streamFactory = () =>
+                        withEnvelope(
+                            definition,
+                            adapter({
+                                definition,
+                                replay: input.replay,
+                                replayLimit,
+                            })
+                        )
 
-                    if (input.replay) return streamFactory();
+                    if (input.replay) return streamFactory()
 
-                    return streamPool.observePooledStream(`${STREAM_DOMAIN}:core-event-sync-live:${definition.id}`, streamFactory, {
-                        onError: (error) => (error instanceof Error ? error.message : String(error)),
-                    });
-                }),
+                    return streamPool.observePooledStream(
+                        `${STREAM_DOMAIN}:core-event-sync-live:${definition.id}`,
+                        streamFactory,
+                        {
+                            onError: (error) =>
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error),
+                        }
+                    )
+                })
             ),
 
         collectNamespaceEvents: (source, replay, replayLimit) =>
-            Effect.suspend((): Effect.Effect<CoreSyncedEventEnvelope[], CoreEventNamespaceUnregistered | CoreEventCollectionFailed> => {
-                const adapter = namespaceAdapters.get(source.namespace);
-                if (!adapter) return Effect.fail(new CoreEventNamespaceUnregistered({ namespace: source.namespace }));
+            Effect.suspend(
+                (): Effect.Effect<
+                    CoreSyncedEventEnvelope[],
+                    CoreEventNamespaceUnregistered | CoreEventCollectionFailed
+                > => {
+                    const adapter = namespaceAdapters.get(source.namespace)
+                    if (!adapter)
+                        return Effect.fail(
+                            new CoreEventNamespaceUnregistered({
+                                namespace: source.namespace,
+                            })
+                        )
 
-                const definition = toVirtualDefinition(source);
-                const stream = adapter({ definition, replay, replayLimit: replayLimit ?? 1 });
+                    const definition = toVirtualDefinition(source)
+                    const stream = adapter({
+                        definition,
+                        replay,
+                        replayLimit: replayLimit ?? 1,
+                    })
 
-                return Effect.tryPromise({
-                    try: () => firstValueFrom(withEnvelope(definition, stream).pipe(toArray())),
-                    catch: (cause) => new CoreEventCollectionFailed({ cause }),
-                });
-            }),
-    };
+                    return Effect.tryPromise({
+                        try: () =>
+                            firstValueFrom(
+                                withEnvelope(definition, stream).pipe(toArray())
+                            ),
+                        catch: (cause) =>
+                            new CoreEventCollectionFailed({ cause }),
+                    })
+                }
+            ),
+    }
 
-    return service;
+    return service
 }
 
-export class CoreEventSyncService extends Context.Service<CoreEventSyncService, CoreEventSyncServiceShape>()("shared/CoreEventSyncService") {}
+export class CoreEventSyncService extends Context.Service<
+    CoreEventSyncService,
+    CoreEventSyncServiceShape
+>()('shared/CoreEventSyncService') {}
 
 function selectedServiceObservable<
     TService extends BaseEventService,
@@ -781,32 +996,39 @@ function selectedServiceObservable<
     eventName: K,
     input: EventInput<ContractsOf<TService>[K]> | undefined,
     mapEventName?: string | ((eventName: K) => string),
-    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown,
+    mapPayload?: (payload: EventOutput<ContractsOf<TService>[K]>) => unknown
 ): Observable<SelectedServiceEnvelope<TService, K>> {
     type SelectedSourceValue = {
-        input: EventInput<ContractsOf<TService>[K]>;
-        output: EventOutput<ContractsOf<TService>[K]>;
+        input: EventInput<ContractsOf<TService>[K]>
+        output: EventOutput<ContractsOf<TService>[K]>
     }
 
-    const source$: Observable<SelectedSourceValue> = input === undefined
-        ? service.subscribeAny$(eventName).pipe(
-            map((value: SelectedSourceValue): SelectedSourceValue => ({
-                input: value.input,
-                output: value.output,
-            })),
-        )
-        : service.subscribe$(eventName, input).pipe(
-            map((value: EventOutput<ContractsOf<TService>[K]>): SelectedSourceValue => ({
-                input,
-                output: value,
-            })),
-        );
+    const source$: Observable<SelectedSourceValue> =
+        input === undefined
+            ? service.subscribeAny$(eventName).pipe(
+                  map((value: SelectedSourceValue): SelectedSourceValue => ({
+                      input: value.input,
+                      output: value.output,
+                  }))
+              )
+            : service.subscribe$(eventName, input).pipe(
+                  map(
+                      (
+                          value: EventOutput<ContractsOf<TService>[K]>
+                      ): SelectedSourceValue => ({
+                          input,
+                          output: value,
+                      })
+                  )
+              )
 
     return source$.pipe(
         map((value, index) => {
             const resolvedEventName =
-                typeof mapEventName === "function" ? mapEventName(eventName) : (mapEventName ?? eventName);
-            const payload = mapPayload ? mapPayload(value.output) : value.output;
+                typeof mapEventName === 'function'
+                    ? mapEventName(eventName)
+                    : (mapEventName ?? eventName)
+            const payload = mapPayload ? mapPayload(value.output) : value.output
 
             return {
                 streamId: randomUUID(),
@@ -817,58 +1039,67 @@ function selectedServiceObservable<
                 sequence: index + 1,
                 replayed: false,
                 emittedAt: new Date().toISOString(),
-            } as SelectedServiceEnvelope<TService, K>;
-        }),
-    );
+            } as SelectedServiceEnvelope<TService, K>
+        })
+    )
 }
 
 function hasInputValue(
-    envelope: CoreSyncedEventEnvelope,
+    envelope: CoreSyncedEventEnvelope
 ): envelope is CoreSyncedEventEnvelope & { input: unknown } {
-    return "input" in envelope;
+    return 'input' in envelope
 }
 
-type FuzzyField = "namespace" | "eventName" | "payload" | "input";
+type FuzzyField = 'namespace' | 'eventName' | 'payload' | 'input'
 
-function buildFuzzyHaystack(row: CoreEventQueryRow, fields: FuzzyField[]): string {
+function buildFuzzyHaystack(
+    row: CoreEventQueryRow,
+    fields: FuzzyField[]
+): string {
     return Object.values(row)
         .filter((value): value is CoreSyncedEventEnvelope => value !== null)
         .map((value) => {
-            const inputValue = (value as { input?: unknown }).input;
-            const parts: string[] = [];
-            if (fields.includes("namespace")) {
-                parts.push(value.namespace);
+            const inputValue = (value as { input?: unknown }).input
+            const parts: string[] = []
+            if (fields.includes('namespace')) {
+                parts.push(value.namespace)
             }
-            if (fields.includes("eventName")) {
-                parts.push(value.eventName);
+            if (fields.includes('eventName')) {
+                parts.push(value.eventName)
             }
-            if (fields.includes("payload")) {
-                parts.push(JSON.stringify(value.payload ?? {}));
+            if (fields.includes('payload')) {
+                parts.push(JSON.stringify(value.payload ?? {}))
             }
-            if (fields.includes("input")) {
-                parts.push(JSON.stringify(inputValue ?? {}));
+            if (fields.includes('input')) {
+                parts.push(JSON.stringify(inputValue ?? {}))
             }
-            return parts.join(" ");
+            return parts.join(' ')
         })
-        .join(" ")
-        .toLowerCase();
+        .join(' ')
+        .toLowerCase()
 }
 
 function defaultSubscriptionsFromFilters<TService extends BaseEventService>(
-    definition: CoreEventStreamDefinition,
+    definition: CoreEventStreamDefinition
 ): NamespaceEventSubscription<TService>[] | CoreEventStreamFiltersInvalid {
-    const filters = definition.filters ?? {};
-    const eventName = filters.eventName;
-    const input = filters.input;
+    const filters = definition.filters ?? {}
+    const eventName = filters.eventName
+    const input = filters.input
 
-    if (typeof eventName !== "string" || typeof input !== "object" || input === null) {
-        return new CoreEventStreamFiltersInvalid({});
+    if (
+        typeof eventName !== 'string' ||
+        typeof input !== 'object' ||
+        input === null
+    ) {
+        return new CoreEventStreamFiltersInvalid({})
     }
 
     return [
         {
             eventName: eventName as EventNamesOf<TService>,
-            input: input as EventInput<ContractsOf<TService>[EventNamesOf<TService>]>,
+            input: input as EventInput<
+                ContractsOf<TService>[EventNamesOf<TService>]
+            >,
         },
-    ];
+    ]
 }

@@ -1,16 +1,16 @@
-import { Cause, Context, Effect } from "effect";
+import { Cause, Context, Effect } from 'effect'
 
-import type { ServiceLifecycleShape } from "@deployer/nest-effect";
-import type { SwarmClusterShape } from "@deployer/swarm";
+import type { ServiceLifecycleShape } from '@deployer/nest-effect'
+import type { SwarmClusterShape } from '@deployer/swarm'
 
-import { attempt } from "../../../core/effects";
+import { attempt } from '../../../core/effects'
 
-import type { DeploymentQueueLifecycleShape } from "./deployment-queue-lifecycle.service";
-import type { OrphanedDeploymentsPort } from "../deployment.ports";
-import type { DeploymentRow } from "../repositories/deployment.repository";
+import type { DeploymentQueueLifecycleShape } from './deployment-queue-lifecycle.service'
+import type { OrphanedDeploymentsPort } from '../deployment.ports'
+import type { DeploymentRow } from '../repositories/deployment.repository'
 
-const RECONCILE_START_DELAY = "3 seconds";
-const ORPHAN_SCAN_LIMIT = 500;
+const RECONCILE_START_DELAY = '3 seconds'
+const ORPHAN_SCAN_LIMIT = 500
 
 /**
  * W-Queue (Q3) — startup reconciliation of orphaned in-flight deployments.
@@ -36,61 +36,78 @@ export type DeploymentQueueReconciliationShape = ServiceLifecycleShape & {
      * Mark every `building` deployment row as failed (or adopted, when its Swarm service survived).
      * Resolves to the ids of reconciled deployments; fails with whatever the repository refused with.
      */
-    readonly reconcileOrphanedInFlightDeployments: () => Effect.Effect<string[], unknown>;
-};
+    readonly reconcileOrphanedInFlightDeployments: () => Effect.Effect<
+        string[],
+        unknown
+    >
+}
 
 export class DeploymentQueueReconciliation extends Context.Service<
     DeploymentQueueReconciliation,
     DeploymentQueueReconciliationShape
->()("runtime/DeploymentQueueReconciliation") {}
+>()('runtime/DeploymentQueueReconciliation') {}
 
 export type DeploymentQueueReconciliationPorts = {
-    readonly deployments: Context.Service.Shape<typeof OrphanedDeploymentsPort>;
-    readonly queue: Pick<DeploymentQueueLifecycleShape, "hasLiveJobForDeployment">;
+    readonly deployments: Context.Service.Shape<typeof OrphanedDeploymentsPort>
+    readonly queue: Pick<
+        DeploymentQueueLifecycleShape,
+        'hasLiveJobForDeployment'
+    >
     /** SW-026: swarm-aware adoption — when the engine already owns the service (deployer.deployment_id label
      *  match), a crash that wiped the queue must adopt the deployment as success, not fail it. Absent when swarm is off. */
-    readonly swarm?: Pick<SwarmClusterShape, "assertClusterReady" | "listSwarmServicesForDeployment"> | undefined;
-};
+    readonly swarm?:
+        | Pick<
+              SwarmClusterShape,
+              'assertClusterReady' | 'listSwarmServicesForDeployment'
+          >
+        | undefined
+}
 
 export function makeDeploymentQueueReconciliation(
-    ports: DeploymentQueueReconciliationPorts,
+    ports: DeploymentQueueReconciliationPorts
 ): DeploymentQueueReconciliationShape {
-    const { deployments, queue, swarm } = ports;
+    const { deployments, queue, swarm } = ports
 
     /**
      * True when a live Swarm service carries the `deployer.deployment_id` label for the given deployment.
      * False when swarm is disabled, the engine is not in a cluster, or no matching service exists.
      */
-    const hasLiveSwarmService = (deploymentId: string): Effect.Effect<boolean> =>
+    const hasLiveSwarmService = (
+        deploymentId: string
+    ): Effect.Effect<boolean> =>
         swarm === undefined
             ? Effect.succeed(false)
             : Effect.gen(function* () {
-                  yield* swarm.assertClusterReady();
-                  const services = yield* swarm.listSwarmServicesForDeployment(deploymentId);
-                  return services.length > 0;
-              }).pipe(Effect.catch(() => Effect.succeed(false)));
+                  yield* swarm.assertClusterReady()
+                  const services =
+                      yield* swarm.listSwarmServicesForDeployment(deploymentId)
+                  return services.length > 0
+              }).pipe(Effect.catch(() => Effect.succeed(false)))
 
-    const reconcileOrphanedInFlightDeployments = (): Effect.Effect<string[], unknown> =>
+    const reconcileOrphanedInFlightDeployments = (): Effect.Effect<
+        string[],
+        unknown
+    > =>
         Effect.gen(function* () {
             const page = yield* attempt(() =>
                 deployments.findMany({
                     limit: ORPHAN_SCAN_LIMIT,
                     offset: 0,
-                    sortBy: "createdAt",
-                    sortDirection: "asc",
+                    sortBy: 'createdAt',
+                    sortDirection: 'asc',
                     filter: {
-                        status: { operator: "eq", value: "building" },
+                        status: { operator: 'eq', value: 'building' },
                     },
-                }),
-            );
+                })
+            )
 
-            const reconciled: string[] = [];
+            const reconciled: string[] = []
             for (const deployment of page.data) {
                 // Skip if a queue job for this deployment is somehow still alive
                 // (e.g. test harnesses or a sibling process) — only reconcile rows
                 // with NO live queue job, so we never fail an actively-running build.
                 if (yield* queue.hasLiveJobForDeployment(deployment.id)) {
-                    continue;
+                    continue
                 }
 
                 // SW-026: adopt deployments whose Swarm service survived the crash
@@ -98,76 +115,76 @@ export function makeDeploymentQueueReconciliation(
                 // not the service). Never fail a still-running swarm service.
                 if (yield* hasLiveSwarmService(deployment.id)) {
                     yield* attempt(() =>
-                        deployments.updateStatus(deployment.id, "success", {
+                        deployments.updateStatus(deployment.id, 'success', {
                             ...(deployment.metadata ?? {}),
                             swarmAdoptedAt: new Date().toISOString(),
                             swarmAdoptedReason:
-                                "Swarm service discovered alive after restart; deployment adopted rather than failed.",
-                        } as DeploymentRow["metadata"]),
-                    );
+                                'Swarm service discovered alive after restart; deployment adopted rather than failed.',
+                        } as DeploymentRow['metadata'])
+                    )
 
                     yield* attempt(() =>
                         deployments.insertLog(deployment.id, {
-                            level: "info",
+                            level: 'info',
                             message:
-                                "Deployment adopted: Swarm service still running after restart; engine owns the convergence.",
-                            phase: "success",
-                            step: "startup_reconcile",
-                            stage: "deploy",
+                                'Deployment adopted: Swarm service still running after restart; engine owns the convergence.',
+                            phase: 'success',
+                            step: 'startup_reconcile',
+                            stage: 'deploy',
                             correlationId: deployment.id,
                             metadata: {
                                 structured: true,
-                                reason: "startup_reconcile_adopt",
+                                reason: 'startup_reconcile_adopt',
                             },
-                        }),
-                    );
+                        })
+                    )
 
                     yield* Effect.logInfo(
-                        `Reconciled orphaned deployment '${deployment.id}' (status building → success, swarm service alive)`,
-                    );
-                    reconciled.push(deployment.id);
-                    continue;
+                        `Reconciled orphaned deployment '${deployment.id}' (status building → success, swarm service alive)`
+                    )
+                    reconciled.push(deployment.id)
+                    continue
                 }
 
                 yield* attempt(() =>
-                    deployments.updateStatus(deployment.id, "failed", {
+                    deployments.updateStatus(deployment.id, 'failed', {
                         ...(deployment.metadata ?? {}),
                         crashReconciledAt: new Date().toISOString(),
                         crashReconciledReason:
-                            "API restarted while the deployment was building; the in-flight execution was lost. Use retry to re-run with a complete payload.",
-                    } as DeploymentRow["metadata"]),
-                );
+                            'API restarted while the deployment was building; the in-flight execution was lost. Use retry to re-run with a complete payload.',
+                    } as DeploymentRow['metadata'])
+                )
 
                 yield* attempt(() =>
                     deployments.insertLog(deployment.id, {
-                        level: "error",
+                        level: 'error',
                         message:
-                            "Deployment reconciled as failed: API restarted while building and the in-flight queue execution was lost. Retry to re-run.",
-                        phase: "failed",
-                        step: "startup_reconcile",
-                        stage: "build",
+                            'Deployment reconciled as failed: API restarted while building and the in-flight queue execution was lost. Retry to re-run.',
+                        phase: 'failed',
+                        step: 'startup_reconcile',
+                        stage: 'build',
                         correlationId: deployment.id,
                         metadata: {
                             structured: true,
-                            reason: "startup_reconcile_crash",
+                            reason: 'startup_reconcile_crash',
                         },
-                    }),
-                );
+                    })
+                )
 
                 yield* Effect.logWarning(
-                    `Reconciled orphaned deployment '${deployment.id}' (status building → failed after crash)`,
-                );
-                reconciled.push(deployment.id);
+                    `Reconciled orphaned deployment '${deployment.id}' (status building → failed after crash)`
+                )
+                reconciled.push(deployment.id)
             }
 
             if (reconciled.length > 0) {
                 yield* Effect.logInfo(
-                    `Startup reconciliation: marked ${String(reconciled.length)} orphaned deployment(s) as failed/adopted`,
-                );
+                    `Startup reconciliation: marked ${String(reconciled.length)} orphaned deployment(s) as failed/adopted`
+                )
             }
 
-            return reconciled;
-        });
+            return reconciled
+        })
 
     return {
         // One pass shortly after boot, once the queue's own sweep has had the chance to announce live jobs.
@@ -175,10 +192,12 @@ export function makeDeploymentQueueReconciliation(
             Effect.sleep(RECONCILE_START_DELAY).pipe(
                 Effect.andThen(reconcileOrphanedInFlightDeployments()),
                 Effect.catchCause((cause) =>
-                    Effect.logError(`Failed to reconcile orphaned deployments: ${Cause.pretty(cause)}`),
+                    Effect.logError(
+                        `Failed to reconcile orphaned deployments: ${Cause.pretty(cause)}`
+                    )
                 ),
-                Effect.asVoid,
+                Effect.asVoid
             ),
         reconcileOrphanedInFlightDeployments,
-    };
+    }
 }

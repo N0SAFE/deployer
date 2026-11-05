@@ -9,16 +9,16 @@
 
 /** Minimal shape the hierarchy helpers rely on. */
 export interface ServiceHierarchyFields {
-  id: string
-  projectId?: string | null
-  project_id?: string | null
-  parentId?: string | null
-  parent_id?: string | null
+    id: string
+    projectId?: string | null
+    project_id?: string | null
+    parentId?: string | null
+    parent_id?: string | null
 }
 
 /** True when the service is a top-level ("main") service of its project. */
 export function isTopLevelService(service: ServiceHierarchyFields): boolean {
-  return service.parentId == null && service.parent_id == null
+    return service.parentId == null && service.parent_id == null
 }
 
 /**
@@ -27,19 +27,18 @@ export function isTopLevelService(service: ServiceHierarchyFields): boolean {
  * as if they were main services in project-level views.
  */
 export function filterProjectTopLevelServices<T extends ServiceHierarchyFields>(
-  services: T[],
-  projectId: string | undefined | null,
+    services: T[],
+    projectId: string | undefined | null
 ): T[] {
-  return services.filter((s) => {
-    const belongs =
-      s.projectId === projectId || s.project_id === projectId
-    return belongs && isTopLevelService(s)
-  })
+    return services.filter((s) => {
+        const belongs = s.projectId === projectId || s.project_id === projectId
+        return belongs && isTopLevelService(s)
+    })
 }
 
 /** Filter a service list down to top-level services only (any project). */
 export function filterTopLevelServices<T extends ServiceHierarchyFields>(
-  services: T[],
+    services: T[]
 ): T[] {
-  return services.filter(isTopLevelService)
+    return services.filter(isTopLevelService)
 }

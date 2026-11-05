@@ -39,15 +39,15 @@
  * credentials). Silence creates nothing.
  */
 
-export type AdminBootstrapDecision = "always" | "when_empty" | "never";
+export type AdminBootstrapDecision = 'always' | 'when_empty' | 'never'
 
 function asBool(value: string | boolean | undefined): boolean | undefined {
-  if (typeof value === "boolean") return value;
-  if (value === undefined) return undefined;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1") return true;
-  if (normalized === "false" || normalized === "0") return false;
-  return undefined;
+    if (typeof value === 'boolean') return value
+    if (value === undefined) return undefined
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true' || normalized === '1') return true
+    if (normalized === 'false' || normalized === '0') return false
+    return undefined
 }
 
 /**
@@ -57,65 +57,77 @@ function asBool(value: string | boolean | undefined): boolean | undefined {
  * without mutating `process.env` (and a spec cannot leak state between cases).
  */
 export function resolveAdminBootstrapDecision(env: {
-  adminBootstrap?: string;
-  enableDevBootstrap?: string | boolean;
-  enableSeeding?: string | boolean;
-  nodeEnv?: string;
+    adminBootstrap?: string
+    enableDevBootstrap?: string | boolean
+    enableSeeding?: string | boolean
+    nodeEnv?: string
 }): { decision: AdminBootstrapDecision; reason: string } {
-  // 1. The canonical switch wins outright.
-  const explicit = env.adminBootstrap?.trim().toLowerCase();
-  if (explicit === "true") {
-    return { decision: "always", reason: "ADMIN_BOOTSTRAP=true (explicit)" };
-  }
-  if (explicit === "false") {
-    return { decision: "never", reason: "ADMIN_BOOTSTRAP=false (explicit)" };
-  }
-  if (explicit !== undefined && explicit !== "" && explicit !== "auto") {
-    // An unrecognised value is treated as `never` rather than silently defaulting
-    // to `always`: a typo in a security-adjacent switch must not create accounts.
+    // 1. The canonical switch wins outright.
+    const explicit = env.adminBootstrap?.trim().toLowerCase()
+    if (explicit === 'true') {
+        return { decision: 'always', reason: 'ADMIN_BOOTSTRAP=true (explicit)' }
+    }
+    if (explicit === 'false') {
+        return { decision: 'never', reason: 'ADMIN_BOOTSTRAP=false (explicit)' }
+    }
+    if (explicit !== undefined && explicit !== '' && explicit !== 'auto') {
+        // An unrecognised value is treated as `never` rather than silently defaulting
+        // to `always`: a typo in a security-adjacent switch must not create accounts.
+        return {
+            decision: 'never',
+            reason: `ADMIN_BOOTSTRAP="${explicit}" is invalid — treated as never`,
+        }
+    }
+
+    // 2. Deprecated aliases, honoured only while the canonical switch is `auto`.
+    if (env.nodeEnv === 'production') {
+        const seeding = asBool(env.enableSeeding)
+        if (seeding === true) {
+            return {
+                decision: 'always',
+                reason: 'ENABLE_SEEDING=true (deprecated alias)',
+            }
+        }
+        if (seeding === false) {
+            return {
+                decision: 'never',
+                reason: 'ENABLE_SEEDING=false (deprecated alias)',
+            }
+        }
+    } else {
+        const devBootstrap = asBool(env.enableDevBootstrap)
+        if (devBootstrap === false) {
+            return {
+                decision: 'never',
+                reason: 'ENABLE_DEV_BOOTSTRAP=false (deprecated alias)',
+            }
+        }
+        if (devBootstrap === true) {
+            return {
+                decision: 'always',
+                reason: 'ENABLE_DEV_BOOTSTRAP=true (deprecated alias)',
+            }
+        }
+    }
+
+    // 3. The default for a node that is already set up: do nothing. Creating an
+    //    account is an explicit request, never a consequence of leaving a switch
+    //    unset.
     return {
-      decision: "never",
-      reason: `ADMIN_BOOTSTRAP="${explicit}" is invalid — treated as never`,
-    };
-  }
-
-  // 2. Deprecated aliases, honoured only while the canonical switch is `auto`.
-  if (env.nodeEnv === "production") {
-    const seeding = asBool(env.enableSeeding);
-    if (seeding === true) {
-      return { decision: "always", reason: "ENABLE_SEEDING=true (deprecated alias)" };
+        decision: 'never',
+        reason: 'default — no admin bootstrap requested (set ADMIN_BOOTSTRAP=true to enable)',
     }
-    if (seeding === false) {
-      return { decision: "never", reason: "ENABLE_SEEDING=false (deprecated alias)" };
-    }
-  } else {
-    const devBootstrap = asBool(env.enableDevBootstrap);
-    if (devBootstrap === false) {
-      return { decision: "never", reason: "ENABLE_DEV_BOOTSTRAP=false (deprecated alias)" };
-    }
-    if (devBootstrap === true) {
-      return { decision: "always", reason: "ENABLE_DEV_BOOTSTRAP=true (deprecated alias)" };
-    }
-  }
-
-  // 3. The default for a node that is already set up: do nothing. Creating an
-  //    account is an explicit request, never a consequence of leaving a switch
-  //    unset.
-  return {
-    decision: "never",
-    reason: "default — no admin bootstrap requested (set ADMIN_BOOTSTRAP=true to enable)",
-  };
 }
 
 /** Convenience: resolve straight from `process.env`. */
 export function adminBootstrapDecisionFromProcessEnv(): {
-  decision: AdminBootstrapDecision;
-  reason: string;
+    decision: AdminBootstrapDecision
+    reason: string
 } {
-  return resolveAdminBootstrapDecision({
-    adminBootstrap: process.env.ADMIN_BOOTSTRAP,
-    enableDevBootstrap: process.env.ENABLE_DEV_BOOTSTRAP,
-    enableSeeding: process.env.ENABLE_SEEDING,
-    nodeEnv: process.env.NODE_ENV,
-  });
+    return resolveAdminBootstrapDecision({
+        adminBootstrap: process.env.ADMIN_BOOTSTRAP,
+        enableDevBootstrap: process.env.ENABLE_DEV_BOOTSTRAP,
+        enableSeeding: process.env.ENABLE_SEEDING,
+        nodeEnv: process.env.NODE_ENV,
+    })
 }

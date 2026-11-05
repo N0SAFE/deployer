@@ -21,11 +21,12 @@
  * Phase B: buildWhereClause() — compiles rules to a Drizzle SQL predicate.
  */
 
-import { and, or, inArray, sql as rawSql, type SQL } from "drizzle-orm";
+import { and, or, inArray, sql as rawSql, type SQL } from 'drizzle-orm'
 
-import { compileDFilter, type ColumnResolver } from "./filter-compiler";
-import { matchFilter } from "./filter-matcher";
-import { getAncestorChain } from "./resource-graph";
+import { compileDFilter, type ColumnResolver } from './filter-compiler'
+import { matchFilter } from './filter-matcher'
+import { getAncestorChain } from './resource-graph'
+
 import type {
     DFilter,
     DynamicVars,
@@ -35,10 +36,9 @@ import type {
     ProjectResource,
     ResourceRule,
     ResourceScope,
-} from "./types";
+} from './types'
 
-
-export type { ColumnResolver };
+export type { ColumnResolver }
 
 // ---------------------------------------------------------------------------
 // Loader types — injected so the engine stays framework-agnostic
@@ -48,7 +48,7 @@ export type { ColumnResolver };
  * Resolves all ResourceRule[] for a platform role name.
  * Reads from `role_rules.resource_rules` (JSONB).
  */
-export type RoleRuleLoader = (platformRole: string) => Promise<ResourceRule[]>;
+export type RoleRuleLoader = (platformRole: string) => Promise<ResourceRule[]>
 
 /**
  * Optional: loads a resource record for filter-scope rule evaluation.
@@ -59,20 +59,20 @@ export type RoleRuleLoader = (platformRole: string) => Promise<ResourceRule[]>;
  */
 export type ResourceRecordLoader = (
     resource: ProjectResource,
-    resourceId: string,
-) => Promise<Record<string, unknown> | undefined>;
+    resourceId: string
+) => Promise<Record<string, unknown> | undefined>
 
 // ---------------------------------------------------------------------------
 // PermissionEngine
 // ---------------------------------------------------------------------------
 
 export interface PermissionEngineOptions {
-    loadRoleRules: RoleRuleLoader;
+    loadRoleRules: RoleRuleLoader
     /**
      * Required when any stored rule uses `scope: { type: "filter" }`.
      * If absent and a filter-scope rule is encountered, check() throws.
      */
-    loadResourceRecord?: ResourceRecordLoader;
+    loadResourceRecord?: ResourceRecordLoader
 }
 
 export class PermissionEngine {
@@ -96,86 +96,94 @@ export class PermissionEngine {
         resource: ProjectResource,
         action: string,
         resourceId?: string,
-        record?: Record<string, unknown>,
+        record?: Record<string, unknown>
     ): Promise<PermissionCheckResult> {
         // 1. superAdmin bypass
-        if (ctx.platformRole === "superAdmin") {
-            return { decision: "ALLOW", reason: "superAdmin bypass" };
+        if (ctx.platformRole === 'superAdmin') {
+            return { decision: 'ALLOW', reason: 'superAdmin bypass' }
         }
 
         // 2. Resolve the rules for the user's platform role
-        const allRules = await this.opts.loadRoleRules(ctx.platformRole ?? "user");
+        const allRules = await this.opts.loadRoleRules(
+            ctx.platformRole ?? 'user'
+        )
         if (allRules.length === 0) {
             return {
-                decision: "DENY",
+                decision: 'DENY',
                 reason: "No rules configured for the user's platform role",
-            };
+            }
         }
 
         // 3. Filter to rules that match (resource, action)
         const matchingRules = allRules.filter((rule) =>
-            ruleMatchesResourceAndAction(rule, resource, action),
-        );
+            ruleMatchesResourceAndAction(rule, resource, action)
+        )
 
         if (matchingRules.length === 0) {
             return {
-                decision: "DENY",
+                decision: 'DENY',
                 reason: `No rule found for resource="${resource}" action="${action}"`,
-            };
+            }
         }
 
         // 4. Evaluate scope for each matching rule
-        const applicableRules: ResourceRule[] = [];
+        const applicableRules: ResourceRule[] = []
         for (const rule of matchingRules) {
             const inScope = await this.evaluateScope(
                 rule.scope,
                 resource,
                 resourceId,
                 record,
-                ctx,
-            );
+                ctx
+            )
             if (inScope) {
-                applicableRules.push(rule);
+                applicableRules.push(rule)
             }
         }
 
         if (applicableRules.length === 0) {
             return {
-                decision: "DENY",
-                reason: `Resource "${resourceId ?? "(no id)"}" is out of scope for all matching rules`,
-            };
+                decision: 'DENY',
+                reason: `Resource "${resourceId ?? '(no id)'}" is out of scope for all matching rules`,
+            }
         }
 
         // 5. Priority-based conflict resolution
-        const denyRules = applicableRules.filter((r) => r.deny === true);
-        const allowRules = applicableRules.filter((r) => r.deny !== true);
+        const denyRules = applicableRules.filter((r) => r.deny === true)
+        const allowRules = applicableRules.filter((r) => r.deny !== true)
 
         const maxDenyPriority =
             denyRules.length > 0
                 ? Math.max(...denyRules.map((r) => r.priority ?? 0))
-                : -Infinity;
+                : -Infinity
 
-        const winningAllow = allowRules.find((r) => (r.priority ?? 0) > maxDenyPriority);
+        const winningAllow = allowRules.find(
+            (r) => (r.priority ?? 0) > maxDenyPriority
+        )
         if (winningAllow) {
             return {
-                decision: "ALLOW",
+                decision: 'ALLOW',
                 matchedRule: winningAllow,
-                reason: "Matched allow rule",
-            };
+                reason: 'Matched allow rule',
+            }
         }
 
         if (denyRules.length > 0) {
             const topDeny =
-                denyRules.find((r) => (r.priority ?? 0) === maxDenyPriority) ?? denyRules[0];
+                denyRules.find((r) => (r.priority ?? 0) === maxDenyPriority) ??
+                denyRules[0]
             return {
-                decision: "DENY",
+                decision: 'DENY',
                 matchedRule: topDeny,
-                reason: "Explicit deny rule (priority wins or tie-break)",
-            };
+                reason: 'Explicit deny rule (priority wins or tie-break)',
+            }
         }
 
         // Allow rules exist but all have priority ≤ maxDenyPriority — deny wins
-        return { decision: "DENY", reason: "Default deny (no allow rule exceeds deny priority)" };
+        return {
+            decision: 'DENY',
+            reason: 'Default deny (no allow rule exceeds deny priority)',
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -191,15 +199,21 @@ export class PermissionEngine {
         resource: ProjectResource,
         action: string,
         resourceId?: string,
-        record?: Record<string, unknown>,
+        record?: Record<string, unknown>
     ): Promise<void> {
-        const result = await this.check(ctx, resource, action, resourceId, record);
-        if (result.decision === "DENY") {
+        const result = await this.check(
+            ctx,
+            resource,
+            action,
+            resourceId,
+            record
+        )
+        if (result.decision === 'DENY') {
             throw new ForbiddenError(
                 `Access denied: resource="${resource}" action="${action}"` +
-                    (resourceId ? ` id="${resourceId}"` : "") +
-                    `. Reason: ${result.reason}`,
-            );
+                    (resourceId ? ` id="${resourceId}"` : '') +
+                    `. Reason: ${result.reason}`
+            )
         }
     }
 
@@ -236,81 +250,95 @@ export class PermissionEngine {
         resource: ProjectResource,
         action: string,
         idColumn: SQL,
-        resolver: ColumnResolver<TSchema>,
+        resolver: ColumnResolver<TSchema>
     ): Promise<SQL | undefined> {
         // superAdmin bypass — no WHERE constraint
-        if (ctx.platformRole === "superAdmin") {
-            return undefined;
+        if (ctx.platformRole === 'superAdmin') {
+            return undefined
         }
 
-        const allRules = await this.opts.loadRoleRules(ctx.platformRole ?? "user");
+        const allRules = await this.opts.loadRoleRules(
+            ctx.platformRole ?? 'user'
+        )
         const matchingRules = allRules.filter((rule) =>
-            ruleMatchesResourceAndAction(rule, resource, action),
-        );
+            ruleMatchesResourceAndAction(rule, resource, action)
+        )
 
         if (matchingRules.length === 0) {
-            return rawSql`1 = 0`;
+            return rawSql`1 = 0`
         }
 
-        const vars = buildDynamicVars(ctx);
-        const allowRules = matchingRules.filter((r) => r.deny !== true);
-        const denyRules = matchingRules.filter((r) => r.deny === true);
+        const vars = buildDynamicVars(ctx)
+        const allowRules = matchingRules.filter((r) => r.deny !== true)
+        const denyRules = matchingRules.filter((r) => r.deny === true)
 
         if (allowRules.length === 0) {
-            return rawSql`1 = 0`; // no allow rules
+            return rawSql`1 = 0` // no allow rules
         }
 
         // Build allow predicate
-        let allowPredicate: SQL | undefined;
-        const allowParts: SQL[] = [];
-        let allowsAll = false;
+        let allowPredicate: SQL | undefined
+        const allowParts: SQL[] = []
+        let allowsAll = false
 
         for (const rule of allowRules) {
-            const part = this.compileScopeToPredicate<TSchema>(rule.scope, resource, idColumn, resolver, vars);
+            const part = this.compileScopeToPredicate<TSchema>(
+                rule.scope,
+                resource,
+                idColumn,
+                resolver,
+                vars
+            )
             if (part === null) {
-                allowsAll = true;
-                break;
+                allowsAll = true
+                break
             }
             if (part !== undefined) {
-                allowParts.push(part);
+                allowParts.push(part)
             }
         }
 
         if (!allowsAll) {
             if (allowParts.length === 0) {
-                return rawSql`1 = 0`;
+                return rawSql`1 = 0`
             }
-            allowPredicate = sqlOr(allowParts);
+            allowPredicate = sqlOr(allowParts)
         }
         // if allowsAll, allowPredicate stays undefined (no WHERE constraint)
 
         // Build deny predicate
         if (denyRules.length === 0) {
-            return allowPredicate;
+            return allowPredicate
         }
 
-        const denyParts: SQL[] = [];
+        const denyParts: SQL[] = []
         for (const rule of denyRules) {
-            const part = this.compileScopeToPredicate<TSchema>(rule.scope, resource, idColumn, resolver, vars);
+            const part = this.compileScopeToPredicate<TSchema>(
+                rule.scope,
+                resource,
+                idColumn,
+                resolver,
+                vars
+            )
             if (part === null) {
-                return rawSql`1 = 0`; // deny:all — no access
+                return rawSql`1 = 0` // deny:all — no access
             }
             if (part !== undefined) {
-                denyParts.push(part);
+                denyParts.push(part)
             }
         }
 
         if (denyParts.length === 0) {
-            return allowPredicate;
+            return allowPredicate
         }
 
-        const denyPredicate = sqlOr(denyParts);
-        const notDeny: SQL = rawSql`NOT (${denyPredicate})`;
+        const denyPredicate = sqlOr(denyParts)
+        const notDeny: SQL = rawSql`NOT (${denyPredicate})`
 
         if (!allowPredicate) {
-            return notDeny; // allowsAll + deny restrictions
+            return notDeny // allowsAll + deny restrictions
         }
-        return sqlAnd(allowPredicate, notDeny);
+        return sqlAnd(allowPredicate, notDeny)
     }
 
     // -----------------------------------------------------------------------
@@ -335,30 +363,30 @@ export class PermissionEngine {
         resource: ProjectResource,
         idColumn: SQL,
         resolver: ColumnResolver<TSchema>,
-        vars: Partial<DynamicVars>,
+        vars: Partial<DynamicVars>
     ): SQL | null | undefined {
         switch (scope.type) {
-            case "all":
-                return null; // signals "matches all rows"
+            case 'all':
+                return null // signals "matches all rows"
 
-            case "ids": {
-                if (scope.values.length === 0) return rawSql`1 = 0`;
+            case 'ids': {
+                if (scope.values.length === 0) return rawSql`1 = 0`
                 return inArray(
                     idColumn as unknown as Parameters<typeof inArray>[0],
-                    scope.values,
-                );
+                    scope.values
+                )
             }
 
-            case "cascade":
-                return null; // Phase B.2: FK-chain subquery
+            case 'cascade':
+                return null // Phase B.2: FK-chain subquery
 
-            case "filter": {
+            case 'filter': {
                 const compiled = compileDFilter<TSchema>(
                     scope.condition as unknown as DFilter<TSchema>,
                     resolver,
-                    vars,
-                );
-                return compiled;
+                    vars
+                )
+                return compiled
             }
         }
     }
@@ -368,51 +396,51 @@ export class PermissionEngine {
         resource: ProjectResource,
         resourceId: string | undefined,
         record: Record<string, unknown> | undefined,
-        ctx: EngineContext,
+        ctx: EngineContext
     ): Promise<boolean> {
         switch (scope.type) {
-            case "all":
-                return true;
+            case 'all':
+                return true
 
-            case "ids": {
-                if (!resourceId) return false;
-                return scope.values.includes(resourceId);
+            case 'ids': {
+                if (!resourceId) return false
+                return scope.values.includes(resourceId)
             }
 
-            case "cascade": {
-                if (!resourceId) return false;
-                const ancestors = getAncestorChain(resource);
+            case 'cascade': {
+                if (!resourceId) return false
+                const ancestors = getAncestorChain(resource)
                 if (!ancestors.includes(scope.from)) {
-                    return false;
+                    return false
                 }
                 // Phase A: structural check is sufficient.
                 // Phase B.2 will replace this with a real DB subquery.
-                return true;
+                return true
             }
 
-            case "filter": {
-                if (!resourceId) return false;
+            case 'filter': {
+                if (!resourceId) return false
 
-                let resolvedRecord = record;
+                let resolvedRecord = record
                 if (!resolvedRecord) {
                     if (!this.opts.loadResourceRecord) {
                         throw new Error(
                             `PermissionEngine: a filter-scope rule for resource="${resource}" ` +
-                                `requires a loadResourceRecord implementation in PermissionEngineOptions.`,
-                        );
+                                `requires a loadResourceRecord implementation in PermissionEngineOptions.`
+                        )
                     }
                     const loaded = await this.opts.loadResourceRecord(
                         resource,
-                        resourceId,
-                    );
+                        resourceId
+                    )
                     if (!loaded) {
-                        return false;
+                        return false
                     }
-                    resolvedRecord = loaded;
+                    resolvedRecord = loaded
                 }
 
-                const vars = buildDynamicVars(ctx);
-                return matchFilter(resolvedRecord, scope.condition, vars);
+                const vars = buildDynamicVars(ctx)
+                return matchFilter(resolvedRecord, scope.condition, vars)
             }
         }
     }
@@ -427,11 +455,11 @@ export class PermissionEngine {
  * NestJS exception filters should catch this and map to HttpStatus.FORBIDDEN (403).
  */
 export class ForbiddenError extends Error {
-    readonly code = "PERMISSION_DENIED" as const;
+    readonly code = 'PERMISSION_DENIED' as const
 
     constructor(message: string) {
-        super(message);
-        this.name = "ForbiddenError";
+        super(message)
+        this.name = 'ForbiddenError'
     }
 }
 
@@ -442,20 +470,20 @@ export class ForbiddenError extends Error {
 function ruleMatchesResourceAndAction(
     rule: ResourceRule,
     resource: ProjectResource,
-    action: string,
+    action: string
 ): boolean {
-    const resourceMatch = rule.resource === "*" || rule.resource === resource;
+    const resourceMatch = rule.resource === '*' || rule.resource === resource
     const actionMatch =
-        rule.actions === "*" ||
-        (Array.isArray(rule.actions) && rule.actions.includes(action));
-    return resourceMatch && actionMatch;
+        rule.actions === '*' ||
+        (Array.isArray(rule.actions) && rule.actions.includes(action))
+    return resourceMatch && actionMatch
 }
 
 function buildDynamicVars(ctx: EngineContext): Partial<DynamicVars> {
     return {
         $currentUser: ctx.userId,
         ...ctx.vars,
-    };
+    }
 }
 
 /**
@@ -464,18 +492,24 @@ function buildDynamicVars(ctx: EngineContext): Partial<DynamicVars> {
  */
 function sqlOr(parts: SQL[]): SQL {
     if (parts.length === 0) {
-        throw new Error("[IllogicalState] sqlOr called with empty array");
+        throw new Error('[IllogicalState] sqlOr called with empty array')
     }
-    const result = or(...parts);
-    if (!result) throw new Error("[IllogicalState] or() returned undefined with non-empty parts");
-    return result;
+    const result = or(...parts)
+    if (!result)
+        throw new Error(
+            '[IllogicalState] or() returned undefined with non-empty parts'
+        )
+    return result
 }
 
 /**
  * Non-null-asserting AND combinator for exactly two SQL fragments.
  */
 function sqlAnd(a: SQL, b: SQL): SQL {
-    const result = and(a, b);
-    if (!result) throw new Error("[IllogicalState] and() returned undefined with two non-null parts");
-    return result;
+    const result = and(a, b)
+    if (!result)
+        throw new Error(
+            '[IllogicalState] and() returned undefined with two non-null parts'
+        )
+    return result
 }

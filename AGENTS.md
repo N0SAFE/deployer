@@ -112,8 +112,8 @@ Both run Bun's built-in tools; no workspace invokes the ESLint or Prettier CLI.
 | `bun run format:check` | `bun fmt --check` in every workspace | no |
 
 - **Per workspace**: `bun run lint`, `bun run lint:fix`, `bun run lint:fix+`,
-  `bun run prettify`, `bun run format`, `bun run format:check`. Turbo tasks are
-  `lint`, `lint:fix`, `lint:fix+`, `prettify`, `format:check`.
+  `bun run format`, `bun run format:check`. Turbo tasks are
+  `lint`, `lint:fix`, `lint:fix+`, `format`, `format:check`.
 - **Lint policy** lives in each workspace's `eslint.config.ts`; the shared rules
   are in `tooling/eslint` (`@deployer/config-eslint`). `bunfig.toml` holds only
   repo-wide lint defaults (`allowUnsupported`, ignore patterns) — never a rule

@@ -44,11 +44,12 @@ Only syncs configurations that have changed since last sync.
 
 ```typescript
 // Sync all pending changes
-const result = await syncService.syncAllConfigurations();
+const result = await syncService.syncAllConfigurations()
 // Returns: { synced: 5, failed: 0, skipped: 10 }
 ```
 
 **Detection Logic**:
+
 ```sql
 -- Configs needing sync
 SELECT * FROM traefik_config_files 
@@ -62,7 +63,7 @@ Forces sync of all configurations regardless of change status.
 
 ```typescript
 // Force sync everything
-const result = await syncService.forceSyncAll();
+const result = await syncService.forceSyncAll()
 ```
 
 ### 3. Targeted Sync
@@ -71,13 +72,13 @@ Sync specific configurations.
 
 ```typescript
 // Sync a single service configuration
-await syncService.syncServiceConfiguration(serviceConfigId);
+await syncService.syncServiceConfiguration(serviceConfigId)
 
 // Sync all configs for a project
-await syncService.syncProjectConfigurations(projectId);
+await syncService.syncProjectConfigurations(projectId)
 
 // Sync standalone (non-project) configs
-await syncService.syncStandaloneConfigurations();
+await syncService.syncStandaloneConfigurations()
 ```
 
 ## TraefikSyncService API
@@ -109,19 +110,19 @@ cleanupOrphanedFilesForProject(projectId: string): Promise<CleanupResult>
 
 ```typescript
 interface SyncResult {
-  total: number;           // Total configs processed
-  synced: number;          // Successfully synced
-  failed: number;          // Failed to sync
-  skipped: number;         // Already synced / no changes
-  errors: SyncError[];     // Details of failures
-  duration: number;        // Total time in ms
+    total: number // Total configs processed
+    synced: number // Successfully synced
+    failed: number // Failed to sync
+    skipped: number // Already synced / no changes
+    errors: SyncError[] // Details of failures
+    duration: number // Total time in ms
 }
 
 interface SyncError {
-  configId: string;
-  path: string;
-  error: string;
-  stack?: string;
+    configId: string
+    path: string
+    error: string
+    stack?: string
 }
 ```
 
@@ -206,11 +207,11 @@ Removes files from real filesystem that no longer exist in database.
 
 ```typescript
 // Clean all orphaned files
-const result = await syncService.cleanupOrphanedFiles();
+const result = await syncService.cleanupOrphanedFiles()
 // Returns: { removed: 3, errors: [] }
 
 // Clean orphaned files for specific project
-await syncService.cleanupOrphanedFilesForProject(projectId);
+await syncService.cleanupOrphanedFilesForProject(projectId)
 ```
 
 ### Cleanup Logic
@@ -238,22 +239,26 @@ The sync service emits events for real-time monitoring.
 ```typescript
 // Event contract
 const configSyncContract = contractBuilder('configSync')
-  .input(z.object({
-    configId: z.string().optional(),
-    projectId: z.string().optional()
-  }))
-  .output(z.object({
-    status: z.enum(['started', 'progress', 'complete', 'error']),
-    current: z.number().optional(),
-    total: z.number().optional(),
-    path: z.string().optional(),
-    error: z.string().optional()
-  }));
+    .input(
+        z.object({
+            configId: z.string().optional(),
+            projectId: z.string().optional(),
+        })
+    )
+    .output(
+        z.object({
+            status: z.enum(['started', 'progress', 'complete', 'error']),
+            current: z.number().optional(),
+            total: z.number().optional(),
+            path: z.string().optional(),
+            error: z.string().optional(),
+        })
+    )
 
 // Usage: Subscribe to sync events
-const subscription = eventService.subscribe('configSync', { projectId });
+const subscription = eventService.subscribe('configSync', { projectId })
 for await (const event of subscription) {
-  console.log(`Sync ${event.status}: ${event.current}/${event.total}`);
+    console.log(`Sync ${event.status}: ${event.current}/${event.total}`)
 }
 ```
 
@@ -272,20 +277,20 @@ Complete:     { status: 'complete', current: 10, total: 10 }
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TRAEFIK_CONFIG_BASE_PATH` | Base path for Traefik configs | `/etc/traefik` |
-| `TRAEFIK_DYNAMIC_PATH` | Path for dynamic configs | `/etc/traefik/dynamic` |
-| `TRAEFIK_BACKUP_PATH` | Path for backups | `/var/backups/traefik` |
-| `TRAEFIK_SYNC_BATCH_SIZE` | Configs per sync batch | `50` |
-| `TRAEFIK_SYNC_INTERVAL` | Auto-sync interval (ms) | `0` (disabled) |
+| Variable                   | Description                   | Default                |
+| -------------------------- | ----------------------------- | ---------------------- |
+| `TRAEFIK_CONFIG_BASE_PATH` | Base path for Traefik configs | `/etc/traefik`         |
+| `TRAEFIK_DYNAMIC_PATH`     | Path for dynamic configs      | `/etc/traefik/dynamic` |
+| `TRAEFIK_BACKUP_PATH`      | Path for backups              | `/var/backups/traefik` |
+| `TRAEFIK_SYNC_BATCH_SIZE`  | Configs per sync batch        | `50`                   |
+| `TRAEFIK_SYNC_INTERVAL`    | Auto-sync interval (ms)       | `0` (disabled)         |
 
 ### File Permissions
 
 ```typescript
 // Sync service file permissions
-const FILE_MODE = 0o644;    // rw-r--r--
-const DIR_MODE = 0o755;     // rwxr-xr-x
+const FILE_MODE = 0o644 // rw-r--r--
+const DIR_MODE = 0o755 // rwxr-xr-x
 ```
 
 ## Scheduled Sync
@@ -336,16 +341,16 @@ async syncWithRetry(configId: string): Promise<void> {
 
 ```typescript
 // Sync continues even if individual configs fail
-const result = await syncService.syncAllConfigurations();
+const result = await syncService.syncAllConfigurations()
 
 if (result.failed > 0) {
-  // Log failures but don't throw
-  for (const error of result.errors) {
-    logger.error(`Sync failed for ${error.configId}: ${error.error}`);
-  }
-  
-  // Mark failed configs for retry
-  await this.repository.markForRetry(result.errors.map(e => e.configId));
+    // Log failures but don't throw
+    for (const error of result.errors) {
+        logger.error(`Sync failed for ${error.configId}: ${error.error}`)
+    }
+
+    // Mark failed configs for retry
+    await this.repository.markForRetry(result.errors.map((e) => e.configId))
 }
 ```
 
@@ -355,15 +360,15 @@ if (result.failed > 0) {
 
 ```typescript
 // Get configs by sync status
-const pending = await repository.getConfigsByStatus('pending');
-const failed = await repository.getConfigsByStatus('error');
-const synced = await repository.getConfigsByStatus('synced');
+const pending = await repository.getConfigsByStatus('pending')
+const failed = await repository.getConfigsByStatus('error')
+const synced = await repository.getConfigsByStatus('synced')
 
 // Get last sync timestamp
-const lastSync = await repository.getLastSyncTimestamp();
+const lastSync = await repository.getLastSyncTimestamp()
 
 // Get sync statistics
-const stats = await repository.getSyncStatistics();
+const stats = await repository.getSyncStatistics()
 // { total: 100, synced: 95, pending: 3, error: 2 }
 ```
 
@@ -393,12 +398,12 @@ async checkSyncHealth(): Promise<HealthStatus> {
 
 ```typescript
 // ✅ Good: Subscribe to events for real-time updates
-const subscription = eventService.subscribe('configSync', { projectId });
+const subscription = eventService.subscribe('configSync', { projectId })
 
 // ❌ Bad: Polling for sync status
 while (true) {
-  await sleep(1000);
-  const status = await api.getSyncStatus();
+    await sleep(1000)
+    const status = await api.getSyncStatus()
 }
 ```
 
@@ -406,11 +411,11 @@ while (true) {
 
 ```typescript
 // ✅ Good: Sync entire project at once
-await syncService.syncProjectConfigurations(projectId);
+await syncService.syncProjectConfigurations(projectId)
 
 // ❌ Bad: Sync configs one by one
 for (const config of configs) {
-  await syncService.syncServiceConfiguration(config.id);
+    await syncService.syncServiceConfiguration(config.id)
 }
 ```
 
@@ -418,14 +423,14 @@ for (const config of configs) {
 
 ```typescript
 // ✅ Good: Handle partial failures
-const result = await syncService.syncAllConfigurations();
+const result = await syncService.syncAllConfigurations()
 if (result.failed > 0) {
-  // Notify, log, but don't crash
-  await notifyAdmin(result.errors);
+    // Notify, log, but don't crash
+    await notifyAdmin(result.errors)
 }
 
 // ❌ Bad: Let errors crash the process
-await syncService.syncAllConfigurations(); // Unhandled error if any fail
+await syncService.syncAllConfigurations() // Unhandled error if any fail
 ```
 
 ### 4. Clean Up Regularly

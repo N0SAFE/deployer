@@ -1,5 +1,5 @@
-import { oc } from '@orpc/contract';
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
 /**
  * Domain management contract.
@@ -39,7 +39,7 @@ import {
     updateProjectDomainContract,
     removeProjectDomainContract,
     verifyProjectDomainContract,
-} from "./project";
+} from './project'
 import {
     checkSubdomainAvailabilityContract,
     listServiceDomainsContract,
@@ -47,31 +47,33 @@ import {
     updateServiceDomainContract,
     setPrimaryServiceDomainContract,
     removeServiceDomainContract,
-} from "./service";
+} from './service'
 
 // Combine into main domain contract
-export const domainContract = oc.meta(openapi({ tags: ["Domain"], prefix: "/domains" })).router({
-  // Project domain management
-  listProjectDomains: listProjectDomainsContract,
-  getAvailableDomains: getAvailableDomainsContract,
-  getAvailableDomainsForService: getAvailableDomainsForServiceContract,
-  addProjectDomain: addProjectDomainContract,
-  updateProjectDomain: updateProjectDomainContract,
-  removeProjectDomain: removeProjectDomainContract,
-  verifyProjectDomain: verifyProjectDomainContract,
+export const domainContract = oc
+    .meta(openapi({ tags: ['Domain'], prefix: '/domains' }))
+    .router({
+        // Project domain management
+        listProjectDomains: listProjectDomainsContract,
+        getAvailableDomains: getAvailableDomainsContract,
+        getAvailableDomainsForService: getAvailableDomainsForServiceContract,
+        addProjectDomain: addProjectDomainContract,
+        updateProjectDomain: updateProjectDomainContract,
+        removeProjectDomain: removeProjectDomainContract,
+        verifyProjectDomain: verifyProjectDomainContract,
 
-  // Service domain mappings
-  checkSubdomainAvailability: checkSubdomainAvailabilityContract,
-  listServiceDomains: listServiceDomainsContract,
-  addServiceDomain: addServiceDomainContract,
-  updateServiceDomain: updateServiceDomainContract,
-  setPrimaryServiceDomain: setPrimaryServiceDomainContract,
-  removeServiceDomain: removeServiceDomainContract,
-});
+        // Service domain mappings
+        checkSubdomainAvailability: checkSubdomainAvailabilityContract,
+        listServiceDomains: listServiceDomainsContract,
+        addServiceDomain: addServiceDomainContract,
+        updateServiceDomain: updateServiceDomainContract,
+        setPrimaryServiceDomain: setPrimaryServiceDomainContract,
+        removeServiceDomain: removeServiceDomainContract,
+    })
 
-export type DomainContract = typeof domainContract;
+export type DomainContract = typeof domainContract
 
 // Re-export everything from individual contracts
-export * from './schemas';
-export * from "./project";
-export * from "./service";
+export * from './schemas'
+export * from './project'
+export * from './service'

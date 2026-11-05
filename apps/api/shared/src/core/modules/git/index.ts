@@ -13,16 +13,16 @@
  */
 
 // Git (core operations)
-export { GitModule, GitService } from './git';
+export { GitModule, GitService } from './git'
 
 // GitHub
 export {
-  GitHubModule,
-  GitHubService,
-  GithubDeploymentCacheRepository,
-  GithubDeploymentRulesRepository,
-  GithubRepositoryConfigRepository,
-  getGitHubEventType,
-  getGitHubDeliveryId,
-} from './github';
-export * from './github/types';
+    GitHubModule,
+    GitHubService,
+    GithubDeploymentCacheRepository,
+    GithubDeploymentRulesRepository,
+    GithubRepositoryConfigRepository,
+    getGitHubEventType,
+    getGitHubDeliveryId,
+} from './github'
+export * from './github/types'

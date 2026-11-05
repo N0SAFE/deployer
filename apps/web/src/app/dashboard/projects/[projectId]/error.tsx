@@ -7,11 +7,11 @@ import { RouteError } from '@/components/error/RouteError'
  * project's own navigation stays available while one view fails.
  */
 export default function ProjectError({
-  error,
-  reset,
+    error,
+    reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+    error: Error & { digest?: string }
+    reset: () => void
 }) {
-  return <RouteError error={error} reset={reset} scope="This project" />
+    return <RouteError error={error} reset={reset} scope="This project" />
 }

@@ -1,18 +1,22 @@
-import nextjsConfig from "@deployer/config-eslint/nextjs";
+import nextjsConfig from '@deployer/config-eslint/nextjs'
 // import mdxConfig from "@deployer/config-eslint/mdx";
-import { defineConfig } from "@deployer/config-eslint";
+import { defineConfig } from '@deployer/config-eslint'
 
 export default defineConfig([
     {
         extends: [nextjsConfig.configs.base()],
-        files: ["src/**/*.{ts,tsx,js,jsx}"],
+        files: ['src/**/*.{ts,tsx,js,jsx}'],
         rules: {
-            "@typescript-eslint/ban-ts-comment": "off",
+            '@typescript-eslint/ban-ts-comment': 'off',
         },
     },
     {
         extends: [nextjsConfig.configs.test()],
-        files: ["**/__tests__/**/*.{ts,tsx,js,jsx}", "**/*.test.{ts,tsx,js,jsx}", "**/*.spec.{ts,tsx,js,jsx}"],
+        files: [
+            '**/__tests__/**/*.{ts,tsx,js,jsx}',
+            '**/*.test.{ts,tsx,js,jsx}',
+            '**/*.spec.{ts,tsx,js,jsx}',
+        ],
         // rules: {
         //     "@typescript-eslint/ban-ts-comment": "off",
         //     "@typescript-eslint/no-explicit-any": "off",
@@ -27,4 +31,4 @@ export default defineConfig([
     //   ...mdxConfig,
     //   files: ["content/**/*.{md,mdx}"],
     // }
-]);
+])

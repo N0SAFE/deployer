@@ -5,16 +5,16 @@
  * sidecar), and the auth package only decides WHAT to say. Absent means "this deployment has no mail" — the callers
  * degrade explicitly instead of silently claiming a message was sent.
  */
-export type MailKind = "password-reset" | "email-change" | "invite" | "other";
+export type MailKind = 'password-reset' | 'email-change' | 'invite' | 'other'
 
 export interface MailMessage {
-	readonly to: string;
-	readonly subject: string;
-	readonly text: string;
-	/** What the message is for, so a transport can route or template it. */
-	readonly kind: MailKind;
+    readonly to: string
+    readonly subject: string
+    readonly text: string
+    /** What the message is for, so a transport can route or template it. */
+    readonly kind: MailKind
 }
 
 export interface MailSink {
-	send(message: MailMessage): Promise<void>;
+    send(message: MailMessage): Promise<void>
 }

@@ -1,6 +1,14 @@
-import zod from "zod/v4";
-import { guardedUrl, parseDebugScopes, trimTrailingSlash } from "@deployer/env/utils";
-import { LOCAL_APP_FALLBACK, LOCAL_API_FALLBACK, DEFAULT_API_PORT } from "@deployer/env/constants";
+import zod from 'zod/v4'
+import {
+    guardedUrl,
+    parseDebugScopes,
+    trimTrailingSlash,
+} from '@deployer/env/utils'
+import {
+    LOCAL_APP_FALLBACK,
+    LOCAL_API_FALLBACK,
+    DEFAULT_API_PORT,
+} from '@deployer/env/constants'
 
 // ============================================================================
 // Shared Environment Variables
@@ -10,63 +18,69 @@ import { LOCAL_APP_FALLBACK, LOCAL_API_FALLBACK, DEFAULT_API_PORT } from "@deplo
  * Shared environment variables used across multiple apps
  */
 const sharedEnvVars = {
-    NEXT_PUBLIC_APP_URL: guardedUrl("NEXT_PUBLIC_APP_URL", LOCAL_APP_FALLBACK),
-    NODE_ENV: zod.enum(["development", "production", "test"]).default("development"),
-};
+    NEXT_PUBLIC_APP_URL: guardedUrl('NEXT_PUBLIC_APP_URL', LOCAL_APP_FALLBACK),
+    NODE_ENV: zod
+        .enum(['development', 'production', 'test'])
+        .default('development'),
+}
 
 interface BooleanEnvTokenBuckets {
-    strings?: readonly string[];
-    numbers?: readonly number[];
-    booleans?: readonly boolean[];
+    strings?: readonly string[]
+    numbers?: readonly number[]
+    booleans?: readonly boolean[]
 }
 
 interface BooleanEnvOptions {
-    true?: BooleanEnvTokenBuckets;
-    false?: BooleanEnvTokenBuckets;
+    true?: BooleanEnvTokenBuckets
+    false?: BooleanEnvTokenBuckets
 }
 
-type BooleanEnvPrimitiveToken = string | number | boolean;
+type BooleanEnvPrimitiveToken = string | number | boolean
 
 const DEFAULT_BOOLEAN_ENV_OPTIONS: Required<BooleanEnvOptions> = {
     true: {
-        strings: ["1", "true", "yes", "on"],
+        strings: ['1', 'true', 'yes', 'on'],
         numbers: [1],
         booleans: [true],
     },
     false: {
-        strings: ["0", "false", "no", "off"],
+        strings: ['0', 'false', 'no', 'off'],
         numbers: [0],
         booleans: [false],
     },
-};
+}
 
-const flattenBooleanTokens = (buckets?: BooleanEnvTokenBuckets): BooleanEnvPrimitiveToken[] => {
+const flattenBooleanTokens = (
+    buckets?: BooleanEnvTokenBuckets
+): BooleanEnvPrimitiveToken[] => {
     if (!buckets) {
-        return [];
+        return []
     }
 
     return [
         ...(buckets.strings ?? []),
         ...(buckets.numbers ?? []),
         ...(buckets.booleans ?? []),
-    ];
-};
+    ]
+}
 
 const normalizeBooleanToken = (token: BooleanEnvPrimitiveToken): string => {
-    if (typeof token === "string") {
-        return token.trim().toLowerCase();
+    if (typeof token === 'string') {
+        return token.trim().toLowerCase()
     }
 
-    return String(token).trim().toLowerCase();
-};
+    return String(token).trim().toLowerCase()
+}
 
-const normalizeBooleanTokenList = (tokens: readonly BooleanEnvPrimitiveToken[]): Set<string> => {
-    const normalized = new Set<string>();
+const normalizeBooleanTokenList = (
+    tokens: readonly BooleanEnvPrimitiveToken[]
+): Set<string> => {
+    const normalized = new Set<string>()
     for (const token of tokens) {
-        normalized.add(normalizeBooleanToken(token));
+        normalized.add(normalizeBooleanToken(token))
     }
-    return normalized;
-};
+    return normalized
+}
 
 /**
  * Optional string that also tolerates an EMPTY string (compose passes
@@ -74,12 +88,15 @@ const normalizeBooleanTokenList = (tokens: readonly BooleanEnvPrimitiveToken[]):
  * falls back to its default resolution).
  */
 const emptyableString = (minLength = 1) =>
-	zod.preprocess(
-		(value) => (value === undefined || value === "" ? undefined : String(value).trim()),
-		zod.string().min(minLength).optional(),
-	);
+    zod.preprocess(
+        (value) =>
+            value === undefined || value === ''
+                ? undefined
+                : String(value).trim(),
+        zod.string().min(minLength).optional()
+    )
 
-export { emptyableString };
+export { emptyableString }
 
 /**
  * A boolean env flag, tolerant of the many spellings a deployment produces.
@@ -102,38 +119,38 @@ export const booleanEnv = (options: BooleanEnvOptions = {}) => {
     const trueTokens = normalizeBooleanTokenList([
         ...flattenBooleanTokens(DEFAULT_BOOLEAN_ENV_OPTIONS.true),
         ...flattenBooleanTokens(options.true),
-    ]);
+    ])
     const falseTokens = normalizeBooleanTokenList([
         ...flattenBooleanTokens(DEFAULT_BOOLEAN_ENV_OPTIONS.false),
         ...flattenBooleanTokens(options.false),
-    ]);
+    ])
 
     return zod.preprocess((value) => {
         if (value === undefined || value === null) {
-            return value;
+            return value
         }
 
         if (
-            typeof value !== "string" &&
-            typeof value !== "number" &&
-            typeof value !== "boolean"
+            typeof value !== 'string' &&
+            typeof value !== 'number' &&
+            typeof value !== 'boolean'
         ) {
-            return value;
+            return value
         }
 
-        const normalizedValue = normalizeBooleanToken(value);
+        const normalizedValue = normalizeBooleanToken(value)
 
         if (trueTokens.has(normalizedValue)) {
-            return true;
+            return true
         }
 
         if (falseTokens.has(normalizedValue)) {
-            return false;
+            return false
         }
 
-        return value;
-    }, zod.boolean());
-};
+        return value
+    }, zod.boolean())
+}
 
 // ============================================================================
 // Environment Variable Schemas by App
@@ -168,11 +185,19 @@ export const apiEnvSchema = zod
         // global Postgres, so it is the platform's pre-setup source of truth.
         // Read by the app and passed to `LocalDatabaseModule.forRoot` — the
         // shared package no longer reads an env var or guesses a default path.
-        NODE_LOCAL_DB_PATH: zod.string().default("/app/data/local.db"),
+        NODE_LOCAL_DB_PATH: zod.string().default('/app/data/local.db'),
 
         // API
-        API_PORT: zod.coerce.number().int().min(1).max(65535).default(DEFAULT_API_PORT),
-        NEXT_PUBLIC_API_URL: guardedUrl("NEXT_PUBLIC_API_URL", LOCAL_API_FALLBACK),
+        API_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .default(DEFAULT_API_PORT),
+        NEXT_PUBLIC_API_URL: guardedUrl(
+            'NEXT_PUBLIC_API_URL',
+            LOCAL_API_FALLBACK
+        ),
         DOCKER_HOST: zod.string().optional(),
         DOCKER_PORT: zod.coerce.number().int().min(1).max(65535).optional(),
 
@@ -200,11 +225,24 @@ export const apiEnvSchema = zod
         DEV_AUTH_KEY: zod.string().optional(),
         DEFAULT_ADMIN_EMAIL: zod.email().optional(),
         DEFAULT_ADMIN_PASSWORD: zod.string().optional(),
-        DEFAULT_ADMIN_NAME: zod.string().optional().default("Admin"),
+        DEFAULT_ADMIN_NAME: zod.string().optional().default('Admin'),
         GITHUB_WEBHOOK_SECRET: zod.string().optional(),
-        DEPLOYMENT_UPLOAD_DIR: zod.string().optional().default("/tmp/deployer-uploads"),
-        APP_DOCKER_IMAGE_SCAN_PARALLELISM: zod.coerce.number().int().min(1).optional().default(5),
-        APP_DOCKER_IMAGE_SCAN_IMAGE_PARALLELISM: zod.coerce.number().int().min(1).optional().default(3),
+        DEPLOYMENT_UPLOAD_DIR: zod
+            .string()
+            .optional()
+            .default('/tmp/deployer-uploads'),
+        APP_DOCKER_IMAGE_SCAN_PARALLELISM: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .optional()
+            .default(5),
+        APP_DOCKER_IMAGE_SCAN_IMAGE_PARALLELISM: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .optional()
+            .default(3),
         TRUSTED_ORIGINS: zod.string().optional(),
         // Dev-only auth bypass doors (master token, login-as). STRICT: `"false"`
         // must be false — `zod.coerce.boolean()` made every non-empty string true,
@@ -221,9 +259,12 @@ export const apiEnvSchema = zod
         DEPLOYER_PREFIX: zod
             .string()
             .trim()
-            .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/, "prefix must be lowercase alphanumerics/dashes and not start or end with a dash")
-            .or(zod.literal(""))
-            .default(""),
+            .regex(
+                /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/,
+                'prefix must be lowercase alphanumerics/dashes and not start or end with a dash'
+            )
+            .or(zod.literal(''))
+            .default(''),
         // Dev side-by-side marker: a web app is already running outside the
         // API's supervision (dev:local, dev:web). The API must NOT spawn its
         // own managed web container and must NOT serve the /manage/web-app page.
@@ -258,15 +299,23 @@ export const apiEnvSchema = zod
         // errors, v3.6 -> none. There is NO flag or env workaround
         // (`--providers.docker.apiVersion` does not exist in Traefik v3 and the
         // `DOCKER_API_VERSION` env var is ignored), so the image is the fix.
-        DEPLOYER_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.6.10"),
+        DEPLOYER_TRAEFIK_IMAGE: zod.string().min(1).default('traefik:v3.6.10'),
         // Host port every node DOOR binds (the local lane on loopback, the private
         // lane on the mesh address). Seeds `entryPort` in the `ingress.lanes` mesh
         // setting the first time the lanes are written; after that the setting is
         // the only source (the UI changes it there).
-        DEPLOYER_TRAEFIK_HTTP_PORT: zod.coerce.number().int().min(1).max(65535).default(80),
+        DEPLOYER_TRAEFIK_HTTP_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .default(80),
         // ACME contact e-mail for the Let's Encrypt resolver used by the `direct`
         // public lane when it is configured with TLS.
-        DEPLOYER_TRAEFIK_ACME_EMAIL: zod.string().optional().default("admin@example.com"),
+        DEPLOYER_TRAEFIK_ACME_EMAIL: zod
+            .string()
+            .optional()
+            .default('admin@example.com'),
 
         // ─── INGRESS LANES & THE MESH ─────────────────────────────────────
         //
@@ -286,7 +335,7 @@ export const apiEnvSchema = zod
         //
         // The mesh agent (`@deployer/svc-node-agent`) — the only agent there is. The API and setup run this container;
         // it answers on its node door, reached through `NODE_AGENT_SOCKET` above.
-        NODE_AGENT_IMAGE: zod.string().default("deployer-svc-node-agent:dev"),
+        NODE_AGENT_IMAGE: zod.string().default('deployer-svc-node-agent:dev'),
         // Opt-in (default false): the swarm runs the agent as a GLOBAL service (one task per node) instead of the host
         // container setup/the API create. MUTUALLY EXCLUSIVE — both would own the run volume's socket and the host's
         // `deployer-mesh` interface. The default is the container: the agent must exist BEFORE Swarm, which advertises
@@ -297,17 +346,25 @@ export const apiEnvSchema = zod
         //
         // Image of the per-node doors (nginx) the mesh agent runs in front of
         // Traefik's local and private entrypoints.
-        DEPLOYER_DOOR_IMAGE: zod.string().min(1).default("nginx:alpine"),
+        DEPLOYER_DOOR_IMAGE: zod.string().min(1).default('nginx:alpine'),
         //
         // Connector replicas for the `tunnel` public lane. Cloudflare allows UP TO
         // 25 connectors on ONE tunnel and load-balances across them, so high
         // availability comes from replicas rather than from extra tunnels — which
         // keeps the Cloudflare side fixed no matter how many nodes the fleet grows
         // to. The spec caps them at one per node (`placementMaxReplicasPerNode`).
-        DEPLOYER_CLOUDFLARED_REPLICAS: zod.coerce.number().int().min(1).max(25).default(1),
+        DEPLOYER_CLOUDFLARED_REPLICAS: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(25)
+            .default(1),
         // Image for the connector. Pinned like every other platform image so an
         // unattended `latest` cannot change the edge under a running platform.
-        DEPLOYER_CLOUDFLARED_IMAGE: zod.string().min(1).default("cloudflare/cloudflared:2025.10.0"),
+        DEPLOYER_CLOUDFLARED_IMAGE: zod
+            .string()
+            .min(1)
+            .default('cloudflare/cloudflared:2025.10.0'),
 
         // ─── Platform Redis (API-supervised, D-5) ─────────────────────────
         // Redis is supervised BY THE API (RedisSupervisorService) like
@@ -315,11 +372,19 @@ export const apiEnvSchema = zod
         // platform network as `deployer-redis:6379`; the typed connection URL
         // is computed by RedisSupervisorService.getConnectionUrl(). Override
         // with DEPLOYER_REDIS_URL when pointing at an external/existing Redis.
-        DEPLOYER_REDIS_URL: zod.string().optional().default("redis://deployer-redis:6379"),
-        DEPLOYER_REDIS_IMAGE: zod.string().min(1).default("redis:7-alpine"),
+        DEPLOYER_REDIS_URL: zod
+            .string()
+            .optional()
+            .default('redis://deployer-redis:6379'),
+        DEPLOYER_REDIS_IMAGE: zod.string().min(1).default('redis:7-alpine'),
         // Optional host bind for debugging (the container is headless by
         // default — in-network consumers never need a host port).
-        DEPLOYER_REDIS_PORT: zod.coerce.number().int().min(1).max(65535).optional(),
+        DEPLOYER_REDIS_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .optional(),
         // Optional auth — sets `--requirepass` on the supervised container.
         DEPLOYER_REDIS_PASSWORD: zod.string().optional(),
 
@@ -339,12 +404,20 @@ export const apiEnvSchema = zod
         // When false (default) the API supervises the service itself.
         MANAGED_GLOBAL_DB_ENABLED: booleanEnv().default(false),
         MANAGED_GLOBAL_DB_URL: zod.string().optional(),
-        MANAGED_GLOBAL_DB_HOST: zod.string().optional().default("global-db"),
-        MANAGED_GLOBAL_DB_PORT: zod.coerce.number().int().min(1).max(65535).default(5432),
-        MANAGED_GLOBAL_DB_USER: zod.string().optional().default("deployer"),
-        MANAGED_GLOBAL_DB_PASSWORD: zod.string().optional().default("deployer"),
-        MANAGED_GLOBAL_DB_NAME: zod.string().optional().default("deployer"),
-        MANAGED_GLOBAL_DB_IMAGE: zod.string().min(1).default("postgres:16-alpine"),
+        MANAGED_GLOBAL_DB_HOST: zod.string().optional().default('global-db'),
+        MANAGED_GLOBAL_DB_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .default(5432),
+        MANAGED_GLOBAL_DB_USER: zod.string().optional().default('deployer'),
+        MANAGED_GLOBAL_DB_PASSWORD: zod.string().optional().default('deployer'),
+        MANAGED_GLOBAL_DB_NAME: zod.string().optional().default('deployer'),
+        MANAGED_GLOBAL_DB_IMAGE: zod
+            .string()
+            .min(1)
+            .default('postgres:16-alpine'),
 
         // ─── Global DB connection pool (per process) ─────────────────────
         // Every process opens its OWN pool, so the fleet-wide ceiling is
@@ -356,8 +429,18 @@ export const apiEnvSchema = zod
         // `MIN = 0` because most processes are idle most of the time: a
         // non-zero floor is multiplied by the process count and held open
         // even when nothing queries.
-        GLOBAL_DB_POOL_MAX: zod.coerce.number().int().min(1).max(200).default(10),
-        GLOBAL_DB_POOL_MIN: zod.coerce.number().int().min(0).max(200).default(0),
+        GLOBAL_DB_POOL_MAX: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(200)
+            .default(10),
+        GLOBAL_DB_POOL_MIN: zod.coerce
+            .number()
+            .int()
+            .min(0)
+            .max(200)
+            .default(0),
         GLOBAL_DB_POOL_IDLE_TIMEOUT_MS: zod.coerce
             .number()
             .int()
@@ -371,8 +454,13 @@ export const apiEnvSchema = zod
 
         MANAGED_REDIS_ENABLED: booleanEnv().default(false),
         MANAGED_REDIS_URL: zod.string().optional(),
-        MANAGED_REDIS_HOST: zod.string().optional().default("redis"),
-        MANAGED_REDIS_PORT: zod.coerce.number().int().min(1).max(65535).default(6379),
+        MANAGED_REDIS_HOST: zod.string().optional().default('redis'),
+        MANAGED_REDIS_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .default(6379),
         MANAGED_REDIS_PASSWORD: zod.string().optional(),
 
         MANAGED_LOCAL_DB_ENABLED: booleanEnv().default(false),
@@ -383,12 +471,17 @@ export const apiEnvSchema = zod
         // owns the Traefik ingress — the TraefikSupervisor skips spawning and
         // all consumers use MANAGED_TRAEFIK_* to reach it.
         MANAGED_TRAEFIK_ENABLED: booleanEnv().default(false),
-        MANAGED_TRAEFIK_HOST: zod.string().optional().default("traefik"),
+        MANAGED_TRAEFIK_HOST: zod.string().optional().default('traefik'),
         // >= v3.6 required — see DEPLOYER_TRAEFIK_IMAGE. A 3.5-or-older ingress
         // cannot read container labels on Docker Engine >= 25, so label-based
         // routing silently stops working.
-        MANAGED_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.6.10"),
-        MANAGED_TRAEFIK_HTTP_PORT: zod.coerce.number().int().min(1).max(65535).default(80),
+        MANAGED_TRAEFIK_IMAGE: zod.string().min(1).default('traefik:v3.6.10'),
+        MANAGED_TRAEFIK_HTTP_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .default(80),
         MANAGED_TRAEFIK_WEB_HOST: emptyableString().optional(),
         MANAGED_TRAEFIK_API_HOST: emptyableString().optional(),
 
@@ -425,14 +518,34 @@ export const apiEnvSchema = zod
 
         // ─── Master election / failover (P4/P5 — docs/swarm-orchestration/02/03) ──
         // Evaluation cadence: stable (settled) vs volatile (churn) intervals.
-        SWARM_ELECTION_EVAL_STABLE_MS: zod.coerce.number().int().min(500).default(15000),
-        SWARM_ELECTION_EVAL_VOLATILE_MS: zod.coerce.number().int().min(250).default(5000),
+        SWARM_ELECTION_EVAL_STABLE_MS: zod.coerce
+            .number()
+            .int()
+            .min(500)
+            .default(15000),
+        SWARM_ELECTION_EVAL_VOLATILE_MS: zod.coerce
+            .number()
+            .int()
+            .min(250)
+            .default(5000),
         // Minimum time between two leadership takeovers (anti-flap).
-        SWARM_ELECTION_COOLDOWN_MS: zod.coerce.number().int().min(0).default(60000),
+        SWARM_ELECTION_COOLDOWN_MS: zod.coerce
+            .number()
+            .int()
+            .min(0)
+            .default(60000),
         // Hysteresis: a challenger must beat the current master by this delta.
-        SWARM_ELECTION_DELTA_MASTER: zod.coerce.number().min(0).max(1).default(0.25),
+        SWARM_ELECTION_DELTA_MASTER: zod.coerce
+            .number()
+            .min(0)
+            .max(1)
+            .default(0.25),
         // Max silence of the master heartbeat before SUSPECT.
-        SWARM_HEARTBEAT_TTL_MS: zod.coerce.number().int().min(1000).default(30000),
+        SWARM_HEARTBEAT_TTL_MS: zod.coerce
+            .number()
+            .int()
+            .min(1000)
+            .default(30000),
         // SUSPECT → CONFIRMED_DOWN grace window.
         SWARM_MASTER_GRACE_MS: zod.coerce.number().int().min(0).default(15000),
 
@@ -449,21 +562,38 @@ export const apiEnvSchema = zod
         // "deployer-database-db-a", "deployer-database-db-b".
         MANAGED_DATABASE_INSTANCES: zod.string().optional(),
         MANAGED_DATABASE_URL: zod.string().optional(),
-        MANAGED_DATABASE_HOST: zod.string().optional().default("database"),
-        MANAGED_DATABASE_PORT: zod.coerce.number().int().min(1).max(65535).default(5432),
-        MANAGED_DATABASE_USER: zod.string().optional().default("deployer"),
-        MANAGED_DATABASE_PASSWORD: zod.string().optional().default("deployer"),
-        MANAGED_DATABASE_NAME: zod.string().optional().default("deployer"),
-        MANAGED_DATABASE_IMAGE: zod.string().min(1).default("postgres:16-alpine"),
+        MANAGED_DATABASE_HOST: zod.string().optional().default('database'),
+        MANAGED_DATABASE_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .default(5432),
+        MANAGED_DATABASE_USER: zod.string().optional().default('deployer'),
+        MANAGED_DATABASE_PASSWORD: zod.string().optional().default('deployer'),
+        MANAGED_DATABASE_NAME: zod.string().optional().default('deployer'),
+        MANAGED_DATABASE_IMAGE: zod
+            .string()
+            .min(1)
+            .default('postgres:16-alpine'),
         // Base for per-instance data volumes (volume = <base>-<instance>).
-        MANAGED_DATABASE_DATA_VOLUME_BASE: zod.string().optional().default("deployer-database-data"),
+        MANAGED_DATABASE_DATA_VOLUME_BASE: zod
+            .string()
+            .optional()
+            .default('deployer-database-data'),
 
         // NOTE: bare BACKUP_PATH / STORAGE_PATH were DELETED — nothing read them,
         // and the real paths are the TRAEFIK_-prefixed pair below plus
         // TRAEFIK_CONFIG_BASE_PATH. A second, unread spelling of the same idea is
         // how `BACKUP_PATH` silently did nothing while looking configurable.
-        TRAEFIK_CONFIG_BASE_PATH: zod.string().optional().default("/app/traefik-configs"),
-        TRAEFIK_BACKUP_PATH: zod.string().optional().default("/app/traefik-configs/backups"),
+        TRAEFIK_CONFIG_BASE_PATH: zod
+            .string()
+            .optional()
+            .default('/app/traefik-configs'),
+        TRAEFIK_BACKUP_PATH: zod
+            .string()
+            .optional()
+            .default('/app/traefik-configs/backups'),
         TRAEFIK_STARTUP_SYNC_ENABLED: booleanEnv().optional().default(true),
         TRAEFIK_FAIL_ON_STARTUP_ERROR: booleanEnv().optional().default(false),
         TRAEFIK_CLEANUP_ON_STARTUP: booleanEnv().optional().default(false),
@@ -472,7 +602,10 @@ export const apiEnvSchema = zod
         // Binding the VOLUME NAME (not a container path) into Traefik is what
         // makes the file provider actually see the config — a container
         // -internal path is invisible to the host.
-        TRAEFIK_CONFIG_VOLUME: zod.string().min(1).default("deployer-traefik-config"),
+        TRAEFIK_CONFIG_VOLUME: zod
+            .string()
+            .min(1)
+            .default('deployer-traefik-config'),
 
         // Database seeding & bootstrap
         // Using .default() which reads from process.env via expandVariables
@@ -486,7 +619,7 @@ export const apiEnvSchema = zod
         //   false → never auto-create the admin (wizard/manual only)
         // Deprecated aliases (honoured only when ADMIN_BOOTSTRAP is unset):
         //   ENABLE_DEV_BOOTSTRAP (dev) and ENABLE_SEEDING (prod).
-        ADMIN_BOOTSTRAP: zod.enum(["auto", "true", "false"]).default("auto"),
+        ADMIN_BOOTSTRAP: zod.enum(['auto', 'true', 'false']).default('auto'),
         // Dev first-run bootstrap — DEPRECATED alias for ADMIN_BOOTSTRAP in
         // dev (kept for .env/.env.example compatibility; logs a warning when
         // used without ADMIN_BOOTSTRAP). When NODE_ENV !== 'production' the
@@ -496,10 +629,24 @@ export const apiEnvSchema = zod
         SKIP_MIGRATIONS: booleanEnv().optional().default(false),
 
         // How many deployment queue jobs the runtime executes at once.
-        DEPLOYMENT_WORKER_CONCURRENCY: zod.coerce.number().int().min(1).max(16).optional().default(1),
+        DEPLOYMENT_WORKER_CONCURRENCY: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(16)
+            .optional()
+            .default(1),
         // Scanner runner shared container
-        SCANNER_RUNNER_IMAGE: zod.string().optional().default("deployer-scanner-runner:latest"),
-        SCANNER_APP_IDLE_TIMEOUT_MS: zod.coerce.number().int().min(60_000).optional().default(600_000),
+        SCANNER_RUNNER_IMAGE: zod
+            .string()
+            .optional()
+            .default('deployer-scanner-runner:latest'),
+        SCANNER_APP_IDLE_TIMEOUT_MS: zod.coerce
+            .number()
+            .int()
+            .min(60_000)
+            .optional()
+            .default(600_000),
         // Absolute path to the infra/docker/scanner-runner build context — only
         // needed when the default cwd-relative resolution cannot find it.
         SCANNER_RUNNER_BUILD_CONTEXT: zod.string().optional(),
@@ -523,8 +670,14 @@ export const apiEnvSchema = zod
         // These two ARE read (via `process.env[name]` inside the mesh services),
         // so they stay until those reads move to a config service.
         MESH_TRUST_STRICT_MIN_ACK_RATIO: zod.coerce.number().optional(),
-        MESH_TRUST_STRICT_MAX_ACK_AGE_SECONDS: zod.coerce.number().int().optional(),
-        MESH_TRUST_STRICT_ROLLOUT_WAVE_SIZE: zod.coerce.number().int().optional(),
+        MESH_TRUST_STRICT_MAX_ACK_AGE_SECONDS: zod.coerce
+            .number()
+            .int()
+            .optional(),
+        MESH_TRUST_STRICT_ROLLOUT_WAVE_SIZE: zod.coerce
+            .number()
+            .int()
+            .optional(),
         MESH_REPLAY_WINDOW_MS: zod.coerce.number().int().optional(),
         MESH_STRICT_REPLAY_GUARD: booleanEnv().optional().default(false),
 
@@ -533,12 +686,17 @@ export const apiEnvSchema = zod
     })
     .superRefine((data, ctx) => {
         // Ensure BETTER_AUTH_SECRET matches AUTH_SECRET when both provided
-        if (data.BETTER_AUTH_SECRET && data.AUTH_SECRET && data.BETTER_AUTH_SECRET !== data.AUTH_SECRET) {
+        if (
+            data.BETTER_AUTH_SECRET &&
+            data.AUTH_SECRET &&
+            data.BETTER_AUTH_SECRET !== data.AUTH_SECRET
+        ) {
             ctx.addIssue({
                 code: zod.ZodIssueCode.custom,
-                message: "BETTER_AUTH_SECRET must match AUTH_SECRET when provided",
-                path: ["BETTER_AUTH_SECRET"],
-            });
+                message:
+                    'BETTER_AUTH_SECRET must match AUTH_SECRET when provided',
+                path: ['BETTER_AUTH_SECRET'],
+            })
         }
 
         // SETUP_AUTO=true without SETUP_AUTO_DATABASE_URL: Postgres is
@@ -550,7 +708,7 @@ export const apiEnvSchema = zod
         // at runtime.
         // There is NO "local-only" (no-Postgres) mode — the global database
         // is mandatory even in dev.
-    });
+    })
 
 // ============================================================================
 // Managed Services — nested split of the flat MANAGED_<SERVICE>_<KEY> env vars
@@ -571,54 +729,54 @@ export const apiEnvSchema = zod
 export const managedGlobalDbSchema = zod.object({
     enabled: booleanEnv().default(false),
     url: zod.string().optional(),
-    host: zod.string().optional().default("global-db"),
+    host: zod.string().optional().default('global-db'),
     port: zod.coerce.number().int().min(1).max(65535).default(5432),
-    user: zod.string().optional().default("deployer"),
-    password: zod.string().optional().default("deployer"),
-    name: zod.string().optional().default("deployer"),
-    image: zod.string().min(1).default("postgres:16-alpine"),
-});
-export type ManagedGlobalDbEnv = zod.infer<typeof managedGlobalDbSchema>;
+    user: zod.string().optional().default('deployer'),
+    password: zod.string().optional().default('deployer'),
+    name: zod.string().optional().default('deployer'),
+    image: zod.string().min(1).default('postgres:16-alpine'),
+})
+export type ManagedGlobalDbEnv = zod.infer<typeof managedGlobalDbSchema>
 
 export const managedRedisSchema = zod.object({
     enabled: booleanEnv().default(false),
     url: zod.string().optional(),
-    host: zod.string().optional().default("redis"),
+    host: zod.string().optional().default('redis'),
     port: zod.coerce.number().int().min(1).max(65535).default(6379),
     password: zod.string().optional(),
-});
-export type ManagedRedisEnv = zod.infer<typeof managedRedisSchema>;
+})
+export type ManagedRedisEnv = zod.infer<typeof managedRedisSchema>
 
 export const managedLocalDbSchema = zod.object({
     enabled: booleanEnv().default(false),
     path: zod.string().optional(),
-});
-export type ManagedLocalDbEnv = zod.infer<typeof managedLocalDbSchema>;
+})
+export type ManagedLocalDbEnv = zod.infer<typeof managedLocalDbSchema>
 
 export const managedTraefikSchema = zod.object({
     enabled: booleanEnv().default(false),
-    host: zod.string().optional().default("traefik"),
+    host: zod.string().optional().default('traefik'),
     // >= v3.6 required — see DEPLOYER_TRAEFIK_IMAGE.
-    image: zod.string().min(1).default("traefik:v3.6.10"),
+    image: zod.string().min(1).default('traefik:v3.6.10'),
     httpPort: zod.coerce.number().int().min(1).max(65535).default(80),
     webHost: emptyableString().optional(),
     apiHost: emptyableString().optional(),
-});
-export type ManagedTraefikEnv = zod.infer<typeof managedTraefikSchema>;
+})
+export type ManagedTraefikEnv = zod.infer<typeof managedTraefikSchema>
 
 export const managedDatabaseSchema = zod.object({
     enabled: booleanEnv().default(false),
     instances: zod.string().optional(),
     url: zod.string().optional(),
-    host: zod.string().optional().default("database"),
+    host: zod.string().optional().default('database'),
     port: zod.coerce.number().int().min(1).max(65535).default(5432),
-    user: zod.string().optional().default("deployer"),
-    password: zod.string().optional().default("deployer"),
-    name: zod.string().optional().default("deployer"),
-    image: zod.string().min(1).default("postgres:16-alpine"),
-    dataVolumeBase: zod.string().optional().default("deployer-database-data"),
-});
-export type ManagedDatabaseEnv = zod.infer<typeof managedDatabaseSchema>;
+    user: zod.string().optional().default('deployer'),
+    password: zod.string().optional().default('deployer'),
+    name: zod.string().optional().default('deployer'),
+    image: zod.string().min(1).default('postgres:16-alpine'),
+    dataVolumeBase: zod.string().optional().default('deployer-database-data'),
+})
+export type ManagedDatabaseEnv = zod.infer<typeof managedDatabaseSchema>
 
 export const managedServicesSchema = zod.object({
     globalDb: managedGlobalDbSchema,
@@ -626,8 +784,8 @@ export const managedServicesSchema = zod.object({
     localDb: managedLocalDbSchema,
     traefik: managedTraefikSchema,
     database: managedDatabaseSchema,
-});
-export type ManagedServicesEnv = zod.infer<typeof managedServicesSchema>;
+})
+export type ManagedServicesEnv = zod.infer<typeof managedServicesSchema>
 
 /**
  * Build the connection URL for a compose/operator-managed global Postgres.
@@ -637,79 +795,83 @@ export type ManagedServicesEnv = zod.infer<typeof managedServicesSchema>;
  * (GlobalDatabaseModule) so the URL is derived in exactly ONE place.
  */
 export function resolveManagedGlobalDbUrl(managed: ManagedGlobalDbEnv): string {
-    const explicit = managed.url;
-    if (explicit !== undefined && explicit !== "") return explicit;
-    const host = managed.host ?? "global-db";
-    const port = managed.port ?? 5432;
-    const user = managed.user ?? "deployer";
-    const password = managed.password ?? "deployer";
-    const database = managed.name ?? "deployer";
-    return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
+    const explicit = managed.url
+    if (explicit !== undefined && explicit !== '') return explicit
+    const host = managed.host ?? 'global-db'
+    const port = managed.port ?? 5432
+    const user = managed.user ?? 'deployer'
+    const password = managed.password ?? 'deployer'
+    const database = managed.name ?? 'deployer'
+    return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`
 }
 
 /** Service name keys accepted by the managed-env split. */
-export type ManagedServiceName = keyof ManagedServicesEnv;
+export type ManagedServiceName = keyof ManagedServicesEnv
 
 /** Flat→nested mapper for one managed service (key ⇒ flat env suffix). */
-const MANAGED_SERVICE_FLAT_KEYS: Record<ManagedServiceName, Record<string, string>> = {
+const MANAGED_SERVICE_FLAT_KEYS: Record<
+    ManagedServiceName,
+    Record<string, string>
+> = {
     globalDb: {
-        enabled: "MANAGED_GLOBAL_DB_ENABLED",
-        url: "MANAGED_GLOBAL_DB_URL",
-        host: "MANAGED_GLOBAL_DB_HOST",
-        port: "MANAGED_GLOBAL_DB_PORT",
-        user: "MANAGED_GLOBAL_DB_USER",
-        password: "MANAGED_GLOBAL_DB_PASSWORD",
-        name: "MANAGED_GLOBAL_DB_NAME",
-        image: "MANAGED_GLOBAL_DB_IMAGE",
+        enabled: 'MANAGED_GLOBAL_DB_ENABLED',
+        url: 'MANAGED_GLOBAL_DB_URL',
+        host: 'MANAGED_GLOBAL_DB_HOST',
+        port: 'MANAGED_GLOBAL_DB_PORT',
+        user: 'MANAGED_GLOBAL_DB_USER',
+        password: 'MANAGED_GLOBAL_DB_PASSWORD',
+        name: 'MANAGED_GLOBAL_DB_NAME',
+        image: 'MANAGED_GLOBAL_DB_IMAGE',
     },
     redis: {
-        enabled: "MANAGED_REDIS_ENABLED",
-        url: "MANAGED_REDIS_URL",
-        host: "MANAGED_REDIS_HOST",
-        port: "MANAGED_REDIS_PORT",
-        password: "MANAGED_REDIS_PASSWORD",
+        enabled: 'MANAGED_REDIS_ENABLED',
+        url: 'MANAGED_REDIS_URL',
+        host: 'MANAGED_REDIS_HOST',
+        port: 'MANAGED_REDIS_PORT',
+        password: 'MANAGED_REDIS_PASSWORD',
     },
     localDb: {
-        enabled: "MANAGED_LOCAL_DB_ENABLED",
-        path: "MANAGED_LOCAL_DB_PATH",
+        enabled: 'MANAGED_LOCAL_DB_ENABLED',
+        path: 'MANAGED_LOCAL_DB_PATH',
     },
     traefik: {
-        enabled: "MANAGED_TRAEFIK_ENABLED",
-        host: "MANAGED_TRAEFIK_HOST",
-        image: "MANAGED_TRAEFIK_IMAGE",
-        httpPort: "MANAGED_TRAEFIK_HTTP_PORT",
-        webHost: "MANAGED_TRAEFIK_WEB_HOST",
-        apiHost: "MANAGED_TRAEFIK_API_HOST",
+        enabled: 'MANAGED_TRAEFIK_ENABLED',
+        host: 'MANAGED_TRAEFIK_HOST',
+        image: 'MANAGED_TRAEFIK_IMAGE',
+        httpPort: 'MANAGED_TRAEFIK_HTTP_PORT',
+        webHost: 'MANAGED_TRAEFIK_WEB_HOST',
+        apiHost: 'MANAGED_TRAEFIK_API_HOST',
     },
     database: {
-        enabled: "MANAGED_DATABASE_ENABLED",
-        instances: "MANAGED_DATABASE_INSTANCES",
-        url: "MANAGED_DATABASE_URL",
-        host: "MANAGED_DATABASE_HOST",
-        port: "MANAGED_DATABASE_PORT",
-        user: "MANAGED_DATABASE_USER",
-        password: "MANAGED_DATABASE_PASSWORD",
-        name: "MANAGED_DATABASE_NAME",
-        image: "MANAGED_DATABASE_IMAGE",
-        dataVolumeBase: "MANAGED_DATABASE_DATA_VOLUME_BASE",
+        enabled: 'MANAGED_DATABASE_ENABLED',
+        instances: 'MANAGED_DATABASE_INSTANCES',
+        url: 'MANAGED_DATABASE_URL',
+        host: 'MANAGED_DATABASE_HOST',
+        port: 'MANAGED_DATABASE_PORT',
+        user: 'MANAGED_DATABASE_USER',
+        password: 'MANAGED_DATABASE_PASSWORD',
+        name: 'MANAGED_DATABASE_NAME',
+        image: 'MANAGED_DATABASE_IMAGE',
+        dataVolumeBase: 'MANAGED_DATABASE_DATA_VOLUME_BASE',
     },
-};
+}
 
 /** Service name → its flat-key mapping (each service key maps to exactly one flat env name). */
 type ManagedServiceFlatMap = {
-    [Service in ManagedServiceName]: Record<string, string>;
-};
+    [Service in ManagedServiceName]: Record<string, string>
+}
 
-const MANAGED_SERVICE_FLAT_MAP = MANAGED_SERVICE_FLAT_KEYS as ManagedServiceFlatMap;
+const MANAGED_SERVICE_FLAT_MAP =
+    MANAGED_SERVICE_FLAT_KEYS as ManagedServiceFlatMap
 
 /** Flat env source — either a parsed record or an EnvService-like getter. */
-type ManagedEnvSource = Record<string, unknown> | { get(key: string): unknown };
+type ManagedEnvSource = Record<string, unknown> | { get(key: string): unknown }
 
 /** Read one flat key from the source (getter or plain record). */
 const readFlat = (source: ManagedEnvSource, key: string): unknown =>
-    typeof (source as { get?: unknown }).get === "function"
+    typeof (source as { get?: unknown }).get === 'function'
         ? (source as { get(key: string): unknown }).get(key)
-        : (source as Record<string, unknown>)[key];
+        : (source as Record<string, unknown>)[key]
 
 /**
  * Split the flat `MANAGED_<SERVICE>_<KEY>` env into the nested
@@ -721,52 +883,56 @@ const readFlat = (source: ManagedEnvSource, key: string): unknown =>
  *                 fills the rest).
  */
 export function splitManagedEnv(source: ManagedEnvSource): ManagedServicesEnv {
-    const read = (service: ManagedServiceName, key: string, fallback = ""): unknown =>
-        readFlat(source, MANAGED_SERVICE_FLAT_KEYS[service][key] ?? fallback);
+    const read = (
+        service: ManagedServiceName,
+        key: string,
+        fallback = ''
+    ): unknown =>
+        readFlat(source, MANAGED_SERVICE_FLAT_KEYS[service][key] ?? fallback)
 
     return managedServicesSchema.parse({
         globalDb: {
-            enabled: read("globalDb", "enabled"),
-            url: read("globalDb", "url"),
-            host: read("globalDb", "host"),
-            port: read("globalDb", "port"),
-            user: read("globalDb", "user"),
-            password: read("globalDb", "password"),
-            name: read("globalDb", "name"),
-            image: read("globalDb", "image"),
+            enabled: read('globalDb', 'enabled'),
+            url: read('globalDb', 'url'),
+            host: read('globalDb', 'host'),
+            port: read('globalDb', 'port'),
+            user: read('globalDb', 'user'),
+            password: read('globalDb', 'password'),
+            name: read('globalDb', 'name'),
+            image: read('globalDb', 'image'),
         },
         redis: {
-            enabled: read("redis", "enabled"),
-            url: read("redis", "url"),
-            host: read("redis", "host"),
-            port: read("redis", "port"),
-            password: read("redis", "password"),
+            enabled: read('redis', 'enabled'),
+            url: read('redis', 'url'),
+            host: read('redis', 'host'),
+            port: read('redis', 'port'),
+            password: read('redis', 'password'),
         },
         localDb: {
-            enabled: read("localDb", "enabled"),
-            path: read("localDb", "path"),
+            enabled: read('localDb', 'enabled'),
+            path: read('localDb', 'path'),
         },
         traefik: {
-            enabled: read("traefik", "enabled"),
-            host: read("traefik", "host"),
-            image: read("traefik", "image"),
-            httpPort: read("traefik", "httpPort"),
-            webHost: read("traefik", "webHost"),
-            apiHost: read("traefik", "apiHost"),
+            enabled: read('traefik', 'enabled'),
+            host: read('traefik', 'host'),
+            image: read('traefik', 'image'),
+            httpPort: read('traefik', 'httpPort'),
+            webHost: read('traefik', 'webHost'),
+            apiHost: read('traefik', 'apiHost'),
         },
         database: {
-            enabled: read("database", "enabled"),
-            instances: read("database", "instances"),
-            url: read("database", "url"),
-            host: read("database", "host"),
-            port: read("database", "port"),
-            user: read("database", "user"),
-            password: read("database", "password"),
-            name: read("database", "name"),
-            image: read("database", "image"),
-            dataVolumeBase: read("database", "dataVolumeBase"),
+            enabled: read('database', 'enabled'),
+            instances: read('database', 'instances'),
+            url: read('database', 'url'),
+            host: read('database', 'host'),
+            port: read('database', 'port'),
+            user: read('database', 'user'),
+            password: read('database', 'password'),
+            name: read('database', 'name'),
+            image: read('database', 'image'),
+            dataVolumeBase: read('database', 'dataVolumeBase'),
         },
-    }) as ManagedServicesEnv;
+    }) as ManagedServicesEnv
 }
 
 /**
@@ -780,7 +946,7 @@ export const webEnvSchema = zod
         REACT_SCAN_GIT_BRANCH: zod.string().optional(),
         REACT_SCAN_TOKEN: zod.string().optional(),
 
-        API_URL: guardedUrl("API_URL", LOCAL_API_FALLBACK),
+        API_URL: guardedUrl('API_URL', LOCAL_API_FALLBACK),
 
         // ─── App-instance identity (api-centric deployment) ───
         // Managed mode: the API provisions this token into the container env.
@@ -795,16 +961,34 @@ export const webEnvSchema = zod
         APP_INSTANCE_TOKEN_PATH: emptyableString(),
 
         // Public API Configuration
-        NEXT_PUBLIC_API_URL: guardedUrl("NEXT_PUBLIC_API_URL", LOCAL_API_FALLBACK),
-        NEXT_PUBLIC_API_PORT: zod.coerce.number().int().min(1).max(65535).optional(),
-        NEXT_PUBLIC_APP_PORT: zod.coerce.number().int().min(1).max(65535).optional(),
+        NEXT_PUBLIC_API_URL: guardedUrl(
+            'NEXT_PUBLIC_API_URL',
+            LOCAL_API_FALLBACK
+        ),
+        NEXT_PUBLIC_API_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .optional(),
+        NEXT_PUBLIC_APP_PORT: zod.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(65535)
+            .optional(),
 
         // Authentication
-        AUTH_SECRET: zod.string().min(1, "AUTH_SECRET is required"),
-        BETTER_AUTH_SECRET: zod.string().min(1, "BETTER_AUTH_SECRET is required"),
+        AUTH_SECRET: zod.string().min(1, 'AUTH_SECRET is required'),
+        BETTER_AUTH_SECRET: zod
+            .string()
+            .min(1, 'BETTER_AUTH_SECRET is required'),
         AUTH_BASE_DOMAIN: zod.string().optional(),
         DEV_AUTH_KEY: zod.string().optional(),
-        NEXT_PUBLIC_SHOW_AUTH_LOGS: zod.coerce.boolean().optional().default(false),
+        NEXT_PUBLIC_SHOW_AUTH_LOGS: zod.coerce
+            .boolean()
+            .optional()
+            .default(false),
 
         // Debug configuration - supports advanced patterns:
         // - "middleware/auth" (exact match)
@@ -813,10 +997,17 @@ export const webEnvSchema = zod
         // - "middleware/{auth,router,cors}/*" (multiple sub-scopes)
         // - "*" (everything)
         // - "middleware/*,auth/test,api/{users,posts}/**" (multiple patterns)
-        NEXT_PUBLIC_DEBUG: zod.string().optional().default("").transform(parseDebugScopes),
+        NEXT_PUBLIC_DEBUG: zod
+            .string()
+            .optional()
+            .default('')
+            .transform(parseDebugScopes),
 
         // Context-aware debug filter used by browser/server web loggers.
-        NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER: zod.string().optional().default(""),
+        NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER: zod
+            .string()
+            .optional()
+            .default(''),
 
         // Optional docs site config; when set, used to render a Docs link in the navbar
         NEXT_PUBLIC_DOC_URL: zod
@@ -834,16 +1025,19 @@ export const webEnvSchema = zod
     })
     .refine(
         (data) => {
-            if (data.BETTER_AUTH_SECRET && data.BETTER_AUTH_SECRET !== data.AUTH_SECRET) {
-                return false;
+            if (
+                data.BETTER_AUTH_SECRET &&
+                data.BETTER_AUTH_SECRET !== data.AUTH_SECRET
+            ) {
+                return false
             }
-            return true;
+            return true
         },
         {
-            message: "BETTER_AUTH_SECRET must match AUTH_SECRET when provided",
-            path: ["BETTER_AUTH_SECRET"],
-        },
-    );
+            message: 'BETTER_AUTH_SECRET must match AUTH_SECRET when provided',
+            path: ['BETTER_AUTH_SECRET'],
+        }
+    )
 
 /**
  * Doc App (Fumadocs) Environment Variables
@@ -852,7 +1046,7 @@ export const webEnvSchema = zod
 export const docEnvSchema = zod.object({
     // Shared
     NODE_ENV: sharedEnvVars.NODE_ENV,
-});
+})
 
 // ============================================================================
 // Combined Schema for All Apps
@@ -865,23 +1059,27 @@ export const allEnvSchema = zod.object({
     api: apiEnvSchema,
     web: webEnvSchema,
     doc: docEnvSchema,
-});
+})
 
 // ============================================================================
 // Type Exports
 // ============================================================================
 
-export type ApiEnv = zod.infer<typeof apiEnvSchema>;
-export type WebEnv = zod.infer<typeof webEnvSchema>;
-export type DocEnv = zod.infer<typeof docEnvSchema>;
-export type AllEnv = zod.infer<typeof allEnvSchema>;
+export type ApiEnv = zod.infer<typeof apiEnvSchema>
+export type WebEnv = zod.infer<typeof webEnvSchema>
+export type DocEnv = zod.infer<typeof docEnvSchema>
+export type AllEnv = zod.infer<typeof allEnvSchema>
 
 // ============================================================================
 // Re-export Everything
 // ============================================================================
 
-export { trimTrailingSlash, guardedUrl, parseDebugScopes } from "@deployer/env/utils";
-export * from "@deployer/env/constants";
-export * from "@deployer/env/services";
-export * from "@deployer/env/validate";
-export * from "./node-id";
+export {
+    trimTrailingSlash,
+    guardedUrl,
+    parseDebugScopes,
+} from '@deployer/env/utils'
+export * from '@deployer/env/constants'
+export * from '@deployer/env/services'
+export * from '@deployer/env/validate'
+export * from './node-id'

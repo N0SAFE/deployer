@@ -11,27 +11,31 @@ import { serviceEnvironmentExecutionOverrideSchema } from '../configuration/serv
  * to env `qa` (enabled, 1 replica) — same service, different rules per env.
  */
 export const serviceEnvironmentLinkSchema = z
-  .object({
-    id: z.uuid(),
-    serviceId: z.uuid(),
-    environmentId: z.uuid(),
-    /** Whether the service participates in this environment. */
-    isEnabled: z.boolean().default(true),
-    /** Per-environment execution overrides (replicas, strategy, deps, …). */
-    overrides: serviceEnvironmentExecutionOverrideSchema.optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .strict()
-export type ServiceEnvironmentLink = z.infer<typeof serviceEnvironmentLinkSchema>
+    .object({
+        id: z.uuid(),
+        serviceId: z.uuid(),
+        environmentId: z.uuid(),
+        /** Whether the service participates in this environment. */
+        isEnabled: z.boolean().default(true),
+        /** Per-environment execution overrides (replicas, strategy, deps, …). */
+        overrides: serviceEnvironmentExecutionOverrideSchema.optional(),
+        createdAt: z.string(),
+        updatedAt: z.string(),
+    })
+    .strict()
+export type ServiceEnvironmentLink = z.infer<
+    typeof serviceEnvironmentLinkSchema
+>
 
 /** Create/update input for a service×environment link. */
 export const serviceEnvironmentLinkInputSchema = z
-  .object({
-    serviceId: z.uuid(),
-    environmentId: z.uuid(),
-    isEnabled: z.boolean().default(true),
-    overrides: serviceEnvironmentExecutionOverrideSchema.optional(),
-  })
-  .strict()
-export type ServiceEnvironmentLinkInput = z.infer<typeof serviceEnvironmentLinkInputSchema>
+    .object({
+        serviceId: z.uuid(),
+        environmentId: z.uuid(),
+        isEnabled: z.boolean().default(true),
+        overrides: serviceEnvironmentExecutionOverrideSchema.optional(),
+    })
+    .strict()
+export type ServiceEnvironmentLinkInput = z.infer<
+    typeof serviceEnvironmentLinkInputSchema
+>

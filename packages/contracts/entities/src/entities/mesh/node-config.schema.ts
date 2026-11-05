@@ -1,11 +1,16 @@
-import z from "zod/v4";
-import { meshNodeRoleSchema, meshRoutingModeSchema, meshPartitionConsistencyModeSchema, meshNodeLifecycleStateSchema } from "./topology.schema";
+import z from 'zod/v4'
+import {
+    meshNodeRoleSchema,
+    meshRoutingModeSchema,
+    meshPartitionConsistencyModeSchema,
+    meshNodeLifecycleStateSchema,
+} from './topology.schema'
 
 /**
  * Bootstrap strategy for how this node was configured.
  */
-export const meshBootstrapStrategySchema = z.enum(["local", "remote"]);
-export type MeshBootstrapStrategy = z.infer<typeof meshBootstrapStrategySchema>;
+export const meshBootstrapStrategySchema = z.enum(['local', 'remote'])
+export type MeshBootstrapStrategy = z.infer<typeof meshBootstrapStrategySchema>
 
 /**
  * Full node configuration — mirrors the sqlite node_config table.
@@ -37,8 +42,8 @@ export const meshNodeConfigSchema = z.object({
     lifecycleState: meshNodeLifecycleStateSchema.nullable().optional(),
     startedAt: z.string().nullable().optional(),
     lastSeenAt: z.string().nullable().optional(),
-});
-export type MeshNodeConfig = z.infer<typeof meshNodeConfigSchema>;
+})
+export type MeshNodeConfig = z.infer<typeof meshNodeConfigSchema>
 
 /**
  * Input schema for updating node configuration.
@@ -60,8 +65,10 @@ export const meshNodeConfigUpdateInputSchema = z.object({
     version: z.string().nullable().optional(),
     routingMode: meshRoutingModeSchema.nullable().optional(),
     consistencyMode: meshPartitionConsistencyModeSchema.nullable().optional(),
-});
-export type MeshNodeConfigUpdateInput = z.infer<typeof meshNodeConfigUpdateInputSchema>;
+})
+export type MeshNodeConfigUpdateInput = z.infer<
+    typeof meshNodeConfigUpdateInputSchema
+>
 
 /**
  * Result of a node config update.
@@ -69,8 +76,10 @@ export type MeshNodeConfigUpdateInput = z.infer<typeof meshNodeConfigUpdateInput
 export const meshNodeConfigUpdateResultSchema = z.object({
     success: z.boolean(),
     config: meshNodeConfigSchema,
-});
-export type MeshNodeConfigUpdateResult = z.infer<typeof meshNodeConfigUpdateResultSchema>;
+})
+export type MeshNodeConfigUpdateResult = z.infer<
+    typeof meshNodeConfigUpdateResultSchema
+>
 
 /**
  * Result of regenerating the mesh shared secret.
@@ -80,16 +89,20 @@ export const meshNodeConfigRegenerateSecretResultSchema = z.object({
     success: z.boolean(),
     meshSharedSecret: z.string(),
     rotatedAt: z.string(),
-});
-export type MeshNodeConfigRegenerateSecretResult = z.infer<typeof meshNodeConfigRegenerateSecretResultSchema>;
+})
+export type MeshNodeConfigRegenerateSecretResult = z.infer<
+    typeof meshNodeConfigRegenerateSecretResultSchema
+>
 
 /**
  * Input for testing a database connection.
  */
 export const meshNodeConfigTestDbInputSchema = z.object({
     databaseUrl: z.string().url(),
-});
-export type MeshNodeConfigTestDbInput = z.infer<typeof meshNodeConfigTestDbInputSchema>;
+})
+export type MeshNodeConfigTestDbInput = z.infer<
+    typeof meshNodeConfigTestDbInputSchema
+>
 
 /**
  * Result of testing a database connection.
@@ -98,5 +111,7 @@ export const meshNodeConfigTestDbResultSchema = z.object({
     connected: z.boolean(),
     isNewDatabase: z.boolean().nullable().optional(),
     error: z.string().nullable().optional(),
-});
-export type MeshNodeConfigTestDbResult = z.infer<typeof meshNodeConfigTestDbResultSchema>;
+})
+export type MeshNodeConfigTestDbResult = z.infer<
+    typeof meshNodeConfigTestDbResultSchema
+>

@@ -1,4 +1,4 @@
-import { call } from "@orpc/server";
+import { call } from '@orpc/server'
 
 /**
  * Call an implemented procedure without a Nest application.
@@ -7,11 +7,15 @@ import { call } from "@orpc/server";
  * (input validation, auth, `withEffectContext`, …) exactly as production does.
  */
 export async function callProcedure<TOutput>(
-  procedure: unknown,
-  input: unknown,
-  context: unknown,
+    procedure: unknown,
+    input: unknown,
+    context: unknown
 ): Promise<TOutput> {
-  return call(procedure as never, input as never, { context } as never) as Promise<TOutput>;
+    return call(
+        procedure as never,
+        input as never,
+        { context } as never
+    ) as Promise<TOutput>
 }
 
 /**
@@ -21,14 +25,14 @@ export async function callProcedure<TOutput>(
  * middleware.
  */
 export function getProcedureHandler(
-  procedure: unknown,
+    procedure: unknown
 ): (options: unknown) => Promise<unknown> {
-  const orpc = (procedure as { "~orpc"?: { handler?: unknown } })["~orpc"];
-  const handler = orpc?.handler;
+    const orpc = (procedure as { '~orpc'?: { handler?: unknown } })['~orpc']
+    const handler = orpc?.handler
 
-  if (typeof handler !== "function") {
-    throw new Error("No handler found on the implemented procedure");
-  }
+    if (typeof handler !== 'function') {
+        throw new Error('No handler found on the implemented procedure')
+    }
 
-  return handler as (options: unknown) => Promise<unknown>;
+    return handler as (options: unknown) => Promise<unknown>
 }

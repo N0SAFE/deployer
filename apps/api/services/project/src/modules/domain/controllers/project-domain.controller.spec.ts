@@ -1,39 +1,39 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock("@orpc/nest", () => ({ Implement: () => () => undefined }));
-vi.mock("@deployer/nest-effect", () => {
-	const builder = {
-		use: () => builder,
-		effect: (handler: unknown) => ({ handler }),
-	};
-	return { procedure: () => builder };
-});
-vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
-	requireAuth: () => ({}),
-}));
+vi.mock('@orpc/nest', () => ({ Implement: () => () => undefined }))
+vi.mock('@deployer/nest-effect', () => {
+    const builder = {
+        use: () => builder,
+        effect: (handler: unknown) => ({ handler }),
+    }
+    return { procedure: () => builder }
+})
+vi.mock('@deployer/shared/core/modules/auth/orpc/middlewares', () => ({
+    requireAuth: () => ({}),
+}))
 
-import { ProjectDomainController } from "./project-domain.controller";
+import { ProjectDomainController } from './project-domain.controller'
 
-describe("ProjectDomainController", () => {
-	let controller: ProjectDomainController;
+describe('ProjectDomainController', () => {
+    let controller: ProjectDomainController
 
-	beforeEach(() => {
-		controller = new ProjectDomainController();
-	});
+    beforeEach(() => {
+        controller = new ProjectDomainController()
+    })
 
-	it.each([
-		["listProjectDomains", () => controller.listProjectDomains()],
-		["getAvailableDomains", () => controller.getAvailableDomains()],
-		[
-			"getAvailableDomainsForService",
-			() => controller.getAvailableDomainsForService(),
-		],
-		["addProjectDomain", () => controller.addProjectDomain()],
-		["updateProjectDomain", () => controller.updateProjectDomain()],
-		["removeProjectDomain", () => controller.removeProjectDomain()],
-		["verifyProjectDomain", () => controller.verifyProjectDomain()],
-	])("binds %s to a handler", (_name, build) => {
-		const procedure = build() as unknown as { handler: unknown };
-		expect(typeof procedure.handler).toBe("function");
-	});
-});
+    it.each([
+        ['listProjectDomains', () => controller.listProjectDomains()],
+        ['getAvailableDomains', () => controller.getAvailableDomains()],
+        [
+            'getAvailableDomainsForService',
+            () => controller.getAvailableDomainsForService(),
+        ],
+        ['addProjectDomain', () => controller.addProjectDomain()],
+        ['updateProjectDomain', () => controller.updateProjectDomain()],
+        ['removeProjectDomain', () => controller.removeProjectDomain()],
+        ['verifyProjectDomain', () => controller.verifyProjectDomain()],
+    ])('binds %s to a handler', (_name, build) => {
+        const procedure = build() as unknown as { handler: unknown }
+        expect(typeof procedure.handler).toBe('function')
+    })
+})

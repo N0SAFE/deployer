@@ -1,8 +1,8 @@
-import { Effect } from "effect";
+import { Effect } from 'effect'
 
-import type { DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from '@deployer/docker'
 
-import type { BuilderStrategy } from "../base/builder-strategy.interface";
+import type { BuilderStrategy } from '../base/builder-strategy.interface'
 
 /**
  * `dockerfile` — build one image from the context's Dockerfile.
@@ -12,16 +12,20 @@ import type { BuilderStrategy } from "../base/builder-strategy.interface";
  *
  * Always available: it needs only the Docker engine, which the API requires.
  */
-export function makeDockerfileBuilderStrategy(engine: DockerEngineShape): BuilderStrategy {
+export function makeDockerfileBuilderStrategy(
+    engine: DockerEngineShape
+): BuilderStrategy {
     return {
-        builderType: "dockerfile",
+        builderType: 'dockerfile',
         isAvailable: () => true,
-        unavailableReason: () => "",
+        unavailableReason: () => '',
         build: (context) =>
             engine.build
                 .image(context.buildContextPath, context.imageTag, {
-                    ...(context.dockerfileName !== null ? { dockerfileName: context.dockerfileName } : {}),
+                    ...(context.dockerfileName !== null
+                        ? { dockerfileName: context.dockerfileName }
+                        : {}),
                 })
                 .pipe(Effect.as({ image: context.imageTag })),
-    };
+    }
 }

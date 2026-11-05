@@ -6,7 +6,10 @@ import { UserPlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React from 'react'
 
-import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
+import {
+    AlertCircle,
+    Spinner,
+} from '@deployer/ui/components/atomics/atoms/Icon'
 import { Alert, AlertDescription } from '@deployer/ui/components/shadcn/alert'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
@@ -19,22 +22,17 @@ import {
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
 
-
 import redirect from '@/actions/redirect'
 import { useSetupState } from '@/domains/setup/hooks'
 import { authClient } from '@/lib/auth'
-import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { getErrorMessage } from '@/lib/orpc/typed-errors'
 import { setupDestinationUrl } from '@/lib/setup-url'
 import { AuthSignup, AuthSignin } from '@/routes'
-
 
 import { PasswordInput } from '../_components/password-input'
 import { devConveniencesEnabled } from '../_utils/dev-only'
 
 import { signupSchema } from './schema'
-
-
-
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignup.Route(({ searchParams }) => {
@@ -77,14 +75,19 @@ export default AuthSignup.Route(({ searchParams }) => {
                 // rejection was unhandled and `isSubmitting` stayed true,
                 // leaving the submit button disabled forever.
                 setAuthError(
-getErrorMessage(error, 'Unable to reach the authentication service'),
+                    getErrorMessage(
+                        error,
+                        'Unable to reach the authentication service'
+                    )
                 )
                 return
             }
 
             setSuccess('Account created. Taking you to the dashboard…')
             setTimeout(() => {
-                void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
+                void redirect(
+                    searchParams.redirectTo ?? searchParams.callbackUrl ?? '/'
+                )
             }, 1500)
         },
     })
@@ -95,11 +98,17 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
             // normal same-origin navigation is correct.
             router.replace(
                 setupDestinationUrl({
-                    redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
+                    redirectTo:
+                        searchParams.redirectTo ?? searchParams.callbackUrl,
                 })
             )
         }
-    }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])
+    }, [
+        setupStatus.data,
+        router,
+        searchParams.callbackUrl,
+        searchParams.redirectTo,
+    ])
 
     // ─── Early returns only happen AFTER every hook above has been called ───
     if (!devConveniencesEnabled()) {
@@ -109,14 +118,21 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
             <div className="flex flex-1 items-center justify-center">
                 <Card className="w-full max-w-md text-center">
                     <CardHeader>
-                        <CardTitle className="text-2xl font-bold">Sign-up is closed</CardTitle>
+                        <CardTitle className="text-2xl font-bold">
+                            Sign-up is closed
+                        </CardTitle>
                         <CardDescription className="text-base">
-                            Accounts on this server are created by an administrator. Ask yours for an invitation, then sign in.
+                            Accounts on this server are created by an
+                            administrator. Ask yours for an invitation, then
+                            sign in.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <AuthSignin.Link
-                            search={{ redirectTo: searchParams.redirectTo, callbackUrl: searchParams.callbackUrl }}
+                            search={{
+                                redirectTo: searchParams.redirectTo,
+                                callbackUrl: searchParams.callbackUrl,
+                            }}
                             className="text-primary text-sm hover:underline"
                         >
                             Back to sign in
@@ -170,7 +186,9 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="name">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="name">Full name</Label>
+                                            <Label htmlFor="name">
+                                                Full name
+                                            </Label>
                                             <Input
                                                 placeholder="Ada Lovelace"
                                                 id="name"
@@ -180,15 +198,37 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                                 autoComplete="name"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => { field.handleChange(event.target.value); }}
-                                                aria-invalid={field.state.meta.errors.length > 0}
-                                                aria-describedby={field.state.meta.errors.length > 0 ? 'name-error' : undefined}
+                                                onChange={(event) => {
+                                                    field.handleChange(
+                                                        event.target.value
+                                                    )
+                                                }}
+                                                aria-invalid={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                }
+                                                aria-describedby={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                        ? 'name-error'
+                                                        : undefined
+                                                }
                                             />
-                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                                                <p id="name-error" role="alert" className="text-sm font-medium text-destructive">
-                                                    {field.state.meta.errors[0]?.message}
-                                                </p>
-                                            )}
+                                            {field.state.meta.isTouched &&
+                                                field.state.meta.errors.length >
+                                                    0 && (
+                                                    <p
+                                                        id="name-error"
+                                                        role="alert"
+                                                        className="text-destructive text-sm font-medium"
+                                                    >
+                                                        {
+                                                            field.state.meta
+                                                                .errors[0]
+                                                                ?.message
+                                                        }
+                                                    </p>
+                                                )}
                                         </div>
                                     )}
                                 </form.Field>
@@ -196,7 +236,9 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="email">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="email">Email address</Label>
+                                            <Label htmlFor="email">
+                                                Email address
+                                            </Label>
                                             <Input
                                                 placeholder="you@example.com"
                                                 id="email"
@@ -205,15 +247,37 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                                 autoComplete="email"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => { field.handleChange(event.target.value); }}
-                                                aria-invalid={field.state.meta.errors.length > 0}
-                                                aria-describedby={field.state.meta.errors.length > 0 ? 'email-error' : undefined}
+                                                onChange={(event) => {
+                                                    field.handleChange(
+                                                        event.target.value
+                                                    )
+                                                }}
+                                                aria-invalid={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                }
+                                                aria-describedby={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                        ? 'email-error'
+                                                        : undefined
+                                                }
                                             />
-                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                                                <p id="email-error" role="alert" className="text-sm font-medium text-destructive">
-                                                    {field.state.meta.errors[0]?.message}
-                                                </p>
-                                            )}
+                                            {field.state.meta.isTouched &&
+                                                field.state.meta.errors.length >
+                                                    0 && (
+                                                    <p
+                                                        id="email-error"
+                                                        role="alert"
+                                                        className="text-destructive text-sm font-medium"
+                                                    >
+                                                        {
+                                                            field.state.meta
+                                                                .errors[0]
+                                                                ?.message
+                                                        }
+                                                    </p>
+                                                )}
                                         </div>
                                     )}
                                 </form.Field>
@@ -221,22 +285,46 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="password">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="password">Password</Label>
+                                            <Label htmlFor="password">
+                                                Password
+                                            </Label>
                                             <PasswordInput
                                                 id="password"
                                                 className="h-12"
                                                 autoComplete="new-password"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => { field.handleChange(event.target.value); }}
-                                                aria-invalid={field.state.meta.errors.length > 0}
-                                                aria-describedby={field.state.meta.errors.length > 0 ? 'password-error' : undefined}
+                                                onChange={(event) => {
+                                                    field.handleChange(
+                                                        event.target.value
+                                                    )
+                                                }}
+                                                aria-invalid={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                }
+                                                aria-describedby={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                        ? 'password-error'
+                                                        : undefined
+                                                }
                                             />
-                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                                                <p id="password-error" role="alert" className="text-sm font-medium text-destructive">
-                                                    {field.state.meta.errors[0]?.message}
-                                                </p>
-                                            )}
+                                            {field.state.meta.isTouched &&
+                                                field.state.meta.errors.length >
+                                                    0 && (
+                                                    <p
+                                                        id="password-error"
+                                                        role="alert"
+                                                        className="text-destructive text-sm font-medium"
+                                                    >
+                                                        {
+                                                            field.state.meta
+                                                                .errors[0]
+                                                                ?.message
+                                                        }
+                                                    </p>
+                                                )}
                                         </div>
                                     )}
                                 </form.Field>
@@ -244,22 +332,46 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="confirmPassword">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="confirmPassword">Confirm password</Label>
+                                            <Label htmlFor="confirmPassword">
+                                                Confirm password
+                                            </Label>
                                             <PasswordInput
                                                 id="confirmPassword"
                                                 className="h-12"
                                                 autoComplete="new-password"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => { field.handleChange(event.target.value); }}
-                                                aria-invalid={field.state.meta.errors.length > 0}
-                                                aria-describedby={field.state.meta.errors.length > 0 ? 'confirmPassword-error' : undefined}
+                                                onChange={(event) => {
+                                                    field.handleChange(
+                                                        event.target.value
+                                                    )
+                                                }}
+                                                aria-invalid={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                }
+                                                aria-describedby={
+                                                    field.state.meta.errors
+                                                        .length > 0
+                                                        ? 'confirmPassword-error'
+                                                        : undefined
+                                                }
                                             />
-                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                                                <p id="confirmPassword-error" role="alert" className="text-sm font-medium text-destructive">
-                                                    {field.state.meta.errors[0]?.message}
-                                                </p>
-                                            )}
+                                            {field.state.meta.isTouched &&
+                                                field.state.meta.errors.length >
+                                                    0 && (
+                                                    <p
+                                                        id="confirmPassword-error"
+                                                        role="alert"
+                                                        className="text-destructive text-sm font-medium"
+                                                    >
+                                                        {
+                                                            field.state.meta
+                                                                .errors[0]
+                                                                ?.message
+                                                        }
+                                                    </p>
+                                                )}
                                         </div>
                                     )}
                                 </form.Field>
@@ -295,7 +407,9 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                             className="h-12 w-full text-base"
                                         >
                                             {isSubmitting && <Spinner />}
-                                            {isSubmitting ? 'Creating account…' : 'Create account'}
+                                            {isSubmitting
+                                                ? 'Creating account…'
+                                                : 'Create account'}
                                         </Button>
                                     )}
                                 </form.Subscribe>

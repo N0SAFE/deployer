@@ -1,4 +1,4 @@
-import { isIpLiteral } from "./ip-policy";
+import { isIpLiteral } from './ip-policy'
 
 /**
  * Address handling — `URL` and `net` do the parsing; this file only covers the two
@@ -10,7 +10,8 @@ import { isIpLiteral } from "./ip-policy";
  */
 
 /** `URL.hostname` keeps IPv6 brackets (`[::1]`); the policy classifier does not accept them. */
-export const stripBrackets = (host: string): string => host.replace(/^\[|\]$/g, "");
+export const stripBrackets = (host: string): string =>
+    host.replace(/^\[|\]$/g, '')
 
 /**
  * The bare host of an address: scheme, port and path dropped, IPv6 brackets kept.
@@ -21,20 +22,22 @@ export const stripBrackets = (host: string): string => host.replace(/^\[|\]$/g, 
  * reason.
  */
 export const hostOf = (value: string): string => {
-    const trimmed = value.trim();
-    if (isIpLiteral(trimmed)) return trimmed;
+    const trimmed = value.trim()
+    if (isIpLiteral(trimmed)) return trimmed
 
     try {
-        return new URL(hasHttpScheme(trimmed) ? trimmed : `http://${trimmed}`).hostname;
+        return new URL(hasHttpScheme(trimmed) ? trimmed : `http://${trimmed}`)
+            .hostname
     } catch {
         // Not an address at all (empty, or something like `:::x`). "No host" is the
         // honest answer; the caller decides whether that is a failure.
-        return "";
+        return ''
     }
-};
+}
 
 /** Whether an address is a bare IP rather than a hostname. */
-export const isIpAddress = (value: string): boolean => isIpLiteral(hostOf(value));
+export const isIpAddress = (value: string): boolean =>
+    isIpLiteral(hostOf(value))
 
 /**
  * The origin of an address: the scheme and port kept, the path dropped.
@@ -43,20 +46,23 @@ export const isIpAddress = (value: string): boolean => isIpLiteral(hostOf(value)
  * IP gains `http`, because nothing can hold a certificate for it.
  */
 export const toOrigin = (value: string): string => {
-    const trimmed = value.trim();
+    const trimmed = value.trim()
     if (hasHttpScheme(trimmed)) {
         try {
-            return new URL(trimmed).origin;
+            return new URL(trimmed).origin
         } catch {
-            return "";
+            return ''
         }
     }
 
-    const host = hostOf(trimmed);
-    if (host === "") return "";
+    const host = hostOf(trimmed)
+    if (host === '') return ''
 
-    const authority = isIpLiteral(stripBrackets(host)) && !host.startsWith("[") ? `[${host}]` : host;
-    return `${isIpAddress(host) ? "http" : "https"}://${authority}`;
-};
+    const authority =
+        isIpLiteral(stripBrackets(host)) && !host.startsWith('[')
+            ? `[${host}]`
+            : host
+    return `${isIpAddress(host) ? 'http' : 'https'}://${authority}`
+}
 
-const hasHttpScheme = (value: string): boolean => /^https?:\/\//i.test(value);
+const hasHttpScheme = (value: string): boolean => /^https?:\/\//i.test(value)

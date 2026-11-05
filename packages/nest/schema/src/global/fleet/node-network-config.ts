@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 /**
  * Per-node global network configuration — the "main IP/domain" of the System
@@ -17,25 +17,22 @@ import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * connectors, HA from replicas), so it lives in the local `platform_settings`
  * table alongside the entry port it is the alternative to.
  */
-export const nodeNetworkConfig = pgTable(
-    "node_network_config",
-    {
-        /** Mesh node this config belongs to (uuid — same as cluster_nodes.nodeId). */
-        nodeId: text("node_id").primaryKey(),
-        /**
-         * The manually-configured globally reachable address: a bare IP
-         * (203.0.113.10), a hostname (node.example.com) or a full origin+path.
-         *
-         * Still per-node, and still needed: in `direct` mode DNS resolves each
-         * app hostname to THIS node's address, so the address is what makes the
-         * stack reachable without a tunnel.
-         */
-        publicAddress: text("public_address"),
-        /** Derived kind of `publicAddress`: "ip" | "hostname" | null. */
-        addressKind: text("address_kind"),
-        updatedAt: timestamp("updated_at", { withTimezone: true })
-            .notNull()
-            .defaultNow()
-            .$onUpdate(() => new Date()),
-    },
-);
+export const nodeNetworkConfig = pgTable('node_network_config', {
+    /** Mesh node this config belongs to (uuid — same as cluster_nodes.nodeId). */
+    nodeId: text('node_id').primaryKey(),
+    /**
+     * The manually-configured globally reachable address: a bare IP
+     * (203.0.113.10), a hostname (node.example.com) or a full origin+path.
+     *
+     * Still per-node, and still needed: in `direct` mode DNS resolves each
+     * app hostname to THIS node's address, so the address is what makes the
+     * stack reachable without a tunnel.
+     */
+    publicAddress: text('public_address'),
+    /** Derived kind of `publicAddress`: "ip" | "hostname" | null. */
+    addressKind: text('address_kind'),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+        .notNull()
+        .defaultNow()
+        .$onUpdate(() => new Date()),
+})

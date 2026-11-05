@@ -1,70 +1,71 @@
-import { Context } from "effect";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { Context } from 'effect'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { createModuleContext, EffectContextOf } from "./create-module-context";
+import { createModuleContext, EffectContextOf } from './create-module-context'
 
-import type { EffectContext } from "./orpc-effect-context";
+import type { EffectContext } from './orpc-effect-context'
 
-class Database extends Context.Service<
-	Database,
-	{ readonly name: string }
->()("test/Database") {}
+class Database extends Context.Service<Database, { readonly name: string }>()(
+    'test/Database'
+) {}
 
 class Users extends Context.Service<
-	Users,
-	{ readonly all: () => readonly string[] }
->()("test/Users") {}
+    Users,
+    { readonly all: () => readonly string[] }
+>()('test/Users') {}
 
 const Leaf = createModuleContext({
-	providers: [{ provide: Users, useValue: { all: () => [] } }],
-	exports: [Users],
-});
+    providers: [{ provide: Users, useValue: { all: () => [] } }],
+    exports: [Users],
+})
 
 /** Exports nothing: the same providers, invisible to its importers. */
 const PrivateLeaf = createModuleContext({
-	providers: [{ provide: Users, useValue: { all: () => [] } }],
-});
+    providers: [{ provide: Users, useValue: { all: () => [] } }],
+})
 
 const Root = createModuleContext({
-	imports: [Leaf],
-	providers: [{ provide: Database, useValue: { name: "db" } }],
-});
+    imports: [Leaf],
+    providers: [{ provide: Database, useValue: { name: 'db' } }],
+})
 
 type ServicesOf<ContextType> =
-	ContextType extends EffectContext<infer Services> ? Services : never;
+    ContextType extends EffectContext<infer Services> ? Services : never
 
-type LeafServices = ServicesOf<(typeof Leaf)[typeof EffectContextOf]>;
-type RootServices = ServicesOf<(typeof Root)[typeof EffectContextOf]>;
+type LeafServices = ServicesOf<(typeof Leaf)[typeof EffectContextOf]>
+type RootServices = ServicesOf<(typeof Root)[typeof EffectContextOf]>
 
-describe("createModuleContext", () => {
-	it("applies the module metadata to the returned class", () => {
-		expect(Reflect.getMetadata("imports", Root)).toEqual([Leaf]);
-		expect(Reflect.getMetadata("providers", Leaf)).toHaveLength(1);
-	});
+describe('createModuleContext', () => {
+    it('applies the module metadata to the returned class', () => {
+        expect(Reflect.getMetadata('imports', Root)).toEqual([Leaf])
+        expect(Reflect.getMetadata('providers', Leaf)).toHaveLength(1)
+    })
 
-	it("exposes an oRPC middleware under the context symbol", () => {
-		expect(Leaf[EffectContextOf]).toHaveProperty("~orpc");
-	});
+    it('exposes an oRPC middleware under the context symbol', () => {
+        expect(Leaf[EffectContextOf]).toHaveProperty('~orpc')
+    })
 
-	it("types the context from the module's own providers", () => {
-		expectTypeOf<LeafServices>().toEqualTypeOf<Users>();
-	});
+    it("types the context from the module's own providers", () => {
+        expectTypeOf<LeafServices>().toEqualTypeOf<Users>()
+    })
 
-	it("types the context from the imported modules plus its own providers", () => {
-		expectTypeOf<RootServices>().toEqualTypeOf<Users | Database>();
-	});
+    it('types the context from the imported modules plus its own providers', () => {
+        expectTypeOf<RootServices>().toEqualTypeOf<Users | Database>()
+    })
 
-	it("does not grant a provider its import does not export", () => {
-		// Only its CONTEXT type is used, through `typeof` — the value itself is never read.
-		const PrivateRoot = createModuleContext({
-			imports: [PrivateLeaf],
-			providers: [{ provide: Database, useValue: { name: "db" } }],
-		});
+    it('does not grant a provider its import does not export', () => {
+        // Only its CONTEXT type is used, through `typeof` — the value itself is never read.
+        const PrivateRoot = createModuleContext({
+            imports: [PrivateLeaf],
+            providers: [{ provide: Database, useValue: { name: 'db' } }],
+        })
 
-		type PrivateRootServices = ServicesOf<(typeof PrivateRoot)[typeof EffectContextOf]>;
+        type PrivateRootServices = ServicesOf<
+            (typeof PrivateRoot)[typeof EffectContextOf]
+        >
 
-		expectTypeOf<PrivateRootServices>().toEqualTypeOf<Database>();
-		// `PrivateRoot` exists only to carry that type; referencing it keeps the helper above from being unused.
-		expect(PrivateRoot).toBeTypeOf("function");
-	});
-});
+        expectTypeOf<PrivateRootServices>().toEqualTypeOf<Database>()
+        // `PrivateRoot` exists only to carry that type; referencing it keeps the helper above from being unused.
+        expect(PrivateRoot).toBeTypeOf('function')
+    })
+})

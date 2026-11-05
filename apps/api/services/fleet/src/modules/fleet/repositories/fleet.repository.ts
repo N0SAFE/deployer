@@ -1,17 +1,16 @@
-import { and, asc, desc, eq } from "drizzle-orm";
-import { Context } from "effect";
+import { and, asc, desc, eq } from 'drizzle-orm'
+import { Context } from 'effect'
 
-import { serviceOver, type Over } from "@deployer/effect-core";
+import { serviceOver, type Over } from '@deployer/effect-core'
 import {
-  clusterNodes,
-  clusterServerAllocations,
-  clusterAdmissionRequests,
-  clusterNodeMetrics,
-} from "@deployer/nest-schema/global/fleet/cluster";
-import type { GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
+    clusterNodes,
+    clusterServerAllocations,
+    clusterAdmissionRequests,
+    clusterNodeMetrics,
+} from '@deployer/nest-schema/global/fleet/cluster'
+import type { GlobalDatabaseServiceShape } from '@deployer/shared/core/modules/database/services/global-database.service'
 
-import { attempt } from "../../../core/effects";
-
+import { attempt } from '../../../core/effects'
 
 /**
  * FleetRepository — the data-access layer for the cluster fleet model
@@ -27,214 +26,292 @@ import { attempt } from "../../../core/effects";
  */
 function makeFleetRepository(database: GlobalDatabaseServiceShape) {
     return {
-        listServersWithMetrics: () => attempt(async () => {
-        return database.db
-            .select({
-                nodeId: clusterNodes.nodeId,
-                serverUrl: clusterNodes.serverUrl,
-                displayName: clusterNodes.displayName,
-                status: clusterNodes.status,
-                healthy: clusterNodes.healthy,
-                lastSeenAt: clusterNodes.lastSeenAt,
-                swarmNodeId: clusterNodes.swarmNodeId,
-                maxCpuMillicores: clusterNodes.maxCpuMillicores,
-                maxMemoryMb: clusterNodes.maxMemoryMb,
-                cpuUsage: clusterNodeMetrics.metrics,
-                reportedAt: clusterNodeMetrics.reportedAt,
-            })
-            .from(clusterNodes)
-            .leftJoin(clusterNodeMetrics, eq(clusterNodeMetrics.nodeId, clusterNodes.nodeId))
-            .orderBy(asc(clusterNodes.displayName ?? clusterNodes.serverUrl));
-    }),
+        listServersWithMetrics: () =>
+            attempt(async () => {
+                return database.db
+                    .select({
+                        nodeId: clusterNodes.nodeId,
+                        serverUrl: clusterNodes.serverUrl,
+                        displayName: clusterNodes.displayName,
+                        status: clusterNodes.status,
+                        healthy: clusterNodes.healthy,
+                        lastSeenAt: clusterNodes.lastSeenAt,
+                        swarmNodeId: clusterNodes.swarmNodeId,
+                        maxCpuMillicores: clusterNodes.maxCpuMillicores,
+                        maxMemoryMb: clusterNodes.maxMemoryMb,
+                        cpuUsage: clusterNodeMetrics.metrics,
+                        reportedAt: clusterNodeMetrics.reportedAt,
+                    })
+                    .from(clusterNodes)
+                    .leftJoin(
+                        clusterNodeMetrics,
+                        eq(clusterNodeMetrics.nodeId, clusterNodes.nodeId)
+                    )
+                    .orderBy(
+                        asc(clusterNodes.displayName ?? clusterNodes.serverUrl)
+                    )
+            }),
 
-        listEnabledAllocations: () => attempt(async () => {
-        return database.db
-            .select({
-                serverNodeId: clusterServerAllocations.serverNodeId,
-                cpuMillicores: clusterServerAllocations.cpuMillicores,
-                memoryMb: clusterServerAllocations.memoryMb,
-            })
-            .from(clusterServerAllocations)
-            .where(eq(clusterServerAllocations.isEnabled, true));
-    }),
+        listEnabledAllocations: () =>
+            attempt(async () => {
+                return database.db
+                    .select({
+                        serverNodeId: clusterServerAllocations.serverNodeId,
+                        cpuMillicores: clusterServerAllocations.cpuMillicores,
+                        memoryMb: clusterServerAllocations.memoryMb,
+                    })
+                    .from(clusterServerAllocations)
+                    .where(eq(clusterServerAllocations.isEnabled, true))
+            }),
 
-        updateServerCapacity: (nodeId: string, maxCpuMillicores: number | null, maxMemoryMb: number | null) => attempt(async () => {
-        const [row] = await database.db
-            .update(clusterNodes)
-            .set({ maxCpuMillicores, maxMemoryMb, updatedAt: new Date() })
-            .where(eq(clusterNodes.nodeId, nodeId))
-            .returning();
-        return row ?? null;
-    }),
+        updateServerCapacity: (
+            nodeId: string,
+            maxCpuMillicores: number | null,
+            maxMemoryMb: number | null
+        ) =>
+            attempt(async () => {
+                const [row] = await database.db
+                    .update(clusterNodes)
+                    .set({
+                        maxCpuMillicores,
+                        maxMemoryMb,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(clusterNodes.nodeId, nodeId))
+                    .returning()
+                return row ?? null
+            }),
 
-        listAllocationsWithNames: (filters: { serverNodeId?: string }) => attempt(async () => {
-        const conditions = [
-            filters.serverNodeId ? eq(clusterServerAllocations.serverNodeId, filters.serverNodeId) : undefined,
-        ].filter(Boolean);
+        listAllocationsWithNames: (filters: { serverNodeId?: string }) =>
+            attempt(async () => {
+                const conditions = [
+                    filters.serverNodeId
+                        ? eq(
+                              clusterServerAllocations.serverNodeId,
+                              filters.serverNodeId
+                          )
+                        : undefined,
+                ].filter(Boolean)
 
-        return database.db
-            .select({
-                allocation: clusterServerAllocations,
-                serverUrl: clusterNodes.serverUrl,
-            })
-            .from(clusterServerAllocations)
-            .leftJoin(clusterNodes, eq(clusterNodes.nodeId, clusterServerAllocations.serverNodeId))
-            .where(conditions.length > 0 ? and(...conditions) : undefined)
-            .orderBy(desc(clusterServerAllocations.updatedAt));
-    }),
+                return database.db
+                    .select({
+                        allocation: clusterServerAllocations,
+                        serverUrl: clusterNodes.serverUrl,
+                    })
+                    .from(clusterServerAllocations)
+                    .leftJoin(
+                        clusterNodes,
+                        eq(
+                            clusterNodes.nodeId,
+                            clusterServerAllocations.serverNodeId
+                        )
+                    )
+                    .where(
+                        conditions.length > 0 ? and(...conditions) : undefined
+                    )
+                    .orderBy(desc(clusterServerAllocations.updatedAt))
+            }),
 
-        listAllocations: () => attempt(async () => {
-        return database.db
-            .select({
-                allocation: clusterServerAllocations,
-                serverUrl: clusterNodes.serverUrl,
-            })
-            .from(clusterServerAllocations)
-            .leftJoin(clusterNodes, eq(clusterNodes.nodeId, clusterServerAllocations.serverNodeId))
-            .orderBy(desc(clusterServerAllocations.updatedAt));
-    }),
+        listAllocations: () =>
+            attempt(async () => {
+                return database.db
+                    .select({
+                        allocation: clusterServerAllocations,
+                        serverUrl: clusterNodes.serverUrl,
+                    })
+                    .from(clusterServerAllocations)
+                    .leftJoin(
+                        clusterNodes,
+                        eq(
+                            clusterNodes.nodeId,
+                            clusterServerAllocations.serverNodeId
+                        )
+                    )
+                    .orderBy(desc(clusterServerAllocations.updatedAt))
+            }),
 
-        findEnabledAllocations: (serverNodeId?: string) => attempt(async () => {
-        const conditions = [
-            eq(clusterServerAllocations.isEnabled, true),
-            serverNodeId ? eq(clusterServerAllocations.serverNodeId, serverNodeId) : undefined,
-        ].filter(Boolean);
+        findEnabledAllocations: (serverNodeId?: string) =>
+            attempt(async () => {
+                const conditions = [
+                    eq(clusterServerAllocations.isEnabled, true),
+                    serverNodeId
+                        ? eq(
+                              clusterServerAllocations.serverNodeId,
+                              serverNodeId
+                          )
+                        : undefined,
+                ].filter(Boolean)
 
-        return database.db
-            .select({
-                allocation: clusterServerAllocations,
-                serverUrl: clusterNodes.serverUrl,
-                maxCpuMillicores: clusterNodes.maxCpuMillicores,
-                maxMemoryMb: clusterNodes.maxMemoryMb,
-            })
-            .from(clusterServerAllocations)
-            .leftJoin(clusterNodes, eq(clusterNodes.nodeId, clusterServerAllocations.serverNodeId))
-            .where(conditions.length > 0 ? and(...conditions) : undefined);
-    }),
+                return database.db
+                    .select({
+                        allocation: clusterServerAllocations,
+                        serverUrl: clusterNodes.serverUrl,
+                        maxCpuMillicores: clusterNodes.maxCpuMillicores,
+                        maxMemoryMb: clusterNodes.maxMemoryMb,
+                    })
+                    .from(clusterServerAllocations)
+                    .leftJoin(
+                        clusterNodes,
+                        eq(
+                            clusterNodes.nodeId,
+                            clusterServerAllocations.serverNodeId
+                        )
+                    )
+                    .where(
+                        conditions.length > 0 ? and(...conditions) : undefined
+                    )
+            }),
 
-        findAllocation: (serverNodeId: string) => attempt(async () => {
-        return database.db
-            .select()
-            .from(clusterServerAllocations)
-            .where(eq(clusterServerAllocations.serverNodeId, serverNodeId))
-            .limit(1);
-    }),
+        findAllocation: (serverNodeId: string) =>
+            attempt(async () => {
+                return database.db
+                    .select()
+                    .from(clusterServerAllocations)
+                    .where(
+                        eq(clusterServerAllocations.serverNodeId, serverNodeId)
+                    )
+                    .limit(1)
+            }),
 
-        updateAllocation: (id: string, values: {
-        allocationMode: string;
-        cpuMillicores: number;
-        memoryMb: number;
-        maxServices: number | null;
-        isEnabled: boolean;
-    }) => attempt(async () => {
-        return database.db
-            .update(clusterServerAllocations)
-            .set({
-                allocationMode: values.allocationMode as never,
-                cpuMillicores: values.cpuMillicores,
-                memoryMb: values.memoryMb,
-                maxServices: values.maxServices,
-                isEnabled: values.isEnabled,
-                updatedAt: new Date(),
-            })
-            .where(eq(clusterServerAllocations.id, id))
-            .returning();
-    }),
+        updateAllocation: (
+            id: string,
+            values: {
+                allocationMode: string
+                cpuMillicores: number
+                memoryMb: number
+                maxServices: number | null
+                isEnabled: boolean
+            }
+        ) =>
+            attempt(async () => {
+                return database.db
+                    .update(clusterServerAllocations)
+                    .set({
+                        allocationMode: values.allocationMode as never,
+                        cpuMillicores: values.cpuMillicores,
+                        memoryMb: values.memoryMb,
+                        maxServices: values.maxServices,
+                        isEnabled: values.isEnabled,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(clusterServerAllocations.id, id))
+                    .returning()
+            }),
 
         insertAllocation: (values: {
-        serverNodeId: string;
-        allocationMode: string;
-        cpuMillicores: number;
-        memoryMb: number;
-        maxServices: number | null;
-        isEnabled: boolean;
-    }) => attempt(async () => {
-        return database.db
-            .insert(clusterServerAllocations)
-            .values({
-                serverNodeId: values.serverNodeId,
-                allocationMode: values.allocationMode as never,
-                cpuMillicores: values.cpuMillicores,
-                memoryMb: values.memoryMb,
-                maxServices: values.maxServices,
-                isEnabled: values.isEnabled,
-            })
-            .returning();
-    }),
+            serverNodeId: string
+            allocationMode: string
+            cpuMillicores: number
+            memoryMb: number
+            maxServices: number | null
+            isEnabled: boolean
+        }) =>
+            attempt(async () => {
+                return database.db
+                    .insert(clusterServerAllocations)
+                    .values({
+                        serverNodeId: values.serverNodeId,
+                        allocationMode: values.allocationMode as never,
+                        cpuMillicores: values.cpuMillicores,
+                        memoryMb: values.memoryMb,
+                        maxServices: values.maxServices,
+                        isEnabled: values.isEnabled,
+                    })
+                    .returning()
+            }),
 
-        deleteAllocation: (serverNodeId: string) => attempt(async () => {
-        return database.db
-            .delete(clusterServerAllocations)
-            .where(eq(clusterServerAllocations.serverNodeId, serverNodeId));
-    }),
+        deleteAllocation: (serverNodeId: string) =>
+            attempt(async () => {
+                return database.db
+                    .delete(clusterServerAllocations)
+                    .where(
+                        eq(clusterServerAllocations.serverNodeId, serverNodeId)
+                    )
+            }),
 
         insertAdmissionRequest: (values: {
-        requestedServerNodeId: string | null;
-        requestedCpuMillicores: number;
-        requestedMemoryMb: number;
-        requestedServices: number;
-        requesterUserId: string;
-        requesterNote: string | null;
-    }) => attempt(async () => {
-        return database.db
-            .insert(clusterAdmissionRequests)
-            .values({
-                status: "pending",
-                requestedServerNodeId: values.requestedServerNodeId,
-                requestedCpuMillicores: values.requestedCpuMillicores,
-                requestedMemoryMb: values.requestedMemoryMb,
-                requestedServices: values.requestedServices,
-                requesterUserId: values.requesterUserId,
-                requesterNote: values.requesterNote,
-            })
-            .returning();
-    }),
+            requestedServerNodeId: string | null
+            requestedCpuMillicores: number
+            requestedMemoryMb: number
+            requestedServices: number
+            requesterUserId: string
+            requesterNote: string | null
+        }) =>
+            attempt(async () => {
+                return database.db
+                    .insert(clusterAdmissionRequests)
+                    .values({
+                        status: 'pending',
+                        requestedServerNodeId: values.requestedServerNodeId,
+                        requestedCpuMillicores: values.requestedCpuMillicores,
+                        requestedMemoryMb: values.requestedMemoryMb,
+                        requestedServices: values.requestedServices,
+                        requesterUserId: values.requesterUserId,
+                        requesterNote: values.requesterNote,
+                    })
+                    .returning()
+            }),
 
-        listAdmissionRequests: (status?: string) => attempt(async () => {
-        const conditions = [
-            status ? eq(clusterAdmissionRequests.status, status as never) : undefined,
-        ].filter(Boolean);
+        listAdmissionRequests: (status?: string) =>
+            attempt(async () => {
+                const conditions = [
+                    status
+                        ? eq(clusterAdmissionRequests.status, status as never)
+                        : undefined,
+                ].filter(Boolean)
 
-        return database.db
-            .select({
-                request: clusterAdmissionRequests,
-            })
-            .from(clusterAdmissionRequests)
-            .where(conditions.length > 0 ? and(...conditions) : undefined)
-            .orderBy(desc(clusterAdmissionRequests.createdAt));
-    }),
+                return database.db
+                    .select({
+                        request: clusterAdmissionRequests,
+                    })
+                    .from(clusterAdmissionRequests)
+                    .where(
+                        conditions.length > 0 ? and(...conditions) : undefined
+                    )
+                    .orderBy(desc(clusterAdmissionRequests.createdAt))
+            }),
 
-        updateAdmissionRequestDecision: (requestId: string, decision: string, reviewerNote: string | null, decisionServerNodeId: string | null) => attempt(async () => {
-        const [row] = await database.db
-            .update(clusterAdmissionRequests)
-            .set({
-                status: decision as never,
-                reviewerNote,
-                decisionServerNodeId,
-                reviewedByUserId: null,
-                reviewedAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .where(eq(clusterAdmissionRequests.id, requestId))
-            .returning();
-        return row ?? null;
-    }),
-    };
+        updateAdmissionRequestDecision: (
+            requestId: string,
+            decision: string,
+            reviewerNote: string | null,
+            decisionServerNodeId: string | null
+        ) =>
+            attempt(async () => {
+                const [row] = await database.db
+                    .update(clusterAdmissionRequests)
+                    .set({
+                        status: decision as never,
+                        reviewerNote,
+                        decisionServerNodeId,
+                        reviewedByUserId: null,
+                        reviewedAt: new Date(),
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(clusterAdmissionRequests.id, requestId))
+                    .returning()
+                return row ?? null
+            }),
+    }
 }
 
 /** Every method yields the port when it runs, so that requirement is in its `R`, not discharged. */
-export type FleetRepositoryShape = Over<ReturnType<typeof makeFleetRepository>, FleetDatabasePort>;
+export type FleetRepositoryShape = Over<
+    ReturnType<typeof makeFleetRepository>,
+    FleetDatabasePort
+>
 
 /** The database the fleet module reads and writes: the shared global one (a Nest provider). */
-export class FleetDatabasePort extends Context.Service<FleetDatabasePort, GlobalDatabaseServiceShape>()(
-    "fleet/FleetDatabasePort",
-) {}
+export class FleetDatabasePort extends Context.Service<
+    FleetDatabasePort,
+    GlobalDatabaseServiceShape
+>()('fleet/FleetDatabasePort') {}
 
 /** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
-export class FleetRepository extends Context.Service<FleetRepository, FleetRepositoryShape>()(
-    "fleet/FleetRepository",
-) {
+export class FleetRepository extends Context.Service<
+    FleetRepository,
+    FleetRepositoryShape
+>()('fleet/FleetRepository') {
     /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(FleetDatabasePort, makeFleetRepository);
-
+    static readonly live = serviceOver(FleetDatabasePort, makeFleetRepository)
 }

@@ -13,28 +13,47 @@ const noop = () => undefined
  * Sessions only open once the container's configured user/working dir is known,
  * so the shell does not silently start as root in a container that runs as someone else.
  */
-export function ShellSession({ containerId, containerName }: { containerId: string; containerName: string }) {
-  const { inspectDetail, inspectQuery } = useContainerInspect({ id: containerId, container: null })
-  const inspectSettled = inspectDetail !== null || inspectQuery.isError
-  const terminal = useContainerTerminal({ id: containerId, active: inspectSettled, inspectDetail, onRequestTerminalTab: noop })
+export function ShellSession({
+    containerId,
+    containerName,
+}: {
+    containerId: string
+    containerName: string
+}) {
+    const { inspectDetail, inspectQuery } = useContainerInspect({
+        id: containerId,
+        container: null,
+    })
+    const inspectSettled = inspectDetail !== null || inspectQuery.isError
+    const terminal = useContainerTerminal({
+        id: containerId,
+        active: inspectSettled,
+        inspectDetail,
+        onRequestTerminalTab: noop,
+    })
 
-  if (!inspectSettled) return <DockerDetailLoadingState label={`Reading ${containerName}'s user and working directory…`} />
+    if (!inspectSettled)
+        return (
+            <DockerDetailLoadingState
+                label={`Reading ${containerName}'s user and working directory…`}
+            />
+        )
 
-  return (
-    <DockerContainerTerminalTab
-      containerName={containerName}
-      connectionState={terminal.connectionState}
-      openError={terminal.openError}
-      terminalSessions={terminal.sessions}
-      activeTerminalSessionId={terminal.activeSessionId}
-      isSending={terminal.isSending}
-      onCreateTerminalSession={terminal.createSession}
-      onActivateTerminalSession={terminal.activateSession}
-      onCloseTerminalSession={terminal.closeSession}
-      onTerminalInputChange={terminal.changeInput}
-      onSend={terminal.sendCommand}
-      onClearOutput={terminal.clearOutput}
-      onSendControlInput={terminal.sendControlInput}
-    />
-  )
+    return (
+        <DockerContainerTerminalTab
+            containerName={containerName}
+            connectionState={terminal.connectionState}
+            openError={terminal.openError}
+            terminalSessions={terminal.sessions}
+            activeTerminalSessionId={terminal.activeSessionId}
+            isSending={terminal.isSending}
+            onCreateTerminalSession={terminal.createSession}
+            onActivateTerminalSession={terminal.activateSession}
+            onCloseTerminalSession={terminal.closeSession}
+            onTerminalInputChange={terminal.changeInput}
+            onSend={terminal.sendCommand}
+            onClearOutput={terminal.clearOutput}
+            onSendControlInput={terminal.sendControlInput}
+        />
+    )
 }

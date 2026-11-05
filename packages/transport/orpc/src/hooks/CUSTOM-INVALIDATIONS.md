@@ -13,37 +13,41 @@ When you create custom mutation hooks that modify data, you need to invalidate r
 First, define your custom hooks using `defineCustomHooks`:
 
 ```typescript
-import { defineCustomHooks, defineCustomInvalidations, mergeHooks } from '@deployer/orpc-utils/hooks'
+import {
+    defineCustomHooks,
+    defineCustomInvalidations,
+    mergeHooks,
+} from '@deployer/orpc-utils/hooks'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 const customUserHooks = defineCustomHooks({
-  // Query hook
-  useUserProfile: (userId: string) => {
-    return useQuery({
-      queryKey: ['userProfile', userId],
-      queryFn: () => fetchUserProfile(userId),
-    })
-  },
-  
-  // Mutation hook that should invalidate queries
-  useUpdateProfile: () => {
-    const queryClient = useQueryClient()
-    return useMutation({
-      mutationFn: (data: ProfileData) => updateProfile(data),
-      onSuccess: () => {
-        // Manual invalidation (will be replaced by defineCustomInvalidations)
-        queryClient.invalidateQueries({ queryKey: ['userProfile'] })
-      }
-    })
-  },
-  
-  // Another query hook
-  useStats: () => {
-    return useQuery({
-      queryKey: ['userStats'],
-      queryFn: () => fetchStats(),
-    })
-  }
+    // Query hook
+    useUserProfile: (userId: string) => {
+        return useQuery({
+            queryKey: ['userProfile', userId],
+            queryFn: () => fetchUserProfile(userId),
+        })
+    },
+
+    // Mutation hook that should invalidate queries
+    useUpdateProfile: () => {
+        const queryClient = useQueryClient()
+        return useMutation({
+            mutationFn: (data: ProfileData) => updateProfile(data),
+            onSuccess: () => {
+                // Manual invalidation (will be replaced by defineCustomInvalidations)
+                queryClient.invalidateQueries({ queryKey: ['userProfile'] })
+            },
+        })
+    },
+
+    // Another query hook
+    useStats: () => {
+        return useQuery({
+            queryKey: ['userStats'],
+            queryFn: () => fetchStats(),
+        })
+    },
 })
 ```
 
@@ -53,8 +57,8 @@ Declare which queries should be invalidated by which mutations:
 
 ```typescript
 const customInvalidations = defineCustomInvalidations(customUserHooks, {
-  // When useUpdateProfile succeeds, invalidate these hooks
-  useUpdateProfile: ['useUserProfile', 'useStats'],
+    // When useUpdateProfile succeeds, invalidate these hooks
+    useUpdateProfile: ['useUserProfile', 'useStats'],
 })
 ```
 
@@ -64,10 +68,10 @@ Pass the custom invalidations to `mergeHooks`:
 
 ```typescript
 export const allUserHooks = mergeHooks({
-  router: userRouterHooks,        // ORPC-generated hooks
-  composite: userCompositeHooks,   // ORPC-generated composites
-  custom: customUserHooks,         // Your custom hooks
-  customInvalidations,             // Type-safe invalidation config
+    router: userRouterHooks, // ORPC-generated hooks
+    composite: userCompositeHooks, // ORPC-generated composites
+    custom: customUserHooks, // Your custom hooks
+    customInvalidations, // Type-safe invalidation config
 })
 ```
 
@@ -82,12 +86,12 @@ The type system ensures:
 ```typescript
 // ✅ Type-safe - all hooks exist
 const validConfig = defineCustomInvalidations(customUserHooks, {
-  useUpdateProfile: ['useUserProfile', 'useStats'],
+    useUpdateProfile: ['useUserProfile', 'useStats'],
 })
 
 // ❌ Type error - 'nonExistentHook' doesn't exist
 const invalidConfig = defineCustomInvalidations(customUserHooks, {
-  useUpdateProfile: ['nonExistentHook'],
+    useUpdateProfile: ['nonExistentHook'],
 })
 ```
 
@@ -220,12 +224,14 @@ Currently, the `customInvalidations` configuration is logged but not yet applied
 ### `defineCustomInvalidations<TCustomHooks>(customHooks, config)`
 
 **Parameters:**
+
 - `customHooks`: The custom hooks object (from `defineCustomHooks`)
 - `config`: Object mapping mutation hooks to query hooks they invalidate
 
 **Returns:** The same config object with proper typing
 
 **Type Safety:**
+
 - Only allows referencing hooks that exist in `customHooks`
 - Keys must be mutation hooks
 - Values must be arrays of query hook names

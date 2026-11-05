@@ -1,8 +1,8 @@
-import { access } from "@deployer/auth/authz/meta";
-import { projectSchema } from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { access } from '@deployer/auth/authz/meta'
+import { projectSchema } from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const projectOps = standard.zod(projectSchema, "project");
+const projectOps = standard.zod(projectSchema, 'project')
 
 const projectCreateInputSchema = projectSchema
     .omit({ id: true, ownerId: true, createdAt: true, updatedAt: true })
@@ -11,7 +11,7 @@ const projectCreateInputSchema = projectSchema
         settings: projectSchema.shape.settings.unwrap().optional(),
         // network is optional at create — defaults to null (inherit platform defaults)
         network: projectSchema.shape.network.unwrap().optional(),
-    });
+    })
 
 export const projectCreateContract = projectOps
     .create()
@@ -20,6 +20,5 @@ export const projectCreateContract = projectOps
         // Name collision, org-scope violations, quota limits → typed client catch path.
         ...standardDomainErrorContracts(e),
     ])
-    .meta(access({ permission: "project:create" }))
-    .build();
-
+    .meta(access({ permission: 'project:create' }))
+    .build()

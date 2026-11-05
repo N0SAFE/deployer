@@ -1,5 +1,5 @@
-import { oc } from "@orpc/contract";
-import { openapi } from "@orpc/openapi";
+import { oc } from '@orpc/contract'
+import { openapi } from '@orpc/openapi'
 
 import {
     getAllProvidersContract,
@@ -10,20 +10,22 @@ import {
     getCompatibleProvidersContract,
     validateProviderConfigContract,
     validateBuilderConfigContract,
-} from "./contracts";
+} from './contracts'
 
-export const providerSchemaContract = oc.meta(openapi({ tags: ["Provider Schema"] })).router({
-    getAllProviders: getAllProvidersContract,
-    getProviderSchema: getProviderSchemaContract,
-    getCompatibleBuilders: getCompatibleBuildersContract,
-    getAllBuilders: getAllBuildersContract,
-    getBuilderSchema: getBuilderSchemaContract,
-    getCompatibleProviders: getCompatibleProvidersContract,
-    validateProviderConfig: validateProviderConfigContract,
-    validateBuilderConfig: validateBuilderConfigContract,
-});
+export const providerSchemaContract = oc
+    .meta(openapi({ tags: ['Provider Schema'] }))
+    .router({
+        getAllProviders: getAllProvidersContract,
+        getProviderSchema: getProviderSchemaContract,
+        getCompatibleBuilders: getCompatibleBuildersContract,
+        getAllBuilders: getAllBuildersContract,
+        getBuilderSchema: getBuilderSchemaContract,
+        getCompatibleProviders: getCompatibleProvidersContract,
+        validateProviderConfig: validateProviderConfigContract,
+        validateBuilderConfig: validateBuilderConfigContract,
+    })
 
-export type ProviderSchemaContract = typeof providerSchemaContract;
+export type ProviderSchemaContract = typeof providerSchemaContract
 
-export * from "./schemas";
-export * from "./contracts";
+export * from './schemas'
+export * from './contracts'

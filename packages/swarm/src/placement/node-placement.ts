@@ -9,22 +9,19 @@
  */
 
 export type SwarmPlacementPlan = {
-    constraints: string[];
-    preferences: { spreadDescriptor: string }[];
+    constraints: string[]
+    preferences: { spreadDescriptor: string }[]
 }
 
 export type PlacementPolicy =
-    | "default"
-    | "dedicated"
-    | "exclude-ingress"
-    | "prefer-region";
+    'default' | 'dedicated' | 'exclude-ingress' | 'prefer-region'
 
 export type PlacementPolicyInput = {
-    policy: PlacementPolicy;
+    policy: PlacementPolicy
     /** Tenant id embedded in the dedicated constraint (`deployer.tenant.<id>`). */
-    tenantId?: string;
+    tenantId?: string
     /** Region label value for `prefer-region` (spread descriptor). */
-    regionLabel?: string;
+    regionLabel?: string
 }
 
 /**
@@ -36,27 +33,36 @@ export type PlacementPolicyInput = {
  * - `prefer-region`: spread preference over `node.labels.deployer.region`
  *   (soft — the spread value may be an empty string).
  */
-export function toSwarmPlacement(input: PlacementPolicyInput): SwarmPlacementPlan {
+export function toSwarmPlacement(
+    input: PlacementPolicyInput
+): SwarmPlacementPlan {
     switch (input.policy) {
-        case "dedicated": {
+        case 'dedicated': {
             if (!input.tenantId) {
-                return { constraints: [], preferences: [] };
+                return { constraints: [], preferences: [] }
             }
             return {
-                constraints: [`node.labels.deployer.tenant.${input.tenantId} == true`],
+                constraints: [
+                    `node.labels.deployer.tenant.${input.tenantId} == true`,
+                ],
                 preferences: [],
-            };
+            }
         }
-        case "exclude-ingress":
-            return { constraints: ["node.labels.deployer.ingress != true"], preferences: [] };
-        case "prefer-region":
+        case 'exclude-ingress':
+            return {
+                constraints: ['node.labels.deployer.ingress != true'],
+                preferences: [],
+            }
+        case 'prefer-region':
             return {
                 constraints: [],
-                preferences: [{ spreadDescriptor: "node.labels.deployer.region" }],
-            };
-        case "default":
+                preferences: [
+                    { spreadDescriptor: 'node.labels.deployer.region' },
+                ],
+            }
+        case 'default':
         default:
-            return { constraints: [], preferences: [] };
+            return { constraints: [], preferences: [] }
     }
 }
 
@@ -64,13 +70,15 @@ export function toSwarmPlacement(input: PlacementPolicyInput): SwarmPlacementPla
  * Parse an executor label convention (`deployer.placement=<policy>`) into a
  * typed policy. Unknown/missing → `default`.
  */
-export function parsePlacementPolicyLabel(value: string | undefined): PlacementPolicy {
+export function parsePlacementPolicyLabel(
+    value: string | undefined
+): PlacementPolicy {
     switch (value) {
-        case "dedicated":
-        case "exclude-ingress":
-        case "prefer-region":
-            return value;
+        case 'dedicated':
+        case 'exclude-ingress':
+        case 'prefer-region':
+            return value
         default:
-            return "default";
+            return 'default'
     }
 }

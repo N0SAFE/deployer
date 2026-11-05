@@ -9,14 +9,31 @@
  * declarations, so the type is never serialized.
  */
 
-import { oc } from "@orpc/contract";
+import { oc } from '@orpc/contract'
 
-import { templateContract, setupAppContract } from "@deployer/bff-contracts";
-import { providerSchemaContract, nodesContract, reachabilityContract, providersContract, meshContract, clusterContract, platformContract } from "@deployer/fleet-contracts";
-import { healthContract } from "@deployer/health-contracts";
-import { userContract, pushContract, analyticsContract } from "@deployer/identity-contracts";
-import { domainContract, projectContract, serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
-import { deploymentContract, dockerContract } from "@deployer/runtime-contracts";
+import { templateContract, setupAppContract } from '@deployer/bff-contracts'
+import {
+    providerSchemaContract,
+    nodesContract,
+    reachabilityContract,
+    providersContract,
+    meshContract,
+    clusterContract,
+    platformContract,
+} from '@deployer/fleet-contracts'
+import { healthContract } from '@deployer/health-contracts'
+import {
+    userContract,
+    pushContract,
+    analyticsContract,
+} from '@deployer/identity-contracts'
+import {
+    domainContract,
+    projectContract,
+    serviceContract,
+    servicePreviewTopologyContract,
+} from '@deployer/project-contracts'
+import { deploymentContract, dockerContract } from '@deployer/runtime-contracts'
 
 export const appContract = oc.router({
     user: userContract,
@@ -41,6 +58,6 @@ export const appContract = oc.router({
     mesh: meshContract,
     platform: platformContract,
     cluster: clusterContract,
-});
+})
 
-export type AppContract = typeof appContract;
+export type AppContract = typeof appContract

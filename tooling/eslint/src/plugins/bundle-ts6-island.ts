@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join, normalize } from 'node:path';
-import type { BunPlugin } from 'bun';
+import { existsSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join, normalize } from 'node:path'
+import type { BunPlugin } from 'bun'
 
 /**
  * Bundle the ESLint toolchain's own TypeScript 6, and redirect every
@@ -31,19 +31,19 @@ import type { BunPlugin } from 'bun';
  * forked build script.
  */
 
-const require = createRequire(import.meta.url);
+const require = createRequire(import.meta.url)
 
 interface PackageJson {
-    name?: string;
-    version?: string;
-    dependencies?: Record<string, string>;
-    optionalDependencies?: Record<string, string>;
+    name?: string
+    version?: string
+    dependencies?: Record<string, string>
+    optionalDependencies?: Record<string, string>
 }
 
 interface PackageInfo {
-    name: string;
-    packageJsonPath: string;
-    packageJson: PackageJson;
+    name: string
+    packageJsonPath: string
+    packageJson: PackageJson
 }
 
 /**
@@ -59,14 +59,14 @@ const getPackageName = (specifier: string): string | undefined => {
         specifier.startsWith('node:') ||
         specifier.startsWith('bun:')
     ) {
-        return undefined;
+        return undefined
     }
     if (specifier.startsWith('@')) {
-        const parts = specifier.split('/');
-        return parts.length < 2 ? undefined : `${parts[0]}/${parts[1]}`;
+        const parts = specifier.split('/')
+        return parts.length < 2 ? undefined : `${parts[0]}/${parts[1]}`
     }
-    return specifier.split('/')[0];
-};
+    return specifier.split('/')[0]
+}
 
 /**
  * The `package.json` for a resolved file.
@@ -75,67 +75,74 @@ const getPackageName = (specifier: string): string | undefined => {
  * manifests inside their output (minimatch has one under `dist/commonjs/`), so
  * taking the nearest file would return the wrong package.
  */
-const findPackageJson = (resolvedPath: string, expectedName: string): string => {
-    let directory = dirname(resolvedPath);
+const findPackageJson = (
+    resolvedPath: string,
+    expectedName: string
+): string => {
+    let directory = dirname(resolvedPath)
     for (;;) {
-        const packageJsonPath = join(directory, 'package.json');
+        const packageJsonPath = join(directory, 'package.json')
         if (existsSync(packageJsonPath)) {
             try {
                 const parsed = JSON.parse(
-                    readFileSync(packageJsonPath, 'utf8'),
-                ) as PackageJson;
-                if (parsed.name === expectedName) return packageJsonPath;
+                    readFileSync(packageJsonPath, 'utf8')
+                ) as PackageJson
+                if (parsed.name === expectedName) return packageJsonPath
             } catch {
                 // Not a valid manifest; keep walking.
             }
         }
-        const parent = dirname(directory);
-        if (parent === directory) break;
-        directory = parent;
+        const parent = dirname(directory)
+        if (parent === directory) break
+        directory = parent
     }
     throw new Error(
         [
             `Could not find package.json for "${expectedName}".`,
             '',
             `Resolved path: ${resolvedPath}`,
-        ].join('\n'),
-    );
-};
+        ].join('\n')
+    )
+}
 
 const resolvePackage = (
     specifier: string,
-    importerPath: string,
+    importerPath: string
 ): string | undefined => {
     try {
-        return require.resolve(specifier, { paths: [dirname(importerPath)] });
+        return require.resolve(specifier, { paths: [dirname(importerPath)] })
     } catch {
-        return undefined;
+        return undefined
     }
-};
+}
 
-const packageInfoCache = new Map<string, PackageInfo>();
+const packageInfoCache = new Map<string, PackageInfo>()
 
 const getPackageInfo = (
     packageName: string,
-    importerPath: string,
+    importerPath: string
 ): PackageInfo | undefined => {
-    const resolvedPath = resolvePackage(packageName, importerPath);
-    if (!resolvedPath) return undefined;
+    const resolvedPath = resolvePackage(packageName, importerPath)
+    if (!resolvedPath) return undefined
 
-    const packageJsonPath = findPackageJson(resolvedPath, packageName);
-    const cached = packageInfoCache.get(packageJsonPath);
-    if (cached) return cached;
+    const packageJsonPath = findPackageJson(resolvedPath, packageName)
+    const cached = packageInfoCache.get(packageJsonPath)
+    if (cached) return cached
 
     const packageJson = JSON.parse(
-        readFileSync(packageJsonPath, 'utf8'),
-    ) as PackageJson;
+        readFileSync(packageJsonPath, 'utf8')
+    ) as PackageJson
     if (!packageJson.name) {
-        throw new Error(`Package at ${packageJsonPath} has no name.`);
+        throw new Error(`Package at ${packageJsonPath} has no name.`)
     }
-    const info: PackageInfo = { name: packageJson.name, packageJsonPath, packageJson };
-    packageInfoCache.set(packageJsonPath, info);
-    return info;
-};
+    const info: PackageInfo = {
+        name: packageJson.name,
+        packageJsonPath,
+        packageJson,
+    }
+    packageInfoCache.set(packageJsonPath, info)
+    return info
+}
 
 /**
  * TypeScript 6, resolved from THIS package.
@@ -144,11 +151,14 @@ const getPackageInfo = (
  * the whole island is defeated, and that failure would otherwise surface as an
  * obscure error deep inside typescript-eslint.
  */
-const typescript6Path = require.resolve('typescript');
-const typescript6PackageJsonPath = findPackageJson(typescript6Path, 'typescript');
+const typescript6Path = require.resolve('typescript')
+const typescript6PackageJsonPath = findPackageJson(
+    typescript6Path,
+    'typescript'
+)
 const typescript6PackageJson = JSON.parse(
-    readFileSync(typescript6PackageJsonPath, 'utf8'),
-) as PackageJson;
+    readFileSync(typescript6PackageJsonPath, 'utf8')
+) as PackageJson
 
 if (
     typescript6PackageJson.name !== 'typescript' ||
@@ -160,11 +170,11 @@ if (
             '',
             `Path: ${typescript6Path}`,
             `Version: ${typescript6PackageJson.version ?? 'unknown'}`,
-        ].join('\n'),
-    );
+        ].join('\n')
+    )
 }
 
-const typescript6Root = dirname(typescript6PackageJsonPath);
+const typescript6Root = dirname(typescript6PackageJsonPath)
 
 /**
  * Roots whose COMPLETE runtime dependency closure is bundled.
@@ -176,49 +186,52 @@ const typescript6Root = dirname(typescript6PackageJsonPath);
 const ts6RootPackages = [
     'typescript-eslint',
     '@darraghor/eslint-plugin-nestjs-typed',
-] as const;
+] as const
 
-const bundledPackages = new Set<string>(['typescript']);
+const bundledPackages = new Set<string>(['typescript'])
 
 const collectPackageDependencies = (
     packageName: string,
-    importerPath: string,
+    importerPath: string
 ): void => {
     if (packageName === 'typescript') {
-        bundledPackages.add('typescript');
-        return;
+        bundledPackages.add('typescript')
+        return
     }
 
-    const packageInfo = getPackageInfo(packageName, importerPath);
+    const packageInfo = getPackageInfo(packageName, importerPath)
     // Unresolvable: let the bundler handle and report it.
-    if (!packageInfo) return;
-    if (bundledPackages.has(packageInfo.name)) return;
+    if (!packageInfo) return
+    if (bundledPackages.has(packageInfo.name)) return
 
-    bundledPackages.add(packageInfo.name);
+    bundledPackages.add(packageInfo.name)
 
     const runtimeDependencies = {
         ...(packageInfo.packageJson.dependencies ?? {}),
         ...(packageInfo.packageJson.optionalDependencies ?? {}),
-    };
-    for (const dependencyName of Object.keys(runtimeDependencies)) {
-        collectPackageDependencies(dependencyName, packageInfo.packageJsonPath);
     }
-};
+    for (const dependencyName of Object.keys(runtimeDependencies)) {
+        collectPackageDependencies(dependencyName, packageInfo.packageJsonPath)
+    }
+}
 
 for (const rootPackage of ts6RootPackages) {
-    collectPackageDependencies(rootPackage, import.meta.filename);
+    collectPackageDependencies(rootPackage, import.meta.filename)
 }
 
 /** Redirect `typescript` and `typescript/*` to this package's TS6 copy. */
-const resolveTypescriptToTs6 = (args: { path: string; importer: string }): { path: string; external: false } | undefined => {
+const resolveTypescriptToTs6 = (args: {
+    path: string
+    importer: string
+}): { path: string; external: false } | undefined => {
     if (args.path === 'typescript') {
-        return { path: typescript6Path, external: false };
+        return { path: typescript6Path, external: false }
     }
-    const subpath = args.path.slice('typescript/'.length);
-    const candidatePath = normalize(join(typescript6Root, subpath));
-    let resolvedPath: string;
+    const subpath = args.path.slice('typescript/'.length)
+    const candidatePath = normalize(join(typescript6Root, subpath))
+    let resolvedPath: string
     try {
-        resolvedPath = require.resolve(candidatePath);
+        resolvedPath = require.resolve(candidatePath)
     } catch (error) {
         throw new Error(
             [
@@ -229,25 +242,32 @@ const resolveTypescriptToTs6 = (args: { path: string; importer: string }): { pat
                 `Importer: ${args.importer}`,
                 '',
                 error instanceof Error ? error.message : String(error),
-            ].join('\n'),
-        );
+            ].join('\n')
+        )
     }
-    return { path: resolvedPath, external: false };
-};
+    return { path: resolvedPath, external: false }
+}
 
 /** Inline the island's packages; leave everything else to `packages: 'external'`. */
-const inlineIslandPackage = (specifier: string, importer: string): { path: string; external: false } | undefined => {
-    const packageName = getPackageName(specifier);
-    if (!packageName || !bundledPackages.has(packageName)) return undefined;
+const inlineIslandPackage = (
+    specifier: string,
+    importer: string
+): { path: string; external: false } | undefined => {
+    const packageName = getPackageName(specifier)
+    if (!packageName || !bundledPackages.has(packageName)) return undefined
 
-    const resolvedPath = resolvePackage(specifier, importer);
+    const resolvedPath = resolvePackage(specifier, importer)
     if (!resolvedPath) {
         throw new Error(
-            [`Could not resolve bundled dependency: ${specifier}`, '', `Importer: ${importer}`].join('\n'),
-        );
+            [
+                `Could not resolve bundled dependency: ${specifier}`,
+                '',
+                `Importer: ${importer}`,
+            ].join('\n')
+        )
     }
-    return { path: resolvedPath, external: false };
-};
+    return { path: resolvedPath, external: false }
+}
 
 /**
  * The plugin, applied to every `bun build` pass for this package.
@@ -258,8 +278,8 @@ export const bundleTs6Island: BunPlugin = {
     name: 'bundle-typescript-6-island',
     setup(build) {
         build.onResolve({ filter: /^typescript(?:\/.*)?$/ }, (args) =>
-            resolveTypescriptToTs6(args),
-        );
+            resolveTypescriptToTs6(args)
+        )
 
         build.onResolve({ filter: /.*/ }, (args) => {
             // Local files and builtins resolve normally.
@@ -269,14 +289,14 @@ export const bundleTs6Island: BunPlugin = {
                 args.path.startsWith('node:') ||
                 args.path.startsWith('bun:')
             ) {
-                return undefined;
+                return undefined
             }
             // Handled by the dedicated resolver above.
-            if (/^typescript(?:\/.*)?$/.test(args.path)) return undefined;
+            if (/^typescript(?:\/.*)?$/.test(args.path)) return undefined
 
-            return inlineIslandPackage(args.path, args.importer);
-        });
+            return inlineIslandPackage(args.path, args.importer)
+        })
     },
-};
+}
 
-export default bundleTs6Island;
+export default bundleTs6Island

@@ -5,4 +5,5 @@
  * does not exist yet, so convergence was never attempted" (a swarm-only service before setup created
  * the cluster). `degraded` means "convergence was attempted and failed".
  */
-export type SupervisorState = "idle" | "converging" | "converged" | "degraded" | "pending";
+export type SupervisorState =
+    'idle' | 'converging' | 'converged' | 'degraded' | 'pending'

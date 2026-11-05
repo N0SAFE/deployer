@@ -1,56 +1,90 @@
-import { Context, Effect } from "effect";
+import { Context, Effect } from 'effect'
 
-import { capabilitiesOfRole, isPermission, platformRoleRank, type ScopeKind } from "@deployer/auth/authz";
-import { CurrentActor, HttpRequest, serviceOver } from "@deployer/effect-core";
+import {
+    capabilitiesOfRole,
+    isPermission,
+    platformRoleRank,
+    type ScopeKind,
+} from '@deployer/auth/authz'
+import { CurrentActor, HttpRequest, serviceOver } from '@deployer/effect-core'
+import {
+    installRoleSnapshot,
+    roleHasPermission,
+} from '@deployer/shared/core/authz/role-catalog'
 
-import { installRoleSnapshot, roleHasPermission } from "@deployer/shared/core/authz/role-catalog";
-import { DatabasePort } from "@identity/core/database/database.port";
-import { actorFromCurrent } from "@identity/core/utils/actor.utils";
-import { AuditService } from "@identity/modules/audit/audit.service";
-import { StepUpService } from "@identity/modules/step-up/step-up.service";
+import { DatabasePort } from '@identity/core/database/database.port'
+import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+import { AuditService } from '@identity/modules/audit/audit.service'
+import { StepUpService } from '@identity/modules/step-up/step-up.service'
 
-import { RoleForbidden, RoleInvalid, RoleNotFound, type RoleFailure } from "./role.errors";
-import { RoleRepository, type RolePatch, type RoleRow } from "./role.repository";
+import {
+    RoleForbidden,
+    RoleInvalid,
+    RoleNotFound,
+    type RoleFailure,
+} from './role.errors'
+import { RoleRepository, type RolePatch, type RoleRow } from './role.repository'
 
 /** The body a create accepts. Platform-scoped: project roles are an enum in the schema for now. */
 export type NewRole = {
-	readonly name: string;
-	readonly rank: number;
-	readonly label: string;
-	readonly description: string | null;
-	readonly color: string | null;
-	readonly permissions: readonly string[];
-};
+    readonly name: string
+    readonly rank: number
+    readonly label: string
+    readonly description: string | null
+    readonly color: string | null
+    readonly permissions: readonly string[]
+}
 
 export type RoleServiceShape = {
-	/** Internal check for the writers of `user.role`; not a capability, since it exposes nothing. */
-	readonly isKnownPlatformRole: (name: string) => Effect.Effect<boolean, never, DatabasePort>;
-	readonly list: (
-		scope: ScopeKind | undefined,
-	) => Effect.Effect<RoleRow[], RoleFailure, RoleRepository | CurrentActor | DatabasePort | HttpRequest>;
-	readonly create: (
-		role: NewRole,
-	) => Effect.Effect<
-		RoleRow,
-		RoleFailure,
-		RoleRepository | CurrentActor | DatabasePort | HttpRequest | AuditService | StepUpService
-	>;
-	readonly update: (
-		id: string,
-		patch: RolePatch,
-	) => Effect.Effect<
-		RoleRow,
-		RoleFailure,
-		RoleRepository | CurrentActor | DatabasePort | HttpRequest | AuditService | StepUpService
-	>;
-	readonly remove: (
-		id: string,
-	) => Effect.Effect<
-		void,
-		RoleFailure,
-		RoleRepository | CurrentActor | DatabasePort | HttpRequest | AuditService | StepUpService
-	>;
-};
+    /** Internal check for the writers of `user.role`; not a capability, since it exposes nothing. */
+    readonly isKnownPlatformRole: (
+        name: string
+    ) => Effect.Effect<boolean, never, DatabasePort>
+    readonly list: (
+        scope: ScopeKind | undefined
+    ) => Effect.Effect<
+        RoleRow[],
+        RoleFailure,
+        RoleRepository | CurrentActor | DatabasePort | HttpRequest
+    >
+    readonly create: (
+        role: NewRole
+    ) => Effect.Effect<
+        RoleRow,
+        RoleFailure,
+        | RoleRepository
+        | CurrentActor
+        | DatabasePort
+        | HttpRequest
+        | AuditService
+        | StepUpService
+    >
+    readonly update: (
+        id: string,
+        patch: RolePatch
+    ) => Effect.Effect<
+        RoleRow,
+        RoleFailure,
+        | RoleRepository
+        | CurrentActor
+        | DatabasePort
+        | HttpRequest
+        | AuditService
+        | StepUpService
+    >
+    readonly remove: (
+        id: string
+    ) => Effect.Effect<
+        void,
+        RoleFailure,
+        | RoleRepository
+        | CurrentActor
+        | DatabasePort
+        | HttpRequest
+        | AuditService
+        | StepUpService
+    >
+}
 
 /**
  * Reading roles is `role:read`, managing them is `role:write` — named as the permissions so a custom role holding one
@@ -61,175 +95,234 @@ export type RoleServiceShape = {
  * "grant myself everything": the rank must stay strictly below the editor's, and every permission must already be the
  * editor's own. Neither is inferred from the other — a low-rank role can still hold a powerful permission.
  */
-const makeRoleService = (repository: RoleRepository["Service"]): RoleServiceShape => {
-	const assertWriter = (actorRole: string) => {
-		if (!roleHasPermission(actorRole, "role:write")) {
-			return Effect.fail(new RoleForbidden({ reason: "actor lacks role:write" }));
-		}
-		return Effect.void;
-	};
+const makeRoleService = (
+    repository: RoleRepository['Service']
+): RoleServiceShape => {
+    const assertWriter = (actorRole: string) => {
+        if (!roleHasPermission(actorRole, 'role:write')) {
+            return Effect.fail(
+                new RoleForbidden({ reason: 'actor lacks role:write' })
+            )
+        }
+        return Effect.void
+    }
 
-	/** The rank and permission caps, shared by create and update. */
-	const assertGrantable = (actorRole: string, rank: number, permissions: readonly string[]) =>
-		Effect.gen(function* () {
-			if (rank >= platformRoleRank(actorRole)) {
-				return yield* Effect.fail(
-					new RoleForbidden({ reason: "a role must rank below your own" }),
-				);
-			}
+    /** The rank and permission caps, shared by create and update. */
+    const assertGrantable = (
+        actorRole: string,
+        rank: number,
+        permissions: readonly string[]
+    ) =>
+        Effect.gen(function* () {
+            if (rank >= platformRoleRank(actorRole)) {
+                return yield* Effect.fail(
+                    new RoleForbidden({
+                        reason: 'a role must rank below your own',
+                    })
+                )
+            }
 
-			const mine = new Set(capabilitiesOfRole(actorRole));
-			for (const permission of permissions) {
-				if (!isPermission(permission)) {
-					return yield* Effect.fail(
-						new RoleInvalid({ reason: `"${permission}" is not a permission this platform declares` }),
-					);
-				}
-				if (!mine.has(permission)) {
-					return yield* Effect.fail(
-						new RoleForbidden({ reason: `you cannot grant "${permission}": you do not hold it` }),
-					);
-				}
-			}
-		});
+            const mine = new Set(capabilitiesOfRole(actorRole))
+            for (const permission of permissions) {
+                if (!isPermission(permission)) {
+                    return yield* Effect.fail(
+                        new RoleInvalid({
+                            reason: `"${permission}" is not a permission this platform declares`,
+                        })
+                    )
+                }
+                if (!mine.has(permission)) {
+                    return yield* Effect.fail(
+                        new RoleForbidden({
+                            reason: `you cannot grant "${permission}": you do not hold it`,
+                        })
+                    )
+                }
+            }
+        })
 
-	return {
-		isKnownPlatformRole: (name): ReturnType<RoleServiceShape["isKnownPlatformRole"]> =>
-			repository.isKnownPlatformRole(name),
+    return {
+        isKnownPlatformRole: (
+            name
+        ): ReturnType<RoleServiceShape['isKnownPlatformRole']> =>
+            repository.isKnownPlatformRole(name),
 
-		list: (scope): ReturnType<RoleServiceShape["list"]> =>
-			Effect.gen(function* () {
-				const actor = actorFromCurrent(yield* CurrentActor);
-				if (!roleHasPermission(actor.role, "role:read")) {
-					return yield* Effect.fail(new RoleForbidden({ reason: "actor lacks role:read" }));
-				}
-				return yield* repository.list(scope);
-			}),
+        list: (scope): ReturnType<RoleServiceShape['list']> =>
+            Effect.gen(function* () {
+                const actor = actorFromCurrent(yield* CurrentActor)
+                if (!roleHasPermission(actor.role, 'role:read')) {
+                    return yield* Effect.fail(
+                        new RoleForbidden({ reason: 'actor lacks role:read' })
+                    )
+                }
+                return yield* repository.list(scope)
+            }),
 
-		create: (role): ReturnType<RoleServiceShape["create"]> =>
-			Effect.gen(function* () {
-				const actor = actorFromCurrent(yield* CurrentActor);
-				yield* assertWriter(actor.role);
+        create: (role): ReturnType<RoleServiceShape['create']> =>
+            Effect.gen(function* () {
+                const actor = actorFromCurrent(yield* CurrentActor)
+                yield* assertWriter(actor.role)
 
-				// Creating a role is privilege configuration: a passkey proof, like every other critical write (`SEC-070`).
-				const stepUp = yield* StepUpService;
-				yield* stepUp
-					.assertCritical()
-					.pipe(Effect.mapError(() => new RoleForbidden({ reason: "a fresh passkey proof is required to manage roles" })));
+                // Creating a role is privilege configuration: a passkey proof, like every other critical write (`SEC-070`).
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new RoleForbidden({
+                                reason: 'a fresh passkey proof is required to manage roles',
+                            })
+                    )
+                )
 
-				yield* assertGrantable(actor.role, role.rank, role.permissions);
+                yield* assertGrantable(actor.role, role.rank, role.permissions)
 
-				if (yield* repository.isKnownPlatformRole(role.name)) {
-					return yield* Effect.fail(new RoleInvalid({ reason: `role "${role.name}" already exists` }));
-				}
+                if (yield* repository.isKnownPlatformRole(role.name)) {
+                    return yield* Effect.fail(
+                        new RoleInvalid({
+                            reason: `role "${role.name}" already exists`,
+                        })
+                    )
+                }
 
-				const created = yield* repository.create({
-					name: role.name,
-					scope: "platform",
-					rank: role.rank,
-					label: role.label,
-					description: role.description,
-					color: role.color,
-					isSystem: false,
-					permissions: [...role.permissions],
-				});
+                const created = yield* repository.create({
+                    name: role.name,
+                    scope: 'platform',
+                    rank: role.rank,
+                    label: role.label,
+                    description: role.description,
+                    color: role.color,
+                    isSystem: false,
+                    permissions: [...role.permissions],
+                })
 
-				const audit = yield* AuditService;
-				yield* audit.record({
-					action: "role-created",
-					actorId: actor.userId,
-					detail: { role: created.name, rank: created.rank, permissions: created.permissions },
-				});
-				yield* repository.bumpEpoch();
-				const catalogue = yield* repository.loadCatalogue();
-				installRoleSnapshot(catalogue.epoch, catalogue.roles);
+                const audit = yield* AuditService
+                yield* audit.record({
+                    action: 'role-created',
+                    actorId: actor.userId,
+                    detail: {
+                        role: created.name,
+                        rank: created.rank,
+                        permissions: created.permissions,
+                    },
+                })
+                yield* repository.bumpEpoch()
+                const catalogue = yield* repository.loadCatalogue()
+                installRoleSnapshot(catalogue.epoch, catalogue.roles)
 
-				return created;
-			}),
+                return created
+            }),
 
-		update: (id, patch): ReturnType<RoleServiceShape["update"]> =>
-			Effect.gen(function* () {
-				const actor = actorFromCurrent(yield* CurrentActor);
-				yield* assertWriter(actor.role);
+        update: (id, patch): ReturnType<RoleServiceShape['update']> =>
+            Effect.gen(function* () {
+                const actor = actorFromCurrent(yield* CurrentActor)
+                yield* assertWriter(actor.role)
 
-				const stepUp = yield* StepUpService;
-				yield* stepUp
-					.assertCritical()
-					.pipe(Effect.mapError(() => new RoleForbidden({ reason: "a fresh passkey proof is required to manage roles" })));
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new RoleForbidden({
+                                reason: 'a fresh passkey proof is required to manage roles',
+                            })
+                    )
+                )
 
-				const current = yield* repository.findById(id);
-				if (current === null) return yield* Effect.fail(new RoleNotFound({ id }));
-				if (current.isSystem) {
-					return yield* Effect.fail(
-						new RoleForbidden({ reason: "a built-in role is changed by re-seeding, not by an edit" }),
-					);
-				}
+                const current = yield* repository.findById(id)
+                if (current === null)
+                    return yield* Effect.fail(new RoleNotFound({ id }))
+                if (current.isSystem) {
+                    return yield* Effect.fail(
+                        new RoleForbidden({
+                            reason: 'a built-in role is changed by re-seeding, not by an edit',
+                        })
+                    )
+                }
 
-				yield* assertGrantable(
-					actor.role,
-					patch.rank ?? current.rank,
-					patch.permissions ?? current.permissions,
-				);
+                yield* assertGrantable(
+                    actor.role,
+                    patch.rank ?? current.rank,
+                    patch.permissions ?? current.permissions
+                )
 
-				const updated = yield* repository.update(id, patch);
-				if (updated === null) return yield* Effect.fail(new RoleNotFound({ id }));
+                const updated = yield* repository.update(id, patch)
+                if (updated === null)
+                    return yield* Effect.fail(new RoleNotFound({ id }))
 
-				const audit = yield* AuditService;
-				yield* audit.record({
-					action: "role-updated",
-					actorId: actor.userId,
-					detail: { role: updated.name, from: current.permissions, to: updated.permissions },
-				});
-				yield* repository.bumpEpoch();
-				const catalogue = yield* repository.loadCatalogue();
-				installRoleSnapshot(catalogue.epoch, catalogue.roles);
+                const audit = yield* AuditService
+                yield* audit.record({
+                    action: 'role-updated',
+                    actorId: actor.userId,
+                    detail: {
+                        role: updated.name,
+                        from: current.permissions,
+                        to: updated.permissions,
+                    },
+                })
+                yield* repository.bumpEpoch()
+                const catalogue = yield* repository.loadCatalogue()
+                installRoleSnapshot(catalogue.epoch, catalogue.roles)
 
-				return updated;
-			}),
+                return updated
+            }),
 
-		remove: (id): ReturnType<RoleServiceShape["remove"]> =>
-			Effect.gen(function* () {
-				const actor = actorFromCurrent(yield* CurrentActor);
-				yield* assertWriter(actor.role);
+        remove: (id): ReturnType<RoleServiceShape['remove']> =>
+            Effect.gen(function* () {
+                const actor = actorFromCurrent(yield* CurrentActor)
+                yield* assertWriter(actor.role)
 
-				const stepUp = yield* StepUpService;
-				yield* stepUp
-					.assertCritical()
-					.pipe(Effect.mapError(() => new RoleForbidden({ reason: "a fresh passkey proof is required to manage roles" })));
+                const stepUp = yield* StepUpService
+                yield* stepUp.assertCritical().pipe(
+                    Effect.mapError(
+                        () =>
+                            new RoleForbidden({
+                                reason: 'a fresh passkey proof is required to manage roles',
+                            })
+                    )
+                )
 
-				const current = yield* repository.findById(id);
-				if (current === null) return yield* Effect.fail(new RoleNotFound({ id }));
-				if (current.isSystem) {
-					return yield* Effect.fail(
-						new RoleForbidden({ reason: "a built-in role cannot be deleted" }),
-					);
-				}
+                const current = yield* repository.findById(id)
+                if (current === null)
+                    return yield* Effect.fail(new RoleNotFound({ id }))
+                if (current.isSystem) {
+                    return yield* Effect.fail(
+                        new RoleForbidden({
+                            reason: 'a built-in role cannot be deleted',
+                        })
+                    )
+                }
 
-				// Deleting a role out from under its holders would leave `user.role` naming nothing, and every capability
-				// check for those accounts would silently deny.
-				const holders = yield* repository.countUsersWithRole(current.name);
-				if (holders > 0) {
-					return yield* Effect.fail(
-						new RoleInvalid({ reason: `${String(holders)} account(s) still hold "${current.name}"` }),
-					);
-				}
+                // Deleting a role out from under its holders would leave `user.role` naming nothing, and every capability
+                // check for those accounts would silently deny.
+                const holders = yield* repository.countUsersWithRole(
+                    current.name
+                )
+                if (holders > 0) {
+                    return yield* Effect.fail(
+                        new RoleInvalid({
+                            reason: `${String(holders)} account(s) still hold "${current.name}"`,
+                        })
+                    )
+                }
 
-				yield* repository.delete(id);
+                yield* repository.delete(id)
 
-				const audit = yield* AuditService;
-				yield* audit.record({
-					action: "role-deleted",
-					actorId: actor.userId,
-					detail: { role: current.name },
-				});
+                const audit = yield* AuditService
+                yield* audit.record({
+                    action: 'role-deleted',
+                    actorId: actor.userId,
+                    detail: { role: current.name },
+                })
 
-				yield* repository.bumpEpoch();
-				const catalogue = yield* repository.loadCatalogue();
-				installRoleSnapshot(catalogue.epoch, catalogue.roles);
-			}),
-	};
-};
+                yield* repository.bumpEpoch()
+                const catalogue = yield* repository.loadCatalogue()
+                installRoleSnapshot(catalogue.epoch, catalogue.roles)
+            }),
+    }
+}
 
-export class RoleService extends Context.Service<RoleService, RoleServiceShape>()("identity/RoleService") {
-	static readonly live = serviceOver(RoleRepository, makeRoleService);
+export class RoleService extends Context.Service<
+    RoleService,
+    RoleServiceShape
+>()('identity/RoleService') {
+    static readonly live = serviceOver(RoleRepository, makeRoleService)
 }

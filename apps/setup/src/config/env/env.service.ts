@@ -1,9 +1,9 @@
-import { ConfigService } from "@nestjs/config";
+import { ConfigService } from '@nestjs/config'
 
-import { runSyncUnwrapped } from "@deployer/effect-core";
-import { makeEnvironment, type EnvironmentShape } from "@deployer/environment";
+import { runSyncUnwrapped } from '@deployer/effect-core'
+import { makeEnvironment, type EnvironmentShape } from '@deployer/environment'
 
-import { setupEnvSchema, type SetupEnv } from "./env.schema";
+import { setupEnvSchema, type SetupEnv } from './env.schema'
 
 /**
  * The setup app's environment, as the `@deployer/environment` Effect service bound to the setup app's contract.
@@ -19,10 +19,13 @@ export interface EnvService extends EnvironmentShape<SetupEnv> {}
 
 /** The `ConfigModule` has merged the `.env` files into its store; the schema validates what it reads. */
 export const setupEnvironmentProvider = {
-  provide: EnvService,
-  useFactory: (config: ConfigService): EnvService =>
-    runSyncUnwrapped(
-      makeEnvironment(setupEnvSchema, { read: (key) => config.get(key), all: () => ({ ...process.env }) }),
-    ),
-  inject: [ConfigService],
-};
+    provide: EnvService,
+    useFactory: (config: ConfigService): EnvService =>
+        runSyncUnwrapped(
+            makeEnvironment(setupEnvSchema, {
+                read: (key) => config.get(key),
+                all: () => ({ ...process.env }),
+            })
+        ),
+    inject: [ConfigService],
+}

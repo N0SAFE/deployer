@@ -16,44 +16,59 @@
  * The providers ARE the Effect repositories from `@deployer/node-state`, provided under the package's
  * own tags; callers inject the tag and run the Effect they need.
  */
-import { createGlobalModule, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
 import {
-	ClusterNodeInventoryRepository,
-	ClusterNodeRepository,
-	LocalDatabase,
-	NodeConfigRepository,
-	makeAgentFirstNodeConfigRepository,
-	makeClusterNodeInventoryRepository,
-	makeClusterNodeRepository,
-	type LocalDatabaseShape,
-} from "@deployer/node-state";
+    createGlobalModule,
+    effectHostProvider,
+    serviceLifecycle,
+} from '@deployer/nest-effect'
+import {
+    ClusterNodeInventoryRepository,
+    ClusterNodeRepository,
+    LocalDatabase,
+    NodeConfigRepository,
+    makeAgentFirstNodeConfigRepository,
+    makeClusterNodeInventoryRepository,
+    makeClusterNodeRepository,
+    type LocalDatabaseShape,
+} from '@deployer/node-state'
 
-import { LocalDatabaseModule } from "../database/local/local-database.module";
+import { LocalDatabaseModule } from '../database/local/local-database.module'
 
-import { agentNodeRecords } from "./agent-node-records";
-import { NodeConfigSnapshot } from "./node-config.snapshot";
+import { agentNodeRecords } from './agent-node-records'
+import { NodeConfigSnapshot } from './node-config.snapshot'
 
 const repositories = [
-	{
-		provide: NodeConfigRepository,
-		useFactory: (db: LocalDatabaseShape) => makeAgentFirstNodeConfigRepository(db, agentNodeRecords()),
-		inject: [LocalDatabase],
-	},
-	{ provide: ClusterNodeRepository, useFactory: (db: LocalDatabaseShape) => makeClusterNodeRepository(db), inject: [LocalDatabase] },
-	{
-		provide: ClusterNodeInventoryRepository,
-		useFactory: (db: LocalDatabaseShape) => makeClusterNodeInventoryRepository(db),
-		inject: [LocalDatabase],
-	},
-	// Synchronous cache of the config row for the seams that cannot do I/O (the pg pool's per-connect
-	// URL resolver, the global-db supervisor's synchronous config callbacks).
-	NodeConfigSnapshot.provider,
-	serviceLifecycle(NodeConfigSnapshot),
-	effectHostProvider(),
-];
+    {
+        provide: NodeConfigRepository,
+        useFactory: (db: LocalDatabaseShape) =>
+            makeAgentFirstNodeConfigRepository(db, agentNodeRecords()),
+        inject: [LocalDatabase],
+    },
+    {
+        provide: ClusterNodeRepository,
+        useFactory: (db: LocalDatabaseShape) => makeClusterNodeRepository(db),
+        inject: [LocalDatabase],
+    },
+    {
+        provide: ClusterNodeInventoryRepository,
+        useFactory: (db: LocalDatabaseShape) =>
+            makeClusterNodeInventoryRepository(db),
+        inject: [LocalDatabase],
+    },
+    // Synchronous cache of the config row for the seams that cannot do I/O (the pg pool's per-connect
+    // URL resolver, the global-db supervisor's synchronous config callbacks).
+    NodeConfigSnapshot.provider,
+    serviceLifecycle(NodeConfigSnapshot),
+    effectHostProvider(),
+]
 
 export const NodeStateModule = createGlobalModule({
-	imports: [LocalDatabaseModule],
-	providers: repositories,
-	exports: [NodeConfigRepository, NodeConfigSnapshot, ClusterNodeRepository, ClusterNodeInventoryRepository],
-});
+    imports: [LocalDatabaseModule],
+    providers: repositories,
+    exports: [
+        NodeConfigRepository,
+        NodeConfigSnapshot,
+        ClusterNodeRepository,
+        ClusterNodeInventoryRepository,
+    ],
+})

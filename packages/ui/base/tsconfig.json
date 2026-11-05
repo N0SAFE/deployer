@@ -8,13 +8,8 @@
             }
         ],
         "paths": {
-            "@deployer/ui/*": [
-                "./src/*"
-            ]
+            "@deployer/ui/*": ["./src/*"]
         }
     },
-    "include": [
-        "pkg-build.config.ts", "**/*.ts",
-        "**/*.tsx"
-    ]
+    "include": ["pkg-build.config.ts", "**/*.ts", "**/*.tsx"]
 }

@@ -1,16 +1,16 @@
-import { Logger, Module } from "@nestjs/common";
-import { ORPCModule, type ORPCModuleConfig } from "@orpc/nest";
-import { onError, ORPCError } from "@orpc/server";
+import { Logger, Module } from '@nestjs/common'
+import { ORPCModule, type ORPCModuleConfig } from '@orpc/nest'
+import { onError, ORPCError } from '@orpc/server'
 
-import { isDomainError } from "@deployer/effect-core";
-import { declareModule } from "@deployer/nest-effect";
+import { isDomainError } from '@deployer/effect-core'
+import { declareModule } from '@deployer/nest-effect'
 
 /**
  * One entry of the handler's interceptor list, taken from the config type that
  * declares it — `@orpc/shared` is not a dependency of this app, and reaching for
  * it just to name `Interceptor` would add one for a type alias.
  */
-type ModuleInterceptor = NonNullable<ORPCModuleConfig["interceptors"]>[number];
+type ModuleInterceptor = NonNullable<ORPCModuleConfig['interceptors']>[number]
 
 /**
  * The setup app's oRPC registration.
@@ -51,15 +51,15 @@ type ModuleInterceptor = NonNullable<ORPCModuleConfig["interceptors"]>[number];
  * into a 500 the operator reads as a fault. The kind, not a Nest status, carries that meaning now.
  */
 function transformDomainError(error: unknown): void {
-  if (!isDomainError(error) || error.kind !== "dependency_missing") return;
+    if (!isDomainError(error) || error.kind !== 'dependency_missing') return
 
-  const message = error.publicMessage();
-  const code = "SERVICE_UNAVAILABLE";
-  throw new ORPCError(code, {
-    message,
-    data: { statusCode: 503, code, message, orpcCode: code },
-    cause: error,
-  });
+    const message = error.publicMessage()
+    const code = 'SERVICE_UNAVAILABLE'
+    throw new ORPCError(code, {
+        message,
+        data: { statusCode: 503, code, message, orpcCode: code },
+        cause: error,
+    })
 }
 
 /**
@@ -72,22 +72,22 @@ function transformDomainError(error: unknown): void {
  * wizard's `getErrorMessage` already reads.
  */
 function transformUnknownError(error: unknown): void {
-  if (error instanceof ORPCError) return;
+    if (error instanceof ORPCError) return
 
-  const message = error instanceof Error ? error.message : String(error);
-  throw new ORPCError("INTERNAL_SERVER_ERROR", {
-    message,
-    data: {
-      statusCode: 500,
-      code: "INTERNAL_SERVER_ERROR",
-      message,
-      orpcCode: "INTERNAL_SERVER_ERROR",
-    },
-    cause: error,
-  });
+    const message = error instanceof Error ? error.message : String(error)
+    throw new ORPCError('INTERNAL_SERVER_ERROR', {
+        message,
+        data: {
+            statusCode: 500,
+            code: 'INTERNAL_SERVER_ERROR',
+            message,
+            orpcCode: 'INTERNAL_SERVER_ERROR',
+        },
+        cause: error,
+    })
 }
 
-const orpcLogger = new Logger("ORPC Errors");
+const orpcLogger = new Logger('ORPC Errors')
 
 /**
  * Write the failure to the setup container's console, as the API does.
@@ -99,51 +99,57 @@ const orpcLogger = new Logger("ORPC Errors");
  * it does not read as a fault.
  */
 function logOrpcError(error: unknown): void {
-  if (isDomainError(error) && error.kind === "dependency_missing") {
-    orpcLogger.warn(`[SERVICE_UNAVAILABLE] ${error.publicMessage()}`);
-    return;
-  }
-  if (error instanceof ORPCError && error.code !== "INTERNAL_SERVER_ERROR") {
-    orpcLogger.warn(`[${error.code}] ${error.message}`);
-    return;
-  }
-  const origin = error instanceof ORPCError && error.cause !== undefined ? error.cause : error;
-  if (origin instanceof Error) {
-    orpcLogger.error(`[${origin.constructor.name}] ${origin.message}`, origin.stack);
-  } else {
-    orpcLogger.error(`Unhandled non-Error thrown: ${String(origin)}`);
-  }
+    if (isDomainError(error) && error.kind === 'dependency_missing') {
+        orpcLogger.warn(`[SERVICE_UNAVAILABLE] ${error.publicMessage()}`)
+        return
+    }
+    if (error instanceof ORPCError && error.code !== 'INTERNAL_SERVER_ERROR') {
+        orpcLogger.warn(`[${error.code}] ${error.message}`)
+        return
+    }
+    const origin =
+        error instanceof ORPCError && error.cause !== undefined
+            ? error.cause
+            : error
+    if (origin instanceof Error) {
+        orpcLogger.error(
+            `[${origin.constructor.name}] ${origin.message}`,
+            origin.stack
+        )
+    } else {
+        orpcLogger.error(`Unhandled non-Error thrown: ${String(origin)}`)
+    }
 }
 
 /** The interceptors both error paths above are wired through. */
 function errorMappingInterceptors(): ModuleInterceptor[] {
-  return [
-    onError((error: unknown) => {
-      logOrpcError(error);
-      transformDomainError(error);
-      transformUnknownError(error);
-    }),
-  ];
+    return [
+        onError((error: unknown) => {
+            logOrpcError(error)
+            transformDomainError(error)
+            transformUnknownError(error)
+        }),
+    ]
 }
 
 @Module({})
 export class WizardOrpcModule {
-  static forRoot() {
-    return declareModule(
-      {
-      module: WizardOrpcModule,
-      imports: [
-        ORPCModule.forRootAsync({
-          // No request in the context: nothing reads it, and a `REQUEST`-scoped factory would make every
-          // handler's module request-scoped. A procedure that needs the caller reads the Effect context instead.
-          useFactory: () => ({
-            interceptors: errorMappingInterceptors(),
-          }),
-        }),
-      ],
-      },
-      // Only imports ORPC; it provides no Effect service of its own.
-      { provides: [], exports: [] },
-    );
-  }
+    static forRoot() {
+        return declareModule(
+            {
+                module: WizardOrpcModule,
+                imports: [
+                    ORPCModule.forRootAsync({
+                        // No request in the context: nothing reads it, and a `REQUEST`-scoped factory would make every
+                        // handler's module request-scoped. A procedure that needs the caller reads the Effect context instead.
+                        useFactory: () => ({
+                            interceptors: errorMappingInterceptors(),
+                        }),
+                    }),
+                ],
+            },
+            // Only imports ORPC; it provides no Effect service of its own.
+            { provides: [], exports: [] }
+        )
+    }
 }

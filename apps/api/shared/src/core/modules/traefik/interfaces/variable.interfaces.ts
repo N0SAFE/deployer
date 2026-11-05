@@ -13,24 +13,24 @@
 /**
  * Variable types supported by the system
  */
-export type VariableType = 'string' | 'number' | 'boolean' | 'array' | 'object';
+export type VariableType = 'string' | 'number' | 'boolean' | 'array' | 'object'
 
 /**
  * Variable metadata for documentation and validation
  */
 export type VariableMetadata = {
-  /** Variable name */
-  name: string;
-  /** Variable type */
-  type: VariableType;
-  /** Description for documentation */
-  description?: string;
-  /** Whether the variable is required */
-  required: boolean;
-  /** Default value if not provided */
-  defaultValue?: unknown;
-  /** Zod schema for validation */
-  schema: unknown;
+    /** Variable name */
+    name: string
+    /** Variable type */
+    type: VariableType
+    /** Description for documentation */
+    description?: string
+    /** Whether the variable is required */
+    required: boolean
+    /** Default value if not provided */
+    defaultValue?: unknown
+    /** Zod schema for validation */
+    schema: unknown
 }
 
 // ============================================================================
@@ -41,7 +41,7 @@ export type VariableMetadata = {
  * Variable context for resolution
  * Maps variable names to their values
  */
-export type VariableContext = Record<string, unknown>;
+export type VariableContext = Record<string, unknown>
 
 // ============================================================================
 // RESOLUTION TYPES
@@ -51,32 +51,32 @@ export type VariableContext = Record<string, unknown>;
  * Resolution options for variable resolver
  */
 export type ResolutionOptions = {
-  /** Fail on undefined variables */
-  strict?: boolean;
-  /** Keep ~##var##~ if variable not found */
-  keepUnresolved?: boolean;
-  /** Maximum resolution depth */
-  maxDepth?: number;
-  /** Variable delimiter (default: '~##' and '##~') */
-  delimiter?: string;
-  /** Validate context before resolution */
-  validate?: boolean;
+    /** Fail on undefined variables */
+    strict?: boolean
+    /** Keep ~##var##~ if variable not found */
+    keepUnresolved?: boolean
+    /** Maximum resolution depth */
+    maxDepth?: number
+    /** Variable delimiter (default: '~##' and '##~') */
+    delimiter?: string
+    /** Validate context before resolution */
+    validate?: boolean
 }
 
-import type { ValidationError } from './validation.interfaces';
+import type { ValidationError } from './validation.interfaces'
 
 /**
  * Resolution result
  */
 export type ResolutionResult<T = unknown> = {
-  /** Whether resolution was successful */
-  success: boolean;
-  /** Resolved data */
-  data?: T;
-  /** Resolution errors */
-  errors: ValidationError[];
-  /** List of unresolved variable names */
-  unresolved: string[];
+    /** Whether resolution was successful */
+    success: boolean
+    /** Resolved data */
+    data?: T
+    /** Resolution errors */
+    errors: ValidationError[]
+    /** List of unresolved variable names */
+    unresolved: string[]
 }
 
 // ============================================================================
@@ -87,14 +87,14 @@ export type ResolutionResult<T = unknown> = {
  * Statistics about the variable registry
  */
 export type RegistryStats = {
-  /** Total number of variables */
-  total: number;
-  /** Number of required variables */
-  required: number;
-  /** Number of optional variables */
-  optional: number;
-  /** Number of variables with defaults */
-  withDefaults: number;
-  /** Number of groups */
-  groups: number;
+    /** Total number of variables */
+    total: number
+    /** Number of required variables */
+    required: number
+    /** Number of optional variables */
+    optional: number
+    /** Number of variables with defaults */
+    withDefaults: number
+    /** Number of groups */
+    groups: number
 }

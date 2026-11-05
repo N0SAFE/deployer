@@ -9,20 +9,20 @@ import { openCommandPalette } from './command-palette-store'
  * it reads as "type to search", but opens the command palette instead.
  */
 export function SearchTrigger() {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        openCommandPalette()
-      }}
-      className="group inline-flex h-8 w-full max-w-64 items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-2.5 text-sm text-muted-foreground transition-colors hover:border-border hover:bg-background/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-      aria-label="Open command palette"
-    >
-      <Search className="size-3.5 shrink-0" />
-      <span className="flex-1 truncate text-left text-xs">Search…</span>
-      <kbd className="hidden items-center gap-0.5 rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-muted-foreground sm:inline-flex">
-        ⌘K
-      </kbd>
-    </button>
-  )
+    return (
+        <button
+            type="button"
+            onClick={() => {
+                openCommandPalette()
+            }}
+            className="group border-border/60 bg-background/60 text-muted-foreground hover:border-border hover:bg-background/90 focus-visible:ring-ring inline-flex h-8 w-full max-w-64 items-center gap-2 rounded-lg border px-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none"
+            aria-label="Open command palette"
+        >
+            <Search className="size-3.5 shrink-0" />
+            <span className="flex-1 truncate text-left text-xs">Search…</span>
+            <kbd className="border-border/60 bg-muted/40 text-muted-foreground hidden items-center gap-0.5 rounded-md border px-1.5 py-0.5 font-mono text-xs sm:inline-flex">
+                ⌘K
+            </kbd>
+        </button>
+    )
 }

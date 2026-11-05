@@ -1,4 +1,3 @@
- 
 import {
     getMasterTokenEnabled,
     setMasterTokenEnabled,
@@ -7,7 +6,12 @@ import {
     MasterTokenManager,
 } from './state'
 
-import type { BetterAuthClientPlugin, BetterFetch, ClientStore, BetterAuthClientOptions } from 'better-auth/client'
+import type {
+    BetterAuthClientPlugin,
+    BetterFetch,
+    ClientStore,
+    BetterAuthClientOptions,
+} from 'better-auth/client'
 
 /**
  * Better Auth client plugin to attach a master token Authorization header
@@ -16,10 +20,19 @@ import type { BetterAuthClientPlugin, BetterFetch, ClientStore, BetterAuthClient
  */
 export const masterTokenClient = () =>
     ({
-         
-        getActions: (_$fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined) => {
-            const createMasterTokenSignOut = <TSignOut extends (...args: unknown[]) => Promise<unknown>>(signOutFn: TSignOut) => {
-                return async (...args: Parameters<TSignOut>): Promise<Awaited<ReturnType<TSignOut>> | null> => {
+        getActions: (
+            _$fetch: BetterFetch,
+            _$store: ClientStore,
+            _options: BetterAuthClientOptions | undefined
+        ) => {
+            const createMasterTokenSignOut = <
+                TSignOut extends (...args: unknown[]) => Promise<unknown>,
+            >(
+                signOutFn: TSignOut
+            ) => {
+                return async (
+                    ...args: Parameters<TSignOut>
+                ): Promise<Awaited<ReturnType<TSignOut>> | null> => {
                     // If dev auth mode is active in development, we want to disable the
                     // dev-auth token mode and then refresh the client session instead of
                     // performing a real sign-out. This keeps the UX local to the browser
@@ -31,7 +44,9 @@ export const masterTokenClient = () =>
                         if (!MasterTokenManager.state) {
                             // If dev auth mode is not active, fall through to the original
                             // signOut behavior to ensure sign-out still works.
-                            return signOutFn(...args) as Promise<Awaited<ReturnType<TSignOut>>>
+                            return signOutFn(...args) as Promise<
+                                Awaited<ReturnType<TSignOut>>
+                            >
                         }
                         try {
                             MasterTokenManager.change(false)
@@ -44,9 +59,11 @@ export const masterTokenClient = () =>
                             )
                         }
                     }
-                    
+
                     // In production or on server side, always call the original signOut
-                    return signOutFn(...args) as Promise<Awaited<ReturnType<TSignOut>>>
+                    return signOutFn(...args) as Promise<
+                        Awaited<ReturnType<TSignOut>>
+                    >
                 }
             }
 
@@ -84,14 +101,29 @@ export const masterTokenClient = () =>
 
                             // Better Auth types the plugin context loosely, so the header bag is narrowed once here
                             // instead of letting `any` propagate through every spread.
-                            const rawHeaders: unknown = (ctx as { readonly headers?: unknown }).headers
-                            const headerPairs: Record<string, string> = Array.isArray(rawHeaders)
-                                ? Object.fromEntries(rawHeaders as readonly (readonly [string, string])[])
-                                : typeof rawHeaders === "object" && rawHeaders !== null
-                                    ? (rawHeaders as Record<string, string>)
-                                    : {}
+                            const rawHeaders: unknown = (
+                                ctx as { readonly headers?: unknown }
+                            ).headers
+                            const headerPairs: Record<string, string> =
+                                Array.isArray(rawHeaders)
+                                    ? Object.fromEntries(
+                                          rawHeaders as readonly (readonly [
+                                              string,
+                                              string,
+                                          ])[]
+                                      )
+                                    : typeof rawHeaders === 'object' &&
+                                        rawHeaders !== null
+                                      ? (rawHeaders as Record<string, string>)
+                                      : {}
 
-                            return { ...ctx, headers: new Headers({ Authorization: `Bearer ${key}`, ...headerPairs }) }
+                            return {
+                                ...ctx,
+                                headers: new Headers({
+                                    Authorization: `Bearer ${key}`,
+                                    ...headerPairs,
+                                }),
+                            }
                         } catch (e) {
                             // defensive fallback
                             console.warn(

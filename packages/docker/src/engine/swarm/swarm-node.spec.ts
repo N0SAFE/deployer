@@ -13,95 +13,106 @@
  *      next inventory sweep read the old role back).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest'
 
-import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
+import type { DockerodeNodeSummary } from '@deployer/contracts-entities'
 
-import { buildSwarmNodeSpecPayload } from "./swarm-node";
+import { buildSwarmNodeSpecPayload } from './swarm-node'
 
 /** The node's current labels, as every caller reads them to build the desired set. */
-const CURRENT_LABELS = { "deployer.ingress": "true", "deployer.node.role": "control" };
+const CURRENT_LABELS = {
+    'deployer.ingress': 'true',
+    'deployer.node.role': 'control',
+}
 
 /**
  * A node summary with the fields this payload builder consumes.
  * `Spec` is Partial only to express runtime values the engine's own types forbid
  * (an empty `Role` after init) — the builder must tolerate them, not echo them.
  */
-const node = (spec: Partial<DockerodeNodeSummary["Spec"]> = {}): DockerodeNodeSummary =>
-	({
-		ID: "node-1",
-		Version: { Index: 7 },
-		Spec: {
-			Name: "node-1",
-			Role: "manager",
-			Availability: "active",
-			Labels: CURRENT_LABELS,
-			...spec,
-		},
-		Description: { Hostname: "node-1" },
-		ManagerStatus: { Leader: true, Reachability: "reachable" },
-	}) as DockerodeNodeSummary;
+const node = (
+    spec: Partial<DockerodeNodeSummary['Spec']> = {}
+): DockerodeNodeSummary =>
+    ({
+        ID: 'node-1',
+        Version: { Index: 7 },
+        Spec: {
+            Name: 'node-1',
+            Role: 'manager',
+            Availability: 'active',
+            Labels: CURRENT_LABELS,
+            ...spec,
+        },
+        Description: { Hostname: 'node-1' },
+        ManagerStatus: { Leader: true, Reachability: 'reachable' },
+    }) as DockerodeNodeSummary
 
-describe("buildSwarmNodeSpecPayload", () => {
-	it("returns a FLAT spec (no nested `Spec` wrapper) with the top-level Role set", () => {
-		const payload = buildSwarmNodeSpecPayload(node(), {});
+describe('buildSwarmNodeSpecPayload', () => {
+    it('returns a FLAT spec (no nested `Spec` wrapper) with the top-level Role set', () => {
+        const payload = buildSwarmNodeSpecPayload(node(), {})
 
-		expect(payload).not.toHaveProperty("Spec");
-		expect(payload.Role).toBe("manager");
-		expect(payload.Name).toBe("node-1");
-	});
+        expect(payload).not.toHaveProperty('Spec')
+        expect(payload.Role).toBe('manager')
+        expect(payload.Name).toBe('node-1')
+    })
 
-	it("REPLACES the label map with the caller's complete desired set (removal works)", () => {
-		// `withPlatformRole(labels, "both")` drops the role key entirely.
-		const payload = buildSwarmNodeSpecPayload(node(), {
-			labels: { "deployer.ingress": "true" },
-		});
+    it("REPLACES the label map with the caller's complete desired set (removal works)", () => {
+        // `withPlatformRole(labels, "both")` drops the role key entirely.
+        const payload = buildSwarmNodeSpecPayload(node(), {
+            labels: { 'deployer.ingress': 'true' },
+        })
 
-		expect(payload.Labels).toEqual({ "deployer.ingress": "true" });
-		expect(payload.Labels).not.toHaveProperty("deployer.node.role");
-	});
+        expect(payload.Labels).toEqual({ 'deployer.ingress': 'true' })
+        expect(payload.Labels).not.toHaveProperty('deployer.node.role')
+    })
 
-	it("inherits the current labels when only role/availability change", () => {
-		const payload = buildSwarmNodeSpecPayload(node(), {
-			role: "worker",
-			availability: "drain",
-		});
+    it('inherits the current labels when only role/availability change', () => {
+        const payload = buildSwarmNodeSpecPayload(node(), {
+            role: 'worker',
+            availability: 'drain',
+        })
 
-		expect(payload.Labels).toEqual({
-			"deployer.ingress": "true",
-			"deployer.node.role": "control",
-		});
-		expect(payload.Role).toBe("worker");
-		expect(payload.Availability).toBe("drain");
-	});
+        expect(payload.Labels).toEqual({
+            'deployer.ingress': 'true',
+            'deployer.node.role': 'control',
+        })
+        expect(payload.Role).toBe('worker')
+        expect(payload.Availability).toBe('drain')
+    })
 
-	it("keeps the current role/availability when they are not overridden", () => {
-		const payload = buildSwarmNodeSpecPayload(node(), {
-			labels: { "deployer.ingress": "true" },
-		});
+    it('keeps the current role/availability when they are not overridden', () => {
+        const payload = buildSwarmNodeSpecPayload(node(), {
+            labels: { 'deployer.ingress': 'true' },
+        })
 
-		expect(payload.Role).toBe("manager");
-		expect(payload.Availability).toBe("active");
-	});
+        expect(payload.Role).toBe('manager')
+        expect(payload.Availability).toBe('active')
+    })
 
-	it("never guesses a manager as worker when Spec.Role is transiently empty", () => {
-		// A transient post-init payload reports `Role: ""`, which the engine's own
-		// types forbid — demoting a manager to worker can leave the cluster with
-		// no manager at all, so the empty value must be tolerated, not echoed.
-		const payload = buildSwarmNodeSpecPayload(node({ Role: "" }), {});
+    it('never guesses a manager as worker when Spec.Role is transiently empty', () => {
+        // A transient post-init payload reports `Role: ""`, which the engine's own
+        // types forbid — demoting a manager to worker can leave the cluster with
+        // no manager at all, so the empty value must be tolerated, not echoed.
+        const payload = buildSwarmNodeSpecPayload(node({ Role: '' }), {})
 
-		expect(payload.Role).toBe("manager");
-	});
+        expect(payload.Role).toBe('manager')
+    })
 
-	it("defaults availability to active when the engine reports an unknown value", () => {
-		const payload = buildSwarmNodeSpecPayload(node({ Availability: "" }), {});
+    it('defaults availability to active when the engine reports an unknown value', () => {
+        const payload = buildSwarmNodeSpecPayload(
+            node({ Availability: '' }),
+            {}
+        )
 
-		expect(payload.Availability).toBe("active");
-	});
+        expect(payload.Availability).toBe('active')
+    })
 
-	it("falls back to an empty label map when the node has none", () => {
-		const payload = buildSwarmNodeSpecPayload(node({ Labels: undefined }), {});
+    it('falls back to an empty label map when the node has none', () => {
+        const payload = buildSwarmNodeSpecPayload(
+            node({ Labels: undefined }),
+            {}
+        )
 
-		expect(payload.Labels).toEqual({});
-	});
-});
+        expect(payload.Labels).toEqual({})
+    })
+})

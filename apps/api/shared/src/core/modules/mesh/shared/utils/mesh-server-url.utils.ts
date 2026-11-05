@@ -1,4 +1,4 @@
-import type { EnvService } from "../../../../../config/env/env.module";
+import type { EnvService } from '../../../../../config/env/env.module'
 
 /**
  * Résout l'URL publique du serveur local.
@@ -15,14 +15,14 @@ import type { EnvService } from "../../../../../config/env/env.module";
  */
 export function resolveLocalServerUrl(envService?: EnvService): string {
     const candidate =
-        envService?.get("APP_URL")?.toString().trim() ??
+        envService?.get('APP_URL')?.toString().trim() ??
         process.env.APP_URL?.trim() ??
-        "http://localhost:3001";
+        'http://localhost:3001'
 
     try {
-        return new URL(candidate).origin;
+        return new URL(candidate).origin
     } catch {
-        return "http://localhost:3001";
+        return 'http://localhost:3001'
     }
 }
 
@@ -38,13 +38,13 @@ export function resolveLocalServerUrl(envService?: EnvService): string {
  */
 export function toMeshWebSocketUrl(serverUrl: string): string {
     try {
-        const parsed = new URL(serverUrl);
-        const protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
-        const pathname = parsed.pathname.endsWith("/")
+        const parsed = new URL(serverUrl)
+        const protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'
+        const pathname = parsed.pathname.endsWith('/')
             ? `${parsed.pathname}mesh`
-            : `${parsed.pathname}/mesh`;
-        return `${protocol}//${parsed.host}${pathname}`;
+            : `${parsed.pathname}/mesh`
+        return `${protocol}//${parsed.host}${pathname}`
     } catch {
-        return serverUrl;
+        return serverUrl
     }
 }

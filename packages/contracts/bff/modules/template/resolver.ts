@@ -3,24 +3,30 @@ import {
     templateResolveResultSchema,
     templateSetResolveInputSchema,
     templateSetResolveResultSchema,
-} from "@deployer/contracts-entities";
-import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+} from '@deployer/contracts-entities'
+import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
-const templateResolveOps = standard.zod(templateResolveResultSchema, "templateResolve");
-const templateSetResolveOps = standard.zod(templateSetResolveResultSchema, "templateSetResolve");
+const templateResolveOps = standard.zod(
+    templateResolveResultSchema,
+    'templateResolve'
+)
+const templateSetResolveOps = standard.zod(
+    templateSetResolveResultSchema,
+    'templateSetResolve'
+)
 
 export const templateResolveContract = templateResolveOps
     .create()
-    .path("/resolve")
+    .path('/resolve')
     .input((b) => b.body(templateResolveInputSchema))
     .output(templateResolveResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()
 
 export const templateResolveSetContract = templateSetResolveOps
     .create()
-    .path("/resolve-set")
+    .path('/resolve-set')
     .input((b) => b.body(templateSetResolveInputSchema))
     .output(templateSetResolveResultSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
+    .build()

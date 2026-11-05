@@ -26,100 +26,132 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { clusterContract } from "@deployer/fleet-contracts";
+import { clusterContract } from '@deployer/fleet-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class ClusterDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("fleet", clusterContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('fleet', clusterContract)
+    }
 
-	@Implement(clusterContract.getSnapshot)
-	getSnapshot() {
-		return implement(clusterContract.getSnapshot).handler(({ input }) => this.client.getSnapshot(input));
-	}
+    @Implement(clusterContract.getSnapshot)
+    getSnapshot() {
+        return implement(clusterContract.getSnapshot).handler(({ input }) =>
+            this.client.getSnapshot(input)
+        )
+    }
 
-	@Implement(clusterContract.streamSnapshot)
-	streamSnapshot() {
-		return implement(clusterContract.streamSnapshot).handler(({ input }) => this.client.streamSnapshot(input));
-	}
+    @Implement(clusterContract.streamSnapshot)
+    streamSnapshot() {
+        return implement(clusterContract.streamSnapshot).handler(({ input }) =>
+            this.client.streamSnapshot(input)
+        )
+    }
 
-	@Implement(clusterContract.listNodes)
-	listNodes() {
-		return implement(clusterContract.listNodes).handler(({ input }) => this.client.listNodes(input));
-	}
+    @Implement(clusterContract.listNodes)
+    listNodes() {
+        return implement(clusterContract.listNodes).handler(({ input }) =>
+            this.client.listNodes(input)
+        )
+    }
 
-	@Implement(clusterContract.streamNodes)
-	streamNodes() {
-		return implement(clusterContract.streamNodes).handler(({ input }) => this.client.streamNodes(input));
-	}
+    @Implement(clusterContract.streamNodes)
+    streamNodes() {
+        return implement(clusterContract.streamNodes).handler(({ input }) =>
+            this.client.streamNodes(input)
+        )
+    }
 
-	@Implement(clusterContract.getMaster)
-	getMaster() {
-		return implement(clusterContract.getMaster).handler(({ input }) => this.client.getMaster(input));
-	}
+    @Implement(clusterContract.getMaster)
+    getMaster() {
+        return implement(clusterContract.getMaster).handler(({ input }) =>
+            this.client.getMaster(input)
+        )
+    }
 
-	@Implement(clusterContract.streamMaster)
-	streamMaster() {
-		return implement(clusterContract.streamMaster).handler(({ input }) => this.client.streamMaster(input));
-	}
+    @Implement(clusterContract.streamMaster)
+    streamMaster() {
+        return implement(clusterContract.streamMaster).handler(({ input }) =>
+            this.client.streamMaster(input)
+        )
+    }
 
-	@Implement(clusterContract.updateNode)
-	updateNode() {
-		return implement(clusterContract.updateNode).handler(({ input }) => this.client.updateNode(input));
-	}
+    @Implement(clusterContract.updateNode)
+    updateNode() {
+        return implement(clusterContract.updateNode).handler(({ input }) =>
+            this.client.updateNode(input)
+        )
+    }
 
-	@Implement(clusterContract.listServices)
-	listServices() {
-		return implement(clusterContract.listServices).handler(({ input }) => this.client.listServices(input));
-	}
+    @Implement(clusterContract.listServices)
+    listServices() {
+        return implement(clusterContract.listServices).handler(({ input }) =>
+            this.client.listServices(input)
+        )
+    }
 
-	@Implement(clusterContract.streamServices)
-	streamServices() {
-		return implement(clusterContract.streamServices).handler(({ input }) => this.client.streamServices(input));
-	}
+    @Implement(clusterContract.streamServices)
+    streamServices() {
+        return implement(clusterContract.streamServices).handler(({ input }) =>
+            this.client.streamServices(input)
+        )
+    }
 
-	@Implement(clusterContract.listTasks)
-	listTasks() {
-		return implement(clusterContract.listTasks).handler(({ input }) => this.client.listTasks(input));
-	}
+    @Implement(clusterContract.listTasks)
+    listTasks() {
+        return implement(clusterContract.listTasks).handler(({ input }) =>
+            this.client.listTasks(input)
+        )
+    }
 
-	@Implement(clusterContract.streamTasks)
-	streamTasks() {
-		return implement(clusterContract.streamTasks).handler(({ input }) => this.client.streamTasks(input));
-	}
+    @Implement(clusterContract.streamTasks)
+    streamTasks() {
+        return implement(clusterContract.streamTasks).handler(({ input }) =>
+            this.client.streamTasks(input)
+        )
+    }
 
-	@Implement(clusterContract.getNodeResources)
-	getNodeResources() {
-		return implement(clusterContract.getNodeResources).handler(({ input }) => this.client.getNodeResources(input));
-	}
+    @Implement(clusterContract.getNodeResources)
+    getNodeResources() {
+        return implement(clusterContract.getNodeResources).handler(
+            ({ input }) => this.client.getNodeResources(input)
+        )
+    }
 
-	@Implement(clusterContract.streamNodeResources)
-	streamNodeResources() {
-		return implement(clusterContract.streamNodeResources).handler(({ input }) => this.client.streamNodeResources(input));
-	}
+    @Implement(clusterContract.streamNodeResources)
+    streamNodeResources() {
+        return implement(clusterContract.streamNodeResources).handler(
+            ({ input }) => this.client.streamNodeResources(input)
+        )
+    }
 
-	@Implement(clusterContract.getSwarmConfig)
-	getSwarmConfig() {
-		return implement(clusterContract.getSwarmConfig).handler(({ input }) => this.client.getSwarmConfig(input));
-	}
+    @Implement(clusterContract.getSwarmConfig)
+    getSwarmConfig() {
+        return implement(clusterContract.getSwarmConfig).handler(({ input }) =>
+            this.client.getSwarmConfig(input)
+        )
+    }
 
-	@Implement(clusterContract.streamSwarmConfig)
-	streamSwarmConfig() {
-		return implement(clusterContract.streamSwarmConfig).handler(({ input }) => this.client.streamSwarmConfig(input));
-	}
+    @Implement(clusterContract.streamSwarmConfig)
+    streamSwarmConfig() {
+        return implement(clusterContract.streamSwarmConfig).handler(
+            ({ input }) => this.client.streamSwarmConfig(input)
+        )
+    }
 
-	@Implement(clusterContract.setSwarmConfig)
-	setSwarmConfig() {
-		return implement(clusterContract.setSwarmConfig).handler(({ input }) => this.client.setSwarmConfig(input));
-	}
+    @Implement(clusterContract.setSwarmConfig)
+    setSwarmConfig() {
+        return implement(clusterContract.setSwarmConfig).handler(({ input }) =>
+            this.client.setSwarmConfig(input)
+        )
+    }
 }

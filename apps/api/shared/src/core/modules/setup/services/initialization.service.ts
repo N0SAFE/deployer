@@ -1,21 +1,34 @@
-import { lookup } from "node:dns/promises"
+import { lookup } from 'node:dns/promises'
 
 import { Logger } from '@nestjs/common'
-import { Pool } from 'pg'
-import { ReplaySubject, firstValueFrom, interval, map, merge, type Observable } from 'rxjs'
 import { Context, Effect } from 'effect'
+import { Pool } from 'pg'
+import {
+    ReplaySubject,
+    firstValueFrom,
+    interval,
+    map,
+    merge,
+    type Observable,
+} from 'rxjs'
 
 import type {
     SetupInitializeInput,
     SetupStreamEvent,
     SetupStateSnapshot,
 } from '@deployer/contracts-entities'
-import { runPromiseUnwrapped } from "@deployer/effect-core";
-import type { ServiceLifecycleShape } from "@deployer/nest-effect";
-import { classifyAddress, isIpLiteral, stripBrackets } from "@deployer/effect-infra"
-import type { AppLifecycleShape } from "@deployer/lifecycle";
-import type { NodeConfigRepositoryShape, NodeConfigRow } from "@deployer/node-state"
-
+import { runPromiseUnwrapped } from '@deployer/effect-core'
+import {
+    classifyAddress,
+    isIpLiteral,
+    stripBrackets,
+} from '@deployer/effect-infra'
+import type { AppLifecycleShape } from '@deployer/lifecycle'
+import type { ServiceLifecycleShape } from '@deployer/nest-effect'
+import type {
+    NodeConfigRepositoryShape,
+    NodeConfigRow,
+} from '@deployer/node-state'
 
 import { DatabaseProbeRefused, SetupAlreadyComplete } from '../setup.errors'
 import { SetupStepTracker } from '../utils/setup-runner.utils'
@@ -23,11 +36,7 @@ import { SetupStepTracker } from '../utils/setup-runner.utils'
 import type { LocalInitializationServiceShape } from './local-initialization.service'
 import type { RemoteInitializationServiceShape } from './remote-initialization.service'
 import type { SetupEventService } from './setup-event.service'
-
-
 import type { EmitEvent } from '../utils/setup-runner.utils'
-
-
 
 export type SetupCompletionStatus = {
     nodeId: string
@@ -43,12 +52,16 @@ export type SetupCompletionStatus = {
  * and that node must be allowed to run setup again.)
  */
 const isSetupComplete = (
-    config: NodeConfigRow | null,
+    config: NodeConfigRow | null
 ): config is NodeConfigRow & { configuredAt: string } =>
     Boolean(config?.configuredAt && config.databaseUrl?.trim())
 
 /** Hostnames that always mean "this machine" or the cloud metadata service, whatever they resolve to. */
-const LOCAL_HOSTNAMES = new Set(["localhost", "metadata", "metadata.google.internal"])
+const LOCAL_HOSTNAMES = new Set([
+    'localhost',
+    'metadata',
+    'metadata.google.internal',
+])
 
 /**
  * Why a wizard-supplied PostgreSQL URL must not be dialled, or null when it may.
@@ -61,7 +74,7 @@ const LOCAL_HOSTNAMES = new Set(["localhost", "metadata", "metadata.google.inter
  */
 export const databaseProbeRefusal = (
     databaseUrl: string,
-    platformDatabaseUrl: string | null,
+    platformDatabaseUrl: string | null
 ): string | null => {
     let url: URL
     try {
@@ -69,19 +82,23 @@ export const databaseProbeRefusal = (
     } catch {
         return `"${databaseUrl}" is not a valid database URL.`
     }
-    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
         return `The database URL must start with postgres:// or postgresql:// (got ${url.protocol}).`
     }
-    if (platformDatabaseUrl !== null && sameDatabaseServer(url, platformDatabaseUrl)) return null
+    if (
+        platformDatabaseUrl !== null &&
+        sameDatabaseServer(url, platformDatabaseUrl)
+    )
+        return null
 
     const host = stripBrackets(url.hostname).toLowerCase()
-    if (host === "") return "The database URL has no host."
-    if (LOCAL_HOSTNAMES.has(host) || host.endsWith(".localhost")) {
+    if (host === '') return 'The database URL has no host.'
+    if (LOCAL_HOSTNAMES.has(host) || host.endsWith('.localhost')) {
         return `"${host}" is this machine or the cloud metadata service — the setup probe refuses those. Use the database's reachable address.`
     }
     if (!isIpLiteral(host)) return null
     const klass = classifyAddress(host)
-    return klass === "public"
+    return klass === 'public'
         ? null
         : `${host} is a ${klass} address — the setup probe only reaches public database addresses, or this platform's own database.`
 }
@@ -95,17 +112,34 @@ const sameDatabaseServer = (url: URL, platformDatabaseUrl: string): boolean => {
 }
 
 const serverKey = (url: URL): string =>
-    `${stripBrackets(url.hostname).toLowerCase()}:${url.port || "5432"}`
+    `${stripBrackets(url.hostname).toLowerCase()}:${url.port || '5432'}`
 
-type NodeConfigReadFailure = Effect.Error<ReturnType<NodeConfigRepositoryShape['find']>>
+type NodeConfigReadFailure = Effect.Error<
+    ReturnType<NodeConfigRepositoryShape['find']>
+>
 
 export type InitializationServiceShape = ServiceLifecycleShape & {
     /** Checks the node config at boot and, when the node is configured, unblocks everything waiting on setup. Never fails. */
     readonly checkConfigAndEmit: () => Effect.Effect<void>
-    readonly getSetupState: () => Effect.Effect<SetupStateSnapshot, NodeConfigReadFailure>
+    readonly getSetupState: () => Effect.Effect<
+        SetupStateSnapshot,
+        NodeConfigReadFailure
+    >
     readonly getNodeStatus: () => Effect.Effect<
-        | { isConfigured: true; nodeId: string; strategy: 'local' | 'remote'; meshUrlsSnapshot: string[]; configuredAt: Date }
-        | { isConfigured: false; nodeId: null; strategy: null; meshUrlsSnapshot: string[]; configuredAt: null },
+        | {
+              isConfigured: true
+              nodeId: string
+              strategy: 'local' | 'remote'
+              meshUrlsSnapshot: string[]
+              configuredAt: Date
+          }
+        | {
+              isConfigured: false
+              nodeId: null
+              strategy: null
+              meshUrlsSnapshot: string[]
+              configuredAt: null
+          },
         NodeConfigReadFailure
     >
     /**
@@ -113,18 +147,25 @@ export type InitializationServiceShape = ServiceLifecycleShape & {
      * the wizard runs before any account exists; after completion nothing on it has a reason to run. One implementation,
      * called by every mutating handler.
      */
-    readonly assertSetupMutable: () => Effect.Effect<void, NodeConfigReadFailure | SetupAlreadyComplete>
+    readonly assertSetupMutable: () => Effect.Effect<
+        void,
+        NodeConfigReadFailure | SetupAlreadyComplete
+    >
     /**
      * Refuse a database probe the SSRF policy forbids (SEC-012). A hostname is not an address but it becomes one, so the
      * name the operator typed is resolved too.
      */
-    readonly assertDatabaseProbeAllowed: (databaseUrl: string) => Effect.Effect<void, NodeConfigReadFailure | DatabaseProbeRefused>
+    readonly assertDatabaseProbeAllowed: (
+        databaseUrl: string
+    ) => Effect.Effect<void, NodeConfigReadFailure | DatabaseProbeRefused>
     /**
      * Start the initialization in the background and answer at once; live progress comes from `getInitializeStream`. If a
      * run is already going, `{ accepted: false }`. `delivered` is always true here (this is the API's OWN service); it keeps
      * the response shape identical to the SETUP app's proxy, where the trigger can be accepted before the API is reachable.
      */
-    readonly triggerInitialize: (input: SetupInitializeInput) => Effect.Effect<{ accepted: boolean; delivered: boolean }>
+    readonly triggerInitialize: (
+        input: SetupInitializeInput
+    ) => Effect.Effect<{ accepted: boolean; delivered: boolean }>
     /**
      * The progress stream, with replay of recent events and a heartbeat merged in (so a quiet window is distinguishable
      * from a dead socket). Safe to call before `triggerInitialize`. A streaming surface: RxJS stays the contract.
@@ -138,13 +179,19 @@ type Ports = {
     readonly nodeConfigRepository: NodeConfigRepositoryShape
     readonly localInitializationService: LocalInitializationServiceShape
     readonly remoteInitializationService: RemoteInitializationServiceShape
-    readonly setupEventService: Pick<SetupEventService, 'emit' | 'observeProgress$'>
+    readonly setupEventService: Pick<
+        SetupEventService,
+        'emit' | 'observeProgress$'
+    >
     /**
      * Advanced to READY when setup completes — see `emitCompleted`. Injected rather than signalled through an event: the
      * lifecycle is what readiness READS, so setting it at the moment the platform actually becomes usable keeps the fact
      * and the report in one place.
      */
-    readonly lifecycle: Pick<AppLifecycleShape, 'markDatabaseProbeNow' | 'markMeshConnectedNow' | 'markReadyNow'>
+    readonly lifecycle: Pick<
+        AppLifecycleShape,
+        'markDatabaseProbeNow' | 'markMeshConnectedNow' | 'markReadyNow'
+    >
 }
 
 /** How often to prove the socket is alive while provisioning is quiet. */
@@ -152,8 +199,16 @@ const HEARTBEAT_INTERVAL_MS = 3_000
 const HAS_USERS_PROBE_TIMEOUT_MS = 1_500
 const HAS_USERS_CACHE_TTL_MS = 30_000
 
-export function makeInitializationService(ports: Ports): InitializationServiceShape {
-    const { nodeConfigRepository, localInitializationService, remoteInitializationService, setupEventService, lifecycle } = ports
+export function makeInitializationService(
+    ports: Ports
+): InitializationServiceShape {
+    const {
+        nodeConfigRepository,
+        localInitializationService,
+        remoteInitializationService,
+        setupEventService,
+        lifecycle,
+    } = ports
     const logger = new Logger('InitializationService')
     const completedSubject = new ReplaySubject<SetupCompletionStatus>(1)
 
@@ -171,7 +226,6 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
     let usersPresence: { known: boolean; checkedAt: number } | null = null
     let usersProbePromise: Promise<void> | null = null
 
-
     const readConfig = nodeConfigRepository.find
 
     const NOT_STARTED: SetupStateSnapshot = {
@@ -183,13 +237,24 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
         currentStep: 'choose_strategy',
         progressPercent: 0,
         steps: [
-            { id: 'choose_strategy', title: 'Choose bootstrap strategy', status: 'pending' },
-            { id: 'configure_account', title: 'Configure account', status: 'pending' },
+            {
+                id: 'choose_strategy',
+                title: 'Choose bootstrap strategy',
+                status: 'pending',
+            },
+            {
+                id: 'configure_account',
+                title: 'Configure account',
+                status: 'pending',
+            },
         ],
         completedAt: null,
     }
 
-    const getSetupState = (): Effect.Effect<SetupStateSnapshot, NodeConfigReadFailure> =>
+    const getSetupState = (): Effect.Effect<
+        SetupStateSnapshot,
+        NodeConfigReadFailure
+    > =>
         readConfig().pipe(
             Effect.map((config): SetupStateSnapshot => {
                 // configuredAt without a database URL (or no config) → needs setup.
@@ -206,7 +271,7 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
                     steps: [],
                     completedAt: new Date(config.configuredAt),
                 }
-            }),
+            })
         )
 
     const getNodeStatus: InitializationServiceShape['getNodeStatus'] = () =>
@@ -226,35 +291,50 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
                           strategy: null,
                           meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
                           configuredAt: null,
-                      },
-            ),
+                      }
+            )
         )
 
-    const assertSetupMutable: InitializationServiceShape['assertSetupMutable'] = () =>
-        readConfig().pipe(
-            Effect.flatMap((config) => (isSetupComplete(config) ? Effect.fail(new SetupAlreadyComplete({})) : Effect.void)),
-        )
+    const assertSetupMutable: InitializationServiceShape['assertSetupMutable'] =
+        () =>
+            readConfig().pipe(
+                Effect.flatMap((config) =>
+                    isSetupComplete(config)
+                        ? Effect.fail(new SetupAlreadyComplete({}))
+                        : Effect.void
+                )
+            )
 
-    const assertDatabaseProbeAllowed: InitializationServiceShape['assertDatabaseProbeAllowed'] = (databaseUrl) =>
-        Effect.gen(function* () {
-            const config = yield* readConfig()
-            const stored = config?.databaseUrl?.trim()
-            // An empty stored URL is not a URL: `||` was doing that job, spelled out here so the types stay honest.
-            const refusal = databaseProbeRefusal(databaseUrl, stored === undefined || stored === '' ? null : stored)
-            if (refusal !== null) return yield* new DatabaseProbeRefused({ reason: refusal })
+    const assertDatabaseProbeAllowed: InitializationServiceShape['assertDatabaseProbeAllowed'] =
+        (databaseUrl) =>
+            Effect.gen(function* () {
+                const config = yield* readConfig()
+                const stored = config?.databaseUrl?.trim()
+                // An empty stored URL is not a URL: `||` was doing that job, spelled out here so the types stay honest.
+                const refusal = databaseProbeRefusal(
+                    databaseUrl,
+                    stored === undefined || stored === '' ? null : stored
+                )
+                if (refusal !== null)
+                    return yield* new DatabaseProbeRefused({ reason: refusal })
 
-            const host = stripBrackets(new URL(databaseUrl).hostname)
-            if (isIpLiteral(host)) return
-            // A lookup failure is not a refusal: the pool will report the same name-resolution error with a message the
-            // operator can act on.
-            const answers = yield* Effect.promise(() => lookup(host, { all: true, verbatim: true }).catch(() => []))
-            if (answers.some((answer) => classifyAddress(answer.address) !== 'public')) {
-                return yield* new DatabaseProbeRefused({
-                    reason: `"${host}" resolves to a private address, which the setup probe does not reach. Use the database's public address.`,
-                })
-            }
-        })
-
+                const host = stripBrackets(new URL(databaseUrl).hostname)
+                if (isIpLiteral(host)) return
+                // A lookup failure is not a refusal: the pool will report the same name-resolution error with a message the
+                // operator can act on.
+                const answers = yield* Effect.promise(() =>
+                    lookup(host, { all: true, verbatim: true }).catch(() => [])
+                )
+                if (
+                    answers.some(
+                        (answer) => classifyAddress(answer.address) !== 'public'
+                    )
+                ) {
+                    return yield* new DatabaseProbeRefused({
+                        reason: `"${host}" resolves to a private address, which the setup probe does not reach. Use the database's public address.`,
+                    })
+                }
+            })
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -273,7 +353,9 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
      */
     async function checkConfigAndEmit(): Promise<void> {
         try {
-            const config = await runPromiseUnwrapped(nodeConfigRepository.find())
+            const config = await runPromiseUnwrapped(
+                nodeConfigRepository.find()
+            )
             const storedUrl = config?.databaseUrl?.trim() ?? ''
             if (config?.configuredAt && storedUrl.length > 0) {
                 logger.log(
@@ -302,11 +384,7 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
-
-
     // ─── Post-setup refusal (SEC-012 / SETUP-002) ─────────────────────────────
-
-
 
     // ─── Trigger + Stream ─────────────────────────────────────────────────────
 
@@ -324,9 +402,14 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
      * trigger can be accepted while the API is not yet reachable (the handover
      * delivers it later) — one contract, two implementers.
      */
-    function triggerInitialize(input: SetupInitializeInput): { accepted: boolean; delivered: boolean } {
+    function triggerInitialize(input: SetupInitializeInput): {
+        accepted: boolean
+        delivered: boolean
+    } {
         if (initializationPromise) {
-            logger.warn('triggerInitialize called but initialization already in progress')
+            logger.warn(
+                'triggerInitialize called but initialization already in progress'
+            )
             return { accepted: false, delivered: true }
         }
 
@@ -381,14 +464,13 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
             setupEventService.observeProgress$(),
             interval(HEARTBEAT_INTERVAL_MS).pipe(
                 map(() => ({
-                    type: "heartbeat" as const,
+                    type: 'heartbeat' as const,
                     seq: 0,
                     ts: new Date().toISOString(),
-                })),
-            ),
+                }))
+            )
         )
     }
-
 
     /**
      * Internal — runs the initialization process, driving a fresh
@@ -406,24 +488,29 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
     async function runInitialize(
         input: SetupInitializeInput,
         tracker: SetupStepTracker,
-        emit: EmitEvent,
+        emit: EmitEvent
     ): Promise<void> {
-        const finish = input.strategy === 'remote'
-            ? await runRemoteFlow(input, tracker, emit)
-            : await runLocalFlow(input, tracker, emit)
+        const finish =
+            input.strategy === 'remote'
+                ? await runRemoteFlow(input, tracker, emit)
+                : await runLocalFlow(input, tracker, emit)
 
         // Always emit the terminal completed event.
-        emit(tracker.finishEvent({
-            nodeId: finish.nodeId,
-            strategy: input.strategy,
-            databaseUrl: finish.databaseUrl,
-        }))
+        emit(
+            tracker.finishEvent({
+                nodeId: finish.nodeId,
+                strategy: input.strategy,
+                databaseUrl: finish.databaseUrl,
+            })
+        )
 
         const config = await runPromiseUnwrapped(nodeConfigRepository.find())
         if (config) {
             emitCompleted({
                 nodeId: config.nodeId,
-                connectedAt: config.configuredAt ? new Date(config.configuredAt) : null,
+                connectedAt: config.configuredAt
+                    ? new Date(config.configuredAt)
+                    : null,
                 databaseUrl: config.databaseUrl,
                 strategy: input.strategy,
             })
@@ -433,17 +520,21 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
     async function runRemoteFlow(
         input: Extract<SetupInitializeInput, { strategy: 'remote' }>,
         tracker: SetupStepTracker,
-        emit: EmitEvent,
+        emit: EmitEvent
     ): Promise<{ nodeId: string; databaseUrl: string }> {
-        return await runPromiseUnwrapped(remoteInitializationService.initialize(input, tracker, emit))
+        return await runPromiseUnwrapped(
+            remoteInitializationService.initialize(input, tracker, emit)
+        )
     }
 
     async function runLocalFlow(
         input: Extract<SetupInitializeInput, { strategy: 'local' }>,
         tracker: SetupStepTracker,
-        emit: EmitEvent,
+        emit: EmitEvent
     ): Promise<{ nodeId: string; databaseUrl: string }> {
-        return await runPromiseUnwrapped(localInitializationService.initialize(input, tracker, emit))
+        return await runPromiseUnwrapped(
+            localInitializationService.initialize(input, tracker, emit)
+        )
     }
 
     function waitForSetup(): Promise<SetupCompletionStatus> {
@@ -484,7 +575,9 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
      * SELECT EXISTS … on the "user" table. Returns true/false when the DB
      * answers, null when the DB is unreachable (keep the previous answer).
      */
-    async function probeUsersExist(databaseUrl: string): Promise<boolean | null> {
+    async function probeUsersExist(
+        databaseUrl: string
+    ): Promise<boolean | null> {
         const pool = new Pool({
             connectionString: databaseUrl,
             max: 1,
@@ -492,7 +585,7 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
         })
         try {
             const res = await pool.query<{ exists: boolean }>(
-                'SELECT EXISTS (SELECT 1 FROM "user" LIMIT 1) AS exists',
+                'SELECT EXISTS (SELECT 1 FROM "user" LIMIT 1) AS exists'
             )
             return Boolean(res.rows[0]?.exists)
         } catch {
@@ -526,7 +619,10 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
         //
         // Publishing both facts here also covers the RESTART path, where setup
         // is already complete and `emitCompleted` is what runs first.
-        lifecycle.markDatabaseProbeNow(status.databaseUrl ?? "", status.databaseUrl !== null)
+        lifecycle.markDatabaseProbeNow(
+            status.databaseUrl ?? '',
+            status.databaseUrl !== null
+        )
         // The mesh is SETTLED once onboarding is done, even with no peers: a
         // single-node cluster is legitimately "connected" (see the `mesh`
         // indicator). This is the writer that was lost when the old
@@ -546,12 +642,14 @@ export function makeInitializationService(ports: Ports): InitializationServiceSh
         getNodeStatus,
         assertSetupMutable,
         assertDatabaseProbeAllowed,
-        triggerInitialize: (input) => Effect.sync(() => triggerInitialize(input)),
+        triggerInitialize: (input) =>
+            Effect.sync(() => triggerInitialize(input)),
         getInitializeStream: () => getInitializeStream(),
         waitForSetup: () => Effect.promise(() => waitForSetup()),
     }
 }
 
-export class InitializationService extends Context.Service<InitializationService, InitializationServiceShape>()(
-    'shared/InitializationService',
-) {}
+export class InitializationService extends Context.Service<
+    InitializationService,
+    InitializationServiceShape
+>()('shared/InitializationService') {}

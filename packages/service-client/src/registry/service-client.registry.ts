@@ -1,11 +1,15 @@
-import { type ClientContext, type ClientLink, createORPCClient } from "@orpc/client";
-import { OpenAPILink } from "@orpc/openapi/fetch";
+import {
+    type ClientContext,
+    type ClientLink,
+    createORPCClient,
+} from '@orpc/client'
+import { OpenAPILink } from '@orpc/openapi/fetch'
 
-import { reviveDates } from "../transport/revive-dates";
-import { makeServiceFetch } from "../transport/service-fetch";
+import { reviveDates } from '../transport/revive-dates'
+import { makeServiceFetch } from '../transport/service-fetch'
 
-import type { ServiceClient, ServiceClientBinder } from "../client/types";
-import type { ContractRouterClient, RouterContract } from "@orpc/contract";
+import type { ServiceClient, ServiceClientBinder } from '../client/types'
+import type { ContractRouterClient, RouterContract } from '@orpc/contract'
 
 /**
  * How a header is supplied for an outgoing service call.
@@ -15,7 +19,7 @@ import type { ContractRouterClient, RouterContract } from "@orpc/contract";
  * on caching below). Reading them at call time is what keeps one client instance
  * usable by every caller without leaking one caller's session into another's call.
  */
-export type ServiceRequestHeaderProvider = () => Record<string, string>;
+export type ServiceRequestHeaderProvider = () => Record<string, string>
 
 /**
  * Resolves a service name to the origin it answers on.
@@ -25,25 +29,28 @@ export type ServiceRequestHeaderProvider = () => Record<string, string>;
  * a testcontainer port), and a package that guessed it would only work in one
  * deployment.
  */
-export type ServiceOriginResolver = (service: string) => string;
+export type ServiceOriginResolver = (service: string) => string
 
 /**
  * How a client reaches a service when the transport is not a direct HTTP call: the link to use for `service`, bound to
  * `contract`. The mesh supplies one that goes through the agent of the node.
  */
-export type ServiceLinkFactory = (service: string, contract: RouterContract) => ClientLink<ClientContext>;
+export type ServiceLinkFactory = (
+    service: string,
+    contract: RouterContract
+) => ClientLink<ClientContext>
 
 /** What the registry needs to address services. */
 export type ServiceClientOptions = {
-	/** Where a service answers, given its name. */
-	readonly resolveOrigin: ServiceOriginResolver;
-	/** Headers to send on every call — read per request. */
-	readonly headers?: ServiceRequestHeaderProvider;
-	/**
-	 * The transport, when it is the mesh: every call goes through this link instead of a direct HTTP call to the service's
-	 * origin. Absent, the registry calls each service's origin directly, which is how a node with no agent works alone.
-	 */
-	readonly link?: ServiceLinkFactory;
+    /** Where a service answers, given its name. */
+    readonly resolveOrigin: ServiceOriginResolver
+    /** Headers to send on every call — read per request. */
+    readonly headers?: ServiceRequestHeaderProvider
+    /**
+     * The transport, when it is the mesh: every call goes through this link instead of a direct HTTP call to the service's
+     * origin. Absent, the registry calls each service's origin directly, which is how a node with no agent works alone.
+     */
+    readonly link?: ServiceLinkFactory
 }
 
 /**
@@ -63,113 +70,131 @@ export type ServiceClientOptions = {
  * coupling this design keeps out.
  */
 export class ServiceClientRegistry implements ServiceClientBinder {
-	/**
-	 * One client per (service, contract).
-	 *
-	 * ── WHY THE CONTRACT IS PART OF THE KEY ─────────────────────────────────
-	 * One service answers on several contracts: the BFF binds `projectContract`,
-	 * `serviceContract`, `domainContract` and `servicePreviewTopologyContract` all to
-	 * `project`. Keyed by service alone, the second and later binds received the FIRST
-	 * contract's client — so calling one of the second contract's own procedures threw
-	 * `Expected procedure or contract path`, and calling one the first contract DID
-	 * declare silently reached the wrong route.
-	 *
-	 * The inner map is a `WeakMap` keyed by the contract OBJECT, which is what makes
-	 * this correct without leaking: a contract is a module-level singleton for the life
-	 * of the process, so entries are never dropped while a client can still be reached,
-	 * and a test that builds throwaway contracts does not accumulate them.
-	 */
-	private readonly clientsByService = new Map<string, WeakMap<object, object>>();
-	private readonly origins = new Map<string, string>();
+    /**
+     * One client per (service, contract).
+     *
+     * ── WHY THE CONTRACT IS PART OF THE KEY ─────────────────────────────────
+     * One service answers on several contracts: the BFF binds `projectContract`,
+     * `serviceContract`, `domainContract` and `servicePreviewTopologyContract` all to
+     * `project`. Keyed by service alone, the second and later binds received the FIRST
+     * contract's client — so calling one of the second contract's own procedures threw
+     * `Expected procedure or contract path`, and calling one the first contract DID
+     * declare silently reached the wrong route.
+     *
+     * The inner map is a `WeakMap` keyed by the contract OBJECT, which is what makes
+     * this correct without leaking: a contract is a module-level singleton for the life
+     * of the process, so entries are never dropped while a client can still be reached,
+     * and a test that builds throwaway contracts does not accumulate them.
+     */
+    private readonly clientsByService = new Map<
+        string,
+        WeakMap<object, object>
+    >()
+    private readonly origins = new Map<string, string>()
 
-	constructor(private readonly options: ServiceClientOptions) {}
+    constructor(private readonly options: ServiceClientOptions) {}
 
-	/** The bound client for `service`, driven (and typed) by `contract`. */
-	bind<T extends RouterContract>(service: string, contract: T): ServiceClient<T> {
-		const base = this.rawClientFor(service, contract);
+    /** The bound client for `service`, driven (and typed) by `contract`. */
+    bind<T extends RouterContract>(
+        service: string,
+        contract: T
+    ): ServiceClient<T> {
+        const base = this.rawClientFor(service, contract)
 
-		// The flattened names are provided as a Proxy over the SAME client rather than
-		// as a copy: the client is itself a Proxy, so a property read already resolves
-		// through the contract's tree. Wrapping it lets `client.findById` work without
-		// the registry having to know which leaf names exist — `BaseClient` does that
-		// walk, once, on the instance it hands to NestJS.
-		const bound = new Proxy(base as unknown as ServiceClient<T>, {
-			get: (target, property, receiver) => {
-				if (property === "raw") return target;
-				if (property === "service") return service;
-				if (property === "contract") return contract;
-				return Reflect.get(target, property, receiver) as unknown;
-			},
-		});
+        // The flattened names are provided as a Proxy over the SAME client rather than
+        // as a copy: the client is itself a Proxy, so a property read already resolves
+        // through the contract's tree. Wrapping it lets `client.findById` work without
+        // the registry having to know which leaf names exist — `BaseClient` does that
+        // walk, once, on the instance it hands to NestJS.
+        const bound = new Proxy(base as unknown as ServiceClient<T>, {
+            get: (target, property, receiver) => {
+                if (property === 'raw') return target
+                if (property === 'service') return service
+                if (property === 'contract') return contract
+                return Reflect.get(target, property, receiver) as unknown
+            },
+        })
 
-		return bound;
-	}
+        return bound
+    }
 
-	/** Every service this registry can reach, with where it expects to find it. */
-	describe(): { service: string; origin: string }[] {
-		const names = new Set<string>([...this.clientsByService.keys(), ...this.origins.keys()]);
-		return [...names].map((service) => ({ service, origin: this.originFor(service) }));
-	}
+    /** Every service this registry can reach, with where it expects to find it. */
+    describe(): { service: string; origin: string }[] {
+        const names = new Set<string>([
+            ...this.clientsByService.keys(),
+            ...this.origins.keys(),
+        ])
+        return [...names].map((service) => ({
+            service,
+            origin: this.originFor(service),
+        }))
+    }
 
-	private rawClientFor<T extends RouterContract>(
-		service: string,
-		contract: T,
-	): ContractRouterClient<T> {
-		let byContract = this.clientsByService.get(service);
-		if (byContract === undefined) {
-			byContract = new WeakMap<object, object>();
-			this.clientsByService.set(service, byContract);
-		}
+    private rawClientFor<T extends RouterContract>(
+        service: string,
+        contract: T
+    ): ContractRouterClient<T> {
+        let byContract = this.clientsByService.get(service)
+        if (byContract === undefined) {
+            byContract = new WeakMap<object, object>()
+            this.clientsByService.set(service, byContract)
+        }
 
-		const existing = byContract.get(contract);
-		if (existing !== undefined) {
-			return existing as ContractRouterClient<T>;
-		}
+        const existing = byContract.get(contract)
+        if (existing !== undefined) {
+            return existing as ContractRouterClient<T>
+        }
 
-		// Over the mesh the answer travels as oRPC RPC, which keeps dates, typed errors and streams as they are: there is
-		// nothing to revive or normalise, and the caller's credentials ride on each call.
-		if (this.options.link !== undefined) {
-			const meshClient = createORPCClient<ContractRouterClient<T>>(this.options.link(service, contract));
-			byContract.set(contract, meshClient);
-			return meshClient;
-		}
+        // Over the mesh the answer travels as oRPC RPC, which keeps dates, typed errors and streams as they are: there is
+        // nothing to revive or normalise, and the caller's credentials ride on each call.
+        if (this.options.link !== undefined) {
+            const meshClient = createORPCClient<ContractRouterClient<T>>(
+                this.options.link(service, contract)
+            )
+            byContract.set(contract, meshClient)
+            return meshClient
+        }
 
-		const client = createORPCClient<ContractRouterClient<T>>(
-			new OpenAPILink(contract, {
-				origin: this.originFor(service),
-				// ── WHY `fetch` AND NOT A `headers` OPTION ─────────────────────────
-				// The client is CACHED above and outlives the request that created it. A
-				// header set at construction would be whichever request happened to arrive
-				// first, and every later caller would be served as that user. The transport
-				// reads the headers per call, so one client per service serves every caller
-				// with that caller's own credentials.
-				fetch: makeServiceFetch({
-					service,
-					origin: this.originFor(service),
-					headers: () => this.options.headers?.() ?? {},
-				}),
-			}),
-			{
-				interceptors: [
-					// The service answered JSON, so a date arrives as an ISO string; the contract
-					// (which the BFF handler is validated against) says `Date`. Revive by schema.
-					async (options) => reviveDates(outputSchemaAt(contract, options.path), await options.next()),
-				],
-			},
-		);
+        const client = createORPCClient<ContractRouterClient<T>>(
+            new OpenAPILink(contract, {
+                origin: this.originFor(service),
+                // ── WHY `fetch` AND NOT A `headers` OPTION ─────────────────────────
+                // The client is CACHED above and outlives the request that created it. A
+                // header set at construction would be whichever request happened to arrive
+                // first, and every later caller would be served as that user. The transport
+                // reads the headers per call, so one client per service serves every caller
+                // with that caller's own credentials.
+                fetch: makeServiceFetch({
+                    service,
+                    origin: this.originFor(service),
+                    headers: () => this.options.headers?.() ?? {},
+                }),
+            }),
+            {
+                interceptors: [
+                    // The service answered JSON, so a date arrives as an ISO string; the contract
+                    // (which the BFF handler is validated against) says `Date`. Revive by schema.
+                    async (options) =>
+                        reviveDates(
+                            outputSchemaAt(contract, options.path),
+                            await options.next()
+                        ),
+                ],
+            }
+        )
 
-		byContract.set(contract, client);
-		return client;
-	}
+        byContract.set(contract, client)
+        return client
+    }
 
-	private originFor(service: string): string {
-		const cached = this.origins.get(service);
-		if (cached !== undefined) return cached;
+    private originFor(service: string): string {
+        const cached = this.origins.get(service)
+        if (cached !== undefined) return cached
 
-		const resolved = this.options.resolveOrigin(service);
-		this.origins.set(service, resolved);
-		return resolved;
-	}
+        const resolved = this.options.resolveOrigin(service)
+        this.origins.set(service, resolved)
+        return resolved
+    }
 }
 
 /**
@@ -179,11 +204,13 @@ export class ServiceClientRegistry implements ServiceClientBinder {
  * output schema, so index 0 is it.
  */
 function outputSchemaAt(contract: unknown, path: readonly string[]): unknown {
-	let node: unknown = contract;
-	for (const key of path) {
-		if (node === null || typeof node !== "object") return undefined;
-		node = (node as Record<string, unknown>)[key];
-	}
-	const descriptor = (node as { "~orpc"?: { outputSchemas?: unknown[] } } | undefined)?.["~orpc"];
-	return descriptor?.outputSchemas?.[0];
+    let node: unknown = contract
+    for (const key of path) {
+        if (node === null || typeof node !== 'object') return undefined
+        node = (node as Record<string, unknown>)[key]
+    }
+    const descriptor = (
+        node as { '~orpc'?: { outputSchemas?: unknown[] } } | undefined
+    )?.['~orpc']
+    return descriptor?.outputSchemas?.[0]
 }

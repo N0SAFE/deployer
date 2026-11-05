@@ -38,23 +38,23 @@ Standardize fleet node onboarding with explicit connectivity profiles so operato
 ## Typed model
 
 ```ts
-type ConnectivityProfile = "direct" | "edge";
+type ConnectivityProfile = 'direct' | 'edge'
 
 type NodeConnectivityConfig = {
-  profile: ConnectivityProfile;
-  advertisedUrl?: string; // required for direct
-  edge: {
-    heartbeatIntervalMs?: number;
-    reconnectBackoffMs?: number;
-    maxSessionAgeMs?: number;
-  };
-};
+    profile: ConnectivityProfile
+    advertisedUrl?: string // required for direct
+    edge: {
+        heartbeatIntervalMs?: number
+        reconnectBackoffMs?: number
+        maxSessionAgeMs?: number
+    }
+}
 
 type ConnectivityDiagnostic = {
-  status: "ok" | "degraded" | "failed";
-  reasonCode: string;
-  details?: Record<string, string | number | boolean>;
-};
+    status: 'ok' | 'degraded' | 'failed'
+    reasonCode: string
+    details?: Record<string, string | number | boolean>
+}
 ```
 
 ---
@@ -90,10 +90,10 @@ Where `connectivityHealthy` is derived from profile-specific probes:
 
 - Connectivity profile selector during node onboarding
 - Diagnostics panel with:
-  - current profile,
-  - handshake/session status,
-  - last successful heartbeat,
-  - reason code + remediation hints
+    - current profile,
+    - handshake/session status,
+    - last successful heartbeat,
+    - reason code + remediation hints
 - One-click test probe action before final admission
 
 ---

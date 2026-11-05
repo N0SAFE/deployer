@@ -126,9 +126,9 @@ describe('WorkspaceScanner', () => {
         const { workspaces } = new WorkspaceScanner().scan(root)
 
         expect(workspaces.has('@deployer/config-eslint')).toBe(true)
-        expect(
-            workspaces.has('@deployer/config-eslint-plugins-progress')
-        ).toBe(true)
+        expect(workspaces.has('@deployer/config-eslint-plugins-progress')).toBe(
+            true
+        )
     })
 
     it('records internal dependency edges between discovered workspaces', () => {

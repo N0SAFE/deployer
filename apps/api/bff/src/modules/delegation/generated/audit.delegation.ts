@@ -26,30 +26,34 @@
  * Regenerate with `scripts/gen-bff-delegation.py`; do not hand-edit.
  */
 
-import { Controller } from "@nestjs/common";
-import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
+import { Controller } from '@nestjs/common'
+import { Implement } from '@orpc/nest'
+import { implement } from '@orpc/server'
 
-import { auditContract } from "@deployer/identity-contracts";
+import { auditContract } from '@deployer/identity-contracts'
 
-import { ServiceClientRegistry } from "../../../clients/service-registry";
+import { ServiceClientRegistry } from '../../../clients/service-registry'
 
 @Controller()
 export class AuditDelegationController {
-	constructor(private readonly clients: ServiceClientRegistry) {}
+    constructor(private readonly clients: ServiceClientRegistry) {}
 
-	/** The typed client for the NAMESPACE this controller serves. */
-	private get client() {
-		return this.clients.for("identity", auditContract);
-	}
+    /** The typed client for the NAMESPACE this controller serves. */
+    private get client() {
+        return this.clients.for('identity', auditContract)
+    }
 
-	@Implement(auditContract.list)
-	list() {
-		return implement(auditContract.list).handler(({ input }) => this.client.list(input));
-	}
+    @Implement(auditContract.list)
+    list() {
+        return implement(auditContract.list).handler(({ input }) =>
+            this.client.list(input)
+        )
+    }
 
-	@Implement(auditContract.export)
-	export() {
-		return implement(auditContract.export).handler(({ input }) => this.client.export(input));
-	}
+    @Implement(auditContract.export)
+    export() {
+        return implement(auditContract.export).handler(({ input }) =>
+            this.client.export(input)
+        )
+    }
 }

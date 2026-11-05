@@ -1,14 +1,14 @@
 'use client'
 
 import {
-  CircleCheck,
-  CircleX,
-  Loader2,
-  Pause,
-  CircleHelp,
-  TriangleAlert,
-  Rocket,
-  type LucideIcon,
+    CircleCheck,
+    CircleX,
+    Loader2,
+    Pause,
+    CircleHelp,
+    TriangleAlert,
+    Rocket,
+    type LucideIcon,
 } from 'lucide-react'
 
 import { Badge } from '@deployer/ui/components/shadcn/badge'
@@ -41,11 +41,11 @@ export type StatusTone = 'live' | 'pending' | 'danger' | 'busy' | 'neutral'
  * "healthy" drifted into three different greens across the console.
  */
 export const statusToneClasses: Record<StatusTone, string> = {
-  live: 'bg-status-live',
-  pending: 'bg-status-pending',
-  danger: 'bg-status-danger',
-  busy: 'bg-status-busy',
-  neutral: 'bg-status-idle',
+    live: 'bg-status-live',
+    pending: 'bg-status-pending',
+    danger: 'bg-status-danger',
+    busy: 'bg-status-busy',
+    neutral: 'bg-status-idle',
 }
 
 /** The badge variant a status resolves to — the canonical union for adapters. */
@@ -53,78 +53,165 @@ export type StatusBadgeVariant = StatusMeta['variant']
 
 /** Derive a tone from a raw status string (docker, service, deployment, stream). */
 export function statusToneFrom(status: string | null | undefined): StatusTone {
-  const value = (status ?? '').toLowerCase()
-  if (
-    value === 'live' || value === 'healthy' || value === 'running' || value === 'active'
-    || value === 'connected' || value === 'success' || value === 'verified'
-    || value === 'synced' || value === 'ready' || value === 'deployed' || value === 'ok'
-    || value === 'completed'
-  ) {
-    return 'live'
-  }
-  if (
-    value === 'pending' || value === 'queued' || value === 'building' || value === 'deploying'
-    || value === 'connecting' || value === 'starting' || value === 'syncing' || value === 'restarting'
-    || value === 'initializing' || value === 'degraded' || value === 'at-risk' || value === 'warning'
-  ) {
-    return value === 'degraded' || value === 'at-risk' || value === 'warning' ? 'pending' : 'busy'
-  }
-  if (
-    value === 'failed' || value === 'error' || value === 'down' || value === 'dead'
-    || value === 'exited' || value === 'disconnected' || value === 'cancelled'
-    || value === 'canceled' || value === 'unhealthy' || value === 'crashloop'
-  ) {
-    return 'danger'
-  }
-  return 'neutral'
+    const value = (status ?? '').toLowerCase()
+    if (
+        value === 'live' ||
+        value === 'healthy' ||
+        value === 'running' ||
+        value === 'active' ||
+        value === 'connected' ||
+        value === 'success' ||
+        value === 'verified' ||
+        value === 'synced' ||
+        value === 'ready' ||
+        value === 'deployed' ||
+        value === 'ok' ||
+        value === 'completed'
+    ) {
+        return 'live'
+    }
+    if (
+        value === 'pending' ||
+        value === 'queued' ||
+        value === 'building' ||
+        value === 'deploying' ||
+        value === 'connecting' ||
+        value === 'starting' ||
+        value === 'syncing' ||
+        value === 'restarting' ||
+        value === 'initializing' ||
+        value === 'degraded' ||
+        value === 'at-risk' ||
+        value === 'warning'
+    ) {
+        return value === 'degraded' ||
+            value === 'at-risk' ||
+            value === 'warning'
+            ? 'pending'
+            : 'busy'
+    }
+    if (
+        value === 'failed' ||
+        value === 'error' ||
+        value === 'down' ||
+        value === 'dead' ||
+        value === 'exited' ||
+        value === 'disconnected' ||
+        value === 'cancelled' ||
+        value === 'canceled' ||
+        value === 'unhealthy' ||
+        value === 'crashloop'
+    ) {
+        return 'danger'
+    }
+    return 'neutral'
 }
 
 interface StatusMeta {
-  variant: 'success' | 'warning' | 'destructive' | 'info' | 'secondary' | 'outline' | 'default'
-  icon: LucideIcon
-  dotClass: string
-  animate?: boolean
+    variant:
+        | 'success'
+        | 'warning'
+        | 'destructive'
+        | 'info'
+        | 'secondary'
+        | 'outline'
+        | 'default'
+    icon: LucideIcon
+    dotClass: string
+    animate?: boolean
 }
 
-const SUCCESS: StatusMeta = { variant: 'success', icon: CircleCheck, dotClass: 'bg-status-live' }
-const WARNING: StatusMeta = { variant: 'warning', icon: TriangleAlert, dotClass: 'bg-status-pending' }
-const DESTRUCTIVE: StatusMeta = { variant: 'destructive', icon: CircleX, dotClass: 'bg-status-danger' }
-const INFO: StatusMeta = { variant: 'info', icon: Rocket, dotClass: 'bg-status-busy', animate: true }
-const NEUTRAL: StatusMeta = { variant: 'secondary', icon: Pause, dotClass: 'bg-status-idle' }
-const UNKNOWN: StatusMeta = { variant: 'outline', icon: CircleHelp, dotClass: 'bg-muted' }
+const SUCCESS: StatusMeta = {
+    variant: 'success',
+    icon: CircleCheck,
+    dotClass: 'bg-status-live',
+}
+const WARNING: StatusMeta = {
+    variant: 'warning',
+    icon: TriangleAlert,
+    dotClass: 'bg-status-pending',
+}
+const DESTRUCTIVE: StatusMeta = {
+    variant: 'destructive',
+    icon: CircleX,
+    dotClass: 'bg-status-danger',
+}
+const INFO: StatusMeta = {
+    variant: 'info',
+    icon: Rocket,
+    dotClass: 'bg-status-busy',
+    animate: true,
+}
+const NEUTRAL: StatusMeta = {
+    variant: 'secondary',
+    icon: Pause,
+    dotClass: 'bg-status-idle',
+}
+const UNKNOWN: StatusMeta = {
+    variant: 'outline',
+    icon: CircleHelp,
+    dotClass: 'bg-muted',
+}
 
 const STATUS_META: Record<string, StatusMeta> = {
-  // success / live
-  running: SUCCESS, healthy: SUCCESS, ready: SUCCESS, success: SUCCESS,
-  active: SUCCESS, deployed: SUCCESS, live: SUCCESS, connected: SUCCESS,
-  verified: SUCCESS, synced: SUCCESS, ok: SUCCESS, completed: SUCCESS,
-  // warning / amber
-  degraded: WARNING, 'at-risk': WARNING, warning: WARNING, queued: WARNING,
-  pending: WARNING, starting: WARNING, restarting: WARNING,
-  // destructive / rose
-  error: DESTRUCTIVE, failed: DESTRUCTIVE, down: DESTRUCTIVE, dead: DESTRUCTIVE,
-  unhealthy: DESTRUCTIVE, crashloop: DESTRUCTIVE, disconnected: DESTRUCTIVE,
-  cancelled: DESTRUCTIVE, canceled: DESTRUCTIVE,
-  // busy / sky (animated)
-  building: INFO, deploying: INFO, syncing: INFO, initializing: INFO,
-  connecting: INFO,
-  // neutral
-  stopped: NEUTRAL, paused: NEUTRAL, inactive: NEUTRAL,
-  exited: NEUTRAL, created: NEUTRAL, idle: NEUTRAL,
+    // success / live
+    running: SUCCESS,
+    healthy: SUCCESS,
+    ready: SUCCESS,
+    success: SUCCESS,
+    active: SUCCESS,
+    deployed: SUCCESS,
+    live: SUCCESS,
+    connected: SUCCESS,
+    verified: SUCCESS,
+    synced: SUCCESS,
+    ok: SUCCESS,
+    completed: SUCCESS,
+    // warning / amber
+    degraded: WARNING,
+    'at-risk': WARNING,
+    warning: WARNING,
+    queued: WARNING,
+    pending: WARNING,
+    starting: WARNING,
+    restarting: WARNING,
+    // destructive / rose
+    error: DESTRUCTIVE,
+    failed: DESTRUCTIVE,
+    down: DESTRUCTIVE,
+    dead: DESTRUCTIVE,
+    unhealthy: DESTRUCTIVE,
+    crashloop: DESTRUCTIVE,
+    disconnected: DESTRUCTIVE,
+    cancelled: DESTRUCTIVE,
+    canceled: DESTRUCTIVE,
+    // busy / sky (animated)
+    building: INFO,
+    deploying: INFO,
+    syncing: INFO,
+    initializing: INFO,
+    connecting: INFO,
+    // neutral
+    stopped: NEUTRAL,
+    paused: NEUTRAL,
+    inactive: NEUTRAL,
+    exited: NEUTRAL,
+    created: NEUTRAL,
+    idle: NEUTRAL,
 }
 
 export function statusMeta(status: string | null | undefined): StatusMeta {
-  if (!status) return UNKNOWN
-  return STATUS_META[status.toLowerCase()] ?? UNKNOWN
+    if (!status) return UNKNOWN
+    return STATUS_META[status.toLowerCase()] ?? UNKNOWN
 }
 
 /** Humanized label (sentence case, no underscores). */
 export function statusLabel(status: string | null | undefined): string {
-  if (!status) return 'Unknown'
-  return status
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+    if (!status) return 'Unknown'
+    return status
+        .toLowerCase()
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 /**
@@ -133,37 +220,44 @@ export function statusLabel(status: string | null | undefined): string {
  * reduced motion. Icon-free — pair with a label when not decorative.
  */
 export function StatusDot({
-  status,
-  tone,
-  pulse = false,
-  className,
-  label,
+    status,
+    tone,
+    pulse = false,
+    className,
+    label,
 }: {
-  status?: string | null
-  tone?: StatusTone
-  pulse?: boolean
-  className?: string
-  label?: string
+    status?: string | null
+    tone?: StatusTone
+    pulse?: boolean
+    className?: string
+    label?: string
 }) {
-  const resolvedTone = tone ?? statusToneFrom(status)
-  const animating = pulse || (status ? statusMeta(status).animate : false)
-  return (
-    <span
-      className={cn('relative inline-flex size-2 shrink-0', className)}
-      aria-hidden={label ? undefined : 'true'}
-      role={label ? 'img' : undefined}
-      aria-label={label}
-    >
-      <span
-        className={cn(
-          'absolute inline-flex size-full rounded-full',
-          animating && resolvedTone !== 'neutral' && 'animate-ping opacity-60 motion-reduce:animate-none',
-          statusToneClasses[resolvedTone],
-        )}
-      />
-      <span className={cn('relative inline-flex size-2 rounded-full', statusToneClasses[resolvedTone])} />
-    </span>
-  )
+    const resolvedTone = tone ?? statusToneFrom(status)
+    const animating = pulse || (status ? statusMeta(status).animate : false)
+    return (
+        <span
+            className={cn('relative inline-flex size-2 shrink-0', className)}
+            aria-hidden={label ? undefined : 'true'}
+            role={label ? 'img' : undefined}
+            aria-label={label}
+        >
+            <span
+                className={cn(
+                    'absolute inline-flex size-full rounded-full',
+                    animating &&
+                        resolvedTone !== 'neutral' &&
+                        'animate-ping opacity-60 motion-reduce:animate-none',
+                    statusToneClasses[resolvedTone]
+                )}
+            />
+            <span
+                className={cn(
+                    'relative inline-flex size-2 rounded-full',
+                    statusToneClasses[resolvedTone]
+                )}
+            />
+        </span>
+    )
 }
 
 /**
@@ -172,81 +266,107 @@ export function StatusDot({
  * deployments, domains, and stream states across the console.
  */
 export function StatusBadge({
-  status,
-  className,
-  showDot = true,
-  pulse,
-  title,
-  children,
+    status,
+    className,
+    showDot = true,
+    pulse,
+    title,
+    children,
 }: {
-  status: string | null | undefined
-  className?: string
-  showDot?: boolean
-  pulse?: boolean
-  /** Native tooltip explaining the evidence behind the status (e.g. "last seen 3 min ago"). */
-  title?: string
-  /** Optional custom label (defaults to the humanized status). */
-  children?: React.ReactNode
+    status: string | null | undefined
+    className?: string
+    showDot?: boolean
+    pulse?: boolean
+    /** Native tooltip explaining the evidence behind the status (e.g. "last seen 3 min ago"). */
+    title?: string
+    /** Optional custom label (defaults to the humanized status). */
+    children?: React.ReactNode
 }) {
-  const meta = statusMeta(status)
-  const Icon = meta.icon
-  const animating = pulse === true || meta.animate
-  return (
-    <Badge variant={meta.variant} title={title} className={cn('gap-1 capitalize', className)}>
-      {showDot ? (
-        <StatusDot status={status} pulse={animating} />
-      ) : null}
-      <Icon className={cn('size-3', meta.animate && !pulse && 'animate-spin motion-reduce:animate-none')} />
-      {children ?? statusLabel(status)}
-    </Badge>
-  )
+    const meta = statusMeta(status)
+    const Icon = meta.icon
+    const animating = pulse === true || meta.animate
+    return (
+        <Badge
+            variant={meta.variant}
+            title={title}
+            className={cn('gap-1 capitalize', className)}
+        >
+            {showDot ? <StatusDot status={status} pulse={animating} /> : null}
+            <Icon
+                className={cn(
+                    'size-3',
+                    meta.animate &&
+                        !pulse &&
+                        'animate-spin motion-reduce:animate-none'
+                )}
+            />
+            {children ?? statusLabel(status)}
+        </Badge>
+    )
 }
 
 /** StatusMetric — a compact live-metric tile for bento panels: label + value + dot. */
 export function StatusMetric({
-  label,
-  value,
-  status,
-  tone,
-  pulse = false,
-  icon: Icon,
-  hint,
-  loading = false,
-  className,
+    label,
+    value,
+    status,
+    tone,
+    pulse = false,
+    icon: Icon,
+    hint,
+    loading = false,
+    className,
 }: {
-  label: string
-  value: React.ReactNode
-  status?: string | null
-  tone?: StatusTone
-  pulse?: boolean
-  icon?: LucideIcon
-  hint?: string
-  loading?: boolean
-  className?: string
+    label: string
+    value: React.ReactNode
+    status?: string | null
+    tone?: StatusTone
+    pulse?: boolean
+    icon?: LucideIcon
+    hint?: string
+    loading?: boolean
+    className?: string
 }) {
-  const resolvedTone = tone ?? statusToneFrom(status)
-  return (
-    <div
-      className={cn(
-        'rounded-xl border border-border/60 bg-card/40 px-3.5 py-3 backdrop-blur-xl',
-        className,
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <div className="flex items-center gap-1.5">
-          {Icon ? <Icon className={cn('size-3.5', statusToneClasses[resolvedTone])} /> : null}
-          <StatusDot status={status} tone={resolvedTone} pulse={pulse} />
+    const resolvedTone = tone ?? statusToneFrom(status)
+    return (
+        <div
+            className={cn(
+                'border-border/60 bg-card/40 rounded-xl border px-3.5 py-3 backdrop-blur-xl',
+                className
+            )}
+        >
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-muted-foreground truncate text-xs font-medium tracking-wider uppercase">
+                    {label}
+                </p>
+                <div className="flex items-center gap-1.5">
+                    {Icon ? (
+                        <Icon
+                            className={cn(
+                                'size-3.5',
+                                statusToneClasses[resolvedTone]
+                            )}
+                        />
+                    ) : null}
+                    <StatusDot
+                        status={status}
+                        tone={resolvedTone}
+                        pulse={pulse}
+                    />
+                </div>
+            </div>
+            {loading ? (
+                <Loader2 className="text-muted-foreground mt-2 size-5 animate-spin" />
+            ) : (
+                <p className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums">
+                    {value}
+                </p>
+            )}
+            {hint ? (
+                <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                    {hint}
+                </p>
+            ) : null}
         </div>
-      </div>
-      {loading ? (
-        <Loader2 className="mt-2 size-5 animate-spin text-muted-foreground" />
-      ) : (
-        <p className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums">{value}</p>
-      )}
-      {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
-  )
+    )
 }

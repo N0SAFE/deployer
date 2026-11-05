@@ -5,14 +5,18 @@ import { useState } from 'react'
 
 import { Button } from '@deployer/ui/components/shadcn/button'
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
 } from '@deployer/ui/components/shadcn/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@deployer/ui/components/shadcn/popover'
 import { cn } from '@deployer/ui/lib/utils'
 
 /**
@@ -21,98 +25,138 @@ import { cn } from '@deployer/ui/lib/utils'
  * remain free-form (e.g. root paths, start commands, compose files).
  */
 export function AutocompleteField({
-  value,
-  onChange,
-  options,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search or type a custom value…',
-  emptyMessage = 'No preset found.',
-  allowCustom = true,
-  detected,
-  className,
-  onClose,
+    value,
+    onChange,
+    options,
+    placeholder = 'Select…',
+    searchPlaceholder = 'Search or type a custom value…',
+    emptyMessage = 'No preset found.',
+    allowCustom = true,
+    detected,
+    className,
+    onClose,
 }: {
-  value: string
-  onChange: (next: string) => void
-  options: readonly string[]
-  placeholder?: string
-  searchPlaceholder?: string
-  emptyMessage?: string
-  /** Allow free-text custom values not in the presets. */
-  allowCustom?: boolean
-  /** A suggested value (e.g. from auto-detection) highlighted in the list. */
-  detected?: string
-  className?: string
-  /** Called when the popover closes — wire to the field's blur so required errors can show. */
-  onClose?: () => void
+    value: string
+    onChange: (next: string) => void
+    options: readonly string[]
+    placeholder?: string
+    searchPlaceholder?: string
+    emptyMessage?: string
+    /** Allow free-text custom values not in the presets. */
+    allowCustom?: boolean
+    /** A suggested value (e.g. from auto-detection) highlighted in the list. */
+    detected?: string
+    className?: string
+    /** Called when the popover closes — wire to the field's blur so required errors can show. */
+    onClose?: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
+    const [open, setOpen] = useState(false)
+    const [search, setSearch] = useState('')
 
-  const allOptions = detected && !options.includes(detected) ? [detected, ...options] : [...options]
-  const filtered = allOptions.filter((o) => o.toLowerCase().includes(search.toLowerCase()))
-  const customValue = search.trim()
+    const allOptions =
+        detected && !options.includes(detected)
+            ? [detected, ...options]
+            : [...options]
+    const filtered = allOptions.filter((o) =>
+        o.toLowerCase().includes(search.toLowerCase())
+    )
+    const customValue = search.trim()
 
-  const select = (next: string) => {
-    onChange(next)
-    setOpen(false)
-    setSearch('')
-  }
+    const select = (next: string) => {
+        onChange(next)
+        setOpen(false)
+        setSearch('')
+    }
 
-  return (
-    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) onClose?.() }}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn('w-full justify-between font-normal', className)}
+    return (
+        <Popover
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next)
+                if (!next) onClose?.()
+            }}
         >
-          <span className={cn('truncate', !value && 'text-muted-foreground')}>
-            {value || placeholder}
-          </span>
-          <ChevronsUpDown className="ml-2 size-3.5 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
-          <CommandList>
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
-            {filtered.length > 0 && (
-              <CommandGroup>
-                {filtered.map((o) => (
-                  <CommandItem
-                    key={o}
-                    value={o}
-                    onSelect={() => { select(o) }}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="truncate">{o}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {detected === o && <span className="text-xs text-primary">detected</span>}
-                      {value === o && <Check className="size-3.5 text-primary" />}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-            {allowCustom && customValue && !filtered.includes(customValue) && (
-              <CommandGroup heading="Custom value">
-                <CommandItem
-                  value={`__custom__${customValue}`}
-                  onSelect={() => { select(customValue) }}
-                  className="flex items-center gap-2 text-primary"
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className={cn(
+                        'w-full justify-between font-normal',
+                        className
+                    )}
                 >
-                  <PencilLine className="size-3.5" />
-                  <span className="truncate">Use “{customValue}”</span>
-                </CommandItem>
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
+                    <span
+                        className={cn(
+                            'truncate',
+                            !value && 'text-muted-foreground'
+                        )}
+                    >
+                        {value || placeholder}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-3.5 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                className="w-(--radix-popover-trigger-width) p-0"
+                align="start"
+            >
+                <Command shouldFilter={false}>
+                    <CommandInput
+                        placeholder={searchPlaceholder}
+                        value={search}
+                        onValueChange={setSearch}
+                    />
+                    <CommandList>
+                        <CommandEmpty>{emptyMessage}</CommandEmpty>
+                        {filtered.length > 0 && (
+                            <CommandGroup>
+                                {filtered.map((o) => (
+                                    <CommandItem
+                                        key={o}
+                                        value={o}
+                                        onSelect={() => {
+                                            select(o)
+                                        }}
+                                        className="flex items-center justify-between gap-2"
+                                    >
+                                        <span className="truncate">{o}</span>
+                                        <span className="flex shrink-0 items-center gap-1.5">
+                                            {detected === o && (
+                                                <span className="text-primary text-xs">
+                                                    detected
+                                                </span>
+                                            )}
+                                            {value === o && (
+                                                <Check className="text-primary size-3.5" />
+                                            )}
+                                        </span>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        )}
+                        {allowCustom &&
+                            customValue &&
+                            !filtered.includes(customValue) && (
+                                <CommandGroup heading="Custom value">
+                                    <CommandItem
+                                        value={`__custom__${customValue}`}
+                                        onSelect={() => {
+                                            select(customValue)
+                                        }}
+                                        className="text-primary flex items-center gap-2"
+                                    >
+                                        <PencilLine className="size-3.5" />
+                                        <span className="truncate">
+                                            Use “{customValue}”
+                                        </span>
+                                    </CommandItem>
+                                </CommandGroup>
+                            )}
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
 }

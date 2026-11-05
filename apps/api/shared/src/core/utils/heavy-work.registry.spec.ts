@@ -7,7 +7,9 @@ import {
 } from './heavy-work.registry'
 
 describe('heavy-work registry', () => {
-    beforeEach(() => { resetHeavyWorkForTests(); })
+    beforeEach(() => {
+        resetHeavyWorkForTests()
+    })
 
     it('counts work in flight per kind', () => {
         const releaseScan = beginHeavyWork('scan')

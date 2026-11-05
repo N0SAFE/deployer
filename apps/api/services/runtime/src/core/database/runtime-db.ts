@@ -29,15 +29,17 @@ export class RuntimeDb extends Context.Service<
     RuntimeDb,
     LazyDbShape<GlobalDatabase, RuntimeDatabasePort>
 >()('runtime/Db') {
-    static readonly live: LazyDbShape<GlobalDatabase, RuntimeDatabasePort> = lazyPgDb(RuntimeDatabasePort, {
-        name: 'runtime',
-        pool: ({ db }) => (db as unknown as { readonly $client: PgPoolLike }).$client,
-        // Same schema (and so the same relational `query` API) as the shared database.
-        makeDb:
-            ({ db }) =>
-            (client: PgClientLike) =>
-                drizzle(client as never, { schema: db._.fullSchema }),
-    })
+    static readonly live: LazyDbShape<GlobalDatabase, RuntimeDatabasePort> =
+        lazyPgDb(RuntimeDatabasePort, {
+            name: 'runtime',
+            pool: ({ db }) =>
+                (db as unknown as { readonly $client: PgPoolLike }).$client,
+            // Same schema (and so the same relational `query` API) as the shared database.
+            makeDb:
+                ({ db }) =>
+                (client: PgClientLike) =>
+                    drizzle(client as never, { schema: db._.fullSchema }),
+        })
 }
 
 /**
@@ -45,10 +47,21 @@ export class RuntimeDb extends Context.Service<
  * deployment repository and the queue lifecycle). It is the SAME shared handle, so a transaction they
  * open is visible to the Effect services. Remove it when those callers move onto the tag.
  */
-export function runtimeDbOver(database: GlobalDatabaseServiceShape): DbShape<GlobalDatabase> {
+export function runtimeDbOver(
+    database: GlobalDatabaseServiceShape
+): DbShape<GlobalDatabase> {
     return {
-        use: (fn) => Effect.provideService(RuntimeDb.live.use(fn), RuntimeDatabasePort, database),
+        use: (fn) =>
+            Effect.provideService(
+                RuntimeDb.live.use(fn),
+                RuntimeDatabasePort,
+                database
+            ),
         transaction: (effect) =>
-            Effect.provideService(RuntimeDb.live.transaction(effect), RuntimeDatabasePort, database),
+            Effect.provideService(
+                RuntimeDb.live.transaction(effect),
+                RuntimeDatabasePort,
+                database
+            ),
     }
 }

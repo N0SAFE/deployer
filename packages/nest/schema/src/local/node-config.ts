@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 /**
  * Setup state machine for the node startup protocol.
@@ -14,45 +14,54 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  *                       or rollback needed.
  */
 export type SetupState =
-  | "not_started"
-  | "setup_in_progress"
-  | "setup_done"
-  | "upgrade_pending"
-  | "upgrade_in_progress"
-  | "upgrade_failed";
+    | 'not_started'
+    | 'setup_in_progress'
+    | 'setup_done'
+    | 'upgrade_pending'
+    | 'upgrade_in_progress'
+    | 'upgrade_failed'
 
 /**
  * Stores node-level configuration that persists between restarts.
  * Single-row table (id = 1 always).
  * Managed by the local SQLite database — no Postgres required.
  */
-export const nodeConfig = sqliteTable("node_config", {
-    id: integer("id")
+export const nodeConfig = sqliteTable('node_config', {
+    id: integer('id')
         .primaryKey({ autoIncrement: false })
         .notNull()
         .$default(() => 1),
 
     /** UUID identifying this node in the mesh */
-    nodeId: text("node_id").notNull(),
+    nodeId: text('node_id').notNull(),
 
     /** Bootstrap strategy: "local" or "remote" */
-    strategy: text("strategy", { enum: ["local", "remote"] }).notNull(),
+    strategy: text('strategy', { enum: ['local', 'remote'] }).notNull(),
 
     /**
      * Current state of the node setup protocol.
      * Determines which path the startup coordinator takes.
      * Defaults to "not_started" for fresh installs.
      */
-    setupState: text("setup_state", {
-      enum: ["not_started", "setup_in_progress", "setup_done", "upgrade_pending", "upgrade_in_progress", "upgrade_failed"],
-    }).notNull().default("not_started"),
+    setupState: text('setup_state', {
+        enum: [
+            'not_started',
+            'setup_in_progress',
+            'setup_done',
+            'upgrade_pending',
+            'upgrade_in_progress',
+            'upgrade_failed',
+        ],
+    })
+        .notNull()
+        .default('not_started'),
 
     /**
      * The deployer version (apps/api/package.json) at the time of setup.
      * Compared against mesh peers on every startup to detect version drift.
      * Null on nodes that have never completed setup.
      */
-    deployerVersion: text("deployer_version"),
+    deployerVersion: text('deployer_version'),
 
     /**
      * The deployer version (apps/api/package.json) at the time of the
@@ -60,13 +69,15 @@ export const nodeConfig = sqliteTable("node_config", {
      * determine whether an upgrade is in progress.
      * Null on nodes that have never been upgraded.
      */
-    upgradedAtVersion: text("upgraded_at_version"),
+    upgradedAtVersion: text('upgraded_at_version'),
 
     /** Mesh bootstrap URL snapshot, stored locally for reconnect order */
-    meshUrlsSnapshot: text("mesh_urls_snapshot", { mode: "json" }).$type<string[]>(),
-    
+    meshUrlsSnapshot: text('mesh_urls_snapshot', { mode: 'json' }).$type<
+        string[]
+    >(),
+
     /** Stored database URL (null for not-yet-configured nodes) */
-    databaseUrl: text("database_url"),
+    databaseUrl: text('database_url'),
 
     /**
      * How the global Postgres database is provisioned:
@@ -78,12 +89,12 @@ export const nodeConfig = sqliteTable("node_config", {
      *                current probe + startup-guard logic applies.
      *   null       — legacy/unknown (treated as external — no supervision).
      */
-    databaseProvisioning: text("database_provisioning", {
-      enum: ["local", "external"],
+    databaseProvisioning: text('database_provisioning', {
+        enum: ['local', 'external'],
     }),
 
     /** ISO-8601 timestamp when the node was first configured (null if not configured) */
-    configuredAt: text("configured_at"),
+    configuredAt: text('configured_at'),
 
     /**
      * Long-lived peer service token issued by the remote mesh during
@@ -92,17 +103,17 @@ export const nodeConfig = sqliteTable("node_config", {
      * survives restarts of the local node without re-enrollment.
      * Null on nodes that have not (yet) joined a remote mesh.
      */
-    peerServiceToken: text("peer_service_token"),
+    peerServiceToken: text('peer_service_token'),
 
     /**
      * ISO-8601 timestamp at which `peerServiceToken` stops being accepted
      * by the remote mesh. Used to surface expiring tokens in the UI /
      * healthchecks. Null alongside `peerServiceToken`.
      */
-    peerServiceTokenExpiresAt: text("peer_service_token_expires_at"),
+    peerServiceTokenExpiresAt: text('peer_service_token_expires_at'),
 
     /** ISO-8601 timestamp of last update to this row */
-    updatedAt: text("updated_at").notNull(),
+    updatedAt: text('updated_at').notNull(),
 
     /**
      * The mesh shared secret used by `requireMesh()` / `requireInternalMesh()`
@@ -112,13 +123,13 @@ export const nodeConfig = sqliteTable("node_config", {
      *
      * Null on nodes that have not yet been configured / joined a mesh.
      */
-    meshSharedSecret: text("mesh_shared_secret"),
+    meshSharedSecret: text('mesh_shared_secret'),
 
     /**
      * ISO-8601 timestamp when `meshSharedSecret` was last rotated.
      * Null if the secret has never been set.
      */
-    meshSharedSecretUpdatedAt: text("mesh_shared_secret_updated_at"),
+    meshSharedSecretUpdatedAt: text('mesh_shared_secret_updated_at'),
 
     /**
      * Scanner configuration as JSON.
@@ -128,9 +139,9 @@ export const nodeConfig = sqliteTable("node_config", {
      *
      * Shape: { autoScan: boolean; scanners: string[] }
      */
-    scanConfig: text("scan_config", { mode: "json" }).$type<{
-        autoScan: boolean;
-        scanners: ("trivy" | "grype" | "dive")[];
+    scanConfig: text('scan_config', { mode: 'json' }).$type<{
+        autoScan: boolean
+        scanners: ('trivy' | 'grype' | 'dive')[]
     } | null>(),
 
     /**
@@ -138,7 +149,10 @@ export const nodeConfig = sqliteTable("node_config", {
      * Stores which post-setup hints have been dismissed (e.g. "scanning": "dismissed").
      * Null = no hints have been acted upon yet.
      */
-    postSetupFlags: text("post_setup_flags", { mode: "json" }).$type<Record<string, string> | null>(),
+    postSetupFlags: text('post_setup_flags', { mode: 'json' }).$type<Record<
+        string,
+        string
+    > | null>(),
 
     /**
      * Swarm participation config as JSON (decided at setup, editable later):
@@ -151,14 +165,14 @@ export const nodeConfig = sqliteTable("node_config", {
      * fallback, and no "off" — the deployer always runs its supervised workloads
      * on Swarm.
      */
-    swarmConfig: text("swarm_config", { mode: "json" }).$type<{
-        mode: "create" | "join";
-        policy: "auto" | "manager" | "worker";
-        advertiseAddr: string | null;
-        joinToken: string | null;
-        joinAddrs: string[];
+    swarmConfig: text('swarm_config', { mode: 'json' }).$type<{
+        mode: 'create' | 'join'
+        policy: 'auto' | 'manager' | 'worker'
+        advertiseAddr: string | null
+        joinToken: string | null
+        joinAddrs: string[]
     } | null>(),
-});
+})
 
-export type NodeConfigRow = typeof nodeConfig.$inferSelect;
-export type NewNodeConfigRow = typeof nodeConfig.$inferInsert;
+export type NodeConfigRow = typeof nodeConfig.$inferSelect
+export type NewNodeConfigRow = typeof nodeConfig.$inferInsert

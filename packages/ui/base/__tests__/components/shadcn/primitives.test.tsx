@@ -3,9 +3,17 @@ import { describe, expect, it } from 'vitest'
 
 import { Badge, badgeVariants } from '../../../src/components/shadcn/badge'
 import { Button, buttonVariants } from '../../../src/components/shadcn/button'
-import { Skeleton, skeletonVariants } from '../../../src/components/shadcn/skeleton'
+import {
+    Skeleton,
+    skeletonVariants,
+} from '../../../src/components/shadcn/skeleton'
 import { Spinner } from '../../../src/components/shadcn/spinner'
-import { Table, TableCell, TableBody, TableRow } from '../../../src/components/shadcn/table'
+import {
+    Table,
+    TableCell,
+    TableBody,
+    TableRow,
+} from '../../../src/components/shadcn/table'
 
 describe('Button', () => {
     it('is unchanged without loading', () => {
@@ -29,7 +37,7 @@ describe('Button', () => {
         render(
             <Button asChild>
                 <a href="/target">Go</a>
-            </Button>,
+            </Button>
         )
         const link = screen.getByRole('link', { name: 'Go' })
         expect(link).toHaveAttribute('href', '/target')
@@ -41,27 +49,36 @@ describe('Button', () => {
         expect(screen.getByRole('button')).toHaveTextContent('Save')
     })
     it('resolves every size to a height class', () => {
-        for (const s of ['default', 'xs', 'sm', 'lg'] as const) expect(buttonVariants({ size: s })).toMatch(/\bh-\d/)
+        for (const s of ['default', 'xs', 'sm', 'lg'] as const)
+            expect(buttonVariants({ size: s })).toMatch(/\bh-\d/)
     })
 })
 
 describe('Badge', () => {
-    it.each(['success', 'warning', 'info', 'destructive'] as const)('%s variant resolves', (v) => {
-        expect(badgeVariants({ variant: v })).toContain('text-')
-    })
-    it.each(['success-subtle', 'warning-subtle', 'danger-subtle', 'info-subtle', 'neutral'] as const)(
-        '%s uses the semantic tokens',
+    it.each(['success', 'warning', 'info', 'destructive'] as const)(
+        '%s variant resolves',
         (v) => {
-            const root = v.replace('-subtle', '')
-            const cls = badgeVariants({ variant: v })
-            expect(cls).toContain(`text-${root}`)
-            expect(cls).toContain(`bg-${root}-bg`)
-            expect(cls).toContain(`border-${root}-border`)
+            expect(badgeVariants({ variant: v })).toContain('text-')
         }
     )
+    it.each([
+        'success-subtle',
+        'warning-subtle',
+        'danger-subtle',
+        'info-subtle',
+        'neutral',
+    ] as const)('%s uses the semantic tokens', (v) => {
+        const root = v.replace('-subtle', '')
+        const cls = badgeVariants({ variant: v })
+        expect(cls).toContain(`text-${root}`)
+        expect(cls).toContain(`bg-${root}-bg`)
+        expect(cls).toContain(`border-${root}-border`)
+    })
     it('renders text at least 12px', () => {
         render(<Badge>ok</Badge>)
-        expect(screen.getByText('ok').className).not.toMatch(/text-\[0\.625rem\]|text-\[10px\]/)
+        expect(screen.getByText('ok').className).not.toMatch(
+            /text-\[0\.625rem\]|text-\[10px\]/
+        )
     })
 })
 
@@ -92,7 +109,12 @@ describe('Table', () => {
                 </TableBody>
             </Table>
         )
-        expect(container.querySelector('table')).toHaveAttribute('data-sticky-header', 'true')
-        expect(container.querySelector('td')?.className).toContain('data-[numeric]:tabular-nums')
+        expect(container.querySelector('table')).toHaveAttribute(
+            'data-sticky-header',
+            'true'
+        )
+        expect(container.querySelector('td')?.className).toContain(
+            'data-[numeric]:tabular-nums'
+        )
     })
 })

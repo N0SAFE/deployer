@@ -1,8 +1,8 @@
-import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
-import type { PostgresIdentity } from "@deployer/docker";
-import { splitManagedEnv } from "@deployer/env";
+import { MANAGED_POSTGRES_IMAGE } from '@deployer/docker'
+import type { PostgresIdentity } from '@deployer/docker'
+import { splitManagedEnv } from '@deployer/env'
 
-import type { EnvService } from "../../../../../config/env/env.module";
+import type { EnvService } from '../../../../../config/env/env.module'
 
 /**
  * Resolve the Postgres identity from THE API'S environment.
@@ -22,11 +22,11 @@ import type { EnvService } from "../../../../../config/env/env.module";
  * existing volume was created with.
  */
 export function resolvePostgresIdentity(env: EnvService): PostgresIdentity {
-    const managed = splitManagedEnv(env).globalDb;
+    const managed = splitManagedEnv(env).globalDb
     return {
         databaseName: managed.name,
         username: managed.user,
         password: managed.password,
         image: MANAGED_POSTGRES_IMAGE,
-    };
+    }
 }

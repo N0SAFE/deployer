@@ -8,20 +8,22 @@ describe('WithEnv Middleware', () => {
     const mockEnvIsValid = vi.fn()
     const mockValidateEnvSafe = vi.fn()
     const mockMatcherHandler = vi.fn()
-    const mockToAbsoluteUrl = vi.fn((path: string) => `http://localhost:3003${path}`)
+    const mockToAbsoluteUrl = vi.fn(
+        (path: string) => `http://localhost:3003${path}`
+    )
     const mockCreateContextFilterDebugLogger = vi.fn(() => vi.fn())
-    
+
     beforeEach(() => {
         vi.clearAllMocks()
         // @ts-expect-error set NODE_ENV for tests
         process.env.NODE_ENV = 'development'
-        
+
         // Mock the modules using vi.doMock which works at runtime
         vi.doMock('#/env', () => ({
             envSchema: {
                 parse: vi.fn(),
                 safeParse: vi.fn(),
-                shape: {}
+                shape: {},
             },
             envIsValid: mockEnvIsValid,
             validateEnvSafe: mockValidateEnvSafe,
@@ -48,7 +50,9 @@ describe('WithEnv Middleware', () => {
         }))
 
         vi.doMock('@/routes', () => ({
-            InternalMiddlewareErrorEnv: vi.fn().mockReturnValue('/middleware/error/env'),
+            InternalMiddlewareErrorEnv: vi
+                .fn()
+                .mockReturnValue('/middleware/error/env'),
         }))
     })
 
@@ -74,7 +78,7 @@ describe('WithEnv Middleware', () => {
 
         it('should redirect from error page to home when env is valid', async () => {
             const { default: withEnv } = await import('../WithEnv')
-            
+
             const request = createMockRequest(
                 `http://localhost:3003${errorPagePath}`
             )
@@ -95,7 +99,7 @@ describe('WithEnv Middleware', () => {
 
         it('should redirect from error page to "from" parameter when env is valid', async () => {
             const { default: withEnv } = await import('../WithEnv')
-            
+
             const fromUrl = '/dashboard'
             const request = createMockRequest(
                 `http://localhost:3003${errorPagePath}`,
@@ -114,7 +118,7 @@ describe('WithEnv Middleware', () => {
 
         it('should call next middleware when not on error page and env is valid', async () => {
             const { default: withEnv } = await import('../WithEnv')
-            
+
             const request = createMockRequest('http://localhost:3003/dashboard')
             mockMatcherHandler.mockReturnValue({
                 hit: true,
@@ -139,7 +143,7 @@ describe('WithEnv Middleware', () => {
 
         it('should redirect to error page in development mode', async () => {
             const { default: withEnv } = await import('../WithEnv')
-            
+
             // @ts-expect-error set NODE_ENV for tests
             process.env.NODE_ENV = 'development'
             const request = createMockRequest('http://localhost:3003/dashboard')
@@ -159,7 +163,7 @@ describe('WithEnv Middleware', () => {
 
         it('should throw error in production mode', async () => {
             const { default: withEnv } = await import('../WithEnv')
-            
+
             // @ts-expect-error set NODE_ENV for tests
             process.env.NODE_ENV = 'production'
             const request = createMockRequest('http://localhost:3003/dashboard')
@@ -187,7 +191,7 @@ describe('WithEnv Middleware', () => {
 
         it('should call next middleware when matcher does not hit', async () => {
             const { default: withEnv } = await import('../WithEnv')
-            
+
             const request = createMockRequest('http://localhost:3003/api/test')
             const mockResponse = NextResponse.next()
             mockNext.mockReturnValue(mockResponse)

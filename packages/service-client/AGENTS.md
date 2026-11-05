@@ -20,10 +20,10 @@ await identityService.user.getById({ ... });
 
 ## The two moving parts
 
-| Piece | Job |
-|---|---|
-| `BaseClient` | Copies a contract's **leaf** procedures onto the instance as bound, non-enumerable methods, keyed by their path in the router. |
-| `ServiceClientRegistry` | Caches one client per service, and sets auth headers **per request** via a fetch hook rather than per client. |
+| Piece                   | Job                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `BaseClient`            | Copies a contract's **leaf** procedures onto the instance as bound, non-enumerable methods, keyed by their path in the router. |
+| `ServiceClientRegistry` | Caches one client per service, and sets auth headers **per request** via a fetch hook rather than per client.                  |
 
 ## Rules
 

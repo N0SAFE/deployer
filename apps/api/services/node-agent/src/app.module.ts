@@ -1,15 +1,20 @@
 import {
-	createModuleContext,
-	EffectRuntimeModule,
-	EffectHostModule,
-	EffectHost,
-} from "@deployer/nest-effect";
-import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
-import { PreflightModule, DEPENDENCIES, ServiceHealthModule, createMeshOrpcModule } from "@deployer/shared/server";
+    createModuleContext,
+    EffectRuntimeModule,
+    EffectHostModule,
+    EffectHost,
+} from '@deployer/nest-effect'
+import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module'
+import {
+    PreflightModule,
+    DEPENDENCIES,
+    ServiceHealthModule,
+    createMeshOrpcModule,
+} from '@deployer/shared/server'
 
-import { AgentLocalModule } from "./local/agent-local.module";
-import { MeshDomainModule } from "./modules/mesh/mesh.module";
-import { NodeAgentTransportModule } from "./transport/mesh-transport.module";
+import { AgentLocalModule } from './local/agent-local.module'
+import { MeshDomainModule } from './modules/mesh/mesh.module'
+import { NodeAgentTransportModule } from './transport/mesh-transport.module'
 
 /**
  * The node-agent service.
@@ -22,23 +27,25 @@ import { NodeAgentTransportModule } from "./transport/mesh-transport.module";
  * Imports only. A domain module owns the controllers and providers.
  */
 export class NodeAgentServiceModule extends createModuleContext({
-  imports: [
-    AgentLocalModule,
-    AppLifecycleModule.forRoot(),
-    PreflightModule.forRoot({ dependencies: DEPENDENCIES.none }),
-    ServiceHealthModule,
-    EffectHostModule,
-    createMeshOrpcModule({
-      extraContext: {
-        inject: [EffectHost],
-        resolve: (executionContext, host) => ({
-          "effect/context": host.contextFor(executionContext.getClass()),
+    imports: [
+        AgentLocalModule,
+        AppLifecycleModule.forRoot(),
+        PreflightModule.forRoot({ dependencies: DEPENDENCIES.none }),
+        ServiceHealthModule,
+        EffectHostModule,
+        createMeshOrpcModule({
+            extraContext: {
+                inject: [EffectHost],
+                resolve: (executionContext, host) => ({
+                    'effect/context': host.contextFor(
+                        executionContext.getClass()
+                    ),
+                }),
+            },
         }),
-      },
-    }),
-    EffectRuntimeModule,
-    // The host is how a boundary (the oRPC transport here, a loop elsewhere) reaches the runtime as a service.
-    MeshDomainModule,
-    NodeAgentTransportModule,
-  ],
+        EffectRuntimeModule,
+        // The host is how a boundary (the oRPC transport here, a loop elsewhere) reaches the runtime as a service.
+        MeshDomainModule,
+        NodeAgentTransportModule,
+    ],
 }) {}

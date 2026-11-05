@@ -19,17 +19,17 @@ npx declarative-routing build
 Instead of doing this:
 
 ```tsx
-import { Link } from "@builder.io/qwik-city";
+import { Link } from '@builder.io/qwik-city'
 
-<Link href={`/product/${product.id}`}>Product</Link>;
+;<Link href={`/product/${product.id}`}>Product</Link>
 ```
 
 You can do this:
 
 ```tsx
-import { ProductDetail } from "~/declarativeRoutes";
+import { ProductDetail } from '~/declarativeRoutes'
 
-<ProductDetail.Link productId={product.id}>Product</ProductDetail.Link>;
+;<ProductDetail.Link productId={product.id}>Product</ProductDetail.Link>
 ```
 
 ## Opt-in
@@ -47,30 +47,30 @@ Routes are typed using one or more of the methods defined in `~/declarativeRoute
 `makeRoute` is used to define a page route. It takes the path of the route as a string, and an `info` object that contains the name of the route, as well as the Zod schemas for the route parameters and search parameters. Here is an example usage:
 
 ```tsx
-const ProductDetail = makeRoute("/product-detail/[productId]", {
-  name: "ProductDetail",
-  params: z.object({
-    productId: z.string()
-  }),
-  search: z.object({
-    q: z.string().optional()
-  })
-});
+const ProductDetail = makeRoute('/product-detail/[productId]', {
+    name: 'ProductDetail',
+    params: z.object({
+        productId: z.string(),
+    }),
+    search: z.object({
+        q: z.string().optional(),
+    }),
+})
 ```
 
 The returned `ProductDetail` is a function that when invoked with the params and search parameters, returns the URL of the route. Shown below is an example usage:
 
 ```tsx
-<Link href={ProductDetail({ productId: "abc123" }, { q: "foo" })}>
-  Product abc123
+<Link href={ProductDetail({ productId: 'abc123' }, { q: 'foo' })}>
+    Product abc123
 </Link>
 ```
 
 In addition to the function, the `ProductDetail` object also contains a `Link` component that can be used to link to the route. Shown below is an example usage:
 
 ```tsx
-<ProductDetail.Link productId={"abc123"} search={{ q: "foo" }}>
-  Product abc123
+<ProductDetail.Link productId={'abc123'} search={{ q: 'foo' }}>
+    Product abc123
 </ProductDetail.Link>
 ```
 
@@ -78,10 +78,10 @@ There is also a `ParamsLink` component that can be used to link to the route usi
 
 ```tsx
 <ProductDetail.ParamsLink
-  params={{ productId: "abc123" }}
-  search={{ q: "foo" }}
+    params={{ productId: 'abc123' }}
+    search={{ q: 'foo' }}
 >
-  Product abc123
+    Product abc123
 </ProductDetail.ParamsLink>
 ```
 

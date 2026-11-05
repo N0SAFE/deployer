@@ -21,15 +21,17 @@ Register a new domain for an organization.
 **Contract**: `domainContract.addOrganizationDomain`
 
 **Input**:
+
 ```typescript
 {
-  organizationId: string;        // Organization UUID
-  domain: string;                // Domain name (e.g., "example.com")
-  verificationMethod: 'txt_record' | 'cname_record';
+    organizationId: string // Organization UUID
+    domain: string // Domain name (e.g., "example.com")
+    verificationMethod: 'txt_record' | 'cname_record'
 }
 ```
 
 **Output**:
+
 ```typescript
 {
   organizationDomain: {
@@ -56,6 +58,7 @@ Register a new domain for an organization.
 ```
 
 **Errors**:
+
 - `Domain {domain} is already registered` - Domain exists in system
 
 ---
@@ -67,6 +70,7 @@ List all domains for an organization.
 **Contract**: `domainContract.listOrganizationDomains`
 
 **Input**:
+
 ```typescript
 {
   organizationId: string;
@@ -75,6 +79,7 @@ List all domains for an organization.
 ```
 
 **Output**:
+
 ```typescript
 OrganizationDomain[]  // Array of organization domains
 ```
@@ -88,18 +93,21 @@ Get a single organization domain by ID.
 **Contract**: `domainContract.getOrganizationDomain`
 
 **Input**:
+
 ```typescript
 {
-  domainId: string;
+    domainId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 OrganizationDomain
 ```
 
 **Errors**:
+
 - `Organization domain {domainId} not found`
 
 ---
@@ -111,13 +119,15 @@ Trigger DNS verification for a domain.
 **Contract**: `domainContract.verifyOrganizationDomain`
 
 **Input**:
+
 ```typescript
 {
-  domainId: string;
+    domainId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 {
   success: boolean;
@@ -132,6 +142,7 @@ Trigger DNS verification for a domain.
 ```
 
 **Errors**:
+
 - `Domain {domainId} not found`
 
 ---
@@ -143,21 +154,24 @@ Delete an organization domain (cascades to all child records).
 **Contract**: `domainContract.deleteOrganizationDomain`
 
 **Input**:
+
 ```typescript
 {
-  domainId: string;
+    domainId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 {
-  success: boolean;
-  message: string;
+    success: boolean
+    message: string
 }
 ```
 
 **Errors**:
+
 - `Domain {domainId} not found`
 - `Failed to delete domain {domainId}`
 
@@ -172,6 +186,7 @@ Assign a verified organization domain to a project.
 **Contract**: `domainContract.addProjectDomain`
 
 **Input**:
+
 ```typescript
 {
   projectId: string;
@@ -182,6 +197,7 @@ Assign a verified organization domain to a project.
 ```
 
 **Output**:
+
 ```typescript
 {
   projectDomain: {
@@ -203,6 +219,7 @@ Assign a verified organization domain to a project.
 ```
 
 **Errors**:
+
 - `Organization domain {id} not found`
 - `Domain {domain} is not verified. Please verify the domain first.`
 - `Project already uses domain {domain}`
@@ -216,13 +233,15 @@ List all domains assigned to a project.
 **Contract**: `domainContract.listProjectDomains`
 
 **Input**:
+
 ```typescript
 {
-  projectId: string;
+    projectId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 Array<ProjectDomain & { organizationDomain: OrganizationDomain }>
 ```
@@ -236,20 +255,22 @@ Get verified organization domains available for a project.
 **Contract**: `domainContract.getAvailableDomains`
 
 **Input**:
+
 ```typescript
 {
-  projectId: string;
+    projectId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 Array<{
-  id: string;
-  domain: string;
-  verificationStatus: 'verified';
-  verifiedAt: Date;
-  alreadySelected: boolean;  // Whether already assigned to this project
+    id: string
+    domain: string
+    verificationStatus: 'verified'
+    verifiedAt: Date
+    alreadySelected: boolean // Whether already assigned to this project
 }>
 ```
 
@@ -262,6 +283,7 @@ Update project domain configuration.
 **Contract**: `domainContract.updateProjectDomain`
 
 **Input**:
+
 ```typescript
 {
   domainId: string;
@@ -271,11 +293,13 @@ Update project domain configuration.
 ```
 
 **Output**:
+
 ```typescript
 ProjectDomain & { organizationDomain: OrganizationDomain }
 ```
 
 **Errors**:
+
 - `Project domain {domainId} not found`
 - `Failed to update project domain {domainId}`
 
@@ -288,22 +312,25 @@ Remove a domain from a project (cascades to service mappings).
 **Contract**: `domainContract.removeProjectDomain`
 
 **Input**:
+
 ```typescript
 {
-  domainId: string;
+    domainId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 {
-  success: boolean;
-  message: string;
-  affectedServices: number;  // Count of deleted service mappings
+    success: boolean
+    message: string
+    affectedServices: number // Count of deleted service mappings
 }
 ```
 
 **Errors**:
+
 - `Project domain {domainId} not found`
 - `Failed to delete project domain {domainId}`
 
@@ -318,6 +345,7 @@ Check if a subdomain+path combination is available.
 **Contract**: `domainContract.checkSubdomainAvailability`
 
 **Input**:
+
 ```typescript
 {
   projectDomainId: string;
@@ -328,6 +356,7 @@ Check if a subdomain+path combination is available.
 ```
 
 **Output**:
+
 ```typescript
 {
   available: boolean;
@@ -352,22 +381,26 @@ List all domain mappings for a service.
 **Contract**: `domainContract.listServiceDomains`
 
 **Input**:
+
 ```typescript
 {
-  serviceId: string;
+    serviceId: string
 }
 ```
 
 **Output**:
+
 ```typescript
-Array<ServiceDomainMapping & {
-  fullUrl: string;
-  organizationDomain: {
-    id: string;
-    domain: string;
-    verificationStatus: 'verified';
-  };
-}>
+Array<
+    ServiceDomainMapping & {
+        fullUrl: string
+        organizationDomain: {
+            id: string
+            domain: string
+            verificationStatus: 'verified'
+        }
+    }
+>
 ```
 
 ---
@@ -379,6 +412,7 @@ Create a new service domain mapping.
 **Contract**: `domainContract.addServiceDomain`
 
 **Input**:
+
 ```typescript
 {
   serviceId: string;
@@ -392,6 +426,7 @@ Create a new service domain mapping.
 ```
 
 **Output**:
+
 ```typescript
 {
   mapping: ServiceDomainMapping & {
@@ -414,6 +449,7 @@ Create a new service domain mapping.
 ```
 
 **Errors**:
+
 - `Project domain {id} not found`
 - `Subdomain+path combination already in use. Available base paths: ...`
 
@@ -426,6 +462,7 @@ Update a service domain mapping.
 **Contract**: `domainContract.updateServiceDomain`
 
 **Input**:
+
 ```typescript
 {
   mappingId: string;
@@ -438,6 +475,7 @@ Update a service domain mapping.
 ```
 
 **Output**:
+
 ```typescript
 ServiceDomainMapping & {
   fullUrl: string;
@@ -450,6 +488,7 @@ ServiceDomainMapping & {
 ```
 
 **Errors**:
+
 - `Service domain mapping {mappingId} not found`
 - `Subdomain+path combination already in use. Available base paths: ...`
 - `Failed to update service domain mapping {mappingId}`
@@ -463,14 +502,16 @@ Set the primary URL for a service.
 **Contract**: `domainContract.setPrimaryServiceDomain`
 
 **Input**:
+
 ```typescript
 {
-  serviceId: string;
-  mappingId: string;
+    serviceId: string
+    mappingId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 ServiceDomainMapping & {
   fullUrl: string;
@@ -483,6 +524,7 @@ ServiceDomainMapping & {
 ```
 
 **Errors**:
+
 - `Service domain mapping {mappingId} not found`
 - `Mapping {mappingId} does not belong to service {serviceId}`
 - `Failed to set primary domain`
@@ -496,22 +538,25 @@ Remove a service domain mapping.
 **Contract**: `domainContract.removeServiceDomain`
 
 **Input**:
+
 ```typescript
 {
-  serviceId: string;
-  mappingId: string;
+    serviceId: string
+    mappingId: string
 }
 ```
 
 **Output**:
+
 ```typescript
 {
-  success: boolean;
-  message: string;
+    success: boolean
+    message: string
 }
 ```
 
 **Errors**:
+
 - `Service domain mapping {mappingId} not found`
 - `Mapping {mappingId} does not belong to service {serviceId}`
 - `Failed to delete service domain mapping {mappingId}`
@@ -524,27 +569,27 @@ Remove a service domain mapping.
 
 ```typescript
 class DomainVerificationService {
-  // Generate cryptographically secure verification token
-  generateVerificationToken(): string;
-  
-  // Get DNS record instructions for domain verification
-  getVerificationInstructions(
-    domain: string,
-    token: string,
-    method: 'txt_record' | 'cname_record'
-  ): VerificationInstructions;
-  
-  // Verify domain ownership via DNS
-  verifyDomain(domainId: string): Promise<VerifyDomainResult>;
-  
-  // Auto-verify all pending domains (cron job)
-  autoVerifyPendingDomains(): Promise<void>;
-  
-  // Get count of pending verifications
-  getPendingDomainsCount(organizationId: string): Promise<number>;
-  
-  // Retry a failed verification
-  retryVerification(domainId: string): Promise<VerifyDomainResult>;
+    // Generate cryptographically secure verification token
+    generateVerificationToken(): string
+
+    // Get DNS record instructions for domain verification
+    getVerificationInstructions(
+        domain: string,
+        token: string,
+        method: 'txt_record' | 'cname_record'
+    ): VerificationInstructions
+
+    // Verify domain ownership via DNS
+    verifyDomain(domainId: string): Promise<VerifyDomainResult>
+
+    // Auto-verify all pending domains (cron job)
+    autoVerifyPendingDomains(): Promise<void>
+
+    // Get count of pending verifications
+    getPendingDomainsCount(organizationId: string): Promise<number>
+
+    // Retry a failed verification
+    retryVerification(domainId: string): Promise<VerifyDomainResult>
 }
 ```
 
@@ -552,19 +597,19 @@ class DomainVerificationService {
 
 ```typescript
 class DomainConflictService {
-  // Check if subdomain+path combination is available
-  checkSubdomainAvailability(
-    projectDomainId: string,
-    subdomain: string | null,
-    basePath: string | null,
-    excludeServiceId?: string
-  ): Promise<SubdomainAvailabilityResult>;
-  
-  // Validate subdomain format (supports multi-level)
-  validateSubdomain(subdomain: string): { valid: boolean; error?: string };
-  
-  // Validate base path format
-  validateBasePath(basePath: string): { valid: boolean; error?: string };
+    // Check if subdomain+path combination is available
+    checkSubdomainAvailability(
+        projectDomainId: string,
+        subdomain: string | null,
+        basePath: string | null,
+        excludeServiceId?: string
+    ): Promise<SubdomainAvailabilityResult>
+
+    // Validate subdomain format (supports multi-level)
+    validateSubdomain(subdomain: string): { valid: boolean; error?: string }
+
+    // Validate base path format
+    validateBasePath(basePath: string): { valid: boolean; error?: string }
 }
 ```
 
@@ -572,22 +617,27 @@ class DomainConflictService {
 
 ```typescript
 class OrganizationDomainService {
-  create(data: InsertOrganizationDomain): Promise<OrganizationDomain>;
-  findById(id: string): Promise<OrganizationDomain | null>;
-  findByOrganizationId(organizationId: string): Promise<OrganizationDomain[]>;
-  findByDomain(domain: string): Promise<OrganizationDomain | null>;
-  domainExists(domain: string, excludeId?: string): Promise<boolean>;
-  update(id: string, data: Partial<OrganizationDomain>): Promise<OrganizationDomain | null>;
-  updateVerificationStatus(
-    id: string,
-    status: VerificationStatus,
-    method?: VerificationMethod,
-    verifiedAt?: Date
-  ): Promise<OrganizationDomain | null>;
-  findPendingDomains(): Promise<OrganizationDomain[]>;
-  findVerifiedByOrganizationId(organizationId: string): Promise<OrganizationDomain[]>;
-  delete(id: string): Promise<boolean>;
-  countByOrganizationId(organizationId: string): Promise<number>;
+    create(data: InsertOrganizationDomain): Promise<OrganizationDomain>
+    findById(id: string): Promise<OrganizationDomain | null>
+    findByOrganizationId(organizationId: string): Promise<OrganizationDomain[]>
+    findByDomain(domain: string): Promise<OrganizationDomain | null>
+    domainExists(domain: string, excludeId?: string): Promise<boolean>
+    update(
+        id: string,
+        data: Partial<OrganizationDomain>
+    ): Promise<OrganizationDomain | null>
+    updateVerificationStatus(
+        id: string,
+        status: VerificationStatus,
+        method?: VerificationMethod,
+        verifiedAt?: Date
+    ): Promise<OrganizationDomain | null>
+    findPendingDomains(): Promise<OrganizationDomain[]>
+    findVerifiedByOrganizationId(
+        organizationId: string
+    ): Promise<OrganizationDomain[]>
+    delete(id: string): Promise<boolean>
+    countByOrganizationId(organizationId: string): Promise<number>
 }
 ```
 
@@ -595,37 +645,46 @@ class OrganizationDomainService {
 
 ```typescript
 class ServiceDomainMappingService {
-  create(data: InsertServiceDomainMapping): Promise<ServiceDomainMapping>;
-  findById(id: string): Promise<ServiceDomainMapping | null>;
-  findByServiceId(serviceId: string): Promise<ServiceDomainMapping[]>;
-  findByServiceIdWithUrls(serviceId: string): Promise<ServiceDomainMappingWithUrls[]>;
-  findByProjectDomainId(projectDomainId: string): Promise<ServiceDomainMapping[]>;
-  findByProjectDomainAndPath(
-    projectDomainId: string,
-    subdomain: string | null,
-    basePath?: string | null,
-    excludeServiceId?: string
-  ): Promise<ServiceDomainMapping[]>;
-  findByExactMatch(
-    projectDomainId: string,
-    subdomain: string | null,
-    basePath: string | null
-  ): Promise<ServiceDomainMapping | null>;
-  update(id: string, data: Partial<ServiceDomainMapping>): Promise<ServiceDomainMapping | null>;
-  delete(id: string): Promise<boolean>;
-  deleteByServiceId(serviceId: string): Promise<number>;
-  countByProjectDomainId(projectDomainId: string): Promise<number>;
-  findByProjectDomainAndPathWithServiceNames(
-    projectDomainId: string,
-    subdomain: string | null,
-    basePath?: string | null,
-    excludeServiceId?: string
-  ): Promise<Array<{
-    serviceId: string;
-    serviceName: string;
-    subdomain: string | null;
-    basePath: string | null;
-  }>>;
+    create(data: InsertServiceDomainMapping): Promise<ServiceDomainMapping>
+    findById(id: string): Promise<ServiceDomainMapping | null>
+    findByServiceId(serviceId: string): Promise<ServiceDomainMapping[]>
+    findByServiceIdWithUrls(
+        serviceId: string
+    ): Promise<ServiceDomainMappingWithUrls[]>
+    findByProjectDomainId(
+        projectDomainId: string
+    ): Promise<ServiceDomainMapping[]>
+    findByProjectDomainAndPath(
+        projectDomainId: string,
+        subdomain: string | null,
+        basePath?: string | null,
+        excludeServiceId?: string
+    ): Promise<ServiceDomainMapping[]>
+    findByExactMatch(
+        projectDomainId: string,
+        subdomain: string | null,
+        basePath: string | null
+    ): Promise<ServiceDomainMapping | null>
+    update(
+        id: string,
+        data: Partial<ServiceDomainMapping>
+    ): Promise<ServiceDomainMapping | null>
+    delete(id: string): Promise<boolean>
+    deleteByServiceId(serviceId: string): Promise<number>
+    countByProjectDomainId(projectDomainId: string): Promise<number>
+    findByProjectDomainAndPathWithServiceNames(
+        projectDomainId: string,
+        subdomain: string | null,
+        basePath?: string | null,
+        excludeServiceId?: string
+    ): Promise<
+        Array<{
+            serviceId: string
+            serviceName: string
+            subdomain: string | null
+            basePath: string | null
+        }>
+    >
 }
 ```
 
@@ -637,22 +696,27 @@ class ServiceDomainMappingService {
 
 ```typescript
 class OrganizationDomainRepository {
-  create(data: InsertOrganizationDomain): Promise<OrganizationDomain>;
-  findById(id: string): Promise<OrganizationDomain | null>;
-  findByOrganizationId(organizationId: string): Promise<OrganizationDomain[]>;
-  findByDomain(domain: string): Promise<OrganizationDomain | null>;
-  domainExists(domain: string, excludeId?: string): Promise<boolean>;
-  update(id: string, data: Partial<OrganizationDomain>): Promise<OrganizationDomain | null>;
-  updateVerificationStatus(
-    id: string,
-    status: VerificationStatus,
-    method?: VerificationMethod,
-    verifiedAt?: Date
-  ): Promise<OrganizationDomain | null>;
-  findPendingDomains(): Promise<OrganizationDomain[]>;
-  findVerifiedByOrganizationId(organizationId: string): Promise<OrganizationDomain[]>;
-  delete(id: string): Promise<boolean>;
-  countByOrganizationId(organizationId: string): Promise<number>;
+    create(data: InsertOrganizationDomain): Promise<OrganizationDomain>
+    findById(id: string): Promise<OrganizationDomain | null>
+    findByOrganizationId(organizationId: string): Promise<OrganizationDomain[]>
+    findByDomain(domain: string): Promise<OrganizationDomain | null>
+    domainExists(domain: string, excludeId?: string): Promise<boolean>
+    update(
+        id: string,
+        data: Partial<OrganizationDomain>
+    ): Promise<OrganizationDomain | null>
+    updateVerificationStatus(
+        id: string,
+        status: VerificationStatus,
+        method?: VerificationMethod,
+        verifiedAt?: Date
+    ): Promise<OrganizationDomain | null>
+    findPendingDomains(): Promise<OrganizationDomain[]>
+    findVerifiedByOrganizationId(
+        organizationId: string
+    ): Promise<OrganizationDomain[]>
+    delete(id: string): Promise<boolean>
+    countByOrganizationId(organizationId: string): Promise<number>
 }
 ```
 
@@ -660,21 +724,36 @@ class OrganizationDomainRepository {
 
 ```typescript
 class ProjectDomainRepository {
-  create(data: InsertProjectDomain): Promise<ProjectDomain>;
-  findById(id: string): Promise<ProjectDomain | null>;
-  findByProjectId(projectId: string): Promise<ProjectDomain[]>;
-  findByProjectAndOrgDomain(projectId: string, organizationDomainId: string): Promise<ProjectDomain | null>;
-  hasProjectDomainMapping(projectId: string, organizationDomainId: string, excludeId?: string): Promise<boolean>;
-  getAvailableDomainsForProject(projectId: string): Promise<Array<{
-    organizationDomainId: string;
-    domain: string;
-    organizationId: string;
-  }>>;
-  update(id: string, data: Partial<ProjectDomain>): Promise<ProjectDomain | null>;
-  updateAllowedSubdomains(id: string, allowedSubdomains: string[]): Promise<ProjectDomain | null>;
-  delete(id: string): Promise<boolean>;
-  countByProjectId(projectId: string): Promise<number>;
-  countByOrganizationDomainId(organizationDomainId: string): Promise<number>;
+    create(data: InsertProjectDomain): Promise<ProjectDomain>
+    findById(id: string): Promise<ProjectDomain | null>
+    findByProjectId(projectId: string): Promise<ProjectDomain[]>
+    findByProjectAndOrgDomain(
+        projectId: string,
+        organizationDomainId: string
+    ): Promise<ProjectDomain | null>
+    hasProjectDomainMapping(
+        projectId: string,
+        organizationDomainId: string,
+        excludeId?: string
+    ): Promise<boolean>
+    getAvailableDomainsForProject(projectId: string): Promise<
+        Array<{
+            organizationDomainId: string
+            domain: string
+            organizationId: string
+        }>
+    >
+    update(
+        id: string,
+        data: Partial<ProjectDomain>
+    ): Promise<ProjectDomain | null>
+    updateAllowedSubdomains(
+        id: string,
+        allowedSubdomains: string[]
+    ): Promise<ProjectDomain | null>
+    delete(id: string): Promise<boolean>
+    countByProjectId(projectId: string): Promise<number>
+    countByOrganizationDomainId(organizationDomainId: string): Promise<number>
 }
 ```
 
@@ -682,35 +761,50 @@ class ProjectDomainRepository {
 
 ```typescript
 class ServiceDomainMappingRepository {
-  create(data: InsertServiceDomainMapping): Promise<ServiceDomainMapping>;
-  findById(id: string): Promise<ServiceDomainMapping | null>;
-  findByServiceId(serviceId: string): Promise<ServiceDomainMapping[]>;
-  findByProjectDomainId(projectDomainId: string): Promise<ServiceDomainMapping[]>;
-  findByServiceAndProjectDomain(serviceId: string, projectDomainId: string): Promise<ServiceDomainMapping | null>;
-  isCombinationAvailable(
-    projectDomainId: string,
-    subdomain: string | null,
-    basePath: string,
-    excludeId?: string
-  ): Promise<boolean>;
-  getFullUrl(mappingId: string): Promise<string | null>;
-  findByServiceIdWithUrls(serviceId: string): Promise<Array<ServiceDomainMapping & { fullUrl: string }>>;
-  update(id: string, data: Partial<ServiceDomainMapping>): Promise<ServiceDomainMapping | null>;
-  delete(id: string): Promise<boolean>;
-  countByServiceId(serviceId: string): Promise<number>;
-  countByProjectDomainId(projectDomainId: string): Promise<number>;
-  findBySubdomain(projectDomainId: string, subdomain: string | null): Promise<ServiceDomainMapping[]>;
-  findByProjectDomainAndPathWithServiceNames(
-    projectDomainId: string,
-    subdomain: string | null,
-    basePath?: string | null,
-    excludeServiceId?: string
-  ): Promise<Array<{
-    serviceId: string;
-    serviceName: string;
-    subdomain: string | null;
-    basePath: string | null;
-  }>>;
+    create(data: InsertServiceDomainMapping): Promise<ServiceDomainMapping>
+    findById(id: string): Promise<ServiceDomainMapping | null>
+    findByServiceId(serviceId: string): Promise<ServiceDomainMapping[]>
+    findByProjectDomainId(
+        projectDomainId: string
+    ): Promise<ServiceDomainMapping[]>
+    findByServiceAndProjectDomain(
+        serviceId: string,
+        projectDomainId: string
+    ): Promise<ServiceDomainMapping | null>
+    isCombinationAvailable(
+        projectDomainId: string,
+        subdomain: string | null,
+        basePath: string,
+        excludeId?: string
+    ): Promise<boolean>
+    getFullUrl(mappingId: string): Promise<string | null>
+    findByServiceIdWithUrls(
+        serviceId: string
+    ): Promise<Array<ServiceDomainMapping & { fullUrl: string }>>
+    update(
+        id: string,
+        data: Partial<ServiceDomainMapping>
+    ): Promise<ServiceDomainMapping | null>
+    delete(id: string): Promise<boolean>
+    countByServiceId(serviceId: string): Promise<number>
+    countByProjectDomainId(projectDomainId: string): Promise<number>
+    findBySubdomain(
+        projectDomainId: string,
+        subdomain: string | null
+    ): Promise<ServiceDomainMapping[]>
+    findByProjectDomainAndPathWithServiceNames(
+        projectDomainId: string,
+        subdomain: string | null,
+        basePath?: string | null,
+        excludeServiceId?: string
+    ): Promise<
+        Array<{
+            serviceId: string
+            serviceName: string
+            subdomain: string | null
+            basePath: string | null
+        }>
+    >
 }
 ```
 
@@ -724,14 +818,26 @@ All methods are static:
 
 ```typescript
 class DomainAdapter {
-  static toOrganizationDomainContract(entity: OrganizationDomain): OrganizationDomainContract;
-  static toAddDomainResponse(entity: OrganizationDomain, instructions: VerificationInstructions): AddDomainResponse;
-  static toVerifyDomainResponse(result: VerifyResult): VerifyDomainResponse;
-  static toProjectDomainContract(entity: ProjectDomain): ProjectDomainContract;
-  static toAvailableDomainsResponse(domains: AvailableDomain[]): AvailableDomainResponse[];
-  static toServiceDomainMappingContract(entity: ServiceDomainMapping): ServiceDomainMappingContract;
-  static toServiceDomainMappingWithUrl(entity: ServiceDomainMapping, fullUrl: string): ServiceDomainMappingWithUrl;
-  static toConflictCheckResult(result: ConflictCheck): ConflictCheckResult;
+    static toOrganizationDomainContract(
+        entity: OrganizationDomain
+    ): OrganizationDomainContract
+    static toAddDomainResponse(
+        entity: OrganizationDomain,
+        instructions: VerificationInstructions
+    ): AddDomainResponse
+    static toVerifyDomainResponse(result: VerifyResult): VerifyDomainResponse
+    static toProjectDomainContract(entity: ProjectDomain): ProjectDomainContract
+    static toAvailableDomainsResponse(
+        domains: AvailableDomain[]
+    ): AvailableDomainResponse[]
+    static toServiceDomainMappingContract(
+        entity: ServiceDomainMapping
+    ): ServiceDomainMappingContract
+    static toServiceDomainMappingWithUrl(
+        entity: ServiceDomainMapping,
+        fullUrl: string
+    ): ServiceDomainMappingWithUrl
+    static toConflictCheckResult(result: ConflictCheck): ConflictCheckResult
 }
 ```
 
@@ -742,51 +848,51 @@ class DomainAdapter {
 ### Enums
 
 ```typescript
-type VerificationStatus = 'pending' | 'verified' | 'failed';
-type VerificationMethod = 'txt_record' | 'cname_record';
-type SSLProvider = 'letsencrypt' | 'custom' | 'none';
+type VerificationStatus = 'pending' | 'verified' | 'failed'
+type VerificationMethod = 'txt_record' | 'cname_record'
+type SSLProvider = 'letsencrypt' | 'custom' | 'none'
 ```
 
 ### Interfaces
 
 ```typescript
 interface VerificationInstructions {
-  method: VerificationMethod;
-  recordName: string;
-  recordValue: string;
-  instructions: string;
+    method: VerificationMethod
+    recordName: string
+    recordValue: string
+    instructions: string
 }
 
 interface VerifyDomainResult {
-  success: boolean;
-  status: 'verified' | 'failed';
-  message: string;
-  verifiedAt?: Date;
-  error?: {
-    code: string;
-    details: string;
-  };
+    success: boolean
+    status: 'verified' | 'failed'
+    message: string
+    verifiedAt?: Date
+    error?: {
+        code: string
+        details: string
+    }
 }
 
 interface SubdomainAvailabilityResult {
-  available: boolean;
-  conflicts: SubdomainConflict[];
-  suggestions: {
-    availableBasePaths: string[];
-    message: string;
-  };
+    available: boolean
+    conflicts: SubdomainConflict[]
+    suggestions: {
+        availableBasePaths: string[]
+        message: string
+    }
 }
 
 interface SubdomainConflict {
-  serviceId: string;
-  serviceName: string;
-  subdomain: string | null;
-  basePath: string | null;
-  fullUrl: string;
+    serviceId: string
+    serviceName: string
+    subdomain: string | null
+    basePath: string | null
+    fullUrl: string
 }
 
 interface ServiceDomainMappingWithUrls extends ServiceDomainMapping {
-  fullUrl: string;
-  internalUrl?: string;
+    fullUrl: string
+    internalUrl?: string
 }
 ```

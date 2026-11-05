@@ -31,11 +31,8 @@
  * (not `^`).
  */
 
-import {
-    agentAuth,
-    type AgentAuthOptions,
-} from "@better-auth/agent-auth";
-import { createFromOpenAPI } from "@better-auth/agent-auth/openapi";
+import { agentAuth, type AgentAuthOptions } from '@better-auth/agent-auth'
+import { createFromOpenAPI } from '@better-auth/agent-auth/openapi'
 
 /**
  * The OpenAPI document shape the adapter accepts.
@@ -44,16 +41,16 @@ import { createFromOpenAPI } from "@better-auth/agent-auth/openapi";
  * re-exported, so it is derived from the adapter's own signature. That keeps
  * the type correct even if the package starts exporting it.
  */
-export type AgentAuthOpenAPISpec = Parameters<typeof createFromOpenAPI>[0];
+export type AgentAuthOpenAPISpec = Parameters<typeof createFromOpenAPI>[0]
 
 /** Read-only methods an agent may receive by default. */
-const READ_ONLY_METHODS = ["GET", "HEAD"] as const;
+const READ_ONLY_METHODS = ['GET', 'HEAD'] as const
 
 export interface UseAgentAuthOptions {
     /** The generated OpenAPI 3.x spec (from `generateSpec()`). */
-    spec: AgentAuthOpenAPISpec;
+    spec: AgentAuthOpenAPISpec
     /** Public base URL of the API that capability calls proxy to. */
-    baseUrl: string;
+    baseUrl: string
     /**
      * Mint the credential used when the plugin proxies a capability call to the
      * API on the agent's behalf.
@@ -61,12 +58,12 @@ export interface UseAgentAuthOptions {
      * Must NOT return a platform-wide token. Scope it to the resolved user.
      */
     resolveHeaders?: (input: {
-        userId: string;
-    }) => Promise<Record<string, string>> | Record<string, string>;
+        userId: string
+    }) => Promise<Record<string, string>> | Record<string, string>
     /** Called for every agent-auth lifecycle event. Wire this to the audit log. */
-    onEvent?: AgentAuthOptions["onEvent"];
+    onEvent?: AgentAuthOptions['onEvent']
     /** Web page where a user approves requested capabilities. */
-    deviceAuthorizationPage?: string;
+    deviceAuthorizationPage?: string
 }
 
 /**
@@ -80,15 +77,17 @@ export interface UseAgentAuthOptions {
  * betterAuth({ plugins: [ useAgentAuth({ spec: await generateSpec(), baseUrl: env.APP_URL }) ] })
  * ```
  */
-export function useAgentAuth(options: UseAgentAuthOptions): ReturnType<typeof agentAuth> {
+export function useAgentAuth(
+    options: UseAgentAuthOptions
+): ReturnType<typeof agentAuth> {
     const {
         spec,
         baseUrl,
         onEvent,
-        deviceAuthorizationPage = "/device/capabilities",
-    } = options;
+        deviceAuthorizationPage = '/device/capabilities',
+    } = options
 
-    const { resolveHeaders } = options;
+    const { resolveHeaders } = options
 
     return agentAuth({
         ...createFromOpenAPI(spec, {
@@ -101,29 +100,31 @@ export function useAgentAuth(options: UseAgentAuthOptions): ReturnType<typeof ag
             // enough to READ, but any mutation needs WebAuthn (a real user
             // gesture), not merely an approved grant.
             approvalStrength: {
-                GET: "session",
-                HEAD: "session",
-                POST: "webauthn",
-                PUT: "webauthn",
-                PATCH: "webauthn",
-                DELETE: "webauthn",
+                GET: 'session',
+                HEAD: 'session',
+                POST: 'webauthn',
+                PUT: 'webauthn',
+                PATCH: 'webauthn',
+                DELETE: 'webauthn',
             },
             ...(resolveHeaders
                 ? {
                       resolveHeaders({ agentSession }) {
-                          return resolveHeaders({ userId: agentSession.user.id });
+                          return resolveHeaders({
+                              userId: agentSession.user.id,
+                          })
                       },
                   }
                 : {}),
         }),
         // Both modes: delegated (acts as a user) and autonomous (own identity).
-        modes: ["delegated", "autonomous"],
+        modes: ['delegated', 'autonomous'],
         // Device authorization only — CIBA needs a backchannel the platform
         // does not have yet.
-        approvalMethods: ["device_authorization"],
+        approvalMethods: ['device_authorization'],
         deviceAuthorizationPage,
         ...(onEvent ? { onEvent } : {}),
-    });
+    })
 }
 
-export type AgentAuthPlugin = ReturnType<typeof useAgentAuth>;
+export type AgentAuthPlugin = ReturnType<typeof useAgentAuth>
