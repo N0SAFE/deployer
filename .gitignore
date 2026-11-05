@@ -53,6 +53,8 @@ yarn-error.log*
 
 # ui
 dist/
+# pkg-build assembles a build here next to `dist`, then swaps it in; a killed build leaves it behind
+dist.staging-*
 
 _experiment
 

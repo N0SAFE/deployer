@@ -211,7 +211,7 @@ export class PkgBuilderService {
         }
         process.once('SIGTERM', onSignal)
         process.once('SIGINT', onSignal)
-        let failed = false
+        let failed: boolean
         try {
             const result = Bun.spawnSync([tsc, '-p', typesTsconfig], {
                 cwd: pkgRoot,
@@ -437,7 +437,7 @@ export class PkgBuilderService {
         mode: BuildMode,
         variant: Variant
     ): Promise<void> {
-        const { config, rootDir, pkgRoot, manifest } = this.pkg
+        const { config, rootDir, manifest } = this.pkg
         const outDir = this.pkg.formatOutDir(format, variant)
         const ext = format === 'esm' ? 'mjs' : 'js'
         const minify = this.pkg.minifyFor(mode, variant)

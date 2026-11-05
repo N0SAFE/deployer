@@ -2,7 +2,7 @@
 import { PkgBuilderService, modeFromEnv } from './services/pkg-builder.service'
 import { PkgConfigService } from './services/pkg-config.service'
 import { die } from './utils/errors'
-import type { BuildMode, Variant } from './config'
+import type { BuildMode } from './config'
 
 /**
  * Variant child entry.

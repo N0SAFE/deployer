@@ -119,10 +119,31 @@ describe('bake graph parity', () => {
             '`turbo.json` hashes `**/.env`, so syncing the host secret files in misses every baked entry'
         ).toMatch(/^\s*- "?\*\*\/\.env\*"?\s*$/m)
 
+        // ── WHY THIS IS A STRUCTURAL CHECK, NOT A LITERAL `- /package.json` ──
+        // The requirement is "the host root manifest must never be synced back
+        // over the stripped one", and the guarantee is that NO sync rule targets
+        // `/app` from the repo root. An earlier version of this assertion looked
+        // for a specific ignore entry (`- /package.json`) that the config no
+        // longer needs, because the syncs were narrowed to `packages`, `tooling`
+        // and `infra` — so it failed against a config that is in fact correct.
+        //
+        // Checking the RULE TARGETS is what the guarantee actually rests on, and
+        // it keeps holding if the ignore lists change again.
+        const syncBlocks = text
+            .split(/^\s*- action: sync\s*$/m)
+            .slice(1)
+            // A block ends at the next `- action:`, so each chunk is one rule.
+            .map((block) => block.split(/^\s*- action: /m)[0] ?? '')
+        expect(syncBlocks.length, 'no sync rules found').toBeGreaterThan(0)
+
+        const rootSyncs = syncBlocks.filter((block) =>
+            /^\s*target:\s*\/app\s*$/m.test(block)
+        )
         expect(
-            text,
-            'the host root manifest must not sync back over the stripped one, or `turbo watch` re-adds the applications and misses every baked entry'
-        ).toMatch(/^\s*- \/package\.json\s*$/m)
+            rootSyncs,
+            'a sync rule targets /app from the repo root, which would restore the ' +
+                'unstripped package.json and re-add apps/** to the graph, missing every baked entry'
+        ).toEqual([])
     })
 
     it('mirrors the .dockerignore exclusions Turbo hashes, or every package misses', () => {
@@ -152,6 +173,51 @@ describe('bake graph parity', () => {
                 compose,
                 `${syncPattern} must be ignored by the sync, or packages holding one miss the baked cache`
             ).toContain(`- "${syncPattern}"`)
+        }
+    })
+
+    it('keeps build output OUT of every build task\'s inputs', () => {
+        // ── THE DEFECT THIS PINS ────────────────────────────────────────────
+        // `$TURBO_DEFAULT$` hashes EVERY file in a workspace when the repo has no
+        // `.git` — which is the case in the builder image. Without an exclusion,
+        // a task's own `dist/**` is therefore an INPUT to that task, and its hash
+        // changes whenever the output differs from the last run.
+        //
+        // Measured in a container, same sources, wiping `dist/` between two
+        // `--dry=json` runs:
+        //
+        //   before:  25 of 54 task hashes identical, 29 CHANGED
+        //   after :  54 of 54 identical, 0 changed
+        //
+        // and as cache hits, populate-then-wipe-dist:
+        //
+        //   before:  0 cached, then 23 cached of 52
+        //   after :  0 cached, then 52 cached of 52
+        //
+        // It also made the image bake unreachable: the bake has no `dist` at that
+        // moment, the runtime rebuild does, so the two could never share a key
+        // (overlap 0 of 52, now 52 of 54 — the 2 misses are `config-tailwind` and
+        // `config-typescript`, which have no `build` script at all).
+        const turbo = JSON.parse(
+            readFileSync(join(REPO_ROOT, 'turbo.json'), 'utf8')
+        ) as { tasks: Record<string, { inputs?: string[] }> }
+
+        // Every task that writes `dist/**` and declares `$TURBO_DEFAULT$`.
+        const DIST_WRITING = ['build', 'build:types', 'compile'] as const
+
+        for (const task of DIST_WRITING) {
+            const inputs = turbo.tasks[task]?.inputs
+            expect(inputs, `task "${task}" declares no inputs`).toBeDefined()
+            expect(
+                inputs,
+                `task "${task}" must declare $TURBO_DEFAULT$ for this assertion to mean anything`
+            ).toContain('$TURBO_DEFAULT$')
+            expect(
+                inputs,
+                `task "${task}" hashes its own dist/ output. Without this exclusion ` +
+                    'the hash changes whenever the output differs, so the cache never ' +
+                    'hits and the image bake is unreachable'
+            ).toContain('!**/dist/**')
         }
     })
 })
